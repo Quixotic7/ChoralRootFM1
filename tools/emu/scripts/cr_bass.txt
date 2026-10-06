@@ -1,0 +1,16 @@
+# ChoralRoot: ALGORITHM +1: the bass on (sound 01), its meter; a chord: a bass note on part 1
+wait 300
+knob ALGORITHM +1
+wait 300
+shot build/emu/test/cr_bass_meter.ppm
+expect led ENV on
+wait 700
+key F3 down
+wait 60
+key A down
+wait 500
+dump
+key A up
+key F3 up
+wait 2000
+dump

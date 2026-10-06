@@ -1,0 +1,24 @@
+Felucca SAMPLE engine - source material
+Retrieved: 2026-10-02 (first ~400 KB of each file)
+Licence: CC0 1.0 Universal (public domain dedication)
+  https://creativecommons.org/publicdomain/zero/1.0/
+Sources: Versilian Studios (Sam Gossner)
+  VSCO-2 Community Edition  https://github.com/sgossner/VSCO-2-CE  (repository licence: CC0-1.0)
+  VCSL                      https://github.com/sgossner/VCSL       (repository licence: CC0-1.0)
+
+PIANO/00_GPiano_sus_C1_v2_rr1_Player.wav  <-  sgossner/VCSL: Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C1_v2_rr1_Player.wav
+PIANO/01_GPiano_sus_C2_v2_rr1_Player.wav  <-  sgossner/VCSL: Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C2_v2_rr1_Player.wav
+PIANO/02_GPiano_sus_C3_v2_rr1_Player.wav  <-  sgossner/VCSL: Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C3_v2_rr1_Player.wav
+PIANO/03_GPiano_sus_C4_v2_rr1_Player.wav  <-  sgossner/VCSL: Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C4_v2_rr1_Player.wav
+PIANO/04_GPiano_sus_C5_v2_rr1_Player.wav  <-  sgossner/VCSL: Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C5_v2_rr1_Player.wav
+FLUTE/00_LDFlute_susvib_C4_v1_1.wav  <-  sgossner/VSCO-2-CE: Woodwinds/Flute/susvib/LDFlute_susvib_C4_v1_1.wav
+FLUTE/01_LDFlute_susvib_C5_v1_1.wav  <-  sgossner/VSCO-2-CE: Woodwinds/Flute/susvib/LDFlute_susvib_C5_v1_1.wav
+FLUTE/02_LDFlute_susvib_C6_v1_1.wav  <-  sgossner/VSCO-2-CE: Woodwinds/Flute/susvib/LDFlute_susvib_C6_v1_1.wav
+SAX/00_BrettTenor_NV_Main_A#1_vl2_rr1.wav  <-  sgossner/VCSL: Aerophones/Reed Aerophones/Tenor Saxophone/Non-Vibrato/BrettTenor_NV_Main_A#1_vl2_rr1.wav
+SAX/01_BrettTenor_NV_Main_A#2_vl2_rr1.wav  <-  sgossner/VCSL: Aerophones/Reed Aerophones/Tenor Saxophone/Non-Vibrato/BrettTenor_NV_Main_A#2_vl2_rr1.wav
+SAX/02_BrettTenor_NV_Main_A#3_vl2_rr1.wav  <-  sgossner/VCSL: Aerophones/Reed Aerophones/Tenor Saxophone/Non-Vibrato/BrettTenor_NV_Main_A#3_vl2_rr1.wav
+KIT/00_Tamb1_Hit_v2_rr1_Mid.wav  <-  sgossner/VCSL: Idiophones/Struck Idiophones/Tambourine 1/Tamb1_Hit_v2_rr1_Mid.wav
+KIT/01_Mid_ShakerDouble_Down_rr1.wav  <-  sgossner/VCSL: Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerDouble_Down_rr1.wav
+KIT/02_Conga_HitN_v2_rr1_Sum.wav  <-  sgossner/VCSL: Membranophones/Struck Membranophones/Conga/Conga_HitN_v2_rr1_Sum.wav
+KIT/03_Claves1_Hit_v2_rr1_Mid.wav  <-  sgossner/VCSL: Idiophones/Struck Idiophones/Claves/Claves1_Hit_v2_rr1_Mid.wav
+KIT/04_wood_click_mp.wav  <-  sgossner/VCSL: Idiophones/Struck Idiophones/Woodblock/wood_click_mp.wav

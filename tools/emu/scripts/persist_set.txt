@@ -1,0 +1,13 @@
+# test_persist.sh, run 1: change the tempo (SELECT +17: 120 -> 137 BPM) and the Play Style (OPT, KNOB 1 +1 on
+# Play Style: Advanced), wait past the save delay (1.5 s), quit.
+wait 500
+knob SELECT +17
+wait 200
+btn GLO
+wait 200
+knob KNOB1 +1
+wait 200
+btn GLO
+wait 2500
+dump
+quit

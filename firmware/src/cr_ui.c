@@ -1,0 +1,2603 @@
+/* SPDX-License-Identifier: GPL-3.0-only
+ * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
+/* ChoralRoot FM-1: the instrument's UI. The input grammar (docs/INTEGRATION.md section 3, PLAN.md sections 3-4),
+ * the view-model builder (section 5: cr_build_screen) and the LEDs (section 6: cr_leds). See cr_ui.h.
+ *
+ * Input: one scan of fm1_in (keys, buttons) + the HAL's edges + the encoders (panel.c panel_enc), as Felucca's
+ * ui_input.c does; its LED composition (led_pos, led_put) and its tap / hold gesture (ui_layer.c layer_gesture:
+ * a release before HOLD_MS with nothing else touched is a tap; held past HOLD_MS, or a key / knob / button
+ * touched meanwhile, the layer opens; it closes on release unless HOME was pressed meanwhile: the lock) are
+ * copied here in ChoralRoot's terms, not included: no Felucca page is ever drawn.
+ * Output: events for the engine (cr_out.c cr_post, drained by the audio ISR), Felucca's part parameters (sounds,
+ * sends, levels: written as Felucca's UI writes them), fm1_led / fm1_led_dim, and one cr_screen_t per frame for
+ * cr_draw.c.
+ *
+ * Sounds: PRESETS / ALGORITHM browse cr_bank.c's lists (the ChoralRoot bank, then the user slots of upreset.c); EDIT
+ * opens the sound pages (cr_pages.c), EDIT held the engine picker, SAVE the naming screen (cr_name.c) into a slot.
+ * The looper (cr_loop.c, docs/LOOPER.md): LOOP / REC / METRO and their layers, SAVE held (the loop slots in flash),
+ * the ring and the transport's top line. Still TODO: OPT + KNOB 3 (perform lock).
+ * Included after cr_out.c, cr_anim.c, gfx.c, cr_gfx.c, cr_draw.c, panel.c, cr_bank.c, cr_pages.c and cr_name.c. */
+#include "cr_ui.h"
+
+/* ---------------------------------------------------------------- roles --- */
+/* the printed buttons in ChoralRoot's roles (PLAN.md section 3) */
+#define BT_KEY B_EDIT
+#define BT_PERF B_ARP
+#define BT_FX B_FX
+#define BT_BASS B_ENV
+#define BT_LATCH B_LFO
+#define BT_OPT B_GLO
+#define BT_EDIT B_SCL
+#define BT_HOME B_HOME
+#define BT_SAVE B_SAVE
+#define BT_METRO B_SEQ
+#define BT_LOOP B_PLAY
+#define BT_REC B_REC
+#define CU_BIT(b) (1u << (b))
+
+/* layers (a button held): their screens and the job of the root keys and KNOB 1..4 */
+enum { L_NONE, L_KEY, L_PERF, L_FX, L_BASS, L_EDIT, L_SAVE, L_METRO, L_LOOP, L_N };
+static const uint8_t L_BTN[L_N] = {NB, BT_KEY, BT_PERF, BT_FX, BT_BASS, BT_EDIT, BT_SAVE, BT_METRO, BT_LOOP};
+static uint32_t cu_layer_of(uint32_t b)
+{
+    uint32_t l;
+    for (l = 1; l < L_N; l++)
+        if (L_BTN[l] == b)
+            return l;
+    return L_NONE;
+}
+
+/* the chord block: firmware key k (0 = F3) -> cr_mod_t, 0xFF = none (B3) */
+static const uint8_t CU_MOD_OF_KEY[9] = {CR_MOD_6, CR_MOD_DIM, CR_MOD_M7, CR_MOD_MIN, CR_MOD_MAJ7, CR_MOD_MAJ, 0xFFu,
+                                         CR_MOD_9, CR_MOD_SUS};
+#define CU_ROOT0 9u                               /* D4: the first root key */
+#define CU_NKEY 27u
+static int cu_black(uint32_t k) { return (int)((0x54Au >> ((k + 5u) % 12u)) & 1u); }
+/* a root key's place among the white root keys (D4 = 0 .. G5 = 10), -1 for a black one */
+static int32_t cu_white_idx(uint32_t k)
+{
+    uint32_t i, n = 0;
+    if (k < CU_ROOT0 || k >= CU_NKEY || cu_black(k))
+        return -1;
+    for (i = CU_ROOT0; i < k; i++)
+        n += !cu_black(i);
+    return (int32_t)n;
+}
+static uint32_t cu_white_key(uint32_t idx)        /* the inverse: white root idx -> key, CU_NKEY = none */
+{
+    uint32_t k;
+    for (k = CU_ROOT0; k < CU_NKEY; k++)
+        if (cu_white_idx(k) == (int32_t)idx)
+            return k;
+    return CU_NKEY;
+}
+
+/* -------------------------------------------------------------- strings --- */
+static void cu_cpy(char *d, const char *s, uint32_t n)
+{
+    uint32_t i = 0;
+    if (!n)
+        return;
+    while (s && s[i] && i + 1u < n) {
+        d[i] = s[i];
+        i++;
+    }
+    d[i] = 0;
+}
+static void cu_cat(char *d, const char *s, uint32_t n)
+{
+    uint32_t i = 0;
+    while (i < n && d[i])
+        i++;
+    if (i < n)
+        cu_cpy(d + i, s, n - i);
+}
+static void cu_int(char *d, int32_t v, int plus, uint32_t n)   /* decimal, "+3" with plus */
+{
+    char b[12];
+    uint32_t i = 0, j = 0, u = (uint32_t)(v < 0 ? -v : v);
+    do {
+        b[i++] = (char)('0' + u % 10u);
+        u /= 10u;
+    } while (u && i < 10u);
+    if (v < 0)
+        b[i++] = '-';
+    else if (plus && v > 0)
+        b[i++] = '+';
+    while (i && j + 1u < n)
+        d[j++] = b[--i];
+    d[j] = 0;
+}
+static void cu_2d(char *d, uint32_t v, uint32_t n)             /* "07", "13", "120" */
+{
+    char b[12];
+    cu_int(b, (int32_t)v, 0, sizeof b);
+    d[0] = 0;
+    if (v < 10u)
+        cu_cpy(d, "0", n);
+    cu_cat(d, b, n);
+}
+static int cu_eq(const char *a, const char *b)
+{
+    while (*a && *a == *b) {
+        a++;
+        b++;
+    }
+    return *a == *b;
+}
+static int cu_has(const char *s, const char *w)                /* w occurs in s */
+{
+    uint32_t i, j;
+    for (i = 0; s[i]; i++) {
+        for (j = 0; w[j] && s[i + j] == w[j]; j++)
+            ;
+        if (!w[j])
+            return 1;
+    }
+    return 0;
+}
+
+static const char *const CU_NOTE[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+
+/* --------------------------------------------------------------- sounds --- */
+/* PRESETS browses the chord sounds: the ChoralRoot bank (cr_bank.c CB_CHORD), then the user slots; ALGORITHM the
+ * basses (CB_BASS, then the user basses), position 0 = OFF. Each part remembers its sound's name, whether it was
+ * edited since (the sound pages, the engine picker) and the user slot it came from (trk[].user, 0 none). */
+static struct { char name[13]; uint8_t edited; } psnd[2];
+
+static uint32_t cu_preset_orig(const engine_t *e, uint32_t k)  /* ui.c preset_orig: a retired alias -> the original */
+{
+    return e->presets == SMP_PRESET_TABLE && k < SMP_NSETS ? SMP_SET_ORIG[k] : k;
+}
+static int cu_engine_melodic(uint32_t e) { return eng_ok(e) && e != ENGI_DRUM && e < 13u && ENGINES[e]->npresets; }
+static const char *cu_preset_name(uint32_t e, uint32_t p)
+{
+    const engine_t *en = ENGINES[e % NENGINES];
+    return en->npresets ? en->presets[p % en->npresets].name : en->name;
+}
+static int cu_kept(uint32_t i) { return param_kept(i); }
+
+/* engine e's preset pi into part t, as ui.c set_engine_of + apply_preset_to: the sound only, its sends; the part's
+ * notes are released (seq.c panic_req, the audio side). bass: P_VOICE MONO, else POLY (a chord on a mono preset) */
+static void cu_load(track_t *t, uint32_t e, uint32_t pi, int bass)
+{
+    static const uint8_t FX_DEF[4] = {0, 24, 28, 36};
+    const engine_t *en = ENGINES[e % NENGINES];
+    const preset_t *pr;
+    uint32_t i;
+    if (!en->npresets)
+        return;
+    pi = cu_preset_orig(en, pi % en->npresets);
+    pr = &en->presets[pi];
+    fm1_irq_off();
+    t->eng_req = (uint8_t)(e % NENGINES);
+    t->preset = (uint8_t)pi;
+    t->user = 0;
+    for (i = 0; i < P_E0; i++)
+        if (!cu_kept(i))
+            t->p[i] = TP[i].def;
+    for (i = 0; i < 8u; i++)
+        t->p[P_E0 + i] = (int16_t)pr->e[i];
+    t->p[P_ATK] = pr->env[0];
+    t->p[P_DEC] = pr->env[1];
+    t->p[P_SUS] = pr->env[2];
+    t->p[P_REL] = pr->env[3];
+    t->p[P_ED_FLT] = pr->fenv;
+    t->p[P_VOICE] = bass ? V_MONO : V_POLY;
+    for (i = 0; i < 4u; i++)
+        t->p[P_DIST + i] = (int16_t)(pr->fx[i] ? pr->fx[i] - 1 : FX_DEF[i]);
+    fm6_track_loaded(t);
+    panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
+    fm1_irq_on();
+    if (t - trk < 2) {
+        str_cpy(psnd[t - trk].name, pr->name, sizeof psnd[0].name);
+        psnd[t - trk].edited = 0;
+    }
+}
+
+/* user slot k into part t (upreset.c up_load without Felucca's undo / pattern): engine and every parameter but
+ * the part's own (param_kept); a chord part plays it POLY when it was saved MONO, a bass part MONO */
+static void cu_load_user(track_t *t, uint32_t k, int bass)
+{
+    const up_rec_t *r;
+    int16_t v[P_COUNT];
+    uint32_t i;
+    if (!up_used(k))
+        return;
+    r = up_rec(k);
+    up_values(r, v);
+    if (bass && v[P_VOICE] != V_MONO && v[P_VOICE] != V_LEGATO)
+        v[P_VOICE] = V_MONO;
+    if (!bass && (v[P_VOICE] == V_MONO || v[P_VOICE] == V_LEGATO))
+        v[P_VOICE] = V_POLY;
+    panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
+#if !FELUCCA_FM4
+    if (r->engine == ENGI_DIGITAL) {
+        int16_t p[P_COUNT];
+        for (i = 0; i < P_COUNT; i++)
+            p[i] = cu_kept(i) ? t->p[i] : v[i];
+        fm4_apply(t, p);
+    } else
+#endif
+    {
+        fm1_irq_off();
+        t->eng_req = r->engine;
+        for (i = 0; i < P_COUNT; i++)
+            if (!cu_kept(i))
+                t->p[i] = v[i];
+        t->preset = 0;
+        fm1_irq_on();
+        fm6_track_loaded(t);
+    }
+    t->user = (uint8_t)(k + 1u);
+    if (t - trk < 2) {
+        up_name(k, psnd[t - trk].name);
+        psnd[t - trk].edited = 0;
+    }
+}
+
+/* list position pos of PRESETS (bass 0) / ALGORITHM's bass list (bass 1, pos 0-based) into its part */
+static void cu_list_load(int bass, uint32_t pos)
+{
+    track_t *t = &trk[bass ? CR_PART_BASS : CR_PART_CHORD];
+    uint32_t k;
+    if (pos < (bass ? CB_NBASS : CB_NCHORD)) {
+        const cb_entry_t *en = &(bass ? CB_BASS : CB_CHORD)[pos];
+        cu_load(t, en->engine, (bass ? cb_bass_p : cb_chord_p)[pos], bass);
+        str_cpy(psnd[bass].name, en->name, sizeof psnd[0].name);
+        return;
+    }
+    k = cb_slot_at(bass, pos);
+    if (k < UP_SLOTS)
+        cu_load_user(t, k, bass);
+}
+
+/* ------------------------------------------------------------- settings --- */
+/* the UI's mirror of the engine's settings (the engine is the audio ISR's: every change is posted) and the
+ * instrument's own. TODO (INTEGRATION section 7): cr_settings.c, persisted in Felucca's settings record */
+static const struct { const char *name, *short_name; uint8_t mode, range; } CU_PERF[7] = {
+    {"Strum", "Strum", CR_PM_STRUM, 1}, {"Strum 2 Octaves", "Strum", CR_PM_STRUM, 2}, {"Slop", "Slop", CR_PM_SLOP, 0},
+    {"Arpeggiate", "Arp", CR_PM_ARP, 1}, {"Arp 2 Octaves", "Arp", CR_PM_ARP, 2}, {"Pattern", "Pattern", CR_PM_PATTERN, 0},
+    {"Harp", "Harp", CR_PM_HARP, 0}};
+/* the four knobs of each perform mode's layer; the first is KNOB 3's main parameter on the view */
+static const int8_t CU_PERF_KNOB[CR_PM_COUNT][4] = {
+    {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_HOLD},                 /* STRUM */
+    {CR_P_AMOUNT, CR_P_RATE, CR_P_DIR, CR_P_RANGE},               /* SLOP */
+    {CR_P_DIV, CR_P_DIR, CR_P_GATE, CR_P_SWING},                  /* ARP */
+    {CR_P_PATTERN, CR_P_DIV, CR_P_GATE, CR_P_SWING},              /* PATTERN */
+    {CR_P_RATE, CR_P_DIR, CR_P_GATE, CR_P_RANGE}};                /* HARP */
+static const struct { const char *name; int16_t min, max, step; } CU_PAR[CR_P_COUNT] = {
+    {"rate", 1, 1000, 5}, {"division", 0, CR_DIV_COUNT - 1, 1}, {"direction", 0, 5, 1}, {"range", 1, 4, 1},
+    {"gate", 1, 200, 5}, {"swing", 50, 90, 1}, {"retrigger", 0, 1, 1}, {"pattern", 1, CR_NPATTERN, 1},
+    {"rotate", -12, 12, 1}, {"amount", 0, 100, 5}, {"hold", 0, 1, 1}};
+static const char *const CU_DIV[CR_DIV_COUNT] = {"2/1", "1/1", "1/2", "1/2T", "1/4", "1/4T", "1/8", "1/8T", "1/16",
+                                                 "1/16T", "1/32", "1/32T"};
+static const char *const CU_DIR[6] = {"up", "down", "up-down", "down-up", "as played", "random"};
+
+/* FX: the chord part's sends (KNOB 4: the amount) and the shared buses' parameters (KNOB 1..3, song.g) */
+#define CU_NFX 4u
+static const struct { const char *name; uint8_t send; int8_t g[3]; const char *gname[3]; } CU_FX[CU_NFX] = {
+    {"Reverb", P_REV, {G_RSIZE, G_RDAMP, G_RTYPE}, {"size", "damp", "type"}},
+    {"Chorus", P_CHOR, {G_CRATE, G_CDEPTH, -1}, {"rate", "depth", ""}},
+    {"Delay", P_DLY, {G_DTIME, G_DFDBK, G_DCOLOR}, {"time", "feedback", "colour"}},
+    {"Drive", P_DIST, {-1, -1, -1}, {"", "", ""}}};
+static const char *const CU_BASSMODE[4] = {"Chords Only", "Unison Bass", "Bass Single Notes", "Solo"};
+static const char *const CU_VIEW[4] = {"Chord", "Keyboard", "Notes", "Geek Out"};
+static const char *const CU_LOOPLEN[6] = {"Free", "1 bar", "2 bars", "4 bars", "8 bars", "16 bars"};
+static const char *const CU_SIG[CRL_NSIG] = {"4/4", "3/4", "6/8"};
+static const char *const CU_QUANT[CRL_NQUANT] = {"none", "1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32"};
+static const char *const CU_LOOP_ACT[4] = {"Overdub", "Pause", "Undo", "Clear"};
+static const char *const CU_SAVE_ACT[3] = {"Save", "Load", "Delete"};
+enum { V_CHORD, V_KEYBOARD, V_NOTES, V_GEEK, V_N };
+
+static struct {
+    uint8_t playstyle, extadd, secret, key_on, tonic, scale, single, vel;
+    int8_t transpose;
+    uint8_t bass_on, bass_mode, perform_on, perf_sel, sticky;
+    uint16_t bpm;
+    int16_t par[CR_PM_COUNT][CR_P_COUNT];
+    uint8_t fx_on, fx_sel, fx_amt[CU_NFX];
+    uint16_t sound, bass_sound;           /* list positions (bass 0 = OFF) */
+    uint16_t bass_default;                /* BASS tapped with the bass OFF: this one */
+    uint8_t view, leds;
+    uint8_t ch[CR_NSTREAM];               /* MIDI channel 1..16, 0 = off */
+    uint8_t raw_sound;                    /* RAW also plays part 0 */
+    uint8_t split;                        /* Single Notes' split point, pitch class 0..11 */
+    uint8_t metro, metro_sig, metro_vol;  /* the click: on, CRL_SIG_*, level 0..100 */
+    uint8_t loop_len, loop_quant, loop_count_in, loop_level;   /* SYNC (0 Free, 1..16 bars), QUANT, COUNT-IN, LEVEL */
+    uint8_t loop_slot, loop_target;       /* the slot in RAM (0..9); SAVE held's target */
+    uint8_t loop_act, save_act;           /* the pickers: LOOP held while playing, SAVE held */
+    uint8_t save_pending;                 /* slot + 1: saved once the loop stops (no flash erase while it plays) */
+    uint16_t loop_used;                   /* bit k: slot k holds a loop in flash */
+} cs;
+#if CR_HAVE_SETTINGS
+static void cr_settings_load(void);       /* cr_settings.c (included after this file): the record -> the UI */
+#endif
+#define CR_SETTINGS_BUSY() (cr_snap.lstate == CRL_PLAYING)   /* cr_settings.c: no flash erase while a loop plays */
+
+static void cu_post_key(void) { cr_post(CRE_KEYMODE, cs.key_on, cs.tonic, cs.scale); }
+static void cu_post_single(void) { cr_post(CRE_SINGLE, cs.single, 0, cs.split); }
+static void cu_loop_conf(void)                    /* the looper's settings -> the ISR */
+{
+    cr_post(CRE_LOOP, LP_CONF, LC_SYNC, cs.loop_len);
+    cr_post(CRE_LOOP, LP_CONF, LC_QUANT, cs.loop_quant);
+    cr_post(CRE_LOOP, LP_CONF, LC_COUNTIN, cs.loop_count_in);
+    cr_post(CRE_LOOP, LP_CONF, LC_LEVEL, cs.loop_level);
+    cr_post(CRE_LOOP, LP_CONF, LC_SIG, cs.metro_sig);
+    cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
+    cr_post(CRE_LOOP, LP_METRO, 0, cs.metro);
+}
+static void cu_set_tempo(int32_t bpm)
+{
+    cs.bpm = (uint16_t)(bpm < 20 ? 20 : bpm > 300 ? 300 : bpm);
+    song.g[G_BPM] = (int16_t)(cs.bpm < 40u ? 40u : cs.bpm > 240u ? 240u : cs.bpm);   /* (the delay's sync) */
+    cr_post(CRE_TEMPO, 0, 0, cs.bpm);
+}
+static void cu_fx_apply(void)                     /* the sends of part 0: the amounts, or 0 with FX off */
+{
+    uint32_t i;
+    for (i = 0; i < CU_NFX; i++)
+        trk[CR_PART_CHORD].p[CU_FX[i].send] = (int16_t)(cs.fx_on ? cs.fx_amt[i] : 0u);
+}
+static void cu_sends_to_fx(void)                  /* part 0's own sends become the FX amounts */
+{
+    uint32_t i;
+    for (i = 0; i < CU_NFX; i++)
+        cs.fx_amt[i] = (uint8_t)trk[CR_PART_CHORD].p[CU_FX[i].send];
+    cu_fx_apply();
+}
+static void cu_sound_go(uint32_t pos)             /* PRESETS: the bank, then the user slots */
+{
+    uint32_t n = cb_count(0);
+    if (!n)
+        return;
+    cs.sound = (uint16_t)(pos % n);
+    cu_list_load(0, cs.sound);
+    cu_sends_to_fx();
+}
+static void cu_bass_go(uint32_t pos)              /* ALGORITHM: 0 OFF, 1.. the bank, then the user basses */
+{
+    uint32_t n = cb_count(1);
+    cs.bass_sound = (uint16_t)(pos > n ? n : pos);
+    if (cs.bass_sound)
+        cu_list_load(1, cs.bass_sound - 1u);
+    cs.bass_on = cs.bass_sound != 0u;
+    cr_post(CRE_BASS, 0, 0, cs.bass_on);
+}
+static void cu_perf_pick(uint32_t i)
+{
+    cs.perf_sel = (uint8_t)(i % 7u);
+    cr_post(CRE_PERFORM_MODE, 0, 0, CU_PERF[cs.perf_sel].mode);
+    if (CU_PERF[cs.perf_sel].range) {
+        cs.par[CU_PERF[cs.perf_sel].mode][CR_P_RANGE] = CU_PERF[cs.perf_sel].range;
+        cr_post(CRE_PARAM, CU_PERF[cs.perf_sel].mode, CR_P_RANGE, CU_PERF[cs.perf_sel].range);
+    }
+}
+static void cu_route(void)                        /* Options > MIDI: channels and the RAW stream */
+{
+    uint32_t s;
+    for (s = 0; s < CR_NSTREAM; s++) {
+        cr_route.midi_en[s] = cs.ch[s] != 0u;
+        if (cs.ch[s])
+            cr_route.ch[s] = (uint8_t)(cs.ch[s] - 1u);
+    }
+    cr_route.part[CR_STREAM_RAW] = cs.raw_sound ? CR_PART_CHORD : CR_NOPART;
+    cr_post(CRE_STREAM, CR_STREAM_RAW, 0, cs.ch[CR_STREAM_RAW] || cs.raw_sound);
+}
+
+/* ------------------------------------------------------------- Options --- */
+enum { O_STYLE, O_EXTADD, O_SECRET, O_VEL, O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
+       O_CLOCK, O_VIEW, O_MOTION, O_LEDS, O_HOLD, O_VERSION, O_N };
+static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Secret Chords", "Velocity",
+    "Bass Behaviour", "Single Notes", "Split Point", "MIDI Perform", "MIDI Bass", "MIDI Raw Chord", "Raw Chord Sound",
+    "MIDI Clock", "View", "Motion", "LEDs", "Hold Time", "Version"};
+static const int16_t O_MAX[O_N] = {2, 1, 2, 127, 3, 1, 11, 16, 16, 16, 1, 1, V_N - 1, CR_MOTION_N - 1, 1, 3, 0};
+
+static int32_t opt_get(uint32_t o)
+{
+    switch (o) {
+    case O_STYLE: return cs.playstyle;
+    case O_EXTADD: return cs.extadd;
+    case O_SECRET: return cs.secret;
+    case O_VEL: return cs.vel;
+    case O_BASSMODE: return cs.bass_mode;
+    case O_SINGLE: return cs.single;
+    case O_SPLIT: return cs.split;
+    case O_CH_MAIN: case O_CH_BASS: case O_CH_RAW: return cs.ch[o - O_CH_MAIN];
+    case O_RAW_SOUND: return cs.raw_sound;
+    case O_CLOCK: return cr_route.clock_out;
+    case O_VIEW: return cs.view;
+    case O_MOTION: return cr_motion;
+    case O_LEDS: return cs.leds;
+    case O_HOLD: return settings_hold % 4u;
+    default: return 0;
+    }
+}
+static void opt_set(uint32_t o, int32_t v)
+{
+    v = v < (o == O_VEL ? 1 : 0) ? (o == O_VEL ? 1 : 0) : v > O_MAX[o] ? O_MAX[o] : v;
+    switch (o) {
+    case O_STYLE: cs.playstyle = (uint8_t)v; cr_post(CRE_PLAYSTYLE, 0, 0, v); break;
+    case O_EXTADD: cs.extadd = (uint8_t)v; cr_post(CRE_EXTADD, 0, 0, v); break;
+    case O_SECRET: cs.secret = (uint8_t)v; cr_post(CRE_SECRET, 0, 0, v); break;
+    case O_VEL: cs.vel = (uint8_t)v; break;
+    case O_BASSMODE: cs.bass_mode = (uint8_t)v; cr_post(CRE_BASS_MODE, 0, 0, v); break;
+    case O_SINGLE: cs.single = (uint8_t)v; cu_post_single(); break;
+    case O_SPLIT: cs.split = (uint8_t)v; cu_post_single(); break;
+    case O_CH_MAIN: case O_CH_BASS: case O_CH_RAW: cs.ch[o - O_CH_MAIN] = (uint8_t)v; cu_route(); break;
+    case O_RAW_SOUND: cs.raw_sound = (uint8_t)v; cu_route(); break;
+    case O_CLOCK: cr_route.clock_out = (uint8_t)v; break;   /* TODO: IN (midi_clock.c sets the tempo) */
+    case O_VIEW: cs.view = (uint8_t)v; break;
+    case O_MOTION: cr_motion = (uint8_t)v; break;
+    case O_LEDS: cs.leds = (uint8_t)v; break;
+    case O_HOLD: settings_hold = (uint8_t)v; break;
+    default: break;
+    }
+}
+static void opt_text(uint32_t o, char *d, uint32_t n)
+{
+    static const char *const STYLE[3] = {"Simple", "Advanced", "Free"};
+    static const char *const EXTADD[2] = {"Add Note", "Play Chord"};
+    static const char *const SECRET[3] = {"Off", "Simple", "All"};
+    static const char *const MOTION[3] = {"Full", "Calm", "Off"};
+    static const char *const LEDS[2] = {"Glow", "Stock"};
+    static const char *const ONOFF[2] = {"Off", "On"};
+    static const char *const CLOCK[2] = {"Off", "Out"};
+    int32_t v = opt_get(o);
+    d[0] = 0;
+    switch (o) {
+    case O_STYLE: cu_cpy(d, STYLE[v % 3], n); break;
+    case O_EXTADD: cu_cpy(d, EXTADD[v & 1], n); break;
+    case O_SECRET: cu_cpy(d, SECRET[v % 3], n); break;
+    case O_VEL: cu_int(d, v, 0, n); break;
+    case O_BASSMODE: cu_cpy(d, CU_BASSMODE[v & 3], n); break;
+    case O_SINGLE: cu_cpy(d, v ? "Split" : "Full Octave", n); break;
+    case O_SPLIT: cu_cpy(d, CU_NOTE[v % 12], n); cu_cat(d, cs.single ? "" : " (Split off)", n); break;
+    case O_RAW_SOUND: cu_cpy(d, ONOFF[v & 1], n); break;
+    case O_CH_MAIN: case O_CH_BASS: case O_CH_RAW:
+        if (!v) cu_cpy(d, "Off", n);
+        else { cu_cpy(d, "ch ", n); cu_int(d + 3, v, 0, n > 3u ? n - 3u : 0u); }
+        break;
+    case O_CLOCK: cu_cpy(d, CLOCK[v & 1], n); break;
+    case O_VIEW: cu_cpy(d, CU_VIEW[v % V_N], n); break;
+    case O_MOTION: cu_cpy(d, MOTION[v % 3], n); break;
+    case O_LEDS: cu_cpy(d, LEDS[v & 1], n); break;
+    case O_HOLD: cu_int(d, HOLD_MS[v & 3], 0, n); cu_cat(d, " ms", n); break;
+    case O_VERSION: cu_cpy(d, CR_VERSION, n); break;
+    default: break;
+    }
+}
+
+/* ------------------------------------------------------------ UI state --- */
+enum { PG_NONE, PG_EDIT, PG_SAVE };
+enum { PU_METER, PU_VOICING, PU_BASS_VOICING };
+static struct {
+    uint32_t bheld;                       /* label bits held, as the scan last saw them */
+    uint32_t kheld;                       /* key bits held */
+    uint8_t armed;                        /* the armed button (tap / hold / layer), NB: none */
+    uint8_t open, combo;                  /* its layer (or shift) is open; something else was touched */
+    uint32_t t0;                          /* when it was pressed (fm1_ms) */
+    uint8_t lock;                         /* a locked layer (HOME / OPT + its button), L_NONE: none */
+    uint8_t home_lock;                    /* HOME pressed as a lock: no tap on its release */
+    uint32_t swallow;                     /* buttons pressed during another's hold: their release does nothing */
+    uint8_t oct_chord;                    /* OCT- and OCT+ were down together (panic): no tap */
+    uint32_t clear_t0;                    /* D#4 down in the loop layer (| 1): CLEAR after 1 s held */
+    uint8_t key_note[CU_NKEY];            /* root keys: note + 1 sent; 0xFF: the layer's / a picker's */
+    int8_t octave;
+    uint8_t opt_open, opt_sel;
+    uint8_t page;                         /* PG_* */
+    uint32_t last_sound;                  /* the last time a chord sounded or a key was held */
+    struct { uint32_t until; uint8_t kind, col, segs; uint16_t pct; char value[8], sub[12], label[24]; } pop;
+    struct { uint32_t until; uint8_t big, col; char text[24], label[32]; } msg;
+} cu;
+
+/* the sound pages and the naming screen (cr_pages.c, cr_name.c) */
+static struct {
+    uint8_t part, page;                   /* the part edited (0 chord, 1 bass), its page (CP_*) */
+    int8_t col;                           /* the column last turned (its glyph animates), -1 none */
+    uint32_t t0;                          /* .. when */
+    uint16_t from_pct, shown_pct[4];      /* the turned glyph's tween: from, and what each column last showed */
+    uint8_t from_env[4], shown_env[4][4];
+    uint8_t save_part, slot, save_from_edit;
+} ce;
+#define CU_GLYPH_MS 220u                  /* a turned column's glyph eases to its new value */
+#ifdef CR_TRACE                           /* the emulator's headless logs (tools/emu/emu_firmware.h) */
+#define cu_trace(...) printf(__VA_ARGS__)
+#else
+#define cu_trace(...) ((void)0)
+#endif
+static void cu_message(const char *t, uint32_t col);
+static void cu_edit_open(uint32_t part);
+static void cu_save_open(uint32_t part);
+static void cu_save_close(void);
+static void cu_save_commit(void);
+static uint32_t cu_layer(void);
+static uint32_t cu_now(void) { return fm1_ms; }
+
+static void cu_message(const char *t, uint32_t col)
+{
+    cu.msg.until = cu_now() + CR_MSG_MS;
+    cu.msg.big = 0;
+    cu.msg.col = (uint8_t)col;
+    cu_cpy(cu.msg.text, t, sizeof cu.msg.text);
+}
+
+/* a knob's meter for CR_POPUP_MS: value huge (the CRX charset: digits, + - . and A-G), sub / label under it */
+static void cu_popup(const char *value, const char *sub, const char *label, uint32_t col, int32_t v, int32_t lo,
+                     int32_t hi, uint32_t segs)
+{
+    cu.pop.until = cu_now() + CR_POPUP_MS;
+    cu.pop.kind = PU_METER;
+    cu_cpy(cu.pop.value, value, sizeof cu.pop.value);
+    cu_cpy(cu.pop.sub, sub, sizeof cu.pop.sub);
+    cu_cpy(cu.pop.label, label, sizeof cu.pop.label);
+    cu.pop.col = (uint8_t)col;
+    cu.pop.segs = (uint8_t)segs;
+    cu.pop.pct = (uint16_t)(hi > lo ? (uint32_t)((v - lo) * 256 / (hi - lo)) : 0u);
+}
+static void cu_popup_num(int32_t v, int plus, const char *sub, const char *label, uint32_t col, int32_t lo,
+                         int32_t hi, uint32_t segs)
+{
+    char b[8];
+    if (plus || v < 0)
+        cu_int(b, v, plus, sizeof b);
+    else
+        cu_2d(b, (uint32_t)v, sizeof b);
+    cu_popup(b, sub, label, col, v, lo, hi, segs);
+}
+
+/* PRESETS / ALGORITHM's meter: the bank number (a user sound: its slot number) and the name */
+static void cu_sound_popup(int bass)
+{
+    char b[8], nm[13];
+    uint32_t pos = bass ? (cs.bass_sound ? cs.bass_sound - 1u : 0u) : cs.sound, k = cb_slot_at(bass, pos);
+    uint32_t n = cb_count(bass);
+    if (bass && !cs.bass_sound) {
+        cu_popup("00", "off", "bass", CR_COL_ORANGE, 0, 0, (int32_t)n, 12);
+        return;
+    }
+    cu_2d(b, k < UP_SLOTS ? k + 1u : pos + 1u, sizeof b);
+    cb_name(bass, pos, nm);
+    cu_popup(b, nm, k < UP_SLOTS ? (bass ? "user bass" : "user sound") : bass ? "bass" : "sound",
+             bass ? CR_COL_ORANGE : CR_COL_WHITE, (int32_t)pos, 0, (int32_t)n - 1, bass ? 12 : 16);
+}
+/* upreset.c's messages (cr_bank.c declares them) */
+static void ui_say(const char *a, const char *b)
+{
+    char t[24];
+    cu_cpy(t, a, sizeof t);
+    cu_cat(t, b, sizeof t);
+    cu_message(t, CR_COL_WHITE);
+}
+static void ui_message(const char *s) { cu_message(s, CR_COL_WHITE); }
+
+/* the layer on screen: a locked one, else the armed button's while it is held open */
+static uint32_t cu_layer(void)
+{
+    if (cu.lock)
+        return cu.lock;
+    if (cu.armed != NB && cu.open)
+        return cu_layer_of(cu.armed);
+    return L_NONE;
+}
+static int cu_shift(void) { return cu.armed == BT_OPT && ((cu.bheld >> BT_OPT) & 1u); }
+static int cu_picker_ctx(void) { return cu.lock || cu.opt_open || cu.page; }   /* OCT-: back, OCT+: OK */
+
+/* ----------------------------------------------------- perform params --- */
+static void cu_param_text(uint32_t p, int32_t v, char *val, char *sub)
+{
+    val[0] = sub[0] = 0;
+    if (p == CR_P_DIV) {
+        cu_2d(val, (uint32_t)(v + 1), 8);
+        cu_cpy(sub, CU_DIV[v % CR_DIV_COUNT], 12);
+    } else if (p == CR_P_DIR) {
+        cu_2d(val, (uint32_t)(v + 1), 8);
+        cu_cpy(sub, CU_DIR[v % 6], 12);
+    } else if (p == CR_P_PATTERN) {
+        cu_2d(val, (uint32_t)v, 8);
+        cu_cpy(sub, cr_pattern_name(v), 12);
+    } else if (p == CR_P_RETRIG || p == CR_P_HOLD) {
+        cu_2d(val, (uint32_t)v, 8);
+        cu_cpy(sub, v ? "on" : "off", 12);
+    } else {
+        cu_int(val, v, p == CR_P_ROTATE, 8);
+        cu_cpy(sub, p == CR_P_RATE ? "ms" : p == CR_P_RANGE ? "oct" : p == CR_P_ROTATE ? "" : "%", 12);
+    }
+}
+static void cu_param_turn(uint32_t mode, int32_t p, int32_t s)
+{
+    char val[8], sub[12], label[24];
+    int32_t v;
+    if (p < 0)
+        return;
+    v = cs.par[mode][p] + s * CU_PAR[p].step;
+    v = v < CU_PAR[p].min ? CU_PAR[p].min : v > CU_PAR[p].max ? CU_PAR[p].max : v;
+    cs.par[mode][p] = (int16_t)v;
+    cr_post(CRE_PARAM, mode, (uint32_t)p, v);
+    cu_param_text((uint32_t)p, v, val, sub);
+    cu_cpy(label, CU_PERF[cs.perf_sel].short_name, sizeof label);
+    label[0] = (char)(label[0] | 0x20);
+    cu_cat(label, " ", sizeof label);
+    cu_cat(label, CU_PAR[p].name, sizeof label);
+    cu_popup(val, sub, label, CR_COL_WHITE, v, CU_PAR[p].min, CU_PAR[p].max, 12);
+}
+static uint32_t cu_perf_mode(void) { return CU_PERF[cs.perf_sel].mode; }
+
+/* ------------------------------------------------------------ the looper --- */
+/* The ten loop slots in flash (docs/LOOPER.md): storage.c's commit record and A/B copies (its hooks st_read /
+ * st_erase / st_prog, its header and CRC), on sectors of their own: user sample slot 3's 80 KiB (0xC8000..0xDBFFF,
+ * which nothing in ChoralRoot 0.1 writes; eng_sample.c's scan ignores what is not a sample set), slot k's copies at
+ * 0xC8000 + (2k + copy) x 4 KiB, the record's type CRL_FL_TYPE + k (never one of storage.c's objects). */
+#define CRL_FL_BASE 0xC8000u
+#define CRL_FL_TYPE 0x4C30u
+static uint8_t cu_loop_buf[CRL_REC_MAX] __attribute__((aligned(4)));   /* a packed record */
+#if FELUCCA_FLASH
+static uint32_t crl_fl_sector(uint32_t k, uint32_t copy) { return CRL_FL_BASE + (2u * k + copy) * ST_SECTOR; }
+static int crl_fl_head(uint32_t k, uint32_t copy, st_hdr_t *h)   /* 0: a valid commit record */
+{
+    if (st_read(crl_fl_sector(k, copy), h, sizeof *h))
+        return -1;
+    if (h->magic != ST_MAGIC || h->type != CRL_FL_TYPE + k || h->slot != copy || h->len > CRL_REC_MAX ||
+        h->hcrc != st_crc32(h, sizeof *h - 4u))
+        return -1;
+    return 0;
+}
+static int crl_fl_body(uint32_t k, uint32_t copy, const st_hdr_t *h, uint8_t *dst)
+{
+    if (st_read(crl_fl_sector(k, copy) + ST_PAYLOAD_OFF, dst, h->len) || st_crc32(dst, h->len) != h->crc)
+        return -1;
+    return 0;
+}
+static int crl_fl_current(uint32_t k, st_hdr_t *h, uint8_t *dst)  /* the newest valid copy (its payload in dst) */
+{
+    st_hdr_t a, b;
+    int va = crl_fl_head(k, 0, &a) == 0, vb = crl_fl_head(k, 1, &b) == 0;
+    if (vb && (!va || (b.seq != a.seq && b.seq - a.seq < 0x80000000u)) && crl_fl_body(k, 1, &b, dst) == 0) {
+        *h = b;
+        return 1;
+    }
+    if (va && crl_fl_body(k, 0, &a, dst) == 0) {
+        *h = a;
+        return 0;
+    }
+    if (vb && crl_fl_body(k, 1, &b, dst) == 0) {
+        *h = b;
+        return 1;
+    }
+    return -1;
+}
+static int crl_fl_load(uint32_t k, uint8_t *dst)   /* the record's length, -1: none */
+{
+    st_hdr_t h;
+    if (!flash_ok || k >= CRL_SLOTS || crl_fl_current(k, &h, dst) < 0)
+        return -1;
+    return (int)h.len;
+}
+static int crl_fl_save(uint32_t k, const uint8_t *src, uint32_t len)   /* storage.c st_save's protocol: 0 ok */
+{
+    st_hdr_t h;
+    uint32_t seq, base, off, copy;
+    int cur, rc;
+    if (!flash_ok || k >= CRL_SLOTS || len > CRL_REC_MAX)
+        return -1;
+    cur = crl_fl_current(k, &h, st_buf);
+    seq = cur < 0 ? 0u : h.seq;
+    copy = cur == 0 ? 1u : 0u;                     /* write the other copy, the header last */
+    base = crl_fl_sector(k, copy);
+    if ((rc = st_erase(base)) != 0)
+        return rc;
+    for (off = 0; off < len; off += 256u)
+        if ((rc = st_prog(base + ST_PAYLOAD_OFF + off, src + off, len - off > 256u ? 256u : len - off)) != 0)
+            return rc;
+    h.magic = ST_MAGIC;
+    h.type = (uint16_t)(CRL_FL_TYPE + k);
+    h.slot = (uint16_t)copy;
+    h.seq = seq + 1u;
+    h.len = len;
+    h.crc = st_crc32(src, len);
+    h.rsv[0] = h.rsv[1] = 0xFFFFFFFFu;
+    h.hcrc = st_crc32(&h, sizeof h - 4u);
+    if ((rc = st_prog(base, &h, sizeof h)) != 0)
+        return rc;
+    {
+        st_hdr_t chk;
+        if (crl_fl_head(k, copy, &chk) || memcmp(&chk, &h, sizeof h) || crl_fl_body(k, copy, &chk, st_buf))
+            return -7;
+    }
+    return 0;
+}
+static int crl_fl_delete(uint32_t k)
+{
+    if (!flash_ok || k >= CRL_SLOTS)
+        return -1;
+    return st_erase(crl_fl_sector(k, 0)) || st_erase(crl_fl_sector(k, 1)) ? -1 : 0;
+}
+#else
+static int crl_fl_load(uint32_t k, uint8_t *dst) { (void)k; (void)dst; return -1; }
+static int crl_fl_save(uint32_t k, const uint8_t *src, uint32_t len) { (void)k; (void)src; (void)len; return -1; }
+static int crl_fl_delete(uint32_t k) { (void)k; return -1; }
+#endif
+
+static void cu_loop_scan(void)                     /* which slots hold a loop */
+{
+    uint32_t k;
+    crl_data_t *d = &crl_stage;
+    cs.loop_used = 0;
+    if (crl_stage_busy)
+        return;
+    for (k = 0; k < CRL_SLOTS; k++) {
+        int n = crl_fl_load(k, cu_loop_buf);
+        if (n > 0 && cr_loop_unpack(cu_loop_buf, (uint32_t)n, d))
+            cs.loop_used |= (uint16_t)(1u << k);
+    }
+}
+static int cu_playing(void) { return cr_snap.lstate == CRL_PLAYING; }
+static void cu_slot_msg(const char *a, uint32_t k, const char *b, uint32_t col)
+{
+    char t[24];
+    char nb[4];
+    cu_cpy(t, a, sizeof t);
+    cu_int(nb, (int32_t)k + 1, 0, sizeof nb);
+    cu_cat(t, nb, sizeof t);
+    cu_cat(t, b, sizeof t);
+    cu_message(t, col);
+}
+/* a slot -> the loop in RAM: now when stopped, at the end of the cycle when playing */
+static void cu_loop_load(uint32_t k)
+{
+    int n, ok = 0, play = cu_playing();
+    if (crl_stage_busy) {
+        cu_message("a slot is on its way", CR_COL_RED);
+        return;
+    }
+    n = (cs.loop_used >> k) & 1u ? crl_fl_load(k, cu_loop_buf) : -1;
+    if (n > 0)
+        ok = cr_loop_unpack(cu_loop_buf, (uint32_t)n, &crl_stage);
+    cs.loop_slot = (uint8_t)k;
+    crl_stage_busy = 1;
+    cr_post(CRE_LOOP, play ? LP_QUEUE : LP_SET, ok ? 0u : 1u, 0);
+    cu_trace("loop: slot %u %s%s\n", (unsigned)k + 1u, ok ? "loaded" : "empty", play ? " (next cycle)" : "");
+    cu_slot_msg("loop ", k, ok ? (play ? ": next cycle" : "") : ": empty", CR_COL_RED);
+}
+static void cu_loop_save_now(uint32_t k)
+{
+    uint32_t n;
+    int rc;
+    fm1_irq_off();                                 /* the ISR's loop, packed as it is now */
+    n = cr_loop_pack(&crl.d, cu_loop_buf, sizeof cu_loop_buf);
+    fm1_irq_on();
+    if (!n) {
+        cu_message("no loop to save", CR_COL_RED);
+        return;
+    }
+    rc = crl_fl_save(k, cu_loop_buf, n);
+    cu_trace("loop: save slot %u %u bytes rc %d\n", (unsigned)k + 1u, (unsigned)n, rc);
+    if (rc) {
+        cu_message("save error", CR_COL_RED);
+        return;
+    }
+    fm1_irq_off();
+    crl.dirty = 0;
+    fm1_irq_on();
+    cs.loop_used |= (uint16_t)(1u << k);
+    cs.loop_slot = (uint8_t)k;
+    cu_slot_msg("saved to slot ", k, "", CR_COL_GREEN);
+}
+static void cu_loop_save(uint32_t k)
+{
+    if (!cr_snap.lnev) {
+        cu_message("no loop to save", CR_COL_RED);
+        return;
+    }
+    if (cu_playing()) {                            /* no flash erase while it plays (Felucca: project_save) */
+        cs.save_pending = (uint8_t)(k + 1u);
+        cu_slot_msg("slot ", k, ": saves at stop", CR_COL_RED);
+        return;
+    }
+    cu_loop_save_now(k);
+}
+static void cu_loop_delete(uint32_t k)
+{
+    if (cu_playing()) {
+        cu_message("stop to delete", CR_COL_RED);
+        return;
+    }
+    if (crl_fl_delete(k)) {
+        cu_message("delete error", CR_COL_RED);
+        return;
+    }
+    cs.loop_used &= (uint16_t)~(1u << k);
+    cu_trace("loop: delete slot %u\n", (unsigned)k + 1u);
+    cu_slot_msg("slot ", k, " deleted", CR_COL_RED);
+}
+static void cu_save_act(void)                      /* SAVE held + OCT+: the action on the target slot */
+{
+    if (cs.save_act == 0)
+        cu_loop_save(cs.loop_target);
+    else if (cs.save_act == 1)
+        cu_loop_load(cs.loop_target);
+    else
+        cu_loop_delete(cs.loop_target);
+}
+static void cu_loop_act(void)                      /* LOOP held while playing + OCT+: Overdub Pause Undo Clear */
+{
+    static const uint8_t OP[4] = {LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR};
+    cr_post(CRE_LOOP, OP[cs.loop_act & 3u], 0, 0);
+}
+/* the transport's results (the ISR's CRL_DID_*) as messages; a deferred save once the loop stops */
+static uint32_t cu_did_seen;
+static void cu_loop_frame(void)
+{
+    static const char *const DID[] = {"", "rec: play to start", "count-in", "recording", "cancelled", "loop recorded",
+                                      "overdub armed", "overdub done", "play", "stop", "undo", "loop cleared",
+                                      "nothing recorded"};
+    uint32_t n = crl_did_n;
+    if (n != cu_did_seen) {
+        uint32_t d = crl_did;
+        cu_did_seen = n;
+        if (d == CRL_DID_NOTHING)
+            cu_message(cr_snap.lfull ? "loop full" : cr_snap.lstate == CRL_EMPTY ? "no loop" : "nothing to undo",
+                       CR_COL_RED);
+        else if (d < sizeof DID / sizeof DID[0])
+            cu_message(DID[d], d == CRL_DID_PLAY || d == CRL_DID_STOP ? CR_COL_WHITE : CR_COL_RED);
+        cu_trace("loop: %s (state %u layers %u events %u len %u)\n", d < sizeof DID / sizeof DID[0] ? DID[d] : "?",
+                 (unsigned)crl.state, (unsigned)crl.d.nlayers, (unsigned)crl.d.nev, (unsigned)crl.d.len);
+    }
+    if (cs.save_pending && !cu_playing()) {
+        uint32_t k = cs.save_pending - 1u;
+        cs.save_pending = 0;
+        cu_loop_save_now(k);
+    }
+}
+
+/* -------------------------------------------------------------- actions --- */
+static void cu_panic(void)
+{
+    uint32_t k;
+    cr_post(CRE_PANIC, 0, 0, 0);
+    cu.octave = 0;
+    for (k = 0; k < CU_NKEY; k++)                 /* the keys still held end nothing more */
+        if (cu.key_note[k] && cu.key_note[k] != 0xFFu)
+            cu.key_note[k] = 0xFFu;
+    cs.sticky = 0;                                /* (the engine's panic drops the latch: the LED follows) */
+    cu.msg.until = cu_now() + CR_PANIC_MS;
+    cu.msg.big = 1;
+    cu_cpy(cu.msg.text, "PANIC", sizeof cu.msg.text);
+    cu_cpy(cu.msg.label, "all notes off", sizeof cu.msg.label);
+    cu.pop.until = 0;
+}
+
+static void cu_close_all(void)                    /* back to the view */
+{
+    cu.lock = L_NONE;
+    cu.opt_open = 0;
+    cu.page = PG_NONE;
+}
+
+static void cu_tap(uint32_t b)                    /* a button tapped (released before HOLD with nothing touched) */
+{
+    if (cu.lock && L_BTN[cu.lock] == b) {         /* a locked layer's own button: unlock */
+        cu.lock = L_NONE;
+        return;
+    }
+    switch (b) {
+    case BT_KEY:
+        cs.key_on ^= 1u;
+        cu_post_key();
+        break;
+    case BT_PERF:
+        cs.perform_on ^= 1u;
+        cr_post(CRE_PERFORM, 0, 0, cs.perform_on);
+        break;
+    case BT_FX:
+        cs.fx_on ^= 1u;
+        cu_fx_apply();
+        break;
+    case BT_BASS:
+        if (!cs.bass_on && !cs.bass_sound)
+            cu_bass_go(cs.bass_default);
+        else {
+            cs.bass_on ^= 1u;
+            cr_post(CRE_BASS, 0, 0, cs.bass_on);
+        }
+        break;
+    case BT_LATCH:
+        cs.sticky ^= 1u;
+        cr_post(CRE_STICKY, 0, 0, cs.sticky);
+        break;
+    case BT_OPT:
+        cu.page = PG_NONE;
+        cu.lock = L_NONE;
+        cu.opt_open ^= 1u;
+        break;
+    case BT_EDIT:                                 /* the chord sound's pages (BASS held + EDIT: cu_btn_press) */
+        if (cu.page == PG_EDIT)
+            cu.page = PG_NONE;
+        else
+            cu_edit_open(0);
+        break;
+    case BT_SAVE:                                 /* naming and saving the sound (on a bass page: the bass) */
+        if (cu.page == PG_SAVE)
+            cu_save_close();                      /* SAVE again: cancel */
+        else
+            cu_save_open(cu.page == PG_EDIT ? ce.part : 0u);
+        break;
+    case BT_METRO:                                /* the click on / off */
+        cs.metro ^= 1u;
+        cr_post(CRE_LOOP, LP_METRO, 0, cs.metro);
+        cu_message(cs.metro ? "metronome on" : "metronome off", CR_COL_WHITE);
+        break;
+    case BT_LOOP:                                 /* play / stop (a take: commit) */
+        cr_post(CRE_LOOP, LP_PLAY, 0, 0);
+        break;
+    case BT_REC:                                  /* record / overdub arm / end the take */
+        cr_post(CRE_LOOP, LP_REC, 0, 0);
+        break;
+    default:
+        break;
+    }
+}
+
+static void cu_opened(uint32_t b)                 /* a button held past HOLD (or a combo): its layer / shift */
+{
+    if (b == BT_REC && !cu.combo)                 /* REC held: undo the last layer */
+        cr_post(CRE_LOOP, LP_UNDO, 0, 0);
+    if (cu_layer_of(b)) {
+        cu.opt_open = 0;
+        cu.page = PG_NONE;
+        if (cu.lock && cu.lock != cu_layer_of(b))
+            cu.lock = L_NONE;
+    }
+}
+
+static void cu_home_tap(void)
+{
+    if (cu.lock || cu.opt_open || cu.page)
+        cu_close_all();
+    else
+        cs.view = (uint8_t)((cs.view + 1u) % V_N);
+}
+
+static void cu_oct_tap(uint32_t b)
+{
+    if (cu.page == PG_SAVE && !cu_layer()) {      /* naming: OCT- deletes, OCT+ saves */
+        if (b == B_OCTUP)
+            cu_save_commit();
+        else
+            cn_delete();
+        return;
+    }
+    if (cu_picker_ctx()) {                        /* OCT+: OK (a picker's change is live already), OCT-: back */
+        cu_close_all();
+        return;
+    }
+    if (cu.armed != NB && cu.open) {              /* a held layer: OCT+ does a loop picker's action */
+        uint32_t l = cu_layer();
+        if (b == B_OCTUP && l == L_SAVE)
+            cu_save_act();
+        else if (b == B_OCTUP && l == L_LOOP && cu_playing())
+            cu_loop_act();
+        return;
+    }
+    cu.octave = (int8_t)(cu.octave + (b == B_OCTUP ? 1 : -1));
+    cu.octave = (int8_t)(cu.octave < -2 ? -2 : cu.octave > 2 ? 2 : cu.octave);
+    cu_popup_num(cu.octave, 1, "", "octave", CR_COL_WHITE, -2, 2, 5);
+}
+
+/* ------------------------------------------------------------ the layers --- */
+static int32_t cu_engine_rank(uint32_t e)          /* place of e among the melodic engines (the EDIT picker) */
+{
+    uint32_t r, n = 0;
+    for (r = 0; r < NENG_SHOWN; r++) {
+        uint32_t x = eng_vis(r);
+        if (!cu_engine_melodic(x))
+            continue;
+        if (x == e)
+            return (int32_t)n;
+        n++;
+    }
+    return -1;
+}
+static uint32_t cu_engine_at(uint32_t i, uint32_t *n_out)
+{
+    uint32_t r, n = 0, e = 0, found = 0;
+    for (r = 0; r < NENG_SHOWN; r++) {
+        uint32_t x = eng_vis(r);
+        if (!cu_engine_melodic(x))
+            continue;
+        if (n == i) {
+            e = x;
+            found = 1;
+        }
+        n++;
+    }
+    if (n_out)
+        *n_out = n;
+    return found ? e : eng_vis(0);
+}
+/* --------------------------------------------- the sound pages, saving --- */
+/* EDIT tap: the chord sound's pages (BASS held + EDIT: the bass sound's), cr_pages.c; EDIT held: the engine
+ * picker of the same part; SAVE: naming (cr_name.c) into a user slot (upreset.c) */
+static track_t *cu_edit_trk(void) { return &trk[ce.part ? CR_PART_BASS : CR_PART_CHORD]; }
+
+static void cu_edited(uint32_t part)
+{
+    psnd[part & 1u].edited = 1;
+    trk[part ? CR_PART_BASS : CR_PART_CHORD].user = 0;   /* (no longer the slot's sound as stored) */
+}
+
+/* the part's engine becomes e: its own parameters from e's first preset, the envelope, filter, LFO, sends and
+ * mix kept (mock-up 22) */
+static void cu_engine_switch(uint32_t part, uint32_t e)
+{
+    track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
+    const engine_t *en = ENGINES[e % NENGINES];
+    uint32_t i, p0 = en->npresets ? cu_preset_orig(en, 0) : 0u;
+    if (t->eng_req == e)
+        return;
+    fm1_irq_off();
+    t->eng_req = (uint8_t)e;
+    t->preset = (uint8_t)p0;
+    for (i = 0; i < 8u; i++)
+        t->p[P_E0 + i] = en->npresets ? (int16_t)en->presets[p0].e[i] : en->edit[i].def;
+    panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
+    fm1_irq_on();
+    fm6_track_loaded(t);
+    str_cpy(psnd[part].name, en->npresets ? en->presets[p0].name : en->name, sizeof psnd[0].name);
+    cu_edited(part);
+    cu_trace("engine: part %u -> %s\n", (unsigned)part, en->name);
+}
+static void cu_engine_pick(uint32_t i) { cu_engine_switch(ce.part, cu_engine_at(i, 0)); }   /* EDIT held: a root */
+
+/* EDIT held + KNOB 1 (or the ENGINE page's PRESET): the part's engine's next factory preset, loaded whole */
+static void cu_engine_preset_step(int32_t s)
+{
+    track_t *t = cu_edit_trk();
+    const engine_t *en = ENGINES[t->eng_req % NENGINES];
+    uint32_t n = en->npresets, k = t->preset, i;
+    if (!n)
+        return;
+    for (i = 0; i < n; i++) {                      /* past the retired aliases */
+        k = (k + (s > 0 ? 1u : n - 1u)) % n;
+        if (cu_preset_orig(en, k) == k)
+            break;
+    }
+    cu_load(t, t->eng_req, k, ce.part);
+    if (!ce.part)
+        cu_sends_to_fx();
+    cu_trace("preset: part %u -> %s / %s\n", (unsigned)ce.part, en->name, en->presets[k].name);
+}
+
+/* EDIT held + KNOB 2 (or the ENGINE page's INIT): the init sound of the part's engine */
+static void cu_sound_init(uint32_t part)
+{
+    track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
+    const engine_t *en = ENGINES[t->eng_req % NENGINES];
+    uint32_t i;
+    fm1_irq_off();
+    for (i = 0; i < P_E0; i++)
+        if (!cu_kept(i))
+            t->p[i] = TP[i].def;
+    for (i = 0; i < 8u; i++)
+        t->p[P_E0 + i] = en->edit[i].def;
+    t->p[P_VOICE] = part ? V_MONO : V_POLY;
+    panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
+    fm1_irq_on();
+    fm6_track_loaded(t);
+    if (!part)
+        cu_sends_to_fx();
+    str_cpy(psnd[part].name, "INIT", sizeof psnd[0].name);
+    cu_edited(part);
+    cu_message("init sound", CR_COL_WHITE);
+    cu_trace("init: part %u %s\n", (unsigned)part, en->name);
+}
+
+static void cu_edit_open(uint32_t part)
+{
+    if (ce.part != part)
+        ce.page = CP_ENV;                          /* (the mock-up's first page: ENV) */
+    ce.part = (uint8_t)part;
+    cu.opt_open = 0;
+    cu.lock = L_NONE;
+    cu.page = PG_EDIT;
+    ce.col = -1;
+    cu_trace("edit: part %u page %s\n", (unsigned)part, cp_title(cu_edit_trk(), ce.page));
+}
+
+/* KNOB 1..4 on a sound page */
+static void cu_edit_knob(uint32_t knob, int32_t s)
+{
+    track_t *t = cu_edit_trk();
+    uint32_t id = CP_PAGES[ce.page % CP_N].id[knob & 3u], i, n;
+    int32_t v0, v;
+    if (id == CPX_NONE)
+        return;
+    ce.col = (int8_t)knob;
+    ce.t0 = cu_now();
+    ce.from_pct = ce.shown_pct[knob & 3u];
+    for (i = 0; i < 4u; i++)
+        ce.from_env[i] = ce.shown_env[knob & 3u][i];
+    if (id == CPX_ENGINE) {
+        int32_t r = cu_engine_rank(t->eng_req % NENGINES);
+        cu_engine_at(0, &n);
+        r = r < 0 ? 0 : r + (s > 0 ? 1 : -1);
+        cu_engine_switch(ce.part, cu_engine_at((uint32_t)(r < 0 ? 0 : r >= (int32_t)n ? (int32_t)n - 1 : r), 0));
+        return;
+    }
+    if (id == CPX_PRESET) {
+        cu_engine_preset_step(s);
+        return;
+    }
+    if (id == CPX_INIT) {
+        cu_sound_init(ce.part);
+        return;
+    }
+    v0 = t->p[id];
+    v = cp_step(t, id, s);
+    fm1_irq_off();
+    t->p[id] = (int16_t)v;
+    fm1_irq_on();
+    if (!ce.part)                                  /* part 0's sends are the FX amounts */
+        for (i = 0; i < CU_NFX; i++)
+            if (CU_FX[i].send == id) {
+                cs.fx_amt[i] = (uint8_t)v;
+                cs.fx_on = 1;
+                cu_fx_apply();
+            }
+    if (v != v0)
+        cu_edited(ce.part);
+    {
+        char b[8];
+        cp_value(cp_desc(t, id), v, b, sizeof b);
+        cu_trace("param: part %u %s %s %d -> %d (%s)\n", (unsigned)ce.part, cp_title(t, ce.page),
+                 cp_desc(t, id)->label, (int)v0, (int)v, b);
+    }
+}
+
+static void cu_save_open(uint32_t part)
+{
+    track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
+    uint32_t k;
+    ce.save_part = (uint8_t)part;
+    ce.save_from_edit = cu.page == PG_EDIT;
+    if (t->user && t->user <= UP_SLOTS)            /* the slot the sound came from, else the first empty one */
+        ce.slot = (uint8_t)(t->user - 1u);
+    else {
+        for (k = 0; k < UP_SLOTS && up_used(k); k++)
+            ;
+        ce.slot = (uint8_t)(k < UP_SLOTS ? k : 0u);
+    }
+    cn_open(psnd[part].name);
+    cu.opt_open = 0;
+    cu.lock = L_NONE;
+    cu.page = PG_SAVE;
+}
+static void cu_save_close(void) { cu.page = ce.save_from_edit ? PG_EDIT : PG_NONE; }
+
+/* OCT+ on the naming screen: the part's sound -> slot ce.slot (every parameter, no pattern) */
+static void cu_save_commit(void)
+{
+    uint32_t part = ce.save_part, k = ce.slot, i;
+    track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
+    up_rec_t r;
+    char name[16], l[4], b[24];
+    int rc;
+    cn_result(name);
+    memset(&r, 0, sizeof r);
+    r.used = UP_USED;
+    r.ver = UP_VER;
+    r.engine = t->eng_req;
+    r.np = P_COUNT;
+    up_set_name(&r, k, name);
+    for (i = 0; i < P_COUNT; i++) {
+        int16_t v = t->p[i];
+        if (i == P_VOICE && part && v != V_MONO && v != V_LEGATO)
+            v = V_MONO;                            /* a bass is listed on ALGORITHM by its MONO */
+        up_set_value(&r, i, (int16_t)clamp(v, -64, 127));
+    }
+    rc = up_put(k, &r);
+    up_slot_label(l, k);
+    cu_trace("save: part %u slot %s name %s rc %d\n", (unsigned)part, l, r.name, rc);
+    if (rc == 0 || rc == 3) {
+        t->user = (uint8_t)(k + 1u);
+        up_name(k, psnd[part].name);
+        psnd[part].edited = 0;
+        if (part)
+            cs.bass_sound = (uint16_t)(cb_user_bass(k) ? cb_pos_of_slot(1, k) + 1u : cs.bass_sound);
+        else
+            cs.sound = (uint16_t)cb_pos_of_slot(0, k);
+        cu_cpy(b, "saved ", sizeof b);
+        cu_cat(b, l, sizeof b);
+        cu_message(b, CR_COL_GREEN);
+        cu.page = PG_NONE;
+    } else {
+        cu_message(rc == 2 ? "save error" : "bad slot", CR_COL_RED);
+    }
+}
+
+static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the picker's item i */
+{
+    uint32_t n;
+    if (i < 0)
+        return;
+    switch (l) {
+    case L_PERF:
+        if (i < 7) {
+            cu_perf_pick((uint32_t)i);
+            if (!cs.perform_on) {
+                cs.perform_on = 1;
+                cr_post(CRE_PERFORM, 0, 0, 1);
+            }
+        }
+        break;
+    case L_FX:
+        if (i < (int32_t)CU_NFX)
+            cs.fx_sel = (uint8_t)i;
+        break;
+    case L_BASS:
+        if (i < 4) {
+            cs.bass_mode = (uint8_t)i;
+            cr_post(CRE_BASS_MODE, 0, 0, i);
+        }
+        break;
+    case L_EDIT:
+        cu_engine_at(0, &n);
+        if (i < (int32_t)n)
+            cu_engine_pick((uint32_t)i);
+        break;
+    case L_LOOP:                                   /* SELECT: the action while playing, else the length */
+        if (cu_playing() && i < 4)
+            cs.loop_act = (uint8_t)i;
+        else if (!cu_playing() && i < (int32_t)CRL_NSYNC) {
+            cs.loop_len = (uint8_t)i;
+            cr_post(CRE_LOOP, LP_CONF, LC_SYNC, i);
+        }
+        break;
+    case L_SAVE:                                   /* SELECT / KNOB 1: save load delete */
+        if (i < 3)
+            cs.save_act = (uint8_t)i;
+        break;
+    case L_METRO:                                  /* the time signature */
+        if (i < (int32_t)CRL_NSIG) {
+            cs.metro_sig = (uint8_t)i;
+            cr_post(CRE_LOOP, LP_CONF, LC_SIG, i);
+        }
+        break;
+    default:
+        break;
+    }
+}
+static int32_t cu_layer_sel(uint32_t l)
+{
+    switch (l) {
+    case L_PERF: return cs.perf_sel;
+    case L_FX: return cs.fx_sel;
+    case L_BASS: return cs.bass_mode;
+    case L_EDIT: return cu_engine_rank(cu_edit_trk()->eng_req % NENGINES);
+    case L_LOOP: return cu_playing() ? cs.loop_act : cs.loop_len;
+    case L_SAVE: return cs.save_act;
+    case L_METRO: return cs.metro_sig;
+    default: return 0;
+    }
+}
+static int32_t cu_layer_count(uint32_t l)
+{
+    uint32_t n;
+    switch (l) {
+    case L_PERF: return 7;
+    case L_FX: return CU_NFX;
+    case L_BASS: return 4;
+    case L_EDIT: cu_engine_at(0, &n); return (int32_t)n;
+    case L_LOOP: return cu_playing() ? 4 : (int32_t)CRL_NSYNC;
+    case L_SAVE: return 3;
+    case L_METRO: return CRL_NSIG;
+    default: return 0;
+    }
+}
+
+static void cu_layer_key(uint32_t l, uint32_t k)   /* a root key while layer l is open */
+{
+    int32_t wi = cu_white_idx(k);
+    if (l == L_KEY) {                              /* the tonic; MIN held: minor */
+        cs.tonic = (uint8_t)((53u + k) % 12u);
+        cs.scale = (cu.kheld >> 3) & 1u ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
+        cs.key_on = 1;
+        cu_post_key();
+        return;
+    }
+    if (l == L_LOOP && k == 10u) {                 /* D#4: CLEAR, held 1 s (cu_clear_poll) */
+        cu.clear_t0 = cu_now() | 1u;
+        cu_message("hold to clear", CR_COL_RED);
+        return;
+    }
+    if (l == L_LOOP && k == 13u) {                 /* F#4: UNDO */
+        cr_post(CRE_LOOP, LP_UNDO, 0, 0);
+        return;
+    }
+    if ((l == L_LOOP || l == L_SAVE) && wi >= 0) { /* the white roots: slots 1..10 */
+        if (wi < (int32_t)CRL_SLOTS) {
+            if (l == L_LOOP)
+                cu_loop_load((uint32_t)wi);
+            else
+                cs.loop_target = (uint8_t)wi;
+        }
+        return;
+    }
+    cu_layer_pick(l, wi);
+}
+
+static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (0..3) while layer l is open */
+{
+    char b[8];
+    int32_t v;
+    switch (l) {
+    case L_KEY:
+        if (knob == 0) {                           /* TONIC */
+            cs.tonic = (uint8_t)((cs.tonic + 12 + s % 12) % 12);
+            cs.key_on = 1;
+            cu_post_key();
+            cu_popup(CU_NOTE[cs.tonic], cs.scale ? "minor" : "major", "tonic", CR_COL_YELLOW, cs.tonic, 0, 11, 12);
+        } else if (knob == 1) {                    /* SCALE */
+            cs.scale = s > 0 ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
+            cu_post_key();
+            cu_popup(CU_NOTE[cs.tonic], cs.scale ? "minor" : "major", "scale", CR_COL_YELLOW, cs.scale, 0, 1, 2);
+        } else if (knob == 2) {                    /* TRANSPOSE */
+            v = cs.transpose + s;
+            cs.transpose = (int8_t)(v < -24 ? -24 : v > 24 ? 24 : v);
+            cr_post(CRE_TRANSPOSE, 0, 0, cs.transpose);
+            cu_popup_num(cs.transpose, 1, "semitones", "transpose", CR_COL_YELLOW, -24, 24, 12);
+        } else {                                   /* SINGLE NOTES: Full Octave / Split */
+            cs.single = s > 0;
+            cu_post_single();
+            cu_popup_num(cs.single, 0, cs.single ? "split" : "full", "single notes", CR_COL_YELLOW, 0, 1, 2);
+        }
+        break;
+    case L_PERF:
+        cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][knob], s);
+        break;
+    case L_FX:
+        if (knob == 3) {
+            v = cs.fx_amt[cs.fx_sel] + s * 4;
+            cs.fx_amt[cs.fx_sel] = (uint8_t)(v < 0 ? 0 : v > 127 ? 127 : v);
+            cs.fx_on = 1;
+            cu_fx_apply();
+            cu_popup_num(cs.fx_amt[cs.fx_sel] * 99 / 127, 0, "", "amount", CR_COL_GREEN, 0, 99, 12);
+        } else if (CU_FX[cs.fx_sel].g[knob] >= 0) {
+            uint32_t g = (uint32_t)CU_FX[cs.fx_sel].g[knob];
+            v = song.g[g] + s * (GP[g].max - GP[g].min > 20 ? 2 : 1);
+            song.g[g] = (int16_t)(v < GP[g].min ? GP[g].min : v > GP[g].max ? GP[g].max : v);
+            cu_popup_num(song.g[g], 0, "", CU_FX[cs.fx_sel].gname[knob], CR_COL_GREEN, GP[g].min, GP[g].max, 12);
+        }
+        break;
+    case L_BASS:
+        if (knob == 0) {                           /* BEHAVIOUR */
+            v = cs.bass_mode + (s > 0 ? 1 : -1);
+            cu_layer_pick(L_BASS, v < 0 ? 0 : v > 3 ? 3 : v);
+        } else if (knob == 1) {                    /* REGISTER */
+            cr_post(CRE_BASS_VOICING, 0, 0, s);
+            cu.pop.until = cu_now() + CR_POPUP_MS;
+            cu.pop.kind = PU_BASS_VOICING;
+        } else if (knob == 2) {                    /* SOUND */
+            v = (int32_t)cs.bass_sound + s;
+            cu_bass_go((uint32_t)(v < 0 ? 0 : v));
+            cu_sound_popup(1);
+        } else {                                   /* LEVEL */
+            v = trk[CR_PART_BASS].p[P_LEVEL] + s * 2;
+            trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)(v < 0 ? 0 : v > 127 ? 127 : v);
+            cu_popup_num(trk[CR_PART_BASS].p[P_LEVEL], 0, "", "bass level", CR_COL_ORANGE, 0, 127, 12);
+        }
+        break;
+    case L_EDIT:
+        if (knob == 0) {                           /* the engine's factory presets */
+            cu_engine_preset_step(s);
+            cu_2d(b, cu_edit_trk()->preset + 1u, sizeof b);
+            cu_popup(b, psnd[ce.part].name, "preset", CR_COL_WHITE, cu_edit_trk()->preset, 0,
+                     ENGINES[cu_edit_trk()->eng_req % NENGINES]->npresets - 1, 16);
+        } else if (knob == 1) {                    /* INIT */
+            cu_sound_init(ce.part);
+        }
+        break;
+    case L_LOOP:                                   /* SYNC QUANT COUNT-IN LEVEL */
+        if (knob == 0) {
+            v = cs.loop_len + (s > 0 ? 1 : -1);
+            cs.loop_len = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CRL_NSYNC ? CRL_NSYNC - 1u : (uint32_t)v);
+            cr_post(CRE_LOOP, LP_CONF, LC_SYNC, cs.loop_len);
+            cu_popup_num(cs.loop_len ? 1 << (cs.loop_len - 1u) : 0, 0, cs.loop_len ? "bars" : "free", "loop sync",
+                         CR_COL_RED, 0, 16, CRL_NSYNC);
+        } else if (knob == 1) {
+            v = cs.loop_quant + (s > 0 ? 1 : -1);
+            cs.loop_quant = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CRL_NQUANT ? CRL_NQUANT - 1u : (uint32_t)v);
+            cr_post(CRE_LOOP, LP_CONF, LC_QUANT, cs.loop_quant);
+            cu_popup_num(cs.loop_quant, 0, CU_QUANT[cs.loop_quant], "quantize", CR_COL_RED, 0,
+                         CRL_NQUANT - 1u, CRL_NQUANT);
+        } else if (knob == 2) {
+            cs.loop_count_in = s > 0;
+            cr_post(CRE_LOOP, LP_CONF, LC_COUNTIN, cs.loop_count_in);
+            cu_popup_num(cs.loop_count_in, 0, cs.loop_count_in ? "on" : "off", "count-in", CR_COL_RED, 0, 1, 2);
+        } else {
+            v = cs.loop_level + s * 5;
+            cs.loop_level = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
+            cr_post(CRE_LOOP, LP_CONF, LC_LEVEL, cs.loop_level);
+            cu_popup_num(cs.loop_level, 0, "%", "loop level", CR_COL_RED, 0, 100, 10);
+        }
+        break;
+    case L_SAVE:
+        if (knob == 0)
+            cu_layer_pick(L_SAVE, (int32_t)(cs.save_act + 3u + (s > 0 ? 1u : 2u)) % 3);
+        break;
+    case L_METRO:                                  /* KNOB 1: the click level */
+        if (knob == 0) {
+            v = cs.metro_vol + s * 5;
+            cs.metro_vol = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
+            cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
+            cu_popup_num(cs.metro_vol, 0, "%", "click level", CR_COL_WHITE, 0, 100, 10);
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+/* ------------------------------------------------------------- the scan --- */
+static void cu_activity(void)
+{
+    if (cu.armed != NB) {                         /* something touched during a hold: a combo, the layer at once */
+        cu.combo = 1;
+        if (!cu.open) {
+            cu.open = 1;
+            cu_opened(cu.armed);
+        }
+    }
+}
+
+static void cu_key_press(uint32_t k)
+{
+    uint32_t l;
+    cu.kheld |= 1u << k;
+    cu.last_sound = cu_now();
+    cu_activity();
+    if (k < CU_ROOT0) {                            /* the chord block keeps its job in every layer */
+        if (CU_MOD_OF_KEY[k] != 0xFFu)
+            cr_post(CRE_MOD, CU_MOD_OF_KEY[k], 0, 1);
+        return;
+    }
+    l = cu_layer();
+    if (l) {
+        cu_layer_key(l, k);
+        cu.key_note[k] = 0xFFu;
+        return;
+    }
+    if (cu.page == PG_SAVE) {                      /* naming: the roots type */
+        int32_t wi = cu_white_idx(k);
+        if (wi >= 0)
+            cn_white((uint32_t)wi, cu_now());
+        else if (k == 10u)
+            cn_space();
+        cu.key_note[k] = 0xFFu;
+        return;
+    }
+    if (cu.opt_open) {                             /* Options: the white roots index the settings */
+        int32_t wi = cu_white_idx(k);
+        if (wi >= 0 && wi < O_N)
+            cu.opt_sel = (uint8_t)wi;
+        cu.key_note[k] = 0xFFu;
+        return;
+    }
+    {
+        int32_t n = 53 + (int32_t)k + 12 * cu.octave;
+        n = n < 0 ? 0 : n > 127 ? 127 : n;
+        cr_post(CRE_KEY, (uint32_t)n, cs.vel, 1);
+        cu.key_note[k] = (uint8_t)(n + 1);
+    }
+}
+
+static void cu_key_release(uint32_t k)
+{
+    cu.kheld &= ~(1u << k);
+    if (k < CU_ROOT0) {
+        if (CU_MOD_OF_KEY[k] != 0xFFu)
+            cr_post(CRE_MOD, CU_MOD_OF_KEY[k], 0, 0);
+        return;
+    }
+    if (cu.key_note[k] && cu.key_note[k] != 0xFFu)
+        cr_post(CRE_KEY, cu.key_note[k] - 1u, 0, 0);
+    cu.key_note[k] = 0;
+}
+
+static void cu_btn_press(uint32_t b)
+{
+    uint32_t octs = CU_BIT(B_OCTDN) | CU_BIT(B_OCTUP);
+    cu.bheld |= CU_BIT(b);
+    if (b == B_OCTDN || b == B_OCTUP) {
+        if ((cu.bheld & octs) == octs && !cu.oct_chord) {
+            cu.oct_chord = 1;
+            cu_panic();
+        }
+        return;
+    }
+    if (b == BT_HOME) {
+        if (cu.armed != NB && cu_layer_of(cu.armed)) {   /* hold a layer button + HOME: lock it open */
+            cu.lock = (uint8_t)cu_layer_of(cu.armed);
+            cu.combo = 1;
+            cu.open = 1;
+            cu.home_lock = 1;
+            cu_message("locked", CR_COL_WHITE);
+        }
+        return;
+    }
+    if (cu.armed == NB) {
+        if (b == BT_EDIT && cu.page != PG_EDIT)   /* EDIT held: the engine picker of the chord sound */
+            ce.part = 0;
+        cu.armed = (uint8_t)b;
+        cu.t0 = cu_now();
+        cu.open = cu.combo = 0;
+        return;
+    }
+    /* another button during a hold: a combo; OPT + FX / PERF: that layer locked (PLAN.md section 3) */
+    cu.swallow |= CU_BIT(b);
+    if (cu.armed == BT_OPT && (b == BT_FX || b == BT_PERF)) {
+        cu.lock = (uint8_t)cu_layer_of(b);
+        cu.opt_open = 0;
+        cu.page = PG_NONE;
+        cu_message(b == BT_FX ? "fx lock" : "perform lock", CR_COL_WHITE);
+    }
+    cu_activity();
+    if (cu.armed == BT_BASS && b == BT_EDIT)       /* BASS held + EDIT / SAVE: the bass sound's pages, saving */
+        cu_edit_open(1);
+    if (cu.armed == BT_BASS && b == BT_SAVE)
+        cu_save_open(1);
+}
+
+static void cu_btn_release(uint32_t b)
+{
+    uint32_t octs = CU_BIT(B_OCTDN) | CU_BIT(B_OCTUP);
+    cu.bheld &= ~CU_BIT(b);
+    if (b == B_OCTDN || b == B_OCTUP) {
+        if (!cu.oct_chord)
+            cu_oct_tap(b);
+        if (!(cu.bheld & octs))
+            cu.oct_chord = 0;
+        return;
+    }
+    if (b == BT_HOME) {
+        if (cu.home_lock)
+            cu.home_lock = 0;
+        else
+            cu_home_tap();
+        return;
+    }
+    if (cu.swallow & CU_BIT(b)) {
+        cu.swallow &= ~CU_BIT(b);
+        return;
+    }
+    if (b == cu.armed) {
+        if (!cu.open && !cu.combo)
+            cu_tap(b);
+        cu.armed = NB;
+        cu.open = cu.combo = 0;
+    }
+}
+
+static void cu_knob(uint32_t role, int32_t s)
+{
+    uint32_t l;
+    char b[8];
+    int32_t v;
+    cu_activity();
+    if (cu_shift()) {                              /* OPT held + a knob: the second functions */
+        if (role == EN_ALGO) {
+            v = trk[CR_PART_BASS].p[P_LEVEL] + s * 2;
+            trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)(v < 0 ? 0 : v > 127 ? 127 : v);
+            cu_popup_num(trk[CR_PART_BASS].p[P_LEVEL], 0, "", "bass level", CR_COL_ORANGE, 0, 127, 12);
+        } else if (role == EN_K1) {                /* the Single Notes split point */
+            cs.split = (uint8_t)((cs.split + 12 + s % 12) % 12);
+            cu_post_single();
+            cu_popup(CU_NOTE[cs.split], cs.single ? "split" : "split off", "split point", CR_COL_BLUE, cs.split, 0, 11, 12);
+        } else if (role == EN_SELECT) {            /* the metronome level */
+            cu_layer_knob(L_METRO, 0, s);
+        } else {                                   /* TODO: K3 perform lock */
+            cu_message("shift: not yet", CR_COL_WHITE);
+        }
+        return;
+    }
+    l = cu_layer();
+    if (l && role >= EN_K1) {
+        cu_layer_knob(l, role - EN_K1, s);
+        return;
+    }
+    if (l && role == EN_SELECT && l != L_KEY) {    /* a picker: SELECT moves */
+        v = cu_layer_sel(l) + s;
+        v = v < 0 ? 0 : v >= cu_layer_count(l) ? cu_layer_count(l) - 1 : v;
+        cu_layer_pick(l, v);
+        return;
+    }
+    if (cu.opt_open && (role == EN_SELECT || role == EN_K1)) {
+        if (role == EN_SELECT) {
+            v = cu.opt_sel + s;
+            cu.opt_sel = (uint8_t)(v < 0 ? 0 : v >= O_N ? O_N - 1 : v);
+        } else {
+            opt_set(cu.opt_sel, opt_get(cu.opt_sel) + s * (cu.opt_sel == O_VEL ? 4 : 1));
+        }
+        return;
+    }
+    if (cu.page == PG_EDIT && (role == EN_SELECT || role >= EN_K1)) {   /* the sound pages */
+        if (role == EN_SELECT) {
+            ce.page = (uint8_t)((ce.page + CP_N + (uint32_t)(s % (int32_t)CP_N + (int32_t)CP_N)) % CP_N);
+            ce.col = -1;
+            cu_trace("page: part %u %s %u/8\n", (unsigned)ce.part, cp_title(cu_edit_trk(), ce.page),
+                     (unsigned)ce.page + 1u);
+        } else {
+            cu_edit_knob(role - EN_K1, s);
+        }
+        return;
+    }
+    if (cu.page == PG_SAVE && (role == EN_K1 || role == EN_K2)) {        /* naming: the slot, the last letter */
+        if (role == EN_K1)
+            ce.slot = (uint8_t)((ce.slot + UP_SLOTS + (uint32_t)(s % (int32_t)UP_SLOTS)) % UP_SLOTS);
+        else
+            cn_knob(s);
+        return;
+    }
+    switch (role) {
+    case EN_K1:
+        cr_post(CRE_VOICING, 0, 0, s);
+        cu.pop.until = cu_now() + CR_POPUP_MS;
+        cu.pop.kind = PU_VOICING;
+        break;
+    case EN_K2:
+        cr_post(CRE_BASS_VOICING, 0, 0, s);
+        cu.pop.until = cu_now() + CR_POPUP_MS;
+        cu.pop.kind = PU_BASS_VOICING;
+        break;
+    case EN_K3:
+        cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][0], s);
+        break;
+    case EN_K4:
+        v = cs.fx_amt[cs.fx_sel] + s * 4;
+        cs.fx_amt[cs.fx_sel] = (uint8_t)(v < 0 ? 0 : v > 127 ? 127 : v);
+        cs.fx_on = 1;
+        cu_fx_apply();
+        {
+            char lb[24];
+            cu_cpy(lb, CU_FX[cs.fx_sel].name, sizeof lb);
+            lb[0] = (char)(lb[0] | 0x20);
+            cu_popup_num(cs.fx_amt[cs.fx_sel] * 99 / 127, 0, "", lb, CR_COL_GREEN, 0, 99, 12);
+        }
+        break;
+    case EN_PRESET:
+        {
+            uint32_t n = cb_count(0);
+            if (!n)
+                break;
+            cu_sound_go((cs.sound + (uint32_t)(s % (int32_t)n + (int32_t)n)) % n);
+            cu_sound_popup(0);
+            cu_trace("sound: part 0 pos %u %s\n", (unsigned)cs.sound, psnd[0].name);
+        }
+        break;
+    case EN_ALGO:
+        v = (int32_t)cs.bass_sound + s;
+        cu_bass_go((uint32_t)(v < 0 ? 0 : v));
+        cu_sound_popup(1);
+        cu_trace("sound: part 1 pos %u %s\n", (unsigned)cs.bass_sound, cs.bass_sound ? psnd[1].name : "off");
+        break;
+    case EN_SELECT:
+        cu_set_tempo((int32_t)cs.bpm + s);
+        cu_popup_num(cs.bpm, 0, "", "bpm", CR_COL_WHITE, 20, 300, 14);
+        break;
+    default:
+        break;
+    }
+}
+
+/* one scan: buttons first (a layer armed this pass owns the keys pressed in it), then keys, then knobs */
+static void cr_ui_input(void)
+{
+    uint32_t pe = fm1_input_edges(0), ne = fm1_input_note_edges(), bm = fm1_in.buttons, km = fm1_in.notes;
+    uint32_t cur = 0, edg = 0, b, k, now = cu_now();
+    int32_t s;
+    fm6_poll();                                    /* FM6: a sound's PTCH -> its patch (as ui_input.c) */
+    for (b = 0; b < NB; b++) {
+        cur |= ((bm >> panel.btn[b]) & 1u) << b;
+        edg |= ((pe >> panel.btn[b]) & 1u) << b;
+    }
+    for (b = 0; b < NB; b++) {                     /* the releases first (one let go as another goes down) */
+        uint32_t was = (cu.bheld >> b) & 1u, is = (cur >> b) & 1u, e = (edg >> b) & 1u;
+        if (was && (e || !is))
+            cu_btn_release(b);
+    }
+    for (b = 0; b < NB; b++) {                     /* then the presses; a tap shorter than a scan: down and up */
+        uint32_t was = (cu.bheld >> b) & 1u, is = (cur >> b) & 1u, e = (edg >> b) & 1u;
+        if (!was && (is || e)) {
+            cu_btn_press(b);
+            if (!is)
+                cu_btn_release(b);
+        }
+    }
+    if (cu.armed != NB && !cu.open && ((cu.bheld >> cu.armed) & 1u) &&
+        now - cu.t0 >= (uint32_t)HOLD_MS[settings_hold % 4u]) {
+        cu.open = 1;
+        cu_opened(cu.armed);
+    }
+    for (k = 0; k < CU_NKEY; k++) {
+        uint32_t was = (cu.kheld >> k) & 1u, is = (km >> k) & 1u, e = (ne >> k) & 1u;
+        if (was && (e || !is))
+            cu_key_release(k);
+    }
+    for (k = 0; k < CU_NKEY; k++) {
+        uint32_t was = (cu.kheld >> k) & 1u, is = (km >> k) & 1u, e = (ne >> k) & 1u;
+        if (!was && (is || e)) {
+            cu_key_press(k);
+            if (!is)
+                cu_key_release(k);
+        }
+    }
+    for (b = 0; b < NE; b++)
+        if ((s = panel_enc(b)) != 0)
+            cu_knob(b, s);
+    if (cu.clear_t0) {                             /* D#4 held 1 s in the loop layer: CLEAR */
+        if (!((cu.kheld >> 10) & 1u) || cu_layer() != L_LOOP)
+            cu.clear_t0 = 0;
+        else if (now - cu.clear_t0 >= 1000u) {
+            cu.clear_t0 = 0;
+            cr_post(CRE_LOOP, LP_CLEAR, 0, 0);
+        }
+    }
+}
+
+/* ------------------------------------------------------------- the LEDs --- */
+/* as ui_input.c ui_leds: the picture built off-line, the glow (fm1_led_dim) first, one byte per column */
+static uint8_t cu_led_pos[41];                     /* (col << 3) | row bit, 0xFF = none (FM1_KEYMAP) */
+#ifndef LED_PLAY_GREEN
+#define LED_PLAY_GREEN ((8u << 3) | 1u)            /* PLAY's green LED (ui_input.c): column 8, row bit 1 */
+#endif
+static void cu_led_init(void)
+{
+    uint32_t id, p, r;
+    for (id = 0; id < 41u; id++) {
+        cu_led_pos[id] = 0xFF;
+        for (p = 0; p < FM1_NCOL; p++)
+            for (r = 1; r < 5u; r++)
+                if (FM1_KEYMAP[r][p] == (int8_t)id)
+                    cu_led_pos[id] = (uint8_t)((p << 3) | r);
+    }
+}
+static void cu_led(uint8_t *nl, uint32_t id, int on)
+{
+    uint8_t q = cu_led_pos[id % 41u];
+    if (q != 0xFF && on)
+        nl[q >> 3] |= (uint8_t)(1u << (q & 7u));
+}
+static int32_t cu_key_of_note(uint32_t note)       /* the root key a note sounds on (OCT shifted), -1 none */
+{
+    int32_t k = (int32_t)note - 53 - 12 * cu.octave;
+    return k >= (int32_t)CU_ROOT0 && k < (int32_t)CU_NKEY ? k : -1;
+}
+
+static void cr_leds(void)
+{
+    uint8_t nl[FM1_NCOL] = {0}, nd[FM1_NCOL] = {0}, own[FM1_NCOL] = {0};
+    uint32_t k, b, now = cu_now(), blink = ((now / 250u) & 1u) == 0u, l = cu_layer(), held_l;
+    const cr_snap_t *sn = &cr_snap;
+    if (cu.msg.big && (int32_t)(cu.msg.until - now) > 0) {   /* panic: everything flashes */
+        for (k = 0; k < 41u; k++)
+            cu_led(nl, k < NB ? panel.btn[k] : k, (int)blink);
+        for (k = 0; k < FM1_NCOL; k++) {
+            fm1_led_dim[k] = 0;
+            fm1_led[k] = nl[k];
+        }
+        return;
+    }
+    /* buttons: on = active */
+    cu_led(nl, panel.btn[BT_KEY], cs.key_on);
+    cu_led(nl, panel.btn[BT_PERF], cs.perform_on);
+    cu_led(nl, panel.btn[BT_FX], cs.fx_on);
+    cu_led(nl, panel.btn[BT_BASS], cs.bass_on);
+    cu_led(nl, panel.btn[BT_LATCH], cs.sticky || sn->latching);
+    cu_led(nl, panel.btn[BT_OPT], cu.opt_open || cu_shift());
+    cu_led(nl, panel.btn[BT_EDIT], cu.page == PG_EDIT);
+    cu_led(nl, panel.btn[BT_SAVE], cu.page == PG_SAVE);
+    cu_led(nl, panel.btn[BT_METRO], cs.metro);
+    {                                                    /* REC: blinks capturing, lit armed; LOOP: a loop */
+        uint32_t cap = sn->lcap;
+        cu_led(nl, panel.btn[BT_REC], cap == CRL_CAP_ARMED || cap == CRL_CAP_OD_ARMED ||
+                                          ((cap == CRL_CAP_COUNTIN || cap == CRL_CAP_REC || cap == CRL_CAP_OD) && blink));
+        cu_led(nl, panel.btn[BT_LOOP], sn->lstate != CRL_EMPTY);
+        if (sn->lstate == CRL_PLAYING)                   /* its green LED while playing */
+            nl[LED_PLAY_GREEN >> 3] |= (uint8_t)(1u << (LED_PLAY_GREEN & 7u));
+    }
+    held_l = cu.armed != NB && cu.open ? cu.armed : NB;
+    if (held_l != NB) {                                  /* the held layer's button blinks */
+        uint8_t q = cu_led_pos[panel.btn[held_l]];
+        if (q != 0xFF)
+            nl[q >> 3] &= (uint8_t)~(1u << (q & 7u));
+        cu_led(nl, panel.btn[held_l], (int)blink);
+    }
+    if (cu_picker_ctx() || l) {                          /* a picker: OCT- back (lit), OCT+ OK (blinking) */
+        cu_led(nl, panel.btn[B_OCTDN], 1);
+        cu_led(nl, panel.btn[B_OCTUP], (int)blink);
+    } else {
+        cu_led(nl, panel.btn[B_OCTDN], cu.octave < 0);
+        cu_led(nl, panel.btn[B_OCTUP], cu.octave > 0);
+    }
+    for (b = 0; b < NB; b++)
+        cu_led(nd, panel.btn[b], 1);
+    /* the chord block: lit while held / latched; B3 always dark */
+    for (k = 0; k < CU_ROOT0; k++) {
+        if (CU_MOD_OF_KEY[k] == 0xFFu)
+            continue;
+        cu_led(nl, 14u + k, (int)((sn->mods_active >> CU_MOD_OF_KEY[k]) & 1u));
+        cu_led(nd, 14u + k, 1);
+    }
+    /* the roots: a layer's map, or the voiced notes where they sound */
+    if (l == L_LOOP || l == L_SAVE) {                  /* the slots: lit = a loop, blinking = the one selected */
+        uint32_t sel = l == L_LOOP ? cs.loop_slot : cs.loop_target;
+        for (k = CU_ROOT0; k < CU_NKEY; k++) {
+            int32_t wi = cu_white_idx(k);
+            if (wi < 0 || wi >= (int32_t)CRL_SLOTS) {
+                if (l == L_LOOP && (k == 10u || k == 13u))   /* CLEAR, UNDO */
+                    cu_led(nl, 14u + k, 1);
+                continue;
+            }
+            cu_led(nd, 14u + k, 1);
+            if ((uint32_t)wi == sel ? blink : (cs.loop_used >> wi) & 1u)
+                cu_led(own, 14u + k, 1);
+        }
+    } else if (l && l != L_KEY) {
+        int32_t sel = cu_layer_sel(l), n = cu_layer_count(l);
+        for (k = CU_ROOT0; k < CU_NKEY; k++) {
+            int32_t wi = cu_white_idx(k);
+            if (wi >= 0 && wi < n)
+                cu_led(wi == sel ? own : nd, 14u + k, 1);
+        }
+    } else if (l == L_KEY) {
+        for (k = CU_ROOT0; k < CU_NKEY; k++)
+            cu_led(cs.key_on && (53u + k) % 12u == cs.tonic ? own : nd, 14u + k, 1);
+    } else if (cu.opt_open) {
+        for (k = CU_ROOT0; k < CU_NKEY; k++) {
+            int32_t wi = cu_white_idx(k);
+            if (wi >= 0 && wi < O_N)
+                cu_led(wi == cu.opt_sel ? own : nd, 14u + k, 1);
+        }
+    } else {
+        uint32_t i;
+        int32_t pk = -1;
+        if (sn->ci.sounding)
+            for (i = 0; i < sn->ci.nnotes; i++) {
+                int32_t kk = cu_key_of_note(sn->ci.notes[i]);
+                if (kk >= 0)
+                    cu_led(nl, 14u + (uint32_t)kk, 1);
+            }
+        if (sn->perform_on && sn->perf_pos >= 0 && sn->ci.sounding)
+            pk = cu_key_of_note(sn->perf_note);
+        if (pk >= 0 && !blink) {                         /* the performed note blinks */
+            uint8_t q = cu_led_pos[14u + (uint32_t)pk];
+            if (q != 0xFF)
+                nl[q >> 3] &= (uint8_t)~(1u << (q & 7u));
+        }
+        for (k = CU_ROOT0; k < CU_NKEY; k++) {           /* Key Mode: the black roots off the scale dark */
+            uint32_t pc = (uint32_t)(53 + (int32_t)k + 12 * cu.octave + 120) % 12u;
+            if (sn->scale_mask && cu_black(k) && !((sn->scale_mask >> pc) & 1u))
+                continue;
+            cu_led(nd, 14u + k, 1);
+        }
+    }
+    for (k = 0; k < FM1_NCOL; k++) {
+        if (cs.leds) {                                   /* STOCK: the idle ones lit, the active ones dark */
+            nl[k] = (uint8_t)(nd[k] & ~nl[k]);
+            nd[k] = 0;
+        }
+        nl[k] |= own[k];
+    }
+    for (k = 0; k < FM1_NCOL; k++)
+        fm1_led_dim[k] = nd[k];
+    for (k = 0; k < FM1_NCOL; k++)
+        fm1_led[k] = nl[k];
+}
+
+/* ------------------------------------------------------- the view-model --- */
+static const uint8_t CU_TRIAD[CR_Q_COUNT][3] = {     /* intervals of each quality's base (the rest: extensions) */
+    {0, 0, 0}, {0, 3, 6}, {0, 3, 7}, {0, 4, 7}, {0, 5, 7}, {0, 4, 8}, {0, 7, 7}, {0, 3, 5}};
+
+static void cu_name(cr_name_t *n, const cr_chord_info_t *ci)
+{
+    cu_cpy(n->root, ci->root, sizeof n->root);
+    cu_cpy(n->quality, ci->qual, sizeof n->quality);
+    cu_cpy(n->sup, ci->sup, sizeof n->sup);
+    n->col_root = CR_COL_WHITE;
+    n->col_quality = CR_COL_WHITE;
+    n->col_sup = ci->secret ? CR_COL_RED : CR_COL_ORANGE;
+}
+static void cu_notes(cr_screen_t *s, const cr_chord_info_t *ci)
+{
+    uint32_t i, j;
+    s->n_notes = 0;
+    for (i = 0; i < ci->nnotes && i < CR_NOTES_MAX; i++) {
+        char b[5];
+        uint32_t iv = (uint32_t)(ci->notes[i] + 120u - ci->root_pc) % 12u, base = ci->quality == CR_Q_NONE;
+        for (j = 0; j < 3u && !base; j++)
+            base = iv == CU_TRIAD[ci->quality % CR_Q_COUNT][j];
+        cr_note_name(ci->notes[i], b);
+        cu_cpy(s->note[i].t, b, sizeof s->note[i].t);
+        s->note[i].col = base ? CR_COL_WHITE : ci->secret ? CR_COL_RED : CR_COL_ORANGE;
+        s->note[i].mark = (uint8_t)!base;
+        s->n_notes++;
+    }
+}
+static uint32_t cu_lit(const cr_chord_info_t *ci)  /* the keyboard strip: bit k = a voiced note at key k */
+{
+    uint32_t i, m = 0;
+    for (i = 0; i < ci->nnotes; i++) {
+        int32_t k = (int32_t)ci->notes[i] - 53 - 12 * cu.octave;
+        while (k >= (int32_t)CU_NKEY)
+            k -= 12;
+        while (k < 0)
+            k += 12;
+        m |= 1u << k;
+    }
+    return m;
+}
+
+static void cu_header(cr_screen_t *s)
+{
+    const cr_snap_t *sn = &cr_snap;
+    s->header = 1;
+    s->icon = CR_ICON_NONE;
+    s->batt = 255;
+    s->mid_col = CR_COL_WHITE;
+    s->right_col = CR_COL_WHITE;
+    if (cs.key_on) {
+        cu_cpy(s->mid, "Key: ", sizeof s->mid);
+        cu_cat(s->mid, CU_NOTE[cs.tonic], sizeof s->mid);
+        if (cs.scale == CR_SCALE_MINOR)
+            cu_cat(s->mid, " minor", sizeof s->mid);
+        s->mid_col = CR_COL_YELLOW;
+    }
+    if (sn->perform_on)
+        cu_cpy(s->right, CU_PERF[cs.perf_sel].short_name, sizeof s->right);
+    else if (cu.octave) {
+        cu_cpy(s->right, "Oct ", sizeof s->right);
+        cu_int(s->right + 4, cu.octave, 1, sizeof s->right - 4u);
+    } else if (cs.sticky)
+        cu_cpy(s->right, "Latch", sizeof s->right);
+    /* the looper owns the top line while it runs: "Rec 2.3", "Count-in -3", "Loop 1" */
+    if (sn->lcap != CRL_CAP_NONE || sn->lstate == CRL_PLAYING) {
+        char b[8];
+        s->mid_col = s->right_col = CR_COL_RED;
+        s->right[0] = 0;
+        if (sn->lcap == CRL_CAP_COUNTIN) {
+            cu_cpy(s->mid, "Count-in", sizeof s->mid);
+            cu_int(s->right, -(int32_t)sn->lbeat, 0, sizeof s->right);
+        } else if (sn->lcap == CRL_CAP_ARMED) {
+            cu_cpy(s->mid, "Rec", sizeof s->mid);
+            cu_cpy(s->right, "ready", sizeof s->right);
+        } else if (sn->lcap == CRL_CAP_REC) {
+            cu_cpy(s->mid, "Rec", sizeof s->mid);
+        } else {
+            cu_cpy(s->mid, "Loop ", sizeof s->mid);
+            cu_int(b, cs.loop_slot + 1, 0, sizeof b);
+            cu_cat(s->mid, b, sizeof s->mid);
+            if (sn->lcap == CRL_CAP_OD)
+                cu_cpy(s->right, "Dub ", sizeof s->right);
+        }
+        if (sn->lcap == CRL_CAP_REC || sn->lcap == CRL_CAP_OD) {
+            cu_int(b, (int32_t)sn->lbar, 0, sizeof b);
+            cu_cat(s->right, b, sizeof s->right);
+            cu_cat(s->right, ".", sizeof s->right);
+            cu_int(b, (int32_t)sn->lbeat, 0, sizeof b);
+            cu_cat(s->right, b, sizeof s->right);
+        }
+    }
+}
+static void cu_ring(cr_screen_t *s)               /* the loop's ring round the edge, red */
+{
+    const cr_snap_t *sn = &cr_snap;
+    if (sn->lcap == CRL_CAP_NONE && sn->lstate != CRL_PLAYING)
+        return;
+    s->ring_on = 1;
+    s->ring_col = CR_COL_RED;
+    s->ring = sn->lring;
+    s->ring_rec = sn->lcap == CRL_CAP_COUNTIN || sn->lcap == CRL_CAP_REC || sn->lcap == CRL_CAP_OD;
+}
+
+static void cu_meter(cr_screen_t *s, const char *value, const char *sub, const char *label, uint32_t col, uint32_t pct,
+                     uint32_t segs)
+{
+    s->kind = CR_K_METER;
+    cu_cpy(s->value, value, sizeof s->value);
+    cu_cpy(s->sub, sub, sizeof s->sub);
+    cu_cpy(s->label, label, sizeof s->label);
+    s->col = (uint8_t)col;
+    s->pct = (uint16_t)(pct > 256u ? 256u : pct);
+    s->segments = (uint8_t)segs;
+    s->thick = 14;
+}
+
+static void cu_picker(cr_screen_t *s, const char *const *items, uint32_t n, uint32_t sel, uint32_t col,
+                      const char *label, const char *footer)
+{
+    uint32_t i, i0 = sel > 3u ? sel - 3u : 0u;
+    if (n > CR_PICK_MAX && i0 > n - CR_PICK_MAX)
+        i0 = n - CR_PICK_MAX;
+    if (n <= CR_PICK_MAX)
+        i0 = 0;
+    s->kind = CR_K_PICKER;
+    s->n_items = (uint8_t)n;
+    s->item0 = (uint8_t)i0;
+    s->sel = (uint8_t)(sel < n ? sel : 0u);
+    for (i = 0; i < CR_PICK_MAX && i0 + i < n; i++)
+        cu_cpy(s->item[i], items[i0 + i], sizeof s->item[i]);
+    s->col = (uint8_t)col;
+    s->title_col = CR_COL_MID;
+    cu_cpy(s->label, label, sizeof s->label);
+    cu_cpy(s->footer, footer, sizeof s->footer);
+}
+
+static void cu_stripes(cr_screen_t *s)
+{
+    s->kind = CR_K_STRIPES;
+    s->bands[0] = CR_COL_RED;
+    s->bands[1] = CR_COL_ORANGE;
+    s->bands[2] = CR_COL_WHITE;
+    s->n_bands = 3;
+    s->band = 18;
+    s->gap = 8;
+    cu_cpy(s->title, "choralroot", sizeof s->title);
+    s->title_px = 34;
+    s->title_col = CR_COL_WHITE;
+    s->period_ms = cr_anim_bar_ms(cs.bpm);
+}
+
+static void cu_layer_screen(cr_screen_t *s, uint32_t l)
+{
+    static const char *const PERF_ITEMS[7] = {"Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves",
+                                              "Pattern", "Harp"};
+    static const char *const FX_ITEMS[CU_NFX] = {"Reverb", "Chorus", "Delay", "Drive"};
+    static const char *const SLOTS[10] = {"Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6", "Slot 7",
+                                          "Slot 8", "Slot 9", "Slot 10"};
+    const char *eng[NENGINES];
+    uint32_t k, n;
+    char val[8], sub[12];
+    switch (l) {
+    case L_KEY:
+        s->kind = CR_K_KEYBOARD;
+        cu_cpy(s->title, "select key", sizeof s->title);
+        s->title_px = 26;
+        s->col = CR_COL_YELLOW;
+        cu_cpy(s->footer, "a root: the key \267 MIN held: minor", sizeof s->footer);
+        for (k = CU_ROOT0; cs.key_on && k < CU_NKEY; k++)
+            if ((53u + k) % 12u == cs.tonic) {
+                s->lit |= 1u << k;
+                s->lit_col[k] = CR_COL_YELLOW;
+                cu_cpy(s->key_label[k], CU_NOTE[cs.tonic], sizeof s->key_label[k]);
+            }
+        break;
+    case L_PERF: {
+        uint32_t m = cu_perf_mode();
+        int32_t p = CU_PERF_KNOB[m][0];
+        cu_picker(s, PERF_ITEMS, 7, cs.perf_sel, CR_COL_WHITE, "perform",
+                  "a root key: the mode \267 KNOB 3: rate");
+        cu_param_text((uint32_t)p, cs.par[m][p], val, sub);
+        if (p == CR_P_DIV || p == CR_P_PATTERN || p == CR_P_DIR)
+            cu_cpy(s->value, sub, sizeof s->value);
+        else {
+            cu_cpy(s->value, val, sizeof s->value);
+            cu_cat(s->value, " ", sizeof s->value);
+            cu_cat(s->value, sub, sizeof s->value);
+        }
+        break;
+    }
+    case L_FX:
+        cu_picker(s, FX_ITEMS, CU_NFX, cs.fx_sel, CR_COL_GREEN, "fx \267 KNOB 4 amount",
+                  "a root key: the effect \267 OPT+FX: lock");
+        if (cs.fx_on)
+            cu_2d(s->value, cs.fx_amt[cs.fx_sel] * 99u / 127u, sizeof s->value);
+        else
+            cu_cpy(s->value, "off", sizeof s->value);
+        break;
+    case L_BASS:
+        cu_picker(s, CU_BASSMODE, 4, cs.bass_mode, CR_COL_ORANGE, "bass",
+                  "KNOBS: behaviour \267 register \267 sound \267 level");
+        if (cs.bass_on && cs.bass_sound) {
+            cu_2d(s->value, cs.bass_sound, sizeof s->value);
+            cu_cat(s->value, " ", sizeof s->value);
+            cu_cat(s->value, psnd[1].name, sizeof s->value);
+        } else
+            cu_cpy(s->value, "off", sizeof s->value);
+        break;
+    case L_EDIT:
+        cu_engine_at(0, &n);
+        for (k = 0; k < n && k < NENGINES; k++)
+            eng[k] = ENGINES[cu_engine_at(k, 0)]->name;
+        cu_picker(s, eng, n, (uint32_t)cu_layer_sel(L_EDIT), ce.part ? CR_COL_ORANGE : CR_COL_WHITE,
+                  ce.part ? "bass engine \267 KNOB 1 its presets" : "engine \267 KNOB 1 its presets",
+                  "a root key: the engine \267 KNOB 2: init");
+        cu_cpy(s->value, psnd[ce.part].name, sizeof s->value);
+        if (psnd[ce.part].edited)
+            cu_cat(s->value, "*", sizeof s->value);
+        break;
+    case L_LOOP:                                   /* mock-ups 8 (stopped: the length) and 10 (playing) */
+        if (cu_playing()) {
+            cu_picker(s, CU_LOOP_ACT, 4, cs.loop_act, CR_COL_RED, SLOTS[cs.loop_slot % 10u],
+                      "OCT+ does it \267 roots: slots \267 D#4 clear");
+            cu_cpy(s->label, "loop ", sizeof s->label);
+            cu_cat(s->label, SLOTS[cs.loop_slot % 10u] + 5, sizeof s->label);
+        } else {
+            cu_picker(s, CU_LOOPLEN, CRL_NSYNC, cs.loop_len, CR_COL_RED, "loop length",
+                      "roots: slots \267 KNOBS sync quant count level");
+            cu_cpy(s->value, "Q ", sizeof s->value);
+            cu_cat(s->value, CU_QUANT[cs.loop_quant % CRL_NQUANT], sizeof s->value);
+            cu_cat(s->value, cs.loop_count_in ? " \267 count-in" : "", sizeof s->value);
+        }
+        s->ring_on = 1;
+        s->ring_col = CR_COL_RED;
+        s->ring = cr_snap.lring;
+        if (cr_snap.lstate != CRL_PLAYING) {
+            cu_cpy(s->mid, "Loop ", sizeof s->mid);
+            cu_cat(s->mid, SLOTS[cs.loop_slot % 10u] + 5, sizeof s->mid);
+        }
+        s->mid_col = CR_COL_RED;
+        break;
+    case L_SAVE:                                   /* loops: save / load / delete on the root-chosen slot */
+        cu_picker(s, CU_SAVE_ACT, 3, cs.save_act, CR_COL_RED,
+                  (cs.loop_used >> cs.loop_target) & 1u ? "holds a loop" : "empty",
+                  "a root: the slot \267 OCT+ does it");
+        s->orient = 1;
+        cu_cpy(s->value, SLOTS[cs.loop_target % 10u], sizeof s->value);
+        s->ring_on = 1;
+        s->ring_col = CR_COL_RED;
+        cu_cpy(s->mid, "Loops", sizeof s->mid);
+        s->mid_col = CR_COL_RED;
+        break;
+    case L_METRO:                                  /* the time signature; KNOB 1 the click level */
+        cu_picker(s, CU_SIG, CRL_NSIG, cs.metro_sig, CR_COL_WHITE, "time signature", "KNOB 1: click level");
+        s->orient = 1;
+        cu_cpy(s->value, cs.metro ? "click on " : "click off ", sizeof s->value);
+        cu_int(s->value + (cs.metro ? 9 : 10), cs.metro_vol, 0, 4);
+        break;
+    default:
+        break;
+    }
+}
+
+static void cu_options_screen(cr_screen_t *s)
+{
+    cu_picker(s, O_NAME, O_N, cu.opt_sel, CR_COL_WHITE, "options \267 KNOB 1 sets", "");
+    opt_text(cu.opt_sel, s->value, sizeof s->value);
+}
+
+/* the sound page (mock-up 21): the sound's name and "ENV 4/8" on top, four columns; the column last turned eases
+ * to its new value (CU_GLYPH_MS: the envelope redraws as the knob moves) */
+static void cu_edit_screen(cr_screen_t *s, uint32_t now)
+{
+    track_t *t = cu_edit_trk();
+    const engine_t *en = ENGINES[t->eng_req % NENGINES];
+    uint32_t i, j, n;
+    char b[8];
+    s->kind = CR_K_PARAMS;
+    for (i = 0; i < 4u; i++) {
+        cr_param_t *c = &s->par[i];
+        uint32_t id = CP_PAGES[ce.page % CP_N].id[i];
+        if (id == CPX_ENGINE) {
+            int32_t r = cu_engine_rank(t->eng_req % NENGINES);
+            cu_engine_at(0, &n);
+            cu_cpy(c->label, "Engine", sizeof c->label);
+            cu_cpy(c->value, en->name, sizeof c->value);
+            c->glyph = CR_G_DOTS;
+            c->pct = (uint16_t)(n > 1u && r > 0 ? (uint32_t)r * 256u / (n - 1u) : 0u);
+        } else if (id == CPX_PRESET) {
+            cu_cpy(c->label, "Preset", sizeof c->label);
+            cu_cpy(c->value, en->npresets ? en->presets[t->preset % en->npresets].name : "-", sizeof c->value);
+            c->glyph = CR_G_KNOB;
+            c->pct = (uint16_t)(en->npresets > 1u ? (t->preset % en->npresets) * 256u / (en->npresets - 1u) : 0u);
+        } else if (id == CPX_INIT) {
+            cu_cpy(c->label, "Init", sizeof c->label);
+            cu_cpy(c->value, "turn", sizeof c->value);
+            c->glyph = CR_G_KNOB;
+        } else {
+            cp_column(t, ce.page, i, c);
+        }
+        if (ce.col == (int8_t)i && now - ce.t0 < CU_GLYPH_MS) {   /* the turned column: tweened */
+            c->pct = (uint16_t)cr_tween(ce.from_pct, c->pct, ce.t0, CU_GLYPH_MS, now);
+            for (j = 0; j < 4u; j++)
+                c->env[j] = (uint8_t)cr_tween(ce.from_env[j], c->env[j], ce.t0, CU_GLYPH_MS, now);
+        }
+        ce.shown_pct[i] = c->pct;
+        for (j = 0; j < 4u; j++)
+            ce.shown_env[i][j] = c->env[j];
+    }
+    cu_cpy(s->title, psnd[ce.part].name, sizeof s->title);
+    if (psnd[ce.part].edited)
+        cu_cat(s->title, "*", sizeof s->title);
+    s->col = ce.part ? CR_COL_ORANGE : CR_COL_WHITE;
+    cu_cpy(s->page, cp_title(t, ce.page), sizeof s->page);
+    cu_cat(s->page, " ", sizeof s->page);
+    cu_int(b, (int32_t)ce.page + 1, 0, sizeof b);
+    cu_cat(s->page, b, sizeof s->page);
+    cu_cat(s->page, "/8", sizeof s->page);
+    if (ce.page == CP_ENV && en->ownenv)
+        cu_cpy(s->foot, "FM6: the patch's own envelopes", sizeof s->foot);
+    else
+        cu_cpy(s->foot, ce.part ? "bass \267 SELECT: page \267 HOME: done" : "SELECT: page \267 HOME: done \267 SAVE: keep it",
+               sizeof s->foot);
+}
+
+/* SAVE (mock-up 23): the slot, the name being typed */
+static void cu_save_screen(cr_screen_t *s, uint32_t now)
+{
+    char l[4], nm[13];
+    s->kind = CR_K_TEXT;
+    cu_cpy(s->title, ce.save_part ? "save bass" : "save sound", sizeof s->title);
+    s->title_col = ce.save_part ? CR_COL_ORANGE : CR_COL_RED;
+    up_slot_label(l, ce.slot);
+    cu_cpy(s->lines[0].t, l, sizeof s->lines[0].t);
+    if (up_used(ce.slot)) {
+        up_name(ce.slot, nm);
+        cu_cat(s->lines[0].t, " \267 replaces ", sizeof s->lines[0].t);
+        cu_cat(s->lines[0].t, nm, sizeof s->lines[0].t);
+    } else {
+        cu_cat(s->lines[0].t, " \267 empty", sizeof s->lines[0].t);
+    }
+    s->lines[0].px = 15;
+    s->lines[0].col = CR_COL_GREY;
+    cn_line(s->lines[1].t, sizeof s->lines[1].t, now);
+    s->lines[1].px = 36;
+    s->lines[1].col = cn.pristine ? CR_COL_GREY : CR_COL_WHITE;
+    s->lines[1].bold = 1;
+    s->lines[2].px = 12;
+    cu_cpy(s->lines[3].t, "keys: letters \267 OCT-: delete", sizeof s->lines[3].t);
+    s->lines[3].px = 12;
+    s->lines[3].col = CR_COL_GREY;
+    cu_cpy(s->lines[4].t, "OCT+: save \267 KNOB 1: slot", sizeof s->lines[4].t);
+    s->lines[4].px = 12;
+    s->lines[4].col = CR_COL_GREY;
+    s->n_lines = 5;
+    cu_cpy(s->footer, "SAVE again: cancel", sizeof s->footer);
+}
+
+static void cu_view_screen(cr_screen_t *s)
+{
+    const cr_snap_t *sn = &cr_snap;
+    const cr_chord_info_t *ci = &sn->ci;
+    uint32_t pm = sn->perform_mode;
+    if (cs.view == V_CHORD && sn->perform_on && ci->sounding && pm != CR_PM_STRUM && pm != CR_PM_SLOP) {
+        char v[8], sub[12];
+        int32_t p = CU_PERF_KNOB[pm][0];
+        s->kind = CR_K_ARP;                        /* perform in motion: the sounding note hops along */
+        cu_name(&s->name, ci);
+        cu_notes(s, ci);
+        s->pos = (int8_t)(sn->perf_pos < (int)s->n_notes ? sn->perf_pos : -1);
+        s->hop_col = CR_COL_WHITE;
+        cu_param_text((uint32_t)p, cs.par[pm][p], v, sub);
+        cu_cpy(s->line, CU_PERF[cs.perf_sel].short_name, sizeof s->line);
+        s->line[0] = (char)(s->line[0] | 0x20);
+        cu_cat(s->line, " ", sizeof s->line);
+        cu_cat(s->line, p == CR_P_DIV || p == CR_P_PATTERN ? sub : v, sizeof s->line);
+        s->line_col = CR_COL_MID;
+        return;
+    }
+    switch (cs.view) {
+    case V_KEYBOARD:
+        s->kind = CR_K_KEYBOARD;
+        cu_name(&s->name, ci);
+        s->lit = ci->sounding ? cu_lit(ci) : 0u;
+        break;
+    case V_NOTES: {
+        uint32_t i;
+        s->kind = CR_K_TEXT;
+        cu_cpy(s->title, ci->root, sizeof s->title);
+        cu_cat(s->title, ci->qual, sizeof s->title);
+        cu_cat(s->title, ci->sup, sizeof s->title);
+        s->title_col = CR_COL_WHITE;
+        for (i = 0; i < ci->nnotes && i < CR_LINES_MAX; i++) {
+            char b[5];
+            cr_note_name(ci->notes[i], b);
+            cu_cpy(s->lines[i].t, b, sizeof s->lines[i].t);
+            s->lines[i].px = 20;
+            s->lines[i].bold = 1;
+            s->lines[i].center = 1;
+            s->lines[i].col = CR_COL_WHITE;
+        }
+        s->n_lines = (uint8_t)i;
+        break;
+    }
+    case V_GEEK: {
+        static const char *const STYLE[3] = {"simple", "advanced", "free"};
+        s->kind = CR_K_GEEK;
+        cu_name(&s->name, ci);
+        cu_notes(s, ci);
+        s->lit = ci->sounding ? cu_lit(ci) : 0u;
+        cu_cpy(s->lines[0].t, "voicing ", sizeof s->lines[0].t);
+        cu_int(s->lines[0].t + 8, sn->voicing, 1, sizeof s->lines[0].t - 8u);
+        cu_cat(s->lines[0].t, " \267 ", sizeof s->lines[0].t);
+        cu_cat(s->lines[0].t, STYLE[sn->playstyle % 3u], sizeof s->lines[0].t);
+        cu_cpy(s->lines[1].t, sn->bass_on ? "bass on \267 " : "bass off \267 ", sizeof s->lines[1].t);
+        {
+            char b[8];
+            cu_int(b, cs.bpm, 0, sizeof b);
+            cu_cat(s->lines[1].t, b, sizeof s->lines[1].t);
+        }
+        cu_cat(s->lines[1].t, " bpm", sizeof s->lines[1].t);
+        s->n_lines = 2;
+        cu_cpy(s->right, "Trans ", sizeof s->right);
+        if (cs.transpose)
+            cu_int(s->right + 6, cs.transpose, 1, sizeof s->right - 6u);
+        else
+            cu_cat(s->right, "+0", sizeof s->right);
+        break;
+    }
+    default:
+        s->kind = CR_K_CHORD;
+        cu_name(&s->name, ci);
+        cu_notes(s, ci);
+        s->line_col = CR_COL_MID;
+        break;
+    }
+}
+
+/* the screen of this frame, top down, the first that applies (INTEGRATION section 5) */
+static void cr_build_screen(cr_screen_t *s, uint32_t now)
+{
+    const cr_snap_t *sn = &cr_snap;
+    uint32_t l = cu_layer();
+    cr_screen_clear(s);
+    cu_header(s);
+    if (sn->ci.sounding || (cu.kheld >> CU_ROOT0))
+        cu.last_sound = now;
+    /* 1. a message: PANIC (the whole panel red), else a box over whatever is below */
+    if (cu.msg.big && (int32_t)(cu.msg.until - now) > 0) {
+        s->kind = CR_K_BIG;
+        cu_cpy(s->value, cu.msg.text, sizeof s->value);
+        cu_cpy(s->label, cu.msg.label, sizeof s->label);
+        s->block = CR_COL_RED;
+        s->col = CR_COL_WHITE;
+        s->size = 64;
+        return;
+    }
+    if (!cu.msg.big && (int32_t)(cu.msg.until - now) > 0) {
+        cu_cpy(s->message, cu.msg.text, sizeof s->message);
+        s->message_col = cu.msg.col;
+    }
+    /* 2. a knob's meter (the voicing: the chord with its voicing line while one is shown) */
+    if ((int32_t)(cu.pop.until - now) > 0) {
+        char b[8];
+        if (cu.pop.kind == PU_VOICING) {
+            cu_int(b, sn->voicing, 1, sizeof b);
+            if (!sn->voicing)
+                cu_cpy(b, "0", sizeof b);
+            if (sn->ci.valid) {
+                s->kind = CR_K_CHORD;
+                cu_name(&s->name, &sn->ci);
+                cu_notes(s, &sn->ci);
+                cu_cpy(s->line, "voicing ", sizeof s->line);
+                cu_cat(s->line, b, sizeof s->line);
+                s->line_col = CR_COL_BLUE;
+            } else {
+                cu_meter(s, b, "", "voicing", CR_COL_BLUE, (uint32_t)(sn->voicing + 12) * 256u / 24u, 12);
+            }
+        } else if (cu.pop.kind == PU_BASS_VOICING) {
+            cu_int(b, sn->bass_voicing, 1, sizeof b);
+            if (!sn->bass_voicing)
+                cu_cpy(b, "0", sizeof b);
+            cu_meter(s, b, "oct", "bass register", CR_COL_ORANGE, (uint32_t)(sn->bass_voicing + 2) * 256u / 6u, 6);
+        } else {
+            cu_meter(s, cu.pop.value, cu.pop.sub, cu.pop.label, cu.pop.col, cu.pop.pct, cu.pop.segs);
+        }
+        return;
+    }
+    cu_ring(s);                                   /* (under every screen below; the panic box hides it) */
+    /* 3. an open layer, a page; 4. Options */
+    if (l) {
+        cu_layer_screen(s, l);
+        return;
+    }
+    if (cu.page == PG_EDIT) {
+        cu_edit_screen(s, now);
+        return;
+    }
+    if (cu.page == PG_SAVE) {
+        cu_save_screen(s, now);
+        return;
+    }
+    if (cu.opt_open) {
+        cu_options_screen(s);
+        return;
+    }
+    /* 6. idle: nothing played yet, or nothing sounding for CR_IDLE_MS */
+    if (!sn->ci.valid || (!sn->ci.sounding && now - cu.last_sound >= CR_IDLE_MS)) {
+        cu_stripes(s);
+        return;
+    }
+    /* 5. the View */
+    cu_view_screen(s);
+}
+
+/* the animations' clock: restarted when what animates changed (cr_anim.c, cr_draw.c CR_A_*) */
+static struct {
+    uint8_t kind, sel, anim, sweeping;
+    int8_t slide;
+    uint16_t pct, pct_from;
+    uint32_t sweep_t0;
+    cr_name_t name, from;
+    char label[32], value[24];
+} ca;
+static cr_anim_t cu_anim;
+
+static int cu_name_eq(const cr_name_t *a, const cr_name_t *b)
+{
+    return cu_eq(a->root, b->root) && cu_eq(a->quality, b->quality) && cu_eq(a->sup, b->sup);
+}
+
+static void cu_animate(cr_screen_t *s, uint32_t now)
+{
+    int kind_changed = s->kind != ca.kind;
+    static const cr_name_t NONAME;
+    /* the first chord sweeps the idle stripes off, then lands */
+    if ((s->kind == CR_K_CHORD || s->kind == CR_K_ARP) && ca.kind == CR_K_STRIPES && cr_motion != CR_MOTION_OFF) {
+        if (!ca.sweeping) {
+            ca.sweeping = 1;
+            ca.sweep_t0 = now;
+            cr_anim_mark(&cu_anim, now);
+        }
+        if (now - ca.sweep_t0 < (cr_motion == CR_MOTION_CALM ? 160u : 320u)) {
+            cr_screen_clear(s);
+            cu_header(s);
+            cu_stripes(s);
+            s->anim = CR_A_STRIPES | CR_A_SWEEP;
+            return;
+        }
+    }
+    ca.sweeping = 0;
+    switch (s->kind) {
+    case CR_K_CHORD:
+        if (kind_changed) {
+            ca.from = NONAME;
+            ca.anim = CR_A_SQUEEZE;
+            cr_anim_mark(&cu_anim, now);
+        } else if (!cu_name_eq(&s->name, &ca.name)) {
+            ca.from = ca.name;
+            ca.anim = CR_A_SQUEEZE;
+            cr_anim_mark(&cu_anim, now);
+        }
+        s->from = ca.from;
+        s->anim = ca.anim;
+        ca.name = s->name;
+        break;
+    case CR_K_PICKER:
+        if (kind_changed || !cu_eq(s->label, ca.label)) {
+            ca.anim = 0;
+            ca.slide = 0;
+            cr_anim_mark(&cu_anim, now);
+        } else if (s->sel != ca.sel) {
+            ca.slide = (int8_t)(s->sel > ca.sel ? 1 : -1);
+            ca.anim = CR_A_SLIDE;
+            cr_anim_mark(&cu_anim, now);
+        }
+        s->slide = ca.slide;
+        s->anim = ca.anim;
+        ca.sel = s->sel;
+        break;
+    case CR_K_METER:
+        if (kind_changed || !cu_eq(s->label, ca.label)) {
+            ca.pct_from = 0;
+            ca.anim = CR_A_FILL;
+            cr_anim_mark(&cu_anim, now);
+        } else if (s->pct != ca.pct || !cu_eq(s->value, ca.value)) {
+            ca.pct_from = ca.pct;
+            ca.anim = CR_A_FILL;
+            cr_anim_mark(&cu_anim, now);
+        }
+        s->pct_from = ca.pct_from;
+        s->anim = ca.anim;
+        s->size = (uint8_t)cr_spring(92, 104, cu_anim.t0, 240, now);   /* the number springs in */
+        ca.pct = s->pct;
+        break;
+    case CR_K_STRIPES:
+        if (kind_changed)
+            cr_anim_mark(&cu_anim, now);
+        s->anim = cr_motion == CR_MOTION_OFF ? 0u : CR_A_STRIPES;
+        break;
+    default:
+        if (kind_changed)
+            cr_anim_mark(&cu_anim, now);
+        break;
+    }
+    ca.kind = s->kind;
+    if (s->kind != CR_K_CHORD)
+        ca.name = s->kind == CR_K_ARP ? s->name : NONAME;
+    cu_cpy(ca.label, s->label, sizeof ca.label);
+    cu_cpy(ca.value, s->value, sizeof ca.value);
+}
+
+/* --------------------------------------------------------------- frames --- */
+static cr_screen_t cu_scr;
+
+static void cr_ui_frame(void)                      /* after the scan: the engine's state, the LEDs */
+{
+    cr_snapshot();
+    cu_loop_frame();
+    cr_leds();
+}
+
+static void cr_ui_draw(void)
+{
+    uint32_t now = cu_now();
+    cr_build_screen(&cu_scr, now);
+    cu_animate(&cu_scr, now);
+    cr_draw(&cu_scr, cr_anim_ms(&cu_anim, now));
+}
+
+/* power-on: the engine, the two parts' sounds, the settings mirror (the engine's defaults), the LED map */
+static void cr_ui_init(void)
+{
+    uint32_t m, p, k;
+    settings_init();                              /* (panel.c: the palette, LOWCUT, HOLD) */
+    panel_init();
+    palette_set(NPALETTES - 1u);                  /* MOD: ChoralRoot's (gfx.c palettes: the last) */
+    fm6_init();                                   /* every part's FM6 patch: the init voice */
+    for (k = 0; k < G_COUNT; k++)
+        song.g[k] = GP[k].def;
+    for (k = 0; k < NPART; k++)
+        for (m = 0; m < P_E0; m++)
+            trk[k].p[m] = TP[m].def;
+    song.master_q12 = 2048;
+    cr_out_init();
+    cr_bank_boot();                               /* (the device: persist_boot did it, with the flash) */
+    cb_init();
+    cu_led_init();
+    cs.playstyle = cr.playstyle;
+    cs.extadd = cr.extadd;
+    cs.secret = cr.secret;
+    cs.key_on = cr.key_on;
+    cs.tonic = cr.tonic;
+    cs.scale = cr.scale;
+    cs.transpose = cr.transpose;
+    cs.bass_mode = cr.bass_mode;
+    cs.perform_on = cr.perform_on;
+    cs.sticky = cr.sticky;
+    cs.vel = 100;
+    for (m = 0; m < CR_PM_COUNT; m++)
+        for (p = 0; p < CR_P_COUNT; p++)
+            cs.par[m][p] = (int16_t)cr_get_param(&cr, (cr_pmode_t)m, (cr_eparam_t)p);
+    for (k = 0; k < 7u; k++)
+        if (CU_PERF[k].mode == cr.perform_mode) {
+            cs.perf_sel = (uint8_t)k;
+            break;
+        }
+    cs.ch[CR_STREAM_MAIN] = 1;
+    cs.ch[CR_STREAM_BASS] = 2;
+    cs.ch[CR_STREAM_RAW] = 0;                     /* (Orchid: raw chord off; Options turns it on, channel 3) */
+    cs.fx_on = 1;
+    cs.view = V_CHORD;
+    cu.armed = NB;
+    cu.opt_sel = O_STYLE;
+    trk[CR_PART_CHORD].p[P_LEVEL] = TP[P_LEVEL].def;
+    trk[CR_PART_BASS].p[P_LEVEL] = TP[P_LEVEL].def;
+    for (k = 2; k < NPART; k++)                   /* parts 3 and 4: unused, silent */
+        trk[k].p[P_MUTE] = 1;
+    cu_sound_go(cb_find(0, "TINE EP"));
+    cs.bass_default = (uint16_t)(cb_find(1, "SUB BASS") + 1u);
+    cu_list_load(1, cs.bass_default - 1u);
+    ce.page = CP_ENV;
+    ce.col = -1;
+    for (k = 0; k < 2u; k++)
+        trk[k].engine = trk[k].eng_req;           /* (power-on: no fade) */
+    cs.bass_sound = 0;                            /* ALGORITHM at OFF: the bass off */
+    cs.bass_on = 0;
+    cr.bass_on = 0;
+    cs.split = cr.split_pc;
+    cs.loop_count_in = 1;
+    cs.loop_level = 100;
+    cs.metro_vol = 70;
+    cu_route();
+    cu_set_tempo(cr.bpm ? cr.bpm : 120);
+#if CR_HAVE_SETTINGS
+    cr_settings_load();                           /* the stored settings, at power-on on both builds */
+#endif
+    cu_loop_conf();
+    cu_loop_scan();                               /* the slots in flash; the last one used back in RAM (stopped) */
+    if ((cs.loop_used >> cs.loop_slot) & 1u)
+        cu_loop_load(cs.loop_slot);
+    cu.msg.until = 0;
+    song.grid = 2;                                /* seq.c's keyboard never plays (keyboard_block: every key silent) */
+    cr_draw_invalidate();
+}

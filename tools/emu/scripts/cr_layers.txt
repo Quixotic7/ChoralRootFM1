@@ -1,0 +1,56 @@
+# ChoralRoot: the other screens: Options (OPT = N), FX held (Z), BASS held (C), EDIT held (X), LOOP held (RETURN),
+# SELECT (tempo meter), KNOB 4 (the FX amount), HOME (the views)
+wait 300
+key N 80
+wait 300
+shot build/emu/test/cr_options.ppm
+knob SELECT +3
+wait 300
+knob KNOB1 +1
+wait 300
+shot build/emu/test/cr_options_sel.ppm
+key N 80
+wait 200
+key Z down
+wait 500
+shot build/emu/test/cr_fx_layer.ppm
+key Z up
+key C down
+wait 500
+shot build/emu/test/cr_bass_layer.ppm
+key C up
+key X down
+wait 500
+shot build/emu/test/cr_engine_picker.ppm
+key X up
+key RETURN down
+wait 500
+shot build/emu/test/cr_loop_layer.ppm
+key RETURN up
+wait 100
+knob SELECT +4
+wait 400
+shot build/emu/test/cr_bpm.ppm
+wait 1000
+knob KNOB4 +2
+wait 400
+shot build/emu/test/cr_fx_amount.ppm
+wait 1000
+key F3 down
+key A down
+wait 500
+key , 80
+wait 500
+shot build/emu/test/cr_view_keyboard.ppm
+key , 80
+wait 500
+shot build/emu/test/cr_view_notes.ppm
+wait 100
+key , 80
+wait 500
+shot build/emu/test/cr_view_geek.ppm
+key , 80
+key A up
+key F3 up
+wait 2000
+dump

@@ -1,0 +1,59 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* The firmware the emulator runs: the ONE include list (included once, by emu_fw.c).
+ * As tests/ui_test.c: the sound side through tests/hostsim.c (engines, voices, FX, usb.c MIDI queues,
+ * seq.c), then the emulator's HAL (emu_hal_fw.h), the audio ISR (audio.c), then the instrument's UI.
+ * The instrument is ChoralRoot (docs/INTEGRATION.md): its engine (cr_engine.c) ticks in the audio ISR through
+ * the mix_block shim below (cr_out.c cr_audio_block, then fx.c's mix), its UI (cr_ui.c) draws cr_draw.c's
+ * screens. seq.c stays compiled (hostsim.c includes it) but inert: cr_ui_init sets song.grid = 2, so its
+ * keyboard never plays, and nothing starts its transport. The hook bodies are in emu_fw.c. */
+
+/* ------------------------------------------------ sound, MIDI, sequencer --- */
+#include <stddef.h>
+#include <stdint.h>
+static uint32_t host_slots[3u * 0x14000u / 4u];          /* USR1..3 (zero: empty), as the flash at 0xA0000 */
+#define SMP_USER_XIP(k) ((const uint8_t *)host_slots + (k) * SMP_USER_SIZE)
+#define main hostsim_main
+#define mix_block fx_mix_block                        /* fx.c's mix; audio.c gets ChoralRoot's below */
+#include "../../tests/hostsim.c"
+#undef mix_block
+#undef main
+
+/* ------------------------------------------------------- the emulator HAL --- */
+#include "emu_hal_fw.h"
+/* --------------------------------------------- the ChoralRoot engine --- */
+/* cr_engine.h's cr_param_t (the perform parameter enum) and cr_screen.h's (a params column) share a name: the
+ * engine's is renamed in this unit (cr_out.c / cr_ui.c call it cr_eparam_t) */
+#define cr_param_t cr_eparam_t
+#include "../../firmware/src/cr_engine.h"
+#include "../../firmware/src/cr_engine.c"
+#undef cr_param_t
+#include "../../firmware/src/cr_loop.h"
+#include "../../firmware/src/cr_loop.c"               /* the looper (ticked with the engine) */
+#include "../../firmware/src/cr_out.c"                /* streams -> parts 0 / 1 and MIDI; the engine's clock */
+static void mix_block(int32_t *out, uint32_t n)        /* the audio ISR's block: the engine first, then the mix */
+{
+    cr_audio_block(n);
+    fx_mix_block(out, n);
+    cr_click_mix(out, n);                              /* the metronome / count-in click */
+}
+#include "../../firmware/src/audio.c"                 /* fm1_alnk0_irq: the audio ISR, called per block */
+
+/* --------------------------------------------------------------------- UI --- */
+#define FELUCCA_FLASH 1                               /* the file-backed NOR (emu_hal_fw.h, README): settings,
+                                                         * user sounds, loops persist (--flash) */
+#ifndef FELUCCA_VERSION
+#define FELUCCA_VERSION "EMU"
+#endif
+#include "../../firmware/src/gfx.c"
+#include "../../firmware/src/panel.c"
+#include "../../firmware/src/cr_gfx.c"                /* (includes build/gen/cr_fonts.h) */
+#include "../../firmware/src/cr_draw.c"               /* (includes cr_screen.h) */
+#include "../../firmware/src/cr_anim.c"
+#include "../../firmware/src/storage.c"               /* (before the sounds: upreset.c's banks, the loop slots) */
+#define CR_TRACE 1                                    /* cr_ui.c: "param: / page: / save: .." lines in the logs */
+#include "../../firmware/src/cr_bank.c"               /* upreset.c (the flash file) and the factory bank */
+#include "../../firmware/src/cr_pages.c"
+#include "../../firmware/src/cr_name.c"
+#define CR_HAVE_SETTINGS 1                            /* cr_ui_init loads the settings record */
+#include "../../firmware/src/cr_ui.c"
+#include "../../firmware/src/cr_settings.c"           /* the settings record (after cr_ui.c and storage.c) */

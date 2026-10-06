@@ -1,0 +1,23 @@
+# The other script commands: buttons by name, knobs, the octave keys, computer keys of the map.
+wait 300
+btn FX                      # Felucca's FX layer
+wait 200
+knob KNOB1 +3               # three detents clockwise
+wait 200
+shot build/emu/test/fx_knob1.ppm
+btn HOME
+wait 200
+key U                       # select PRESETS (U) ...
+key UP                      # ... and turn it one detent (Up)
+wait 300
+shot build/emu/test/preset_next.ppm
+key RIGHT                   # OCT+
+key ESC                     # OCT- and OCT+ together: octave 0
+wait 100
+btn PLAY
+wait 400
+expect led GREEN on         # playing: PLAY's green LED lit, its orange one dark
+expect led PLAY off
+btn PLAY
+wait 100
+dump

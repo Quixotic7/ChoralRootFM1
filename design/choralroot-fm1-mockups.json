@@ -1,0 +1,3295 @@
+{
+ "format": "fm1-panel-design",
+ "version": 1,
+ "device": "M-VAVE FM-1",
+ "name": "ChoralRoot FM-1 mockups",
+ "palette": "MOD",
+ "labels": {
+  "buttons": {
+   "FX": "FX",
+   "SEL": "EDIT",
+   "ENV": "BASS",
+   "LFO": "LATCH",
+   "EDIT": "KEY",
+   "GLO": "OPT",
+   "HOME": "HOME",
+   "SAVE": "SAVE",
+   "ARP": "PERF",
+   "SEQ": "METRO",
+   "PLAY": "LOOP",
+   "REC": "REC",
+   "OCT-": "OCT-",
+   "OCT+": "OCT+"
+  },
+  "encoders": {
+   "MASTER": "VOLUME",
+   "SELECT": "BPM",
+   "PRESETS": "SOUND",
+   "ALGORITHM": "BASS SND",
+   "KNOB1": "VOICING",
+   "KNOB2": "BASS VOICE",
+   "KNOB3": "PERFORM",
+   "KNOB4": "FX"
+  }
+ },
+ "notes": "ChoralRoot on the M-VAVE FM-1: a Telepathic Orchid-style chord instrument with Felucca's sound engines. The Orchid's 2x4 chord block is the left of the keybed: DIM MIN MAJ SUS on the black keys F#3 G#3 A#3 C#4, 6 m7 M7 9 on the white keys F3 G3 A3 C4 (B3 unused); the 18 keys D4-G5 are the roots. The function buttons carry the Orchid dials' button functions \u2014 KEY, PERF, FX, BASS, LATCH, OPT / HOME, SAVE, METRO, LOOP, REC, VIEW (tap = the action, hold = a layer where the root keys and KNOB 1-4 change job and the screen shows how \u2014 Felucca's grammar). KNOB 1 is always chord voicing, KNOB 2 bass voicing, KNOB 3 the performance parameter, KNOB 4 the FX amount; PRESETS browses sounds, ALGORITHM the bass sounds, SELECT is the BPM, MASTER the volume. OCT-/OCT+ shift the root keys (and are back / OK in menus). States 1-18 walk through idle, chords, voicing, Key Mode and its layer, the perform layer, an arpeggio, the loop layer, recording, playback, the Options menu, a secret chord, bass and its layer, the fx layer, the Geek Out view, sound browsing, panic, two dial pop-ups, the sound edit pages, the engine picker and saving a sound. Screens follow Orchid's rule \u2014 one big thing per screen \u2014 in a 1960s mod language: black, white, roundel red and blue, pop yellow, orange and green; flat blocks, stripes and targets; heavy type that squeezes to fit as on the Orchid. Roles: white chords and sounds, blue voicing, orange bass and 7ths, red loop / REC / secret tones, yellow Key Mode, green FX. No menus and no circled numbers: a choice is one item at a time with its neighbours peeking (a picker), a knob value is a huge number over a stripe meter, the idle screen is the name over mod racing stripes. Every state notes its motion.",
+ "states": [
+  {
+   "name": "1 \u00b7 idle (CHORD view)",
+   "notes": "Power-on and idle. No instructions: the name over three racing stripes in the coralroot orchid's colours (red, orange, white) that slide sideways at the master BPM. The chord block is the left of the keybed (DIM MIN MAJ SUS on F#3 G#3 A#3 C#4, 6 m7 M7 9 on F3 G3 A3 C4, B3 unused), the roots are D4-G5. Every key and button glows dim.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {
+    "1": "chord types DIM / MIN / MAJ / SUS on the four black keys: momentary, as on Orchid",
+    "0": "extensions 6 / m7 / M7 / 9 on the white keys under them: momentary, stackable",
+    "6": "unused (keeps the two rows aligned as Orchid's block)",
+    "9": "roots D4 .. G5"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "EDIT": "KEY: tap = Key Mode on/off \u00b7 hold = key layer (root keys pick the tonic)",
+    "ARP": "PERF: tap = performance on/off \u00b7 hold = perform layer (white root keys pick the mode)",
+    "FX": "FX: tap = the sound's main effect on/off \u00b7 hold = fx layer (pick the effect, its parameters)",
+    "ENV": "BASS: tap = bass on/off \u00b7 hold = bass layer (behaviour, register, sound, level)",
+    "LFO": "LATCH: Sticky keys / arp hold (a chord keeps sounding after release)",
+    "GLO": "OPT: tap = Options menu \u00b7 held + a knob = that knob's second function (Orchid's press + turn)",
+    "PLAY": "LOOP: tap = play / stop \u00b7 hold = loop layer (slots, sync, quantize)",
+    "REC": "REC: tap = record / overdub arm (red) \u00b7 hold = undo the last layer",
+    "SEQ": "METRO: tap = metronome / beat on-off (Orchid's BPM press) \u00b7 hold = beat picker",
+    "SEL": "EDIT: tap = the sound's edit pages (SELECT turns pages, KNOB 1-4 edit) \u00b7 hold = engine picker \u00b7 BASS held + EDIT = edit the bass sound",
+    "HOME": "HOME: back to the view from any page, menu or layer \u00b7 tap again: next View (CHORD / KEYBOARD / NOTES / GEEK OUT / SCOPE)",
+    "SAVE": "SAVE: tap = save the sound (Orchid's Sound long press) \u00b7 hold = save the loop",
+    "OCT-": "octave of the root keys (-2 .. +2); in menus: back / OK \u00b7 both together: PANIC (all notes off, octave reset)"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "stripes",
+     "bands": [
+      "red",
+      "orange",
+      "white"
+     ],
+     "band": 18,
+     "gap": 8,
+     "phase": 0.3,
+     "title": "choralroot"
+    },
+    "footer": null,
+    "note": "idle: the name over three racing stripes in the coralroot orchid's colours (red, orange, white) that slide sideways at the BPM; the first chord sweeps the stripes off the screen and the chord name lands where the title was."
+   }
+  },
+  {
+   "name": "2 \u00b7 MAJ + M7 held, D4 pressed \u2192 Dmaj7",
+   "notes": "Simple play style: hold MAJ (A#3) and M7 (A3) before the root. The held modifiers are lit; the four chord notes light on the root keys where they sound. The screen names the chord in the Orchid Standard Framework (root big, extensions superscript) and lists the voiced notes.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    2,
+    2,
+    0,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {
+    "9": "the root pressed",
+    "20": "chord notes light where they sound"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "chord",
+     "root": "D",
+     "quality": "",
+     "sup": "M7",
+     "notes": "",
+     "line": "",
+     "hint": "",
+     "cols": {
+      "root": "white",
+      "sup": "orange"
+     },
+     "bubbles": [
+      {
+       "t": "D4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "F#4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "A4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "C#5",
+       "col": "orange",
+       "mark": true
+      }
+     ]
+    },
+    "footer": null,
+    "note": "Dmaj7: the name squeezes in from a thin condensed state to its full width (Orchid's squeeze); the notes line under it, the 7th in orange with a block under it."
+   }
+  },
+  {
+   "name": "3 \u00b7 VOICING turned +2 while holding",
+   "notes": "KNOB 1 is always chord voicing (Orchid's Chord Voicing Dial): each click moves the lowest note up an octave (or the highest down). The lit keys follow the new register, the VOICING card goes hot (accent) for a moment, the notes line shows the inversion. Muscle memory: never reassigned.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    2,
+    2,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "+2"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "chord",
+     "root": "D",
+     "quality": "",
+     "sup": "M7",
+     "notes": "",
+     "line": "voicing +2",
+     "hint": "",
+     "cols": {
+      "root": "white",
+      "sup": "orange"
+     },
+     "bubbles": [
+      {
+       "t": "A4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "C#5",
+       "col": "orange",
+       "mark": true
+      },
+      {
+       "t": "D5",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "F#5",
+       "col": "white",
+       "mark": false
+      }
+     ],
+     "lineCol": "blue"
+    },
+    "footer": null,
+    "note": "voicing turned: the notes line reshuffles (the lowest slides to the end), the blue voicing line appears and fades."
+   }
+  },
+  {
+   "name": "4 \u00b7 Key Mode on (C major), E4 pressed \u2192 Em",
+   "notes": "KEY tapped: its LED is lit and the key shows in the header. No chord type is needed: E in C major is minor. Out-of-key roots quantize (C# \u2192 Csus). A held chord type still overrides. The root keys outside the scale go dark so the scale can be seen on the keybed.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    0,
+    2,
+    1,
+    0,
+    2,
+    0,
+    1,
+    0,
+    2,
+    1,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {
+    "10": "out-of-scale roots dark; pressing one plays the harmonically quantized chord"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 2,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Key: C",
+     "right": "",
+     "batt": 3,
+     "usb": false,
+     "midCol": "yellow"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "chord",
+     "root": "E",
+     "quality": "m",
+     "sup": "",
+     "notes": "",
+     "line": "",
+     "hint": "",
+     "cols": {
+      "root": "white"
+     },
+     "bubbles": [
+      {
+       "t": "E4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "G4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "B4",
+       "col": "white",
+       "mark": false
+      }
+     ]
+    },
+    "footer": null,
+    "note": "Key Mode: 'Key: C' top-left in yellow; Em from one finger."
+   }
+  },
+  {
+   "name": "5 \u00b7 KEY held: the key layer",
+   "notes": "Hold KEY: the root keys pick the tonic (any of them, its pitch class; hold MIN (G#3) too for a minor key \u2014 Orchid's quick key select), KNOB 1-4 become TONIC / SCALE / TRANSPOSE / SINGLE NOTES. Let go: back to playing, Key Mode enabled. Screen: the 12 pitch classes as tiles with the tonic on and the scale's notes marked.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "9": "D",
+    "10": "D#",
+    "11": "E",
+    "12": "F",
+    "13": "F#",
+    "14": "G",
+    "15": "G#",
+    "16": "A",
+    "17": "A#",
+    "18": "B",
+    "19": "C",
+    "20": "C#",
+    "21": "D",
+    "22": "D#",
+    "23": "E",
+    "24": "F",
+    "25": "F#",
+    "26": "G"
+   },
+   "keyNotes": {
+    "19": "the current tonic, lit",
+    "3": "hold MIN with the tonic key for a minor key"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "EDIT": "held (blinks): the layer is up"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "TONIC",
+     "value": "C"
+    },
+    "KNOB2": {
+     "note": "SCALE",
+     "value": "MAJ"
+    },
+    "KNOB3": {
+     "note": "TRANSPOSE",
+     "value": "+0"
+    },
+    "KNOB4": {
+     "note": "SINGLE NOTES",
+     "value": "FULL"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Key: C",
+     "right": "",
+     "batt": 3,
+     "usb": false,
+     "midCol": "yellow"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "keyboard",
+     "title": "select key",
+     "titleSize": 26,
+     "col": "yellow",
+     "lit": [
+      {
+       "k": "C5",
+       "col": "yellow"
+      }
+     ],
+     "labels": {
+      "19": "C"
+     }
+    },
+    "footer": {
+     "text": "a root: the key \u00b7 MIN held: minor"
+    },
+    "note": "KEY held: the keyboard slides up; the tonic key lights yellow and pulses."
+   }
+  },
+  {
+   "name": "6 \u00b7 PERF held: the perform layer",
+   "notes": "Hold PERF: the white root keys D4-C5 are the performance modes (press one: selected and enabled), KNOB 1-4 the selected mode's parameters \u2014 here ARP: RATE / ORDER / RANGE / GATE (STRUM: SPEED / DIRECTION / RANGE / -; SLOP adds AMOUNT; PATTERN: RATE / PATTERN 1-13 / RANGE / GATE; HARP: SPEED / DIRECTION / RANGE / GATE). The screen shows the modes as tiles and the parameters as cards.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "STRUM",
+    "11": "STR 2",
+    "12": "SLOP",
+    "14": "ARP",
+    "16": "ARP 2",
+    "18": "PATT",
+    "19": "HARP"
+   },
+   "keyNotes": {
+    "9": "white root keys D4 .. C5 pick the mode",
+    "14": "ARP: the selected mode, lit"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 3,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "RATE",
+     "value": "1/8"
+    },
+    "KNOB2": {
+     "note": "ORDER",
+     "value": "UP"
+    },
+    "KNOB3": {
+     "note": "RANGE",
+     "value": "1 OCT"
+    },
+    "KNOB4": {
+     "note": "GATE",
+     "value": "70%"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "picker",
+     "items": [
+      "Strum",
+      "Strum 2 Octaves",
+      "Slop",
+      "Arpeggiate",
+      "Arp 2 Octaves",
+      "Pattern",
+      "Harp"
+     ],
+     "sel": 3,
+     "label": "perform",
+     "col": "white",
+     "value": "1/8"
+    },
+    "footer": {
+     "text": "a root key: the mode \u00b7 KNOB 3: rate"
+    },
+    "note": "PERF held: one mode at a time, huge; the next and previous peek above and below; a change flips the words like a split-flap board."
+   }
+  },
+  {
+   "name": "7 \u00b7 ARP on, Am7 held: arpeggio playing",
+   "notes": "PERF lit: the arpeggiator walks the voiced chord at 1/8 of the master BPM. The chord notes are lit and the note sounding now blinks (the keys show what the engine plays, as Felucca does). KNOB 3 rides the mode's main parameter (arp RATE) without opening the layer; the PERF card names it. The footer strip shows the beat.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    2,
+    2,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    3,
+    1,
+    1,
+    2
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 2,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "ARP RATE",
+     "value": "1/8"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "Arp",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "arp",
+     "root": "A",
+     "quality": "m",
+     "sup": "7",
+     "cols": {
+      "root": "white",
+      "sup": "orange"
+     },
+     "notes": [
+      {
+       "t": "A4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "C5",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "E5",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "G5",
+       "col": "orange",
+       "mark": true
+      }
+     ],
+     "pos": 2,
+     "hopCol": "white",
+     "line": "arp 1/8"
+    },
+    "footer": null,
+    "note": "arpeggio playing: the sounding note sits on a white block and hops along the line in time; the dotted arc shows the next hop."
+   }
+  },
+  {
+   "name": "8 \u00b7 LOOP held: the loop layer",
+   "notes": "Hold LOOP: the white root keys D4-F5 are the ten loop slots (lit = holds a loop, blinking = the one selected); D#4 is CLEAR (hold 1 s), F#4 UNDO the last layer. KNOB 1-4: SYNC (FREE, 1, 2, 4, 8, 16 bars \u2014 Orchid's loop waiting room), QUANTIZE, COUNT-IN, LOOP LEVEL. The screen shows the ring with the length inside.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    3,
+    0,
+    2,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "1",
+    "11": "2",
+    "12": "3",
+    "14": "4",
+    "16": "5",
+    "18": "6",
+    "19": "7",
+    "21": "8",
+    "23": "9",
+    "24": "10",
+    "10": "CLEAR",
+    "13": "UNDO"
+   },
+   "keyNotes": {
+    "9": "slot 1 selected (blinks); slots 2-3 hold loops (lit)",
+    "10": "CLEAR (hold) \u00b7 UNDO on the first black root keys"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SYNC",
+     "value": "4 BAR"
+    },
+    "KNOB2": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB3": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB4": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop",
+     "right": "",
+     "batt": 3,
+     "usb": false,
+     "midCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "picker",
+     "items": [
+      "Free",
+      "1 bar",
+      "2 bars",
+      "4 bars",
+      "8 bars",
+      "16 bars"
+     ],
+     "sel": 3,
+     "label": "loop length",
+     "col": "red"
+    },
+    "footer": null,
+    "note": "LOOP held with no loop: the length, one at a time, inside the empty ring; SELECT or a root key changes it with a slide.",
+    "ring": 0
+   }
+  },
+  {
+   "name": "9 \u00b7 REC tapped: recording a 4-bar loop (bar 2 of 4)",
+   "notes": "REC tapped: after the one-bar count-in the loop records for 4 bars at the master BPM (free mode: until REC or LOOP is tapped again). REC's red LED blinks, the header shows REC and bar.beat, the Orchid ring progress indicator runs around the edge of the screen in red. The chord view keeps naming what is played.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 2,
+    "REC": 3,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Rec",
+     "right": "2.3",
+     "batt": 3,
+     "usb": false,
+     "midCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "chord",
+     "root": "F",
+     "quality": "",
+     "sup": "",
+     "notes": "",
+     "line": "",
+     "hint": "",
+     "cols": {
+      "root": "white"
+     },
+     "bubbles": [
+      {
+       "t": "F4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "A4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "C5",
+       "col": "white",
+       "mark": false
+      }
+     ]
+    },
+    "footer": null,
+    "note": "recording: the red ring runs round the edge; 'Rec' blinks with the beat.",
+    "ring": 0.35,
+    "ringRec": true
+   }
+  },
+  {
+   "name": "10 \u00b7 loop playing, overdub armed",
+   "notes": "The loop plays (PLAY's green LED, like Felucca's transport); REC is armed for overdub (lit), so the next notes record on top as a new layer (hold REC: undo it). The ring runs in the accent colour; the loop's notes glow on the root keys as they sound while a live chord is lit. Voicing, performance and bass apply live at playback: the loop stores the chords, not the notes.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {
+    "14": "a chord played live over the loop"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 2,
+    "REC": 2,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 1,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 1",
+     "right": "",
+     "batt": 3,
+     "usb": false,
+     "midCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "picker",
+     "items": [
+      "Overdub",
+      "Pause",
+      "Undo",
+      "Clear"
+     ],
+     "sel": 0,
+     "label": "loop 1",
+     "col": "red"
+    },
+    "footer": null,
+    "note": "LOOP held while a loop plays: Overdub / Pause / Undo / Clear one at a time inside the ring; OCT+ does it.",
+    "ring": 0.62
+   }
+  },
+  {
+   "name": "11 \u00b7 OPT tapped: the Options menu",
+   "notes": "Tap OPT: Orchid's Options menu as a list. SELECT scrolls (its printed name), KNOB 1 changes the selected value, OCT+ enters / confirms (blinks), OCT- goes back (lit), HOME leaves \u2014 Felucca's dialog convention. Entries: Play Style, Extension Addition, Bass Behaviour, Secret Chords, Single Notes, Velocity, Quantization, MIDI Channels, MIDI Clock, View, Metronome, Palette, LEDs, Version, Update.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 2,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 2,
+    "OCT+": 3
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "GLO": "OPT lit while the menu is open; tap again, HOME or OCT- to leave"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "SCROLL",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "VALUE",
+     "value": ""
+    },
+    "KNOB2": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "picker",
+     "items": [
+      "Battery",
+      "View",
+      "Audio Output",
+      "MIDI Channels",
+      "MIDI In",
+      "MIDI Out",
+      "MIDI Clock",
+      "Play Style",
+      "Extension Addition",
+      "Single Notes",
+      "Secret Chords",
+      "Quantization",
+      "Metronome",
+      "Velocity Sense",
+      "Motion",
+      "Palette",
+      "LEDs",
+      "Version",
+      "Upgrade firmware"
+     ],
+     "sel": 7,
+     "label": "options \u00b7 KNOB 1 sets",
+     "col": "white",
+     "value": "Simple"
+    },
+    "footer": null,
+    "note": "OPT tapped: one setting per screen \u2014 its name big, its value under it; SELECT slides to the next setting, KNOB 1 changes the value."
+   }
+  },
+  {
+   "name": "12 \u00b7 Secret chord: DIM + SUS + D4 \u2192 D5 (power)",
+   "notes": "Secret Chords (Options: Simple / All): two chord types held together select the extra types proved in the Orchid firmware: DIM+SUS = power chord (D\u2075), MAJ+SUS = augmented (D+), MIN+SUS = [0 3 5] (Dm add4). Extensions still stack. The screen uses Orchid's own labels.",
+   "export": true,
+   "keys": [
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    2,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "chord",
+     "root": "D",
+     "quality": "",
+     "sup": "5",
+     "notes": "",
+     "line": "",
+     "hint": "",
+     "cols": {
+      "root": "white",
+      "sup": "red"
+     },
+     "bubbles": [
+      {
+       "t": "D4",
+       "col": "white"
+      },
+      {
+       "t": "A4",
+       "col": "white"
+      },
+      {
+       "t": "D5",
+       "col": "red",
+       "mark": true
+      }
+     ]
+    },
+    "footer": null,
+    "note": "a secret chord: the extra tone in red; the name flashes once."
+   }
+  },
+  {
+   "name": "13 \u00b7 BASS on (03 SUB), bass voicing -1",
+   "notes": "BASS tapped: the bass part plays the chord root through its own engine and MIDI channel 2. ALGORITHM browses the bass sounds (Orchid's Bass Dial turn), KNOB 2 is the bass register (octaves). The footer names the bass sound; the BASS card its voicing.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    0,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {
+    "11": "E major; the bass plays E1 (below the keybed)"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 2,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": "03 SUB"
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "-1"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "meter",
+     "value": "03",
+     "sub": "SUB",
+     "label": "bass",
+     "col": "orange",
+     "pct": 0.25,
+     "segments": 12
+    },
+    "footer": null,
+    "note": "ALGORITHM turned: the bass sound's number huge in orange over a stripe meter of the bank; the stripes fill one by one."
+   }
+  },
+  {
+   "name": "14 \u00b7 BASS held: the bass layer",
+   "notes": "Hold BASS: KNOB 1-4 become BEHAVIOUR (Chords Only / Unison / Single Notes / Solo \u2014 Orchid's Bass Dial hold menu), REGISTER, SOUND, LEVEL (Orchid's Volume-hold bass volume). The root keys preview the bass sound alone.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {},
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 3,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "BEHAVIOUR",
+     "value": "CHORDS"
+    },
+    "KNOB2": {
+     "note": "REGISTER",
+     "value": "-1"
+    },
+    "KNOB3": {
+     "note": "SOUND",
+     "value": "03 SUB"
+    },
+    "KNOB4": {
+     "note": "LEVEL",
+     "value": "80"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "picker",
+     "items": [
+      "Chords Only",
+      "Unison Bass",
+      "Bass Single Notes",
+      "Solo"
+     ],
+     "sel": 0,
+     "label": "bass",
+     "col": "orange"
+    },
+    "footer": {
+     "text": "KNOBS: register \u00b7 sound \u00b7 level"
+    },
+    "note": "BASS held: the bass behaviour, one at a time, in orange."
+   }
+  },
+  {
+   "name": "15 \u00b7 FX held: the fx layer",
+   "notes": "Tap FX: the sound's main effect on/off (Orchid's FX Dial default). Hold FX: the white root keys pick which effect KNOB 4 rides (Orchid's FX push + turn), KNOB 1-3 its parameters, KNOB 4 the amount. OPT + FX locks the FX settings across sound changes (Orchid's FX lock).",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "REV",
+    "11": "DELAY",
+    "12": "CHOR",
+    "14": "PHASE",
+    "16": "DRIVE",
+    "18": "TREM",
+    "19": "FILT",
+    "21": "ENSMB"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 3,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SIZE",
+     "value": "60"
+    },
+    "KNOB2": {
+     "note": "DAMP",
+     "value": "40"
+    },
+    "KNOB3": {
+     "note": "TYPE",
+     "value": "ROOM"
+    },
+    "KNOB4": {
+     "note": "AMOUNT",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "picker",
+     "items": [
+      "Reverb",
+      "Chorus",
+      "Delay",
+      "Phaser",
+      "Drive",
+      "Tremolo",
+      "Filter"
+     ],
+     "sel": 0,
+     "label": "fx \u00b7 KNOB 4 amount",
+     "col": "green",
+     "value": "05"
+    },
+    "footer": {
+     "text": "a root key: the effect \u00b7 OPT+FX: lock"
+    },
+    "note": "FX held: the effect one at a time in green with its amount under it."
+   }
+  },
+  {
+   "name": "16 \u00b7 GEEK OUT view (HOME tapped again)",
+   "notes": "HOME tapped on the view cycles Orchid's View modes: CHORD (default), KEYBOARD, NOTES, GEEK OUT and SCOPE (React). Geek Out shows the chord, every note, the status lines and the 27-key strip with the sounding notes.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    2,
+    2,
+    1,
+    1,
+    0,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 2,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "+1"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Key: D minor",
+     "right": "Trans +0",
+     "batt": 3,
+     "usb": false,
+     "midCol": "yellow"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "geek",
+     "root": "D",
+     "quality": "m",
+     "sup": "7",
+     "cols": {
+      "root": "white",
+      "sup": "orange"
+     },
+     "notes": [
+      "D4",
+      "F4",
+      "A4",
+      "C5"
+     ],
+     "lit": [
+      {
+       "k": "D4",
+       "col": "white"
+      },
+      {
+       "k": "F4",
+       "col": "white"
+      },
+      {
+       "k": "A4",
+       "col": "white"
+      },
+      {
+       "k": "C5",
+       "col": "orange"
+      }
+     ],
+     "lines": [
+      "voicing +1 \u00b7 simple",
+      "bass off \u00b7 120 bpm"
+     ]
+    },
+    "footer": null,
+    "note": "Geek Out: the one dense view, by request."
+   }
+  },
+  {
+   "name": "17 \u00b7 PRESETS turned: browsing sounds",
+   "notes": "Turning PRESETS pops the sound list over the panel (as the stock firmware and Felucca do), the sound loads at once and the popup fades after a second. Sounds come from Felucca's engines (FM6, ANALOG, WHEEL, PHYS\u2026) with ChoralRoot's own bank of chord-friendly presets; bass sounds are a separate bank on ALGORITHM. SAVE stores an edited sound to a user slot.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    0,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": "13 EP"
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "40"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "meter",
+     "value": "13",
+     "sub": "EP",
+     "label": "sound",
+     "col": "white",
+     "pct": 0.2708333333333333,
+     "segments": 16
+    },
+    "footer": null,
+    "note": "PRESETS turned: the sound's number huge, its name under it, the stripe meter is the place in the bank."
+   }
+  },
+  {
+   "name": "18 \u00b7 OCT- + OCT+ together: PANIC",
+   "notes": "Press OCT- and OCT+ together (a chord nothing else uses; the stock firmware resets the octave with it): every scheduler stops, every note gets its note-off, MIDI CC 123 goes out on the three channels, the octave resets, the LEDs flash once and the screen says so. Settings and loops are kept.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 0,
+    "SEL": 0,
+    "ENV": 0,
+    "LFO": 0,
+    "EDIT": 0,
+    "GLO": 0,
+    "HOME": 0,
+    "SAVE": 0,
+    "ARP": 0,
+    "SEQ": 0,
+    "PLAY": 0,
+    "REC": 0,
+    "OCT-": 2,
+    "OCT+": 2
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "big",
+     "value": "PANIC",
+     "label": "all notes off",
+     "block": "red",
+     "size": 64
+    },
+    "footer": null,
+    "note": "panic: the whole screen goes red with black type, shakes once, and fades back."
+   }
+  },
+  {
+   "name": "19 \u00b7 KNOB 4 turned: Reverb 05",
+   "notes": "Any knob turn shows its value big for a second, then the view returns (Orchid's dial screens). Levels and amounts draw as an inverted fill rising with the value \u2014 Orchid's Bass Volume screen.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    0,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "05"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "meter",
+     "value": "05",
+     "label": "reverb",
+     "col": "green",
+     "pct": 0.25,
+     "segments": 12
+    },
+    "footer": null,
+    "note": "KNOB 4 turned: the amount in green over its stripe meter; back to the view a second later."
+   }
+  },
+  {
+   "name": "20 \u00b7 SELECT turned: 120 BPM",
+   "notes": "SELECT is the tempo: turning it shows the BPM huge (Orchid's BPM dial screen), METRO taps the metronome on and off.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": "120"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "meter",
+     "value": "120",
+     "label": "bpm",
+     "col": "white",
+     "pct": 0.35714285714285715,
+     "segments": 14
+    },
+    "footer": null,
+    "note": "SELECT turned: the tempo huge; the stripes pulse at the beat."
+   }
+  },
+  {
+   "name": "21 \u00b7 EDIT tapped: the sound's pages (ENV)",
+   "notes": "Any sound can be opened and edited on the device: EDIT opens the chord sound's pages (BASS held + EDIT: the bass sound's). SELECT turns the pages \u2014 ENGINE, the engine's own parameters (two pages), ENV, LFO, FILTER / MOD, FX sends, MIX \u2014 and KNOB 1-4 edit the four parameters on each, drawn as glyphs in the knobs' colours (blue, orange, cream, coral). HOME returns to the view. Deep FM6 patches still have the web editor.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    0,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 2,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "PAGE",
+     "value": "ENV"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "ATTACK",
+     "value": "0.20"
+    },
+    "KNOB2": {
+     "note": "DECAY",
+     "value": "0.30"
+    },
+    "KNOB3": {
+     "note": "SUSTAIN",
+     "value": "60"
+    },
+    "KNOB4": {
+     "note": "RELEASE",
+     "value": "0.80"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "params",
+     "title": "13 EP",
+     "page": "ENV 4/8",
+     "col": "white",
+     "cols": [
+      {
+       "label": "Attack",
+       "value": "0.20",
+       "glyph": "env",
+       "env": [
+        0.2,
+        0.3,
+        0.6,
+        0.8
+       ]
+      },
+      {
+       "label": "Decay",
+       "value": "0.30",
+       "glyph": "knob",
+       "pct": 0.3
+      },
+      {
+       "label": "Sustain",
+       "value": "60",
+       "glyph": "bar",
+       "pct": 0.6
+      },
+      {
+       "label": "Release",
+       "value": "0.80",
+       "glyph": "knob",
+       "pct": 0.8
+      }
+     ],
+     "foot": "SELECT: page \u00b7 HOME: done \u00b7 SAVE: keep it"
+    },
+    "footer": null,
+    "note": "EDIT: a page of four parameters in the knob colours; the glyph of the one being turned animates (the envelope redraws as the knob moves)."
+   }
+  },
+  {
+   "name": "22 \u00b7 EDIT held: the engine picker",
+   "notes": "Hold EDIT: the white root keys are Felucca's engines (ANALOG, FM6, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, PHYS, NOISE); press one and the sound switches engine, keeping its envelope and sends. KNOB 1 steps through the engine's factory presets, KNOB 2 inits the sound.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "ANLG",
+    "11": "FM6",
+    "12": "PHASE",
+    "14": "LOFI",
+    "16": "SMPL",
+    "18": "VOICE",
+    "19": "TRIO",
+    "21": "WHEEL",
+    "23": "GRAIN",
+    "24": "PHYS",
+    "26": "NOISE"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 3,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "PRESET",
+     "value": "13 EP"
+    },
+    "KNOB2": {
+     "note": "INIT",
+     "value": ""
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "picker",
+     "items": [
+      "Analog",
+      "FM6",
+      "Phase",
+      "LoFi",
+      "Sample",
+      "Voice",
+      "Trio",
+      "Wheel",
+      "Grain",
+      "Phys",
+      "Noise"
+     ],
+     "sel": 1,
+     "label": "engine \u00b7 KNOB 1 its presets",
+     "col": "white",
+     "value": "13 EP"
+    },
+    "footer": {
+     "text": "a root key: the engine \u00b7 KNOB 1: its presets"
+    },
+    "note": "EDIT held: the engine one at a time; the sound changes as the name flips."
+   }
+  },
+  {
+   "name": "23 \u00b7 SAVE tapped: name and save the sound",
+   "notes": "SAVE while a sound is edited: pick a user slot with KNOB 1, name it with the keys (Felucca's naming: the keys type letters, OCT- deletes, OCT+ confirms), and the sound lands in one of 32 user slots, listed after the factory bank on PRESETS. SAVE held: the loop's save / load / delete.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "A",
+    "11": "B",
+    "12": "C",
+    "14": "D",
+    "16": "E",
+    "18": "F",
+    "19": "G",
+    "21": "H",
+    "23": "I",
+    "24": "J",
+    "26": "K"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 2,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 2,
+    "OCT+": 3
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SLOT",
+     "value": "U03"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": 3,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "text",
+     "title": "save sound",
+     "col": "white",
+     "lines": [
+      {
+       "t": "U03",
+       "px": 15,
+       "col": "grey"
+      },
+      {
+       "t": "WARM EP_",
+       "px": 36,
+       "w": 700,
+       "col": "white"
+      },
+      "",
+      {
+       "t": "keys: letters \u00b7 OCT-: delete",
+       "col": "grey"
+      },
+      {
+       "t": "OCT+: save",
+       "col": "grey"
+      }
+     ]
+    },
+    "footer": {
+     "text": "SAVE again: cancel"
+    },
+    "note": "SAVE: the slot and the name being typed; each letter slides in, the cursor blinks."
+   }
+  },
+  {
+   "name": "24 \u00b7 a chord change, mid-squeeze (Dmaj7 \u2192 Em, frame 2 of 6)",
+   "notes": "Orchid's trick, kept and played up: when the chord changes, the old name squeezes to a thin condensed column and the new one stretches out from it (about 120 ms). Long names stay condensed to fit the width, as on the Orchid's own screen. This frame shows the new name half-way out.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 2,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Key: C",
+     "right": "",
+     "batt": 3,
+     "usb": false,
+     "midCol": "yellow"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "chord",
+     "root": "E",
+     "quality": "m",
+     "sup": "",
+     "notes": "",
+     "line": "",
+     "hint": "",
+     "cols": {
+      "root": "white"
+     },
+     "squeeze": 0.45,
+     "bubbles": [
+      {
+       "t": "E4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "G4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "B4",
+       "col": "white",
+       "mark": false
+      }
+     ]
+    },
+    "footer": null,
+    "note": "one frame of the squeeze: the name at 45 % width on its way to full."
+   }
+  }
+ ]
+}

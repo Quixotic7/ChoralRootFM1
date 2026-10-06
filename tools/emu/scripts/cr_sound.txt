@@ -1,0 +1,15 @@
+# ChoralRoot: PRESETS +1: the sound meter, the next sound on part 0; then a chord (compared with cr_dmaj's)
+wait 300
+knob PRESETS +1
+wait 300
+shot build/emu/test/cr_sound_meter.ppm
+dump
+wait 700
+key F3 down
+wait 60
+key A down
+wait 700
+key A up
+key F3 up
+wait 1500
+dump

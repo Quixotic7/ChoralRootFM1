@@ -1,0 +1,9 @@
+# test_persist.sh, run 2 (the same flash file): the tempo came back. SELECT +1 -1 shows the BPM meter at 137.
+wait 500
+dump
+knob SELECT +1
+wait 50
+knob SELECT -1
+wait 150
+shot build/emu/test/persist_bpm.ppm
+quit

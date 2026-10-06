@@ -1,0 +1,20 @@
+# ChoralRoot: cr_edit.txt without the KNOB 1 turn (the reference render)
+wait 300
+knob PRESETS +4
+wait 1200
+btn SEL
+wait 300
+knob SELECT +1
+wait 300
+knob SELECT -1
+wait 100
+btn HOME
+wait 300
+key F3 down
+wait 60
+key A down
+wait 900
+key A up
+key F3 up
+wait 2500
+dump

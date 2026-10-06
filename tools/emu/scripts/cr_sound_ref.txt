@@ -1,0 +1,11 @@
+# ChoralRoot: the same chord as cr_sound.txt with the power-on sound (the timbre reference)
+wait 300
+wait 300
+wait 700
+key F3 down
+wait 60
+key A down
+wait 700
+key A up
+key F3 up
+wait 1500

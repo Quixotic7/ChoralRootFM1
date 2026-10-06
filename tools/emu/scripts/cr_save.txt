@@ -1,0 +1,34 @@
+# ChoralRoot: SAVE tap: the naming screen; D4 E4 F4 type A D G; OCT+ saves to U01; PRESETS +24 reaches it (after
+# the 24 bank sounds); BASS held (ENV) + EDIT (SEL): the bass sound's pages; KNOB 1 there edits part 1
+wait 300
+btn SAVE
+wait 300
+shot build/emu/test/cr_save_open.ppm
+btn D4
+wait 200
+btn E4
+wait 200
+btn F4
+wait 300
+shot build/emu/test/cr_save_typed.ppm
+btn OCT+
+wait 300
+shot build/emu/test/cr_save_done.ppm
+wait 1500
+knob PRESETS -1
+wait 300
+knob PRESETS +1
+wait 300
+shot build/emu/test/cr_save_preset.ppm
+dump
+wait 1200
+btn ENV down
+wait 100
+btn SEL
+wait 100
+btn ENV up
+wait 300
+shot build/emu/test/cr_edit_bass.ppm
+knob KNOB1 +3
+wait 400
+dump

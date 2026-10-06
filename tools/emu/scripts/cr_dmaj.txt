@@ -1,0 +1,45 @@
+# ChoralRoot: hold MAJ (computer F3 = A#3), press D4 (A) -> D major: sound, the voiced notes' LEDs, the chord
+# screen; KNOB 1 +2: the voicing line; then MAJ + M7 + D4: Dmaj7 (mock-up state 2); everything released: every
+# part silent within 2 s
+wait 500
+shot build/emu/test/cr_boot.ppm
+key F3 down
+wait 60
+key A down
+wait 700
+expect led A#3 on
+expect led D4 on
+expect led F#4 on
+expect led A4 on
+expect led E4 dim
+expect led B3 off
+shot build/emu/test/cr_dmaj.ppm
+dump
+knob KNOB1 +2
+wait 150
+shot build/emu/test/cr_voicing.ppm
+expect led A4 on
+expect led D5 on
+expect led F#5 on
+expect led D4 dim
+dump
+knob KNOB1 -2
+wait 100
+key A up
+key F3 up
+wait 100
+expect sound
+wait 2000
+dump
+key F3 down
+key 4 down
+wait 60
+key A down
+wait 700
+shot build/emu/test/cr_dmaj7.ppm
+dump
+key A up
+key 4 up
+key F3 up
+wait 2000
+dump

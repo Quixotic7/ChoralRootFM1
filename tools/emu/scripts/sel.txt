@@ -1,0 +1,9 @@
+# Felucca's HOME screen, then a tap of SEL (X): its SCL layer replaces HOME on the LCD.
+# sh tools/emu/test.sh runs it:  build/host/emu --headless --script tools/emu/scripts/sel.txt --frames 60
+wait 500
+shot build/emu/test/sel_before.ppm
+btn SEL                     # a 100 ms tap (the same as "key X 100")
+wait 300
+expect silence
+shot build/emu/test/sel_after.ppm
+dump

@@ -1,0 +1,21 @@
+# ChoralRoot looper, relaunched on the same flash file: slot 2 is back (in RAM, stopped); LOOP held + E4 loads it,
+# LOOP tap plays it; Esc (panic) stops it with no stuck note.
+wait 300
+dump
+btn PLAY down
+wait 400
+btn E4
+wait 100
+btn PLAY up
+wait 300
+btn PLAY
+wait 600
+dump
+shot build/emu/test/cr_loop_loaded.ppm
+wait 3000
+dump
+key ESC 100
+wait 300
+dump
+wait 2000
+dump

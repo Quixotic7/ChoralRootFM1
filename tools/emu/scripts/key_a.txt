@@ -1,0 +1,16 @@
+# The power-on screen (ChoralRoot's idle stripes), then the root key A (D4) held 300 ms: its LED lit, sound out.
+# sh tools/emu/test.sh runs it:  build/host/emu --headless --script tools/emu/scripts/key_a.txt --frames 80
+wait 500
+expect silence              # nothing sounds at power-on
+expect led A dim             # every key glows dim at rest (Options > LEDs: Glow)
+dump
+shot build/emu/test/home.ppm
+key A down                  # D4 (firmware key 9)
+wait 150
+expect led A on             # the key's LED (fm1_led) lit while held
+expect led D4 on            # the same key by its note name
+wait 150
+key A up
+wait 100
+expect sound                # the 300 ms press rendered non-zero samples
+shot build/emu/test/key_a.ppm

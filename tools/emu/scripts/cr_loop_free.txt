@@ -1,0 +1,62 @@
+# ChoralRoot looper, Free sync (120 BPM: a 4/4 bar = 2 s): REC arms, D (MAJ + D4) starts the take at beat 1, Em
+# (MIN + E4) at beat 3, REC at 2 s commits a 1-bar loop that plays at once; dumps at known times count the re-triggers;
+# REC: overdub armed, G (MAJ + G4) overdubbed, REC ends it; REC held: undo; LOOP held + D#4 held 1 s: clear.
+wait 300
+btn REC
+wait 300
+expect led REC on
+dump
+btn A#3 down
+btn D4 down
+wait 500
+btn D4 up
+btn A#3 up
+wait 500
+btn G#3 down
+btn E4 down
+wait 500
+btn E4 up
+btn G#3 up
+wait 300
+shot build/emu/test/cr_loop_rec_free.ppm
+wait 100
+btn REC
+wait 400
+dump
+shot build/emu/test/cr_loop_play_a.ppm
+expect led PLAY on
+expect led GREEN on
+wait 700
+dump
+shot build/emu/test/cr_loop_play_b.ppm
+wait 1000
+dump
+btn REC
+wait 300
+expect led REC on
+btn A#3 down
+btn G4 down
+wait 300
+btn G4 up
+btn A#3 up
+wait 100
+shot build/emu/test/cr_loop_overdub.ppm
+btn REC
+wait 300
+dump
+wait 2000
+dump
+btn REC 600
+wait 200
+dump
+btn PLAY down
+wait 700
+shot build/emu/test/cr_loop_layer_playing.ppm
+btn D#4 down
+wait 1200
+btn D#4 up
+btn PLAY up
+wait 300
+dump
+wait 2000
+dump

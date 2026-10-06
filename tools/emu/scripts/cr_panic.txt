@@ -1,0 +1,16 @@
+# ChoralRoot: a chord held, Esc (OCT- + OCT+): PANIC, the red screen, every part silent within 2 s;
+# then idle 3 s: the stripes again
+wait 300
+key F3 down
+wait 60
+key A down
+wait 600
+key ESC 100
+wait 200
+shot build/emu/test/cr_panic.ppm
+key A up
+key F3 up
+wait 2000
+dump
+wait 1800
+shot build/emu/test/cr_idle_again.ppm

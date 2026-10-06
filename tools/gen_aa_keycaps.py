@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+"""Pre-rendered keycaps ("cushions") and state badges for the UI, and the knob arc masks (run by
+tools/build.py generate()).
+
+  gen_aa_keycaps.py OUT.h
+
+Keycaps: a fixed set of labels (the hardware controls the hints name, the state badges), each a pill
+KC_H px tall with corners of radius KC_R (about a third of the height), the label in Inter Tight
+KC_PX px / KC_WGHT centred in it. One 4-bit map per pill, two levels in one nibble, tinted at draw time
+with theme tokens (src/gfx.c cv_keycap; MONO stays gray, the dim state is just a tint):
+  0        outside the pill (left as it is)
+  1 .. 4   the pill's anti-aliased edge: fill coverage 20 .. 80 % over what lies under it
+  5        the fill
+  6 .. 15  the label over the fill: ink coverage 10 .. 100 %
+Rows back to back, 2 px per byte (high nibble first), each pill byte-aligned (aa_raster.py's format).
+
+Knob arcs: one quadrant (the top right one: dx, dy = 0 .. R-1 from the centre, which sits on a pixel
+corner) of a 2 px ring of outer radius R, per knob size: the ring's coverage (4-bit, 4 x 4 samples) and
+the angle of each pixel's centre (0 = 12 o'clock .. 255 = 3 o'clock, clockwise). The other quadrants
+are its mirrors (src/ui_graph.c knob_arc), so no trigonometry runs in the firmware.
+
+Prints the byte cost of the set.
+"""
+import math
+import sys
+from pathlib import Path
+
+from PIL import Image, ImageDraw
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import aa_raster as ar  # noqa: E402
+
+FONT = str(Path(__file__).resolve().parents[1] / "assets" / "fonts" / "InterTight[wght].ttf")
+KC_PX, KC_WGHT = 9, 600          # the label: Inter Tight 9 px / 600 (caps 7 rows)
+KC_H, KC_R, KC_PAD = 13, 4, 3    # the pill: 13 px tall, radius 4, 3 px each side of the label
+KC_BASE = 10                     # baseline row: the caps on rows 3 .. 9
+
+# (C name, label): the controls the hints name (panel.c B_NAME / E_NAME, short), then the state badges
+LABELS = [("PRESETS", "PRESETS"), ("SELECT", "SELECT"), ("ALGO", "ALGO"), ("OCTDN", "OCT-"), ("OCTUP", "OCT+"),
+          ("PLAY", "PLAY"), ("REC", "REC"), ("SAVE", "SAVE"), ("EDIT", "EDIT"), ("SEQ", "SEQ"), ("GLO", "GLO"),
+          ("HOME", "HOME"), ("ARP", "ARP"), ("KEYS", "KEYS"), ("K1", "K1"), ("K2", "K2"), ("K3", "K3"), ("K4", "K4"),
+          ("MUTE", "MUTE"), ("ARM", "ARM"), ("HOLD", "HOLD"), ("ON", "ON"), ("OFF", "OFF"),
+          ("FX", "FX"), ("K14", "K1-4"), ("SCL", "SCL")]
+
+KNOBS = [("BIG", 17), ("SMALL", 10)]   # outer radius; the ring is 2 px
+
+
+def pill_cov(w, h, r):
+    """fill coverage 0..16 per pixel: 4 x 4 samples against the rounded rectangle"""
+    cov = [[0] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            n = 0
+            for sy in range(4):
+                for sx in range(4):
+                    px, py = x + (sx + 0.5) / 4, y + (sy + 0.5) / 4
+                    cx = min(max(px, r), w - r)
+                    cy = min(max(py, r), h - r)
+                    n += (px - cx) ** 2 + (py - cy) ** 2 <= r * r
+            cov[y][x] = n
+    return cov
+
+
+def keycap(font, label):
+    tw = int(math.ceil(font.getlength(label)))
+    w = tw + 2 * KC_PAD
+    img = Image.new("L", (w, KC_H), 0)
+    ImageDraw.Draw(img).text((KC_PAD + (tw - font.getlength(label)) / 2, KC_BASE), label, font=font, fill=255, anchor="ls")
+    ink = img.tobytes()
+    cov = pill_cov(w, KC_H, KC_R)
+    nib = []
+    for y in range(KC_H):
+        for x in range(w):
+            c, a = cov[y][x], ink[y * w + x]
+            if c < 16:
+                assert a == 0, f"{label}: ink on the pill's edge"
+                nib.append(min(4, int(round(c * 5 / 16))))
+            elif a:
+                nib.append(5 + max(0, min(10, int(round(a * 10 / 255)))))
+            else:
+                nib.append(5)
+    return w, ar.pack(nib)
+
+
+def knob_quadrant(r):
+    """(coverage nibbles, angle bytes) of the top-right quadrant, row j = dy (0 nearest the centre)"""
+    cov, ang = [], []
+    r0 = r - 2.0
+    for j in range(r):
+        for i in range(r):
+            n = 0
+            for sy in range(4):
+                for sx in range(4):
+                    dx, dy = i + (sx + 0.5) / 4, j + (sy + 0.5) / 4
+                    d = math.hypot(dx, dy)
+                    n += r0 <= d <= r
+            cov.append(min(15, int(round(n * 15 / 16))))
+            a = math.atan2(i + 0.5, j + 0.5)          # from 12 o'clock, clockwise: dx over dy (up)
+            ang.append(min(255, int(a / (math.pi / 2) * 256)))
+    return cov, ang
+
+
+def main():
+    out = Path(sys.argv[1])
+    font = ar.open_font(FONT + f"@{KC_WGHT}", KC_PX)
+    data, rows = bytearray(), []
+    for cname, label in LABELS:
+        w, b = keycap(font, label)
+        rows.append((cname, label, len(data), w))
+        data += b
+    lines = ["/* generated by tools/gen_aa_keycaps.py: keycaps / badges and knob arc quadrants */",
+             "#pragma once", "#include <stdint.h>", "",
+             f"/* pills: Inter Tight {KC_PX} px / {KC_WGHT}, {KC_H} px tall, radius {KC_R}; nibble 0 outside, 1..4 edge,"
+             " 5 fill, 6..15 label */",
+             f"#define KC_H {KC_H}", "enum {"]
+    lines += [f"    KC_{c},   /* {l} */" for c, l, _, _ in rows]
+    lines += ["    KC_COUNT", "};", "/* kc_t {off, w, label} (src/gfx.c) */", "static const kc_t KC[KC_COUNT] = {"]
+    lines += [f'    {{{off}, {w}, "{l}"}},' for _, l, off, w in rows]
+    lines += ["};", ar.c_array("KC_DATA", "uint8_t", list(data), fmt="0x{:02x}"), ""]
+    knob_bytes = 0
+    for name, r in KNOBS:
+        cov, ang = knob_quadrant(r)
+        pc = ar.pack(cov)
+        knob_bytes += len(pc) + len(ang)
+        lines += [f"#define KNOB_{name}_R {r}",
+                  ar.c_array(f"KNOB_{name}_COV", "uint8_t", list(pc), fmt="0x{:02x}"),
+                  ar.c_array(f"KNOB_{name}_ANG", "uint8_t", ang), ""]
+    out.write_text("\n".join(lines))
+    table = len(rows) * 8
+    print(f"keycaps: {len(rows)} pills, data {len(data)} B + table {table} B; knob arcs {knob_bytes} B "
+          f"= {len(data) + table + knob_bytes} B -> {out}")
+
+
+if __name__ == "__main__":
+    main()
