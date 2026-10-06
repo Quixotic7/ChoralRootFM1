@@ -1,0 +1,156 @@
+# ChoralRoot: the sound editor (firmware/src/cr_edit.c, docs/EDITOR.md) on LUSH PAD (PRESETS +24: the VA). Groups ->
+# screens -> lanes. EDIT tap: OSC screen 1 (the four oscillators, OSC 1 on the knobs); SELECT +1: OSC 2, KNOB 3 -2: its
+# COARSE two detents (hot); OSC (printed FX) tap: screen 2 (the "+" stack, OSC 2 kept); tap: screen 3, the mixer
+# (KNOB 2 -1: OSC 2's LEVEL); FILT (SEL): KNOB 2 +1 the cutoff, SELECT +1: row B; ENV: KNOB 2 +1 (DEC), SELECT runs
+# ENV 1 B -> ENV 2 A -> ENV 2 B, SELECT -3 back to ENV 1 A (across the screens); LFO, tap: screen 2 (sync); MOD (SEQ),
+# SELECT +2: slot 3; FX (PLAY): the sends; MIX (REC), SELECT +1: row B, KNOB 2 +1 a detent; SHIFT (GLO) held + KNOB 2:
+# one step; GLO tap: SHIFT latched (its LED, "fine"), KNOB 2 +1 one step, GLO tap: off; the root keys audition;
+# SHIFT + EDIT: the bass sound and back; PERF held (ARP): the perform layer over the editor, OCT- back to it (and HOME
+# back to it); SAVE: the naming screen over the editor, OCT- cancels back to it; HOME leaves; EDIT tap again: the
+# group, screen and lane it was left in (MIX row B); SAVE SAVE saves (U01); EDIT tap leaves.
+wait 300
+knob PRESETS +24
+wait 1500
+btn EDIT
+wait 400
+expect led FX on
+expect led SEL dim
+shot build/emu/test/cr_editor_osc.ppm
+knob SELECT +1
+wait 250
+knob KNOB3 -2
+wait 100
+shot build/emu/test/cr_editor_osc2.ppm
+wait 900
+btn FX
+wait 400
+shot build/emu/test/cr_editor_osc_b.ppm
+btn FX
+wait 300
+knob KNOB2 -1
+wait 900
+shot build/emu/test/cr_editor_osc_mix.ppm
+btn SEL
+wait 300
+expect led SEL on
+expect led FX dim
+knob KNOB2 +1
+wait 60
+shot build/emu/test/cr_editor_filt_turn.ppm
+wait 400
+shot build/emu/test/cr_editor_filt.ppm
+knob SELECT +1
+wait 400
+shot build/emu/test/cr_editor_filt_b.ppm
+btn ENV
+wait 300
+knob KNOB2 +1
+wait 400
+shot build/emu/test/cr_editor_env1.ppm
+knob SELECT +1
+wait 200
+knob SELECT +1
+wait 400
+shot build/emu/test/cr_editor_env2.ppm
+knob SELECT +1
+wait 400
+shot build/emu/test/cr_editor_env2_b.ppm
+knob SELECT -3
+wait 300
+btn LFO
+wait 400
+shot build/emu/test/cr_editor_lfo.ppm
+btn LFO
+wait 400
+shot build/emu/test/cr_editor_lfo_b.ppm
+btn SEQ
+wait 200
+knob SELECT +2
+wait 400
+shot build/emu/test/cr_editor_mod.ppm
+knob KNOB1 +5
+wait 100
+knob KNOB2 +3
+wait 100
+knob KNOB3 +2
+wait 400
+btn PLAY
+wait 400
+expect led PLAY on
+shot build/emu/test/cr_editor_fx.ppm
+btn REC
+wait 200
+knob SELECT +1
+wait 400
+expect led REC on
+shot build/emu/test/cr_editor_mix_b.ppm
+knob KNOB2 +1
+wait 100
+btn GLO down
+wait 100
+knob KNOB2 +1
+wait 100
+btn GLO up
+wait 300
+btn GLO
+wait 200
+expect led GLO on
+knob KNOB2 +1
+wait 300
+shot build/emu/test/cr_editor_fine.ppm
+btn GLO
+wait 200
+expect led GLO dim
+key F3 down
+wait 40
+key A down
+wait 500
+expect sound
+key A up
+key F3 up
+wait 300
+btn GLO down
+wait 100
+btn EDIT
+wait 100
+btn GLO up
+wait 400
+shot build/emu/test/cr_editor_bass.ppm
+btn GLO down
+wait 100
+btn EDIT
+wait 100
+btn GLO up
+wait 1000
+shot build/emu/test/cr_editor_pre_perf.ppm
+btn ARP 600
+wait 400
+shot build/emu/test/cr_editor_perf.ppm
+btn OCT-
+wait 400
+shot build/emu/test/cr_editor_perf_back.ppm
+btn ARP 600
+wait 300
+btn HOME
+wait 400
+shot build/emu/test/cr_editor_perf_home.ppm
+btn SAVE
+wait 400
+shot build/emu/test/cr_editor_save.ppm
+btn OCT-
+wait 400
+shot build/emu/test/cr_editor_back.ppm
+btn HOME
+wait 400
+shot build/emu/test/cr_editor_home.ppm
+btn EDIT
+wait 400
+shot build/emu/test/cr_editor_again.ppm
+btn SAVE
+wait 300
+btn SAVE
+wait 1500
+shot build/emu/test/cr_editor_saved.ppm
+btn EDIT
+wait 2500
+dump

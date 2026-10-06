@@ -1,4 +1,4 @@
-# tools/emu/perf.sh (f): a 6-note VA chord (ENSEMBLE STR, the VA's heaviest: four saws) + the VA bass (PUNCH BASS) held 3 s, a chord change, 3 s more, released
+# tools/emu/perf.sh (f): a 6-note VA chord (ENSEMBLE STR, four saws; MORPH PAD, WIDE STRINGS: docs/VA.md) + the VA bass (PUNCH BASS) held 3 s, a chord change, 3 s more, released
 wait 500
 knob PRESETS +28
 wait 300

@@ -1,0 +1,48 @@
+# ChoralRoot: the engine picker as a preview (cr_ui.c cu_pick_*, docs/EDITOR.md) over the editor on LUSH PAD (the VA).
+# EDIT held: the picker (a snapshot: "picker: open .. crc"); KNOB 1 +1: the next preset (the meter's bar jumps);
+# OCT-: cancelled, LUSH PAD back (the same crc), the editor again. EDIT held, KNOB 4 +1: the roots play (D4 sounds,
+# no engine change); KNOB 4 +1: the roots choose engines again, D4: ANALOG; OCT-: cancelled, the VA patch back (the
+# same crc). PRESETS +1 in the editor: the picker opens, previewing the next preset; OCT+ keeps it (not edited); EDIT
+# tap leaves.
+wait 300
+knob PRESETS +24
+wait 1500
+btn EDIT
+wait 400
+shot build/emu/test/cr_pick_editor.ppm
+btn EDIT 600
+wait 300
+knob KNOB1 +1
+wait 40
+shot build/emu/test/cr_pick_preview.ppm
+wait 400
+btn OCT-
+wait 1500
+shot build/emu/test/cr_pick_cancel.ppm
+btn EDIT 600
+wait 300
+knob KNOB4 +1
+wait 300
+shot build/emu/test/cr_pick_roots_play.ppm
+expect silence
+key A down
+wait 400
+expect sound
+key A up
+wait 300
+knob KNOB4 +1
+wait 300
+btn D4
+wait 300
+shot build/emu/test/cr_pick_engine.ppm
+btn OCT-
+wait 1500
+knob PRESETS +1
+wait 400
+shot build/emu/test/cr_pick_presets.ppm
+btn OCT+
+wait 1500
+shot build/emu/test/cr_pick_kept.ppm
+btn EDIT
+wait 2500
+dump

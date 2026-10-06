@@ -52,13 +52,45 @@ static void cr_midi(uint32_t status, uint32_t d1, uint32_t d2)
     midi_out_event((status >> 4) | status << 8 | (d1 & 0x7Fu) << 16 | (d2 & 0x7Fu) << 24);
 }
 
+/* TRANSPOSE (the part's P_TRANS, MIX page): the part's notes play P_TRANS semitones away (clamped to 0..127). The
+ * MIDI out of the stream is not transposed: it carries the harmony as played. A part's transposition is taken when
+ * none of its notes from here sound (cr_tr_n: started and not ended) and kept while any does, so every note-off
+ * ends the note its note-on started; a change applies from the next chord after a release */
+static int8_t cr_tr[NPART];                      /* the transposition the part's sounding notes started with */
+static uint8_t cr_tr_n[NPART];                   /* .. how many of them sound */
+static uint32_t cr_tr_note(uint32_t p, uint32_t note)
+{
+    int32_t x = (int32_t)note + cr_tr[p];
+    return (uint32_t)(x < 0 ? 0 : x > 127 ? 127 : x);
+}
+static void cr_tr_end(uint32_t p)                /* a note of part p ended */
+{
+    if (p < NPART && cr_tr_n[p])
+        cr_tr_n[p]--;
+}
+
 static void cr_cb_note_on(void *ud, cr_stream_t s, uint8_t note, uint8_t vel)
 {
-    uint32_t p = cr_route.part[s];
+    uint32_t p = cr_route.part[s], old;
     (void)ud;
     note &= 0x7Fu;
     if (p < NPART) {
-        trk_note_on(&trk[p], note, vel);
+        old = CR_OPART(s, note);
+        if (old != p + 1u) {                     /* (a note already on for this part: counted once) */
+            if (old)
+                cr_tr_end(old - 1u);
+            if (!cr_tr_n[p]) {
+                int32_t tp = clamp(trk[p].p[P_TRANS], -24, 24);
+#if defined(CR_TRACE) && CR_TRACE
+                if (tp != cr_tr[p])
+                    printf("transpose: part %u %+d\n", (unsigned)p, (int)tp);
+#endif
+                cr_tr[p] = (int8_t)tp;
+            }
+            if (cr_tr_n[p] < 255u)
+                cr_tr_n[p]++;
+        }
+        trk_note_on(&trk[p], cr_tr_note(p, note), vel);
         CR_OPART_SET(s, note, p + 1u);
     }
     if (cr_route.midi_en[s]) {
@@ -74,7 +106,9 @@ static void cr_cb_note_off(void *ud, cr_stream_t s, uint8_t note)
     (void)ud;
     note &= 0x7Fu;
     if (CR_OPART(s, note)) {
-        trk_note_off(&trk[CR_OPART(s, note) - 1u], note);
+        uint32_t p = CR_OPART(s, note) - 1u;
+        trk_note_off(&trk[p], cr_tr_note(p, note));
+        cr_tr_end(p);
         CR_OPART_SET(s, note, 0u);
     }
     if (CR_OCH(s, note)) {
@@ -89,6 +123,8 @@ static void cr_cb_all_off(void *ud, cr_stream_t s)
     uint32_t n, p = cr_route.part[s];
     (void)ud;
     for (n = 0; n < 128u; n++) {
+        if (CR_OPART(s, n))
+            cr_tr_end(CR_OPART(s, n) - 1u);
         if (CR_OPART(s, n) && CR_OPART(s, n) - 1u != p)
             trk_all_off(&trk[CR_OPART(s, n) - 1u]);
         if (CR_OCH(s, n) && CR_OCH(s, n) - 1u != (cr_route.ch[s] & 15u))

@@ -28,7 +28,7 @@ LEDs in `zoom`.
 The block has its own header:
 
 - `magic` `CRS1`
-- `version` (`CRS_VERSION`, currently 1)
+- `version` (`CRS_VERSION`, currently 3)
 - `size` (the writer's `CRS_SIZE`)
 - `check`: FNV-1a over bytes 12..size
 
@@ -54,7 +54,9 @@ The block has its own header:
 | fx_on | 0/1 | on |
 | chord_sound | PRESETS list position, 0xFFFF = the UI's default | TINE EP |
 | bass_sound | the ALGORITHM position BASS tap brings (1..), 0 = the UI's default | SUB BASS |
-| rsv[28] | reserve for new fields | 0 |
+| metro_on, metro_sig, metro_vol, loop_slot (v2) | the click, 4/4 3/4 6/8, 0..100, 0..9 | off, 4/4, 70, 0 |
+| pick_roots (v3) | the engine picker's white roots: 1 choose engines, 0 play (KNOB 4 in the picker) | **1** (engines) |
+| rsv[23] | reserve for new fields | 0 |
 
 ### Import rules (`cr_settings_import`)
 
@@ -143,3 +145,5 @@ read as current, migrated or defaults.
 1. SELECT +17 sets 137 BPM; the script waits, quits, and the record is saved once.
 2. A relaunch on the same file reads 137 BPM. The BPM meter is captured to `build/emu/test/persist_bpm.ppm`.
 3. A run without `--flash` reads 120 BPM.
+4. VA: a deep edit saved to U01; the relaunch powers on with U01 and its patch CRC as saved.
+5. The picker's roots: KNOB 4 in the picker sets them to play; the relaunch opens the picker with them playing.

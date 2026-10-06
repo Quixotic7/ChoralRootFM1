@@ -76,31 +76,48 @@ One scan per UI frame (15 ms) over `fm1_in` + `fm1_input_edges()` + `fm1_enc_tak
 `ui_input.c` does, feeding a small state machine. The firmware key index `k` (0..26, F3..G5):
 
 ```
-chord keys:   k ∈ {1,3,5,8} → DIM MIN MAJ SUS;  k ∈ {0,2,4,7} → 6 m7 M7 9;  k = 6 → nothing
+chord keys:   k ∈ {1,3,5,8} → DIM MIN MAJ SUS;  k ∈ {0,2,4,7} → 6 m7 M7 9   (CRE_MOD down / up → cr_mod)
+LOCK:         k = 6 (B3) → LOCK on / off (a tap; lit while on; off at power-on, not saved)
 root keys:    k ≥ 9 → cr_key(c, 53 + k + 12*octave, vel, down)   (vel from Options > Velocity)
 layer open:   k ≥ 9 → the layer's map instead (tonic / mode / slot / effect / engine)
 ```
 
-Buttons (`panel.btn[]` ids): tap = release < HOLD_MS (300 ms, Felucca's `settings_hold`) with no
-key, knob or other button touched meanwhile; hold = past HOLD_MS → the layer opens (`ui.layer`)
-and closes on release unless HOME was tapped meanwhile (lock). Exactly Felucca's `ui_layer.c`
-gesture (`layer_gesture`), reused with ChoralRoot's table:
+**LOCK** (B3) is a mode toggle for the chord block, done in the UI as a virtual hold (`cu_mod_press` /
+`cu_mod_release`, `cu.mlatch`): a latched chord key stays posted down to the engine (CRE_MOD down, no up), so
+every play style (Simple / Advanced / Free) sees it held. LOCK off: the chord keys momentary. LOCK on: the chord
+keys held are latched when released (their LEDs stay lit: the engine's `mods_active`); with no chord key held, a
+top-row key (DIM MIN MAJ SUS) **resets** the latch to that type alone (the others posted up, the extensions
+cleared) and a bottom-row key (6 m7 M7 9) **toggles** its extension (off: posted up at once, its release does
+nothing). Hold MIN, release: Dm on D4; 6: Dm6; 9: Dm6/9; 9 again: Dm6; MAJ: D. LOCK off and PANIC post the
+latched keys up (`cu_unlatch`). The top line shows a small white `lock` (after the perform mode, the octave and
+Latch). Traces: `lock: on` / `off` / `latched MIN 6 9`, and `chord: Dm6 9` as the sounding chord changes.
 
-| button | tap | layer (held) |
-| --- | --- | --- |
-| EDIT→KEY | Key Mode on/off | roots = tonic (MIN held: minor); KNOB 1–4 TONIC SCALE TRANSPOSE SINGLE NOTES |
-| ARP→PERF | performance on/off | white roots = mode; KNOB 1–4 = the mode's params |
-| FX | main effect on/off | white roots = effect; KNOB 1–3 params, KNOB 4 amount |
-| ENV→BASS | bass on/off | KNOB 1–4 BEHAVIOUR REGISTER SOUND LEVEL; roots preview the bass |
-| LFO→LATCH | latch on/off | — |
-| GLO→OPT | Options (picker pages) | shift: OPT + knob = second function; OPT + FX = FX lock; OPT + PERF = perform lock |
-| SEL→EDIT | sound pages (EDIT mode: SELECT = page, OPT + SELECT = section, KNOB 1–4 = params; BASS held + EDIT = the bass sound) | engine picker on white roots |
-| HOME | leave page/menu/layer; on the view: next View | hold + layer button: lock the layer |
-| SAVE | save sound (naming) | save / load / delete loops |
-| SEQ→METRO | metronome on/off | beat / time signature picker |
-| PLAY→LOOP | play / stop | loop layer: slots on white roots, D#4 CLEAR (hold), F#4 UNDO; KNOB 1–4 SYNC QUANT COUNT LEVEL |
-| REC | record / overdub arm | undo the last layer |
-| OCT−/OCT+ | octave −2..+2 | in a picker: back / confirm; **both: PANIC** |
+Buttons (`panel.btn[]` ids): **tap** = release < HOLD_MS (300 ms, Felucca's `settings_hold`) with no key, knob or
+other button touched meanwhile: always the button's action, also while its own layer is open. **Hold** = past
+HOLD_MS, or a key / knob / button touched meanwhile (a combo, no tap): a layer button opens its layer **and locks
+it** (`cu.lock`): it stays open after release, its LED blinks; **OCT− (back) or HOME closes it** (OCT− in a layer
+is never the octave; OCT+ is OK, or the loop picker's action), holding another layer button switches to that layer.
+The lockable layers: KEY, PERF, FX, BASS, LOOP, METRO and the engine picker (EDIT held: a preview, OCT− cancels,
+OCT+ / EDIT keep). A layer opened from the sound editor closes back to the editor (OCT− / HOME). SAVE held (the loop slots) is momentary; OPT is the knob shift;
+a button pressed during another's hold is that hold's combo (its release does nothing).
+
+| printed | role | tap | hold (locked open unless noted) |
+| --- | --- | --- | --- |
+| SEL | KEY | Key Mode on/off | key layer: roots = tonic (MIN held: minor); KNOB 1–4 TONIC SCALE TRANSPOSE SINGLE NOTES |
+| ARP | PERF | performance on/off | white roots = mode; KNOB 1–4 = the mode's params |
+| FX | FX | main effect on/off | white roots = effect; KNOB 1–3 params, KNOB 4 amount |
+| ENV | BASS | bass on/off | KNOB 1–4 BEHAVIOUR REGISTER SOUND LEVEL; BASS held + EDIT = the bass sound's editor, + SAVE its saving |
+| LFO | LATCH | latch on/off | — |
+| GLO | OPT | Options (picker pages) | shift (momentary): OPT + KNOB 1 split point, + SELECT metronome level, + ALGORITHM bass level; the other knobs keep their job |
+| EDIT | EDIT | the sound editor (again: leave; in the engine picker: keep its sound, close it) | the engine picker (a preview: OCT− cancels, OCT+ keeps) on the white roots, KNOB 1 its presets, KNOB 2 init, KNOB 4 roots engines / play |
+| HOME | HOME | close the layer / page / menu; on the view: next View | — |
+| SAVE | SAVE | save sound (naming; in it: save, as OCT+) | save / load / delete loops (momentary, while held; OCT+ does it) |
+| SEQ | METRO | metronome on/off | time-signature picker, KNOB 1 click level |
+| PLAY | LOOP | play / stop | slots on white roots, D#4 CLEAR (hold), F#4 UNDO; KNOB 1–4 SYNC QUANT COUNT LEVEL; playing: the action picker, OCT+ does it |
+| REC | REC | record / overdub arm | undo the last layer (not a layer) |
+| OCT−/OCT+ | | octave −2..+2; in a layer or picker: back / OK | **both: PANIC** (the LOCK latch cleared) |
+
+Layer footers read "… · OCT-: back · HOME: home"; the emulator's log has `layer: open N (locked)` / `layer: close N`.
 
 Knobs (`fm1_enc_take(panel.enc[role])`, one step per detent): KNOB 1 → `cr_voicing_step`,
 KNOB 2 → `cr_bass_voicing_step`, KNOB 3 → the current perform mode's main parameter, KNOB 4 →
@@ -143,11 +160,13 @@ Priority, top down, first match wins:
 ## 6. LEDs (`cr_leds()`)
 
 As `ui_input.c: ui_leds` builds `fm1_led` / `fm1_led_dim` per column: every key and button dim
-(the glow) unless Options > LEDs = STOCK; chord keys lit while held/latched (`cr_mod_active`);
+(the glow) unless Options > LEDs = STOCK; chord keys lit while held/latched (`cr_mod_active`; LOCK's latched keys
+are posted down, so they are lit); B3 lit while LOCK is on (dim off);
 root keys lit where the voiced notes sound (engine query), the sounding perform note blinking,
 black roots off the scale dark in Key Mode, layer maps on the roots while a layer is open; KEY,
-PERF, FX, BASS, LATCH lit when on; REC blink while recording, lit when armed; PLAY lit when a loop
-exists, its green LED when playing; OPT lit in Options; OCT− lit / OCT+ blinking in pickers.
+PERF, FX, BASS, LATCH, METRO lit when on; **the open layer's button blinks** (locked after its hold; SAVE while
+held); EDIT blinks while the editor is open; REC blink while recording, lit when armed; PLAY lit when a loop
+exists, its green LED when playing; OPT lit in Options; OCT− lit / OCT+ blinking in layers and pickers.
 
 ## 7. Settings and sounds (`cr_settings.c`)
 
@@ -160,10 +179,15 @@ engine + a ChoralRoot bank (`cr_bank.c`: chord-friendly presets in PRESETS order
 ALGORITHM) + the 32 user slots (`upreset.c`), named with the root keys as Felucca's `ui_name.c`.
 
 - **VA** (engine 13, `eng_va.c`, `FELUCCA_VA`; docs/VA.md): a four-oscillator virtual analog with deep pages
-  (`eng_deep_t`: OSC / FILTER / ENV / LFO / MOD, 31 pages), its own patch per part (P_E0..P_E7 are macros into it),
-  16 chord sounds at the end of PRESETS (25..40) and 4 basses at the end of ALGORITHM (9..12), levels set in the
+  (`eng_deep_t`: OSC / FILTER / ENV / LFO / MOD, 32 pages; oscillator MODE BASIC / MORPH / NOISE, FILTER MORPH and
+  a stereo SPREAD, UNISON's USPREAD), its own patch per part (P_E0..P_E7 are macros into it, blob version 2), 19
+  chord sounds at the end of PRESETS (25..43) and 4 basses at the end of ALGORITHM (9..12), levels set in the
   presets (trim 0). A user slot saved from a VA sound keeps its patch in `va_store.c` (one per slot, on the unused
-  project sectors 0x97000 / 0x98000).
+  project sectors 0x97000 / 0x98000; a version-1 store is imported at boot). The VA is the one engine with a stereo
+  voice path (`engine_t.render2`: a mid + side per part, `fx.c mix_part`).
+- **TRANSPOSE** (MIX page, P_TRANS -24..24, both parts): applied in `cr_out.c` where the streams enter the parts
+  (clamped to 0..127); the MIDI out carries the notes as played. A change applies from the next chord after the part's
+  notes are released (each note-off ends the note its note-on started); `tests/cr_trans_test.c`, trace `transpose:`.
 
 ## 8. The looper (`cr_loop.c`, M6)
 
@@ -206,9 +230,9 @@ loop_start) / loop_len`.
   sample clock (Options > MIDI Clock: Out). The input queue (`cr_post`, 128 events, one producer / one consumer)
   drained at the top of every 32-sample block, then `cr_tick` with `ms = samples * 1000 / 44100` (remainder kept);
   `cr_snapshot` copies what the UI shows with the IRQ off.
-- **`cr_ui.c`**: the grammar of section 3: chord keys, roots (+ OCT), the tap / hold / combo / HOME-lock gesture
-  (one armed button, as `ui_layer.c`), OPT + FX / PERF locks, OCT- + OCT+ = panic (octave reset), OCT in pickers =
-  back / OK. Taps: KEY PERF FX BASS LATCH OPT EDIT SAVE METRO; layers: KEY (select-key, MIN held = minor, KNOB 1-3
+- **`cr_ui.c`**: the grammar of section 3: chord keys, LOCK, roots (+ OCT), the tap / hold / combo gesture
+  (one armed button, as `ui_layer.c`; a hold locks its layer open), OCT- + OCT+ = panic (octave reset), OCT in
+  layers and pickers = back / OK. Taps: KEY PERF FX BASS LATCH OPT EDIT SAVE METRO; layers: KEY (select-key, MIN held = minor, KNOB 1-3
   tonic / scale / transpose), PERF (7 modes on the white roots, KNOB 1-4 the mode's parameters), FX (Reverb Chorus
   Delay Drive = part 0's sends, KNOB 1-3 the buses' `song.g` parameters, KNOB 4 the amount), BASS (behaviours,
   register, sound, level), EDIT (the engine picker; KNOB 1 the engine's sounds). Knobs: KNOB 1 voicing, KNOB 2 bass
@@ -221,27 +245,31 @@ loop_start) / loop_len`.
   sounds: EPs, piano, pads, strings, organs, choir, brass, mallets, plucks), ALGORITHM 8 basses, each a table row
   (engine, Felucca preset name, display name; the name resolves to the index at boot), then the used user slots
   (ALGORITHM: the slots saved MONO / LEGATO). The meter shows the bank number (a user sound: its slot) and the name.
-  **EDIT tap**: the chord sound's pages (BASS held + EDIT: the bass sound's), 8 pages of 4 on `params`: ENGINE
-  (engine, its presets, INIT), the engine's EDIT 1 / 2 (its `page_title`, `edit[]`), ENV, LFO (rate, wave, vibrato,
-  wah), MOD (env -> filter / pitch / shape, tremolo), FX sends, MIX (level, pan, voice, glide). An engine with deep
-  pages (`engine_t.deep`, `eng_deep_t`: the VA) adds its own between EDIT 2 and ENV (OSC 1..4, FILTER, ENV 1..4, LFO,
-  MOD 1..8: `get` / `set` per column, the same steps; an empty column draws nothing). SELECT turns pages (the
-  columns are dealt in from the side turned to), **OPT + SELECT jumps sections** (ENGINE, the engine's own
-  `section[]`, ENV, FX, MIX; turned back: the section's first page, then the previous section; on a sound page it
-  replaces OPT + SELECT's click level), KNOB 1-4 edit with Felucca's ranges and value text (`track_desc`,
-  `param_format`; a detent: 5% of the range, enums one by one; OPT held: one step, the page wins over OPT's knob
-  functions); the top line is the sound's name (`*` once edited, deep edits too) and `ENV 4/8` (deep: `OSC 2 · 4/39`
-  with one square per section under it, the current one filled); the turned column's glyph eases to its value
-  (`cr_tween`, 220 ms; deep glyphs: the selected waveform, the filter type's curve, the page's envelope, a mod slot's
-  source -> destination over its amount). **EDIT
-  held**: the engine picker on the white roots (a root switches the engine keeping the envelope, filter, LFO, sends
-  and mix), KNOB 1 the engine's factory presets, KNOB 2 init. **SAVE tap** (from a bass page or BASS held + SAVE:
-  the bass): KNOB 1 the slot U01-U32 (a used one shows its name), the white roots type (phone style: ABC DEF GHI JKL
-  MNO PQRS TUV WXYZ 0123 4567 89-.), D#4 a space, KNOB 2 the last letter, OCT- deletes, OCT+ saves, SAVE cancels;
+  **EDIT tap**: the sound editor (`cr_edit.c`, docs/EDITOR.md; BASS held + EDIT: the bass sound's, SHIFT + EDIT inside
+  switches part). Groups -> screens -> lanes: the function buttons become group buttons (FX = OSC, SEL = FILT, ENV,
+  LFO, SEQ = MOD, PLAY = FX sends, REC = MIX; HOME or EDIT leaves); a group's tap opens it, tapped again it cycles its
+  screens (a hold: nothing, reserved); SELECT moves the lane (the four parameters on KNOB 1-4) and runs on across the
+  group's screens, wrapping, so SELECT alone reaches everything. The screens come from the engine's deep pages
+  (`eng_deep_t`, by their titles, never by column name): the VA's OSC = the oscillator stack, the "+" stack, the
+  oscillator mixer (the four LEVELs as tall bars); FILT = rows A / B under the filter curve; ENV = ENV 1-4, two lanes
+  each under that envelope; LFO = the stack, the sync stack; MOD = the 8 slots; FX one lane, MIX two. Each part
+  remembers its group, each group its screen and lane. Screens are the dense kinds `CR_K_STACK` and `CR_K_EDIT8`
+  (`tall`: the mixer), no header bar, no footer. A detent: 5 % of the range, enums one by one; GLO = SHIFT: a tap
+  latches fine steps (one unit a detent; its LED, "fine" in the title line), held it is momentary (`cp_dstep`); deep
+  edits mark the sound `*`. Engines without deep pages: OSC = EDIT 1, FILT = EDIT 2, ENV / LFO / MOD the platform
+  pages (FM6: "own envelopes" on ENV). A layer opened over the editor (PERF held, the engine picker) closes back to
+  it. **EDIT held** (or PRESETS turned inside the editor): the engine picker as a **preview** of the part's sound
+  (snapshot: every parameter, the engine, the VA patch blob, `edited`, the user slot); the white roots switch the
+  engine (keeping the envelope, filter, LFO, sends and mix), KNOB 1 / PRESETS the engine's factory presets (the meter
+  jumps, no fill), KNOB 2 init, KNOB 4 the roots' job: engines / play (Settings `pick_roots`); OCT− / HOME cancel (the
+  snapshot back), OCT+ / EDIT keep (a fresh load). Outside the editor PRESETS loads at once. **SAVE tap** (from a
+  bass page or BASS held + SAVE: the bass): KNOB 1 the slot U01-U32 (a used one shows its name), the white roots type
+  (phone style: ABC DEF GHI JKL MNO PQRS TUV WXYZ 0123 4567 89-.), D#4 a space, F#4 deletes, KNOB 2 the last letter,
+  SAVE again or OCT+ saves, OCT− or HOME cancels (back to the editor when it came from it);
   the prefilled name (grey) is replaced by the first letter typed. `upreset.c` is back (its Felucca-UI names in
   `cr_bank.c`: no undo copy, no pattern); records are Felucca's (no pattern). Persisted on the device (flash: `persist_boot`
   -> `cr_bank_boot`), RAM-only in the emulator. The emulator's logs get `edit:` / `page:` / `param:` / `engine:` /
-  `preset:` / `save:` / `sound:` lines (`CR_TRACE`, set by `emu_firmware.h`).
+  `preset:` / `picker:` / `save:` / `sound:` lines (`CR_TRACE`, set by `emu_firmware.h`).
 - **`cr_anim.c`**: `cr_tween`, `cr_spring`, the animation clock and Options > Motion (Full / Calm / Off); the
   squeeze, picker slide, meter fill and spring, the stripes at one bar per cycle and their sweep by the first chord.
 
@@ -297,16 +325,30 @@ loop_start) / loop_len`.
 - **Sounds, the naming screen**: SAVE held 1 s on a used slot asks "delete?" (the slot number huge in red, OCT+
   deletes it through `up_put(k, 0)`, OCT- keeps it); saving over the slot the part's sound came from, unedited,
   renames it (`up_rename`, the stored sound kept); else OCT+ overwrites. Its keys: the typing roots lit (D4..G5,
-  D#4 space), the other black roots dark, OCT- lit, OCT+ blinking. OPT + KNOB 3 toggles the perform lock (once per
-  OPT hold), as OPT + PERF locks it.
+  D#4 space), the other black roots dark, OCT- lit, OCT+ blinking.
   Settings record v2 (metronome, slot); `CR_SETTINGS_BUSY` = a loop plays. Options > Split Point; Single Notes wired
   (`CRE_SINGLE`). Settings load at power-on inside `cr_ui_init` on both builds. The emulator builds with
   `FELUCCA_FLASH 1` (user sounds and loops persist with `--flash`); `--flash / --no-flash / --save-on-exit` are
   emu.c options (`emu_fw_options`).
 
+- **The third-pass grammar** (2026-10-06, `design/make_mockups.py` states 1-24): printed SEL = KEY, printed EDIT =
+  EDIT (swapped; the emulator: `X` = KEY, `B` = EDIT); B3 = LOCK (the chord block's latch, a UI virtual hold); a
+  layer locks open on its hold (KEY PERF FX BASS LOOP METRO, the engine picker), its button blinks, OCT- / HOME
+  close it, another layer's hold switches; the HOME + hold lock, OPT + FX / PERF and OPT + KNOB 3 locks removed
+  (OPT + KNOB 2 / 3 / 4 / PRESETS: the knob's own job). Footers "… · OCT-: back · HOME: home". Scripts: `cr_lock.txt`,
+  `cr_layer_lock.txt` (new), `cr_perf_lock.txt` (gone); the others close their layers with `btn OCT-`. The editor's
+  hooks into the grammar (`ce_owns` / `ce_button` / `ce_leds`) sit behind `CR_EDIT_HOOKS` (cr_edit.c sets it).
+
+- **The editor after the first play-through** (2026-10-06, the user's feedback): groups -> screens -> lanes with SELECT
+  running across the screens, the OSC mixer, SHIFT latched on a GLO tap, layers from the editor close back to it,
+  the engine picker as a preview (OCT− cancels to the snapshot, OCT+ / EDIT keep; KNOB 4 roots engines / play,
+  persisted as `pick_roots`, settings version 3), PRESETS in the editor opens the picker, SAVE in the naming screen
+  saves (OCT− cancels, F#4 deletes a letter). Scripts: `cr_editor.txt`, `cr_editor_pick.txt` (new), `cr_engine.txt`
+  (OCT+ keeps), `cr_save_del.txt`, `va_persist_*.txt` (U01 at power-on), `persist_roots_*.txt` (new).
+
 ### Stubbed (screens and gestures only; TODO in the code)
 
-OPT + KNOB 2 / 4 ("shift: not yet").
+Nothing in the grammar.
 
 ### Next steps
 

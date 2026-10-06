@@ -5,20 +5,29 @@ roots, the other shapes chords; voicing, Key Mode, performance modes, bass, loop
 own sound engines and a screen, plus the three-channel MIDI output that the grid version
 (`choralroot_fullsource/`) already gets right.
 
-**Status (2026-10-05):** plan + interface mock-ups (fifth pass: chord block on the keybed, mod-scene screens with pickers and meters, the Mac emulator planned). Nothing compiled yet.
+**Status (2026-10-06):** the device build (`build/choralroot.fwsc`, `FM-1_920`, `ChoralRoot 0.1`) is flashed
+and playing. Done: the chord engine (`cr_engine.c`, host tests green), the screens (`cr_draw.c` / `cr_gfx.c`, the
+mod language, the motion pass), the looper (`cr_loop.c`), settings persistence (`cr_settings.c`), MIDI in / out and
+clock, the sound bank with user slots and naming, and the VA engine (`eng_va.c`, deep pages, `va_store.c`). Being
+built now: the new interaction grammar (layers lock on hold, LOCK on B3; §3–§4) and the dense sound editor
+(`cr_edit.c`, [`docs/EDITOR.md`](docs/EDITOR.md)), both approved in the mock-ups below. Open in M7: the bank by
+ear, the sticker sheet, the installer page, the README / manual (§8).
 
 | Deliverable | Where |
 | --- | --- |
 | this plan | `PLAN.md` |
 | interface mock-ups (24 states, LEDs + screens) | `design/choralroot-fm1-mockups.json`, `design/choralroot-fm1-screens.png`, `design/choralroot-fm1-panels.png`; generator `design/make_mockups.py` |
-| the designer tool that renders them | `../ChoralRootFM1Designer/` (`index.html`, `FORMAT.md`) |
+| sound editor mock-ups (16 states) | `design/choralroot-fm1-sound-editor-mockups.json`, `design/choralroot-fm1-sound-editor-screens.png`, `design/choralroot-fm1-sound-editor-panels.png`; generator `design/make_editor_mockups.py` |
+| the sound editor spec | `docs/EDITOR.md` |
+| how it is built | `docs/INTEGRATION.md` (glue, status, performance), `docs/VA.md`, `docs/LOOPER.md`, `docs/SETTINGS.md`, `firmware/src/CR_ENGINE.md`, `firmware/src/CR_SCREENS.md` |
+| the designer tool that renders the mock-ups | `../ChoralRootFM1Designer/` (`index.html`, `FORMAT.md`) |
 
 ## 1. Starting points
 
 | Source | What we take from it |
 | --- | --- |
 | **Felucca** (`../Felucca`, GPL-3.0-only, hugelton) | the whole FM-1 platform: HAL (`firmware/hal/*.h`: key/LED matrix at 10 kHz, 7 encoders with detent decoding, LCD SPI, audio I²S, flash, USB), `lcd.c`/`gfx.c` (240×240 strip renderer, Inter Tight fonts, Fukiai icons, 8 palettes), 13 sound engines + voice allocator + FX (`engines.c`, `voice.c`, `fx.c`), USB MIDI in/out + TRS MIDI in + MIDI clock, flash settings/presets/projects, the OTA update loader and web installer, the host test harness (`tests/hostsim.c`, `ui_render.c` renders every screen to PNG on the build machine), the build (`tools/build.py`, JieLi toolchain in Docker) |
-| **sloop-fm1** (`../sloop-fm1`, Felucca fork) | the interaction idiom we adopt: *hold a button, touch a key* — every function button is a layer while held, the 16 white keys and KNOB 1–4 change job, the screen shows tiles + dials; lock a layer with HOME; tap = pages. Also its splash, recovery and "saves retried" robustness work |
+| **sloop-fm1** (`../sloop-fm1`, Felucca fork) | the interaction idiom we adopt: *hold a button, touch a key* — every function button is a layer while held, the 16 white keys and KNOB 1–4 change job, the screen shows tiles + dials; lock a layer with HOME; tap = pages (ChoralRoot locks a layer by the hold itself, §4). Also its splash, recovery and "saves retried" robustness work |
 | **choralroot (grid iii)** (`../choralroot_fullsource`) | the musical engine, already Orchid-correct for MIDI: `d_cr_engine.lua` (chord tables incl. the firmware-verified secret chords, `KEYMAP` harmonic quantization, voicing rotation, Simple/Advanced/Free state machine, Extension Addition, strum/slop/arp/pattern/harp scheduler with BPM rephasing, bass, note-ownership registry, panic), `d_cr_loop.lua` (semantic event looper with layers/undo), `design.md` (the normative behaviour spec, §5–§17, §20) and `dev/test_choralroot.lua` (426 assertions to port as C tests) |
 | **Orchid references** (`telepathic orchid reference/`) | the manual (dial gestures, Options menu, View modes, loop waiting room, Standard Chord Naming Framework), `ORCHID_FIRMWARE_REFERENCE.md` (chord/extension interval tables, secret chord contents), the UI screenshots (big chord name, "Key: C" badge, list menus, big-number dial screens, loop ring) |
 | **OMX-LED-Designer** | the designer tool pattern (now adapted as `ChoralRootFM1Designer`) |
@@ -31,10 +40,10 @@ Licensing: a Felucca fork is **GPL-3.0-only**, and `ChoralRootFM1/LICENSE` is GP
 | | grid iii choralroot | ChoralRoot FM-1 |
 | --- | --- | --- |
 | surface | 16×8 grid, 12 note columns × 8 velocity rows, 4-column control strip | 27-key keybed (no velocity): 8 chord keys + 18 root keys D4–G5; 12 + 2 buttons; 7 encoders + pot; 240×240 screen |
-| chord buttons | grid keys | the left of the keybed: DIM MIN MAJ SUS on the black keys F#3 G#3 A#3 C#4, 6 m7 M7 9 on the white keys F3 G3 A3 C4 (B3 unused) — Orchid's 2×4 block, two rows |
+| chord buttons | grid keys | the left of the keybed: DIM MIN MAJ SUS on the black keys F#3 G#3 A#3 C#4, 6 m7 M7 9 on the white keys F3 G3 A3 C4 (B3 = LOCK, the latch toggle) — Orchid's 2×4 block, two rows |
 | voicing | two grid keys with repeat | an endless encoder (KNOB 1), like Orchid's dial |
 | sound | MIDI only | internal engines (Felucca) **and** MIDI out on 3 channels |
-| menus / parameters | hold-to-reveal on the grid's top row | screen layers (tiles + 4 knob cards), an Options list |
+| menus / parameters | hold-to-reveal on the grid's top row | layers that lock open on a hold (pickers and meters), Options one setting per screen, a dense sound editor |
 | display | LED levels | chord name, notes, keyboard strip, ring, Orchid's View modes |
 | loop display | column fill while Loop is held | the ring progress indicator around the screen |
 | velocity | 8 rows | fixed (Options > Velocity); patterns keep their accents |
@@ -47,83 +56,105 @@ Licensing: a Felucca fork is **GPL-3.0-only**, and `ChoralRootFM1/LICENSE` is GP
 | --- | --- |
 | F#3 G#3 A#3 C#4 (black) | **DIM MIN MAJ SUS** — Orchid's top row, momentary chord types |
 | F3 G3 A3 C4 (white) | **6 m7 M7 9** — Orchid's bottom row, momentary, stackable extensions |
-| B3 | unused (dark); keeps the two rows aligned as Orchid's 2×4 block |
-| D4 … G5 (18 keys) | **roots**: a single note alone, a chord with a type held; OCT−/OCT+ shift them by octaves (−2…+2) |
+| B3 | **LOCK** — a mode toggle for the chord block: tap = on (B3 lit, `lock` top right on the screen), tap again = off (the chord keys momentary as usual). With LOCK on, the chord keys held are **latched when released**, so one hand plays the roots. Once no chord key is held, a **top-row key resets** the latch to that type alone (extensions cleared) and a **bottom-row key toggles** its extension in the latched set without touching the type. Example: hold MIN, release: minor; 6: m6; 9: m6/9; 9 again: m6; MAJ: major, extensions cleared. Latched keys are lit; panic clears the latch |
+| D4 … G5 (18 keys) | **roots**: a single note alone, a chord with a type held (or latched); OCT−/OCT+ shift them by octaves (−2…+2) |
 
 Two chord types held together = a Secret Chord when Options allows it (DIM+SUS power, MAJ+SUS
-augmented, MIN+SUS [0 3 5]), as on the grid. In layers the root keys become the layer's map (tonic,
-mode, slot, effect) while the chord keys keep their job (hold MIN with a tonic = minor key).
+augmented, MIN+SUS [0 3 5]), as on the grid; with LOCK on, the pair latches like any held chord keys. In
+layers the root keys become the layer's map (tonic, mode, slot, effect) while the chord keys keep their job (hold
+MIN with a tonic = minor key).
 
 ### Buttons (the Orchid dials' button functions)
 
-| Printed | ChoralRoot | Tap | Hold |
+The rule for every layer button: **a hold past 300 ms opens its layer and it stays open** after release (the button
+blinks); **OCT− or HOME closes it**; holding another layer button switches to that layer; a **tap**, inside the
+layer or out, is always the button's on/off action.
+
+| Printed | ChoralRoot | Tap | Hold (opens and stays; OCT− / HOME closes) |
 | --- | --- | --- | --- |
-| EDIT | **KEY** | Key Mode on/off (LED lit when on) | key layer: root keys = tonic, KNOB 1–4 = TONIC / SCALE / TRANSPOSE / SINGLE NOTES |
-| ARP | **PERF** | performance on/off | perform layer: white root keys D4–C5 = STRUM, STRUM 2, SLOP, ARP, ARP 2, PATTERN, HARP; KNOB 1–4 = the mode's parameters |
-| FX | **FX** | the sound's main effect on/off | fx layer: white root keys pick the effect, KNOB 1–3 its parameters, KNOB 4 the amount; OPT+FX = FX lock |
-| ENV | **BASS** | bass on/off | bass layer: KNOB 1–4 = BEHAVIOUR (Chords Only / Unison / Single Notes / Solo) / REGISTER / SOUND / LEVEL |
+| SEL | **KEY** | Key Mode on/off (LED lit when on) | key layer: root keys = tonic (MIN held too = minor key), KNOB 1–4 = TONIC / SCALE / TRANSPOSE / SINGLE NOTES |
+| ARP | **PERF** | performance on/off | perform layer: white root keys D4–C5 = STRUM, STRUM 2, SLOP, ARP, ARP 2, PATTERN, HARP (press = selected and on); KNOB 1–4 = the mode's parameters |
+| FX | **FX** | the sound's main effect on/off | fx layer: white root keys pick the effect KNOB 4 rides, KNOB 1–3 its parameters, KNOB 4 the amount |
+| ENV | **BASS** | bass on/off | bass layer: KNOB 1–4 = BEHAVIOUR (Chords Only / Unison / Single Notes / Solo) / REGISTER / SOUND / LEVEL; root keys preview the bass; **BASS held + EDIT** = the bass sound's editor |
 | LFO | **LATCH** | Sticky keys / arp hold on/off | — |
-| GLO | **OPT** | Options menu open/close | held + a knob = that knob's second function (Orchid's press+turn) |
-| HOME | **HOME** | back to the view from any page, menu or layer; tapped again on the view: next View (CHORD / KEYBOARD / NOTES / GEEK OUT / SCOPE) | hold + a layer button = lock the layer open (sloop) |
-| SAVE | **SAVE** | save the edited sound to one of 32 user slots, named with the keys (Orchid's Sound long press) | save / load / delete loops (Orchid's Loop long press) |
-| SEQ | **METRO** | metronome / beat on-off (Orchid's BPM press) | beat and time-signature picker |
-| PLAY | **LOOP** | play / stop the loop (green LED = playing) | loop layer: white root keys = slots 1–10, D#4 = CLEAR (hold), F#4 = UNDO; KNOB 1–4 = SYNC / QUANTIZE / COUNT-IN / LEVEL |
+| GLO | **OPT** | Options menu open/close | held + a knob = that knob's second function (Orchid's press+turn): KNOB 1 split point, SELECT metronome level, ALGORITHM bass volume. In the editor: SHIFT |
+| HOME | **HOME** | back to the view from any page, menu, layer or the editor; tapped again on the view: next View (CHORD / KEYBOARD / NOTES / GEEK OUT / SCOPE) | — |
+| SAVE | **SAVE** | save the sound to one of 32 user slots, named with the keys (Orchid's Sound long press); the same dialog in the editor | save / load / delete loops (Orchid's Loop long press) |
+| SEQ | **METRO** | metronome / beat on-off (Orchid's BPM press) | beat layer: beat and time signature |
+| PLAY | **LOOP** | play / stop the loop (green LED = playing) | loop layer: white root keys = slots 1–10, D#4 = CLEAR (hold 1 s), F#4 = UNDO; KNOB 1–4 = SYNC / QUANTIZE / COUNT-IN / LEVEL; while playing, the Overdub / Pause / Undo / Clear picker (OCT+ does it) |
 | REC | **REC** | record (count-in, then the sync length) / overdub arm; red LED blinks while recording | undo the last layer |
-| SEL | **EDIT** | the sound's edit pages (SELECT turns pages, KNOB 1–4 edit; BASS held + EDIT = the bass sound) | engine picker: white root keys = engines |
-| OCT− / OCT+ | octave of the root keys | in menus and dialogs: **back / OK** (Felucca's convention; OCT+ blinks when it would do something) | **both together: PANIC** (all notes off on every stream, CC 123 on the three channels, octave reset) |
+| EDIT | **EDIT** | the **sound editor** on the chord sound (EDIT blinks; EDIT tap or HOME leaves; [`docs/EDITOR.md`](docs/EDITOR.md)) | the engine picker (locked open like a layer) |
+| OCT− / OCT+ | octave of the root keys | in layers, menus and dialogs: **back (closes the layer) / OK** (Felucca's convention; OCT+ blinks when it would do something) | **both together: PANIC** (all notes off on every stream, CC 123 on the three channels, octave reset, LOCK latch cleared) |
+
+The printed SEL and EDIT swap jobs from earlier passes: SEL is KEY, EDIT is EDIT (the editor is on the button that
+says so).
 
 ### Rotaries (no push switches on the FM-1)
 
 | Printed | ChoralRoot | Turn | OPT held + turn |
 | --- | --- | --- | --- |
 | MASTER | VOLUME | the pot | — |
-| SELECT | BPM | tempo 20–300 (in menus: scroll) | metronome volume |
+| SELECT | BPM | tempo 20–300 (in menus and pickers: scroll; in the editor: what the section's tap steps) | metronome volume |
 | PRESETS | SOUND | browse the chord/perform sound (popup list, loads at once) | — |
 | ALGORITHM | BASS SOUND | browse the bass sounds (Orchid's Bass Dial turn) | bass volume |
-| KNOB 1 | **VOICING** | Orchid's Chord Voicing: lowest note up an octave / highest down, one click = one note; **never reassigned** | single-note split point |
+| KNOB 1 | **VOICING** | Orchid's Chord Voicing: lowest note up an octave / highest down, one click = one note; **never reassigned** outside the layers and the editor | single-note split point |
 | KNOB 2 | BASS VOICE | bass register, octaves | — |
-| KNOB 3 | PERFORM | the selected mode's main parameter (strum speed, slop amount, arp rate, pattern number, harp speed) | performance lock on/off |
-| KNOB 4 | FX | amount of the selected effect (Orchid's FX Dial default) | — |
+| KNOB 3 | PERFORM | the selected mode's main parameter (strum speed, slop amount, arp rate, pattern number, harp speed) | — |
+| KNOB 4 | FX | amount of the selected effect | — |
 
 A knob turn shows its value big on the screen for a second (Orchid's dial screens, §5); nothing
-is displayed permanently for the knobs.
+is displayed permanently for the knobs. In a layer KNOB 1–4 are the layer's; in the editor they edit the active row
+(OPT = SHIFT: one unit a detent).
 
 ## 4. Interaction grammar
 
-- **Tap = use, hold = reveal, release = return** (grid design.md §25) carried over; hold threshold
-  300 ms (Felucca `HOLD_MS`), a key or knob touched during the hold makes it a combo (no tap action).
-- **Layers** (sloop's idiom): while KEY / PERF / FX / BASS / LOOP is held, the root keys and KNOB 1–4 are the layer's,
-  the header reads `[KEY] HOLD`, the panel shows the map as tiles, the cards show the layer's four
-  knobs, the footer shows keycap hints. Hold + tap HOME locks a layer open (sloop's lock).
-- **Menus**: OPT tap opens the Options list; SELECT scrolls, KNOB 1 sets, OCT− back, OCT+ enters.
-- **Popups** (stock FM-1 / Felucca): turning PRESETS or ALGORITHM shows the list for a second; turning
-  SELECT highlights the BPM; a knob turn makes its card "hot" (accent) briefly.
+- **Tap = use, hold = open (and it stays), OCT− / HOME = close.** The hold threshold is 300 ms (Felucca
+  `HOLD_MS`; Options > Hold Time). A tap is the button's action, always — inside its own layer too. A hold of KEY / PERF / FX / BASS /
+  LOOP / METRO opens the layer and **locks it**: it stays after release, the button blinks, until OCT− (back) or HOME
+  closes it; holding another layer button switches straight to that layer. A key or knob touched while a button is
+  still down makes it a combo (no tap action): OPT + knob, BASS + EDIT, OCT− + OCT+. There is no separate lock
+  gesture any more (no HOME + hold, no OPT + FX / PERF, no OPT + KNOB 3).
+- **Layers** (sloop's idiom, made to stay): the root keys and KNOB 1–4 are the layer's, the screen shows the layer's
+  picker or meter, the footer shows keycap hints (`a root: the mode · OCT-: back · HOME: home`); the chord keys keep
+  their job.
+- **The engine picker locks the same way**: EDIT held = the white root keys are the engines in the firmware's order
+  (ANALOG, FM6, VA, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, PHYS; NOISE on SELECT), a root switches the
+  sound's engine keeping its envelope and sends, KNOB 1 steps the engine's factory presets, KNOB 2 inits the sound;
+  it stays after release (EDIT blinks); EDIT tap, OCT− or HOME closes it (back to the editor view when opened from
+  there).
+- **Menus**: OPT tap opens the Options (one setting per screen); SELECT scrolls, KNOB 1 sets, OCT− back, OCT+
+  enters, HOME or OPT leaves.
+- **Popups** (stock FM-1 / Felucca): turning PRESETS or ALGORITHM shows the list for a second; turning SELECT shows
+  the BPM meter; a knob turn shows its meter briefly.
 - **Panic**: OCT− + OCT+ pressed together — a chord nothing else uses, so it can never fire while OPT
-  is held as a shift; LEDs flash, screen message, CC 123 on all three channels, octave reset, loops kept.
-- **Sound editing**: EDIT opens the current chord sound's pages (BASS held + EDIT: the bass sound's):
-  ENGINE, the engine's own parameters (two pages), ENV, LFO, FILTER / MOD, FX sends, MIX — Felucca's
-  page model, four parameters per page on KNOB 1–4 (a detent: 5% of the range, enums one by one; OPT held: one step), SELECT turning pages (the stock FM-1's SELECT), OPT + SELECT jumping to the next section (an engine with deep pages, the VA, adds its own between EDIT 2 and ENV),
-  HOME back to the view. EDIT held is the engine picker on the white root keys (ANALOG, FM6, PHASE,
-  LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, PHYS, NOISE). SAVE stores the result in one of 32 user slots,
-  named with the keys, listed after the factory bank on PRESETS; user bass sounds the same on
-  ALGORITHM. Felucca's web editor stays for deep FM6 patches, backup and restore.
-- **MIDI**: USB MIDI in and out and TRS MIDI in (Felucca's `usb.c`, `midi_uart.c`). Out: the three
-  streams on channels 1 / 2 / 3 (each on/off in Options), 24-PPQN clock out, start/stop with the loop.
+  is held as a shift; LEDs flash, screen message, CC 123 on all three channels, octave reset, LOCK latch cleared,
+  loops and settings kept.
+- **Sound editing**: EDIT tap opens the dense sound editor on the chord sound (BASS held + EDIT: the bass sound;
+  SHIFT + EDIT inside switches part). The function buttons become seven sections — OSC FILT ENV LFO on the top row
+  (the signal flow), MOD FX MIX on the bottom (the output stage) — each one view on the full screen; a section tap
+  steps the active row, a hold swaps to its B bank, KNOB 1–4 edit the active row, OPT is SHIFT (fine steps). EDIT
+  tap or HOME leaves; every section remembers its row and bank. SAVE stores the result in one of 32 user slots,
+  named with the keys, listed after the factory bank on PRESETS (user bass sounds the same on ALGORITHM). The whole
+  spec: [`docs/EDITOR.md`](docs/EDITOR.md). Felucca's web editor stays for deep FM6 patches, backup and restore.
+- **MIDI**: USB MIDI in and out and TRS MIDI in (Felucca's `usb.c`, `midi_uart.c`; ChoralRoot's `cr_midi.c`). Out:
+  the three streams on channels 1 / 2 / 3 (each on/off in Options), 24-PPQN clock out, start/stop with the loop.
   In: notes on the chord channel play the chord part directly (Orchid's behaviour: no chord
   generation), the bass channel the bass part, CC for the FX amounts, program change for sounds,
   clock in syncs the tempo (Options > MIDI Clock: OUT / IN / OFF), SysEx for the web editor and
   firmware updates.
-- **Play styles** Simple / Advanced / Free, Extension Addition, Secret Chords scope, Bass Behaviour,
-  Velocity, Loop Quantization, MIDI channels, MIDI clock, View, Metronome, Palette, LEDs, Version,
-  Update firmware: all in the Options list (mock-up state 11).
+- **Options** (mock-up state 12, one setting per screen): Play Style (Simple / Advanced / Free), Extension Addition,
+  Secret Chords, Velocity, Bass Behaviour, Single Notes, Split Point, MIDI Perform / Bass / Raw Chord channels, Raw
+  Chord Sound, MIDI Clock, View, Motion, LEDs, Hold Time, Version, Calibrate. The metronome and the loop's
+  quantization live in their layers (METRO, LOOP); the palette is MOD.
 
 ## 5. Screen
 
 Orchid's rule, kept: **one big thing per screen.** The language is **1960s mod** — the roundel, bold
 stripes and flat colour blocks, heavy grotesk type, black and white with red, blue, yellow, orange and
 green — clean and high-contrast, in the spirit of the references in `../UI Inspiration` and copied
-from none of them. Felucca's `gfx.c` draws it (240×240, Inter Tight; the `MOD` palette added to its
-eight). Two rules from the user: **no menus** (no multiple-choice lists) and **no circled numbers**.
+from none of them. ChoralRoot's `cr_draw.c` / `cr_gfx.c` draw it on Felucca's `gfx.c` (240×240, Inter Tight; the
+`MOD` palette added to its eight). Two rules from the user: **no menus** (no multiple-choice lists) and **no circled
+numbers**.
 
 ### Colour
 
@@ -136,7 +167,8 @@ eight). Two rules from the user: **no menus** (no multiple-choice lists) and **n
 | **yellow** | Key Mode (`Key: C`, select-key) |
 | **green** | FX (KNOB 4, the FX picker) |
 
-A thing on screen is the colour of the control that moves it.
+A thing on screen is the colour of the control that moves it. In the editor the four knob columns are blue,
+orange, white, green (KNOB 1–4) whatever they edit.
 
 ### Screens
 
@@ -146,7 +178,8 @@ A thing on screen is the colour of the control that moves it.
 - **Chord** (the default View): the name fills the screen in the Orchid Standard Chord Naming
   Framework, **squeezed horizontally to fit** as the Orchid's own screen does with long names; the
   extension superscript in its colour; the voiced notes as a plain line of text under it, extensions
-  coloured with a block under them. `Key: C` top-left in yellow when Key Mode is on; a status top-right.
+  coloured with a block under them. `Key: C` top-left in yellow when Key Mode is on; `lock` top-right when LOCK is
+  on; a status top-right.
 - **The squeeze**: on a chord change the old name squeezes to a thin column and the new one stretches
   out from it (~120 ms) — the Orchid's squeeze, played up.
 - **Pickers** replace every list: one choice at a time, huge, its neighbours peeking small and faded
@@ -155,18 +188,27 @@ A thing on screen is the colour of the control that moves it.
   FX, bass behaviour, the loop length and the loop's Overdub / Pause / Undo / Clear, the engine
   picker, and **Options: one setting per screen** (its name big, its value under it, KNOB 1 sets).
 - **Meters** replace dials: a knob's value huge in its colour over a stripe meter of bold blocks that
-  fill one by one (`03 SUB / bass`, `13 EP / sound`, `05 / reverb`, `120 / bpm`).
+  fill one by one (`03 SUB / bass`, `13 EP / sound`, `05 / reverb`; SELECT's `120 / bpm` the same way).
 - **Perform in motion**: the chord's notes as text on a line; the sounding one sits on a colour block
   and hops along in time, a dotted arc to the next.
 - **Select key**: KEY held slides up the keyboard with the tonic lit yellow.
 - **The ring**: Orchid's progress ring as a dotted circle round the edge — red while recording and
   playing (the loop's colour); the loop pickers sit inside it.
-- **Sound edit pages**: four columns for KNOB 1–4 in the knob colours (blue, orange, white, green),
-  each a glyph (an envelope that redraws as the knob turns, a wave, a filter curve, a bar, an arc), a
-  label and a value; the page name and `n/8` top right.
+- **The sound editor** ([`docs/EDITOR.md`](docs/EDITOR.md)) is the one dense place, and it takes the whole screen:
+  **no header bar and no footer**. Its top line is the sound's name (`*` once edited, ` · BASS` in orange for the
+  bass part) and, at the right, the section and what is on the knobs (`OSC 2 · A`, `ENV 2 · filter`, `MOD 3`). Two
+  screen kinds:
+  - **`edit8`**: one section's up to eight parameters as two rows of four cells (one per knob), with a wide
+    shape over them where there is one — the filter response, the AHDSR envelope — that redraws as its knob turns.
+    The active row (on KNOB 1–4) is in the knob colours with a bar under each cell; the other row grey. Used for
+    FILT, each ENV, FX, MIX (and the one-row pages of engines without deep pages).
+  - **`stack`**: the section's instances as equal rows of four cells under column headings — the four
+    oscillators (a wave glyph per row), the four LFOs, the eight matrix slots (text only, a bipolar amount bar). The
+    active row is in the knob colours with the knob bars; the rest grey. Used for OSC, LFO, MOD.
 - **Panic**: the whole screen goes red with black type.
-- **Views** (Options > View): CHORD (default), KEYBOARD, NOTES, GEEK OUT (the one dense screen), SCOPE.
-- A thin footer line appears only in layers.
+- **Views** (Options > View, HOME taps): CHORD (default), KEYBOARD, NOTES, GEEK OUT (the dense status screen),
+  SCOPE.
+- A thin footer line of keycap hints appears only in layers (never in the editor).
 
 ### Motion (for fun's sake, never in the way)
 
@@ -180,73 +222,104 @@ implements it once:
   **springs** in;
 - the idle stripes **slide** at the BPM and are **swept off** by the first chord; the ring **draws itself**
   and **pulses** on the downbeat; the keyboard **slides up** for select-key;
-- a secret chord **flashes** its name; panic **shakes** the red screen.
+- a secret chord **flashes** its name; panic **shakes** the red screen;
+- in the editor: rows **swap with a slide** and the active bar **slides** between rows / instances; a bank swap
+  **slides the columns sideways**; the wide envelope / filter **redraws** as its knob turns; the turned cell's
+  value sits on a hot block in its colour.
 
 Motion is a setting (Options > Motion: full / calm / off).
 
-- The 24 mock-up states: idle stripes · Dmaj7 · voicing +2 · Key Mode Em · select key · Perform picker ·
-  arp in motion · loop length · recording · loop playing picker · Options · secret chord · bass meter ·
-  bass picker · FX picker · Geek Out · sound meter · panic · reverb meter · BPM meter · the ENV edit
-  page · the engine picker · saving a sound · a chord change mid-squeeze
-  (`design/choralroot-fm1-screens.png`). Each state's note says how it moves.
+- The 24 mock-up states (`design/choralroot-fm1-screens.png`): idle stripes · Dmaj7 · LOCK on, Dm6/9 latched ·
+  voicing +2 · Key Mode Em · key layer (select key) · perform layer (picker) · arp in motion · loop layer (loop length)
+  · recording · loop playing, overdub picker · Options · secret chord · bass meter · bass layer (behaviour picker) ·
+  fx layer (picker) · Geek Out · sound meter · panic · reverb meter (SELECT's BPM meter the same way) · the sound
+  editor (OSC stack) · the engine picker · saving a sound · a chord change mid-squeeze. The editor's own 16 states
+  are in `design/choralroot-fm1-sound-editor-screens.png`. Each state's note says how it moves.
 
 ## 6. LEDs
 
 Felucca's rules: every key and button glows dim at rest (the panel is findable in the dark; Options >
-LEDs can invert to the stock look); lit = held, sounding, active; blinking = a layer button held, LOOP
+LEDs can invert to the stock look); lit = held, sounding, active; blinking = an open layer, LOOP
 recording, OCT+ when it would act. Specifically:
 
 - root keys: the **voiced chord notes light where they sound** (Orchid's chord display, as the grid
   version does); in Key Mode the black root keys outside the scale go dark; a performance's current
   note blinks; loop notes glow dim; in layers the root keys show the layer's map (tonic, modes, slots,
   effects).
-- chord keys: lit while held, lit while latched in Advanced/Free (toggled extensions), dim otherwise;
-  B3 always dark.
-- KEY lit = Key Mode on; PERF lit = performance on; FX / BASS / LATCH lit = on; a held layer button
-  blinks; REC red blink = recording, red = overdub armed; LOOP orange = a loop exists, green = playing;
-  OPT lit = menu open; OCT− lit / OCT+ blinking in menus.
+- chord keys: lit while held; **with LOCK on, the latched keys stay lit**; lit while latched in Advanced/Free
+  (toggled extensions); dim otherwise. **B3 (LOCK) lit while LOCK is on**, dim when off.
+- KEY lit = Key Mode on; PERF lit = performance on; FX / BASS / LATCH lit = on; METRO lit = metronome on;
+  **a layer button blinks while its layer is open** (locked, after the hold); REC red blink = recording, red =
+  overdub armed; LOOP orange = a loop exists, green = playing; OPT lit = menu open; OCT− lit / OCT+ blinking in
+  menus and pickers.
+- the editor: **EDIT blinks while the editor is open** (and while the engine picker is open), **the current
+  section's button is lit** (OSC = printed FX, FILT = SEL, ENV, LFO, MOD = SEQ, FX = PLAY, MIX = REC); the root
+  keys keep showing what sounds (audition).
 
 ## 7. Firmware architecture
 
-Fork Felucca at its current `main` into `ChoralRootFM1/firmware` (one compilation unit, header-only
-HAL, same `tools/build.py`), keep the platform, replace the instrument:
+Felucca forked into `ChoralRootFM1/firmware` (one compilation unit, header-only HAL, the same `tools/build.py`),
+the platform kept, the instrument replaced. The files as they are (`docs/INTEGRATION.md` §1 has the include order):
 
 ```
 firmware/src/
-  felucca.c            -> choralroot.c   build options, include order (as Felucca)
-  hal/, lcd.c, gfx.c, icons.c, libc.c, usb.c, midi_uart.c, midi_clock.c, storage*.c, ota*.c, console.c, main.c   kept
-  engines.c, eng_*.c, dsp.c, voice.c, mod.c, fx.c, params.c, audio.c                                       kept (sound)
-  seq.c, song_chain.c, motion.c, perform.c (FX layer), slicer.c, ui_*.c, project.c, upreset.c, editor*.c  stripped or rewritten
-  cr_chord.c        chord tables (dim/min/maj/sus + aug/pow/min4, extensions 9/10/11/14), chord_base(), KEYMAP quantization, voicing rotation
-  cr_voice.c        note ownership registry per stream, play styles (Simple/Advanced/Free), Extension Addition, Sticky/Hold latch, panic
-  cr_perform.c      strum / slop / arp / pattern / harp scheduler on the master clock (ticks = audio blocks), BPM rephasing, 13 patterns with accents
-  cr_bass.c         bass stream, behaviours, register
-  cr_loop.c         semantic event looper: free / 1-16 bar sync, count-in, quantize, layers + undo, 10 flash slots
-  cr_out.c          the three streams -> internal parts (CHORD/PERFORM part, BASS part) and MIDI channels 1/2/3, MIDI clock out
-  cr_ui.c, cr_draw.c, cr_layer.c, cr_menu.c, cr_leds.c    the UI of §4-§6 on Felucca's gfx
-  cr_anim.c         the tween helper: eased / spring values on the frame tick, the squeeze, the flips (§5 Motion)
-tools/emu/          the Mac emulator (§7.1): SDL2 window, the firmware compiled for the host
-  cr_settings.c     Options persistence (Felucca's settings record), sound locks
+  choralroot.c      the compilation unit (replaces felucca.c): build options (FELUCCA_SLICE 0, FELUCCA_SLICER 0,
+                    FELUCCA_VA 1, FM-1_920, "ChoralRoot 0.1"), Felucca's include order
+  kept from Felucca (the platform):
+    hal/, libc.c, lcd.c, gfx.c, icons.c, panel.c, usb.c, midi_uart.c, storage.c, storage_hw.c, ota.c, ota_hw.c,
+    console.c, main.c, settings_persist.c, upreset.c (32 user sounds)
+    engines.c + eng_*.c, dsp.c, voice.c, mod.c, fx.c, params.c, audio.c, fm6_*.c       the sound
+    seq.c (+ song_chain.c, chord.c, motion.c, midi_control.c, midi_clock.c)
+                    kept INERT: its keyboard silent, its transport never started; it still does the engine switches and plays what cr_out.c forwards (to be replaced
+                    by cr_out.c's own events_block when flash / RAM are needed)
+    slicer.c        no-op stubs (SLICER off: its 32 KB POOL buffer freed; perform.c's buffer effects off with it);
+                    the SLICE engine is off too
+  ChoralRoot:
+    cr_engine.c/.h  the musical engine (CR_ENGINE.md): chord tables incl. secret chords, KEYMAP quantization,
+                    voicing, Simple/Advanced/Free, Extension Addition, latch, strum/slop/arp/pattern/harp scheduler,
+                    bass, note ownership, panic
+    cr_loop.c/.h    the semantic event looper (docs/LOOPER.md)
+    cr_out.c        the three streams -> parts 0 (chord) / 1 (bass) and MIDI channels 1/2/3, clock out, the input
+                    queue; includes cr_midi.c
+    cr_midi.c       MIDI in, the pure part: the clock-in tempo follower, the channel map
+    cr_ui.c/.h      the input grammar (taps, locked layers, LOCK, pickers, Options, naming), the view-model
+                    (cr_build_screen), the LEDs (cr_leds)
+    cr_edit.c       the sound editor (docs/EDITOR.md): sections, rows, banks, page memory, its edit8 / stack
+                    view-models  [being built]
+    cr_pages.c      the parameter catalogue the editor draws from: the platform pages, the engines' EDIT 1/2,
+                    deep pages, labels, glyphs, value text
+    cr_bank.c       the factory bank (24 chord sounds, 8 basses, trims) and the user slots (wraps upreset.c)
+    cr_name.c       naming with the root keys (SAVE)
+    cr_settings.c/.h  the settings record in Felucca's settings_persist.c (docs/SETTINGS.md)
+    cr_screen.h, cr_draw.c, cr_gfx.c   the screens (CR_SCREENS.md): the view-model and its drawing, scalable text
+                    and shapes, the strip cache
+    cr_anim.c       tweens, springs, Options > Motion
+    cr_shim.c       the names main.c and the kept files call of Felucca's dropped UI; the splash
+    eng_va.c        the VA engine (docs/VA.md): 4 oscillators, SVF, 4 AHDSR, 4 LFOs, 8-slot matrix, deep pages
+    va_store.c      the VA patch store, one patch per user slot (included by upreset.c)
+tools/emu/          the Mac emulator (§7.1): the same firmware compiled for the host
+tests/              host tests: cr_engine_test, cr_loop_test, cr_midi_test, cr_settings_test, cr_va_test,
+                    cr_draw_test (+ Felucca's), regress.c golden renders and CPU
 ```
 
+Dropped from the unit: Felucca's `ui*.c`, `editor*.c`, `project.c`, `favorites.c` (their files stay in the tree,
+unused).
+
 - **Timing**: Felucca runs input at 10 kHz (TIMER5) and audio in 128-frame blocks (2.9 ms). The
-  ChoralRoot scheduler runs in the audio ISR at block rate, as Felucca's sequencer does, so strums and
+  ChoralRoot scheduler runs in the audio ISR (the input queue drained every 32-sample block), so strums and
   arps are sample-stable; the UI polls edges from the main loop.
 - **Sound**: two Felucca *parts* — CHORD (POLY, the chord / performance notes) and BASS (MONO) — each
   with its own engine + preset; the raw-chord stream is MIDI-only by default (Orchid defaults it off).
-  ChoralRoot ships its own preset bank (chord-friendly pads/keys/plucks on FM6, ANALOG, WHEEL, PHYS;
-  12 basses) and keeps Felucca's engines and user slots.
-- **Polyphony**: Felucca's budget is 8 voices shared. A 5-note chord + bass fits; HARP over 3 octaves
-  and two sounding chords will steal. Measure CPU with `tests/regress.c`'s cost files in M2 and decide
-  whether `NVOICE` can grow for lighter engines.
+  ChoralRoot ships its own preset bank (`cr_bank.c`) and keeps Felucca's engines and user slots.
+- **Polyphony**: Felucca's budget is 8 voices shared (FM6 caps a part at 6, the VA's `poly` is 8). A 6-note chord
+  + bass fits; chord changes steal the old chord's releasing voices, now with a one-block fade (§9).
 - **MIDI**: USB + TRS; channels 1 performance / 2 bass / 3 chord (each on/off, Options); 24-PPQN clock
-  out; MIDI in plays the CHORD part (Orchid's behaviour) and can clock the tempo (Felucca's
-  `midi_clock.c`).
-- **Persistence**: settings + chord pads in Felucca's settings record; loops as compact flash files
-  (the grid's slot format, §14.4 of design.md); user sounds in Felucca's user preset slots.
-- **Tests on the host**: port `dev/test_choralroot.lua` to C against the stubs in `tests/hostsim.c`;
-  keep Felucca's `ui_render.c` so every ChoralRoot screen renders to PNG and is linted for clipping
-  (compare against `design/choralroot-fm1-screens.png`).
+  out; MIDI in plays the parts (Orchid's behaviour) and can clock the tempo (`cr_midi.c`).
+- **Persistence**: settings in Felucca's settings record (`cr_settings.c`, saved only when quiet); loops in ten
+  flash slots (storage.c's commit protocol); user sounds in Felucca's 32 user preset slots, VA patches beside them
+  (`va_store.c`).
+- **Tests on the host**: `sh tests/run_cr_tests.sh`, `sh tools/emu/test_cr.sh` (headless scripts), `sh
+  tools/emu/perf.sh` (the worst cases); `tests/run_cr_draw.sh` renders every ChoralRoot screen to PPM.
 
 ### 7.1 The Mac emulator
 
@@ -274,10 +347,10 @@ number row are the chord block.
 | `A S D F G H J K L ; '` | white root keys D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 |
 | `W E T Y I O [` | black root keys D#4 F#4 G#4 A#4 C#5 D#5 F#5 (above the whites, piano-wise) |
 | `F1 F2 F3 F4` | DIM MIN MAJ SUS (the black chord keys) |
-| `2 3 4 5` | 6 m7 M7 9 (the white chord keys) |
-| `Z X C V B N` / `, . / ⇧ ⏎ ⌫` | FX EDIT BASS LATCH KEY OPT / HOME SAVE PERF METRO LOOP REC |
+| `2 3 4 5` | 6 m7 M7 9 (the white chord keys); B3 = LOCK has no Mac key in `keymap.c` yet |
+| `Z X C V B N` / `, . / ⇧ ⏎ ⌫` | printed FX SEL ENV LFO EDIT GLO / HOME SAVE ARP SEQ PLAY REC = FX KEY BASS LATCH EDIT OPT / HOME SAVE PERF METRO LOOP REC (in the editor: OSC FILT ENV LFO EDIT SHIFT / HOME SAVE PERF MOD FX MIX) |
 | `←` `→` | OCT− OCT+ (both: panic) · `Esc` panic |
-| mouse wheel over a knob, or `↑ ↓` with a knob selected by `1`–`8` | the eight rotaries |
+| mouse wheel over a knob, or `↑ ↓` with a knob selected (`Q` MASTER, `R` SELECT, `U` PRESETS, `P` ALGORITHM, `6`–`9` KNOB 1–4) | the eight rotaries |
 | click | any button or key on the drawn panel |
 
 The map lives in one table (`tools/emu/keymap.c`) and can be changed. The emulator is M0's second
@@ -285,49 +358,64 @@ deliverable, before any hardware milestone, so every screen and gesture is tried
 
 ## 8. Milestones
 
-| # | Milestone | Done when |
-| --- | --- | --- |
-| M0 | **Repo + platform + emulator** — fork Felucca, GPL licence, build in Docker, install on the FM-1 via the web installer, splash + panic screen; the Mac emulator (§7.1) running the same firmware with the key map, audio and CoreMIDI | Felucca builds from `ChoralRootFM1/`, boots, keys make sound; the same build plays on the Mac from the keyboard |
-| M1 | **Chord engine in C** — `cr_chord.c` / `cr_voice.c` ported from `d_cr_engine.lua`, host tests green (chord tables, secret chords, KEYMAP, voicing, Simple/Advanced/Free, Extension Addition, note ownership, panic) | the Lua suite's engine cases pass in C |
-| M2 | **Play it** — keybed split (8 chord keys + 18 roots, OCT shift), buttons mapped (§3), roots → CHORD part, KNOB 1 voicing, PRESETS sound, MIDI ch 1/3 out, CHORD view with the big chord name, dial screens, key LEDs = chord notes | Dmaj7 on the speaker and on MIDI, voicing clicks, screen names it |
-| M3 | **Key Mode + layers** — KEY tap/hold, key layer, Options list, VIEW, LATCH, play styles, secret chords scope, Single Notes | mock-up states 4, 5, 11, 16 behave as drawn |
-| M4 | **Performance** — `cr_perform.c`, PERF tap/hold, perform layer, KNOB 3, BPM on SELECT, MIDI clock out, 13 patterns | states 6, 7; arps hold tempo, parameters rephase live |
-| M5 | **Bass + FX + editing** — BASS button + layer, BASS part on ALGORITHM, KNOB 2 register, behaviours, FX button + layer, KNOB 4 amount, locks; EDIT pages, engine picker, SAVE to user slots with naming; MIDI in to the parts, CC / program change, clock in | states 13, 14, 15, 21, 22, 23 |
-| M6 | **Looper** — `cr_loop.c`: free + 1/2/4/8/16-bar sync with count-in, quantize, overdub/undo/clear, 10 slots, the ring, LOOP / REC transport, SAVE hold | states 8, 9, 10 |
-| M7 | **Finish** — views (Keyboard, Notes, Geek Out, Scope), the motion pass (`cr_anim.c`: ribbon, bounces, hops, sweeps; Options > Motion), palettes, LED inversion, settings persistence, sound bank, Options complete, sticker sheet, web installer page, README/manual | a first public beta (`.fwsc` + installer) |
-| M8 | **Parity passes** — Orchid MIDI captures for the secret-chord combo map, chromatic quantization, Key Mode 7ths and factory patterns (`ORCHID_CAPTURE_RUNBOOK`), then update the tables | parity items in `ORCHID_PARITY_AUDIT.md` closed or documented |
+| # | Milestone | Done when | State |
+| --- | --- | --- | --- |
+| M0 | **Repo + platform + emulator** — fork Felucca, GPL licence, build in Docker, install on the FM-1 via the web installer, splash + panic screen; the Mac emulator (§7.1) running the same firmware with the key map, audio and CoreMIDI | Felucca builds from `ChoralRootFM1/`, boots, keys make sound; the same build plays on the Mac from the keyboard | **done** — `choralroot.fwsc` builds and is flashed; the emulator runs it headless and windowed |
+| M1 | **Chord engine in C** — ported from `d_cr_engine.lua`, host tests green (chord tables, secret chords, KEYMAP, voicing, Simple/Advanced/Free, Extension Addition, note ownership, panic) | the Lua suite's engine cases pass in C | **done** — `cr_engine.c`, `tests/cr_engine_test.c` green |
+| M2 | **Play it** — keybed split (8 chord keys + 18 roots, OCT shift), buttons mapped (§3), roots → CHORD part, KNOB 1 voicing, PRESETS sound, MIDI ch 1/3 out, CHORD view with the big chord name, dial screens, key LEDs = chord notes | Dmaj7 on the speaker and on MIDI, voicing clicks, screen names it | **done** — on the device and the emulator |
+| M3 | **Key Mode + layers** — KEY tap/hold, key layer, Options, VIEW, LATCH, play styles, secret chords scope, Single Notes | mock-up states 5, 6, 12, 17 behave as drawn | **done** (layers as hold-to-show; the lock-on-hold grammar is M7 work below) |
+| M4 | **Performance** — PERF tap/hold, perform layer, KNOB 3, BPM on SELECT, MIDI clock out, 13 patterns | states 7, 8; arps hold tempo, parameters rephase live | **done** — in `cr_engine.c`'s scheduler |
+| M5 | **Bass + FX + editing** — BASS button + layer, BASS part on ALGORITHM, KNOB 2 register, behaviours, FX button + layer, KNOB 4 amount; EDIT pages, engine picker, SAVE to user slots with naming; MIDI in to the parts, CC / program change, clock in; the VA engine | states 14, 15, 16, 22, 23 | **done** — the paged editor (to be replaced by the dense editor below), `cr_bank.c`, `cr_name.c`, `cr_midi.c`, `eng_va.c` + `va_store.c` |
+| M6 | **Looper** — free + 1/2/4/8/16-bar sync with count-in, quantize, overdub/undo/clear, 10 slots, the ring, LOOP / REC transport, SAVE hold | states 9, 10, 11 | **done** — `cr_loop.c` (docs/LOOPER.md) |
+| M7 | **Finish** — views (Keyboard, Notes, Geek Out, Scope), the motion pass, palettes, LED inversion, settings persistence, sound bank, Options complete, **the new interaction grammar** (§3–§4: layers lock on hold, OCT− / HOME close, LOCK on B3, SEL = KEY / EDIT = EDIT), **the dense sound editor** (`cr_edit.c`, docs/EDITOR.md), sticker sheet, web installer page, README/manual | a first public beta (`.fwsc` + installer) | **partly** — done: views, motion, the MOD palette, LEDs (Options > LEDs), settings, Options, calibration, splash, the performance pass. **Building now**: the grammar and the editor. **Open**: the bank chosen by ear on the device, the sticker sheet, the installer page, the README / manual |
+| M8 | **Parity passes** — Orchid MIDI captures for the secret-chord combo map, chromatic quantization, Key Mode 7ths and factory patterns (`ORCHID_CAPTURE_RUNBOOK`), then update the tables | parity items in `ORCHID_PARITY_AUDIT.md` closed or documented | open |
 
-M0–M2 are the critical path; M3–M6 are independent of each other once M2 is in. Every milestone is played on the emulator before it is flashed.
+Every milestone is played on the emulator before it is flashed.
 
 ## 9. Risks and open decisions
 
 1. **Root range**: with the chord block on the keybed the roots span D4–G5 (18 keys, 1½ octaves).
    That is still more than Orchid's one octave, and OCT−/OCT+ move it; the chord notes of a low
    voicing can fall below D4 and then show on no key (the screen's notes line always has them).
-2. **Toolchain**: JieLi `pi32v2` clang runs in a `linux/amd64` Docker container on macOS; the SDK's
-   three boot files come from gitee. Felucca's `BUILDING.md` covers it; budget a day for M0.
+2. **Toolchain**: JieLi `pi32v2` clang in a `linux/amd64` Docker container on macOS (`BUILDING.md`). Solved for
+   M0; the risk left is the gitee boot files disappearing.
 3. **No encoder push, no velocity**: Orchid's press / long-press / press+turn gestures become
    button taps, holds and OPT+turn (§3); velocity is fixed in Options (patterns keep their accents).
-   Alternative for velocity: OCT−/OCT+ held = soft / hard, as sloop's drum ghosts (rejected for now:
-   OCT is the octave).
-4. **Relabelling**: the eight chord keys and most buttons change meaning (EDIT = KEY, ARP = PERF,
-   ENV = BASS…). The screen's footer hints name the buttons by their ChoralRoot role; a printable
-   sticker sheet for the keys and buttons is part of M7.
-5. **CPU and voices**: FM6 (Dexed) is the heaviest engine; chords of six notes through it plus a bass
-   may exceed the block budget. Measure in M2; prefer ANALOG/WHEEL/PHYS presets for the factory bank
-   if needed.
-6. **Loop memory**: the grid caps loops at 64 events for RAM; the FM-1 has far more RAM (Felucca keeps
-   64-step patterns × 4 tracks + samples), so the cap can rise — set it from the measured heap in M6.
+4. **Relabelling**: the eight chord keys, B3 and most buttons change meaning (SEL = KEY, ARP = PERF,
+   ENV = BASS…), and in the editor they change again (FX = OSC, SEL = FILT, SEQ = MOD, PLAY = FX, REC = MIX). The
+   footer hints name buttons by their ChoralRoot role; the editor has no footer, so the printable sticker sheet (M7)
+   carries both layers.
+5. **CPU and voices** (measured, `docs/INTEGRATION.md` Performance; host instructions scaled to the device, which
+   the device's `cpu` console readout has to confirm): a 6-note chord held costs **12–20 % of the 2.9 ms block on
+   average, 23–46 % in the worst block** across the bank (FX buses +1 %); TINE EP 20 / 33 %, FM PAD 24 / 34 %; the
+   worst case, FM PAD + bass + a playing loop + an arp at 200 BPM, **24 / 42 %** (46 % worst on SCOPE); a VA chord +
+   VA bass averages 33 %, worst blocks 46–52 %. ChoralRoot's own ISR work is ~1.4 %. No overruns, no shed voices,
+   no holes or clicks after the fixes (flash erases only when quiet, the limiter's eased release, fade-steal on
+   chord changes, the delay's crossfade). The voice budget stays 8: every chord change with 6-note chords steals
+   the old chord's releasing voices (faded over one block). The UI frame's worst is now 14 ms (loop + arp) and
+   34 ms (knobs on the editor), against a 15 ms frame: **the dense editor must be re-measured** (`perf.sh (e)`).
+6. **Memory**: RAM is at **~93 %** of 98304 B (90.2 % before the VA and the latest UI work), POOL ~92 %, XIP ~78 %.
+   The editor must add almost no `.bss` (its page memory is a few bytes per section and part). Room if needed:
+   replacing the inert `seq.c` with `cr_out.c`'s own `events_block`. The loop cap (the grid's 64 events) is set from
+   this headroom (docs/LOOPER.md).
 7. **Still unknown Orchid behaviour** (not blocking, same as the grid): secret-chord combo → type map,
    full chromatic Key Mode quantization, Key Mode sevenths, factory pattern data. Shipped as the grid's
    labelled fallbacks until captured (M8).
 8. **Bluetooth MIDI**: the stock firmware has BLE MIDI; Felucca does not. Out of scope.
+9. **Editor variant**: HOME leaves the editor (variant A, drawn) or HOME is the MIX view and REC stays REC
+   (variant B) — docs/EDITOR.md, open questions.
 
 ## 10. Next steps
 
-1. Confirm the control map in §3 against the mock-ups (open `ChoralRootFM1Designer/index.html`,
-   load `design/choralroot-fm1-mockups.json`; edit the generator `design/make_mockups.py` for any
-   change so the JSON stays reproducible).
-2. M0: fork Felucca into `firmware/`, get `./build.sh` and the installer working on the device, and the Mac emulator running the same build.
-3. M1: port `d_cr_engine.lua` to `cr_chord.c` / `cr_voice.c` with the test suite — the one part that
-   needs no hardware.
+1. **The grammar** (`cr_ui.c`, building): layers lock on a 300 ms hold and stay until OCT− / HOME or another layer
+   button; taps always act; the engine picker locks the same way; LOCK on B3 with its latch rules; SEL = KEY,
+   EDIT = EDIT; the HOME-lock, OPT + FX / PERF and OPT + KNOB 3 gestures removed; METRO's beat layer; the LEDs of §6.
+   Check against mock-up states 1–24.
+2. **The editor** (`cr_edit.c`, building): docs/EDITOR.md, checked against the 16 editor states; then `perf.sh (e)`
+   for the UI frame and the RAM figure.
+3. On the device: the `cpu` readout with FM6 and VA chords, a bass and a playing loop, to confirm the host
+   estimates of §9.5; choose the factory bank by ear.
+4. Docs and release (M7): the sticker sheet (both button layers and LOCK), the web installer page, the README /
+   manual; then the first public beta.
+5. The emulator: a Mac key for B3 (LOCK) in `tools/emu/keymap.c`.
+6. M8 parity passes when an Orchid is at hand for the captures.

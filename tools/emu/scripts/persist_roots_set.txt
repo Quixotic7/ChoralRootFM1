@@ -1,0 +1,11 @@
+# test_persist.sh, roots run 1: EDIT held (the engine picker), KNOB 4 +1: its white roots play (Settings pick_roots
+# 0, "picker: roots play"), OCT-; the record saved past the quiet time; quit
+wait 500
+btn EDIT 600
+wait 300
+knob KNOB4 +1
+wait 300
+btn OCT-
+wait 3000
+dump
+quit

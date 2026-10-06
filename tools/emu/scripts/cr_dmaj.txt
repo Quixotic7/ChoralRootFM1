@@ -12,7 +12,7 @@ expect led D4 on
 expect led F#4 on
 expect led A4 on
 expect led E4 dim
-expect led B3 off
+expect led B3 dim                # LOCK off: dim (lit when on)
 shot build/emu/test/cr_dmaj.ppm
 dump
 knob KNOB1 +2

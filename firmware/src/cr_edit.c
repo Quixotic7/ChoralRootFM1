@@ -1,0 +1,961 @@
+/* SPDX-License-Identifier: GPL-3.0-only
+ * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
+/* ChoralRoot FM-1: the sound editor (design/choralroot-fm1-sound-editor-mockups.json, the normative spec; docs/EDITOR.md;
+ * drawn as cr_screen.h CR_K_EDIT8 / CR_K_STACK by cr_draw.c). Included by cr_ui.c (after its sounds, its engine
+ * switch and cu_edited): cr_ui.c's gesture engine calls ce_button / ce_owns / ce_leds (CR_EDIT_HOOKS), its knob
+ * dispatch ce_knob / ce_select, its screen builder ce_screen.
+ *
+ * EDIT tap opens it on the chord sound (BASS held + EDIT: the bass sound), EDIT tap or HOME leaves; SHIFT (OPT) +
+ * EDIT switches chord <-> bass inside. Navigation: GROUPS -> SCREENS -> LANES. The function buttons are the groups by
+ * their PRINTED names: FX = OSC, SEL = FILT, ENV = ENV, LFO = LFO, SEQ = MOD, PLAY = FX (the sends), REC = MIX. A
+ * group's button opens it (at its remembered screen and lane), tapped again it cycles the group's screens; held it
+ * does nothing (reserved). SELECT moves the LANE (the four parameters on KNOB 1..4: a row, an oscillator, a slot)
+ * and runs on across the screens (past the last lane: the next screen's first, wrapping), so SELECT alone reaches
+ * everything. GLO = SHIFT: a tap latches it (fine steps, its LED lit, "fine" in the title line), held it is
+ * momentary. KNOB 1..4 edit the active lane's cells (a detent 5 % of the range, enums one by one; SHIFT: one step).
+ * The editor remembers its group per part, every group its screen and lane (RAM).
+ *
+ * The screens are built from the engine's deep pages (core.h eng_deep_t: its sections OSC FILTER ENV LFO MOD, pages
+ * of four titled "OSC 1", "OSC 1+", "LFO SYN" ..), never from an engine's column names, so pages and columns an
+ * engine adds show up by themselves:
+ *   OSC, LFO: one STACK screen per kind of page (the pages "OSC n" are one, "OSC n+" another; a page with no number,
+ *     "LFO SYN", is a screen whose lane i shows its column i); OSC then has the MIXER: one lane, the LEVEL column of
+ *     each oscillator as four tall bars;
+ *   FILT, ENV: edit8 screens of the pages that share an instance number ("FILTER", "FILTER+"; "ENV 2", "ENV 2+"),
+ *     two lanes a screen, under the wide filter curve / the envelope of that ENV;
+ *   MOD: a stack of the matrix's slots (eight lanes a screen);
+ *   an engine without deep pages: OSC = EDIT 1, FILT = EDIT 2 (one lane each), ENV = the platform ENV under the
+ *   envelope (an engine with its own envelopes, FM6: a message, the group stays), LFO = the platform LFO, MOD = the
+ *   platform MOD page as a stack of 4 slots (source and destination fixed, the amount on KNOB 3);
+ *   every engine: FX = the sends (one lane), MIX = level pan voice glide | transpose detune priority glide mode.
+ *
+ * Motion (Options > Motion; cr_tween: OFF = none): the active lane's bars slide between rows, a new screen or group
+ * slides the cells in from the side, the wide band's values tween as a knob turns or the envelope changes, the hot
+ * cell (the one just turned) lasts CE_HOT_MS. */
+
+enum { CE_OSC, CE_FILT, CE_ENV, CE_LFO, CE_MOD, CE_FX, CE_MIX, CE_NSEC };   /* (OSC..MOD: eng_deep_t.section 0..4) */
+static const char *const CE_SEC_NAME[CE_NSEC] = {"OSC", "FILT", "ENV", "LFO", "MOD", "FX", "MIX"};
+static const uint8_t CE_SEC_BTN[CE_NSEC] = {B_FX, B_SCL, B_ENV, B_LFO, B_SEQ, B_PLAY, B_REC};   /* printed ids */
+#define CE_HOT_MS 800u                    /* the cell just turned stays hot */
+#define CE_SLIDE_MS 180u                  /* the bars' and the cells' slides */
+#define CE_BAND_MS 160u                   /* the wide band's tween */
+#define CE_DX 48                          /* px the cells slide in from */
+
+/* a cell's parameter: a deep page's column, a track parameter, a fixed text, a dash (an empty column) */
+enum { CE_R_NONE, CE_R_DEEP, CE_R_TRK, CE_R_TXT, CE_R_DASH };
+typedef struct { uint8_t k, a, b; } ce_ref_t;             /* DEEP: page a, column b; TRK: id a; TXT: CE_TXT[a] */
+static const char *const CE_TXT[] = {"ENV", "LFO", "FILT", "PITCH", "SHAPE", "AMP"};
+static const uint8_t CE_PMOD[4][2] = {{0, 2}, {0, 3}, {0, 4}, {1, 5}};   /* the platform MOD's sources, dests */
+
+/* a screen of a group: what its lanes are */
+enum { CE_S_PLAT,                         /* the platform's pages (an engine without deep pages; FX, MIX) */
+       CE_S_STACK,                        /* a stack: lane i = deep page pg[i] */
+       CE_S_TRANS,                        /* a stack: lane i = column i of the one page pg[0] ("LFO SYN") */
+       CE_S_MIXER,                        /* one lane: the LEVEL column of the pages pg[0..n) */
+       CE_S_EDIT,                         /* edit8: lane i = deep page pg[i] (n <= 2) */
+       CE_S_PAGE };                       /* edit8: one lane, the page pg[0] (a page of no instance: "VOICE") */
+typedef struct { uint8_t type, n, pg[CR_ED_ROWS]; } ce_scr_t;
+
+typedef struct {
+    uint8_t kind, n, active, wide, tall;  /* CR_K_EDIT8 / STACK, rows, the row on the knobs, CR_W_*, the mixer */
+    ce_ref_t ref[CR_ED_ROWS][4];
+    char head[4][10];                     /* stack: the column headings */
+    char right[16];                       /* the title line's right text */
+    uint8_t dp0, np, row0;                /* the band's pages (env: dp0 .. + np; filter: dp0); the first row's number */
+} ce_view_t;
+
+static struct {
+    uint8_t grp[2], scr[2][CE_NSEC], lane[2][CE_NSEC];   /* per part: the group; per group its screen and lane */
+    uint8_t shift;                        /* SHIFT latched (fine steps) */
+    uint8_t hot_r, hot_c;                 /* the cell last turned (row + 1, 0 none), its column */
+    uint32_t hot_t0;
+    uint32_t key;                         /* what the view shows (part, group, screen): a change slides */
+    uint8_t row;                          /* the active row last drawn */
+    int16_t bar_from, dx_from;            /* the slides' start offsets (px) */
+    uint32_t bar_t0, dx_t0;
+    uint8_t band, wv_from[5], wv_to[5], wv_shown[5];      /* the wide band's tween */
+    uint32_t wv_t0;
+} cx __attribute__((section(".pool")));   /* (zero-initialised: OSC, screen 1, lane 1 for both parts) */
+
+static track_t *ce_trk(void) { return &trk[ce.part ? CR_PART_BASS : CR_PART_CHORD]; }
+
+/* the engine's deep pages when it has the five sections (eng_deep_t.section: OSC FILTER ENV LFO MOD, ascending) */
+static const eng_deep_t *ce_deep(const track_t *t)
+{
+    const eng_deep_t *d = cp_deep(t);
+    uint32_t i;
+    if (!d)
+        return 0;
+    for (i = 0; i < 5u; i++)
+        if (d->section[i] >= d->npages || (i && d->section[i] <= d->section[i - 1u]))
+            return 0;
+    return d;
+}
+/* the pages of section g (CE_OSC..CE_MOD): a .. b - 1 */
+static void ce_range(const eng_deep_t *d, uint32_t g, uint32_t *a, uint32_t *b)
+{
+    *a = d->section[g];
+    *b = g + 1u < 8u && d->section[g + 1u] < d->npages && d->section[g + 1u] > *a ? d->section[g + 1u] : d->npages;
+}
+/* a page title's instance number ("OSC 2+" -> 2, "LFO SYN" / "FILTER" -> 0) and what follows it ("+") */
+static uint32_t ce_inst(const char *t)
+{
+    while (*t && *t != ' ')
+        t++;
+    return t[0] == ' ' && t[1] >= '1' && t[1] <= '9' ? (uint32_t)(t[1] - '0') : 0u;
+}
+static const char *ce_suf(const char *t)
+{
+    while (*t && *t != ' ')
+        t++;
+    if (t[0] == ' ' && t[1] >= '0' && t[1] <= '9')
+        for (t++; *t >= '0' && *t <= '9'; t++)
+            ;
+    return t;
+}
+/* pages p and q are of one kind: both numbered with the same suffix ("OSC 1" / "OSC 3"; "OSC 1+" / "OSC 4+") */
+static int ce_kind_eq(const eng_deep_t *d, uint32_t p, uint32_t q)
+{
+    const char *a = d->pages[p].title, *b = d->pages[q].title;
+    if (!ce_inst(a) || !ce_inst(b))
+        return p == q;
+    return cp_eq(ce_suf(a), ce_suf(b));
+}
+
+/* a page of no instance whose columns are the instances' ("SYNC1" .. "SYNC4": a label ending in a digit) */
+static int ce_percol(const eng_page_t *pg)
+{
+    const char *l = pg->col[0].label;
+    uint32_t n = l ? str_len(l) : 0u;
+    return n > 1u && l[n - 1u] >= '1' && l[n - 1u] <= '9';
+}
+
+/* the group can be shown for this engine (FM6's ENV: its own envelopes, in the patch) */
+static int ce_has(const track_t *t, uint32_t g)
+{
+    return g != CE_ENV || ce_deep(t) || !ENGINES[eng_idx(t->eng_req)]->ownenv;
+}
+
+/* screen k of group g: *o; returns the group's number of screens */
+static uint32_t ce_scr(const track_t *t, uint32_t g, uint32_t k, ce_scr_t *o)
+{
+    const eng_deep_t *d = ce_deep(t);
+    uint32_t a, b, p, q, e, n = 0;
+    o->type = CE_S_PLAT;
+    o->n = 0;
+    if (!d || g > CE_MOD)
+        return 1;
+    ce_range(d, g, &a, &b);
+    if (g == CE_OSC || g == CE_LFO) {             /* stacks: a screen per kind of page */
+        for (p = a; p < b; p++) {
+            for (q = a; q < p && !ce_kind_eq(d, p, q); q++)
+                ;
+            if (q < p)                            /* (a kind seen already) */
+                continue;
+            if (n == k) {
+                if (ce_inst(d->pages[p].title)) {
+                    o->type = CE_S_STACK;
+                    for (q = p; q < b && o->n < 4u; q++)
+                        if (ce_kind_eq(d, p, q))
+                            o->pg[o->n++] = (uint8_t)q;
+                } else if (ce_percol(&d->pages[p])) {   /* one page across the instances: lane i = column i */
+                    o->type = CE_S_TRANS;
+                    o->pg[0] = (uint8_t)p;
+                    for (q = 0; q < 4u; q++)
+                        if (d->pages[p].col[q].label)
+                            o->n = (uint8_t)(q + 1u);
+                } else {                          /* a page of its own: one lane */
+                    o->type = CE_S_PAGE;
+                    o->pg[0] = (uint8_t)p;
+                    o->n = 1;
+                }
+            }
+            n++;
+        }
+        if (g == CE_OSC && ce_inst(d->pages[a].title) && cp_dcol(&d->pages[a], "LEVEL") >= 0) {   /* the mixer */
+            if (n == k) {
+                o->type = CE_S_MIXER;
+                for (q = a; q < b && o->n < 4u; q++)
+                    if (ce_kind_eq(d, a, q))
+                        o->pg[o->n++] = (uint8_t)q;
+            }
+            n++;
+        }
+        return n ? n : 1u;
+    }
+    if (g == CE_MOD) {                            /* the matrix: eight slots a screen */
+        for (p = a; p < b; p += CR_ED_ROWS, n++)
+            if (n == k) {
+                o->type = CE_S_STACK;
+                for (q = p; q < b && q < p + CR_ED_ROWS; q++)
+                    o->pg[o->n++] = (uint8_t)q;
+            }
+        return n ? n : 1u;
+    }
+    for (p = a; p < b; p = e) {                   /* FILT, ENV: the pages of one instance, two lanes a screen */
+        for (e = p; e < b && ce_inst(d->pages[e].title) == ce_inst(d->pages[p].title); e++)
+            ;
+        for (q = p; q < e; q += 2u, n++)
+            if (n == k) {
+                o->type = CE_S_EDIT;
+                o->pg[0] = (uint8_t)q;
+                o->pg[1] = (uint8_t)(q + 1u);
+                o->n = (uint8_t)(e - q >= 2u ? 2u : 1u);
+            }
+    }
+    return n ? n : 1u;
+}
+/* the lanes of a screen */
+static uint32_t ce_lanes(const track_t *t, uint32_t g, const ce_scr_t *s)
+{
+    if (s->type == CE_S_MIXER)
+        return 1u;
+    if (s->type != CE_S_PLAT)
+        return s->n ? s->n : 1u;
+    return g == CE_MOD && !ce_deep(t) ? 4u : g == CE_MIX ? 2u : 1u;
+}
+/* part p's group, screen and lane brought into range (an engine change, a shorter group): *s its screen */
+static uint32_t ce_fix(const track_t *t, uint32_t p, ce_scr_t *s)
+{
+    uint32_t g = cx.grp[p], ns, nl;
+    if (g >= CE_NSEC || !ce_has(t, g))
+        g = cx.grp[p] = CE_OSC;
+    ns = ce_scr(t, g, cx.scr[p][g], s);
+    if (cx.scr[p][g] >= ns) {
+        cx.scr[p][g] = 0;
+        ce_scr(t, g, 0, s);
+    }
+    nl = ce_lanes(t, g, s);
+    if (cx.lane[p][g] >= nl)
+        cx.lane[p][g] = (uint8_t)(nl - 1u);
+    return g;
+}
+
+static ce_ref_t ce_r(uint32_t k, uint32_t a, uint32_t b)
+{
+    ce_ref_t r;
+    r.k = (uint8_t)k;
+    r.a = (uint8_t)a;
+    r.b = (uint8_t)b;
+    return r;
+}
+static void ce_row_trk(ce_view_t *v, uint32_t row, uint32_t cp)
+{
+    uint32_t c;
+    for (c = 0; c < 4u; c++)
+        v->ref[row][c] = ce_r(CE_R_TRK, CP_PAGES[cp].id[c], 0);
+}
+static void ce_cat_num(char *d, uint32_t n, uint32_t sz)
+{
+    char b[4];
+    uint32_t i = 0;
+    if (n >= 10u)
+        b[i++] = (char)('0' + n / 10u % 10u);
+    b[i++] = (char)('0' + n % 10u);
+    b[i] = 0;
+    cu_cat(d, b, sz);
+}
+static void ce_label(const track_t *t, ce_ref_t r, const param_desc_t *d, char *out, uint32_t n);
+static const param_desc_t *ce_param(const track_t *t, ce_ref_t r, int32_t *v);
+/* a stack's column heading: the long label of what the lanes have in column c ("Wave"; two kinds: "Sync/Ring"), its
+ * trailing digits cut ("SYNC1" -> "Sync") */
+static void ce_head(const track_t *t, const eng_deep_t *d, const ce_view_t *v, uint32_t c, char *out, uint32_t n)
+{
+    char a[12], b[12];
+    uint32_t i, l;
+    out[0] = a[0] = b[0] = 0;
+    for (i = 0; i < v->n; i++) {
+        ce_ref_t r = v->ref[i][c];
+        char x[12];
+        const param_desc_t *pd;
+        int32_t val;
+        if (r.k != CE_R_DEEP || !(pd = ce_param(t, r, &val)))
+            continue;
+        ce_label(t, r, pd, x, sizeof x);
+        for (l = str_len(x); l > 1u && x[l - 1u] >= '0' && x[l - 1u] <= '9'; l--)
+            x[l - 1u] = 0;
+        if (!a[0])
+            cu_cpy(a, x, sizeof a);
+        else if (!cu_eq(a, x) && !b[0])
+            cu_cpy(b, x, sizeof b);
+    }
+    cu_cpy(out, a, n);
+    if (b[0]) {
+        cu_cat(out, "/", n);
+        cu_cat(out, b, n);
+    }
+}
+
+/* the view of part p's current screen */
+static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
+{
+    static const char *const ROLE[4] = {"amp", "filter", "free", "free"};
+    static const char *const H_MOD[4] = {"Source", "Dest", "Amount", ""};
+    const eng_deep_t *d = ce_deep(t);
+    const engine_t *en = ENGINES[eng_idx(t->eng_req)];
+    ce_scr_t sc;
+    uint32_t g, k, ln, i, c;
+    g = ce_fix(t, p, &sc);
+    k = cx.scr[p][g];
+    ln = cx.lane[p][g];
+    for (i = 0; i < sizeof *v; i++)
+        ((uint8_t *)v)[i] = 0;
+    v->kind = CR_K_EDIT8;
+    v->n = 1;
+    v->active = (uint8_t)ln;
+    switch (sc.type) {
+    case CE_S_STACK:                              /* OSC / LFO / MOD: a lane per page; a column some lanes lack: "-" */
+        v->kind = CR_K_STACK;
+        v->n = sc.n;
+        for (c = 0; c < 4u; c++) {
+            uint32_t any = 0;
+            for (i = 0; i < sc.n; i++)
+                any |= d->pages[sc.pg[i]].col[c].label != 0;
+            for (i = 0; i < sc.n; i++)
+                v->ref[i][c] = d->pages[sc.pg[i]].col[c].label ? ce_r(CE_R_DEEP, sc.pg[i], c)
+                             : ce_r(any ? CE_R_DASH : CE_R_NONE, 0, 0);
+        }
+        if (g == CE_MOD) {
+            v->row0 = (uint8_t)(k * CR_ED_ROWS);
+            for (i = 0; i < sc.n; i++)
+                if (!d->get(t, sc.pg[i], 0)) {                /* an unused slot: the source only, a dash */
+                    v->ref[i][0] = i == ln ? ce_r(CE_R_DEEP, sc.pg[i], 0) : ce_r(CE_R_DASH, 0, 0);
+                    v->ref[i][1] = v->ref[i][2] = v->ref[i][3] = ce_r(CE_R_NONE, 0, 0);
+                }
+            for (c = 0; c < 4u; c++)
+                cu_cpy(v->head[c], H_MOD[c], sizeof v->head[c]);
+            cu_cpy(v->right, "MOD ", sizeof v->right);
+            ce_cat_num(v->right, v->row0 + ln + 1u, sizeof v->right);
+            break;
+        }
+        for (c = 0; c < 4u; c++)
+            ce_head(t, d, v, c, v->head[c], sizeof v->head[c]);
+        cu_cpy(v->right, CE_SEC_NAME[g], sizeof v->right);
+        cu_cat(v->right, " ", sizeof v->right);
+        ce_cat_num(v->right, ln + 1u, sizeof v->right);
+        cu_cat(v->right, k ? " \267 B" : " \267 A", sizeof v->right);
+        if (k > 1u)
+            v->right[str_len(v->right) - 1u] = (char)('A' + k);
+        break;
+    case CE_S_TRANS:                              /* "LFO SYN": lane i = its column i */
+        v->kind = CR_K_STACK;
+        v->n = sc.n;
+        for (i = 0; i < sc.n; i++)
+            v->ref[i][0] = d->pages[sc.pg[0]].col[i].label ? ce_r(CE_R_DEEP, sc.pg[0], i) : ce_r(CE_R_DASH, 0, 0);
+        ce_head(t, d, v, 0, v->head[0], sizeof v->head[0]);
+        cu_cpy(v->right, CE_SEC_NAME[g], sizeof v->right);
+        cu_cat(v->right, " ", sizeof v->right);
+        ce_cat_num(v->right, ln + 1u, sizeof v->right);
+        cu_cat(v->right, " \267 B", sizeof v->right);
+        v->right[str_len(v->right) - 1u] = (char)('A' + (k > 25u ? 25u : k));
+        break;
+    case CE_S_MIXER:                              /* the oscillators' levels, four tall bars */
+        v->tall = 1;
+        v->active = 0;
+        for (i = 0; i < sc.n && i < 4u; i++) {
+            int32_t col = cp_dcol(&d->pages[sc.pg[i]], "LEVEL");
+            v->ref[0][i] = col >= 0 ? ce_r(CE_R_DEEP, sc.pg[i], (uint32_t)col) : ce_r(CE_R_DASH, 0, 0);
+        }
+        cu_cpy(v->right, "OSC \267 MIX", sizeof v->right);
+        break;
+    case CE_S_PAGE:                               /* a page of its own ("VOICE"): one lane, its title on the right */
+        for (c = 0; c < 4u; c++)
+            v->ref[0][c] = d->pages[sc.pg[0]].col[c].label ? ce_r(CE_R_DEEP, sc.pg[0], c) : ce_r(CE_R_NONE, 0, 0);
+        cu_cpy(v->right, d->pages[sc.pg[0]].title, sizeof v->right);
+        break;
+    case CE_S_EDIT:                               /* FILT / ENV n: the instance's pages under the wide band */
+        v->n = sc.n;
+        for (i = 0; i < sc.n; i++)
+            for (c = 0; c < 4u; c++)
+                v->ref[i][c] = d->pages[sc.pg[i]].col[c].label ? ce_r(CE_R_DEEP, sc.pg[i], c) : ce_r(CE_R_NONE, 0, 0);
+        if (g == CE_ENV) {
+            uint32_t n = ce_inst(d->pages[sc.pg[0]].title);
+            v->wide = CR_W_ENV;
+            v->dp0 = sc.pg[0];
+            v->np = sc.n;
+            cu_cpy(v->right, "ENV ", sizeof v->right);
+            ce_cat_num(v->right, n ? n : k + 1u, sizeof v->right);
+            if (n >= 1u && n <= 4u) {
+                cu_cat(v->right, " \267 ", sizeof v->right);
+                cu_cat(v->right, ROLE[n - 1u], sizeof v->right);
+            }
+        } else {
+            uint32_t a, b;
+            ce_range(d, CE_FILT, &a, &b);
+            v->wide = CR_W_FILTER;
+            v->dp0 = (uint8_t)a;
+            cu_cpy(v->right, "FILTER", sizeof v->right);
+            (void)b;
+        }
+        break;
+    default:                                      /* the platform's pages */
+        switch (g) {
+        case CE_OSC:
+            ce_row_trk(v, 0, CP_EDIT1);
+            cu_cpy(v->right, en->page_title[0] ? en->page_title[0] : "EDIT 1", sizeof v->right);
+            break;
+        case CE_FILT:
+            ce_row_trk(v, 0, CP_EDIT2);
+            cu_cpy(v->right, en->page_title[1] ? en->page_title[1] : "EDIT 2", sizeof v->right);
+            break;
+        case CE_ENV:
+            v->wide = CR_W_ENV;
+            ce_row_trk(v, 0, CP_ENV);
+            cu_cpy(v->right, "ENV", sizeof v->right);
+            break;
+        case CE_LFO:
+            ce_row_trk(v, 0, CP_LFO);
+            cu_cpy(v->right, "LFO", sizeof v->right);
+            break;
+        case CE_MOD:
+            v->kind = CR_K_STACK;
+            v->n = 4;
+            for (c = 0; c < 4u; c++)
+                cu_cpy(v->head[c], H_MOD[c], sizeof v->head[c]);
+            for (i = 0; i < 4u; i++) {
+                v->ref[i][0] = ce_r(CE_R_TXT, CE_PMOD[i][0], 0);
+                v->ref[i][1] = ce_r(CE_R_TXT, CE_PMOD[i][1], 0);
+                v->ref[i][2] = ce_r(CE_R_TRK, CP_PAGES[CP_MOD].id[i], 0);
+            }
+            cu_cpy(v->right, "MOD ", sizeof v->right);
+            ce_cat_num(v->right, ln + 1u, sizeof v->right);
+            break;
+        case CE_FX:
+            ce_row_trk(v, 0, CP_FX);
+            cu_cpy(v->right, "FX", sizeof v->right);
+            break;
+        default:
+            v->n = 2;
+            ce_row_trk(v, 0, CP_MIX);
+            ce_row_trk(v, 1, CP_MIX2);
+            cu_cpy(v->right, "MIX", sizeof v->right);
+            break;
+        }
+        break;
+    }
+    if (v->active >= v->n)
+        v->active = 0;
+}
+
+/* the parameter of a ref: its descriptor and value (0: none) */
+static const param_desc_t *ce_param(const track_t *t, ce_ref_t r, int32_t *v)
+{
+    const eng_deep_t *d = cp_deep(t);
+    if (r.k == CE_R_DEEP && d && r.a < d->npages && d->pages[r.a].col[r.b & 3u].label) {
+        *v = d->get(t, r.a, r.b & 3u);
+        if (d->desc) {                                          /* a mode-dependent label / names (the VA's MORPH) */
+            const param_desc_t *m = d->desc(t, r.a, r.b & 3u);
+            if (m)
+                return m;
+        }
+        return &d->pages[r.a].col[r.b & 3u];
+    }
+    if (r.k == CE_R_TRK && r.a < P_COUNT) {
+        *v = t->p[r.a];
+        return cp_desc(t, r.a);
+    }
+    return 0;
+}
+
+#ifdef ENGI_VA
+/* an LFO page's RATE reads as a division: its LFO's SYNC on (a "SYNCn" column in the LFO section, or a "SYNC" column
+ * on a page of the same LFO) */
+static int ce_synced(const track_t *t, uint32_t pg)
+{
+    const eng_deep_t *d = ce_deep(t);
+    uint32_t a, b, p, n;
+    int32_t k;
+    char l[6] = "SYNC0";
+    if (!d || pg >= d->npages)
+        return 0;
+    ce_range(d, CE_LFO, &a, &b);
+    if (pg < a || pg >= b || !(n = ce_inst(d->pages[pg].title)))
+        return 0;
+    l[4] = (char)('0' + n);
+    for (p = a; p < b; p++) {
+        if ((k = cp_dcol(&d->pages[p], l)) >= 0)
+            return d->get(t, p, (uint32_t)k) != 0;
+        if (ce_inst(d->pages[p].title) == n && (k = cp_dcol(&d->pages[p], "SYNC")) >= 0)
+            return d->get(t, p, (uint32_t)k) != 0;
+    }
+    return 0;
+}
+#endif
+
+/* the value text as the mock-ups write it: "683 ms", "643 Hz", "+7", "-12", "on" (Felucca's numbers and names) */
+static void ce_text(const track_t *t, ce_ref_t r, const param_desc_t *d, int32_t v, char *out, uint32_t n)
+{
+    char val[12];
+    const char *unit;
+    uint32_t i, l;
+    param_format(d, v, val, &unit);
+#ifdef ENGI_VA
+    if (r.k == CE_R_DEEP && t->eng_req == ENGI_VA && cp_eq(d->label, "RATE") && ce_synced(t, r.a)) {
+        cu_cpy(out, N_VA_DIV[(uint32_t)clamp(v, 0, 127) * VA_NDIV / 128u], n);   /* a synced LFO: a division */
+        return;
+    }
+#else
+    (void)t;
+    (void)r;
+#endif
+    if (d->fmt == F_SEMI || d->fmt == F_DB || (d->fmt == F_INT && d->unit && cu_eq(d->unit, "ct")))
+        unit = "";                                              /* (coarse / fine / transpose / level: the number) */
+    if (val[0] == '.') {                                        /* ".69" -> "0.69" */
+        for (l = str_len(val) + 1u; l > 0u && l < sizeof val; l--)
+            val[l] = val[l - 1u];
+        val[0] = '0';
+    }
+    if (d->fmt == F_INT && d->min < 0 && v > 0) {
+        cu_cpy(out, "+", n);
+        cu_cat(out, val, n);
+    } else {
+        cu_cpy(out, val, n);
+    }
+    if (d->fmt == F_ONOFF)
+        for (i = 0; out[i]; i++)
+            out[i] = (char)(out[i] >= 'A' && out[i] <= 'Z' ? out[i] + 32 : out[i]);
+    l = str_len(out);
+    if (unit[0] && l + 1u + str_len(unit) + 1u <= n && (d->fmt == F_TIME || d->fmt == F_LFOHZ || d->fmt == F_CUTOFF)) {
+        cu_cat(out, " ", n);
+        cu_cat(out, unit, n);
+    } else if (unit[0] && l + str_len(unit) + 1u <= n) {
+        cu_cat(out, unit, n);
+    }
+}
+
+/* a parameter's long label: cr_pages.c's tables, else its short one capitalised ("SYNC1" -> "Sync1") */
+static void ce_label(const track_t *t, ce_ref_t r, const param_desc_t *d, char *out, uint32_t n)
+{
+    uint32_t i;
+    if (r.k == CE_R_TRK)
+        for (i = 0; i < NELEM(CP_LABEL); i++)
+            if (CP_LABEL[i].id == r.a) {
+                cu_cpy(out, CP_LABEL[i].label, n);
+                return;
+            }
+    for (i = 0; i < NELEM(CP_DLABEL); i++)
+        if (cp_eq(d->label, CP_DLABEL[i].s)) {
+            cu_cpy(out, CP_DLABEL[i].l, n);
+            return;
+        }
+    cu_cpy(out, d->label, n);
+    for (i = 1; out[i]; i++)
+        if (out[i] >= 'A' && out[i] <= 'Z')
+            out[i] = (char)(out[i] + 32);
+    (void)t;
+}
+
+static uint8_t ce_pct(const param_desc_t *d, int32_t v)
+{
+    uint32_t q = cp_q8(d, v);
+    return (uint8_t)(q > 255u ? 255u : q);
+}
+
+/* one cell: label (edit8), value, its glyph and fill (the mock-ups' choice by the kind of parameter) */
+static void ce_cell(const track_t *t, const ce_view_t *vw, ce_ref_t r, cr_cell_t *c)
+{
+    const param_desc_t *d;
+    int32_t v = 0;
+    int stack = vw->kind == CR_K_STACK;
+    if (r.k == CE_R_NONE)
+        return;
+    c->flags = CR_CF_ON;
+    if (r.k == CE_R_DASH) {
+        cu_cpy(c->value, "-", sizeof c->value);
+        return;
+    }
+    if (r.k == CE_R_TXT) {
+        cu_cpy(c->value, CE_TXT[r.a % NELEM(CE_TXT)], sizeof c->value);
+        return;
+    }
+    if (!(d = ce_param(t, r, &v))) {
+        c->flags = 0;
+        return;
+    }
+    if (!stack)
+        ce_label(t, r, d, c->label, sizeof c->label);
+    ce_text(t, r, d, v, c->value, sizeof c->value);
+    c->pct = ce_pct(d, v);
+    if (d->fmt == F_ENUM && cp_has(d->label, "WAVE")) {          /* the selected waveform */
+        const char *w = c->value;
+        c->pct = 128;
+        c->glyph = cp_has(w, "SAW") || cp_has(w, "RMP") ? CR_G_SAW
+                 : cp_has(w, "SQ") || cp_has(w, "PUL") || cp_has(w, "PW") ? CR_G_SQUARE
+                 : cp_has(w, "NOI") || cp_has(w, "NZ") ? CR_G_DOTS
+                 : cp_has(w, "S&H") || cp_has(w, "RND") || cp_has(w, "STEP") ? CR_G_STEPS
+                 : CR_G_WAVE;
+        if (cp_has(w, "PW") && r.k == CE_R_DEEP) {               /* PWM: the width is the oscillator's SHAPE */
+            const eng_deep_t *dd = cp_deep(t);
+            int32_t k = r.a + 1u < dd->npages ? cp_dcol(&dd->pages[r.a + 1u], "SHAPE") : -1;
+            if (k >= 0)
+                c->pct = ce_pct(&dd->pages[r.a + 1u].col[k], dd->get(t, r.a + 1u, (uint32_t)k));
+        }
+    } else if (d->fmt == F_ENUM && cp_eq(d->label, "TYPE")) {
+        c->glyph = CR_G_DOTS;
+        c->flags |= CR_CF_PCT;
+    } else if (d->fmt == F_ENUM || d->fmt == F_ONOFF) {
+        ;                                                         /* text */
+    } else if (d->fmt == F_LFOHZ) {
+        c->glyph = CR_G_KNOB;
+        c->flags |= CR_CF_PCT;
+    } else if (stack && (d->fmt == F_SEMI || d->fmt == F_INT)) {
+        ;                                                         /* coarse / fine: the number */
+    } else {
+        c->glyph = CR_G_BAR;
+        c->flags |= CR_CF_PCT | (d->min < 0 ? CR_CF_BIP : 0u);
+    }
+}
+
+/* ------------------------------------------------------------- the state --- */
+static void ce_trace_nav(void)
+{
+    uint32_t p = ce.part & 1u, g = cx.grp[p] % CE_NSEC;
+    cu_trace("edit: group %s screen %u lane %u part %u\n", CE_SEC_NAME[g], (unsigned)cx.scr[p][g] + 1u,
+             (unsigned)cx.lane[p][g] + 1u, (unsigned)p);
+    (void)p;
+    (void)g;
+}
+
+static void ce_open(uint32_t part)
+{
+    ce_scr_t sc;
+    ce.part = (uint8_t)(part & 1u);
+    cu.opt_open = 0;
+    cu.lock = L_NONE;
+    cu.page = PG_EDIT;
+    cx.hot_r = 0;
+    cx.shift = 0;
+    cx.key = 0xFFFFFFFFu;                         /* (the cells slide in) */
+    cx.band = 0;
+    ce_fix(ce_trk(), ce.part, &sc);
+    cu_trace("edit: open part %u\n", (unsigned)ce.part);
+    ce_trace_nav();
+}
+static void ce_close(void)
+{
+    if (cu.page == PG_EDIT)
+        cu.page = PG_NONE;
+    cx.shift = 0;
+    cu_trace("edit: close\n");
+}
+
+/* a group's button tapped: another group opens (where it was left), the same one cycles its screens */
+static void ce_group(uint32_t g)
+{
+    track_t *t = ce_trk();
+    uint32_t p = ce.part & 1u, ns, nl;
+    ce_scr_t sc;
+    if (!ce_has(t, g)) {
+        cu_message("FM6: own envelopes", CR_COL_WHITE);
+        return;
+    }
+    if (cx.grp[p] != g) {
+        cx.grp[p] = (uint8_t)g;
+        ce_fix(t, p, &sc);
+    } else {
+        ns = ce_scr(t, g, 0, &sc);
+        cx.scr[p][g] = (uint8_t)((cx.scr[p][g] + 1u) % ns);
+        ce_scr(t, g, cx.scr[p][g], &sc);
+        nl = ce_lanes(t, g, &sc);
+        if (cx.lane[p][g] >= nl)                  /* (the lane kept: OSC 3 stays OSC 3 on the next stack) */
+            cx.lane[p][g] = (uint8_t)(nl - 1u);
+    }
+    cx.hot_r = 0;
+    ce_trace_nav();
+}
+
+static int ce_owns(uint32_t b)
+{
+    uint32_t s;
+    if (cu.page != PG_EDIT)
+        return 0;
+    if (b == B_GLO)
+        return 1;
+    for (s = 0; s < CE_NSEC; s++)
+        if (CE_SEC_BTN[s] == b)
+            return 1;
+    return 0;
+}
+
+static int ce_button(uint32_t b, uint32_t ev)
+{
+    uint32_t s;
+    if (cu.page != PG_EDIT)
+        return 0;
+    if (ev == CE_SHIFT) {                         /* SHIFT + EDIT: the other part's sound, where it was left */
+        ce.part ^= 1u;
+        cx.hot_r = 0;
+        cu_trace("edit: part %u\n", (unsigned)ce.part);
+        ce_trace_nav();
+        return 1;
+    }
+    if (b == BT_EDIT && ev == CE_TAP) {
+        ce_close();
+        return 1;
+    }
+    if (b == B_GLO) {                             /* SHIFT: a tap latches / unlatches it; held: momentary */
+        if (ev == CE_TAP) {
+            cx.shift ^= 1u;
+            cu_trace("edit: shift %s\n", cx.shift ? "latched" : "off");
+        }
+        return 1;
+    }
+    for (s = 0; s < CE_NSEC; s++)
+        if (CE_SEC_BTN[s] == b) {
+            if (ev == CE_TAP)                     /* (held: nothing, reserved) */
+                ce_group(s);
+            return 1;
+        }
+    return 0;                                     /* SAVE, PERF, HOME, OCT: as outside */
+}
+
+/* SELECT: s lanes on (both ways round), across the group's screens (wrapping) */
+static void ce_select(int32_t s)
+{
+    track_t *t = ce_trk();
+    uint32_t p = ce.part & 1u, g, ns, k, ln, k0, l0;
+    ce_scr_t sc;
+    g = ce_fix(t, p, &sc);
+    ns = ce_scr(t, g, 0, &sc);
+    k = k0 = cx.scr[p][g];
+    ln = l0 = cx.lane[p][g];
+    ce_scr(t, g, k, &sc);
+    for (; s > 0; s--) {
+        if (ln + 1u < ce_lanes(t, g, &sc)) {
+            ln++;
+        } else {
+            k = (k + 1u) % ns;
+            ln = 0;
+            ce_scr(t, g, k, &sc);
+        }
+    }
+    for (; s < 0; s++) {
+        if (ln) {
+            ln--;
+        } else {
+            k = (k + ns - 1u) % ns;
+            ce_scr(t, g, k, &sc);
+            ln = ce_lanes(t, g, &sc) - 1u;
+        }
+    }
+    if (k == k0 && ln == l0)
+        return;
+    cx.scr[p][g] = (uint8_t)k;
+    cx.lane[p][g] = (uint8_t)ln;
+    cx.hot_r = 0;
+    ce_trace_nav();
+}
+
+/* KNOB 1..4 on the active lane's cell (fine: SHIFT latched or held, one step) */
+static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
+{
+    track_t *t = ce_trk();
+    ce_view_t vw;
+    ce_ref_t r;
+    const param_desc_t *d;
+    int32_t v0 = 0, v;
+    uint32_t i;
+    char b[12];
+    ce_view(t, ce.part & 1u, &vw);
+    r = vw.ref[vw.active][knob & 3u];
+    if (!(d = ce_param(t, r, &v0)))
+        return;
+    v = cp_dstep(d, v0, s, fine || cx.shift);
+    cx.hot_r = (uint8_t)(vw.active + 1u);
+    cx.hot_c = (uint8_t)(knob & 3u);
+    cx.hot_t0 = cu_now();
+    if (r.k == CE_R_DEEP) {
+        const eng_deep_t *dd = cp_deep(t);
+        if (v != v0) {
+            dd->set(t, r.a, r.b, v);
+            v = dd->get(t, r.a, r.b);
+            cu_edited(ce.part);
+        }
+        cp_value(d, v, b, sizeof b);
+        cu_trace("deep: part %u page %u %s col %u %s %d -> %d (%s)%s\n", (unsigned)ce.part, (unsigned)r.a,
+                 dd->pages[r.a].title, (unsigned)r.b, d->label, (int)v0, (int)v, b, psnd[ce.part].edited ? " edited" : "");
+        return;
+    }
+    fm1_irq_off();
+    t->p[r.a] = (int16_t)v;
+    fm1_irq_on();
+    if (!ce.part)                                  /* part 0's sends are the FX amounts */
+        for (i = 0; i < CU_NFX; i++)
+            if (CU_FX[i].send == r.a) {
+                cs.fx_amt[i] = (uint8_t)v;
+                cs.fx_on = 1;
+                cu_fx_apply();
+            }
+    if (v != v0)
+        cu_edited(ce.part);
+    cp_value(d, v, b, sizeof b);
+    cu_trace("param: part %u %s %s %d -> %d (%s)\n", (unsigned)ce.part, CE_SEC_NAME[cx.grp[ce.part & 1u] % CE_NSEC],
+             d->label, (int)v0, (int)v, b);
+}
+
+/* -------------------------------------------------------------- the LEDs --- */
+/* EDIT blinks, the group's button lit, the other group buttons dim (cr_leds: every button's dim is on); SHIFT lit
+ * while latched (or held) */
+static void ce_leds(uint8_t *nl, uint32_t blink)
+{
+    uint8_t m[FM1_NCOL];
+    uint32_t s, k;
+    for (k = 0; k < FM1_NCOL; k++)
+        m[k] = 0;
+    for (s = 0; s < CE_NSEC; s++)
+        cu_led(m, panel.btn[CE_SEC_BTN[s]], 1);
+    cu_led(m, panel.btn[BT_EDIT], 1);
+    for (k = 0; k < FM1_NCOL; k++)
+        nl[k] &= (uint8_t)~m[k];
+    cu_led(nl, panel.btn[BT_EDIT], (int)blink);
+    cu_led(nl, panel.btn[CE_SEC_BTN[cx.grp[ce.part & 1u] % CE_NSEC]], 1);
+    if (cx.shift)
+        cu_led(nl, panel.btn[B_GLO], 1);
+}
+
+/* ------------------------------------------------------------ the screen --- */
+/* the band's values from the view: env a h d s r, filter cut res type drive (Q8 of 255) */
+static void ce_band(const track_t *t, const ce_view_t *vw, uint8_t *o)
+{
+    static const char *const EL[5] = {"ATK", "HOLD", "DEC", "SUS", "REL"};
+    const eng_deep_t *d = cp_deep(t);
+    uint32_t i;
+    int32_t k, pg;
+    for (i = 0; i < 5u; i++)
+        o[i] = 0;
+    if (vw->wide == CR_W_ENV && d && ce_deep(t) && vw->np) {
+        for (i = 0; i < 5u; i++)
+            for (pg = vw->dp0; pg < vw->dp0 + vw->np; pg++)
+                if ((k = cp_dcol(&d->pages[pg], EL[i])) >= 0)
+                    o[i] = ce_pct(&d->pages[pg].col[k], d->get(t, (uint32_t)pg, (uint32_t)k));
+    } else if (vw->wide == CR_W_ENV) {
+        static const uint8_t ID[5] = {P_ATK, 0xFF, P_DEC, P_SUS, P_REL};
+        for (i = 0; i < 5u; i++)
+            if (ID[i] != 0xFFu)
+                o[i] = ce_pct(cp_desc(t, ID[i]), t->p[ID[i]]);
+    } else if (vw->wide == CR_W_FILTER && d) {
+        static const char *const FL[4] = {"CUT", "RES", "TYPE", "DRIVE"};
+        for (i = 0; i < 4u; i++)
+            if ((k = cp_dcol(&d->pages[vw->dp0], FL[i])) >= 0) {
+                int32_t v = d->get(t, vw->dp0, (uint32_t)k);
+                o[i] = i == 2u ? (uint8_t)clamp(v, 0, 3) : ce_pct(&d->pages[vw->dp0].col[k], v);
+            }
+    }
+}
+/* the envelope segment (1 A, 2 H, 3 D, 4 S, 5 R; 0 none) of the cell just turned */
+static uint32_t ce_seg(const track_t *t, ce_ref_t r)
+{
+    static const char *const EL[5] = {"ATK", "HOLD", "DEC", "SUS", "REL"};
+    static const uint8_t ID[5] = {P_ATK, 0xFF, P_DEC, P_SUS, P_REL};
+    const param_desc_t *d;
+    int32_t v;
+    uint32_t i;
+    if (!(d = ce_param(t, r, &v)))
+        return 0;
+    for (i = 0; i < 5u; i++)
+        if (r.k == CE_R_TRK ? r.a == ID[i] : cp_eq(d->label, EL[i]))
+            return i + 1u;
+    return 0;
+}
+
+static void ce_screen(cr_screen_t *s, uint32_t now)
+{
+    track_t *t = ce_trk();
+    uint32_t p = ce.part & 1u, r, c, key, n, g;
+    ce_view_t vw;
+    uint8_t band[5];
+    int32_t pitch;
+    ce_view(t, p, &vw);
+    g = cx.grp[p] % CE_NSEC;
+    s->kind = vw.kind;
+    s->header = 0;
+    s->ring_on = 0;                               /* (the editor has the whole screen) */
+    cu_cpy(s->title, psnd[p].name, sizeof s->title);
+    if (psnd[p].edited)
+        cu_cat(s->title, "*", sizeof s->title);
+    if (p)
+        cu_cat(s->title, " \267 BASS", sizeof s->title);
+    s->title_col = p ? CR_COL_ORANGE : CR_COL_NONE;
+    cu_cpy(s->page, vw.right, sizeof s->page);
+    s->fine = (uint8_t)(cx.shift || cu_shift());
+    s->n_rows = vw.n;
+    s->active = vw.active;
+    s->wide = vw.wide;
+    s->tall = vw.tall;
+    for (c = 0; c < 4u; c++)
+        cu_cpy(s->head[c], vw.head[c], sizeof s->head[c]);
+    for (r = 0; r < vw.n; r++) {
+        if (vw.kind == CR_K_STACK)
+            ce_cat_num(s->rlabel[r], vw.row0 + r + 1u, sizeof s->rlabel[r]);
+        for (c = 0; c < 4u; c++)
+            ce_cell(t, &vw, vw.ref[r][c], &s->cell[r][c]);
+    }
+    if (vw.tall)                                  /* the mixer: "OSC n" over each level's bar */
+        for (c = 0; c < 4u; c++)
+            if (s->cell[0][c].flags & CR_CF_ON) {
+                cu_cpy(s->cell[0][c].label, "OSC ", sizeof s->cell[0][c].label);
+                ce_cat_num(s->cell[0][c].label, c + 1u, sizeof s->cell[0][c].label);
+                s->cell[0][c].glyph = CR_G_BAR;
+                s->cell[0][c].flags |= CR_CF_PCT;
+            }
+    if (cx.hot_r && now - cx.hot_t0 < CE_HOT_MS && cx.hot_r == vw.active + 1u) {
+        s->hot_r = cx.hot_r;
+        s->hot_c = cx.hot_c;
+    }
+    /* motion: a new view (part, group, screen) slides in; the active lane's bars slide from the lane before */
+    key = p | g << 1 | (uint32_t)cx.scr[p][g] << 4 | (uint32_t)vw.kind << 12;
+    n = vw.n ? vw.n : 1u;
+    pitch = vw.kind == CR_K_STACK ? 198 / (int32_t)n : vw.wide ? 60 : 104;
+    if (key != cx.key) {
+        uint32_t was = cx.key >> 1 & 0x7FFu, is = key >> 1 & 0x7FFu;   /* (group, screen): forward slides from the right */
+        int32_t dir = cx.key == 0xFFFFFFFFu || (cx.key & 1u) != p || (was & 7u) < g || ((was & 7u) == g && was <= is) ? 1 : -1;
+        cx.dx_from = (int16_t)(dir * CE_DX);
+        cx.dx_t0 = now;
+        cx.bar_from = 0;
+        cx.key = key;
+        cx.row = vw.active;
+        if (cx.band != vw.wide)
+            cx.band = 0;                          /* (another band: no tween from the old one) */
+    } else if (cx.row != vw.active) {
+        int32_t from = ((int32_t)cx.row - (int32_t)vw.active) * pitch;
+        cx.bar_from = (int16_t)(cr_tween(cx.bar_from, 0, cx.bar_t0, CE_SLIDE_MS, now) + from);
+        cx.bar_t0 = now;
+        cx.row = vw.active;
+    }
+    s->ed_dx = (int16_t)cr_tween(cx.dx_from, 0, cx.dx_t0, CE_SLIDE_MS, now);
+    s->bar_dy = (int16_t)cr_tween(cx.bar_from, 0, cx.bar_t0, CE_SLIDE_MS, now);
+    if (vw.wide) {                                /* the band: tweened to its new values */
+        ce_band(t, &vw, band);
+        if (!cx.band) {
+            for (c = 0; c < 5u; c++)
+                cx.wv_from[c] = cx.wv_to[c] = cx.wv_shown[c] = band[c];
+            cx.band = vw.wide;
+        }
+        for (c = 0; c < 5u; c++)
+            if (band[c] != cx.wv_to[c])
+                break;
+        if (c < 5u) {
+            for (c = 0; c < 5u; c++) {
+                cx.wv_from[c] = cx.wv_shown[c];
+                cx.wv_to[c] = band[c];
+            }
+            cx.wv_t0 = now;
+        }
+        for (c = 0; c < 5u; c++) {
+            int32_t x = vw.wide == CR_W_FILTER && c == 2u ? cx.wv_to[c]
+                      : cr_tween(cx.wv_from[c], cx.wv_to[c], cx.wv_t0, CE_BAND_MS, now);
+            cx.wv_shown[c] = (uint8_t)x;
+        }
+        if (vw.wide == CR_W_ENV) {
+            for (c = 0; c < 5u; c++)
+                s->wv[c] = cx.wv_shown[c];
+            if (s->hot_r)
+                s->wv[5] = (uint8_t)ce_seg(t, vw.ref[(s->hot_r - 1u) % CR_ED_ROWS][s->hot_c & 3u]);
+        } else {
+            for (c = 0; c < 4u; c++)
+                s->wv[c] = cx.wv_shown[c];
+        }
+    } else {
+        cx.band = 0;
+    }
+}

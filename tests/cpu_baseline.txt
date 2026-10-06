@@ -89,6 +89,9 @@ cpu/VA/16_DEEP_SUB 1495
 cpu/VA/17_PUNCH_BASS 1800
 cpu/VA/18_RUBBER_BASS 1469
 cpu/VA/19_SYNC_BASS 1791
+cpu/VA/20_MORPH_PAD 2661
+cpu/VA/21_VINYL_KEYS 1794
+cpu/VA/22_WIDE_STRINGS 2555
 cpu/mix/idle 286
 cpu/mix/idle_drums 478
 cpu/mix/3parts_full_drums 1561

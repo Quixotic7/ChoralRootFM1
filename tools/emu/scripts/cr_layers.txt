@@ -1,5 +1,6 @@
-# ChoralRoot: the other screens: Options (OPT = N), FX held (Z), BASS held (C), EDIT held (X), LOOP held (RETURN),
-# SELECT (tempo meter), KNOB 4 (the FX amount), HOME (the views)
+# ChoralRoot: the other screens: Options (OPT = N), FX held (Z), BASS held (C), EDIT held (B), LOOP held (RETURN):
+# each locks open, the next hold switches to its layer, OCT- closes the last; SELECT (tempo meter), KNOB 4 (the FX
+# amount), HOME (the views)
 wait 300
 key N 80
 wait 300
@@ -19,14 +20,15 @@ key C down
 wait 500
 shot build/emu/test/cr_bass_layer.ppm
 key C up
-key X down
+key B down
 wait 500
 shot build/emu/test/cr_engine_picker.ppm
-key X up
+key B up
 key RETURN down
 wait 500
 shot build/emu/test/cr_loop_layer.ppm
 key RETURN up
+btn OCT-                      # the layer stays open after a hold: OCT- closes it
 wait 100
 knob SELECT +4
 wait 400

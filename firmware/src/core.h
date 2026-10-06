@@ -181,6 +181,9 @@ typedef struct {
     void (*blob_get)(const struct track *t, uint8_t *out);
     void (*blob_set)(struct track *t, const uint8_t *in);          /* 0 or a bad blob = the init patch */
     void (*blob_preset)(struct track *t, uint32_t k);              /* factory preset k's patch (engine_t.presets[k]) */
+    /* optional (0 = none): a mode-dependent descriptor of a column (the label and the value names to show; the
+     * stored value and set() are the same), 0 = pages[page].col[col] (VA: WAVE / SHAPE in MORPH and NOISE mode) */
+    const param_desc_t *(*desc)(const struct track *t, uint32_t page, uint32_t col);
 } eng_deep_t;
 typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c files) */
     const char *name;            /* "ANALOG" (PRESETS, the editor) */
@@ -213,6 +216,11 @@ typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c 
     uint8_t ownenv;
     int (*done)(struct track *t, voice_t *v);
     const eng_deep_t *deep;      /* ChoralRoot: deep editing pages and the patch blob, 0 = the eight P_E only */
+    /* optional: render with a stereo side (VA's SPREAD / USPREAD): out gets the mid as render() would, side the
+     * side, (R - L) / 2, at the same scale; returns 1 if it added to side. voice.c calls it instead of render() and
+     * fx.c mix_part plays the part as L = mid - side, R = mid + side (then LEVEL and the pan law as for a mono
+     * part). Nothing added to side: the part is mono, bit for bit as render() */
+    int (*render2)(struct track *t, voice_t *v, int32_t *out, int32_t *side, uint32_t n, const vmod_t *m);
 } engine_t;
 
 /* ------------------------------------------------- tracks, the song --- */

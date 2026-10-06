@@ -271,11 +271,11 @@ void emu_fw_dump(void)
 void emu_fw_ui_info(char *buf, uint32_t n)
 {
     static const char *const K[] = {"none", "stripes", "chord", "picker", "meter", "keyboard", "arp", "params", "geek",
-                                    "text", "big", "scope"};
+                                    "text", "big", "scope", "edit8", "stack"};
     const cr_screen_t *s = &cu_scr;
     snprintf(buf, n, "%s view %u name '%s|%s|%s' from '%s|%s|%s' item '%s' value '%s' title '%s' size %u squeeze %u "
              "anim %02X %u ms ring %u/%u msg '%s' blits %u",
-             s->kind < CR_K_N ? K[s->kind] : "?", (unsigned)cs.view, s->name.root, s->name.quality, s->name.sup,
+             s->kind < CR_K_N && s->kind < sizeof K / sizeof K[0] ? K[s->kind] : "?", (unsigned)cs.view, s->name.root, s->name.quality, s->name.sup,
              s->from.root, s->from.quality, s->from.sup, s->kind == CR_K_PICKER ? cr_item(s, s->sel) : "",
              s->value, s->title, (unsigned)s->size, (unsigned)s->squeeze, (unsigned)s->anim,
              (unsigned)cr_anim_ms(&cu_anim, cu_now()), (unsigned)s->ring_on, (unsigned)s->ring, s->message,

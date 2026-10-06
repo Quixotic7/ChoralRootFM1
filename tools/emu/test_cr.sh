@@ -65,7 +65,7 @@ silent_end cr_dmaj
 
 echo "KEY: Key Mode"
 run cr_key
-has 'expect led EDIT on .*: ok' "$OUT/cr_key.log" && ok "KEY tapped: its LED lit" || bad "KEY LED"
+has 'expect led SEL on .*: ok' "$OUT/cr_key.log" && ok "KEY (printed SEL) tapped: its LED lit" || bad "KEY LED"
 has 'chord Dm sounding 1' "$OUT/cr_key.log" && has 'key 1 tonic 0' "$OUT/cr_key.log" &&
     ok "Key Mode C major: D4 alone -> Dm" || bad "Key Mode chord"
 y=0; for row in 8 10 12 14 16; do y=$((y + $(yellow_in "$OUT/cr_keymode.ppm" $row 6 60))); done
@@ -118,26 +118,90 @@ differ cr_fx_layer cr_bass_layer "FX / BASS layers differ"
 differ cr_engine_picker cr_loop_layer "EDIT / LOOP layers differ"
 silent_end cr_layers
 
-echo "EDIT: the sound pages"
-run cr_edit --wav "$OUT/cr_edit.wav"
-run cr_edit_ref --wav "$OUT/cr_edit_ref.wav"
-has '^edit: part 0 page ENV' "$OUT/cr_edit.log" && ok "EDIT tap: the chord sound's ENV page: $OUT/cr_edit_env.ppm" || bad "EDIT tap: no ENV page"
-has '^param: part 0 ENV ATK 80 -> 122' "$OUT/cr_edit.log" && ok "KNOB 1 +7 (6 a detent): ATK 80 -> 122 ($(sed -n 's/^param: .*(\(.*\))/\1/p' "$OUT/cr_edit.log"))" \
-    || bad "KNOB 1: ATK not changed"
-differ cr_edit_env cr_edit_atk "the ENV page redrawn with the new attack: $OUT/cr_edit_atk.ppm"
-differ cr_edit_turn cr_edit_atk "the turned glyph eases (mid-tween $OUT/cr_edit_turn.ppm)"
-run cr_edit_steps
-L="$OUT/cr_edit_steps.log"
-has '^param: part 0 ENV DEC 90 -> 96 ' "$L" && ok "a detent: DEC 90 -> 96 (5% of 0..127)" || bad "coarse step: $(grep -m1 '^param:' "$L")"
-has '^param: part 0 ENV DEC 96 -> 97 ' "$L" && ok "OPT held + KNOB 2: DEC 96 -> 97 (fine)" || bad "fine step"
+echo "EDIT: the sound editor (cr_edit.c): groups, screens, lanes, knobs, memory"
+export EMU_UI_LOG=5
+run cr_editor --wav "$OUT/cr_editor.wav"
+unset EMU_UI_LOG
+L="$OUT/cr_editor.log"
+has '^edit: open part 0' "$L" && has '^edit: group OSC screen 1 lane 1 part 0' "$L" &&
+    ok "EDIT tap: the editor on the chord sound, OSC screen 1 (the four oscillators): $OUT/cr_editor_osc.ppm" || bad "EDIT tap: no editor"
+has '^edit: group OSC screen 1 lane 2' "$L" && has '^deep: part 0 page 2 OSC 2 col 2 COARSE 0 -> -4 .* edited' "$L" &&
+    ok "SELECT +1: OSC 2; KNOB 3 -2: its COARSE two detents, the sound edited: $OUT/cr_editor_osc2.ppm" || bad "SELECT / KNOB 3"
+has '^edit: group OSC screen 2 lane 2' "$L" && ok "OSC (FX) tap: screen 2, the \"+\" stack, OSC 2 kept: $OUT/cr_editor_osc_b.ppm" || bad "OSC tap: no screen 2"
+differ cr_editor_osc2 cr_editor_osc_b "screen 2 drawn"
+has '^edit: group OSC screen 3 lane 1' "$L" && has '^deep: part 0 page 2 OSC 2 col [0-9] LEVEL' "$L" &&
+    ok "OSC tap again: the oscillator mixer (one lane, the four LEVELs), KNOB 2: OSC 2's level: $OUT/cr_editor_osc_mix.ppm" || bad "the mixer"
+has '^edit: group FILT screen 1 lane 1' "$L" && has '^deep: part 0 page [0-9]* FILTER col 1 CUT' "$L" && has '^edit: group FILT screen 1 lane 2' "$L" &&
+    ok "FILT (SEL): the filter, KNOB 2 the cutoff, SELECT: row B: $OUT/cr_editor_filt.ppm, $OUT/cr_editor_filt_b.ppm" || bad "FILT"
+differ cr_editor_filt_turn cr_editor_filt "the filter curve tweens to the new cutoff (mid: $OUT/cr_editor_filt_turn.ppm)"
+has '^deep: part 0 page [0-9]* ENV 1 col 1 DEC 90 -> 96' "$L" && has '^edit: group ENV screen 1 lane 2' "$L" &&
+    has '^edit: group ENV screen 2 lane 1' "$L" && has '^edit: group ENV screen 2 lane 2' "$L" &&
+    ok "ENV: ENV 1 (KNOB 2: DEC), SELECT: ENV 1 B -> ENV 2 A -> ENV 2 B (across the screens): $OUT/cr_editor_env1.ppm $OUT/cr_editor_env2.ppm $OUT/cr_editor_env2_b.ppm" || bad "ENV"
+grep '^edit: group ENV' "$L" | tail -1 | grep -q 'screen 1 lane 1' && ok "SELECT -3: back to ENV 1 A (wrapping back across the screens)" || bad "SELECT back: $(grep '^edit: group ENV' "$L" | tail -1)"
+differ cr_editor_env1 cr_editor_env2 "ENV 2 drawn with its own envelope"
+has '^edit: group LFO screen 1 lane 1' "$L" && has '^edit: group LFO screen 2 lane 1' "$L" &&
+    ok "LFO, tap: screen 2 (sync): $OUT/cr_editor_lfo.ppm $OUT/cr_editor_lfo_b.ppm" || bad "LFO"
+has '^edit: group MOD screen 1 lane 3 ' "$L" && has '^deep: part 0 page [0-9]* MOD [0-9] col 2 AMT' "$L" &&
+    ok "MOD (SEQ), SELECT +2: slot 3, its source, destination, amount: $OUT/cr_editor_mod.ppm" || bad "MOD"
+has '^edit: group FX ' "$L" && has '^edit: group MIX screen 1 lane 2 ' "$L" &&
+    ok "FX (PLAY): the sends; MIX (REC), SELECT: row B: $OUT/cr_editor_fx.ppm $OUT/cr_editor_mix_b.ppm" || bad "FX / MIX"
+has '^param: part 0 MIX DTUNE 40 -> 46 ' "$L" && has '^param: part 0 MIX DTUNE 46 -> 47 ' "$L" &&
+    ok "MIX row B KNOB 2: a detent (40 -> 46), SHIFT held: one step (46 -> 47)" || bad "SHIFT fine step"
+has '^edit: shift latched' "$L" && has '^param: part 0 MIX DTUNE 47 -> 48 ' "$L" && has '^edit: shift off' "$L" &&
+    has '^expect led GLO on .*: ok' "$L" && has '^expect led GLO dim .*: ok' "$L" &&
+    ok "GLO tap: SHIFT latched (LED lit, \"fine\"), KNOB 2 one step (47 -> 48), tap: off: $OUT/cr_editor_fine.ppm" || bad "SHIFT latch"
+has '^edit: part 1' "$L" && has '^edit: group OSC screen 1 lane 1 part 1' "$L" && has '^edit: part 0' "$L" &&
+    ok "SHIFT + EDIT: the bass sound and back: $OUT/cr_editor_bass.ppm" || bad "SHIFT + EDIT"
+[ "$(grep -c '^layer: open 2 (locked)' "$L")" = 2 ] && [ "$(grep -c '^layer: close 2' "$L")" = 2 ] &&
+    cmp -s "$OUT/cr_editor_pre_perf.ppm" "$OUT/cr_editor_perf_back.ppm" && cmp -s "$OUT/cr_editor_pre_perf.ppm" "$OUT/cr_editor_perf_home.ppm" &&
+    ok "PERF held from the editor: the perform layer ($OUT/cr_editor_perf.ppm); OCT- and HOME: back to the editor as it was" \
+    || bad "PERF from the editor: $OUT/cr_editor_pre_perf.ppm / cr_editor_perf_back / cr_editor_perf_home"
+differ cr_editor_save cr_editor_back "SAVE: the naming screen over the editor ($OUT/cr_editor_save.ppm), OCT-: cancelled back to it"
+cmp -s "$OUT/cr_editor_back.ppm" "$OUT/cr_editor_again.ppm" && ok "OCT-, HOME, EDIT: back in MIX row B (the group, screen and lane remembered)" \
+    || bad "the editor not as left: $OUT/cr_editor_back.ppm / $OUT/cr_editor_again.ppm"
+[ "$(grep -c '^edit: group MIX screen 1 lane 2 part 0' "$L")" -ge 3 ] && ok "the trace: MIX row B after SHIFT + EDIT and after EDIT again" || bad "group memory"
+has '^edit: close' "$L" && differ cr_editor_home cr_editor_again "HOME left the editor: $OUT/cr_editor_home.ppm"
+has '^save: part 0 slot U01 name LUSH PAD rc 0' "$L" && ok "SAVE SAVE: saved to U01 from the editor: $OUT/cr_editor_saved.ppm" || bad "SAVE SAVE: $(grep '^save:' "$L")"
+has '^expect sound .*: ok' "$L" && ok "the root keys audition in the editor" || bad "no audition"
+has '^expect led FX on .*: ok' "$L" && has '^expect led SEL dim .*: ok' "$L" && has '^expect led REC on .*: ok' "$L" &&
+    ok "LEDs: the group's button lit, the others dim" || bad "editor LEDs"
+u=$(grep -E '^ui: frame .* M instructions .*\): (edit8|stack) ' "$L" | sed -n 's/^ui: frame .*: \([0-9.]*\) M instructions.*/\1/p' | sort -n | tail -1)
+[ "${u:-0}" = 0 ] || [ "${u%.*}" -lt 10 ] && ok "UI frames on the sound pages: max ${u:-<5} M host instructions (< 10)" || bad "a UI frame of $u M instructions"
+silent_end cr_editor
+run cr_editor_steps --wav "$OUT/cr_editor_steps.wav"
+run cr_editor_ref --wav "$OUT/cr_editor_ref.wav"
+L="$OUT/cr_editor_steps.log"
+has '^param: part 0 ENV DEC 90 -> 96 ' "$L" && ok "a platform engine's ENV: a detent: DEC 90 -> 96 (5% of 0..127): $OUT/cr_editor_p_env.ppm" || bad "coarse step: $(grep -m1 '^param:' "$L")"
+has '^param: part 0 ENV DEC 96 -> 97 ' "$L" && ok "SHIFT held + KNOB 2: DEC 96 -> 97 (fine)" || bad "fine step"
 grep '^param: part 0 ENV DEC' "$L" | tail -1 | grep -q -- '-> 127 ' && ok "KNOB 2 +30: DEC clamps at 127" || bad "no clamp at 127"
-grep -q '^split\|split point' "$L" && bad "OPT + KNOB 1 reached the split point" || true
+has '^param: part 0 ENV ATK 80 -> 122 ' "$L" && ok "KNOB 1 +7 (6 a detent): ATK 80 -> 122" || bad "KNOB 1: ATK not changed"
+grep -q '^split\|split point' "$L" && bad "SHIFT + KNOB reached the split point" || true
 has '^param: part 0 LFO WAVE 0 -> 1 ' "$L" && ok "LFO WAVE steps by one" || bad "WAVE: $(grep 'LFO WAVE' "$L")"
-grep '^param: part 0 MIX VCE' "$L" | grep -q -- '\([0-9]*\) -> ' && ok "MIX VOICE: $(grep '^param: part 0 MIX VCE' "$L" | sed 's/^param: //')" || bad "no VOICE step"
-has '^page: part 0 LFO 5/8' "$OUT/cr_edit.log" && ok "SELECT +1: the LFO page 5/8: $OUT/cr_edit_lfo.ppm" || bad "SELECT: no page turn"
-cmp -s "$OUT/cr_edit.wav" "$OUT/cr_edit_ref.wav" && bad "the same audio with another attack" \
-    || ok "the same chord with ATK 122: the audio differs ($(num "non-zero samples" "$OUT/cr_edit.log") / $(num "non-zero samples" "$OUT/cr_edit_ref.log") non-zero samples)"
-silent_end cr_edit
+has '^param: part 0 MOD FLT ' "$L" && ok "the platform MOD (4 slots): KNOB 3 the amount: $OUT/cr_editor_p_mod.ppm" || bad "platform MOD"
+grep '^param: part 0 MIX VCE' "$L" | grep -q -- '\([0-9]*\) -> ' && ok "MIX VOICE: $(grep '^param: part 0 MIX VCE' "$L" | head -1 | sed 's/^param: //')" || bad "no VOICE step"
+cmp -s "$OUT/cr_editor_steps.wav" "$OUT/cr_editor_ref.wav" && bad "the same audio with another envelope" \
+    || ok "the same chord with ATK 122 / DEC 127: the audio differs ($(num "non-zero samples" "$L") / $(num "non-zero samples" "$OUT/cr_editor_ref.log") non-zero samples)"
+silent_end cr_editor_steps
+
+echo "EDIT held: the engine picker as a preview (cancel / keep), its roots, PRESETS in the editor"
+run cr_editor_pick --wav "$OUT/cr_editor_pick.wav"
+L="$OUT/cr_editor_pick.log"
+o1=$(sed -n 's/^picker: open part 0 LUSH PAD crc \([0-9a-f]*\) .*/\1/p' "$L" | sed -n 1p)
+c1=$(sed -n 's/^picker: cancel part 0 -> LUSH PAD crc \([0-9a-f]*\)$/\1/p' "$L" | sed -n 1p)
+has '^preset: part 0 -> VA / ' "$L" && [ -n "$o1" ] && [ "$o1" = "$c1" ] &&
+    ok "KNOB 1 previewed a preset, OCT- cancelled: LUSH PAD restored (crc $c1): $OUT/cr_pick_preview.ppm, $OUT/cr_pick_cancel.ppm" \
+    || bad "picker cancel: open '$o1' cancel '$c1'"
+cmp -s "$OUT/cr_pick_editor.ppm" "$OUT/cr_pick_cancel.ppm" && ok "OCT-: back in the editor as it was" || bad "not back in the editor: $OUT/cr_pick_cancel.ppm"
+c2=$(sed -n 's/^picker: cancel part 0 -> LUSH PAD crc \([0-9a-f]*\)$/\1/p' "$L" | sed -n 2p)
+has '^picker: roots play' "$L" && has '^expect sound .*: ok' "$L" && has '^picker: roots engines' "$L" &&
+    has '^engine: part 0 -> ANALOG' "$L" && [ "$c2" = "$o1" ] &&
+    ok "KNOB 4: the roots play (D4 sounded, no engine), again: engines (D4: ANALOG); OCT-: the VA patch back (crc $c2): $OUT/cr_pick_roots_play.ppm" \
+    || bad "picker roots / engine cancel (crc '$c2')"
+[ "$(grep -c '^engine: part 0' "$L")" = 1 ] && ok "the roots off: no engine switched by D4" || bad "roots off switched an engine"
+grep '^layer: open 5' "$L" | sed -n 3p | grep -q . && has '^picker: keep part 0 ' "$L" &&
+    ok "PRESETS in the editor: the picker previewing the next preset, OCT+ kept it: $OUT/cr_pick_presets.ppm $OUT/cr_pick_kept.ppm" || bad "PRESETS in the editor"
+grep '^picker: keep' "$L" | grep -qv 'LUSH PAD' && ok "kept: $(grep '^picker: keep' "$L" | sed 's/^picker: //')" || bad "kept the old sound"
+silent_end cr_editor_pick
 
 echo "EDIT held: the engine picker"
 run cr_engine --wav "$OUT/cr_engine.wav"
@@ -149,55 +213,10 @@ silent_end cr_engine
 echo "SAVE: naming, the user slot"
 run cr_save
 has '^save: part 0 slot U01 name ADG' "$OUT/cr_save.log" && ok "SAVE, D4 E4 F4, OCT+: U01 \"ADG\": $OUT/cr_save_typed.ppm" || bad "not saved"
-has '^sound: part 0 pos 40 ADG' "$OUT/cr_save.log" && ok "PRESETS reaches U01 after the 40 bank sounds (24 + the VA's 16): $OUT/cr_save_preset.ppm" \
+has '^sound: part 0 pos [0-9]* ADG' "$OUT/cr_save.log" && ok "PRESETS reaches U01 after the bank sounds ($(sed -n 's/^sound: part 0 pos \([0-9]*\) ADG.*/\1/p' "$OUT/cr_save.log" | head -1) of them): $OUT/cr_save_preset.ppm" \
     || bad "U01 not on PRESETS"
-has '^edit: part 1 page' "$OUT/cr_save.log" && has '^param: part 1 ENV ATK' "$OUT/cr_save.log" &&
+grep -q '^edit: .*part 1' "$OUT/cr_save.log" && has '^param: part 1 ' "$OUT/cr_save.log" &&
     ok "BASS held + EDIT: the bass sound's pages, KNOB 1 edits part 1: $OUT/cr_edit_bass.ppm" || bad "BASS + EDIT"
-
-echo "EDIT: an engine's deep pages (OSC, FILTER, ENV, MOD; OPT + SELECT: sections)"
-# the VA's pages when it is in the build (engines.c), else the UI's test engine: the firmware built with
-# -DCR_DEEP_STUB (cr_pages.c: ANALOG gets four deep pages) as build/host/emu_stub
-EMU0=$EMU
-if grep -q '&ENG_VA' firmware/src/engines.c 2>/dev/null; then
-    DEEP=cr_deep_va
-else
-    DEEP=cr_deep
-    EMU=build/host/emu_stub
-    mkdir -p build/host/stub_obj
-    ${CC:-clang} -O2 -w -DCR_DEEP_STUB -Ibuild/gen -Ifirmware/src -c tools/emu/emu_fw.c -o build/host/stub_obj/emu_fw.o &&
-    ${CC:-clang} -o "$EMU" build/host/emu_obj/emu.o build/host/emu_obj/keymap.o build/host/emu_obj/emu_img.o \
-        build/host/emu_obj/emu_midi.o build/host/stub_obj/emu_fw.o \
-        $(/opt/homebrew/bin/sdl2-config --libs 2>/dev/null || echo "-L/opt/homebrew/lib -lSDL2") -lz -lm \
-        -framework CoreMIDI -framework CoreFoundation || bad "the CR_DEEP_STUB build"
-fi
-export EMU_UI_LOG=5
-run $DEEP
-unset EMU_UI_LOG
-EMU=$EMU0
-L="$OUT/$DEEP.log"
-dv() { grep "^deep: part 0 page $1 .* col $2 " "$L" | sed -n "$3p" | sed 's/.* \(-*[0-9]*\) -> \(-*[0-9]*\) .*/\1 \2/'; }
-pg=$(grep -m1 '^page: part 0 .* 4/' "$L" | sed 's/^page: part 0 //; s/ [0-9]*\/[0-9]*$//')
-[ -n "$pg" ] && has "^edit: part 0 page $pg\$" "$L" && ok "EDIT: the first deep page, after EDIT 2: $pg 4/N: $OUT/cr_deep_osc.ppm" \
-    || bad "no deep page 4: $(grep '^page:' "$L" | head -2 | tr '\n' ' ')"
-has '^deep: part 0 page 0 .* col 0 .* edited' "$L" && ok "KNOB 1 on it (the sound marked edited): $(grep -m1 '^deep:' "$L" | sed 's/^deep: //')" \
-    || bad "KNOB 1: no deep edit"
-a=$(dv 0 1 1); b=$(dv 0 1 2)
-[ -n "$a" ] && [ -n "$b" ] && [ $(( ${a#* } - ${a% *} )) -gt 1 ] && [ $(( ${b#* } - ${b% *} )) = 1 ] &&
-    ok "KNOB 2: a detent (${a% *} -> ${a#* }), OPT held: one step (${b% *} -> ${b#* })" || bad "coarse / fine on a deep page: '$a' '$b'"
-has '^section: ' "$L" && ok "OPT + SELECT: $(grep '^section:' "$L" | sed 's/^section: part 0 //; s/ (section [0-9]*)//' | tr '\n' ',' | sed 's/,$//; s/,/ -> /g')" \
-    || bad "OPT + SELECT: no section jump"
-has '^section: part 0 ENV [0-9]*/' "$L" && has '^section: part 0 FX ' "$L" && has '^section: part 0 MIX ' "$L" &&
-    ok "the platform's ENV, FX and MIX are sections" || bad "platform sections"
-s1=$(grep '^section:' "$L" | tail -1); s3=$(grep '^section:' "$L" | tail -3 | sed -n 1p)
-[ -n "$s1" ] && [ "$s1" = "$s3" ] && ok "OPT + SELECT turned back: the previous section (${s1#section: part 0 })" || bad "OPT + SELECT back: $s1"
-has '^deep: part 0 page [0-9]* ENV[^ ]* [0-9]* col 0 ATK' "$L" && ok "the ENV page's ATK: $OUT/cr_deep_env.ppm -> $OUT/cr_deep_env_atk.ppm" \
-    || bad "no ENV ATK edit"
-differ cr_deep_env cr_deep_env_atk "the envelope glyph redrawn with the new attack"
-differ cr_deep_osc cr_deep_osc_wave "the waveform glyph redrawn with the new wave ($OUT/cr_deep_osc_wave.ppm)"
-has '^deep: part 0 page [0-9]* MOD.* col 2 AMT' "$L" && ok "a MOD slot's amount: $OUT/cr_deep_mod.ppm" || bad "no MOD AMT edit"
-u=$(sed -n 's/^ui: frame .*: \([0-9.]*\) M instructions.*: params .*/\1/p' "$L" | sort -n | tail -1)
-[ "${u:-0}" = 0 ] || [ "${u%.*}" -lt 10 ] && ok "UI frames on the sound pages: max ${u:-<5} M host instructions (< 10)" || bad "a UI frame of $u M instructions"
-silent_end $DEEP
 
 mkdir -p "$OUT/cr_again"
 echo "LOOP / REC: the looper"
@@ -261,18 +280,34 @@ has '^midi: FA start' "$OUT/cr_loop_glow.log" && has '^midi: FC stop' "$OUT/cr_l
     || bad "MIDI start / stop sent with MIDI Clock Off"
 silent_end cr_loop_glow
 
-echo "OPT + KNOB 3: perform lock"
-run cr_perf_lock
-has '^lock: perform 1' "$OUT/cr_perf_lock.log" && has '^lock: perform 0' "$OUT/cr_perf_lock.log" &&
-    ok "locked (one toggle per OPT hold), then unlocked: $OUT/cr_perf_lock.ppm" || bad "perform lock"
-differ cr_perf_lock cr_perf_unlock "unlocked: the perform picker gone"
+echo "B3 = LOCK: the chord block latches"
+run cr_lock
+L="$OUT/cr_lock.log"
+[ "$(grep -c '^expect .*: ok' "$L")" = 12 ] && ok "LOCK lit; latched keys lit, toggled ones dim; LOCK off: dark ($(grep -c '^expect .*: ok' "$L") LED checks)" \
+    || bad "cr_lock: $(grep -c '^expect .*: ok' "$L") of 12 LED checks"
+c=$(grep '^chord: [^-]' "$L" | sed 's/^chord: //' | tr '\n' ',' | sed 's/,$//')
+[ "$c" = "Dm,Dm6,Dm6 9,Dm6,D,D (1 note)" ] && ok "MIN latched: Dm; 6: Dm6; 9: Dm6/9; 9 again: Dm6; MAJ: D; LOCK off: one note ($c): $OUT/cr_lock_dm69.ppm" \
+    || bad "LOCK chords: $c"
+has '^lock: on' "$L" && has '^lock: off' "$L" && has '^lock: latched none' "$L" && ok "the trace: lock on / off, the latch cleared" || bad "lock trace"
+silent_end cr_lock
+
+echo "a layer locks open on a hold; OCT- / HOME close it, another hold switches"
+run cr_layer_lock
+L="$OUT/cr_layer_lock.log"
+[ "$(grep -c '^expect .*: ok' "$L")" = 11 ] && ok "FX held, released: open (OCT- lit); OCT- closed it; BASS held: switched; HOME closed; KEY held, OCT-: closed" \
+    || bad "cr_layer_lock: $(grep -c '^expect .*: ok' "$L") of 11 checks"
+[ "$(grep '^layer:' "$L" | tr '\n' ',')" = "layer: open 3 (locked),layer: close 3,layer: open 3 (locked),layer: open 4 (locked),layer: open 1 (locked),layer: close 1," ] &&
+    ok "the trace: fx open, closed; fx, bass (switched); key open, closed" || bad "layer trace: $(grep '^layer:' "$L" | tr '\n' ' ')"
+grep 'octave' "$L" | grep -v 'octave 0' | grep -q . && bad "OCT- in a layer moved the octave" || ok "OCT- in a layer: back, the octave untouched"
+grep -q 'fx_on\|layer 4' "$L" && ok "screens: $OUT/cr_lock_fx.ppm, cr_lock_bass.ppm, cr_lock_key.ppm" || bad "no bass layer in the dump"
+differ cr_lock_fx cr_lock_bass "the bass layer replaced the fx layer"
 
 echo "user sound slots: rename, delete, the naming keys"
 run cr_save_del
 has '^save: part 0 slot U01 rename J' "$OUT/cr_save_del.log" && ok "saving over its own unedited slot renames it: $OUT/cr_save_renamed.ppm" || bad "rename"
 [ "$(grep -c '^save: delete slot 1?' "$OUT/cr_save_del.log")" = 2 ] && has '^save: delete slot U01 rc 0' "$OUT/cr_save_del.log" &&
     ok "SAVE held 1 s: delete? (OCT- kept it), OCT+ deleted U01: $OUT/cr_save_delete.ppm" || bad "delete"
-[ "$(grep -c '^expect led .*: ok' "$OUT/cr_save_del.log")" = 5 ] && ok "naming: the typing keys lit, F#4 dark, OCT- lit" || bad "naming LEDs"
+[ "$(grep -c '^expect led .*: ok' "$OUT/cr_save_del.log")" = 6 ] && ok "naming: the typing keys lit (F#4: delete), G#4 dark, OCT- lit" || bad "naming LEDs"
 
 echo "the power-on splash: the idle stripes slide in, the name lands, the version under them"
 run cr_splash

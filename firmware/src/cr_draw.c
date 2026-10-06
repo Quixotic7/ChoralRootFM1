@@ -127,8 +127,6 @@ static void cr_text_fit(int32_t x, int32_t y, const char *s, uint32_t px, int bo
 #define CR_INTRO_MS 220u                 /* power-on: each band slides in, 90 ms after the one above */
 #define CR_INTRO_GAP 90u
 #define CR_INTRO_NAME 300u               /* .. the name lands from 300 ms, over 150 ms */
-#define CR_DEAL_MS 110u                  /* a params page turned: each column rises into place .. */
-#define CR_DEAL_GAP 30u                  /* .. 30 ms after its neighbour, from the side turned to */
 #define CR_SWEEP_MS 240u                 /* the idle stripes swept off, each band 40 ms after the one above */
 typedef struct {
     int32_t sq;                          /* chord: the squeeze of the name drawn (Q12) */
@@ -140,7 +138,6 @@ typedef struct {
     uint8_t from;                        /* chord: 1 = `from` is drawn (the first half of the squeeze) */
     uint8_t filled;                      /* meter: stripes filled */
     uint8_t busy;                        /* more frames to come */
-    uint8_t hide;                        /* params (CR_A_SLIDE): bit k: column k not dealt yet; sweep[k]: still to rise */
 } cr_frame_t;
 
 /* 1 - (1 - x)^2 over x = t / d, Q12 */
@@ -180,14 +177,6 @@ static void cr_frame(const cr_screen_t *s, uint32_t t, cr_frame_t *fr)
     if (s->kind == CR_K_PICKER && (s->anim & CR_A_SLIDE) && s->slide && t < CR_SLIDE_MS) {
         fr->busy = 1;
         fr->slide = 4096 - cr_ease_out(t, CR_SLIDE_MS);
-    }
-    if (s->kind == CR_K_PARAMS && (s->anim & CR_A_SLIDE) && s->slide) {
-        for (i = 0; i < 4u; i++) {                                 /* dealt from the side the page came from */
-            uint32_t d = (s->slide > 0 ? i : 3u - i) * CR_DEAL_GAP;
-            if (t < d) fr->hide |= (uint8_t)(1u << i);
-            else fr->sweep[i] = ((4096 - cr_ease_out(t - d, CR_DEAL_MS)) * 14) >> 4;
-            if (t < d + CR_DEAL_MS) fr->busy = 1;
-        }
     }
     if (s->kind == CR_K_METER && (s->anim & CR_A_FILL)) {
         uint32_t a = cr_filled(s, s->pct_from), b = fr->filled, n = a < b ? b - a : a - b, done = t / CR_FILL_MS;
@@ -499,180 +488,405 @@ static void cr_p_arp(const cr_screen_t *s, int32_t ph)
     if (s->line[0]) cr_text(P8(120), P8(CR_PY0 + ph - 8), s->line, 13, 0, CR_C, 4096, cr_rgb(s->line_col, T_MID), T_BG, 0);
 }
 
-/* a params column's glyph in the box x .. x + 56, gy .. gy + 64 */
-static void cr_glyph_param(const cr_param_t *c, int32_t x, int32_t gy, uint16_t col)
+/* ------------------------------------------------------ the sound editor --- */
+/* CR_K_EDIT8 and CR_K_STACK (../ChoralRootFM1Designer/FORMAT.md "Sound editor panels"): the whole screen, no
+ * header. The title line (0..24), then edit8: an optional wide band (24..120: the AHDSR or the filter's response)
+ * over two rows of four cells (124..180, 184..240; without the band 30..130, 134..234), or stack: column headings
+ * at y 36 over N rows sharing 41..239. The active row is in the knob colours (blue orange white green) with a 2 px
+ * bar under each cell, the others grey; the hot cell's value sits on a block of its colour. Cheap by design: text,
+ * rectangles, small glyphs, at most two polylines of <= 12 segments in the band. Motion is in the fields
+ * (cr_edit.c): bar_dy slides the active bars, ed_dx the cells, the band's values tween. */
+static const uint8_t CR_KC[4] = {CR_COL_BLUE, CR_COL_ORANGE, CR_COL_WHITE, CR_COL_GREEN};
+
+/* a cell's glyph in the box x .. x + w, y .. y + h (Q4): the designer's drawGlyph scaled by h / 64 */
+static void cr_cglyph(const cr_cell_t *c, int32_t x, int32_t y, int32_t w, int32_t h, uint16_t col)
 {
-    const int32_t cw = 56, gh = 64, cx = x + cw / 2, w = 40;      /* line width 2.5 px (Q4) */
-    int32_t pct = c->pct > 256u ? 256 : (int32_t)c->pct, k;
-    int16_t p[CR_POLY_MAX * 2];
-    uint32_t np = 0, cyc = c->cycles ? c->cycles : 2u;
+    int32_t sc = h * 4, cwg = w * 4096 / sc, k, pct = c->pct, cx = x + w / 2;   /* sc: glyph units -> Q4 (Q12) */
+    int16_t p[24 * 2];
+    uint32_t np = 0;
+#define CR_GU(v) ((int32_t)(v) * sc >> 12)          /* glyph units (Q4) -> px (Q4) */
 #define CR_PT(px16, py16) (p[2 * np] = (int16_t)(px16), p[2 * np + 1] = (int16_t)(py16), np++)
+    if (pct >= 255) pct = 256;
     switch (c->glyph) {
-    case CR_G_ENV: {
-        int32_t ww = (cw - 10) * 16, bx = (x + 5) * 16, by = (gy + gh - 6) * 16;
-        int32_t ax = bx + ww * 3 * c->env[0] / 2560, dx = ax + ww * 3 * c->env[1] / 2560, sx = bx + ww * 72 / 100;
-        int32_t rx = sx + ww * 28 * c->env[3] / 25600, sy = by - (gh - 14) * 16 * c->env[2] / 256;
-        CR_PT(bx, by); CR_PT(ax, (gy + 8) * 16); CR_PT(dx, sy); CR_PT(sx, sy); CR_PT(rx, by);
-        cr_poly(p, np, w, 0, 0, col);
-        break;
-    }
-    case CR_G_WAVE: {
-        int32_t amp = (gh / 2 - 10) * 16 * (77 + 179 * pct / 256) / 256;
-        for (k = 0; k <= 44; k++)
-            CR_PT((x + 6) * 16 + k * (cw - 12) * 16 / 44,
-                  (gy + gh / 2) * 16 - ((cr_sin((uint32_t)(k * 65536 / 44) * cyc) * amp) >> 14));
-        cr_poly(p, np, w, 0, 0, col);
-        break;
-    }
-    case CR_G_SAW: {
-        int32_t sw = (cw - 12) * 16 / (int32_t)cyc;
-        CR_PT((x + 6) * 16, (gy + gh - 10) * 16);
-        for (k = 0; k < (int32_t)cyc; k++) {
-            CR_PT((x + 6) * 16 + (k + 1) * sw, (gy + 10) * 16);
-            CR_PT((x + 6) * 16 + (k + 1) * sw, (gy + gh - 10) * 16);
-        }
-        cr_poly(p, np, w, 0, 0, col);
-        break;
-    }
-    case CR_G_SQUARE: {
-        int32_t sw = (cw - 12) * 16 / (int32_t)cyc;
-        for (k = 0; k < (int32_t)cyc; k++) {
-            int32_t xx = (x + 6) * 16 + k * sw;
-            CR_PT(xx, (gy + gh - 10) * 16); CR_PT(xx, (gy + 10) * 16); CR_PT(xx + sw * pct / 256, (gy + 10) * 16);
-            CR_PT(xx + sw * pct / 256, (gy + gh - 10) * 16); CR_PT(xx + sw, (gy + gh - 10) * 16);
-        }
-        cr_poly(p, np, w, 0, 0, col);
-        break;
-    }
-    case CR_G_FILTER: {
-        int32_t fx = (x + 6) * 16 + (cw - 12) * 16 * pct / 256, y18 = (gy + 18) * 16;
-        CR_PT((x + 6) * 16, y18); CR_PT(fx - 8 * 16, y18);
-        cr_poly(p, np, w, 0, 0, col);
-        cr_quad(fx - 8 * 16, y18, fx, y18, fx + 32, (gy + 10) * 16, w, 0, 0, col);
-        cr_quad(fx + 32, (gy + 10) * 16, fx + 96, (gy + gh - 8) * 16, fx + 256, (gy + gh - 8) * 16, w, 0, 0, col);
-        np = 0;
-        CR_PT((x + 6) * 16, y18); CR_PT((x + cw - 6) * 16, y18);
-        cr_poly(p, np, 16, 32, 80, T_MID);
-        break;
-    }
-    case CR_G_TRI: {
-        int32_t sw = (cw - 12) * 16 / (int32_t)cyc;
-        CR_PT((x + 6) * 16, (gy + gh / 2) * 16);
-        for (k = 0; k < (int32_t)cyc; k++) {
-            CR_PT((x + 6) * 16 + k * sw + sw / 4, (gy + 10) * 16);
-            CR_PT((x + 6) * 16 + k * sw + sw * 3 / 4, (gy + gh - 10) * 16);
-        }
-        CR_PT((x + cw - 6) * 16, (gy + gh / 2) * 16);
-        cr_poly(p, np, w, 0, 0, col);
-        break;
-    }
-    case CR_G_NOISE: {                   /* a fixed jagged line (a frame costs what a wave does) */
-        static const int8_t NZ[15] = {0, 70, -40, 95, -85, 30, -100, 60, 10, -70, 100, -25, 80, -55, 0};
-        for (k = 0; k < 15; k++)
-            CR_PT((x + 6) * 16 + k * (cw - 12) * 16 / 14, (gy + gh / 2) * 16 - NZ[k] * (gh / 2 - 10) * 16 / 100);
-        cr_poly(p, np, 32, 0, 0, col);
-        break;
-    }
-    case CR_G_FTYPE: {                   /* LP, BP, HP, NOTCH: the response over the pass level (dashed) */
-        static const int8_t FT[4][7][2] = {
-            {{6, 18}, {30, 18}, {35, 13}, {41, 56}, {50, 56}, {-1, 0}},
-            {{6, 56}, {17, 46}, {25, 13}, {31, 13}, {39, 46}, {50, 56}, {-1, 0}},
-            {{6, 56}, {15, 56}, {21, 13}, {26, 18}, {50, 18}, {-1, 0}},
-            {{6, 18}, {21, 18}, {26, 56}, {30, 56}, {35, 18}, {50, 18}, {-1, 0}}};
-        const int8_t(*f)[2] = FT[c->n & 3u];
-        for (k = 0; k < 7 && f[k][0] >= 0; k++)
-            CR_PT((x + f[k][0]) * 16, (gy + f[k][1]) * 16);
-        cr_poly(p, np, w, 0, 0, col);
-        np = 0;
-        CR_PT((x + 6) * 16, (gy + 18) * 16); CR_PT((x + cw - 6) * 16, (gy + 18) * 16);
-        cr_poly(p, np, 16, 32, 80, T_MID);
-        break;
-    }
-    case CR_G_MOD: {                     /* SRC over DST, an arrow between, the amount a bar out of the middle */
-        int32_t a = (pct - 128) * 22 / 128;
-        cr_text_fit(P8(cx), P8(gy + 12), c->src, 11, 1, CR_C, col, T_BG, P8(54));
-        CR_PT(cx * 16, (gy + 17) * 16); CR_PT(cx * 16, (gy + 27) * 16);
-        cr_poly(p, np, 32, 0, 0, T_MID);
-        np = 0;
-        CR_PT((cx - 4) * 16, (gy + 23) * 16); CR_PT(cx * 16, (gy + 28) * 16); CR_PT((cx + 4) * 16, (gy + 23) * 16);
-        cr_poly(p, np, 32, 0, 0, T_MID);
-        cr_text_fit(P8(cx), P8(gy + 42), c->dst, 11, 1, CR_C, CR_WHITE, T_BG, P8(54));
-        cr_fill(x + 6, gy + 54, cw - 12, 2, T_LINE);
-        cr_fill(cx - 1, gy + 50, 2, 10, T_MID);
-        if (a > 0) cr_fill(cx + 1, gy + 52, a, 6, col);
-        else if (a < 0) cr_fill(cx - 1 + a, gy + 52, -a, 6, col);
-        break;
-    }
     case CR_G_BAR: {
-        int32_t bh = (gh - 8) * pct / 256;
+        int32_t bh = 56 * 16 * pct / 256;
+        if (c->flags & CR_CF_BIP) {                 /* centre-zero: a well with the fill out of its middle */
+            int32_t bw = w * 4 / 10 < 14 * 16 ? w * 4 / 10 : 14 * 16, bx = cx - bw / 2, m = y + h / 2;
+            int32_t v = (pct - 128) * h / 256;
+            cr_frect(bx, y, bw, h, T_LINE);
+            if (v > 0) cr_frect(bx, m - v, bw, v, col);
+            else if (v < 0) cr_frect(bx, m, bw, -v, col);
+            cr_frect(bx - 48, m - 8, bw + 96, 16, col);
+            break;
+        }
         for (k = 0; k < 7; k++)
-            cr_fill(cx - 10, gy + 4 + k * (gh - 8) / 6, 20, 1, T_LINE);
-        if (bh > 0) cv_rrect(cx - 9, gy + gh - 4 - bh, 18, bh, 3, col, T_BG);
-        break;
-    }
-    case CR_G_STEPS: {
-        int32_t n = c->n ? c->n : 8, sw = (cw - 10) * 16 / n;
-        for (k = 0; k < n; k++)
-            cr_frect((x + 5) * 16 + k * sw + 16, (gy + gh - 6) * 16 - (gh - 14) * 16 * ((k * 7) % 11) / 11, sw - 32, 48,
-                     k * 256 <= pct * n ? col : T_LINE);
+            cr_frect(cx - CR_GU(160), y + CR_GU(64 + k * 56 * 16 / 6), CR_GU(320), 13, T_LINE);
+        if (bh > 0) cr_frect(cx - CR_GU(144), y + CR_GU(60 * 16 - bh), CR_GU(288), CR_GU(bh), col);
         break;
     }
     case CR_G_DOTS: {
-        int32_t n = 1 + (pct * 11 + 128) / 256;
+        int32_t n = 1 + (pct * 11 + 128) / 256, cy = y + h / 2;
         for (k = 0; k < 12; k++) {
             uint32_t a = 49152u + (uint32_t)k * 65536u / 12u;
-            cr_disc(cx * 16 + ((20 * 16 * cr_cos(a)) >> 14), (gy + gh / 2) * 16 + ((20 * 16 * cr_sin(a)) >> 14),
-                    k < n ? 56 : 32, k < n ? col : T_LINE);
+            cr_disc(cx + CR_GU((320 * cr_cos(a)) >> 14), cy + CR_GU((320 * cr_sin(a)) >> 14), CR_GU(k < n ? 56 : 32),
+                    k < n ? col : T_LINE);
         }
         break;
     }
-    default: {                           /* knob: a 270-degree arc with its pointer */
-        uint32_t a0 = 24576u, sweep = 49152u, a = a0 + sweep * (uint32_t)pct / 256u;
-        int32_t kcy = (gy + gh / 2) * 16;
-        cr_arc(cx * 16, kcy, 20 * 16, 64, a0, sweep, 1, 0, 0, T_LINE);
-        if (pct) cr_arc(cx * 16, kcy, 20 * 16, 64, a0, sweep * (uint32_t)pct / 256u, 1, 0, 0, col);
-        CR_PT(cx * 16 + ((6 * 16 * cr_cos(a)) >> 14), kcy + ((6 * 16 * cr_sin(a)) >> 14));
-        CR_PT(cx * 16 + ((14 * 16 * cr_cos(a)) >> 14), kcy + ((14 * 16 * cr_sin(a)) >> 14));
-        cr_poly(p, np, 48, 0, 0, col);
+    case CR_G_WAVE: {                                /* two cycles of a sine, its amplitude by pct */
+        int32_t amp = CR_GU(22 * 16) * (77 + 179 * pct / 256) / 256, x0 = x + CR_GU(96), ww = w - 2 * CR_GU(96);
+        for (k = 0; k <= 20; k++)
+            CR_PT(x0 + k * ww / 20, y + h / 2 - ((cr_sin((uint32_t)(k * 65536 / 10)) * amp) >> 14));
+        cr_poly(p, np, 32, 0, 0, col);
         break;
     }
+    case CR_G_SAW: case CR_G_SQUARE: {               /* two cycles */
+        int32_t x0 = x + CR_GU(96), sw = (w - 2 * CR_GU(96)) / 2, top = y + CR_GU(160), bot = y + h - CR_GU(160);
+        if (c->glyph == CR_G_SAW) {
+            CR_PT(x0, bot);
+            for (k = 0; k < 2; k++) {
+                CR_PT(x0 + (k + 1) * sw, top);
+                CR_PT(x0 + (k + 1) * sw, bot);
+            }
+        } else {
+            for (k = 0; k < 2; k++) {
+                int32_t xx = x0 + k * sw, d = sw * pct / 256;
+                CR_PT(xx, bot); CR_PT(xx, top); CR_PT(xx + d, top); CR_PT(xx + d, bot); CR_PT(xx + sw, bot);
+            }
+        }
+        cr_poly(p, np, 32, 0, 0, col);
+        break;
+    }
+    case CR_G_STEPS: {                               /* sample and hold: eight short dashes */
+        int32_t sw = (w - 2 * CR_GU(80)) / 8;
+        for (k = 0; k < 8; k++)
+            cr_frect(x + CR_GU(80) + k * sw + CR_GU(16), y + h - CR_GU(96) - CR_GU(50 * 16 * ((k * 7) % 11) / 11),
+                     sw - CR_GU(32), CR_GU(48), k * 256 <= pct * 8 ? col : T_LINE);
+        break;
+    }
+    case CR_G_KNOB: {                                /* a 270-degree arc with its pointer */
+        uint32_t a0 = 24576u, sweep = 49152u, a = a0 + sweep * (uint32_t)pct / 256u;
+        int32_t r = CR_GU(320), cy = y + h / 2;
+        cr_arc(cx, cy, r, 51, a0, sweep, 1, 0, 0, T_LINE);
+        if (pct) cr_arc(cx, cy, r, 51, a0, sweep * (uint32_t)pct / 256u, 1, 0, 0, col);
+        CR_PT(cx + ((CR_GU(96) * cr_cos(a)) >> 14), cy + ((CR_GU(96) * cr_sin(a)) >> 14));
+        CR_PT(cx + ((CR_GU(224) * cr_cos(a)) >> 14), cy + ((CR_GU(224) * cr_sin(a)) >> 14));
+        cr_poly(p, np, 38, 0, 0, col);
+        break;
+    }
+    default: break;
+    }
+    (void)cwg;
+#undef CR_PT
+#undef CR_GU
+}
+
+/* a text cell's pct as a small horizontal bar (Q4): from the left, or out of the middle when bipolar */
+static void cr_hbar(const cr_cell_t *c, int32_t x, int32_t w, int32_t by, int32_t bh, uint16_t col)
+{
+    int32_t pct = c->pct >= 255 ? 256 : c->pct;
+    if (!(c->flags & CR_CF_PCT)) return;
+    cr_frect(x, by, w, bh, T_LINE);
+    if (c->flags & CR_CF_BIP) {
+        int32_t m = x + w / 2, v = (pct - 128) * w / 256;
+        if (v > 0) cr_frect(m, by, v, bh, col);
+        else if (v < 0) cr_frect(m + v, by, -v, bh, col);
+        cr_frect(m - 8, by - 32, 16, bh + 64, col);
+    } else if (pct) {
+        cr_frect(x, by, w * pct / 256, bh, col);
+    }
+}
+
+/* the value centred at cx (Q8) on baseline vy (Q8) in a cell w px (Q8) wide; hot: on a block of its colour */
+static void cr_cvalue(const cr_cell_t *c, int32_t cx, int32_t vy, int32_t w, uint32_t vpx, uint16_t col, int hot,
+                      uint32_t flags)
+{
+    char b[16], v[sizeof c->value];
+    int cut = cr_fit(b, sizeof b, c->value, vpx, 1, w - P8(6));
+    uint32_t i, j;
+    if (cut) {                                       /* too wide: "790 ms" -> "790ms" first */
+        for (i = j = 0; c->value[i]; i++)
+            if (c->value[i] != ' ') v[j++] = c->value[i];
+        v[j] = 0;
+        cut = cr_fit(b, sizeof b, v, vpx, 1, w - P8(6));
+    }
+    if (hot) {
+        int32_t x0 = (cx - w / 2 + P8(3) + 128) >> 8, x1 = (cx + w / 2 - P8(3) + 128) >> 8, y0 = ((vy + 128) >> 8) - (int32_t)vpx - 1;
+        cv_rrect(x0, y0, x1 - x0, (int32_t)vpx + 5, 2, col, T_BG);
+    }
+    cr_text(cx, vy, b, vpx, 1, CR_C, 4096, hot ? T_BG : col, hot ? col : T_BG, (cut ? 9u : 0u) | flags);
+}
+
+static void cr_ed_title(const cr_screen_t *s)
+{
+    int32_t rw = s->page[0] ? cr_tw(s->page, 11, 1) : 0;
+    if (s->page[0]) cr_text(P8(232), P8(17), s->page, 11, 1, CR_R, 4096, T_MID, T_BG, 0);
+    if (s->fine) {                                   /* SHIFT on: "fine", small, left of the right text */
+        int32_t fx = P8(232) - rw - (rw ? P8(6) : 0);
+        cr_text(fx, P8(16), "fine", 9, 1, CR_R, 4096, T_TEXT, T_BG, 0);
+        rw += cr_tw("fine", 9, 1) + P8(6);
+    }
+    if (s->title[0])
+        cr_text_fit(P8(8), P8(17), s->title, 13, 1, CR_L, cr_rgb(s->title_col, T_TEXT), T_BG, P8(224) - rw - (rw ? P8(8) : 0));
+}
+
+/* log2(v), Q12 (the fraction linear: within 0.09) */
+static int32_t cr_log2(uint32_t v)
+{
+    int32_t e = 31;
+    if (!v) return 0;
+    while (!(v >> e)) e--;
+    return e * 4096 + (int32_t)(((v << (31 - e)) >> 19) & 4095u);
+}
+/* the 2nd-order response at w = 2^(q / 4) (q quarter octaves from the cutoff), Q = 0.6 + 7 res: its level in
+ * dB x 16. 32-bit only: the levels as log2 differences */
+static int32_t cr_fdb(uint32_t type, int32_t q, int32_t res)
+{
+    int32_t w2, a, qq = 2458 + res * 7 * 4096 / 255, qq2, inv, term, l;   /* qq: Q, Q12 */
+    uint32_t den, num;
+    if (type == 2u) {                                                /* HP: the LP mirrored */
+        q = -q;
+        type = 0u;
+    }
+    w2 = q >= 0 ? 256 << (q / 2) : 256 >> (-q / 2);                  /* w^2 = 2^(q / 2), Q8 */
+    if (q & 1) w2 = q > 0 ? w2 * 362 / 256 : w2 * 181 / 256;
+    a = 256 - w2;
+    qq2 = (qq >> 6) * (qq >> 6);                                     /* Q^2, Q12 */
+    inv = (int32_t)((1u << 24) / (uint32_t)(qq2 ? qq2 : 1));          /* 1 / Q^2, Q12 */
+    term = (w2 * inv) >> 4;                                          /* w^2 / Q^2, Q16 */
+    den = (uint32_t)(a * a) + (uint32_t)term;
+    num = type == 3u ? (uint32_t)(a * a) : type == 1u ? (uint32_t)term : 65536u;
+    l = cr_log2(num ? num : 1u) - cr_log2(den ? den : 1u);
+    if (type == 1u) l += cr_log2((uint32_t)qq) - cr_log2(2458u);   /* BP: x Q / 0.6 (0 dB at the peak) */
+    return l * 3011 / 256000;                                        /* 10 log10 = 3.0103 log2: dB x 16 */
+}
+
+/* the wide band: the AHDSR with its lit segment, or the filter's response over a dashed 0 dB line */
+static void cr_wide(const cr_screen_t *s, uint16_t segcol)
+{
+    const int32_t L = 8 * 16, R = 232 * 16, W = R - L, y0 = 24 * 16;
+    int16_t p[16 * 2];          /* (filter: <= 7 segments + 4 crossings + 1 = 13 points) */
+    uint32_t np = 0, i;
+#define CR_PT(px16, py16) (p[2 * np] = (int16_t)(px16), p[2 * np + 1] = (int16_t)(py16), np++)
+    if (s->wide == CR_W_ENV) {
+        static const char *const LET[5] = {"A", "H", "D", "S", "R"};
+        int32_t u[5], xs[6], sum = 0, yT = y0 + 8 * 16, yB = y0 + 84 * 16, yS = yB - (yB - yT) * s->wv[3] / 255;
+        int32_t seg = (int32_t)s->wv[5] - 1;
+        int32_t py[6];
+        uint32_t vi[6];
+        u[0] = 15 + s->wv[0]; u[1] = s->wv[1]; u[2] = 15 + s->wv[2]; u[3] = 77; u[4] = 15 + s->wv[4];
+        for (i = 0; i < 5u; i++) sum += u[i];
+        xs[0] = L;
+        for (i = 0; i < 5u; i++) xs[i + 1] = xs[i] + u[i] * W / sum;
+        py[0] = yB; py[1] = yT; py[2] = yT; py[3] = yS; py[4] = yS; py[5] = yB;
+        cr_frect(L, yB + 16, W, 16, T_LINE);
+        for (i = 0; i < 6u; i++) {               /* steep runs in pieces <= 26 px tall: small boxes for cr_poly */
+            if (i) {
+                int32_t dy = py[i] - py[i - 1], m = (dy < 0 ? -dy : dy) / (26 * 16) + 1, k2;
+                for (k2 = 1; k2 < m; k2++)
+                    CR_PT(xs[i - 1] + (xs[i] - xs[i - 1]) * k2 / m, py[i - 1] + dy * k2 / m);
+            }
+            vi[i] = np;
+            CR_PT(xs[i], py[i]);
+        }
+        cr_poly(p, np, 48, 0, 0, T_TEXT);
+        if (seg >= 0 && seg <= 4) {
+            cr_poly(p + 2 * vi[seg], vi[seg + 1] - vi[seg] + 1u, 64, 0, 0, segcol);
+            cr_disc(xs[seg], py[seg], 56, segcol);
+            cr_disc(xs[seg + 1], py[seg + 1], 56, segcol);
+        }
+        for (i = 0; i < 5u; i++)
+            if (xs[i + 1] - xs[i] >= 16 || (int32_t)i == seg)
+                cr_text((xs[i] + xs[i + 1]) * 8, P8(24 + 95), LET[i], 9, 1, CR_C, 4096, (int32_t)i == seg ? segcol : T_DIM,
+                        T_BG, 0);
+    } else if (s->wide == CR_W_FILTER) {
+        static const char *const TY[4] = {"LP", "BP", "HP", "NOTCH"};
+        /* the response at quarter-octave offsets from the cutoff, the edges extrapolated; 1.4 px a dB round the
+         * 0 dB line, clamped to the band with the crossings: <= 13 points */
+        static const int8_t Q[7] = {-12, -4, -1, 0, 1, 4, 12};
+        int32_t cut = s->wv[0], res = s->wv[1], type = s->wv[2] & 3, dr = s->wv[3], y0db = y0 + 38 * 16;
+        int32_t ymin = y0 + 4 * 16, ymax = y0 + 90 * 16, cx = L + W * cut / 255, xs[9], ys[9], n = 0, k, j;
+        for (k = 0; k < 7; k++) {
+            xs[n + 1] = cx + Q[k] * W / 36;                          /* (9 octaves across W) */
+            ys[n + 1] = y0db - (cr_fdb((uint32_t)type, Q[k], res) + dr * 96 / 255) * 14 / 10;
+            n++;
+        }
+        xs[0] = L < xs[1] ? L : xs[1] - 16;                          /* the edges, on the outer lines */
+        ys[0] = ys[1] + (ys[2] - ys[1]) * (xs[0] - xs[1]) / (xs[2] - xs[1]);
+        xs[8] = R > xs[7] ? R : xs[7] + 16;
+        ys[8] = ys[7] + (ys[7] - ys[6]) * (xs[8] - xs[7]) / (xs[7] - xs[6]);
+        for (k = 0; k < 8; k++) {
+            int32_t x0 = xs[k], x1 = xs[k + 1], ya, yb, xa, xb, t[2], nt = 0, lim[2];
+            if (x1 <= L || x0 >= R || x1 <= x0) continue;
+            xa = x0 < L ? L : x0;
+            xb = x1 > R ? R : x1;
+            ya = ys[k] + (ys[k + 1] - ys[k]) * (xa - x0) / (x1 - x0);
+            yb = ys[k] + (ys[k + 1] - ys[k]) * (xb - x0) / (x1 - x0);
+            if (!np) CR_PT(xa, ya < ymin ? ymin : ya > ymax ? ymax : ya);
+            for (j = 0; j < 2; j++) {                                /* the band's limits crossed on the way */
+                int32_t y = j ? ymax : ymin;
+                if ((ya - y) * (yb - y) < 0) {
+                    t[nt] = xa + (xb - xa) * (y - ya) / (yb - ya);
+                    lim[nt++] = y;
+                }
+            }
+            if (nt == 2 && t[0] > t[1]) {
+                int32_t u = t[0]; t[0] = t[1]; t[1] = u;
+                u = lim[0]; lim[0] = lim[1]; lim[1] = u;
+            }
+            for (j = 0; j < nt; j++) CR_PT(t[j], lim[j]);
+            yb = yb < ymin ? ymin : yb > ymax ? ymax : yb;
+            if (np >= 2 && p[2 * np - 1] == yb && p[2 * np - 3] == yb)
+                p[2 * np - 2] = (int16_t)xb;                         /* (a run along a limit: one segment) */
+            else
+                CR_PT(xb, yb);
+        }
+        {
+            int16_t d[4] = {(int16_t)L, (int16_t)y0db, (int16_t)R, (int16_t)y0db};
+            cr_poly(d, 2, 16, 48, 112, T_MID);
+        }
+        cr_poly(p, np, 48, 0, 0, CR_NAMED[CR_COL_ORANGE]);
+        cr_text(P8(8), P8(24 + 12), TY[type], 10, 1, CR_L, 4096, T_MID, T_BG, 0);
+        if (dr) {
+            char b[12] = "DRIVE ";
+            int32_t v = (dr * 100 + 127) / 255, i2 = 6;
+            if (v >= 100) b[i2++] = '1';
+            if (v >= 10) b[i2++] = (char)('0' + v / 10 % 10);
+            b[i2++] = (char)('0' + v % 10);
+            b[i2] = 0;
+            cr_text(P8(232), P8(24 + 12), b, 10, 1, CR_R, 4096, T_MID, T_BG, 0);
+        }
     }
 #undef CR_PT
 }
 
-static void cr_p_params(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
+static uint16_t cr_ccol(uint32_t ci, int on) { return on ? CR_NAMED[CR_KC[ci & 3u]] : T_DIM; }
+
+/* edit8 `tall`: one row of four level bars over the panel (the oscillator mixer): the label, a tall well filled from
+ * the bottom, the value; the knob bars under them */
+static void cr_p_tall(const cr_screen_t *s)
 {
-    static const uint8_t KC[4] = {CR_COL_BLUE, CR_COL_ORANGE, CR_COL_WHITE, CR_COL_RED};
-    int32_t y = CR_PY0 + 4, gy, i;
-    if (s->title[0]) {
-        cr_text(P8(10), P8(y + 14), s->title, 15, 1, CR_L, 4096, cr_rgb(s->col, CR_WHITE), T_BG, 0);
-        if (s->page[0]) cr_text(P8(230), P8(y + 14), s->page, 12, 0, CR_R, 4096, T_MID, T_BG, 0);
-        if (s->n_sect > 1u) {            /* the section marks: one square each, the current one filled */
-            int32_t n = s->n_sect > 16u ? 16 : s->n_sect, x0 = 230 - n * 7 + 3;
-            for (i = 0; i < n; i++)
-                cr_fill(x0 + i * 7, y + 18, 4, 4, i == s->sect ? cr_rgb(s->col, CR_WHITE) : T_LINE);
+    int32_t ci;
+    uint32_t fl = s->ed_dx ? 32u : 0u;
+    for (ci = 0; ci < 4; ci++) {
+        const cr_cell_t *c = &s->cell[0][ci];
+        int32_t x = ci * 60 + s->ed_dx, cx = P8(x + 30), top = 56, h = 148, f;
+        uint16_t col = cr_ccol((uint32_t)ci, s->active == 0u);
+        int hot = s->hot_r == 1u && s->hot_c == ci;
+        if (!(c->flags & CR_CF_ON)) continue;
+        if (c->label[0]) {
+            char b[16];
+            int cut = cr_fit(b, sizeof b, c->label, 12, 1, P8(56));
+            cr_text(cx, P8(46), b, 12, 1, CR_C, 4096, col, T_BG, (cut ? 9u : 0u) | fl);
         }
-        y += 22;
+        f = h * (c->pct >= 255 ? 256 : c->pct) / 256;
+        cr_fill(x + 18, top, 24, h - f, T_LINE);
+        if (f > 0) cr_fill(x + 18, top + h - f, 24, f, col);
+        cr_cvalue(c, cx, P8(226), P8(60), 17, col, hot, fl);
     }
-    gy = y + 10;
-    for (i = 0; i < 4; i++) {
-        const cr_param_t *c = &s->par[i];
-        uint16_t col = cr_rgb(c->col ? c->col : KC[i], CR_WHITE);
-        int32_t x = 8 + i * 58, cx = x + 28;
-        if (!c->label[0] && !c->value[0]) continue;
-        if ((fr->hide >> i) & 1u) continue;                        /* (a page turn: not dealt yet) */
-        if (fr->sweep[i]) {                                        /* .. rising into place */
-            int32_t dy = (fr->sweep[i] + 128) >> 8;
-            cr_glyph_param(c, x, gy + dy, col);
-            cr_text_fit(P8(cx), P8(gy + dy + 64 + 14), c->label, 11, 1, CR_C, T_MID, T_BG, P8(54));
-            cr_text_fit(P8(cx), P8(gy + dy + 64 + 33), c->value, 15, 1, CR_C, col, T_BG, P8(54));
-            continue;
+    if (s->active == 0u)
+        for (ci = 0; ci < 4; ci++)
+            if (s->cell[0][ci].flags & CR_CF_ON)
+                cr_fill(ci * 60 + s->ed_dx + 4, 236 + s->bar_dy, 52, 2, cr_ccol((uint32_t)ci, 1));
+}
+
+static void cr_p_edit8(const cr_screen_t *s)
+{
+    int wide = s->wide != CR_W_NONE, big = !wide;
+    int32_t rowy[2], rowh = wide ? 56 : 100, ri, ci;
+    uint32_t lpx = big ? 12u : 10u, vpx = big ? 17u : 13u, fl = s->ed_dx ? 32u : 0u;
+    int32_t gh = big ? 34 : 22, ly = big ? 16 : 11, gyo = big ? 26 : 15, vyo = big ? 82 : 51;
+    rowy[0] = wide ? 124 : 30;
+    rowy[1] = wide ? 184 : 134;
+    cr_ed_title(s);
+    if (s->tall) {
+        cr_p_tall(s);
+        return;
+    }
+    if (wide) {
+        uint16_t sc = s->hot_r ? cr_ccol(s->hot_c, 1) : CR_NAMED[CR_KC[(s->wv[5] ? s->wv[5] - 1u : 0u) % 4u]];
+        cr_wide(s, sc);
+    }
+    for (ri = 0; ri < (int32_t)s->n_rows && ri < 2; ri++) {
+        int on = ri == s->active, y = rowy[ri];
+        for (ci = 0; ci < 4; ci++) {
+            const cr_cell_t *c = &s->cell[ri][ci];
+            int32_t x = ci * 60 + s->ed_dx, cx = P8(x + 30);
+            uint16_t col = cr_ccol((uint32_t)ci, on);
+            int hot = s->hot_r == ri + 1 && s->hot_c == ci;
+            if (!(c->flags & CR_CF_ON)) continue;
+            if (c->label[0]) {
+                char b[16];
+                int cut = cr_fit(b, sizeof b, c->label, lpx, 1, P8(56));
+                cr_text(cx, P8(y + ly), b, lpx, 1, CR_C, 4096, col, T_BG, (cut ? 9u : 0u) | fl);
+            }
+            if (c->glyph != CR_G_NONE) cr_cglyph(c, (x + 5) * 16, (y + gyo) * 16, 50 * 16, gh * 16, col);
+            else cr_hbar(c, (x + 8) * 16, 44 * 16, (y + gyo + gh / 2 - 2) * 16, 64, col);
+            cr_cvalue(c, cx, P8(y + vyo), P8(60), vpx, col, hot, fl);
         }
-        cr_glyph_param(c, x, gy, col);
-        cr_text_fit(P8(cx), P8(gy + 64 + 14), c->label, 11, 1, CR_C, T_MID, T_BG, P8(54));
-        cr_text_fit(P8(cx), P8(gy + 64 + 33), c->value, 15, 1, CR_C, col, T_BG, P8(54));
     }
-    if (s->foot[0]) cr_text(P8(120), P8(CR_PY0 + ph - 8), s->foot, 11, 0, CR_C, 4096, T_MID, T_BG, 0);
+    if (s->active < s->n_rows && s->active < 2u)                 /* the active row's bars (sliding: bar_dy) */
+        for (ci = 0; ci < 4; ci++)
+            if (s->cell[s->active][ci].flags & CR_CF_ON)
+                cr_fill(ci * 60 + s->ed_dx + 4, rowy[s->active] + rowh - 2 + s->bar_dy, 52, 2, cr_ccol((uint32_t)ci, 1));
+}
+
+static void cr_p_stack(const cr_screen_t *s)
+{
+    uint32_t n = s->n_rows ? (s->n_rows > CR_ED_ROWS ? CR_ED_ROWS : s->n_rows) : 1u, fl = s->ed_dx ? 32u : 0u;
+    int32_t labw = 0, lw, cw, r0 = P8(41), rh = P8(198) / (int32_t)n, ri, ci, dx = P8(s->ed_dx);
+    int compact = rh < P8(30);
+    for (ri = 0; ri < (int32_t)n; ri++)
+        if (s->rlabel[ri][0]) {
+            int32_t w = cr_tw(s->rlabel[ri], 11, 1);
+            labw = w > labw ? w : labw;
+        }
+    lw = labw ? ((labw + 255) & ~255) + P8(12) : 0;
+    lw = lw > P8(44) ? P8(44) : lw;
+    cw = (P8(240) - lw) / 4;
+    cr_ed_title(s);
+    for (ci = 0; ci < 4; ci++)
+        if (s->head[ci][0]) {
+            char b[16];
+            int cut = cr_fit(b, sizeof b, s->head[ci], 10, 1, cw - P8(4));
+            cr_text(lw + ci * cw + cw / 2 + dx, P8(36), b, 10, 1, CR_C, 4096, T_DIM, T_BG, (cut ? 9u : 0u) | fl);
+        }
+    for (ri = 0; ri < (int32_t)n; ri++) {
+        int32_t y = r0 + ri * rh;                                    /* Q8 */
+        int on = ri == s->active;
+        if (ri) cr_frect(4 * 16, (y >> 4) - 8, 232 * 16, 16, T_LINE);
+        if (s->rlabel[ri][0])
+            cr_text_fit(P8(6), y + rh / 2 + P8(4), s->rlabel[ri], 11, 1, CR_L, on ? T_TEXT : T_DIM, T_BG, lw - P8(6));
+        for (ci = 0; ci < 4; ci++) {
+            const cr_cell_t *c = &s->cell[ri][ci];
+            int32_t x = lw + ci * cw + dx, cx = x + cw / 2;
+            uint16_t col = cr_ccol((uint32_t)ci, on);
+            int hot = s->hot_r == ri + 1 && s->hot_c == ci;
+            if (!(c->flags & CR_CF_ON)) continue;
+            if (compact) {                                           /* ~24 px rows (the mod matrix): text, a thin bar */
+                cr_cvalue(c, cx, y + P8(14), cw, 12, col, hot, fl);
+                cr_hbar(c, (x + P8(6)) >> 4, (cw - P8(12)) >> 4, (y + P8(17) + 128) >> 4, 32, col);
+            } else if (c->glyph != CR_G_NONE && c->glyph != CR_G_BAR) {   /* a glyph over its value */
+                int showv = rh >= P8(44) && c->value[0];
+                int32_t gh = showv ? rh - P8(24) : rh - P8(10);
+                if (gh > P8(40)) gh = P8(40);
+                cr_cglyph(c, (x + P8(6)) >> 4, (y + P8(4) + (showv ? 0 : (rh - P8(10) - gh) / 2)) >> 4, (cw - P8(12)) >> 4,
+                          gh >> 4, col);
+                if (showv) cr_cvalue(c, cx, y + P8(4) + gh + P8(14), cw, 11, col, hot, fl);
+            } else {                                                 /* a value with its bar under it */
+                uint32_t vpx = rh >= P8(45) ? 15u : 13u;
+                int32_t vy = y + rh / 2 + P8(vpx) / 2 - P8(3);
+                cr_cvalue(c, cx, vy, cw, vpx, col, hot, fl);
+                cr_hbar(c, (x + P8(6)) >> 4, (cw - P8(12)) >> 4, (vy + P8(5)) >> 4, 48, col);
+            }
+        }
+    }
+    if (s->active < n)                                               /* the active row's bars (sliding: bar_dy) */
+        for (ci = 0; ci < 4; ci++)
+            if (s->cell[s->active][ci].flags & CR_CF_ON) {
+                int32_t x = lw + ci * cw + dx, y = r0 + (int32_t)s->active * rh + rh - P8(3) + P8(s->bar_dy);
+                cr_frect((x + P8(4)) >> 4, y >> 4, (cw - P8(8)) >> 4, 32, cr_ccol((uint32_t)ci, 1));
+            }
 }
 
 static void cr_p_geek(const cr_screen_t *s, int32_t ph)
@@ -877,7 +1091,8 @@ static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
     case CR_K_METER: cr_p_meter(s, fr, ph); break;
     case CR_K_KEYBOARD: cr_p_keyboard(s, ph); break;
     case CR_K_ARP: cr_p_arp(s, ph); break;
-    case CR_K_PARAMS: cr_p_params(s, fr, ph); break;
+    case CR_K_EDIT8: cr_p_edit8(s); break;
+    case CR_K_STACK: cr_p_stack(s); break;
     case CR_K_GEEK: cr_p_geek(s, ph); break;
     case CR_K_TEXT: cr_p_text(s); break;
     case CR_K_BIG: cr_p_big(s, ph); break;

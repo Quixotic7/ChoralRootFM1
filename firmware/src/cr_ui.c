@@ -6,8 +6,12 @@
  * Input: one scan of fm1_in (keys, buttons) + the HAL's edges + the encoders (panel.c panel_enc), as Felucca's
  * ui_input.c does; its LED composition (led_pos, led_put) and its tap / hold gesture (ui_layer.c layer_gesture:
  * a release before HOLD_MS with nothing else touched is a tap; held past HOLD_MS, or a key / knob / button
- * touched meanwhile, the layer opens; it closes on release unless HOME was pressed meanwhile: the lock) are
- * copied here in ChoralRoot's terms, not included: no Felucca page is ever drawn.
+ * touched meanwhile, the layer opens) are copied here in ChoralRoot's terms, not included: no Felucca page is ever
+ * drawn. The grammar (design/choralroot-fm1-mockups.json, third pass): a layer button (KEY = printed SEL, PERF,
+ * FX, BASS, LOOP, METRO; EDIT held = the engine picker) held past HOLD_MS opens its layer and LOCKS it (cu.lock):
+ * it stays open after release, its LED blinks, OCT- (back) or HOME closes it, holding another layer button
+ * switches to that one, a tap is still the on/off action. SAVE held (the loop slots) and OPT (the knob shift) are
+ * momentary. B3 = LOCK, the chord block's latch mode (cu_mod_press: a virtual hold of the latched keys).
  * Output: events for the engine (cr_out.c cr_post, drained by the audio ISR), Felucca's part parameters (sounds,
  * sends, levels: written as Felucca's UI writes them), fm1_led / fm1_led_dim, and one cr_screen_t per frame for
  * cr_draw.c.
@@ -15,19 +19,19 @@
  * Sounds: PRESETS / ALGORITHM browse cr_bank.c's lists (the ChoralRoot bank, then the user slots of upreset.c); EDIT
  * opens the sound pages (cr_pages.c), EDIT held the engine picker, SAVE the naming screen (cr_name.c) into a slot.
  * The looper (cr_loop.c, docs/LOOPER.md): LOOP / REC / METRO and their layers, SAVE held (the loop slots in flash),
- * the ring and the transport's top line. Still TODO: OPT + KNOB 3 (perform lock).
+ * the ring and the transport's top line.
  * Included after cr_out.c, cr_anim.c, gfx.c, cr_gfx.c, cr_draw.c, panel.c, cr_bank.c, cr_pages.c and cr_name.c. */
 #include "cr_ui.h"
 
 /* ---------------------------------------------------------------- roles --- */
 /* the printed buttons in ChoralRoot's roles (PLAN.md section 3) */
-#define BT_KEY B_EDIT
+#define BT_KEY B_SCL                              /* printed SEL */
 #define BT_PERF B_ARP
 #define BT_FX B_FX
 #define BT_BASS B_ENV
 #define BT_LATCH B_LFO
 #define BT_OPT B_GLO
-#define BT_EDIT B_SCL
+#define BT_EDIT B_EDIT                             /* printed EDIT */
 #define BT_HOME B_HOME
 #define BT_SAVE B_SAVE
 #define BT_METRO B_SEQ
@@ -319,6 +323,7 @@ static struct {
     uint8_t loop_act, save_act;           /* the pickers: LOOP held while playing, SAVE held */
     uint8_t save_pending;                 /* slot + 1: saved once the loop stops (no flash erase while it plays) */
     uint16_t loop_used;                   /* bit k: slot k holds a loop in flash */
+    uint8_t pick_roots;                   /* the engine picker: 1 the white roots choose engines, 0 they play */
 } cs;
 #if CR_HAVE_SETTINGS
 static void cr_settings_load(void);       /* cr_settings.c (included after this file): the record -> the UI */
@@ -489,18 +494,20 @@ static struct {
     uint8_t armed;                        /* the armed button (tap / hold / layer), NB: none */
     uint8_t open, combo;                  /* its layer (or shift) is open; something else was touched */
     uint32_t t0;                          /* when it was pressed (fm1_ms) */
-    uint8_t lock;                         /* a locked layer (HOME / OPT + its button), L_NONE: none */
-    uint8_t home_lock;                    /* HOME pressed as a lock: no tap on its release */
+    uint8_t lock;                         /* the open layer (locked since its button's hold), L_NONE: none */
     uint32_t swallow;                     /* buttons pressed during another's hold: their release does nothing */
     uint8_t oct_chord;                    /* OCT- and OCT+ were down together (panic): no tap */
     uint32_t clear_t0;                    /* D#4 down in the loop layer (| 1): CLEAR after 1 s held */
-    uint32_t k3_t0;                       /* OPT + KNOB 3: the OPT hold (t0 | 1) that toggled the perform lock */
+    uint8_t clock;                        /* B3 LOCK: the chord block latches (off at power-on, not saved) */
+    uint8_t mlatch, mkill;                /* bit cr_mod_t: latched by LOCK; toggled off by this press (its release
+                                           * does nothing) */
     uint8_t key_note[CU_NKEY];            /* root keys: note + 1 sent; 0xFF: the layer's / a picker's */
     int8_t octave;
     uint8_t opt_open, opt_sel;
     uint8_t page;                         /* PG_* */
     uint32_t last_sound;                  /* the last time a chord sounded or a key was held */
-    struct { uint32_t until; uint8_t kind, col, segs; uint16_t pct; char value[8], sub[12], label[24]; } pop;
+    struct { uint32_t until; uint8_t kind, col, segs, jump; uint16_t pct; char value[8], sub[12], label[24]; } pop;
+                                          /* jump: the meter's bar jumps to the value (no fill: the picker's preview) */
     struct { uint32_t until; uint8_t big, col; char text[24], label[32]; } msg;   /* big: 1 PANIC, 2 red type */
 } cu;
 
@@ -524,11 +531,18 @@ static struct {
 #endif
 static void cu_message(const char *t, uint32_t col);
 static void cu_edit_open(uint32_t part);
-static void cu_edit_turn(int32_t s, uint32_t sect);
+#define CR_EDIT_HOOKS 1                   /* the sound editor (cr_edit.c, included below) */
+enum { CE_TAP, CE_HOLD, CE_SHIFT };
+static int ce_owns(uint32_t b);
+static int ce_button(uint32_t b, uint32_t ev);
+static void ce_leds(uint8_t *nl, uint32_t blink);
+static void cu_led(uint8_t *nl, uint32_t id, int on);
 static void cu_save_open(uint32_t part);
 static void cu_save_close(void);
 static void cu_save_commit(void);
 static void cu_save_delete(void);
+static void cu_pick_begin(void);
+static void cu_pick_end(int keep);
 static uint32_t cu_layer(void);
 static uint32_t cu_now(void) { return fm1_ms; }
 
@@ -546,6 +560,7 @@ static void cu_popup(const char *value, const char *sub, const char *label, uint
 {
     cu.pop.until = cu_now() + CR_POPUP_MS;
     cu.pop.kind = PU_METER;
+    cu.pop.jump = 0;
     cu_cpy(cu.pop.value, value, sizeof cu.pop.value);
     cu_cpy(cu.pop.sub, sub, sizeof cu.pop.sub);
     cu_cpy(cu.pop.label, label, sizeof cu.pop.label);
@@ -589,17 +604,25 @@ static void ui_say(const char *a, const char *b)
 }
 static void ui_message(const char *s) { cu_message(s, CR_COL_WHITE); }
 
-/* the layer on screen: a locked one, else the armed button's while it is held open */
+/* the layer on screen: the open (locked) one, else SAVE's while it is held (momentary) */
 static uint32_t cu_layer(void)
 {
     if (cu.lock)
         return cu.lock;
-    if (cu.armed != NB && cu.open)
-        return cu_layer_of(cu.armed);
+    if (cu.armed != NB && cu.open && cu_layer_of(cu.armed) == L_SAVE)
+        return L_SAVE;
     return L_NONE;
 }
 static int cu_shift(void) { return cu.armed == BT_OPT && ((cu.bheld >> BT_OPT) & 1u); }
+/* the editor's hooks (cr_edit.c defines CR_EDIT_HOOKS with ce_owns / ce_button / ce_leds; CE_TAP CE_HOLD CE_SHIFT) */
+#ifndef CR_EDIT_HOOKS
+#define CR_EDIT_HOOKS 0
+#endif
+#if CR_EDIT_HOOKS                                 /* the editor: OCT shifts the octave as on the view */
+static int cu_picker_ctx(void) { return cu.lock || cu.opt_open || cu.page == PG_SAVE; }   /* OCT-: back, OCT+: OK */
+#else
 static int cu_picker_ctx(void) { return cu.lock || cu.opt_open || cu.page; }   /* OCT-: back, OCT+: OK */
+#endif
 
 /* ----------------------------------------------------- perform params --- */
 static void cu_param_text(uint32_t p, int32_t v, char *val, char *sub)
@@ -885,9 +908,11 @@ static void cu_loop_frame(void)
 }
 
 /* -------------------------------------------------------------- actions --- */
+static void cu_unlatch(void);
 static void cu_panic(void)
 {
     uint32_t k;
+    cu_unlatch();                                 /* the LOCK latch cleared (LOCK itself stays on) */
     cr_post(CRE_PANIC, 0, 0, 0);
     cu.octave = 0;
     for (k = 0; k < CU_NKEY; k++)                 /* the keys still held end nothing more */
@@ -908,14 +933,19 @@ static void cu_close_all(void)                    /* back to the view */
     cu.opt_open = 0;
     cu.page = PG_NONE;
 }
+static void cu_layer_close(void)                  /* OCT- in a layer: back (the engine picker: to the editor) */
+{
+    cu_trace("layer: close %u\n", (unsigned)cu.lock);
+    cu.lock = L_NONE;
+}
 
 static void cu_tap(uint32_t b)                    /* a button tapped (released before HOLD with nothing touched) */
 {
-    if (cu.lock && L_BTN[cu.lock] == b) {         /* a locked layer's own button: unlock */
-        cu.lock = L_NONE;
+#if CR_EDIT_HOOKS
+    if (cu.page == PG_EDIT && !cu_layer() && ce_button(b, CE_TAP))   /* the editor's section buttons, SHIFT, EDIT */
         return;
-    }
-    switch (b) {
+#endif
+    switch (b) {                                  /* (a layer's own button: still its on/off action) */
     case BT_KEY:
         cs.key_on ^= 1u;
         cu_post_key();
@@ -945,15 +975,21 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
         cu.lock = L_NONE;
         cu.opt_open ^= 1u;
         break;
-    case BT_EDIT:                                 /* the chord sound's pages (BASS held + EDIT: cu_btn_press) */
-        if (cu.page == PG_EDIT)
+    case BT_EDIT:                                 /* the chord sound's editor (BASS held + EDIT: cu_btn_press) */
+        if (cu.lock == L_EDIT) {                  /* the engine picker open: EDIT keeps its sound, closes it */
+            cu_pick_end(1);
+            cu_layer_close();
+        }
+        else if (cu.page == PG_EDIT)
             cu.page = PG_NONE;
         else
             cu_edit_open(0);
         break;
     case BT_SAVE:                                 /* naming and saving the sound (on a bass page: the bass) */
-        if (cu.page == PG_SAVE)
-            cu_save_close();                      /* SAVE again: cancel */
+        if (cu.page == PG_SAVE && ce.del_ask)
+            ce.del_ask = 0;                       /* "delete?": no */
+        else if (cu.page == PG_SAVE)
+            cu_save_commit();                     /* SAVE again: save (as OCT+) */
         else
             cu_save_open(cu.page == PG_EDIT ? ce.part : 0u);
         break;
@@ -973,20 +1009,39 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
     }
 }
 
+/* the layers that lock open on a hold (SAVE held is momentary: the loop slots while it is held) */
+static int cu_lockable(uint32_t l) { return l && l != L_SAVE; }
+
 static void cu_opened(uint32_t b)                 /* a button held past HOLD (or a combo): its layer / shift */
 {
+    uint32_t l = cu_layer_of(b), was = cu.lock;
     if (b == BT_REC && !cu.combo)                 /* REC held: undo the last layer */
         cr_post(CRE_LOOP, LP_UNDO, 0, 0);
-    if (cu_layer_of(b)) {
-        cu.opt_open = 0;
+    if (!l)
+        return;
+    cu.opt_open = 0;
+    if (cu.page != PG_EDIT)                       /* a layer over the editor closes back to it (OCT- / HOME) */
         cu.page = PG_NONE;
-        if (cu.lock && cu.lock != cu_layer_of(b))
-            cu.lock = L_NONE;
-    }
+    if (was == L_EDIT && l != L_EDIT)             /* the picker left for another layer: its sound kept */
+        cu_pick_end(1);
+    cu.lock = (uint8_t)(cu_lockable(l) ? l : L_NONE);   /* the layer stays open after release */
+    cu_trace("layer: open %u%s\n", (unsigned)l, cu.lock ? " (locked)" : "");
+    if (l == L_EDIT && was != L_EDIT)             /* the engine picker: a preview of the sound as it is now */
+        cu_pick_begin();
 }
 
 static void cu_home_tap(void)
 {
+    if (cu.lock == L_EDIT)                        /* the engine picker: cancelled, the sound as it was */
+        cu_pick_end(0);
+    if (cu.lock && cu.page == PG_EDIT) {          /* a layer over the editor: back to the editor */
+        cu_layer_close();
+        return;
+    }
+    if (cu.page == PG_SAVE && !cu.lock) {         /* naming: cancelled, back to where it came from */
+        cu_save_close();
+        return;
+    }
     if (cu.lock || cu.opt_open || cu.page)
         cu_close_all();
     else
@@ -1004,10 +1059,10 @@ static void cu_oct_tap(uint32_t b)
                 ce.del_ask = 0;
             return;
         }
-        if (b == B_OCTUP)
+        if (b == B_OCTUP)                         /* OCT+: save, OCT-: cancel (F#4 deletes a letter) */
             cu_save_commit();
         else
-            cn_delete();
+            cu_save_close();
         return;
     }
     if (b == B_OCTUP && cu.opt_open && cu.opt_sel == O_CALIB && !cu.lock && !cu.page) {
@@ -1015,16 +1070,21 @@ static void cu_oct_tap(uint32_t b)
         cu_calib_start();                         /* Options > Calibrate, OCT+: Felucca's HARDWARE CALIBRATION */
         return;
     }
-    if (cu_picker_ctx()) {                        /* OCT+: OK (a picker's change is live already), OCT-: back */
-        cu_close_all();
-        return;
-    }
-    if (cu.armed != NB && cu.open) {              /* a held layer: OCT+ does a loop picker's action */
+    if (cu_layer()) {                             /* a layer: OCT+ does a loop picker's action, else OK; OCT-: back */
         uint32_t l = cu_layer();
-        if (b == B_OCTUP && l == L_SAVE)
+        if (l == L_EDIT) {                        /* the engine picker: OCT+ keeps the sound, OCT- cancels */
+            cu_pick_end(b == B_OCTUP);
+            cu_layer_close();
+        } else if (b == B_OCTUP && l == L_SAVE)
             cu_save_act();
         else if (b == B_OCTUP && l == L_LOOP && cu_playing())
             cu_loop_act();
+        else if (cu.lock)
+            cu_layer_close();
+        return;
+    }
+    if (cu_picker_ctx()) {                        /* OCT+: OK (a picker's change is live already), OCT-: back */
+        cu_close_all();
         return;
     }
     cu.octave = (int8_t)(cu.octave + (b == B_OCTUP ? 1 : -1));
@@ -1142,113 +1202,110 @@ static void cu_sound_init(uint32_t part)
     cu_trace("init: part %u %s\n", (unsigned)part, en->name);
 }
 
-static void cu_edit_open(uint32_t part)
+/* the engine picker as a PREVIEW (EDIT held; PRESETS turned in the editor): the part's sound as it was at its opening
+ * (every parameter, the engine, the deep patch, the flags and the user slot); OCT- / HOME put it back, OCT+ / EDIT
+ * keep what was loaded (a fresh load: not edited). Main loop only */
+static struct {
+    uint8_t on, part, eng, preset, user, trim, edited, changed, fx_on, fx_amt[CU_NFX], has_blob;
+    int16_t p[P_COUNT];
+    char name[13];
+    uint8_t blob[128];
+} cpk __attribute__((section(".pool")));
+
+/* the part's sound as a checksum (the traces: the sound before and after a preview) */
+static uint32_t cu_snd_crc(const track_t *t)
 {
-    if (ce.part != part)
-        ce.page = CP_ENV;                          /* (the mock-up's first page: ENV) */
-    ce.part = (uint8_t)part;
-    cu.opt_open = 0;
-    cu.lock = L_NONE;
-    cu.page = PG_EDIT;
-    ce.col = -1;
-    cu_trace("edit: part %u page %s\n", (unsigned)part, cp_title(cu_edit_trk(), ce.page));
+    const eng_deep_t *d = cp_deep(t);
+    uint8_t b[128];
+    uint32_t h = 2166136261u, i;
+    h = (h ^ t->eng_req) * 16777619u;
+    for (i = 0; i < P_COUNT; i++) {
+        h = (h ^ (uint8_t)t->p[i]) * 16777619u;
+        h = (h ^ (uint8_t)((uint16_t)t->p[i] >> 8)) * 16777619u;
+    }
+    if (d && d->blob_get && d->blob_size && d->blob_size <= sizeof b) {
+        d->blob_get(t, b);
+        for (i = 0; i < d->blob_size; i++)
+            h = (h ^ b[i]) * 16777619u;
+    }
+    return h & 0xFFFFu;
 }
 
-/* KNOB 1..4 on a sound page */
-static void cu_edit_knob(uint32_t knob, int32_t s, uint32_t fine)   /* fine: OPT held, one step */
+static void cu_pick_begin(void)
 {
     track_t *t = cu_edit_trk();
-    uint32_t id, i, n;
-    int32_t v0, v, dp;
-    if (ce.page >= cp_n(t))
-        ce.page = 0;
-    id = cp_id(t, ce.page, knob);
-    dp = cp_dp(t, ce.page);
-    if (dp >= 0) {                                 /* an engine's deep page: its get / set, the same steps */
-        const eng_deep_t *dd = cp_deep(t);
-        const param_desc_t *d = &dd->pages[dp].col[knob & 3u];
-        char b[8];
-        if (!d->label)
-            return;
-        ce.col = (int8_t)knob;
-        ce.t0 = cu_now();
-        ce.from_pct = ce.shown_pct[knob & 3u];
-        for (i = 0; i < 4u; i++)
-            ce.from_env[i] = ce.shown_env[knob & 3u][i];
-        v0 = dd->get(t, (uint32_t)dp, knob & 3u);
-        v = cp_dstep(d, v0, s, fine);
-        if (v != v0) {
-            dd->set(t, (uint32_t)dp, knob & 3u, v);
-            v = dd->get(t, (uint32_t)dp, knob & 3u);
-            cu_edited(ce.part);
+    const eng_deep_t *d = cp_deep(t);
+    uint32_t i;
+    cpk.on = 1;
+    cpk.part = ce.part;
+    cpk.eng = t->eng_req;
+    cpk.preset = t->preset;
+    cpk.user = t->user;
+    cpk.trim = (uint8_t)t->trim;
+    cpk.edited = psnd[ce.part].edited;
+    cpk.changed = 0;
+    cpk.fx_on = cs.fx_on;
+    for (i = 0; i < CU_NFX; i++)
+        cpk.fx_amt[i] = cs.fx_amt[i];
+    for (i = 0; i < P_COUNT; i++)
+        cpk.p[i] = t->p[i];
+    cu_cpy(cpk.name, psnd[ce.part].name, sizeof cpk.name);
+    cpk.has_blob = d && d->blob_get && d->blob_set && d->blob_size && d->blob_size <= sizeof cpk.blob;
+    if (cpk.has_blob)
+        d->blob_get(t, cpk.blob);
+    cu_trace("picker: open part %u %s crc %04x roots %s\n", (unsigned)cpk.part, cpk.name, (unsigned)cu_snd_crc(t),
+             cs.pick_roots ? "engines" : "play");
+}
+
+/* the preview ends: keep (OCT+, EDIT, another layer) or cancel (OCT-, HOME: the snapshot back) */
+static void cu_pick_end(int keep)
+{
+    track_t *t = &trk[cpk.part ? CR_PART_BASS : CR_PART_CHORD];
+    const eng_deep_t *d;
+    uint32_t i;
+    if (!cpk.on)
+        return;
+    cpk.on = 0;
+    if (keep) {
+        if (cpk.changed)
+            psnd[cpk.part].edited = 0;            /* (a fresh load) */
+        cu_trace("picker: keep part %u %s crc %04x\n", (unsigned)cpk.part, psnd[cpk.part].name, (unsigned)cu_snd_crc(t));
+        return;
+    }
+    if (cpk.changed) {
+        fm1_irq_off();
+        t->eng_req = cpk.eng;
+        t->preset = cpk.preset;
+        t->user = cpk.user;
+        t->trim = (int8_t)cpk.trim;
+        for (i = 0; i < P_COUNT; i++)
+            t->p[i] = cpk.p[i];
+        panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
+        fm1_irq_on();
+        fm6_track_loaded(t);                      /* (the engine's own state for the sound) */
+        d = cp_deep(t);
+        if (cpk.has_blob && d && d->blob_set)
+            d->blob_set(t, cpk.blob);             /* the deep patch as it was */
+        if (!cpk.part) {
+            cs.fx_on = cpk.fx_on;
+            for (i = 0; i < CU_NFX; i++)
+                cs.fx_amt[i] = cpk.fx_amt[i];
         }
-        cp_value(d, v, b, sizeof b);
-        cu_trace("deep: part %u page %u %s col %u %s %d -> %d (%s)%s\n", (unsigned)ce.part, (unsigned)dp,
-                 dd->pages[dp].title, (unsigned)(knob & 3u), d->label, (int)v0, (int)v, b,
-                 psnd[ce.part].edited ? " edited" : "");
-        return;
+        cu_cpy(psnd[cpk.part].name, cpk.name, sizeof psnd[0].name);
+        psnd[cpk.part].edited = cpk.edited;
     }
-    if (id == CPX_NONE)
-        return;
-    ce.col = (int8_t)knob;
-    ce.t0 = cu_now();
-    ce.from_pct = ce.shown_pct[knob & 3u];
-    for (i = 0; i < 4u; i++)
-        ce.from_env[i] = ce.shown_env[knob & 3u][i];
-    if (id == CPX_ENGINE) {
-        int32_t r = cu_engine_rank(t->eng_req % NENGINES);
-        cu_engine_at(0, &n);
-        r = r < 0 ? 0 : r + (s > 0 ? 1 : -1);
-        cu_engine_switch(ce.part, cu_engine_at((uint32_t)(r < 0 ? 0 : r >= (int32_t)n ? (int32_t)n - 1 : r), 0));
-        return;
-    }
-    if (id == CPX_PRESET) {
-        cu_engine_preset_step(s);
-        return;
-    }
-    if (id == CPX_INIT) {
-        cu_sound_init(ce.part);
-        return;
-    }
-    v0 = t->p[id];
-    v = cp_step(t, id, s, fine);
-    fm1_irq_off();
-    t->p[id] = (int16_t)v;
-    fm1_irq_on();
-    if (!ce.part)                                  /* part 0's sends are the FX amounts */
-        for (i = 0; i < CU_NFX; i++)
-            if (CU_FX[i].send == id) {
-                cs.fx_amt[i] = (uint8_t)v;
-                cs.fx_on = 1;
-                cu_fx_apply();
-            }
-    if (v != v0)
-        cu_edited(ce.part);
-    {
-        char b[8];
-        cp_value(cp_desc(t, id), v, b, sizeof b);
-        cu_trace("param: part %u %s %s %d -> %d (%s)\n", (unsigned)ce.part, cp_title(t, ce.page),
-                 cp_desc(t, id)->label, (int)v0, (int)v, b);
-    }
+    cu_trace("picker: cancel part %u -> %s crc %04x\n", (unsigned)cpk.part, psnd[cpk.part].name, (unsigned)cu_snd_crc(t));
+}
+static void cu_pick_open(void)                     /* PRESETS turned in the editor: the picker over it */
+{
+    cu.opt_open = 0;
+    cu.lock = L_EDIT;
+    cu_trace("layer: open %u (locked)\n", (unsigned)L_EDIT);
+    cu_pick_begin();
 }
 
-/* SELECT on a sound page: s pages on (both ways round); sect (OPT held): s sections on (cr_pages.c cp_sections) */
-static void cu_edit_turn(int32_t s, uint32_t sect)
-{
-    track_t *t = cu_edit_trk();
-    uint32_t n = cp_n(t), from = ce.page % n;
-    ce.page = (uint8_t)(sect ? cp_sect_step(t, from, s)
-                             : (from + n + (uint32_t)(s % (int32_t)n + (int32_t)n)) % n);
-    ce.col = -1;
-    if (ce.page != from) {
-        ce.turn++;
-        ce.dir = (int8_t)(s > 0 ? 1 : -1);
-    }
-    if (sect)
-        cu_trace("section: part %u %s %u/%u (section %u)\n", (unsigned)ce.part, cp_title(t, ce.page),
-                 (unsigned)ce.page + 1u, (unsigned)n, (unsigned)cp_sect(t, ce.page) + 1u);
-    cu_trace("page: part %u %s %u/%u\n", (unsigned)ce.part, cp_title(t, ce.page), (unsigned)ce.page + 1u, (unsigned)n);
-}
+#include "cr_edit.c"                       /* the sound editor: its state, input and screen */
+static void cu_edit_open(uint32_t part) { ce_open(part); }
 
 static void cu_save_open(uint32_t part)
 {
@@ -1289,7 +1346,7 @@ static void cu_save_commit(void)
             cu_cpy(b, "renamed ", sizeof b);
             cu_cat(b, l, sizeof b);
             cu_message(b, CR_COL_GREEN);
-            cu.page = PG_NONE;
+            cu.page = ce.save_from_edit ? PG_EDIT : PG_NONE;   /* (the editor behind it: back to it) */
         } else {
             cu_message("save error", CR_COL_RED);
         }
@@ -1321,7 +1378,7 @@ static void cu_save_commit(void)
         cu_cpy(b, "saved ", sizeof b);
         cu_cat(b, l, sizeof b);
         cu_message(b, CR_COL_GREEN);
-        cu.page = PG_NONE;
+        cu.page = ce.save_from_edit ? PG_EDIT : PG_NONE;
     } else {
         cu_message(rc == 2 ? "save error" : "bad slot", CR_COL_RED);
     }
@@ -1383,8 +1440,10 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
         break;
     case L_EDIT:
         cu_engine_at(0, &n);
-        if (i < (int32_t)n)
+        if (i < (int32_t)n) {
+            cpk.changed |= cu_edit_trk()->eng_req != cu_engine_at((uint32_t)i, 0);
             cu_engine_pick((uint32_t)i);
+        }
         break;
     case L_LOOP:                                   /* SELECT: the action while playing, else the length */
         if (cu_playing() && i < 4)
@@ -1529,13 +1588,20 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         }
         break;
     case L_EDIT:
-        if (knob == 0) {                           /* the engine's factory presets */
+        if (knob == 0) {                           /* the engine's factory presets (a preview: the bar jumps) */
             cu_engine_preset_step(s);
+            cpk.changed = 1;
             cu_2d(b, cu_edit_trk()->preset + 1u, sizeof b);
             cu_popup(b, psnd[ce.part].name, "preset", CR_COL_WHITE, cu_edit_trk()->preset, 0,
                      ENGINES[cu_edit_trk()->eng_req % NENGINES]->npresets - 1, 16);
+            cu.pop.jump = 1;
         } else if (knob == 1) {                    /* INIT */
             cu_sound_init(ce.part);
+            cpk.changed = 1;
+        } else if (knob == 3) {                    /* the white roots: engines <-> play (Settings: pick_roots) */
+            cs.pick_roots ^= 1u;
+            cu_message(cs.pick_roots ? "roots: engines" : "roots: play", CR_COL_WHITE);
+            cu_trace("picker: roots %s\n", cs.pick_roots ? "engines" : "play");
         }
         break;
     case L_LOOP:                                   /* SYNC QUANT COUNT-IN LEVEL */
@@ -1585,9 +1651,91 @@ static void cu_activity(void)
         cu.combo = 1;
         if (!cu.open) {
             cu.open = 1;
+#if CR_EDIT_HOOKS
+            if (cu.page == PG_EDIT && !cu_layer() && ce_owns(cu.armed))
+                return;                           /* the editor's button: a combo, no layer */
+#endif
             cu_opened(cu.armed);
         }
     }
+}
+
+/* B3 = LOCK (the chord block's latch mode). A UI-level virtual hold: a latched chord key stays posted down to the
+ * engine (CRE_MOD down, no up), so every play style sees it held. LOCK on: the chord keys held are latched when
+ * released; with no chord key held, a top-row key (DIM MIN MAJ SUS) resets the latch to that type alone and a
+ * bottom-row key (6 m7 M7 9) toggles its extension. LOCK off and PANIC clear the latch. */
+#define CU_MOD_TOP ((1u << CR_MOD_DIM) | (1u << CR_MOD_MIN) | (1u << CR_MOD_MAJ) | (1u << CR_MOD_SUS))
+static uint32_t cu_mods_phys(void)                 /* bit cr_mod_t: the chord keys physically held */
+{
+    uint32_t k, m = 0;
+    for (k = 0; k < CU_ROOT0; k++)
+        if (CU_MOD_OF_KEY[k] != 0xFFu && ((cu.kheld >> k) & 1u))
+            m |= 1u << CU_MOD_OF_KEY[k];
+    return m;
+}
+static void cu_mods_trace(void)
+{
+    static const char *const NM[CR_NMOD] = {"DIM", "MIN", "MAJ", "SUS", "6", "m7", "M7", "9"};
+    uint32_t m;
+    cu_trace("lock: latched");
+    for (m = 0; m < CR_NMOD; m++)
+        if ((cu.mlatch >> m) & 1u)
+            cu_trace(" %s", NM[m]);
+    cu_trace("%s\n", cu.mlatch ? "" : " none");
+    (void)NM;
+}
+static void cu_unlatch(void)                       /* the latched keys not held: up */
+{
+    uint32_t m, held = cu_mods_phys();
+    for (m = 0; m < CR_NMOD; m++)
+        if (((cu.mlatch >> m) & 1u) && !((held >> m) & 1u))
+            cr_post(CRE_MOD, m, 0, 0);
+    if (cu.mlatch) {
+        cu.mlatch = 0;
+        cu_mods_trace();
+    }
+    cu.mkill = 0;
+}
+static void cu_lock_tap(void)                      /* B3 */
+{
+    cu.clock ^= 1u;
+    if (!cu.clock)
+        cu_unlatch();
+    cu_trace("lock: %s\n", cu.clock ? "on" : "off");
+}
+static void cu_mod_press(uint32_t k)               /* a chord key down (k < CU_ROOT0, not B3) */
+{
+    uint32_t m = CU_MOD_OF_KEY[k], bit = 1u << m, x;
+    uint32_t others = cu_mods_phys() & ~bit;
+    if (cu.clock && !others && cu.mlatch) {        /* nothing else held, a latch: reset / toggle */
+        if (bit & CU_MOD_TOP) {
+            for (x = 0; x < CR_NMOD; x++)
+                if (x != m && ((cu.mlatch >> x) & 1u))
+                    cr_post(CRE_MOD, x, 0, 0);
+            cu.mlatch &= (uint8_t)bit;             /* (already down when it was latched) */
+        } else if (cu.mlatch & bit) {
+            cu.mlatch &= (uint8_t)~bit;
+            cu.mkill |= (uint8_t)bit;
+            cr_post(CRE_MOD, m, 0, 0);
+            cu_mods_trace();
+            return;
+        }
+    }
+    cr_post(CRE_MOD, m, 0, 1);                     /* (the engine ignores a second down) */
+}
+static void cu_mod_release(uint32_t k)
+{
+    uint32_t m = CU_MOD_OF_KEY[k], bit = 1u << m;
+    if (cu.mkill & bit) {                          /* toggled off by this press */
+        cu.mkill &= (uint8_t)~bit;
+        return;
+    }
+    if (cu.clock) {                                /* LOCK: stays down */
+        cu.mlatch |= (uint8_t)bit;
+        cu_mods_trace();
+        return;
+    }
+    cr_post(CRE_MOD, m, 0, 0);
 }
 
 static void cu_key_press(uint32_t k)
@@ -1598,21 +1746,25 @@ static void cu_key_press(uint32_t k)
     cu_activity();
     if (k < CU_ROOT0) {                            /* the chord block keeps its job in every layer */
         if (CU_MOD_OF_KEY[k] != 0xFFu)
-            cr_post(CRE_MOD, CU_MOD_OF_KEY[k], 0, 1);
+            cu_mod_press(k);
+        else
+            cu_lock_tap();
         return;
     }
     l = cu_layer();
-    if (l) {
+    if (l && !(l == L_EDIT && !cs.pick_roots)) {   /* (the picker with its roots off: they play the preview) */
         cu_layer_key(l, k);
         cu.key_note[k] = 0xFFu;
         return;
     }
-    if (cu.page == PG_SAVE) {                      /* naming: the roots type */
+    if (cu.page == PG_SAVE) {                      /* naming: the roots type, D#4 a space, F#4 deletes */
         int32_t wi = cu_white_idx(k);
         if (wi >= 0)
             cn_white((uint32_t)wi, cu_now());
         else if (k == 10u)
             cn_space();
+        else if (k == 13u)
+            cn_delete();
         cu.key_note[k] = 0xFFu;
         return;
     }
@@ -1636,7 +1788,7 @@ static void cu_key_release(uint32_t k)
     cu.kheld &= ~(1u << k);
     if (k < CU_ROOT0) {
         if (CU_MOD_OF_KEY[k] != 0xFFu)
-            cr_post(CRE_MOD, CU_MOD_OF_KEY[k], 0, 0);
+            cu_mod_release(k);
         return;
     }
     if (cu.key_note[k] && cu.key_note[k] != 0xFFu)
@@ -1655,14 +1807,9 @@ static void cu_btn_press(uint32_t b)
         }
         return;
     }
-    if (b == BT_HOME) {
-        if (cu.armed != NB && cu_layer_of(cu.armed)) {   /* hold a layer button + HOME: lock it open */
-            cu.lock = (uint8_t)cu_layer_of(cu.armed);
+    if (b == BT_HOME) {                           /* (its release: home; a held button's release: no tap) */
+        if (cu.armed != NB)
             cu.combo = 1;
-            cu.open = 1;
-            cu.home_lock = 1;
-            cu_message("locked", CR_COL_WHITE);
-        }
         return;
     }
     if (cu.armed == NB) {
@@ -1673,19 +1820,24 @@ static void cu_btn_press(uint32_t b)
         cu.open = cu.combo = 0;
         return;
     }
-    /* another button during a hold: a combo; OPT + FX / PERF: that layer locked (PLAN.md section 3) */
+    /* another button during a hold: a combo (its release does nothing) */
     cu.swallow |= CU_BIT(b);
-    if (cu.armed == BT_OPT && (b == BT_FX || b == BT_PERF)) {
-        cu.lock = (uint8_t)cu_layer_of(b);
-        cu.opt_open = 0;
-        cu.page = PG_NONE;
-        cu_message(b == BT_FX ? "fx lock" : "perform lock", CR_COL_WHITE);
+#if CR_EDIT_HOOKS
+    if (cu.page == PG_EDIT && cu.armed == BT_OPT && b == BT_EDIT) {   /* SHIFT + EDIT in the editor: chord / bass */
+        cu.combo = 1;
+        ce_button(b, CE_SHIFT);
+        return;
     }
+#endif
     cu_activity();
-    if (cu.armed == BT_BASS && b == BT_EDIT)       /* BASS held + EDIT / SAVE: the bass sound's pages, saving */
+    if (cu.armed == BT_BASS && b == BT_EDIT) {     /* BASS held + EDIT / SAVE: the bass sound's editor, saving */
+        cu.lock = L_NONE;
         cu_edit_open(1);
-    if (cu.armed == BT_BASS && b == BT_SAVE)
+    }
+    if (cu.armed == BT_BASS && b == BT_SAVE) {
+        cu.lock = L_NONE;
         cu_save_open(1);
+    }
 }
 
 static void cu_btn_release(uint32_t b)
@@ -1700,8 +1852,8 @@ static void cu_btn_release(uint32_t b)
         return;
     }
     if (b == BT_HOME) {
-        if (cu.home_lock)
-            cu.home_lock = 0;
+        if (cu.swallow & CU_BIT(b))               /* (held through the calibration) */
+            cu.swallow &= ~CU_BIT(b);
         else
             cu_home_tap();
         return;
@@ -1724,13 +1876,14 @@ static void cu_knob(uint32_t role, int32_t s)
     int32_t v;
     cu_activity();
     if (cu_shift() && cu.page == PG_EDIT && (role >= EN_K1 || role == EN_SELECT) && !cu_layer()) {
-        if (role == EN_SELECT)                     /* the sound pages win: OPT + SELECT jumps sections */
-            cu_edit_turn(s, 1);
-        else                                       /* .. OPT + a knob: fine */
-            cu_edit_knob(role - EN_K1, s, 1);
+        if (role == EN_SELECT)                     /* the editor wins: SHIFT + SELECT steps as SELECT */
+            ce_select(s);
+        else                                       /* .. SHIFT + a knob: fine (one step) */
+            ce_knob(role - EN_K1, s, 1);
         return;
     }
-    if (cu_shift()) {                              /* OPT held + a knob: the second functions */
+    if (cu_shift() && (role == EN_ALGO || role == EN_K1 || role == EN_SELECT)) {   /* OPT held: second functions
+                                                                                    * (the other knobs: their own) */
         if (role == EN_ALGO) {
             v = trk[CR_PART_BASS].p[P_LEVEL] + s * 2;
             trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)(v < 0 ? 0 : v > 127 ? 127 : v);
@@ -1739,28 +1892,22 @@ static void cu_knob(uint32_t role, int32_t s)
             cs.split = (uint8_t)((cs.split + 12 + s % 12) % 12);
             cu_post_single();
             cu_popup(CU_NOTE[cs.split], cs.single ? "split" : "split off", "split point", CR_COL_BLUE, cs.split, 0, 11, 12);
-        } else if (role == EN_SELECT) {            /* the metronome level */
+        } else {                                   /* SELECT: the metronome level */
             cu_layer_knob(L_METRO, 0, s);
-        } else if (role == EN_K3) {                /* performance lock on / off, once per OPT hold */
-            if (cu.k3_t0 != (cu.t0 | 1u)) {
-                cu.k3_t0 = cu.t0 | 1u;
-                if (cu.lock == L_PERF) {
-                    cu.lock = L_NONE;
-                    cu_message("unlocked", CR_COL_WHITE);
-                } else {
-                    cu.lock = L_PERF;
-                    cu.opt_open = 0;
-                    cu.page = PG_NONE;
-                    cu_message("perform lock", CR_COL_WHITE);
-                }
-                cu_trace("lock: perform %u\n", (unsigned)(cu.lock == L_PERF));
-            }
-        } else {
-            cu_message("shift: not yet", CR_COL_WHITE);
         }
         return;
     }
     l = cu_layer();
+#if CR_EDIT_HOOKS
+    if (role == EN_PRESET && !l && cu.page == PG_EDIT) {   /* PRESETS in the editor: the picker, previewing */
+        cu_pick_open();
+        l = L_EDIT;
+    }
+#endif
+    if (l == L_EDIT && role == EN_PRESET) {        /* .. in the picker: its presets, as KNOB 1 */
+        cu_layer_knob(l, 0, s);
+        return;
+    }
     if (l && role >= EN_K1) {
         cu_layer_knob(l, role - EN_K1, s);
         return;
@@ -1780,12 +1927,11 @@ static void cu_knob(uint32_t role, int32_t s)
         }
         return;
     }
-    if (cu.page == PG_EDIT && (role == EN_SELECT || role >= EN_K1)) {   /* the sound pages */
-        if (role == EN_SELECT) {
-            cu_edit_turn(s, 0);
-        } else {
-            cu_edit_knob(role - EN_K1, s, 0);
-        }
+    if (cu.page == PG_EDIT && (role == EN_SELECT || role >= EN_K1)) {   /* the sound editor */
+        if (role == EN_SELECT)
+            ce_select(s);
+        else
+            ce_knob(role - EN_K1, s, 0);
         return;
     }
     if (cu.page == PG_SAVE && (role == EN_K1 || role == EN_K2)) {        /* naming: the slot, the last letter */
@@ -1900,7 +2046,6 @@ static void cu_calib_end(int keep)
         cu.bheld = held;
         cu.swallow = held;
         cu.oct_chord = (uint8_t)((held & (CU_BIT(B_OCTDN) | CU_BIT(B_OCTUP))) != 0u);
-        cu.home_lock = (uint8_t)((held >> BT_HOME) & 1u);
     }
     cu.armed = NB;
     cu.open = cu.combo = 0;
@@ -2051,8 +2196,17 @@ static void cr_ui_input(void)
     }
     if (cu.armed != NB && !cu.open && ((cu.bheld >> cu.armed) & 1u) && !(cu.armed == BT_SAVE && cu.page == PG_SAVE) &&
         now - cu.t0 >= (uint32_t)HOLD_MS[settings_hold % 4u]) {
-        cu.open = 1;
-        cu_opened(cu.armed);
+#if CR_EDIT_HOOKS
+        if (cu.page == PG_EDIT && !cu_layer() && ce_owns(cu.armed)) {   /* the editor's: its hold, no layer */
+            cu.open = 1;
+            cu.combo = 1;
+            ce_button(cu.armed, CE_HOLD);
+        } else
+#endif
+        {
+            cu.open = 1;
+            cu_opened(cu.armed);
+        }
     }
     for (k = 0; k < CU_NKEY; k++) {
         uint32_t was = (cu.kheld >> k) & 1u, is = (km >> k) & 1u, e = (ne >> k) & 1u;
@@ -2112,7 +2266,7 @@ static int32_t cu_key_of_note(uint32_t note)       /* the root key a note sounds
 static void cr_leds(void)
 {
     uint8_t nl[FM1_NCOL] = {0}, nd[FM1_NCOL] = {0}, own[FM1_NCOL] = {0}, ld[FM1_NCOL] = {0};
-    uint32_t k, b, now = cu_now(), blink = ((now / 250u) & 1u) == 0u, l = cu_layer(), held_l;
+    uint32_t k, b, now = cu_now(), blink = ((now / 250u) & 1u) == 0u, l = cu_layer();
     const cr_snap_t *sn = &cr_snap;
     if (cu.msg.big == 1u && (int32_t)(cu.msg.until - now) > 0) {   /* panic: everything flashes */
         for (k = 0; k < 41u; k++)
@@ -2130,7 +2284,7 @@ static void cr_leds(void)
     cu_led(nl, panel.btn[BT_BASS], cs.bass_on);
     cu_led(nl, panel.btn[BT_LATCH], cs.sticky || sn->latching);
     cu_led(nl, panel.btn[BT_OPT], cu.opt_open || cu_shift());
-    cu_led(nl, panel.btn[BT_EDIT], cu.page == PG_EDIT);
+    cu_led(nl, panel.btn[BT_EDIT], cu.page == PG_EDIT && blink);   /* blinks while the editor is open */
     cu_led(nl, panel.btn[BT_SAVE], cu.page == PG_SAVE);
     cu_led(nl, panel.btn[BT_METRO], cs.metro);
     {                                                    /* REC: blinks capturing, lit armed; LOOP: a loop */
@@ -2141,13 +2295,16 @@ static void cr_leds(void)
         if (sn->lstate == CRL_PLAYING)                   /* its green LED while playing */
             nl[LED_PLAY_GREEN >> 3] |= (uint8_t)(1u << (LED_PLAY_GREEN & 7u));
     }
-    held_l = cu.armed != NB && cu.open ? cu.armed : NB;
-    if (held_l != NB) {                                  /* the held layer's button blinks */
-        uint8_t q = cu_led_pos[panel.btn[held_l]];
+    if (l) {                                             /* the open layer's button blinks */
+        uint8_t q = cu_led_pos[panel.btn[L_BTN[l]]];
         if (q != 0xFF)
             nl[q >> 3] &= (uint8_t)~(1u << (q & 7u));
-        cu_led(nl, panel.btn[held_l], (int)blink);
+        cu_led(nl, panel.btn[L_BTN[l]], (int)blink);
     }
+#if CR_EDIT_HOOKS
+    if (cu.page == PG_EDIT && !l)                        /* the editor's buttons (EDIT blinking, the section lit) */
+        ce_leds(nl, blink);
+#endif
     if (cu_picker_ctx() || l) {                          /* a picker: OCT- back (lit), OCT+ OK (blinking) */
         cu_led(nl, panel.btn[B_OCTDN], 1);
         cu_led(nl, panel.btn[B_OCTUP], (int)blink);
@@ -2157,10 +2314,13 @@ static void cr_leds(void)
     }
     for (b = 0; b < NB; b++)
         cu_led(nd, panel.btn[b], 1);
-    /* the chord block: lit while held / latched; B3 always dark */
+    /* the chord block: lit while held / latched (LOCK's latch: posted down, so the engine's held); B3 = LOCK, lit on */
     for (k = 0; k < CU_ROOT0; k++) {
-        if (CU_MOD_OF_KEY[k] == 0xFFu)
+        if (CU_MOD_OF_KEY[k] == 0xFFu) {
+            cu_led(nl, 14u + k, cu.clock);
+            cu_led(nd, 14u + k, 1);
             continue;
+        }
         cu_led(nl, 14u + k, (int)((sn->mods_active >> CU_MOD_OF_KEY[k]) & 1u));
         cu_led(nd, 14u + k, 1);
     }
@@ -2178,7 +2338,7 @@ static void cr_leds(void)
             if ((uint32_t)wi == sel ? blink : (cs.loop_used >> wi) & 1u)
                 cu_led(own, 14u + k, 1);
         }
-    } else if (l && l != L_KEY) {
+    } else if (l && l != L_KEY && !(l == L_EDIT && !cs.pick_roots)) {
         int32_t sel = cu_layer_sel(l), n = cu_layer_count(l);
         for (k = CU_ROOT0; k < CU_NKEY; k++) {
             int32_t wi = cu_white_idx(k);
@@ -2190,7 +2350,7 @@ static void cr_leds(void)
             cu_led(cs.key_on && (53u + k) % 12u == cs.tonic ? own : nd, 14u + k, 1);
     } else if (cu.page == PG_SAVE) {                     /* naming: the keys that type lit (the letters, D#4 space) */
         for (k = CU_ROOT0; k < CU_NKEY; k++)
-            if (cu_white_idx(k) >= 0 || k == 10u)
+            if (cu_white_idx(k) >= 0 || k == 10u || k == 13u)
                 cu_led(own, 14u + k, 1);
     } else if (cu.opt_open) {
         for (k = CU_ROOT0; k < CU_NKEY; k++) {
@@ -2308,6 +2468,8 @@ static void cu_header(cr_screen_t *s)
         cu_int(s->right + 4, cu.octave, 1, sizeof s->right - 4u);
     } else if (cs.sticky)
         cu_cpy(s->right, "Latch", sizeof s->right);
+    else if (cu.clock)                            /* LOCK on (mock-up 3): a small white "lock" */
+        cu_cpy(s->right, "lock", sizeof s->right);
     /* the looper owns the top line while it runs: "Rec 2.3", "Rec" (the count-in), "Loop 1" */
     if (sn->lcap != CRL_CAP_NONE || sn->lstate == CRL_PLAYING) {
         char b[8];
@@ -2425,7 +2587,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         cu_cpy(s->title, "select key", sizeof s->title);
         s->title_px = 26;
         s->col = CR_COL_YELLOW;
-        cu_cpy(s->footer, "a root: the key \267 MIN held: minor", sizeof s->footer);
+        cu_cpy(s->footer, "MIN: minor \267 OCT-: back \267 HOME: home", sizeof s->footer);
         for (k = CU_ROOT0; cs.key_on && k < CU_NKEY; k++)
             if ((53u + k) % 12u == cs.tonic) {
                 s->lit |= 1u << k;
@@ -2437,7 +2599,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         uint32_t m = cu_perf_mode();
         int32_t p = CU_PERF_KNOB[m][0];
         cu_picker(s, PERF_ITEMS, 7, cs.perf_sel, CR_COL_WHITE, "perform",
-                  "a root key: the mode \267 KNOB 3: rate");
+                  "a root: mode \267 OCT-: back \267 HOME: home");
         cu_param_text((uint32_t)p, cs.par[m][p], val, sub);
         if (p == CR_P_DIV || p == CR_P_PATTERN || p == CR_P_DIR)
             cu_cpy(s->value, sub, sizeof s->value);
@@ -2450,7 +2612,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_FX:
         cu_picker(s, FX_ITEMS, CU_NFX, cs.fx_sel, CR_COL_GREEN, "fx \267 KNOB 4 amount",
-                  "a root key: the effect \267 OPT+FX: lock");
+                  "a root: effect \267 OCT-: back \267 HOME: home");
         if (cs.fx_on)
             cu_2d(s->value, cs.fx_amt[cs.fx_sel] * 99u / 127u, sizeof s->value);
         else
@@ -2458,7 +2620,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         break;
     case L_BASS:
         cu_picker(s, CU_BASSMODE, 4, cs.bass_mode, CR_COL_ORANGE, "bass",
-                  "KNOBS: behaviour \267 register \267 sound \267 level");
+                  "KNOB 3: sound \267 OCT-: back \267 HOME: home");
         if (cs.bass_on && cs.bass_sound) {
             cu_2d(s->value, cs.bass_sound, sizeof s->value);
             cu_cat(s->value, " ", sizeof s->value);
@@ -2472,7 +2634,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
             eng[k] = ENGINES[cu_engine_at(k, 0)]->name;
         cu_picker(s, eng, n, (uint32_t)cu_layer_sel(L_EDIT), ce.part ? CR_COL_ORANGE : CR_COL_WHITE,
                   ce.part ? "bass engine \267 KNOB 1 its presets" : "engine \267 KNOB 1 its presets",
-                  "a root key: the engine \267 KNOB 2: init");
+                  cs.pick_roots ? "roots: engines \267 OCT-: cancel \267 OCT+: ok"
+                                : "roots: play \267 OCT-: cancel \267 OCT+: ok");
         cu_cpy(s->value, psnd[ce.part].name, sizeof s->value);
         if (psnd[ce.part].edited)
             cu_cat(s->value, "*", sizeof s->value);
@@ -2480,12 +2643,12 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     case L_LOOP:                                   /* mock-ups 8 (stopped: the length) and 10 (playing) */
         if (cu_playing()) {
             cu_picker(s, CU_LOOP_ACT, 4, cs.loop_act, CR_COL_RED, SLOTS[cs.loop_slot % 10u],
-                      "OCT+ does it \267 roots: slots \267 D#4 clear");
+                      "");                       /* (the ring owns the footer band) */
             cu_cpy(s->label, "loop ", sizeof s->label);
             cu_cat(s->label, SLOTS[cs.loop_slot % 10u] + 5, sizeof s->label);
         } else {
             cu_picker(s, CU_LOOPLEN, CRL_NSYNC, cs.loop_len, CR_COL_RED, "loop length",
-                      "roots: slots \267 KNOBS sync quant count level");   /* (mock-up 8: no value line) */
+                      "");   /* (mock-up 8: no value line) */
         }
         s->ring_on = 1;
         s->ring_col = CR_COL_RED;
@@ -2499,7 +2662,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     case L_SAVE:                                   /* loops: save / load / delete on the root-chosen slot */
         cu_picker(s, CU_SAVE_ACT, 3, cs.save_act, CR_COL_RED,
                   (cs.loop_used >> cs.loop_target) & 1u ? "holds a loop" : "empty",
-                  "a root: the slot \267 OCT+ does it");
+                  "");                       /* (the ring's band) */
         s->orient = 1;
         cu_cpy(s->value, SLOTS[cs.loop_target % 10u], sizeof s->value);
         s->ring_on = 1;
@@ -2508,7 +2671,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         s->mid_col = CR_COL_RED;
         break;
     case L_METRO:                                  /* the time signature; KNOB 1 the click level */
-        cu_picker(s, CU_SIG, CRL_NSIG, cs.metro_sig, CR_COL_WHITE, "time signature", "KNOB 1: click level");
+        cu_picker(s, CU_SIG, CRL_NSIG, cs.metro_sig, CR_COL_WHITE, "time signature",
+                  "KNOB 1: level \267 OCT-: back \267 HOME: home");
         s->orient = 1;
         cu_cpy(s->value, cs.metro ? "click on " : "click off ", sizeof s->value);
         cu_int(s->value + (cs.metro ? 9 : 10), cs.metro_vol, 0, 4);
@@ -2524,78 +2688,8 @@ static void cu_options_screen(cr_screen_t *s)
     opt_text(cu.opt_sel, s->value, sizeof s->value);
 }
 
-/* the sound page (mock-up 21): the sound's name and "ENV 4/8" on top, four columns; the column last turned eases
- * to its new value (CU_GLYPH_MS: the envelope redraws as the knob moves) */
-static void cu_edit_screen(cr_screen_t *s, uint32_t now)
-{
-    track_t *t = cu_edit_trk();
-    const engine_t *en = ENGINES[t->eng_req % NENGINES];
-    uint32_t i, j, n, np;
-    char b[8];
-    if (ce.page >= cp_n(t))                        /* (the engine changed: fewer pages) */
-        ce.page = 0;
-    np = cp_n(t);
-    s->kind = CR_K_PARAMS;
-    for (i = 0; i < 4u; i++) {
-        cr_param_t *c = &s->par[i];
-        uint32_t id = cp_id(t, ce.page, i);
-        if (id == CPX_ENGINE) {
-            int32_t r = cu_engine_rank(t->eng_req % NENGINES);
-            cu_engine_at(0, &n);
-            cu_cpy(c->label, "Engine", sizeof c->label);
-            cu_cpy(c->value, en->name, sizeof c->value);
-            c->glyph = CR_G_DOTS;
-            c->pct = (uint16_t)(n > 1u && r > 0 ? (uint32_t)r * 256u / (n - 1u) : 0u);
-        } else if (id == CPX_PRESET) {
-            cu_cpy(c->label, "Preset", sizeof c->label);
-            cu_cpy(c->value, en->npresets ? en->presets[t->preset % en->npresets].name : "-", sizeof c->value);
-            c->glyph = CR_G_KNOB;
-            c->pct = (uint16_t)(en->npresets > 1u ? (t->preset % en->npresets) * 256u / (en->npresets - 1u) : 0u);
-        } else if (id == CPX_INIT) {
-            cu_cpy(c->label, "Init", sizeof c->label);
-            cu_cpy(c->value, "turn", sizeof c->value);
-            c->glyph = CR_G_KNOB;
-        } else {
-            cp_column(t, ce.page, i, c);
-        }
-        if (ce.col == (int8_t)i && now - ce.t0 < CU_GLYPH_MS) {   /* the turned column: tweened */
-            c->pct = (uint16_t)cr_tween(ce.from_pct, c->pct, ce.t0, CU_GLYPH_MS, now);
-            for (j = 0; j < 4u; j++)
-                c->env[j] = (uint8_t)cr_tween(ce.from_env[j], c->env[j], ce.t0, CU_GLYPH_MS, now);
-        }
-        ce.shown_pct[i] = c->pct;
-        for (j = 0; j < 4u; j++)
-            ce.shown_env[i][j] = c->env[j];
-    }
-    cu_cpy(s->title, psnd[ce.part].name, sizeof s->title);
-    if (psnd[ce.part].edited)
-        cu_cat(s->title, "*", sizeof s->title);
-    s->col = ce.part ? CR_COL_ORANGE : CR_COL_WHITE;
-    cu_cpy(s->page, cp_title(t, ce.page), sizeof s->page);
-    cu_cat(s->page, cp_deep(t) ? " \267 " : " ", sizeof s->page);   /* ("OSC 2 \267 4/33"; "ENV 4/8" without) */
-    cu_int(b, (int32_t)ce.page + 1, 0, sizeof b);
-    cu_cat(s->page, b, sizeof s->page);
-    cu_cat(s->page, "/", sizeof s->page);
-    cu_int(b, (int32_t)np, 0, sizeof b);
-    cu_cat(s->page, b, sizeof s->page);
-    if (cp_deep(t)) {                              /* the section marks */
-        uint8_t st[CP_SECT_MAX];
-        s->n_sect = (uint8_t)cp_sections(t, st);
-        s->sect = (uint8_t)cp_sect(t, ce.page);
-    }
-    if (cp_base(t, ce.page) == CP_ENV && en->ownenv) {
-        if (cp_deep(t)) {
-            cu_cpy(s->foot, en->name, sizeof s->foot);
-            cu_cat(s->foot, ": its own envelopes", sizeof s->foot);
-        } else {
-            cu_cpy(s->foot, "FM6: the patch's own envelopes", sizeof s->foot);
-        }
-    } else if (cp_deep(t) && cp_dp(t, ce.page) >= 0)
-        cu_cpy(s->foot, "SELECT: page \267 OPT+SELECT: section", sizeof s->foot);
-    else
-        cu_cpy(s->foot, ce.part ? "bass \267 SELECT: page \267 HOME: done" : "SELECT: page \267 HOME: done \267 SAVE: keep it",
-               sizeof s->foot);
-}
+/* the sound editor (design/choralroot-fm1-sound-editor-mockups.json): cr_edit.c */
+static void cu_edit_screen(cr_screen_t *s, uint32_t now) { ce_screen(s, now); }
 
 /* SAVE (mock-up 23): the slot, the name being typed */
 static void cu_save_screen(cr_screen_t *s, uint32_t now)
@@ -2634,14 +2728,14 @@ static void cu_save_screen(cr_screen_t *s, uint32_t now)
     s->lines[1].col = cn.pristine ? CR_COL_GREY : CR_COL_WHITE;
     s->lines[1].bold = 1;
     s->lines[2].px = 12;
-    cu_cpy(s->lines[3].t, "keys: letters \267 OCT-: delete", sizeof s->lines[3].t);
+    cu_cpy(s->lines[3].t, "keys: letters \267 F#4: delete", sizeof s->lines[3].t);
     s->lines[3].px = 12;
     s->lines[3].col = CR_COL_GREY;
-    cu_cpy(s->lines[4].t, "OCT+: save \267 KNOB 1: slot", sizeof s->lines[4].t);
+    cu_cpy(s->lines[4].t, "SAVE: save \267 KNOB 1: slot", sizeof s->lines[4].t);
     s->lines[4].px = 12;
     s->lines[4].col = CR_COL_GREY;
     s->n_lines = 5;
-    cu_cpy(s->footer, "SAVE again: cancel", sizeof s->footer);
+    cu_cpy(s->footer, "OCT+: save \267 OCT-: cancel", sizeof s->footer);
 }
 
 /* the SCOPE view's trace: audio.c's ring of the master output (scope_buf, every 2nd sample, written in the audio
@@ -2942,6 +3036,10 @@ static void cu_animate(cr_screen_t *s, uint32_t now)
             ca.anim = CR_A_FILL;
             cr_anim_mark(&cu_anim, now);
         }
+        if (cu.pop.jump && (int32_t)(cu.pop.until - now) > 0) {   /* the picker's preview: the bar jumps */
+            ca.anim &= (uint8_t)~CR_A_FILL;
+            ca.pct_from = s->pct;
+        }
         s->pct_from = ca.pct_from;
         s->anim = ca.anim;
         s->size = (uint8_t)cr_spring(92, 104, cu_anim.t0, 240, now);   /* the number springs in */
@@ -2986,7 +3084,7 @@ static void cu_animate(cr_screen_t *s, uint32_t now)
 }
 
 /* --------------------------------------------------------------- frames --- */
-static cr_screen_t cu_scr;
+static cr_screen_t cu_scr __attribute__((section(".pool")));   /* (cleared every frame: cr_screen_clear) */
 
 /* MIDI in (cr_out.c): the clock's tempo mirrored on screen, CC 7 / 91 / 93 / 94 and program changes applied as the
  * knobs apply them (with their meter) */
@@ -3051,8 +3149,27 @@ static void cu_midi_poll(void)
 static void cr_ui_frame(void)                      /* after the scan: the engine's state, the LEDs */
 {
     cpu_window(fm1_ms);                            /* audio.c: the last second's ISR load (console `cpu`, GEEK OUT) */
+    if (cpk.on && cu.lock != L_EDIT)               /* the picker closed another way (OPT, SAVE, BASS + EDIT): kept */
+        cu_pick_end(1);
     cu_midi_poll();
     cr_snapshot();
+#ifdef CR_TRACE
+    {                                              /* the emulator's log: the sounding chord as it changes */
+        static char last[24];
+        char nm[24];
+        nm[0] = 0;
+        if (cr_snap.ci.sounding) {
+            cu_cpy(nm, cr_snap.ci.root, sizeof nm);
+            cu_cat(nm, cr_snap.ci.qual, sizeof nm);
+            cu_cat(nm, cr_snap.ci.sup, sizeof nm);
+            cu_cat(nm, cr_snap.ci.nnotes == 1u ? " (1 note)" : "", sizeof nm);
+        }
+        if (!cu_eq(nm, last)) {
+            cu_cpy(last, nm, sizeof last);
+            cu_trace("chord: %s\n", nm[0] ? nm : "-");
+        }
+    }
+#endif
     cu_loop_frame();
     cr_leds();
 }
@@ -3133,6 +3250,7 @@ static void cr_ui_init(void)
     cs.loop_count_in = 1;
     cs.loop_level = 100;
     cs.metro_vol = 70;
+    cs.pick_roots = 1;
     cu_route();
     cu_set_tempo(cr.bpm ? cr.bpm : 120);
 #if CR_HAVE_SETTINGS

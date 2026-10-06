@@ -54,6 +54,7 @@ static void t_defaults(void)
     ok(d.midi_ch[0] == 0 && d.midi_ch[1] == 1 && d.midi_ch[2] == 2, "defaults: channels 1 / 2 / 3");
     ok(!d.bass_on && d.bass_mode == CR_BASS_CHORDS_ONLY, "defaults: bass off, Chords Only");
     ok(d.palette == CRS_PALETTE_MOD, "defaults: the MOD palette");
+    ok(d.pick_roots == 1, "defaults: the engine picker's roots choose engines");
     ok(d.bpm == 120 && d.vel == 100 && d.playstyle == CR_PS_SIMPLE && !d.key_on && d.single == CR_SINGLE_FULL,
        "defaults: 120 BPM, velocity 100, Simple, Key Mode off, Full Octave");
     ok(d.chord_sound == CRS_SOUND_DEFAULT && d.fx_on && d.view == 0 && d.motion == 0, "defaults: UI fields");
@@ -188,6 +189,23 @@ static void t_version(void)
     s.check = h;
     ok(cr_settings_import(&r, &s, sizeof s) == 2 && r.bpm == 99 && r.metro_vol == 70 && r.metro_sig == 0 &&
        r.version == CRS_VERSION, "version 1 -> 2: kept, the metronome level takes its default (70)");
+    /* a version-2 record (written before pick_roots: a zero in its place) */
+    cr_settings_defaults(&s);
+    s.bpm = 98;
+    s.pick_roots = 0;
+    s.version = 2;
+    for (h = 2166136261u, i = 12; i < CRS_SIZE; i++) { h ^= ((uint8_t *)&s)[i]; h *= 16777619u; }
+    s.check = h;
+    ok(cr_settings_import(&r, &s, sizeof s) == 2 && r.bpm == 98 && r.pick_roots == 1 && r.version == CRS_VERSION,
+       "version 2 -> 3: kept, the picker's roots take their default (engines)");
+    /* pick_roots off round-trips; out of range takes the default */
+    cr_settings_defaults(&s);
+    s.pick_roots = 0;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.pick_roots == 0, "pick_roots 0 (the roots play) kept");
+    s.pick_roots = 7;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.pick_roots == 1, "pick_roots out of range: the default");
 }
 
 static void t_flash(void)

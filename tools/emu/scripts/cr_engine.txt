@@ -1,20 +1,22 @@
-# ChoralRoot: EDIT held (SEL) + D4 (the first white root: ANALOG) switches the chord sound's engine (TINE EP on
+# ChoralRoot: EDIT held (printed EDIT, locked open: OCT+ keeps, OCT- cancels) + D4 (the first white root: ANALOG) switches the chord sound's engine (TINE EP on
 # FM6 -> ANALOG, the envelope and sends kept); KNOB 1 steps its presets; then MAJ + D4 (compared with cr_dmaj.wav)
 wait 300
-btn SEL down
+btn EDIT down
 wait 500
 shot build/emu/test/cr_engine_before.ppm
 btn D4
 wait 300
 shot build/emu/test/cr_engine_switched.ppm
-btn SEL up
+btn EDIT up
+btn OCT+                      # the layer stays open after a hold: OCT+ keeps the sound and closes it (OCT- cancels)
 wait 300
 dump
-btn SEL down
+btn EDIT down
 wait 400
 knob KNOB1 +1
 wait 300
-btn SEL up
+btn EDIT up
+btn OCT+                      # the layer stays open after a hold: OCT+ keeps the sound and closes it (OCT- cancels)
 wait 1000
 key F3 down
 wait 60

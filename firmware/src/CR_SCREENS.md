@@ -16,7 +16,7 @@ cr_draw(&s, ms_since_the_change);     /* every frame; cheap when nothing changed
 ## The view-model (`cr_screen.h`)
 
 `cr_screen_t` mirrors the designer's `screen` object, flattened: `kind` (`CR_K_STRIPES CHORD PICKER METER KEYBOARD
-ARP PARAMS GEEK TEXT BIG SCOPE`), the top line (`header`, `icon` none/play/rec/loop, `mid`/`mid_col`, `right`/`right_col`,
+ARP GEEK TEXT BIG SCOPE EDIT8 STACK`), the top line (`header`, `icon` none/play/rec/loop, `mid`/`mid_col`, `right`/`right_col`,
 `batt`), `footer` (one line; empty = none, the panel then runs to row 240), the ring (`ring_on`, `ring` Q8,
 `ring_rec`, `ring_col`), `message`/`message_col`, and the panel fields of every kind (fixed char arrays; the chord
 name as `cr_name_t {root, quality, sup, col_root, col_quality, col_sup}`; up to 8 notes `{t, col, mark}`; a picker
@@ -40,7 +40,6 @@ the designer resolves in its MOD palette becomes the named colour: THEME red, AC
 | --- | --- | --- |
 | `CR_A_SQUEEZE` | `from`, `name`, `squeeze` | 120 ms: `from` thins to an 8 % column (ease-in, 60 ms), `name` stretches out of it (ease-out, 60 ms); no `from`: stretch only. Multiplies the fit-to-224 px factor and the forced `squeeze` (state 24's frame) |
 | `CR_A_SLIDE` | `slide` (sel came from sel − slide) | 160 ms ease-out: the old item leaves and the new one enters inside the item's box (a reel); vertical or horizontal |
-| `CR_A_SLIDE` (params) | `slide` (the page came from that side) | the columns dealt in: each rises 14 px into place (110 ms ease-out), 30 ms after its neighbour, from the side turned to |
 | `CR_A_FILL` | `pct_from` → `pct` | one stripe every 30 ms |
 | `CR_A_STRIPES` | `phase`, `period_ms` | the bands' phase advances a cycle per `period_ms` (40 px per cycle, as the designer's `phase`) |
 | `CR_A_SWEEP` | — | the bands are swept off to the right, 240 ms each, 40 ms apart (the first chord) |
@@ -149,14 +148,21 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
   for 240 points). The samples are in the hashed struct: a still trace costs one hash, a moving one redraws and
   blits only the strips whose pixels changed. States 25-29 of `tests/gen_cr_screens.py` (`DEVICE_STATES`, not in the
   designer's JSON): the scope sounding and silent, three calibration steps (`CR_K_BIG` 40 px, the ring as progress).
-- **`CR_K_PARAMS`, deep pages** (an engine's own, `cr_pages.c` `cp_dcolumn`; states 30-34, `VA_STATES`): `page[16]`
-  carries `OSC 2 · 4/39`; `n_sect` > 1 draws one 4 px square per section under it (7 px pitch, right-aligned at 230,
-  `sect` filled in the title's colour). Glyphs added in the same 2.5 px line: `CR_G_TRI`, `CR_G_NOISE` (a fixed
-  15-point jag), `CR_G_FTYPE` (`n` 0 LP, 1 BP, 2 HP, 3 NOTCH over the dashed pass level), `CR_G_MOD` (`src` over
-  `dst` in 11 px with an arrow, `pct` a bipolar bar out of the middle); the waveform column picks `SAW` / `SQUARE`
-  (a pulse: `pct` 64) / `TRI` / `WAVE` / `NOISE` by the value's name; the page's ATK DEC SUS REL fill `env[]` of
-  every column. An empty column (no label, no value) draws nothing. `CR_A_SLIDE` with `slide` on a params panel:
-  a page turned, the columns are dealt in from that side, each rising 14 px into place over 110 ms, 30 ms apart.
+- **`CR_K_EDIT8`, `CR_K_STACK`: the sound editor** (`cr_edit.c` fills them; FORMAT.md "Sound editor panels",
+  design/choralroot-fm1-sound-editor-mockups.json; states 30-38 of `tests/gen_cr_screens.py` are that file's states
+  1 3 4 6 8 9 11 15 16). Full screen (`header` 0): the title line (`title` in `title_col`, `page` right), then edit8:
+  an optional wide band (`wide` `CR_W_ENV`: `wv` a h d s r + the lit segment, the AHDSR as one 3 px polyline, its
+  steep runs cut into pieces <= 26 px tall so cr_poly's boxes stay small, the lit segment 4 px in the hot cell's
+  colour, A H D S R under it; `CR_W_FILTER`: `wv` cut res type drive, the 2nd-order response sampled at 7
+  quarter-octave offsets from the cutoff in 32-bit log2 arithmetic, the edges extrapolated, clamped to the band
+  with the crossings: <= 12 segments, over a dashed 0 dB line) over two rows of four `cell`s (each `cr_cell_t` carries its label, value, `CR_CF_*` flags, glyph, pct); stack: `head` column headings at y 36 over
+  `n_rows` rows sharing 41..239 with `rlabel`s (N >= 7: text only). The `active` row in the knob colours (blue
+  orange white green) with 2 px bars, the others DIM; `hot_r` (row + 1) / `hot_c`: the value on a block of its
+  colour. Glyphs (`CR_G_KNOB BAR WAVE SAW SQUARE STEPS DOTS`, a bipolar BAR centre-zero) are the designer's
+  drawGlyph scaled by h / 64. Motion is the producer's: `bar_dy` (the bars sliding from the previous row), `ed_dx`
+  (the cells sliding in: a bank swap, another section; flag 32 for the lint), the band's values tweened. A value
+  too wide loses its space first ("790ms"), then ellipsises. Cost: <= 9 M host instructions a frame (the ENV band
+  the dearest), measured by `EMU_UI_LOG=5` in tools/emu/test_cr.sh. The old params page (`CR_K_PARAMS`) is retired.
 - Not implemented (not on the device): the designer kinds `tiles list scope dial roundel splash loop notes`, `big`
   with `pct` (the inverted fill), knob cards, keycap footers, `bubbleStyle: "disc"`, the chord panel's `key`/`trans`.
 

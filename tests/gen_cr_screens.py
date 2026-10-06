@@ -31,9 +31,12 @@ NAMES = {"white": "WHITE", "cream": "WHITE", "red": "RED", "coral": "RED", "mage
          "theme": "RED", "accent": "YELLOW", "text": "WHITE", "mid": "MID", "dim": "DIM", "rec": "REC", "line": "LINE",
          "bg": "BG", "surf": "SURF"}
 KIND = {"stripes": "STRIPES", "chord": "CHORD", "picker": "PICKER", "meter": "METER", "keyboard": "KEYBOARD",
-        "arp": "ARP", "params": "PARAMS", "geek": "GEEK", "text": "TEXT", "big": "BIG", "scope": "SCOPE"}
+        "arp": "ARP", "geek": "GEEK", "text": "TEXT", "big": "BIG", "scope": "SCOPE", "edit8": "EDIT8",
+        "stack": "STACK"}
 ICON = {"none": "NONE", "play": "PLAY", "rec": "REC", "loop": "LOOP", "stop": "NONE"}
-GLYPH = ["knob", "bar", "env", "wave", "saw", "square", "filter", "steps", "dots"]
+CELL_GLYPH = {"knob": "KNOB", "bar": "BAR", "wave": "WAVE", "saw": "SAW", "square": "SQUARE", "steps": "STEPS",
+              "dots": "DOTS"}
+FTYPE = ["LP", "BP", "HP", "NOTCH"]
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 KEY_NAMES = [NOTE_NAMES[(53 + k) % 12] + str((53 + k) // 12 - 1) for k in range(27)]   # F3 .. G5
 
@@ -108,7 +111,7 @@ def screen(sc, prev_name):
         f.append(".batt = 255")
     foot = sc.get("footer")
     if foot and foot.get("text"):
-        f.append(f".footer = {cstr(foot['text'], 48)}")
+        f.append(f".footer = {cstr(foot['text'], 64)}")
     if sc.get("ring") is not None and sc.get("ring") is not False:     # (0: the track only)
         f.append(".ring_on = 1")
         f.append(f".ring = {q8(sc['ring'])}")
@@ -249,29 +252,8 @@ def screen(sc, prev_name):
         f.append(f".line_col = {col(p.get('lineCol'), 'MID')}")
         if p.get("size"):
             f.append(f".size = {p['size']}")
-    elif kind == "params":
-        kc = ["blue", "orange", "white", "red"]
-        cs = []
-        for i, c in enumerate((p.get("cols") or [])[:4]):
-            env = c.get("env") or [0.2, 0.3, 0.6, 0.3]
-            cs.append(f"{{{cstr(c.get('label'), 12)}, {cstr(c.get('value'), 8)}, {col(c.get('col') or kc[i])}, "
-                      f"CR_G_{(c.get('glyph') or 'knob').upper()}, {c.get('cycles') or 2}, {c.get('n') or 8}, "
-                      f"{q8(c.get('pct', 0.5))}, {{{', '.join(str(min(255, q8(e))) for e in env)}}}, "
-                      f"{cstr(c.get('src'), 6)}, {cstr(c.get('dst'), 6)}}}")
-        f.append(".par = {" + ", ".join(cs) + "}")
-        if p.get("title"):
-            f.append(f".title = {cstr(p['title'], 24)}")
-        f.append(f".col = {col(p.get('col'), 'WHITE')}")
-        if p.get("page"):
-            f.append(f".page = {cstr(p['page'], 16)}")
-        if p.get("sections"):                              # (device: [how many, the current one])
-            f.append(f".n_sect = {p['sections'][0]}")
-            f.append(f".sect = {p['sections'][1]}")
-        if p.get("slide"):                                 # (device: a page turned, the columns dealt in)
-            f.append(f".slide = {p['slide']}")
-            anim.append("CR_A_SLIDE")
-        if p.get("foot"):
-            f.append(f".foot = {cstr(p['foot'], 48)}")
+    elif kind in ("edit8", "stack"):
+        f += editor_fields(p, kind)
     elif kind == "text":
         if p.get("title"):
             f.append(f".title = {cstr(p['title'], 24)}")
@@ -304,6 +286,69 @@ def screen(sc, prev_name):
     return f, shown
 
 
+def q8c(v):
+    """a cell's fill: Q8 of 255 (255 = full)"""
+    return max(0, min(255, int(round(float(v) * 256))))
+
+
+def cell_init(c):
+    """an edit8 / stack cell -> cr_cell_t {label, value, flags, glyph, pct}"""
+    if not c:
+        return "{\"\", \"\", 0, CR_G_NONE, 0}"
+    flags = ["CR_CF_ON"]
+    if c.get("pct") is not None:
+        flags.append("CR_CF_PCT")
+    if c.get("bipolar"):
+        flags.append("CR_CF_BIP")
+    g = c.get("glyph")
+    glyph = CELL_GLYPH[g] if g and g != "none" else "NONE"
+    value = str(c.get("value") or "").replace("\u2013", "-")
+    return (f"{{{cstr(c.get('label'), 10)}, {cstr(value, 9)}, {' | '.join(flags)}, CR_G_{glyph}, "
+            f"{q8c(c.get('pct') if c.get('pct') is not None else 0.5)}}}")
+
+
+def editor_fields(p, kind):
+    """the sound editor's panels (FORMAT.md "Sound editor panels"): the cells, the title line, the wide band"""
+    f = []
+    if kind == "edit8":
+        rows = [r for r in (p.get("rows") or [])[:2]]
+        cells = [[(r[i] if i < len(r) else None) for i in range(4)] for r in rows]
+    else:
+        rows = (p.get("rows") or [])[:8]
+        cells = [[((r or {}).get("cells") or [None] * 4)[i] if i < len((r or {}).get("cells") or []) else None
+                  for i in range(4)] for r in rows]
+        f.append(".head = {" + ", ".join(cstr(h, 10) for h in ((p.get("cols") or []) + [""] * 4)[:4]) + "}")
+        f.append(".rlabel = {" + ", ".join(cstr((r or {}).get("label"), 3) for r in rows) + "}")
+    f.append(".cell = {" + ", ".join("{" + ", ".join(cell_init(c) for c in row) + "}" for row in cells) + "}")
+    f.append(f".n_rows = {len(cells)}")
+    f.append(f".active = {int(p.get('active') or 0)}")
+    hot = p.get("hot")
+    if isinstance(hot, list) and len(hot) == 2:
+        f.append(f".hot_r = {int(hot[0]) + 1}")
+        f.append(f".hot_c = {int(hot[1])}")
+    if p.get("title"):
+        f.append(f".title = {cstr(p['title'], 24)}")
+    f.append(f".title_col = {col(p.get('titleCol'), 'NONE')}")
+    if p.get("right"):
+        f.append(f".page = {cstr(p['right'], 16)}")
+    if p.get("tall"):
+        f.append(".tall = 1")
+    if p.get("fine"):
+        f.append(".fine = 1")
+    w = p.get("wide") if kind == "edit8" else None
+    if w and w.get("type") == "env":
+        seg = w.get("seg")
+        vals = [q8c(w.get(k, 0)) for k in ("a", "h", "d", "s", "r")] + [0 if seg is None else int(seg) + 1]
+        f.append(".wide = CR_W_ENV")
+        f.append(".wv = {" + ", ".join(str(v) for v in vals) + "}")
+    elif w and w.get("type") == "filter":
+        vals = [q8c(w.get("cut", 0.5)), q8c(w.get("res", 0)), FTYPE.index(str(w.get("ftype", "LP")).upper()),
+                q8c(w.get("drive", 0))]
+        f.append(".wide = CR_W_FILTER")
+        f.append(".wv = {" + ", ".join(str(v) for v in vals) + "}")
+    return f
+
+
 def scope_wave(freqs):
     """the firmware's cr_ui.c cu_scope on a synthetic chord (sines at freqs Hz, the scope's 22.05 kHz): 240 samples
     from the steepest rising zero crossing, auto-scaled to -127..127 (no freqs: silence, a flat line)"""
@@ -318,11 +363,6 @@ def scope_wave(freqs):
             best, trig = x[i] - x[i - 1], i
     return [int(x[trig + i] * 127 / peak) for i in range(240)]
 
-
-# the VA's deep pages (cr_pages.c cp_dcolumn): 31 pages between EDIT 2 and ENV, nine sections
-VA_SECT = 9
-NONE_COL = {"label": "", "value": ""}
-VA_FOOT = "SELECT: page \u00b7 OPT+SELECT: section"
 
 # device-only states (no mock-up yet; not in the JSON): rendered and linted after the mock-up states
 DEVICE_STATES = [
@@ -342,49 +382,27 @@ DEVICE_STATES = [
                           "size": 40}}},
 ]
 
-# .. then the deep pages (an engine's own, core.h eng_deep_t)
-VA_STATES = [
-    {"name": "Device · VA deep page OSC 1 (dealt in)",
-     "screen": {"header": {"mid": "", "batt": 3}, "panel": {
-         "kind": "params", "title": "VA BRASS*", "page": "OSC 1 \u00b7 4/39", "col": "white", "sections": [VA_SECT, 1],
-         "slide": 1, "foot": VA_FOOT, "cols": [
-             {"label": "Wave", "value": "SAW", "glyph": "saw", "cycles": 2, "pct": 0.5},
-             {"label": "Level", "value": "80%", "glyph": "bar", "pct": 0.8},
-             {"label": "Coarse", "value": "+12", "glyph": "knob", "pct": 0.75},
-             {"label": "Fine", "value": "-7", "glyph": "knob", "pct": 0.43}]}}},
-    {"name": "Device · VA deep page FILTER",
-     "screen": {"header": {"mid": "", "batt": 3}, "panel": {
-         "kind": "params", "title": "VA BRASS", "page": "FILTER \u00b7 12/39", "col": "white", "sections": [VA_SECT, 2],
-         "foot": VA_FOOT, "cols": [
-             {"label": "Type", "value": "BP", "glyph": "ftype", "n": 1},
-             {"label": "Cutoff", "value": "2.4kHz", "glyph": "filter", "pct": 0.62},
-             {"label": "Reso", "value": "35%", "glyph": "knob", "pct": 0.35},
-             {"label": "Drive", "value": "20%", "glyph": "bar", "pct": 0.2}]}}},
-    {"name": "Device · VA deep page ENV 2",
-     "screen": {"header": {"mid": "", "batt": 3}, "panel": {
-         "kind": "params", "title": "VA BRASS", "page": "ENV 2 \u00b7 16/39", "col": "white", "sections": [VA_SECT, 3],
-         "foot": VA_FOOT, "cols": [
-             {"label": "Attack", "value": "120ms", "glyph": "env", "env": [0.45, 0.35, 0.55, 0.6]},
-             {"label": "Decay", "value": "300ms", "glyph": "knob", "pct": 0.35},
-             {"label": "Sustain", "value": "55%", "glyph": "bar", "pct": 0.55},
-             {"label": "Release", "value": "800ms", "glyph": "knob", "pct": 0.6}]}}},
-    {"name": "Device · VA deep page MOD 3 (bass)",
-     "screen": {"header": {"mid": "", "batt": 3}, "panel": {
-         "kind": "params", "title": "SUB BASS", "page": "MOD 3 \u00b7 33/39", "col": "orange", "sections": [VA_SECT, 5],
-         "foot": VA_FOOT, "cols": [
-             {"label": "Source", "value": "LFO1", "glyph": "dots", "pct": 0.25},
-             {"label": "Dest", "value": "CUT", "glyph": "dots", "pct": 0.4},
-             {"label": "Amount", "value": "-40%", "glyph": "mod", "pct": 0.3, "src": "LFO1", "dst": "CUT"},
-             NONE_COL]}}},
-    {"name": "Device · VA deep page OSC 2 (triangle, noise)",
-     "screen": {"header": {"mid": "", "batt": 3}, "panel": {
-         "kind": "params", "title": "VA BRASS", "page": "OSC 2 \u00b7 5/39", "col": "white", "sections": [VA_SECT, 1],
-         "foot": VA_FOOT, "cols": [
-             {"label": "Wave", "value": "TRI", "glyph": "tri", "cycles": 2, "pct": 0.5},
-             {"label": "Level", "value": "60%", "glyph": "bar", "pct": 0.6},
-             {"label": "Wave", "value": "NOISE", "glyph": "noise", "pct": 0.5},
-             {"label": "Wave", "value": "PULSE", "glyph": "square", "cycles": 2, "pct": 0.25}]}}},
+# .. then the sound editor's (design/choralroot-fm1-sound-editor-mockups.json, the normative spec): these states
+EDITOR_SRC = ROOT / "design" / "choralroot-fm1-sound-editor-mockups.json"
+EDITOR_PICK = [1, 3, 4, 6, 8, 9, 11, 15, 16]
+
+
+# .. and the editor's device-only screens (docs/EDITOR.md; not in the mock-ups yet): OSC screen 3, the oscillator mixer
+# (one lane: the four LEVELs as tall bars), SHIFT latched ("fine" in the title line)
+EDITOR_DEVICE = [
+    {"name": "Editor device · OSC mixer (fine)",
+     "screen": {"panel": {"kind": "edit8", "title": "LUSH PAD*", "right": "OSC \u00b7 MIX", "tall": True, "fine": True,
+                          "active": 0, "hot": [0, 1],
+                          "rows": [[{"label": "OSC 1", "value": "100%", "glyph": "bar", "pct": 1.0},
+                                    {"label": "OSC 2", "value": "49%", "glyph": "bar", "pct": 0.49},
+                                    {"label": "OSC 3", "value": "31%", "glyph": "bar", "pct": 0.31},
+                                    {"label": "OSC 4", "value": "0%", "glyph": "bar", "pct": 0.0}]]}}},
 ]
+
+
+def editor_states():
+    e = json.loads(EDITOR_SRC.read_text())["states"]
+    return [dict(e[k - 1], name="Editor " + e[k - 1].get("name", "")) for k in EDITOR_PICK] + EDITOR_DEVICE
 
 
 def slug(name):
@@ -400,7 +418,7 @@ def slug(name):
 
 def main():
     d = json.loads(SRC.read_text())
-    d["states"] = list(d["states"]) + DEVICE_STATES + VA_STATES
+    d["states"] = list(d["states"]) + DEVICE_STATES + editor_states()
     if d.get("palette") not in (None, "MOD"):
         print(f"gen_cr_screens: note: the design's palette is {d.get('palette')}; the device draws MOD")
     out = ["/* generated by tests/gen_cr_screens.py from design/choralroot-fm1-mockups.json: the mock-up states as",

@@ -32,8 +32,9 @@ wait 400
 key F 100
 wait 200
 key / up
+btn OCT-                      # the layer stays open after a hold: OCT- closes it
 wait 300
-key X 100
+key B 100
 wait 300
 knob SELECT +1
 wait 300

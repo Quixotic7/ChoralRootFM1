@@ -364,7 +364,7 @@ static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
 static void mix_part(track_t *t, uint32_t n)
 {
-    int32_t *b = part_buf;
+    int32_t *b = part_buf, *sd;
     uint32_t i;
     mod_begin(t);                                       /* the matrix's per-block values into t->p (mod.c) */
     if (track_render(t, b, n))
@@ -387,10 +387,39 @@ static void mix_part(track_t *t, uint32_t n)
         int32_t c = t->p[P_CHOR] * 258, d = t->p[P_DLY] * 258, r = t->p[P_REV] * 258, pk = t->peak;
         int32_t xmax = c > d ? c : d;
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
+        /* a stereo side (voice.c part_side: VA's SPREAD / USPREAD): DIST works on the mid, the SLICER plays the part
+         * mono, the FX layer's mute fades both; the sends take the mid */
+        sd = part_side_on && !t->p[P_SLCR] && !slicer_busy(t) ? part_side : 0;
         track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
-        if ((pf.mute >> (t - trk)) & 1u)
+        if ((pf.mute >> (t - trk)) & 1u) {
+            if (sd) {
+                int32_t mg = pf.mg[t - trk];
+                perf_mute((uint32_t)(t - trk), sd, n);
+                pf.mg[t - trk] = mg;
+            }
             perf_mute((uint32_t)(t - trk), b, n);       /* perform.c: a black key in the FX layer */
+        }
+        if (sd) {
+            for (i = 0; i < n; i++) {
+                int32_t x = ((b[i] >> 2) * lvl) >> 10, a = x < 0 ? -x : x;
+                int32_t xs = clamp(x, -xmax, xmax), y = ((sd[i] >> 2) * lvl) >> 10;
+                if (a > pk)
+                    pk = a;
+                if (c)
+                    send_c[i] += mulq15(xs, c);
+                if (d)
+                    send_d[i] += mulq15(xs, d);
+                if (r)
+                    send_r[i] += mulq15(xs, r);
+                mix_l[i] += ((x - y) * gl) >> 12;
+                mix_r[i] += ((x + y) * gr) >> 12;
+            }
+            t->peak = pk;
+            if (mod.on)
+                mod_end(t);
+            return;
+        }
         for (i = 0; i < n; i++) {
             int32_t x = ((b[i] >> 2) * lvl) >> 10, a = x < 0 ? -x : x;   /* pre-shift: 8 loud voices */
             int32_t xs = clamp(x, -xmax, xmax);         /* sends: mulq15 would overflow */

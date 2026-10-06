@@ -47,7 +47,7 @@ b=$(bpm "$OUT/persist_3.log")
 [ "$(st "$OUT/persist_3.log")" = 0 ] && ok "run 3: Play Style Simple" || bad "run 3: style $(st "$OUT/persist_3.log")"
 
 # the VA patch store (firmware/src/va_store.c, docs/VA.md): run 1 edits a VA sound's patch on its deep page and saves
-# it to U01; run 2 (the same file) loads U01: the patch's CRC as saved
+# it to U01; run 2 (the same file) powers on with U01 (the record's chord sound): the patch's CRC as saved
 VFLASH=$OUT/persist_va_flash.bin
 rm -f "$VFLASH" "$OUT"/persist_va_1.log "$OUT"/persist_va_2.log
 "$EMU" --headless --flash "$VFLASH" --script "$S/va_persist_set.txt" >"$OUT/persist_va_1.log" 2>&1 || bad "VA run 1: exit status"
@@ -56,5 +56,18 @@ vs=$(sed -n 's/^va: save slot 1 .*patch crc \([0-9a-f]*\)$/\1/p' "$OUT/persist_v
 vl=$(sed -n 's/^va: load slot 1 patch crc \([0-9a-f]*\)$/\1/p' "$OUT/persist_va_2.log" | tail -1)
 grep -q "^deep: part 0 .* edited" "$OUT/persist_va_1.log" && ok "VA run 1: the patch edited on a deep page" || bad "VA run 1: no deep edit"
 [ -n "$vs" ] && [ "$vs" = "$vl" ] && ok "VA run 2: U01's patch after a relaunch (crc $vl)" || bad "VA: patch crc saved '${vs}' loaded '${vl}'"
+
+# the engine picker's roots (Settings pick_roots, docs/SETTINGS.md): run 1 turns them to "play" in the picker (KNOB 4);
+# run 2 (the same file) opens the picker with them playing
+RFLASH=$OUT/persist_roots_flash.bin
+rm -f "$RFLASH" "$OUT"/persist_roots_1.log "$OUT"/persist_roots_2.log "$OUT"/persist_roots.ppm
+"$EMU" --headless --flash "$RFLASH" --script "$S/persist_roots_set.txt" >"$OUT/persist_roots_1.log" 2>&1 || bad "roots run 1: exit status"
+"$EMU" --headless --flash "$RFLASH" --script "$S/persist_roots_check.txt" >"$OUT/persist_roots_2.log" 2>&1 || bad "roots run 2: exit status"
+grep -q '^picker: roots play' "$OUT/persist_roots_1.log" && grep -q "settings saves 1 " "$OUT/persist_roots_1.log" &&
+    ok "roots run 1: KNOB 4 in the picker: the roots play, saved" || bad "roots run 1: not set / not saved"
+grep -q '^picker: open part 0 .* roots play' "$OUT/persist_roots_2.log" && ! grep -q '^engine: ' "$OUT/persist_roots_2.log" &&
+    grep -q '^expect sound .*: ok' "$OUT/persist_roots_2.log" &&
+    ok "roots run 2: the picker's roots still play after a relaunch (D4 sounded, no engine switch): $OUT/persist_roots.ppm" \
+    || bad "roots run 2: $(grep '^picker: open' "$OUT/persist_roots_2.log")"
 [ $fail = 0 ] && echo PASS || echo FAIL
 exit $fail

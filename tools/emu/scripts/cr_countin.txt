@@ -12,6 +12,7 @@ shot build/emu/test/cr_loop_length_slide.ppm
 wait 300
 shot build/emu/test/cr_loop_length_1bar.ppm
 btn PLAY up
+btn OCT-                      # the layer stays open after a hold: OCT- closes it
 wait 600
 btn REC
 wait 250

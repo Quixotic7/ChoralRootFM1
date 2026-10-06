@@ -1,0 +1,3329 @@
+{
+ "format": "fm1-panel-design",
+ "version": 1,
+ "device": "M-VAVE FM-1",
+ "name": "ChoralRoot FM-1 sound editor",
+ "palette": "MOD",
+ "labels": {
+  "buttons": {
+   "FX": "FX",
+   "SEL": "KEY",
+   "ENV": "BASS",
+   "LFO": "LATCH",
+   "EDIT": "EDIT",
+   "GLO": "OPT",
+   "HOME": "HOME",
+   "SAVE": "SAVE",
+   "ARP": "PERF",
+   "SEQ": "METRO",
+   "PLAY": "LOOP",
+   "REC": "REC",
+   "OCT-": "OCT-",
+   "OCT+": "OCT+"
+  },
+  "encoders": {
+   "MASTER": "VOLUME",
+   "SELECT": "BPM",
+   "PRESETS": "SOUND",
+   "ALGORITHM": "BASS SND",
+   "KNOB1": "VOICING",
+   "KNOB2": "BASS VOICE",
+   "KNOB3": "PERFORM",
+   "KNOB4": "FX"
+  }
+ },
+ "notes": "The ChoralRoot sound editor, dense version (the main walk-through's state 21 opens it; its state 21 is state 1 here). Enter: EDIT tap (EDIT blinks while in the editor); exit: EDIT tap or HOME. Root keys still play (audition), OCT-/OCT+ shift the octave, PERF works as outside. The function buttons become sections (state buttonLabels): printed FX = OSC, SEL = FILT, ENV = ENV, LFO = LFO, GLO = SHIFT, HOME = HOME (exit), SAVE = SAVE, ARP = PERF, SEQ = MOD, PLAY = FX, REC = MIX: the top row reads as the signal flow OSC FILT ENV LFO, the bottom row MOD FX MIX as the output stage. THE DENSE GRAMMAR: no header bar and no footer hints; each section is ONE view. 'edit8' shows up to eight parameters in two rows of four (FILTER, each ENV, FX, MIX), with a wide shape over them where there is one (the filter curve, the AHDSR, which redraw as a knob turns); 'stack' shows the section's instances as rows (the 4 oscillators, the 4 LFOs, the 8 matrix slots). The active row is on KNOB 1-4, drawn in the knob colours with bars and an active bar beside it; the other row(s) grey. The top line: the sound's name ('*' when edited, ' \u00b7 BASS' in orange for the bass part) and at the right the section and what is on the knobs ('OSC 2 \u00b7 A', 'ENV 2 \u00b7 filter', 'MOD 3'). Taps step, holds swap: a section tap moves the active row (OSC / LFO / MOD: the next instance; ENV: the next envelope; FILT / MIX: row A <-> B); SELECT does the same as the tap. THE A/B BANK RULE: a section hold swaps its view to bank B and back (OSC B: Shape, Key trk, Sync/Ring; ENV: row B Hold, Velocity; LFO B: Sync alone; a synced Rate reads as a division). KNOB 1-4 edit (a detent = 5 % of the range, enums one by one; SHIFT held = one unit). SHIFT + EDIT switches between the chord sound and the bass sound. EDIT held = the engine picker and SAVE = the save dialog, as in the main walk-through (its states 22, 23). Motion: rows swap with a slide; the active bar slides between rows / instances; a bank swap slides the columns sideways; the wide envelope / filter redraws as its knob turns. Page memory: every section remembers its active row and bank; leaving the editor and coming back returns to the same section, row and bank, per part (chord and bass each have their own). VARIANT B (for the user to choose): HOME is the MIX view (tap = MIX, tap again = row B) and only EDIT leaves the editor; REC then stays REC (record while editing). Variant A (drawn here): HOME and EDIT both leave, REC = MIX.",
+ "states": [
+  {
+   "name": "1 \u00b7 EDIT tapped: the editor on WARM PAD, the four oscillators (OSC 1 on the knobs)",
+   "notes": "EDIT tap opens the sound editor on the chord sound (WARM PAD, VA); EDIT blinks while it is open, EDIT or HOME leaves. No header bar and no footer: the top line is the sound's name and, at the right, the section and bank. OSC is one view: the four oscillators as rows (Wave Level Coarse Fine); the active row, OSC 1, is on KNOB 1-4 in the knob colours with the active bar beside it, the other rows grey. OSC tap or SELECT = the next oscillator on the knobs; OSC hold = bank B (shape, key track, sync / ring). The root keys still play (audition), OCT- / OCT+ shift.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {
+    "9": "root keys audition the sound (D major held)"
+   },
+   "buttons": {
+    "FX": 2,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {
+    "FX": "OSC: tap = the next oscillator on the knobs (1..4, wraps) \u00b7 hold = bank B (shape, key track, sync / ring), hold again = bank A",
+    "SEL": "FILT: tap = swap the knob row (A: type cutoff reso drive \u00b7 B: key track, env amount)",
+    "ENV": "ENV: tap = the next envelope (1 amp, 2 filter, 3-4 free) \u00b7 hold = row B (hold; velocity on ENV 1), hold again = row A",
+    "LFO": "LFO: tap = the next LFO on the knobs (1..4) \u00b7 hold = bank B (sync, rate, wave, depth), hold again = bank A",
+    "EDIT": "EDIT: blinks while the editor is open \u00b7 tap = leave \u00b7 hold = the engine picker \u00b7 SHIFT + EDIT = chord / bass sound",
+    "GLO": "SHIFT (OPT): held + a knob = fine steps (one unit) \u00b7 SHIFT + EDIT = switch chord / bass sound",
+    "HOME": "HOME: leave the editor (back to the view); every section's row and bank are remembered",
+    "SAVE": "SAVE: the save dialog (slot + name), as outside the editor",
+    "ARP": "PERF: as outside the editor (tap on / off, hold = the perform layer)",
+    "SEQ": "MOD: tap = the next matrix slot on the knobs (1..8, wraps); SELECT the same",
+    "PLAY": "FX: the sends (Drive, Chorus, Delay, Reverb)",
+    "REC": "MIX: tap = swap the knob row (A: level pan voice glide \u00b7 B: transpose detune priority glide mode)",
+    "OCT-": "OCT- / OCT+: the root keys' octave, as outside (audition); both: panic"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "OSC",
+     "value": "1"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "WAVE",
+     "value": "PWM"
+    },
+    "KNOB2": {
+     "note": "LEVEL",
+     "value": "63%"
+    },
+    "KNOB3": {
+     "note": "COARSE",
+     "value": "0"
+    },
+    "KNOB4": {
+     "note": "FINE",
+     "value": "0"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "stack",
+     "title": "WARM PAD",
+     "right": "OSC 1 \u00b7 A",
+     "cols": [
+      "Wave",
+      "Level",
+      "Coarse",
+      "Fine"
+     ],
+     "rows": [
+      {
+       "label": "1",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "PWM",
+         "glyph": "square",
+         "pct": 0.55
+        },
+        {
+         "label": "Level",
+         "value": "63%",
+         "glyph": "bar",
+         "pct": 0.63
+        },
+        {
+         "label": "Coarse",
+         "value": "0"
+        },
+        {
+         "label": "Fine",
+         "value": "0"
+        }
+       ]
+      },
+      {
+       "label": "2",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SAW",
+         "glyph": "saw",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "48%",
+         "glyph": "bar",
+         "pct": 0.48
+        },
+        {
+         "label": "Coarse",
+         "value": "-12"
+        },
+        {
+         "label": "Fine",
+         "value": "+7"
+        }
+       ]
+      },
+      {
+       "label": "3",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SIN",
+         "glyph": "wave",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "22%",
+         "glyph": "bar",
+         "pct": 0.22
+        },
+        {
+         "label": "Coarse",
+         "value": "+12"
+        },
+        {
+         "label": "Fine",
+         "value": "-5"
+        }
+       ]
+      },
+      {
+       "label": "4",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SAW",
+         "glyph": "saw",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "0%",
+         "glyph": "bar",
+         "pct": 0.0
+        },
+        {
+         "label": "Coarse",
+         "value": "0"
+        },
+        {
+         "label": "Fine",
+         "value": "0"
+        }
+       ]
+      }
+     ],
+     "active": 0,
+     "hot": null
+    },
+    "footer": null,
+    "note": "the editor opens: the four rows drop in one after another, then the active bar slides onto row 1 and its cells take the knob colours."
+   }
+  },
+  {
+   "name": "2 \u00b7 OSC tapped: OSC 2 on the knobs, KNOB 3 (Coarse) turning",
+   "notes": "OSC tapped (or SELECT turned one detent): OSC 2 becomes the active row, its four cells on KNOB 1-4. KNOB 3 turns its Coarse (-12, an octave down); the cell being turned is hot. The title gains its '*': the sound is edited.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 2,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {
+    "FX": "OSC tapped: the next oscillator"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "OSC",
+     "value": "2"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "WAVE",
+     "value": "SAW"
+    },
+    "KNOB2": {
+     "note": "LEVEL",
+     "value": "48%"
+    },
+    "KNOB3": {
+     "note": "COARSE",
+     "value": "-12"
+    },
+    "KNOB4": {
+     "note": "FINE",
+     "value": "+7"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "stack",
+     "title": "WARM PAD*",
+     "right": "OSC 2 \u00b7 A",
+     "cols": [
+      "Wave",
+      "Level",
+      "Coarse",
+      "Fine"
+     ],
+     "rows": [
+      {
+       "label": "1",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "PWM",
+         "glyph": "square",
+         "pct": 0.55
+        },
+        {
+         "label": "Level",
+         "value": "63%",
+         "glyph": "bar",
+         "pct": 0.63
+        },
+        {
+         "label": "Coarse",
+         "value": "0"
+        },
+        {
+         "label": "Fine",
+         "value": "0"
+        }
+       ]
+      },
+      {
+       "label": "2",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SAW",
+         "glyph": "saw",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "48%",
+         "glyph": "bar",
+         "pct": 0.48
+        },
+        {
+         "label": "Coarse",
+         "value": "-12"
+        },
+        {
+         "label": "Fine",
+         "value": "+7"
+        }
+       ]
+      },
+      {
+       "label": "3",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SIN",
+         "glyph": "wave",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "22%",
+         "glyph": "bar",
+         "pct": 0.22
+        },
+        {
+         "label": "Coarse",
+         "value": "+12"
+        },
+        {
+         "label": "Fine",
+         "value": "-5"
+        }
+       ]
+      },
+      {
+       "label": "4",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SAW",
+         "glyph": "saw",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "0%",
+         "glyph": "bar",
+         "pct": 0.0
+        },
+        {
+         "label": "Coarse",
+         "value": "0"
+        },
+        {
+         "label": "Fine",
+         "value": "0"
+        }
+       ]
+      }
+     ],
+     "active": 1,
+     "hot": [
+      1,
+      2
+     ]
+    },
+    "footer": null,
+    "note": "the active bar slides down from row 1 to row 2; row 1 fades to grey as row 2 takes the knob colours; the Coarse cell flashes hot while KNOB 3 turns."
+   }
+  },
+  {
+   "name": "3 \u00b7 OSC held: bank B (shape, key track, sync / ring), OSC 2 active",
+   "notes": "OSC held: the oscillators' B bank, the same four rows with Shape / Key trk / Sync-Ring (the fourth column blank). OSC 2 stays the active row (its sync to OSC 1 is on); OSC 1 and 3 have no sync / ring ('\u2013'), OSC 4 has the ring (off). Hold OSC again = bank A; a tap here still steps the oscillator.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 2,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {
+    "FX": "OSC held: bank B (hold again: bank A)"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "OSC",
+     "value": "2"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SHAPE",
+     "value": "40%"
+    },
+    "KNOB2": {
+     "note": "KEY TRK",
+     "value": "on"
+    },
+    "KNOB3": {
+     "note": "SYNC/RING",
+     "value": "on"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "stack",
+     "title": "WARM PAD*",
+     "right": "OSC 2 \u00b7 B",
+     "cols": [
+      "Shape",
+      "Key trk",
+      "Sync/Ring",
+      ""
+     ],
+     "rows": [
+      {
+       "label": "1",
+       "cells": [
+        {
+         "label": "Shape",
+         "value": "55%",
+         "glyph": "bar",
+         "pct": 0.55
+        },
+        {
+         "label": "Key trk",
+         "value": "on"
+        },
+        {
+         "label": "Sync/Ring",
+         "value": "\u2013"
+        },
+        null
+       ]
+      },
+      {
+       "label": "2",
+       "cells": [
+        {
+         "label": "Shape",
+         "value": "40%",
+         "glyph": "bar",
+         "pct": 0.4
+        },
+        {
+         "label": "Key trk",
+         "value": "on"
+        },
+        {
+         "label": "Sync/Ring",
+         "value": "on"
+        },
+        null
+       ]
+      },
+      {
+       "label": "3",
+       "cells": [
+        {
+         "label": "Shape",
+         "value": "0%",
+         "glyph": "bar",
+         "pct": 0.0
+        },
+        {
+         "label": "Key trk",
+         "value": "on"
+        },
+        {
+         "label": "Sync/Ring",
+         "value": "\u2013"
+        },
+        null
+       ]
+      },
+      {
+       "label": "4",
+       "cells": [
+        {
+         "label": "Shape",
+         "value": "0%",
+         "glyph": "bar",
+         "pct": 0.0
+        },
+        {
+         "label": "Key trk",
+         "value": "on"
+        },
+        {
+         "label": "Sync/Ring",
+         "value": "off"
+        },
+        null
+       ]
+      }
+     ],
+     "active": 1,
+     "hot": null
+    },
+    "footer": null,
+    "note": "A -> B: the column heads and cells slide sideways row by row while the active bar stays on row 2; the top right reads 'OSC 2 \u00b7 B'."
+   }
+  },
+  {
+   "name": "4 \u00b7 FILT tapped: the filter, row A on the knobs, KNOB 2 (Cutoff) turning",
+   "notes": "FILT (printed SEL): one view of up to eight parameters under the wide filter curve: row A Type Cutoff Reso Drive (on KNOB 1-4), row B Key trk and Env amt (grey). KNOB 2 turns the cutoff (643 Hz). OSC remembers bank B and OSC 2 for when it is pressed again.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 2,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {
+    "SEL": "FILT: the filter (tap again: row B)"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "ROW",
+     "value": "A"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "TYPE",
+     "value": "LP"
+    },
+    "KNOB2": {
+     "note": "CUTOFF",
+     "value": "643 Hz"
+    },
+    "KNOB3": {
+     "note": "RESO",
+     "value": "8%"
+    },
+    "KNOB4": {
+     "note": "DRIVE",
+     "value": "0%"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "WARM PAD*",
+     "right": "FILTER",
+     "wide": {
+      "type": "filter",
+      "cut": 0.488,
+      "res": 0.08,
+      "ftype": "LP",
+      "drive": 0.0
+     },
+     "rows": [
+      [
+       {
+        "label": "Type",
+        "value": "LP",
+        "glyph": "dots",
+        "pct": 0.0
+       },
+       {
+        "label": "Cutoff",
+        "value": "643 Hz",
+        "glyph": "bar",
+        "pct": 0.488
+       },
+       {
+        "label": "Reso",
+        "value": "8%",
+        "glyph": "bar",
+        "pct": 0.08
+       },
+       {
+        "label": "Drive",
+        "value": "0%",
+        "glyph": "bar",
+        "pct": 0.0
+       }
+      ],
+      [
+       {
+        "label": "Key trk",
+        "value": "50%",
+        "glyph": "bar",
+        "pct": 0.5
+       },
+       {
+        "label": "Env amt",
+        "value": "+32",
+        "glyph": "bar",
+        "pct": 0.756,
+        "bipolar": true
+       },
+       null,
+       null
+      ]
+     ],
+     "active": 0,
+     "hot": [
+      0,
+      1
+     ]
+    },
+    "footer": null,
+    "note": "a section change: the view wipes in from the side of its button; the wide filter curve redraws as KNOB 2 turns (the knee slides with the cutoff, the peak grows with Reso)."
+   }
+  },
+  {
+   "name": "5 \u00b7 FILT tapped again: row B on the knobs (key track, env amount)",
+   "notes": "FILT tapped (or SELECT): the knobs move to row B, Key trk and Env amt (ENV 2's amount on the cutoff, bipolar); row A turns grey. KNOB 3 and 4 do nothing on this row.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 2,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "ROW",
+     "value": "B"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "KEY TRK",
+     "value": "50%"
+    },
+    "KNOB2": {
+     "note": "ENV AMT",
+     "value": "+32"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "WARM PAD*",
+     "right": "FILTER",
+     "wide": {
+      "type": "filter",
+      "cut": 0.488,
+      "res": 0.08,
+      "ftype": "LP",
+      "drive": 0.0
+     },
+     "rows": [
+      [
+       {
+        "label": "Type",
+        "value": "LP",
+        "glyph": "dots",
+        "pct": 0.0
+       },
+       {
+        "label": "Cutoff",
+        "value": "643 Hz",
+        "glyph": "bar",
+        "pct": 0.488
+       },
+       {
+        "label": "Reso",
+        "value": "8%",
+        "glyph": "bar",
+        "pct": 0.08
+       },
+       {
+        "label": "Drive",
+        "value": "0%",
+        "glyph": "bar",
+        "pct": 0.0
+       }
+      ],
+      [
+       {
+        "label": "Key trk",
+        "value": "50%",
+        "glyph": "bar",
+        "pct": 0.5
+       },
+       {
+        "label": "Env amt",
+        "value": "+32",
+        "glyph": "bar",
+        "pct": 0.756,
+        "bipolar": true
+       },
+       null,
+       null
+      ]
+     ],
+     "active": 1,
+     "hot": null
+    },
+    "footer": null,
+    "note": "the rows swap with a slide: the active bar and the knob colours move from row A down to row B."
+   }
+  },
+  {
+   "name": "6 \u00b7 ENV tapped: ENV 1 (amp), KNOB 2 (Decay) turning",
+   "notes": "ENV: one view per envelope, the wide AHDSR over row A Attack Decay Sustain Release (on the knobs) and row B Hold and Velocity (grey). KNOB 2 turns ENV 1's Decay: the decay segment of the wide envelope is lit.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 2,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "ENV",
+     "value": "1"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "ATTACK",
+     "value": "1.88 s"
+    },
+    "KNOB2": {
+     "note": "DECAY",
+     "value": "683 ms"
+    },
+    "KNOB3": {
+     "note": "SUSTAIN",
+     "value": "91%"
+    },
+    "KNOB4": {
+     "note": "RELEASE",
+     "value": "790 ms"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "WARM PAD*",
+     "right": "ENV 1 \u00b7 amp",
+     "wide": {
+      "type": "env",
+      "a": 0.819,
+      "h": 0.0,
+      "d": 0.709,
+      "s": 0.91,
+      "r": 0.724,
+      "seg": 2
+     },
+     "rows": [
+      [
+       {
+        "label": "Attack",
+        "value": "1.88 s",
+        "glyph": "bar",
+        "pct": 0.819
+       },
+       {
+        "label": "Decay",
+        "value": "683 ms",
+        "glyph": "bar",
+        "pct": 0.709
+       },
+       {
+        "label": "Sustain",
+        "value": "91%",
+        "glyph": "bar",
+        "pct": 0.91
+       },
+       {
+        "label": "Release",
+        "value": "790 ms",
+        "glyph": "bar",
+        "pct": 0.724
+       }
+      ],
+      [
+       {
+        "label": "Hold",
+        "value": "0 ms",
+        "glyph": "bar",
+        "pct": 0.0
+       },
+       {
+        "label": "Velocity",
+        "value": "60%",
+        "glyph": "bar",
+        "pct": 0.6
+       },
+       null,
+       null
+      ]
+     ],
+     "active": 0,
+     "hot": [
+      0,
+      1
+     ]
+    },
+    "footer": null,
+    "note": "the wide envelope redraws as the knob turns; the segment being turned (decay) in the hot cell's colour, the rest in the line colour."
+   }
+  },
+  {
+   "name": "7 \u00b7 ENV held: ENV 1 row B (hold, velocity)",
+   "notes": "ENV held: the knobs move to row B, Hold and Velocity (ENV 1's velocity to level); hold ENV again = row A. ENV 2-4 have Hold only.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 2,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {
+    "ENV": "ENV held: row B (hold again: row A)"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "ENV",
+     "value": "1"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "HOLD",
+     "value": "0 ms"
+    },
+    "KNOB2": {
+     "note": "VELOCITY",
+     "value": "60%"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "WARM PAD*",
+     "right": "ENV 1 \u00b7 amp",
+     "wide": {
+      "type": "env",
+      "a": 0.819,
+      "h": 0.0,
+      "d": 0.709,
+      "s": 0.91,
+      "r": 0.724,
+      "seg": null
+     },
+     "rows": [
+      [
+       {
+        "label": "Attack",
+        "value": "1.88 s",
+        "glyph": "bar",
+        "pct": 0.819
+       },
+       {
+        "label": "Decay",
+        "value": "683 ms",
+        "glyph": "bar",
+        "pct": 0.709
+       },
+       {
+        "label": "Sustain",
+        "value": "91%",
+        "glyph": "bar",
+        "pct": 0.91
+       },
+       {
+        "label": "Release",
+        "value": "790 ms",
+        "glyph": "bar",
+        "pct": 0.724
+       }
+      ],
+      [
+       {
+        "label": "Hold",
+        "value": "0 ms",
+        "glyph": "bar",
+        "pct": 0.0
+       },
+       {
+        "label": "Velocity",
+        "value": "60%",
+        "glyph": "bar",
+        "pct": 0.6
+       },
+       null,
+       null
+      ]
+     ],
+     "active": 1,
+     "hot": null
+    },
+    "footer": null,
+    "note": "the rows swap with a slide; the wide envelope stays."
+   }
+  },
+  {
+   "name": "8 \u00b7 ENV tapped: ENV 2 (filter), row A",
+   "notes": "ENV tapped: the next envelope, ENV 2 (the filter envelope: FILTER's Env amt), back on row A. A short pluck of an envelope; its row B has Hold only.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 2,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {
+    "ENV": "ENV tapped: the next envelope"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "ENV",
+     "value": "2"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "ATTACK",
+     "value": "10 ms"
+    },
+    "KNOB2": {
+     "note": "DECAY",
+     "value": "420 ms"
+    },
+    "KNOB3": {
+     "note": "SUSTAIN",
+     "value": "20%"
+    },
+    "KNOB4": {
+     "note": "RELEASE",
+     "value": "300 ms"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "WARM PAD*",
+     "right": "ENV 2 \u00b7 filter",
+     "wide": {
+      "type": "env",
+      "a": 0.25,
+      "h": 0.0,
+      "d": 0.656,
+      "s": 0.2,
+      "r": 0.619,
+      "seg": null
+     },
+     "rows": [
+      [
+       {
+        "label": "Attack",
+        "value": "10 ms",
+        "glyph": "bar",
+        "pct": 0.25
+       },
+       {
+        "label": "Decay",
+        "value": "420 ms",
+        "glyph": "bar",
+        "pct": 0.656
+       },
+       {
+        "label": "Sustain",
+        "value": "20%",
+        "glyph": "bar",
+        "pct": 0.2
+       },
+       {
+        "label": "Release",
+        "value": "300 ms",
+        "glyph": "bar",
+        "pct": 0.619
+       }
+      ],
+      [
+       {
+        "label": "Hold",
+        "value": "0 ms",
+        "glyph": "bar",
+        "pct": 0.0
+       },
+       null,
+       null,
+       null
+      ]
+     ],
+     "active": 0,
+     "hot": null
+    },
+    "footer": null,
+    "note": "the next envelope: the wide shape morphs from ENV 1's slow swell to ENV 2's pluck; the top right reads 'ENV 2 \u00b7 filter'."
+   }
+  },
+  {
+   "name": "9 \u00b7 LFO tapped: the four LFOs, LFO 1 on the knobs",
+   "notes": "LFO: one view, the four LFOs as rows (Rate Wave Depth Fade); LFO 1 is on the knobs. LFO 2 is tempo-synced, so its Rate reads a division (1/8). LFO tap or SELECT = the next LFO; LFO hold = bank B (sync).",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 2,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LFO",
+     "value": "1"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "RATE",
+     "value": "0.8 Hz"
+    },
+    "KNOB2": {
+     "note": "WAVE",
+     "value": "TRI"
+    },
+    "KNOB3": {
+     "note": "DEPTH",
+     "value": "35%"
+    },
+    "KNOB4": {
+     "note": "FADE",
+     "value": "1.20 s"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "stack",
+     "title": "WARM PAD*",
+     "right": "LFO 1 \u00b7 A",
+     "cols": [
+      "Rate",
+      "Wave",
+      "Depth",
+      "Fade"
+     ],
+     "rows": [
+      {
+       "label": "1",
+       "cells": [
+        {
+         "label": "Rate",
+         "value": "0.8 Hz",
+         "glyph": "knob",
+         "pct": 0.415
+        },
+        {
+         "label": "Wave",
+         "value": "TRI",
+         "glyph": "wave",
+         "pct": 0.5
+        },
+        {
+         "label": "Depth",
+         "value": "35%",
+         "glyph": "bar",
+         "pct": 0.35
+        },
+        {
+         "label": "Fade",
+         "value": "1.20 s",
+         "glyph": "bar",
+         "pct": 0.77
+        }
+       ]
+      },
+      {
+       "label": "2",
+       "cells": [
+        {
+         "label": "Rate",
+         "value": "1/8",
+         "glyph": "knob",
+         "pct": 0.692
+        },
+        {
+         "label": "Wave",
+         "value": "SIN",
+         "glyph": "wave",
+         "pct": 0.5
+        },
+        {
+         "label": "Depth",
+         "value": "20%",
+         "glyph": "bar",
+         "pct": 0.2
+        },
+        {
+         "label": "Fade",
+         "value": "0 ms",
+         "glyph": "bar",
+         "pct": 0.0
+        }
+       ]
+      },
+      {
+       "label": "3",
+       "cells": [
+        {
+         "label": "Rate",
+         "value": "0.2 Hz",
+         "glyph": "knob",
+         "pct": 0.207
+        },
+        {
+         "label": "Wave",
+         "value": "SAW",
+         "glyph": "saw",
+         "pct": 0.5
+        },
+        {
+         "label": "Depth",
+         "value": "0%",
+         "glyph": "bar",
+         "pct": 0.0
+        },
+        {
+         "label": "Fade",
+         "value": "0 ms",
+         "glyph": "bar",
+         "pct": 0.0
+        }
+       ]
+      },
+      {
+       "label": "4",
+       "cells": [
+        {
+         "label": "Rate",
+         "value": "3.0 Hz",
+         "glyph": "knob",
+         "pct": 0.613
+        },
+        {
+         "label": "Wave",
+         "value": "S&H",
+         "glyph": "steps",
+         "pct": 0.5
+        },
+        {
+         "label": "Depth",
+         "value": "0%",
+         "glyph": "bar",
+         "pct": 0.0
+        },
+        {
+         "label": "Fade",
+         "value": "0 ms",
+         "glyph": "bar",
+         "pct": 0.0
+        }
+       ]
+      }
+     ],
+     "active": 0,
+     "hot": null
+    },
+    "footer": null,
+    "note": "each Wave glyph moves at its LFO's rate (LFO 2 on the beat)."
+   }
+  },
+  {
+   "name": "10 \u00b7 LFO held: bank B (sync), LFO 2 active",
+   "notes": "LFO held: bank B, Sync alone: KNOB 1 is the tempo sync on / off; with sync on, bank A's Rate reads as a division of the BPM (LFO 2 at 1/8). Hold LFO again = bank A.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 2,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {
+    "LFO": "LFO held: bank B (hold again: bank A)"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LFO",
+     "value": "2"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SYNC",
+     "value": "on"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "stack",
+     "title": "WARM PAD*",
+     "right": "LFO 2 \u00b7 B",
+     "cols": [
+      "Sync",
+      "",
+      "",
+      ""
+     ],
+     "rows": [
+      {
+       "label": "1",
+       "cells": [
+        {
+         "label": "Sync",
+         "value": "off"
+        },
+        null,
+        null,
+        null
+       ]
+      },
+      {
+       "label": "2",
+       "cells": [
+        {
+         "label": "Sync",
+         "value": "on"
+        },
+        null,
+        null,
+        null
+       ]
+      },
+      {
+       "label": "3",
+       "cells": [
+        {
+         "label": "Sync",
+         "value": "off"
+        },
+        null,
+        null,
+        null
+       ]
+      },
+      {
+       "label": "4",
+       "cells": [
+        {
+         "label": "Sync",
+         "value": "off"
+        },
+        null,
+        null,
+        null
+       ]
+      }
+     ],
+     "active": 1,
+     "hot": null
+    },
+    "footer": null,
+    "note": "A -> B: the Sync column slides in from the left and Fade slides out; a synced LFO's wave glyph pulses with the beat."
+   }
+  },
+  {
+   "name": "11 \u00b7 MOD tapped: the matrix, slot 1 on the knobs",
+   "notes": "MOD (printed SEQ): the whole matrix in one view, eight rows Source Dest Amount (the amount a bipolar bar around zero). Three slots are used: LFO1 -> CUT +24, LFO2 -> PAN +20, ENV3 -> PIT2 -12; the rest '\u2013'. Slot 1 is on the knobs. MOD tap or SELECT = the next slot.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 2,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "SLOT",
+     "value": "1"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SOURCE",
+     "value": "LFO1"
+    },
+    "KNOB2": {
+     "note": "DEST",
+     "value": "CUT"
+    },
+    "KNOB3": {
+     "note": "AMOUNT",
+     "value": "+24"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "stack",
+     "title": "WARM PAD*",
+     "right": "MOD 1",
+     "cols": [
+      "Source",
+      "Dest",
+      "Amount",
+      ""
+     ],
+     "rows": [
+      {
+       "label": "1",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "LFO1"
+        },
+        {
+         "label": "Dest",
+         "value": "CUT"
+        },
+        {
+         "label": "Amount",
+         "value": "+24",
+         "pct": 0.693,
+         "bipolar": true
+        },
+        null
+       ]
+      },
+      {
+       "label": "2",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "LFO2"
+        },
+        {
+         "label": "Dest",
+         "value": "PAN"
+        },
+        {
+         "label": "Amount",
+         "value": "+20",
+         "pct": 0.661,
+         "bipolar": true
+        },
+        null
+       ]
+      },
+      {
+       "label": "3",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "ENV3"
+        },
+        {
+         "label": "Dest",
+         "value": "PIT2"
+        },
+        {
+         "label": "Amount",
+         "value": "-12",
+         "pct": 0.409,
+         "bipolar": true
+        },
+        null
+       ]
+      },
+      {
+       "label": "4",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "\u2013"
+        },
+        null,
+        null,
+        null
+       ]
+      },
+      {
+       "label": "5",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "\u2013"
+        },
+        null,
+        null,
+        null
+       ]
+      },
+      {
+       "label": "6",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "\u2013"
+        },
+        null,
+        null,
+        null
+       ]
+      },
+      {
+       "label": "7",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "\u2013"
+        },
+        null,
+        null,
+        null
+       ]
+      },
+      {
+       "label": "8",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "\u2013"
+        },
+        null,
+        null,
+        null
+       ]
+      }
+     ],
+     "active": 0,
+     "hot": null
+    },
+    "footer": null,
+    "note": "the eight rows text only; the active bar on slot 1."
+   }
+  },
+  {
+   "name": "12 \u00b7 MOD tapped twice: slot 3 on the knobs, KNOB 3 (Amount) turning",
+   "notes": "Two more MOD taps: slot 3, ENV3 -> PIT2 -12 (OSC 2's pitch dips with ENV 3). KNOB 3 turns its amount.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 2,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {
+    "SEQ": "MOD tapped: the next slot"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "SLOT",
+     "value": "3"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SOURCE",
+     "value": "ENV3"
+    },
+    "KNOB2": {
+     "note": "DEST",
+     "value": "PIT2"
+    },
+    "KNOB3": {
+     "note": "AMOUNT",
+     "value": "-12"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "stack",
+     "title": "WARM PAD*",
+     "right": "MOD 3",
+     "cols": [
+      "Source",
+      "Dest",
+      "Amount",
+      ""
+     ],
+     "rows": [
+      {
+       "label": "1",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "LFO1"
+        },
+        {
+         "label": "Dest",
+         "value": "CUT"
+        },
+        {
+         "label": "Amount",
+         "value": "+24",
+         "pct": 0.693,
+         "bipolar": true
+        },
+        null
+       ]
+      },
+      {
+       "label": "2",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "LFO2"
+        },
+        {
+         "label": "Dest",
+         "value": "PAN"
+        },
+        {
+         "label": "Amount",
+         "value": "+20",
+         "pct": 0.661,
+         "bipolar": true
+        },
+        null
+       ]
+      },
+      {
+       "label": "3",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "ENV3"
+        },
+        {
+         "label": "Dest",
+         "value": "PIT2"
+        },
+        {
+         "label": "Amount",
+         "value": "-12",
+         "pct": 0.409,
+         "bipolar": true
+        },
+        null
+       ]
+      },
+      {
+       "label": "4",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "\u2013"
+        },
+        null,
+        null,
+        null
+       ]
+      },
+      {
+       "label": "5",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "\u2013"
+        },
+        null,
+        null,
+        null
+       ]
+      },
+      {
+       "label": "6",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "\u2013"
+        },
+        null,
+        null,
+        null
+       ]
+      },
+      {
+       "label": "7",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "\u2013"
+        },
+        null,
+        null,
+        null
+       ]
+      },
+      {
+       "label": "8",
+       "cells": [
+        {
+         "label": "Source",
+         "value": "\u2013"
+        },
+        null,
+        null,
+        null
+       ]
+      }
+     ],
+     "active": 2,
+     "hot": [
+      2,
+      2
+     ]
+    },
+    "footer": null,
+    "note": "the active bar slides down two rows; the amount bar grows left of zero as KNOB 3 turns."
+   }
+  },
+  {
+   "name": "13 \u00b7 FX tapped: the sends",
+   "notes": "FX (printed PLAY): the platform sends, Drive Chorus Delay Reverb, on row A (cr_pages.c FX). The platform exposes no per-effect parameters on its pages, so row B is empty.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 2,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "DRIVE",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "CHORUS",
+     "value": "40"
+    },
+    "KNOB3": {
+     "note": "DELAY",
+     "value": "20"
+    },
+    "KNOB4": {
+     "note": "REVERB",
+     "value": "55"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "WARM PAD*",
+     "right": "FX",
+     "wide": null,
+     "rows": [
+      [
+       {
+        "label": "Drive",
+        "value": "0",
+        "glyph": "bar",
+        "pct": 0.0
+       },
+       {
+        "label": "Chorus",
+        "value": "40",
+        "glyph": "bar",
+        "pct": 0.315
+       },
+       {
+        "label": "Delay",
+        "value": "20",
+        "glyph": "bar",
+        "pct": 0.157
+       },
+       {
+        "label": "Reverb",
+        "value": "55",
+        "glyph": "bar",
+        "pct": 0.433
+       }
+      ],
+      [
+       null,
+       null,
+       null,
+       null
+      ]
+     ],
+     "active": 0,
+     "hot": null
+    },
+    "footer": null,
+    "note": "no wide shape: the four bars fill the view."
+   }
+  },
+  {
+   "name": "14 \u00b7 MIX tapped: row A (level, pan, voice, glide)",
+   "notes": "MIX (printed REC): one view of the part's mix and tuning (the old TUNE page merged into it): row A Level Pan Voice Glide on the knobs, row B Transpose Detune Priority Glide mode (grey). MIX tap or SELECT swaps the rows.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 2,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "ROW",
+     "value": "A"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "LEVEL",
+     "value": "92"
+    },
+    "KNOB2": {
+     "note": "PAN",
+     "value": "C"
+    },
+    "KNOB3": {
+     "note": "VOICE",
+     "value": "POLY"
+    },
+    "KNOB4": {
+     "note": "GLIDE",
+     "value": "0"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "WARM PAD*",
+     "right": "MIX",
+     "wide": null,
+     "rows": [
+      [
+       {
+        "label": "Level",
+        "value": "92",
+        "glyph": "bar",
+        "pct": 0.724
+       },
+       {
+        "label": "Pan",
+        "value": "C",
+        "glyph": "bar",
+        "pct": 0.5,
+        "bipolar": true
+       },
+       {
+        "label": "Voice",
+        "value": "POLY"
+       },
+       {
+        "label": "Glide",
+        "value": "0",
+        "glyph": "bar",
+        "pct": 0.0
+       }
+      ],
+      [
+       {
+        "label": "Trans",
+        "value": "0",
+        "glyph": "bar",
+        "pct": 0.5,
+        "bipolar": true
+       },
+       {
+        "label": "Detune",
+        "value": "12",
+        "glyph": "bar",
+        "pct": 0.094
+       },
+       {
+        "label": "Priority",
+        "value": "LAST"
+       },
+       {
+        "label": "Gl. mode",
+        "value": "OFF"
+       }
+      ]
+     ],
+     "active": 0,
+     "hot": null
+    },
+    "footer": null,
+    "note": "eight parameters at once, row A in the knob colours."
+   }
+  },
+  {
+   "name": "15 \u00b7 MIX tapped again: row B (transpose, detune, priority, glide mode)",
+   "notes": "MIX tapped: the knobs move to row B, Transpose Detune Priority Glide mode (cr_pages.c has the MIX row only: row B is a new platform page).",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 2,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "ROW",
+     "value": "B"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "TRANS",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "DETUNE",
+     "value": "12"
+    },
+    "KNOB3": {
+     "note": "PRIORITY",
+     "value": "LAST"
+    },
+    "KNOB4": {
+     "note": "GL. MODE",
+     "value": "OFF"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "WARM PAD*",
+     "right": "MIX",
+     "wide": null,
+     "rows": [
+      [
+       {
+        "label": "Level",
+        "value": "92",
+        "glyph": "bar",
+        "pct": 0.724
+       },
+       {
+        "label": "Pan",
+        "value": "C",
+        "glyph": "bar",
+        "pct": 0.5,
+        "bipolar": true
+       },
+       {
+        "label": "Voice",
+        "value": "POLY"
+       },
+       {
+        "label": "Glide",
+        "value": "0",
+        "glyph": "bar",
+        "pct": 0.0
+       }
+      ],
+      [
+       {
+        "label": "Trans",
+        "value": "0",
+        "glyph": "bar",
+        "pct": 0.5,
+        "bipolar": true
+       },
+       {
+        "label": "Detune",
+        "value": "12",
+        "glyph": "bar",
+        "pct": 0.094
+       },
+       {
+        "label": "Priority",
+        "value": "LAST"
+       },
+       {
+        "label": "Gl. mode",
+        "value": "OFF"
+       }
+      ]
+     ],
+     "active": 1,
+     "hot": null
+    },
+    "footer": null,
+    "note": "the rows swap with a slide."
+   }
+  },
+  {
+   "name": "16 \u00b7 SHIFT + EDIT: the bass sound (PUNCH BASS), the oscillators",
+   "notes": "SHIFT + EDIT switches the editor between the chord sound and the bass sound (BASS held + EDIT from outside opens the bass directly). The title reads 'PUNCH BASS \u00b7 BASS' in orange; the bass remembers its own section, rows and banks (it opens where it was last left: OSC, OSC 1). The root keys audition the bass.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {
+    "9": "the bass auditions its root"
+   },
+   "buttons": {
+    "FX": 2,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 2,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {
+    "GLO": "SHIFT held + EDIT tapped: chord <-> bass",
+    "EDIT": "blinks: the editor (now the bass sound)"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "VOLUME",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "OSC",
+     "value": "1"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "WAVE",
+     "value": "SQR"
+    },
+    "KNOB2": {
+     "note": "LEVEL",
+     "value": "79%"
+    },
+    "KNOB3": {
+     "note": "COARSE",
+     "value": "-12"
+    },
+    "KNOB4": {
+     "note": "FINE",
+     "value": "0"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "stack",
+     "title": "PUNCH BASS \u00b7 BASS",
+     "right": "OSC 1 \u00b7 A",
+     "cols": [
+      "Wave",
+      "Level",
+      "Coarse",
+      "Fine"
+     ],
+     "rows": [
+      {
+       "label": "1",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SQR",
+         "glyph": "square",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "79%",
+         "glyph": "bar",
+         "pct": 0.79
+        },
+        {
+         "label": "Coarse",
+         "value": "-12"
+        },
+        {
+         "label": "Fine",
+         "value": "0"
+        }
+       ]
+      },
+      {
+       "label": "2",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SAW",
+         "glyph": "saw",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "60%",
+         "glyph": "bar",
+         "pct": 0.6
+        },
+        {
+         "label": "Coarse",
+         "value": "-12"
+        },
+        {
+         "label": "Fine",
+         "value": "+5"
+        }
+       ]
+      },
+      {
+       "label": "3",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SIN",
+         "glyph": "wave",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "50%",
+         "glyph": "bar",
+         "pct": 0.5
+        },
+        {
+         "label": "Coarse",
+         "value": "-24"
+        },
+        {
+         "label": "Fine",
+         "value": "0"
+        }
+       ]
+      },
+      {
+       "label": "4",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "NOIS",
+         "glyph": "dots",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "0%",
+         "glyph": "bar",
+         "pct": 0.0
+        },
+        {
+         "label": "Coarse",
+         "value": "0"
+        },
+        {
+         "label": "Fine",
+         "value": "0"
+        }
+       ]
+      }
+     ],
+     "active": 0,
+     "hot": null,
+     "titleCol": "orange"
+    },
+    "footer": null,
+    "note": "chord -> bass: the view slides down and comes back with the title in orange."
+   }
+  }
+ ]
+}

@@ -10,6 +10,7 @@ knob KNOB1 +1
 wait 300
 shot build/emu/test/cr_loop_layer.ppm
 btn PLAY up
+btn OCT-                      # the layer stays open after a hold: OCT- closes it
 wait 1500
 expect silence
 btn REC

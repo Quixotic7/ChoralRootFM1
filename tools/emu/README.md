@@ -56,7 +56,8 @@ Firmware key index = MIDI note - 53 (0 = F3 .. 26 = G5).
 | `A S D F G H J K L ; '` | white root keys D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 (keys 9 11 12 14 16 18 19 21 23 24 26) |
 | `W E T Y I O [` | black root keys D#4 F#4 G#4 A#4 C#5 D#5 F#5 (keys 10 13 15 17 20 22 25) |
 | `F1 F2 F3 F4` | F#3 G#3 A#3 C#4 (keys 1 3 5 8) |
-| `2 3 4 5` | F3 G3 A3 C4 (keys 0 2 4 7); B3 (key 6) has no computer key (click it) |
+| `2 3 4 5` | F3 G3 A3 C4 (keys 0 2 4 7) |
+| `1` | B3 (key 6: ChoralRoot's LOCK) |
 | `Z X C V B N` | FX SEL ENV LFO EDIT GLO |
 | `,` `.` `/` Right-Shift Return Backspace | HOME SAVE ARP SEQ PLAY REC |
 | Left / Right | OCT- / OCT+ |
@@ -149,7 +150,10 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy build/host/emu --no-midi --demo --qu
 
 - Flash is RAM only (`FELUCCA_FLASH 0`): SAVE and user presets do not persist across runs.
 - The CPU meter reads ~0 %: the Mac renders a block in a few tens of us against the device's budget.
-- Sound editing: `X` (SEL) tap = EDIT (the sound pages; `C` held + `X` the bass's), held = the engine picker;
+- ChoralRoot's roles of the printed buttons: `X` (SEL) = KEY, `B` (EDIT) = EDIT, `Z` FX, `C` (ENV) BASS, `V` (LFO)
+  LATCH, `N` (GLO) OPT, `/` (ARP) PERF, Right-Shift (SEQ) METRO, Return (PLAY) LOOP; B3 (`1`) = LOCK.
+  A layer button held 300 ms locks its layer open: scripts close it with `btn OCT-` (or `btn HOME`).
+- Sound editing: `B` (EDIT) tap = the sound editor (`C` held + `B` the bass's), held = the engine picker;
   `.` (SAVE) = naming (the white roots type, Left deletes, Right saves). User sounds are RAM only here.
 - ChoralRoot's looper and metronome are not there yet (their screens
   show; docs/INTEGRATION.md "Status").

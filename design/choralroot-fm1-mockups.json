@@ -7,10 +7,10 @@
  "labels": {
   "buttons": {
    "FX": "FX",
-   "SEL": "EDIT",
+   "SEL": "KEY",
    "ENV": "BASS",
    "LFO": "LATCH",
-   "EDIT": "KEY",
+   "EDIT": "EDIT",
    "GLO": "OPT",
    "HOME": "HOME",
    "SAVE": "SAVE",
@@ -32,11 +32,11 @@
    "KNOB4": "FX"
   }
  },
- "notes": "ChoralRoot on the M-VAVE FM-1: a Telepathic Orchid-style chord instrument with Felucca's sound engines. The Orchid's 2x4 chord block is the left of the keybed: DIM MIN MAJ SUS on the black keys F#3 G#3 A#3 C#4, 6 m7 M7 9 on the white keys F3 G3 A3 C4 (B3 unused); the 18 keys D4-G5 are the roots. The function buttons carry the Orchid dials' button functions \u2014 KEY, PERF, FX, BASS, LATCH, OPT / HOME, SAVE, METRO, LOOP, REC, VIEW (tap = the action, hold = a layer where the root keys and KNOB 1-4 change job and the screen shows how \u2014 Felucca's grammar). KNOB 1 is always chord voicing, KNOB 2 bass voicing, KNOB 3 the performance parameter, KNOB 4 the FX amount; PRESETS browses sounds, ALGORITHM the bass sounds, SELECT is the BPM, MASTER the volume. OCT-/OCT+ shift the root keys (and are back / OK in menus). States 1-18 walk through idle, chords, voicing, Key Mode and its layer, the perform layer, an arpeggio, the loop layer, recording, playback, the Options menu, a secret chord, bass and its layer, the fx layer, the Geek Out view, sound browsing, panic, two dial pop-ups, the sound edit pages, the engine picker and saving a sound. Screens follow Orchid's rule \u2014 one big thing per screen \u2014 in a 1960s mod language: black, white, roundel red and blue, pop yellow, orange and green; flat blocks, stripes and targets; heavy type that squeezes to fit as on the Orchid. Roles: white chords and sounds, blue voicing, orange bass and 7ths, red loop / REC / secret tones, yellow Key Mode, green FX. No menus and no circled numbers: a choice is one item at a time with its neighbours peeking (a picker), a knob value is a huge number over a stripe meter, the idle screen is the name over mod racing stripes. Every state notes its motion.",
+ "notes": "ChoralRoot on the M-VAVE FM-1: a Telepathic Orchid-style chord instrument with Felucca's sound engines and the VA. The Orchid's 2x4 chord block is the left of the keybed: DIM MIN MAJ SUS on the black keys F#3 G#3 A#3 C#4, 6 m7 M7 9 on the white keys F3 G3 A3 C4, and B3 = LOCK, a mode toggle for the block (tap on, lit; tap off: the chord keys momentary as usual). LOCK on: chord keys stay latched when released (one hand plays the roots); with none held, a top-row key resets the latch to that type alone and a bottom-row key toggles its extension (hold MIN, release: minor; 6: m6; 9: m6/9; 9 again: m6; MAJ: major, extensions cleared); latched keys are lit. The 18 keys D4-G5 are the roots. The function buttons carry the Orchid dials' button functions \u2014 KEY (printed SEL), EDIT (printed EDIT), PERF, FX, BASS, LATCH, OPT, HOME, SAVE, METRO, LOOP, REC. Grammar: tap = the action; KEY / PERF / FX / BASS / LOOP / METRO held past 300 ms open their layer AND LOCK it (it stays after release, the button blinks; the root keys and KNOB 1-4 change job and the screen shows how); OCT- (back) or HOME closes it, holding another layer button switches to it, a tap inside still does the on/off action. EDIT tap = the sound editor (its own file: choralroot-fm1-sound-editor-mockups.json), EDIT held = the engine picker, BASS held + EDIT = the bass sound's editor. OPT is the knob shift: OPT + KNOB 1 the split point, OPT + SELECT the metronome level, OPT + ALGORITHM the bass volume. KNOB 1 is always chord voicing, KNOB 2 bass voicing, KNOB 3 the performance parameter, KNOB 4 the FX amount; PRESETS browses sounds, ALGORITHM the bass sounds, SELECT is the BPM, MASTER the volume. OCT-/OCT+ shift the root keys (and are back / OK in layers and menus; both: panic). States 1-24 walk through idle, a chord, LOCK, voicing, Key Mode and its layer, the perform layer, an arpeggio, the loop layer, recording, playback, the Options menu, a secret chord, bass and its layer, the fx layer, the Geek Out view, sound browsing, panic, a dial pop-up (KNOB 4; SELECT's BPM the same), the sound editor, the engine picker, saving a sound and the squeeze (the designer holds 24 states, so the BPM pop-up is folded into state 20). Screens follow Orchid's rule \u2014 one big thing per screen \u2014 in a 1960s mod language: black, white, roundel red and blue, pop yellow, orange and green; flat blocks, stripes and targets; heavy type that squeezes to fit as on the Orchid. Roles: white chords and sounds, blue voicing, orange bass and 7ths, red loop / REC / secret tones, yellow Key Mode, green FX. No menus and no circled numbers: a choice is one item at a time with its neighbours peeking (a picker), a knob value is a huge number over a stripe meter, the idle screen is the name over mod racing stripes. Every state notes its motion.",
  "states": [
   {
    "name": "1 \u00b7 idle (CHORD view)",
-   "notes": "Power-on and idle. No instructions: the name over three racing stripes in the coralroot orchid's colours (red, orange, white) that slide sideways at the master BPM. The chord block is the left of the keybed (DIM MIN MAJ SUS on F#3 G#3 A#3 C#4, 6 m7 M7 9 on F3 G3 A3 C4, B3 unused), the roots are D4-G5. Every key and button glows dim.",
+   "notes": "Power-on and idle. No instructions: the name over three racing stripes in the coralroot orchid's colours (red, orange, white) that slide sideways at the master BPM. The chord block is the left of the keybed (DIM MIN MAJ SUS on F#3 G#3 A#3 C#4, 6 m7 M7 9 on F3 G3 A3 C4, LOCK on B3), the roots are D4-G5. Every key and button glows dim. Buttons: tap = the action; hold past 300 ms = its layer, which stays open after release (the button blinks) until OCT- or HOME closes it or another layer button is held.",
    "export": true,
    "keys": [
     1,
@@ -45,7 +45,7 @@
     1,
     1,
     1,
-    0,
+    1,
     1,
     1,
     1,
@@ -75,12 +75,13 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {
     "1": "chord types DIM / MIN / MAJ / SUS on the four black keys: momentary, as on Orchid",
     "0": "extensions 6 / m7 / M7 / 9 on the white keys under them: momentary, stackable",
-    "6": "unused (keeps the two rows aligned as Orchid's block)",
+    "6": "LOCK: a mode toggle for the chord block (tap on, lit; tap off = momentary keys as usual). On: chord keys stay latched when released; with none held, a top-row key (DIM MIN MAJ SUS) resets the latch to that type alone and a bottom-row key (6 m7 M7 9) toggles its extension. Hold MIN, release: minor; 6: m6; 9: m6/9; 9 again: m6; MAJ: major, extensions cleared",
     "9": "roots D4 .. G5"
    },
    "buttons": {
@@ -102,19 +103,19 @@
    "playGreen": 0,
    "buttonLabels": {},
    "buttonNotes": {
-    "EDIT": "KEY: tap = Key Mode on/off \u00b7 hold = key layer (root keys pick the tonic)",
-    "ARP": "PERF: tap = performance on/off \u00b7 hold = perform layer (white root keys pick the mode)",
-    "FX": "FX: tap = the sound's main effect on/off \u00b7 hold = fx layer (pick the effect, its parameters)",
-    "ENV": "BASS: tap = bass on/off \u00b7 hold = bass layer (behaviour, register, sound, level)",
+    "SEL": "KEY: tap = Key Mode on/off \u00b7 hold = the key layer, locked open (root keys pick the tonic)",
+    "ARP": "PERF: tap = performance on/off \u00b7 hold = the perform layer, locked open (white root keys pick the mode)",
+    "FX": "FX: tap = the sound's main effect on/off \u00b7 hold = the fx layer, locked open (pick the effect, its parameters)",
+    "ENV": "BASS: tap = bass on/off \u00b7 hold = the bass layer, locked open (behaviour, register, sound, level) \u00b7 BASS held + EDIT = the bass sound's editor",
     "LFO": "LATCH: Sticky keys / arp hold (a chord keeps sounding after release)",
-    "GLO": "OPT: tap = Options menu \u00b7 held + a knob = that knob's second function (Orchid's press + turn)",
-    "PLAY": "LOOP: tap = play / stop \u00b7 hold = loop layer (slots, sync, quantize)",
+    "GLO": "OPT: tap = Options menu \u00b7 held + a knob = its second function (KNOB 1 split point, SELECT metronome level, ALGORITHM bass volume)",
+    "PLAY": "LOOP: tap = play / stop \u00b7 hold = the loop layer, locked open (slots, sync, quantize)",
     "REC": "REC: tap = record / overdub arm (red) \u00b7 hold = undo the last layer",
-    "SEQ": "METRO: tap = metronome / beat on-off (Orchid's BPM press) \u00b7 hold = beat picker",
-    "SEL": "EDIT: tap = the sound's edit pages (SELECT turns pages, KNOB 1-4 edit) \u00b7 hold = engine picker \u00b7 BASS held + EDIT = edit the bass sound",
-    "HOME": "HOME: back to the view from any page, menu or layer \u00b7 tap again: next View (CHORD / KEYBOARD / NOTES / GEEK OUT / SCOPE)",
+    "SEQ": "METRO: tap = metronome / beat on-off (Orchid's BPM press) \u00b7 hold = the beat layer, locked open (beat, time signature)",
+    "EDIT": "EDIT: tap = the sound editor (EDIT blinks; EDIT or HOME leaves) \u00b7 hold = engine picker \u00b7 BASS held + EDIT = the bass sound's editor",
+    "HOME": "HOME: back to the view from any page, menu, layer or the editor \u00b7 tap again: next View (CHORD / KEYBOARD / NOTES / GEEK OUT / SCOPE)",
     "SAVE": "SAVE: tap = save the sound (Orchid's Sound long press) \u00b7 hold = save the loop",
-    "OCT-": "octave of the root keys (-2 .. +2); in menus: back / OK \u00b7 both together: PANIC (all notes off, octave reset)"
+    "OCT-": "octave of the root keys (-2 .. +2); in a layer or menu: back (OCT+ = OK) \u00b7 both together: PANIC (all notes off, octave reset)"
    },
    "encoders": {
     "MASTER": {
@@ -187,7 +188,7 @@
     1,
     2,
     2,
-    0,
+    1,
     1,
     1,
     2,
@@ -217,7 +218,8 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {
     "9": "the root pressed",
@@ -326,7 +328,165 @@
    }
   },
   {
-   "name": "3 \u00b7 VOICING turned +2 while holding",
+   "name": "3 \u00b7 LOCK on: MIN + 6 + 9 latched, D4 \u2192 Dm6/9",
+   "notes": "LOCK (B3) is a mode toggle for the chord block: tap = on (B3 lit), tap again = off (the chord keys momentary as usual). With LOCK on, the chord keys held are latched when released, so one hand plays the roots. Once no chord key is held, a top-row key (DIM MIN MAJ SUS) RESETS the latch to that type alone (the extensions cleared) and a bottom-row key (6 m7 M7 9) TOGGLES that extension in the latched set without touching the type. Example: hold MIN, release: minor latched; press 6: m6; press 9: m6/9; press 9 again: m6; press MAJ: major, extensions cleared. Here: MIN, 6 and 9 latched, nothing held, D4 played \u2192 Dm6/9. The latched keys are lit.",
+   "export": true,
+   "keys": [
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    2,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {
+    "6": "LOCK on (lit)",
+    "3": "MIN, 6 and 9 latched: lit, not held",
+    "0": "a bottom-row key toggles its extension; a top-row key resets the type",
+    "9": "one finger: the root"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "lock",
+     "batt": 3,
+     "usb": false,
+     "rightCol": "white"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "chord",
+     "root": "D",
+     "quality": "m",
+     "sup": "6/9",
+     "notes": "",
+     "line": "",
+     "hint": "",
+     "cols": {
+      "root": "white",
+      "sup": "orange"
+     },
+     "bubbles": [
+      {
+       "t": "D4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "F4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "A4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "B4",
+       "col": "orange",
+       "mark": true
+      },
+      {
+       "t": "E5",
+       "col": "orange",
+       "mark": true
+      }
+     ]
+    },
+    "footer": null,
+    "note": "LOCK on: the chord as usual with a small white 'lock' top-right; it drops in when LOCK goes on and slides out when it goes off."
+   }
+  },
+  {
+   "name": "4 \u00b7 VOICING turned +2 while holding",
    "notes": "KNOB 1 is always chord voicing (Orchid's Chord Voicing Dial): each click moves the lowest note up an octave (or the highest down). The lit keys follow the new register, the VOICING card goes hot (accent) for a moment, the notes line shows the inversion. Muscle memory: never reassigned.",
    "export": true,
    "keys": [
@@ -336,7 +496,7 @@
     1,
     2,
     2,
-    0,
+    1,
     1,
     1,
     1,
@@ -366,7 +526,8 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {},
    "buttons": {
@@ -473,8 +634,8 @@
    }
   },
   {
-   "name": "4 \u00b7 Key Mode on (C major), E4 pressed \u2192 Em",
-   "notes": "KEY tapped: its LED is lit and the key shows in the header. No chord type is needed: E in C major is minor. Out-of-key roots quantize (C# \u2192 Csus). A held chord type still overrides. The root keys outside the scale go dark so the scale can be seen on the keybed.",
+   "name": "5 \u00b7 Key Mode on (C major), E4 pressed \u2192 Em",
+   "notes": "KEY (printed SEL) tapped: its LED is lit and the key shows in the header. No chord type is needed: E in C major is minor. Out-of-key roots quantize (C# \u2192 Csus). A held chord type still overrides. The root keys outside the scale go dark so the scale can be seen on the keybed.",
    "export": true,
    "keys": [
     1,
@@ -483,7 +644,7 @@
     1,
     1,
     1,
-    0,
+    1,
     1,
     1,
     1,
@@ -513,17 +674,18 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {
     "10": "out-of-scale roots dark; pressing one plays the harmonically quantized chord"
    },
    "buttons": {
     "FX": 1,
-    "SEL": 1,
+    "SEL": 2,
     "ENV": 1,
     "LFO": 1,
-    "EDIT": 2,
+    "EDIT": 1,
     "GLO": 1,
     "HOME": 1,
     "SAVE": 1,
@@ -616,8 +778,8 @@
    }
   },
   {
-   "name": "5 \u00b7 KEY held: the key layer",
-   "notes": "Hold KEY: the root keys pick the tonic (any of them, its pitch class; hold MIN (G#3) too for a minor key \u2014 Orchid's quick key select), KNOB 1-4 become TONIC / SCALE / TRANSPOSE / SINGLE NOTES. Let go: back to playing, Key Mode enabled. Screen: the 12 pitch classes as tiles with the tonic on and the scale's notes marked.",
+   "name": "6 \u00b7 KEY held: the key layer (locked open)",
+   "notes": "Hold KEY past 300 ms: the key layer opens and stays open after release (KEY blinks). The root keys pick the tonic (any of them, its pitch class; hold MIN (G#3) too for a minor key \u2014 Orchid's quick key select), KNOB 1-4 become TONIC / SCALE / TRANSPOSE / SINGLE NOTES. A KEY tap inside still toggles Key Mode. OCT- or HOME closes the layer (Key Mode enabled); holding another layer button switches to that layer. Screen: the keyboard with the tonic lit.",
    "export": true,
    "keys": [
     1,
@@ -626,7 +788,7 @@
     1,
     1,
     1,
-    0,
+    1,
     1,
     1,
     1,
@@ -657,6 +819,7 @@
     "2": "m7",
     "4": "M7",
     "7": "9",
+    "6": "LOCK",
     "9": "D",
     "10": "D#",
     "11": "E",
@@ -682,10 +845,10 @@
    },
    "buttons": {
     "FX": 1,
-    "SEL": 1,
+    "SEL": 3,
     "ENV": 1,
     "LFO": 1,
-    "EDIT": 3,
+    "EDIT": 1,
     "GLO": 1,
     "HOME": 1,
     "SAVE": 1,
@@ -699,7 +862,7 @@
    "playGreen": 0,
    "buttonLabels": {},
    "buttonNotes": {
-    "EDIT": "held (blinks): the layer is up"
+    "SEL": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
    },
    "encoders": {
     "MASTER": {
@@ -762,14 +925,14 @@
      }
     },
     "footer": {
-     "text": "a root: the key \u00b7 MIN held: minor"
+     "text": "MIN: minor \u00b7 OCT-: back \u00b7 HOME: home"
     },
-    "note": "KEY held: the keyboard slides up; the tonic key lights yellow and pulses."
+    "note": "the key layer: the keyboard slides up; the tonic key lights yellow and pulses."
    }
   },
   {
-   "name": "6 \u00b7 PERF held: the perform layer",
-   "notes": "Hold PERF: the white root keys D4-C5 are the performance modes (press one: selected and enabled), KNOB 1-4 the selected mode's parameters \u2014 here ARP: RATE / ORDER / RANGE / GATE (STRUM: SPEED / DIRECTION / RANGE / -; SLOP adds AMOUNT; PATTERN: RATE / PATTERN 1-13 / RANGE / GATE; HARP: SPEED / DIRECTION / RANGE / GATE). The screen shows the modes as tiles and the parameters as cards.",
+   "name": "7 \u00b7 PERF held: the perform layer (locked open)",
+   "notes": "Hold PERF past 300 ms: the perform layer opens and stays (PERF blinks). The white root keys D4-C5 are the performance modes (press one: selected and enabled), KNOB 1-4 the selected mode's parameters \u2014 here ARP: RATE / ORDER / RANGE / GATE (STRUM: SPEED / DIRECTION / RANGE / -; SLOP adds AMOUNT; PATTERN: RATE / PATTERN 1-13 / RANGE / GATE; HARP: SPEED / DIRECTION / RANGE / GATE). A PERF tap toggles the performance; OCT- or HOME closes the layer.",
    "export": true,
    "keys": [
     0,
@@ -831,7 +994,9 @@
    },
    "playGreen": 0,
    "buttonLabels": {},
-   "buttonNotes": {},
+   "buttonNotes": {
+    "ARP": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
    "encoders": {
     "MASTER": {
      "note": "",
@@ -893,13 +1058,13 @@
      "value": "1/8"
     },
     "footer": {
-     "text": "a root key: the mode \u00b7 KNOB 3: rate"
+     "text": "a root: mode \u00b7 OCT-: back \u00b7 HOME: home"
     },
-    "note": "PERF held: one mode at a time, huge; the next and previous peek above and below; a change flips the words like a split-flap board."
+    "note": "the perform layer: one mode at a time, huge; the next and previous peek above and below; a change flips the words like a split-flap board."
    }
   },
   {
-   "name": "7 \u00b7 ARP on, Am7 held: arpeggio playing",
+   "name": "8 \u00b7 ARP on, Am7 held: arpeggio playing",
    "notes": "PERF lit: the arpeggiator walks the voiced chord at 1/8 of the master BPM. The chord notes are lit and the note sounding now blinks (the keys show what the engine plays, as Felucca does). KNOB 3 rides the mode's main parameter (arp RATE) without opening the layer; the PERF card names it. The footer strip shows the beat.",
    "export": true,
    "keys": [
@@ -909,7 +1074,7 @@
     2,
     1,
     1,
-    0,
+    1,
     1,
     1,
     1,
@@ -939,7 +1104,8 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {},
    "buttons": {
@@ -1045,8 +1211,8 @@
    }
   },
   {
-   "name": "8 \u00b7 LOOP held: the loop layer",
-   "notes": "Hold LOOP: the white root keys D4-F5 are the ten loop slots (lit = holds a loop, blinking = the one selected); D#4 is CLEAR (hold 1 s), F#4 UNDO the last layer. KNOB 1-4: SYNC (FREE, 1, 2, 4, 8, 16 bars \u2014 Orchid's loop waiting room), QUANTIZE, COUNT-IN, LOOP LEVEL. The screen shows the ring with the length inside.",
+   "name": "9 \u00b7 LOOP held: the loop layer (locked open)",
+   "notes": "Hold LOOP past 300 ms: the loop layer opens and stays (LOOP blinks). The white root keys D4-F5 are the ten loop slots (lit = holds a loop, blinking = the one selected); D#4 is CLEAR (hold 1 s), F#4 UNDO the last layer. KNOB 1-4: SYNC (FREE, 1, 2, 4, 8, 16 bars \u2014 Orchid's loop waiting room), QUANTIZE, COUNT-IN, LOOP LEVEL. A LOOP tap still plays / stops; OCT- or HOME closes the layer. The screen shows the ring with the length inside.",
    "export": true,
    "keys": [
     0,
@@ -1113,7 +1279,9 @@
    },
    "playGreen": 0,
    "buttonLabels": {},
-   "buttonNotes": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
    "encoders": {
     "MASTER": {
      "note": "",
@@ -1174,12 +1342,12 @@
      "col": "red"
     },
     "footer": null,
-    "note": "LOOP held with no loop: the length, one at a time, inside the empty ring; SELECT or a root key changes it with a slide.",
+    "note": "the loop layer with no loop: the length, one at a time, inside the empty ring; SELECT or a root key changes it with a slide.",
     "ring": 0
    }
   },
   {
-   "name": "9 \u00b7 REC tapped: recording a 4-bar loop (bar 2 of 4)",
+   "name": "10 \u00b7 REC tapped: recording a 4-bar loop (bar 2 of 4)",
    "notes": "REC tapped: after the one-bar count-in the loop records for 4 bars at the master BPM (free mode: until REC or LOOP is tapped again). REC's red LED blinks, the header shows REC and bar.beat, the Orchid ring progress indicator runs around the edge of the screen in red. The chord view keeps naming what is played.",
    "export": true,
    "keys": [
@@ -1189,7 +1357,7 @@
     1,
     1,
     2,
-    0,
+    1,
     1,
     1,
     1,
@@ -1219,7 +1387,8 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {},
    "buttons": {
@@ -1322,8 +1491,8 @@
    }
   },
   {
-   "name": "10 \u00b7 loop playing, overdub armed",
-   "notes": "The loop plays (PLAY's green LED, like Felucca's transport); REC is armed for overdub (lit), so the next notes record on top as a new layer (hold REC: undo it). The ring runs in the accent colour; the loop's notes glow on the root keys as they sound while a live chord is lit. Voicing, performance and bass apply live at playback: the loop stores the chords, not the notes.",
+   "name": "11 \u00b7 loop playing, overdub armed, loop layer open",
+   "notes": "The loop plays (PLAY's green LED, like Felucca's transport); REC is armed for overdub (lit), so the next notes record on top as a new layer (hold REC: undo it). With the loop layer open (LOOP blinks) the picker offers Overdub / Pause / Undo / Clear and OCT+ does it. The loop's notes glow on the root keys as they sound while a live chord is lit. Voicing, performance and bass apply live at playback: the loop stores the chords, not the notes.",
    "export": true,
    "keys": [
     1,
@@ -1332,7 +1501,7 @@
     1,
     1,
     2,
-    0,
+    1,
     1,
     1,
     1,
@@ -1362,7 +1531,8 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {
     "14": "a chord played live over the loop"
@@ -1378,14 +1548,17 @@
     "SAVE": 1,
     "ARP": 1,
     "SEQ": 1,
-    "PLAY": 2,
+    "PLAY": 3,
     "REC": 2,
     "OCT-": 1,
-    "OCT+": 1
+    "OCT+": 3
    },
    "playGreen": 1,
    "buttonLabels": {},
-   "buttonNotes": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "OCT+": "OK: does the picked action"
+   },
    "encoders": {
     "MASTER": {
      "note": "",
@@ -1444,13 +1617,13 @@
      "col": "red"
     },
     "footer": null,
-    "note": "LOOP held while a loop plays: Overdub / Pause / Undo / Clear one at a time inside the ring; OCT+ does it.",
+    "note": "the loop layer while a loop plays: Overdub / Pause / Undo / Clear one at a time inside the ring; OCT+ does it.",
     "ring": 0.62
    }
   },
   {
-   "name": "11 \u00b7 OPT tapped: the Options menu",
-   "notes": "Tap OPT: Orchid's Options menu as a list. SELECT scrolls (its printed name), KNOB 1 changes the selected value, OCT+ enters / confirms (blinks), OCT- goes back (lit), HOME leaves \u2014 Felucca's dialog convention. Entries: Play Style, Extension Addition, Bass Behaviour, Secret Chords, Single Notes, Velocity, Quantization, MIDI Channels, MIDI Clock, View, Metronome, Palette, LEDs, Version, Update.",
+   "name": "12 \u00b7 OPT tapped: the Options menu",
+   "notes": "Tap OPT: Orchid's Options menu, one setting per screen. SELECT scrolls (its printed name), KNOB 1 changes the selected value, OCT+ enters / confirms (blinks), OCT- goes back (lit), HOME leaves \u2014 Felucca's dialog convention. Entries: Play Style, Extension Addition, Bass Behaviour, Secret Chords, Single Notes, Velocity, Quantization, MIDI Channels, MIDI Clock, View, Metronome, Palette, LEDs, Version, Update.",
    "export": true,
    "keys": [
     1,
@@ -1459,7 +1632,7 @@
     1,
     1,
     1,
-    0,
+    1,
     1,
     1,
     1,
@@ -1489,7 +1662,8 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {},
    "buttons": {
@@ -1590,8 +1764,8 @@
    }
   },
   {
-   "name": "12 \u00b7 Secret chord: DIM + SUS + D4 \u2192 D5 (power)",
-   "notes": "Secret Chords (Options: Simple / All): two chord types held together select the extra types proved in the Orchid firmware: DIM+SUS = power chord (D\u2075), MAJ+SUS = augmented (D+), MIN+SUS = [0 3 5] (Dm add4). Extensions still stack. The screen uses Orchid's own labels.",
+   "name": "13 \u00b7 Secret chord: DIM + SUS + D4 \u2192 D5 (power)",
+   "notes": "Secret Chords (Options: Simple / All): two chord types held together select the extra types proved in the Orchid firmware: DIM+SUS = power chord (D\u2075), MAJ+SUS = augmented (D+), MIN+SUS = [0 3 5] (Dm add4). Extensions still stack (with LOCK on, the pair latches like any held chord keys). The screen uses Orchid's own labels.",
    "export": true,
    "keys": [
     1,
@@ -1600,7 +1774,7 @@
     1,
     1,
     1,
-    0,
+    1,
     1,
     2,
     2,
@@ -1630,7 +1804,8 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {},
    "buttons": {
@@ -1729,8 +1904,8 @@
    }
   },
   {
-   "name": "13 \u00b7 BASS on (03 SUB), bass voicing -1",
-   "notes": "BASS tapped: the bass part plays the chord root through its own engine and MIDI channel 2. ALGORITHM browses the bass sounds (Orchid's Bass Dial turn), KNOB 2 is the bass register (octaves). The footer names the bass sound; the BASS card its voicing.",
+   "name": "14 \u00b7 BASS on (03 SUB), bass voicing -1",
+   "notes": "BASS tapped: the bass part plays the chord root through its own engine and MIDI channel 2. ALGORITHM browses the bass sounds (Orchid's Bass Dial turn; OPT + ALGORITHM: bass volume), KNOB 2 is the bass register (octaves). The footer names the bass sound; the BASS card its voicing.",
    "export": true,
    "keys": [
     1,
@@ -1739,7 +1914,7 @@
     1,
     1,
     2,
-    0,
+    1,
     1,
     1,
     1,
@@ -1769,7 +1944,8 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {
     "11": "E major; the bass plays E1 (below the keybed)"
@@ -1851,8 +2027,8 @@
    }
   },
   {
-   "name": "14 \u00b7 BASS held: the bass layer",
-   "notes": "Hold BASS: KNOB 1-4 become BEHAVIOUR (Chords Only / Unison / Single Notes / Solo \u2014 Orchid's Bass Dial hold menu), REGISTER, SOUND, LEVEL (Orchid's Volume-hold bass volume). The root keys preview the bass sound alone.",
+   "name": "15 \u00b7 BASS held: the bass layer (locked open)",
+   "notes": "Hold BASS past 300 ms: the bass layer opens and stays (BASS blinks). KNOB 1-4 become BEHAVIOUR (Chords Only / Unison / Single Notes / Solo \u2014 Orchid's Bass Dial hold menu), REGISTER, SOUND, LEVEL. The root keys preview the bass sound alone. A BASS tap toggles the bass; EDIT while BASS is held opens the bass sound in the editor; OCT- or HOME closes the layer.",
    "export": true,
    "keys": [
     0,
@@ -1903,7 +2079,9 @@
    },
    "playGreen": 0,
    "buttonLabels": {},
-   "buttonNotes": {},
+   "buttonNotes": {
+    "ENV": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
    "encoders": {
     "MASTER": {
      "note": "",
@@ -1961,14 +2139,14 @@
      "col": "orange"
     },
     "footer": {
-     "text": "KNOBS: register \u00b7 sound \u00b7 level"
+     "text": "KNOB 3: sound \u00b7 OCT-: back \u00b7 HOME: home"
     },
-    "note": "BASS held: the bass behaviour, one at a time, in orange."
+    "note": "the bass layer: the bass behaviour, one at a time, in orange."
    }
   },
   {
-   "name": "15 \u00b7 FX held: the fx layer",
-   "notes": "Tap FX: the sound's main effect on/off (Orchid's FX Dial default). Hold FX: the white root keys pick which effect KNOB 4 rides (Orchid's FX push + turn), KNOB 1-3 its parameters, KNOB 4 the amount. OPT + FX locks the FX settings across sound changes (Orchid's FX lock).",
+   "name": "16 \u00b7 FX held: the fx layer (locked open)",
+   "notes": "Tap FX: the sound's main effect on/off (Orchid's FX Dial default). Hold FX past 300 ms: the fx layer opens and stays (FX blinks); the white root keys pick which effect KNOB 4 rides (Orchid's FX push + turn), KNOB 1-3 its parameters, KNOB 4 the amount. OCT- or HOME closes it.",
    "export": true,
    "keys": [
     0,
@@ -2028,7 +2206,9 @@
    },
    "playGreen": 0,
    "buttonLabels": {},
-   "buttonNotes": {},
+   "buttonNotes": {
+    "FX": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
    "encoders": {
     "MASTER": {
      "note": "",
@@ -2090,13 +2270,13 @@
      "value": "05"
     },
     "footer": {
-     "text": "a root key: the effect \u00b7 OPT+FX: lock"
+     "text": "a root: effect \u00b7 OCT-: back \u00b7 HOME: home"
     },
-    "note": "FX held: the effect one at a time in green with its amount under it."
+    "note": "the fx layer: the effect one at a time in green with its amount under it."
    }
   },
   {
-   "name": "16 \u00b7 GEEK OUT view (HOME tapped again)",
+   "name": "17 \u00b7 GEEK OUT view (HOME tapped again)",
    "notes": "HOME tapped on the view cycles Orchid's View modes: CHORD (default), KEYBOARD, NOTES, GEEK OUT and SCOPE (React). Geek Out shows the chord, every note, the status lines and the 27-key strip with the sounding notes.",
    "export": true,
    "keys": [
@@ -2106,7 +2286,7 @@
     2,
     1,
     1,
-    0,
+    1,
     1,
     1,
     2,
@@ -2136,15 +2316,16 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {},
    "buttons": {
     "FX": 1,
-    "SEL": 1,
+    "SEL": 2,
     "ENV": 1,
     "LFO": 1,
-    "EDIT": 2,
+    "EDIT": 1,
     "GLO": 1,
     "HOME": 1,
     "SAVE": 1,
@@ -2246,8 +2427,8 @@
    }
   },
   {
-   "name": "17 \u00b7 PRESETS turned: browsing sounds",
-   "notes": "Turning PRESETS pops the sound list over the panel (as the stock firmware and Felucca do), the sound loads at once and the popup fades after a second. Sounds come from Felucca's engines (FM6, ANALOG, WHEEL, PHYS\u2026) with ChoralRoot's own bank of chord-friendly presets; bass sounds are a separate bank on ALGORITHM. SAVE stores an edited sound to a user slot.",
+   "name": "18 \u00b7 PRESETS turned: browsing sounds",
+   "notes": "Turning PRESETS pops the sound list over the panel (as the stock firmware and Felucca do), the sound loads at once and the popup fades after a second. Sounds come from Felucca's engines (FM6, ANALOG, WHEEL, PHYS\u2026) and the VA, with ChoralRoot's own bank of chord-friendly presets; bass sounds are a separate bank on ALGORITHM. SAVE stores an edited sound to a user slot.",
    "export": true,
    "keys": [
     1,
@@ -2256,7 +2437,7 @@
     1,
     1,
     2,
-    0,
+    1,
     1,
     1,
     1,
@@ -2286,7 +2467,8 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {},
    "buttons": {
@@ -2366,8 +2548,8 @@
    }
   },
   {
-   "name": "18 \u00b7 OCT- + OCT+ together: PANIC",
-   "notes": "Press OCT- and OCT+ together (a chord nothing else uses; the stock firmware resets the octave with it): every scheduler stops, every note gets its note-off, MIDI CC 123 goes out on the three channels, the octave resets, the LEDs flash once and the screen says so. Settings and loops are kept.",
+   "name": "19 \u00b7 OCT- + OCT+ together: PANIC",
+   "notes": "Press OCT- and OCT+ together (a chord nothing else uses; the stock firmware resets the octave with it): every scheduler stops, every note gets its note-off, MIDI CC 123 goes out on the three channels, the octave resets, the LEDs flash once and the screen says so. Settings and loops are kept (the LOCK latch is cleared).",
    "export": true,
    "keys": [
     0,
@@ -2406,7 +2588,8 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {},
    "buttons": {
@@ -2484,8 +2667,8 @@
    }
   },
   {
-   "name": "19 \u00b7 KNOB 4 turned: Reverb 05",
-   "notes": "Any knob turn shows its value big for a second, then the view returns (Orchid's dial screens). Levels and amounts draw as an inverted fill rising with the value \u2014 Orchid's Bass Volume screen.",
+   "name": "20 \u00b7 KNOB 4 turned: Reverb 05 (SELECT: the BPM the same way)",
+   "notes": "Any knob turn shows its value big for a second, then the view returns (Orchid's dial screens). Levels and amounts draw as an inverted fill rising with the value \u2014 Orchid's Bass Volume screen. SELECT is the tempo and shows the BPM the same way (`120 / bpm` in white, the stripes pulsing at the beat; OPT + SELECT: the metronome level); METRO taps the metronome on and off.",
    "export": true,
    "keys": [
     1,
@@ -2494,7 +2677,7 @@
     1,
     1,
     2,
-    0,
+    1,
     1,
     1,
     2,
@@ -2524,7 +2707,8 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {},
    "buttons": {
@@ -2552,8 +2736,8 @@
      "value": ""
     },
     "SELECT": {
-     "note": "",
-     "value": ""
+     "note": "BPM",
+     "value": "120"
     },
     "PRESETS": {
      "note": "",
@@ -2599,12 +2783,12 @@
      "segments": 12
     },
     "footer": null,
-    "note": "KNOB 4 turned: the amount in green over its stripe meter; back to the view a second later."
+    "note": "KNOB 4 turned: the amount in green over its stripe meter; back to the view a second later. SELECT turned: '120 / bpm' in white, same meter."
    }
   },
   {
-   "name": "20 \u00b7 SELECT turned: 120 BPM",
-   "notes": "SELECT is the tempo: turning it shows the BPM huge (Orchid's BPM dial screen), METRO taps the metronome on and off.",
+   "name": "21 \u00b7 EDIT tapped: the sound editor (see the editor file)",
+   "notes": "EDIT tap opens the sound editor on the current chord sound (BASS held + EDIT: the bass sound); EDIT blinks while it is open, EDIT or HOME leaves. The function buttons become sections \u2014 OSC FILT ENV LFO on the top row (the signal flow), MOD FX MIX on the bottom (the output stage), OPT = SHIFT (fine steps; SHIFT + EDIT: chord / bass). The editor is dense: no header bar and no footer, a section is one view of up to eight parameters (or a stack of its oscillators / LFOs / matrix slots), and the row on KNOB 1-4 is drawn in the knob colours with a bar, the rest grey. A section tap steps the active row (the next oscillator here), a hold swaps to its B bank; SELECT does what the tap does; root keys audition. This is the first view (WARM PAD, VA, the four oscillators, OSC 1 on the knobs); for the whole editor see choralroot-fm1-sound-editor-mockups.json (design/make_editor_mockups.py).",
    "export": true,
    "keys": [
     1,
@@ -2612,18 +2796,18 @@
     1,
     1,
     1,
-    1,
-    0,
-    1,
+    2,
     1,
     1,
     1,
+    2,
     1,
     1,
     1,
+    2,
     1,
     1,
-    1,
+    2,
     1,
     1,
     1,
@@ -2643,15 +2827,16 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {},
    "buttons": {
-    "FX": 1,
+    "FX": 2,
     "SEL": 1,
     "ENV": 1,
     "LFO": 1,
-    "EDIT": 1,
+    "EDIT": 3,
     "GLO": 1,
     "HOME": 1,
     "SAVE": 1,
@@ -2663,16 +2848,32 @@
     "OCT+": 1
    },
    "playGreen": 0,
-   "buttonLabels": {},
-   "buttonNotes": {},
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {
+    "EDIT": "blinks: the editor is open; tap again (or HOME) to leave",
+    "FX": "OSC: tap = the next oscillator on the knobs \u00b7 hold = bank B (shape, key track, sync / ring)"
+   },
    "encoders": {
     "MASTER": {
      "note": "",
      "value": ""
     },
     "SELECT": {
-     "note": "",
-     "value": "120"
+     "note": "OSC",
+     "value": "1"
     },
     "PRESETS": {
      "note": "",
@@ -2683,196 +2884,147 @@
      "value": ""
     },
     "KNOB1": {
-     "note": "",
-     "value": "0"
+     "note": "WAVE",
+     "value": "PWM"
     },
     "KNOB2": {
-     "note": "",
-     "value": "0"
+     "note": "LEVEL",
+     "value": "63%"
     },
     "KNOB3": {
-     "note": "",
-     "value": "off"
+     "note": "COARSE",
+     "value": "0"
     },
     "KNOB4": {
-     "note": "",
-     "value": "25"
+     "note": "FINE",
+     "value": "0"
     }
    },
    "screen": {
-    "header": {
-     "icon": "none",
-     "bpm": "",
-     "mid": "",
-     "right": "",
-     "batt": 3,
-     "usb": false
-    },
+    "header": null,
     "cards": null,
     "panel": {
-     "kind": "meter",
-     "value": "120",
-     "label": "bpm",
-     "col": "white",
-     "pct": 0.35714285714285715,
-     "segments": 14
-    },
-    "footer": null,
-    "note": "SELECT turned: the tempo huge; the stripes pulse at the beat."
-   }
-  },
-  {
-   "name": "21 \u00b7 EDIT tapped: the sound's pages (ENV)",
-   "notes": "Any sound can be opened and edited on the device: EDIT opens the chord sound's pages (BASS held + EDIT: the bass sound's). SELECT turns the pages \u2014 ENGINE, the engine's own parameters (two pages), ENV, LFO, FILTER / MOD, FX sends, MIX \u2014 and KNOB 1-4 edit the four parameters on each, drawn as glyphs in the knobs' colours (blue, orange, cream, coral). HOME returns to the view. Deep FM6 patches still have the web editor.",
-   "export": true,
-   "keys": [
-    1,
-    1,
-    1,
-    1,
-    1,
-    2,
-    0,
-    1,
-    1,
-    2,
-    1,
-    1,
-    1,
-    2,
-    1,
-    1,
-    2,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1
-   ],
-   "keyLabels": {
-    "1": "DIM",
-    "3": "MIN",
-    "5": "MAJ",
-    "8": "SUS",
-    "0": "6",
-    "2": "m7",
-    "4": "M7",
-    "7": "9"
-   },
-   "keyNotes": {},
-   "buttons": {
-    "FX": 1,
-    "SEL": 2,
-    "ENV": 1,
-    "LFO": 1,
-    "EDIT": 1,
-    "GLO": 1,
-    "HOME": 1,
-    "SAVE": 1,
-    "ARP": 1,
-    "SEQ": 1,
-    "PLAY": 1,
-    "REC": 1,
-    "OCT-": 1,
-    "OCT+": 1
-   },
-   "playGreen": 0,
-   "buttonLabels": {},
-   "buttonNotes": {},
-   "encoders": {
-    "MASTER": {
-     "note": "",
-     "value": ""
-    },
-    "SELECT": {
-     "note": "PAGE",
-     "value": "ENV"
-    },
-    "PRESETS": {
-     "note": "",
-     "value": ""
-    },
-    "ALGORITHM": {
-     "note": "",
-     "value": ""
-    },
-    "KNOB1": {
-     "note": "ATTACK",
-     "value": "0.20"
-    },
-    "KNOB2": {
-     "note": "DECAY",
-     "value": "0.30"
-    },
-    "KNOB3": {
-     "note": "SUSTAIN",
-     "value": "60"
-    },
-    "KNOB4": {
-     "note": "RELEASE",
-     "value": "0.80"
-    }
-   },
-   "screen": {
-    "header": {
-     "icon": "none",
-     "bpm": "",
-     "mid": "",
-     "right": "",
-     "batt": 3,
-     "usb": false
-    },
-    "cards": null,
-    "panel": {
-     "kind": "params",
-     "title": "13 EP",
-     "page": "ENV 4/8",
-     "col": "white",
+     "kind": "stack",
+     "title": "WARM PAD",
+     "right": "OSC 1 \u00b7 A",
      "cols": [
+      "Wave",
+      "Level",
+      "Coarse",
+      "Fine"
+     ],
+     "rows": [
       {
-       "label": "Attack",
-       "value": "0.20",
-       "glyph": "env",
-       "env": [
-        0.2,
-        0.3,
-        0.6,
-        0.8
+       "label": "1",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "PWM",
+         "glyph": "square",
+         "pct": 0.55
+        },
+        {
+         "label": "Level",
+         "value": "63%",
+         "glyph": "bar",
+         "pct": 0.63
+        },
+        {
+         "label": "Coarse",
+         "value": "0"
+        },
+        {
+         "label": "Fine",
+         "value": "0"
+        }
        ]
       },
       {
-       "label": "Decay",
-       "value": "0.30",
-       "glyph": "knob",
-       "pct": 0.3
+       "label": "2",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SAW",
+         "glyph": "saw",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "48%",
+         "glyph": "bar",
+         "pct": 0.48
+        },
+        {
+         "label": "Coarse",
+         "value": "-12"
+        },
+        {
+         "label": "Fine",
+         "value": "+7"
+        }
+       ]
       },
       {
-       "label": "Sustain",
-       "value": "60",
-       "glyph": "bar",
-       "pct": 0.6
+       "label": "3",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SIN",
+         "glyph": "wave",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "22%",
+         "glyph": "bar",
+         "pct": 0.22
+        },
+        {
+         "label": "Coarse",
+         "value": "+12"
+        },
+        {
+         "label": "Fine",
+         "value": "-5"
+        }
+       ]
       },
       {
-       "label": "Release",
-       "value": "0.80",
-       "glyph": "knob",
-       "pct": 0.8
+       "label": "4",
+       "cells": [
+        {
+         "label": "Wave",
+         "value": "SAW",
+         "glyph": "saw",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "0%",
+         "glyph": "bar",
+         "pct": 0.0
+        },
+        {
+         "label": "Coarse",
+         "value": "0"
+        },
+        {
+         "label": "Fine",
+         "value": "0"
+        }
+       ]
       }
      ],
-     "foot": "SELECT: page \u00b7 HOME: done \u00b7 SAVE: keep it"
+     "active": 0,
+     "hot": null
     },
     "footer": null,
-    "note": "EDIT: a page of four parameters in the knob colours; the glyph of the one being turned animates (the envelope redraws as the knob moves)."
+    "note": "the editor: the four oscillators as rows, OSC 1 on the knobs in the knob colours with the active bar beside it, the other rows grey; the editor opens with the rows dropping in one after another. See choralroot-fm1-sound-editor-mockups.json for every section."
    }
   },
   {
    "name": "22 \u00b7 EDIT held: the engine picker",
-   "notes": "Hold EDIT: the white root keys are Felucca's engines (ANALOG, FM6, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, PHYS, NOISE); press one and the sound switches engine, keeping its envelope and sends. KNOB 1 steps through the engine's factory presets, KNOB 2 inits the sound.",
+   "notes": "Hold EDIT: the white root keys are the engines in the firmware's order (ANALOG, FM6, VA, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, PHYS; NOISE on SELECT); press one and the sound switches engine, keeping its envelope and sends. KNOB 1 steps through the engine's factory presets, KNOB 2 inits the sound. The picker stays open after release like a layer (EDIT blinks); OCT- or HOME closes it. EDIT held inside the editor opens the same picker (it closes back to the editor view it came from).",
    "export": true,
    "keys": [
     0,
@@ -2906,23 +3058,25 @@
    "keyLabels": {
     "9": "ANLG",
     "11": "FM6",
-    "12": "PHASE",
-    "14": "LOFI",
-    "16": "SMPL",
-    "18": "VOICE",
-    "19": "TRIO",
-    "21": "WHEEL",
-    "23": "GRAIN",
-    "24": "PHYS",
-    "26": "NOISE"
+    "12": "VA",
+    "14": "PHASE",
+    "16": "LOFI",
+    "18": "SMPL",
+    "19": "VOICE",
+    "21": "TRIO",
+    "23": "WHEEL",
+    "24": "GRAIN",
+    "26": "PHYS"
    },
-   "keyNotes": {},
+   "keyNotes": {
+    "9": "white root keys D4 .. G5: the engines (NOISE: SELECT)"
+   },
    "buttons": {
     "FX": 1,
-    "SEL": 3,
+    "SEL": 1,
     "ENV": 1,
     "LFO": 1,
-    "EDIT": 1,
+    "EDIT": 3,
     "GLO": 1,
     "HOME": 1,
     "SAVE": 1,
@@ -2935,15 +3089,17 @@
    },
    "playGreen": 0,
    "buttonLabels": {},
-   "buttonNotes": {},
+   "buttonNotes": {
+    "EDIT": "blinks: the picker is open; EDIT tap, OCT- or HOME closes it"
+   },
    "encoders": {
     "MASTER": {
      "note": "",
      "value": ""
     },
     "SELECT": {
-     "note": "",
-     "value": ""
+     "note": "ENGINE",
+     "value": "FM6"
     },
     "PRESETS": {
      "note": "",
@@ -2985,6 +3141,7 @@
      "items": [
       "Analog",
       "FM6",
+      "VA",
       "Phase",
       "LoFi",
       "Sample",
@@ -3001,14 +3158,14 @@
      "value": "13 EP"
     },
     "footer": {
-     "text": "a root key: the engine \u00b7 KNOB 1: its presets"
+     "text": "a root: engine \u00b7 OCT-: back \u00b7 HOME: home"
     },
     "note": "EDIT held: the engine one at a time; the sound changes as the name flips."
    }
   },
   {
    "name": "23 \u00b7 SAVE tapped: name and save the sound",
-   "notes": "SAVE while a sound is edited: pick a user slot with KNOB 1, name it with the keys (Felucca's naming: the keys type letters, OCT- deletes, OCT+ confirms), and the sound lands in one of 32 user slots, listed after the factory bank on PRESETS. SAVE held: the loop's save / load / delete.",
+   "notes": "SAVE tapped (on the view or in the editor: the same dialog; EDIT keeps blinking in the editor): pick a user slot with KNOB 1, name it with the keys (Felucca's naming: the keys type letters, OCT- deletes, OCT+ confirms), and the sound lands in one of 32 user slots, listed after the factory bank on PRESETS. SAVE held: the loop's save / load / delete.",
    "export": true,
    "keys": [
     0,
@@ -3160,7 +3317,7 @@
     2,
     1,
     1,
-    0,
+    1,
     1,
     1,
     1,
@@ -3190,15 +3347,16 @@
     "0": "6",
     "2": "m7",
     "4": "M7",
-    "7": "9"
+    "7": "9",
+    "6": "LOCK"
    },
    "keyNotes": {},
    "buttons": {
     "FX": 1,
-    "SEL": 1,
+    "SEL": 2,
     "ENV": 1,
     "LFO": 1,
-    "EDIT": 2,
+    "EDIT": 1,
     "GLO": 1,
     "HOME": 1,
     "SAVE": 1,

@@ -1,0 +1,24 @@
+# ChoralRoot: cr_editor_steps.txt without the knobs (the reference render: the same chord on the stored sound)
+wait 300
+knob PRESETS +4
+wait 1200
+btn EDIT
+wait 400
+btn ENV
+wait 1200
+btn LFO
+wait 600
+btn SEQ
+wait 700
+btn REC
+wait 700
+btn HOME
+wait 300
+key F3 down
+wait 60
+key A down
+wait 900
+key A up
+key F3 up
+wait 2500
+dump

@@ -103,7 +103,7 @@ static const cb_entry_t CB_CHORD[] = {           /* PRESETS 01..24 */
     {CB_FM6, "MARIMBA", "MARIMBA"},       {CB_PHYS, "HARP", "HARP"},
     {CB_PHYS, "KALIMBA", "KALIMBA"},      {CB_ANALOG, "PLUCK", "PLUCK"},
     {CB_FM6, "PLUCK", "FM PLUCK"},        {CB_ANALOG, "SINE KEY", "SINE KEYS"},
-#if FELUCCA_VA                                   /* PRESETS 25..40: the VA's chord sounds (levels set in the preset) */
+#if FELUCCA_VA                                   /* PRESETS 25..43: the VA's chord sounds (levels set in the preset) */
     {CB_VA, "LUSH PAD", "LUSH PAD"},      {CB_VA, "WARM PAD", "WARM PAD"},
     {CB_VA, "GLASS PAD", "GLASS PAD"},    {CB_VA, "SLOW STRINGS", "SLOW STRINGS"},
     {CB_VA, "ENSEMBLE STR", "ENSEMBLE STR"}, {CB_VA, "SYNTH BRASS", "VA BRASS"},
@@ -112,6 +112,8 @@ static const cb_entry_t CB_CHORD[] = {           /* PRESETS 01..24 */
     {CB_VA, "SOFT LEAD", "SOFT LEAD"},    {CB_VA, "HOLLOW", "HOLLOW"},
     {CB_VA, "BELLS", "BELLS"},            {CB_VA, "SWEEP PAD", "SWEEP PAD"},
     {CB_VA, "SOFT AAH", "SOFT AAH"},      {CB_VA, "ORGANISH", "ORGANISH"},
+    {CB_VA, "MORPH PAD", "MORPH PAD"},    {CB_VA, "VINYL KEYS", "VINYL KEYS"},   /* 41..43: MORPH, NOISE, SPREAD */
+    {CB_VA, "WIDE STRINGS", "WIDE STRINGS"},
 #endif
 };
 static const cb_entry_t CB_BASS[] = {            /* ALGORITHM 1..8 (0 = OFF) */

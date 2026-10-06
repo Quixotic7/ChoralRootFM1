@@ -2,9 +2,11 @@
  * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
 /* VA: a four-oscillator virtual analog with deep editing (ChoralRoot, FELUCCA_VA; docs/VA.md).
  *
- * Per voice: four oscillators (SAW SQR TRI SIN PWM NOIS, LEVEL, COARSE, FINE, SHAPE, KEY TRACK; OSC 2 can
- * hard-sync to OSC 1, OSC 4 ring-modulate with OSC 3), a mixer into the trapezoidal SVF of dsp.c (LP BP HP NOTCH,
- * CUT RES DRIVE KTRK, FENV from ENV 2), four AHDSR envelopes at control rate on Felucca's time tables (ENV 1 is the
+ * Per voice: four oscillators (MODE BASIC: SAW SQR TRI SIN PWM NOIS; MORPH: one continuous wave sine -> triangle
+ * -> saw -> ramp -> square -> narrow pulse by SHAPE; NOISE: WHITE BROWN VINYL; LEVEL, COARSE, FINE, SHAPE, KEY
+ * TRACK; OSC 2 can hard-sync to OSC 1, OSC 4 ring-modulate with OSC 3), a mixer into the trapezoidal SVF of dsp.c
+ * (LP BP HP NOTCH and a continuous MORPH between them, CUT RES DRIVE KTRK, FENV from ENV 2; SPREAD: a second SVF
+ * per voice, the cutoffs apart for the left and the right, rendered as mid + side: engine_t.render2), four AHDSR envelopes at control rate on Felucca's time tables (ENV 1 is the
  * amplitude: engine_t.ownenv / done, as FM6), four LFOs per part at control rate (free or synced to the tempo) and
  * an 8-slot modulation matrix evaluated once per control tick; pitch, level and shape move per sample as linear
  * ramps over the tick.
@@ -23,9 +25,11 @@
 #endif
 #define VA_NPART 2u              /* parts with a VA patch (ChoralRoot: chord, bass) */
 #define VA_POLY 8                /* engine_t.poly (docs/VA.md: CPU) */
-#define VA_BLOB 104u             /* packed patch: 2 bytes magic / version, VA_NP values, zero padding */
+#define VA_BLOB 110u             /* packed patch: 2 bytes magic / version, VA_NP values, zero padding */
 #define VA_MAGIC 0x56u           /* 'V' */
-#define VA_VER 1u
+#define VA_VER 2u
+#define VA_BLOB1 104u            /* version 1 (before the oscillator modes, FILTER MORPH / SPREAD, USPREAD): 99 values */
+#define VA_NP1 99u
 
 /* --------------------------------------------------------- the patch --- */
 enum { VO_WAVE, VO_LEVEL, VO_COARSE, VO_FINE, VO_SHAPE, VO_KTRK, VO_N };           /* per oscillator */
@@ -39,31 +43,40 @@ enum {
     VA_ENV0, VA_VEL = VA_ENV0 + 4 * VE_N,
     VA_LFO0, VA_MOD0 = VA_LFO0 + 4 * VL_N,
     VA_OMIX = VA_MOD0 + 8 * VM_N, VA_DETUNE,
+    VA_OMODE0,                                   /* version 2 (appended: version 1's values keep their places): */
+    VA_FMORPH = VA_OMODE0 + 4, VA_FSPREAD, VA_USPREAD,   /* MODE of OSC 1..4, FILTER MORPH, SPREAD, USPREAD */
     VA_NP
 };
 #define VA_ENV(k, f) (VA_ENV0 + (k) * VE_N + (f))
 #define VA_LFO(k, f) (VA_LFO0 + (k) * VL_N + (f))
 #define VA_MOD(k, f) (VA_MOD0 + (k) * VM_N + (f))
-_Static_assert(VA_NP == 99 && VA_NP + 2u <= VA_BLOB && VA_BLOB <= 128u, "VA patch layout");
+_Static_assert(VA_NP == 106 && VA_OMODE0 == VA_NP1 && VA_NP + 2u <= VA_BLOB && VA_BLOB <= 128u &&
+               VA_NP1 + 2u <= VA_BLOB1, "VA patch layout");
 
 enum { VW_SAW, VW_SQR, VW_TRI, VW_SIN, VW_PWM, VW_NOIS, VW_N };
 enum { VF_LP, VF_BP, VF_HP, VF_NOTCH };
+enum { VOM_BASIC, VOM_MORPH, VOM_NOISE, VOM_N };                                  /* oscillator MODE */
+enum { VN_WHITE, VN_BROWN, VN_VINYL, VN_N };                                      /* NOISE: WAVE is the type */
 enum { VS_OFF, VS_ENV1, VS_LFO1 = VS_ENV1 + 4, VS_VEL = VS_LFO1 + 4, VS_KEY, VS_RAND, VS_MODW, VS_N };
 enum { VD_OFF, VD_PITCH, VD_PIT1, VD_LVL1 = VD_PIT1 + 4, VD_SHP1 = VD_LVL1 + 4, VD_CUT = VD_SHP1 + 4, VD_RES, VD_AMP,
-       VD_PAN, VD_RATE1, VD_N = VD_RATE1 + 4 };
+       VD_PAN, VD_RATE1, VD_FMORPH = VD_RATE1 + 4, VD_N };   /* (append only: the blobs store them) */
 #define VA_NDIV 14u              /* LFO SYNC: the divisions RATE picks (va_div) */
 
 static const char *const N_VA_WAVE[] = {"SAW", "SQR", "TRI", "SIN", "PWM", "NOIS"};
 static const char *const N_VA_FTYPE[] = {"LP", "BP", "HP", "NOTCH"};
+static const char *const N_VA_OMODE[] = {"BASIC", "MORPH", "NOISE"};
+static const char *const N_VA_NTYPE[VW_N] = {"WHITE", "BROWN", "VINYL", "WHITE", "WHITE", "WHITE"};   /* NOISE's WAVE
+                                                                         * (a stored value above VINYL plays WHITE) */
 static const char *const N_VA_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H"};
 static const char *const N_VA_SRC[] = {"OFF", "ENV1", "ENV2", "ENV3", "ENV4", "LFO1", "LFO2", "LFO3", "LFO4",
                                        "VEL", "KEY", "RAND", "MODW"};
 static const char *const N_VA_DST[] = {"OFF", "PITCH", "PIT1", "PIT2", "PIT3", "PIT4", "LVL1", "LVL2", "LVL3",
                                        "LVL4", "SHP1", "SHP2", "SHP3", "SHP4", "CUT", "RES", "AMP", "PAN",
-                                       "RATE1", "RATE2", "RATE3", "RATE4"};
+                                       "RATE1", "RATE2", "RATE3", "RATE4", "FMORPH"};
 static const char *const N_VA_DIV[VA_NDIV] = {"8BAR", "4BAR", "2BAR", "1BAR", "1/2", "1/4.", "1/4", "1/4T",
                                               "1/8.", "1/8", "1/8T", "1/16", "16T", "1/32"};
-_Static_assert(NELEM(N_VA_SRC) == VS_N && NELEM(N_VA_DST) == VD_N && NELEM(N_VA_WAVE) == VW_N, "VA names");
+_Static_assert(NELEM(N_VA_SRC) == VS_N && NELEM(N_VA_DST) == VD_N && NELEM(N_VA_WAVE) == VW_N &&
+               NELEM(N_VA_OMODE) == VOM_N && VN_N <= VW_N, "VA names");
 
 /* the deep pages' columns (the UI contract, docs/VA.md) */
 #define VC_WAVE {"WAVE", F_ENUM, 0, VW_N - 1, VW_SAW, N_VA_WAVE, 0}
@@ -74,6 +87,10 @@ _Static_assert(NELEM(N_VA_SRC) == VS_N && NELEM(N_VA_DST) == VD_N && NELEM(N_VA_
 #define VC_KTRK {"KTRK", F_ONOFF, 0, 1, 1, 0, 0}
 #define VC_SYNC {"SYNC", F_ONOFF, 0, 1, 0, 0, 0}
 #define VC_RING {"RING", F_ONOFF, 0, 1, 0, 0, 0}
+#define VC_MODE {"MODE", F_ENUM, 0, VOM_N - 1, VOM_BASIC, N_VA_OMODE, 0}
+#define VC_FMORPH {"MORPH", F_PCT, 0, 127, 0, 0, 0}
+#define VC_FSPREAD {"SPREAD", F_PCT, 0, 127, 0, 0, 0}
+#define VC_USPREAD {"USPREAD", F_PCT, 0, 127, 0, 0, 0}
 #define VC_FTYPE {"TYPE", F_ENUM, 0, 3, VF_LP, N_VA_FTYPE, 0}
 #define VC_CUT {"CUT", F_CUTOFF, 0, 127, 100, 0, 0}
 #define VC_RES {"RES", F_PCT, 0, 127, 0, 0, 0}
@@ -99,15 +116,15 @@ _Static_assert(NELEM(N_VA_SRC) == VS_N && NELEM(N_VA_DST) == VD_N && NELEM(N_VA_
 
 static const eng_page_t VA_PAGES[] = {
     {"OSC 1", {VC_WAVE, VC_LEVEL, VC_COARSE, VC_FINE}},       /* 0  OSC */
-    {"OSC 1+", {VC_SHAPE, VC_KTRK, VC_NONE, VC_NONE}},
+    {"OSC 1+", {VC_MODE, VC_SHAPE, VC_KTRK, VC_NONE}},
     {"OSC 2", {VC_WAVE, VC_LEVEL, VC_COARSE, VC_FINE}},
-    {"OSC 2+", {VC_SHAPE, VC_KTRK, VC_SYNC, VC_NONE}},
+    {"OSC 2+", {VC_MODE, VC_SHAPE, VC_KTRK, VC_SYNC}},
     {"OSC 3", {VC_WAVE, VC_LEVEL, VC_COARSE, VC_FINE}},
-    {"OSC 3+", {VC_SHAPE, VC_KTRK, VC_NONE, VC_NONE}},
+    {"OSC 3+", {VC_MODE, VC_SHAPE, VC_KTRK, VC_NONE}},
     {"OSC 4", {VC_WAVE, VC_LEVEL, VC_COARSE, VC_FINE}},
-    {"OSC 4+", {VC_SHAPE, VC_KTRK, VC_RING, VC_NONE}},
+    {"OSC 4+", {VC_MODE, VC_SHAPE, VC_KTRK, VC_RING}},
     {"FILTER", {VC_FTYPE, VC_CUT, VC_RES, VC_DRIVE}},         /* 8  FILTER */
-    {"FILTER+", {VC_FKTRK, VC_FENV, VC_NONE, VC_NONE}},
+    {"FILTER+", {VC_FKTRK, VC_FENV, VC_FMORPH, VC_FSPREAD}},
     {"ENV 1", {VC_ATK, VC_DEC, VC_SUS, VC_REL}},              /* 10 ENV */
     {"ENV 1+", {VC_HOLD, VC_VEL, VC_NONE, VC_NONE}},
     {"ENV 2", {VC_ATK, VC_DEC, VC_SUS, VC_REL}},
@@ -121,7 +138,8 @@ static const eng_page_t VA_PAGES[] = {
     {"LFO 3", {VC_LRATE, VC_LWAVE, VC_DEPTH, VC_FADE}},
     {"LFO 4", {VC_LRATE, VC_LWAVE, VC_DEPTH, VC_FADE}},
     {"LFO SYN", {VC_LSYNC("SYNC1"), VC_LSYNC("SYNC2"), VC_LSYNC("SYNC3"), VC_LSYNC("SYNC4")}},
-    {"MOD 1", {VC_SRC, VC_DST, VC_AMT, VC_NONE}},             /* 23 MOD */
+    {"VOICE", {VC_USPREAD, VC_NONE, VC_NONE, VC_NONE}},      /* 23 (the LFO section's last) */
+    {"MOD 1", {VC_SRC, VC_DST, VC_AMT, VC_NONE}},             /* 24 MOD */
     {"MOD 2", {VC_SRC, VC_DST, VC_AMT, VC_NONE}},
     {"MOD 3", {VC_SRC, VC_DST, VC_AMT, VC_NONE}},
     {"MOD 4", {VC_SRC, VC_DST, VC_AMT, VC_NONE}},
@@ -131,24 +149,25 @@ static const eng_page_t VA_PAGES[] = {
     {"MOD 8", {VC_SRC, VC_DST, VC_AMT, VC_NONE}},
 };
 #define VA_NPAGES ((uint32_t)NELEM(VA_PAGES))
-_Static_assert(NELEM(VA_PAGES) == 31, "VA pages");
+_Static_assert(NELEM(VA_PAGES) == 32, "VA pages");
 /* the patch value of each page column, VA_X = none */
 #define VA_OPG(k) {VA_OSC(k, VO_WAVE), VA_OSC(k, VO_LEVEL), VA_OSC(k, VO_COARSE), VA_OSC(k, VO_FINE)}
 #define VA_EPG(k) {VA_ENV(k, VE_ATK), VA_ENV(k, VE_DEC), VA_ENV(k, VE_SUS), VA_ENV(k, VE_REL)}
 #define VA_LPG(k) {VA_LFO(k, VL_RATE), VA_LFO(k, VL_WAVE), VA_LFO(k, VL_DEPTH), VA_LFO(k, VL_FADE)}
 #define VA_MPG(k) {VA_MOD(k, VM_SRC), VA_MOD(k, VM_DST), VA_MOD(k, VM_AMT), VA_X}
 static const uint8_t VA_MAP[NELEM(VA_PAGES)][4] = {
-    VA_OPG(0), {VA_OSC(0, VO_SHAPE), VA_OSC(0, VO_KTRK), VA_X, VA_X},
-    VA_OPG(1), {VA_OSC(1, VO_SHAPE), VA_OSC(1, VO_KTRK), VA_SYNC2, VA_X},
-    VA_OPG(2), {VA_OSC(2, VO_SHAPE), VA_OSC(2, VO_KTRK), VA_X, VA_X},
-    VA_OPG(3), {VA_OSC(3, VO_SHAPE), VA_OSC(3, VO_KTRK), VA_RING4, VA_X},
-    {VA_FTYPE, VA_CUT, VA_RES, VA_DRIVE}, {VA_FKTRK, VA_FENV, VA_X, VA_X},
+    VA_OPG(0), {VA_OMODE0, VA_OSC(0, VO_SHAPE), VA_OSC(0, VO_KTRK), VA_X},
+    VA_OPG(1), {VA_OMODE0 + 1, VA_OSC(1, VO_SHAPE), VA_OSC(1, VO_KTRK), VA_SYNC2},
+    VA_OPG(2), {VA_OMODE0 + 2, VA_OSC(2, VO_SHAPE), VA_OSC(2, VO_KTRK), VA_X},
+    VA_OPG(3), {VA_OMODE0 + 3, VA_OSC(3, VO_SHAPE), VA_OSC(3, VO_KTRK), VA_RING4},
+    {VA_FTYPE, VA_CUT, VA_RES, VA_DRIVE}, {VA_FKTRK, VA_FENV, VA_FMORPH, VA_FSPREAD},
     VA_EPG(0), {VA_ENV(0, VE_HOLD), VA_VEL, VA_X, VA_X},
     VA_EPG(1), {VA_ENV(1, VE_HOLD), VA_X, VA_X, VA_X},
     VA_EPG(2), {VA_ENV(2, VE_HOLD), VA_X, VA_X, VA_X},
     VA_EPG(3), {VA_ENV(3, VE_HOLD), VA_X, VA_X, VA_X},
     VA_LPG(0), VA_LPG(1), VA_LPG(2), VA_LPG(3),
     {VA_LFO(0, VL_SYNC), VA_LFO(1, VL_SYNC), VA_LFO(2, VL_SYNC), VA_LFO(3, VL_SYNC)},
+    {VA_USPREAD, VA_X, VA_X, VA_X},
     VA_MPG(0), VA_MPG(1), VA_MPG(2), VA_MPG(3), VA_MPG(4), VA_MPG(5), VA_MPG(6), VA_MPG(7),
 };
 
@@ -187,6 +206,8 @@ static va_rng_t va_range(uint32_t i)
         r = M[(i - VA_MOD0) % VM_N];
     } else if (i == VA_OMIX) {
         r.def = 64;
+    } else if (i >= VA_OMODE0 && i < VA_FMORPH) {
+        r.max = VOM_N - 1;
     }
     return r;
 }
@@ -203,6 +224,9 @@ static struct {                                  /* per part: the LFOs */
     uint32_t ph[4], rnd[4];
     int16_t out[4];                              /* this block's value x DEPTH, Q15 bipolar */
     uint32_t pwm;                                /* PWM's own slow sweep */
+    uint32_t wrnd;                               /* VINYL's wow: a slow random walk (va_block) */
+    int32_t wow, wowt;                           /* .. its value and its target, Q15 */
+    uint16_t wown;                               /* .. blocks to the next target */
 } va_lfo[VA_NPART] __attribute__((section(".pool")));
 typedef struct {
     uint32_t ph4;                                /* OSC 4 (OSC 1..3: voice_t.ph) */
@@ -210,6 +234,9 @@ typedef struct {
     uint32_t hold[4];                            /* HOLD progress, Q24 */
     int16_t lvl[4], shp[4];                      /* the ramps' ends: levels and shapes, Q15 */
     int32_t dc;                                  /* SYNC's DC blocker (a hard-synced wave has a mean), Q8 */
+    int32_t nz[4][2];                            /* NOISE per oscillator: BROWN's integrator; VINYL's crackle, hiss */
+    int32_t fr[2];                               /* SPREAD: the right channel's SVF (the left one: voice_t.s[0..1]) */
+    uint8_t spr;                                 /* .. it runs (primed from the left one when SPREAD comes on) */
     uint16_t ticks;                              /* control ticks since the note-on (LFO FADE) */
     uint8_t stage[4];                            /* 0 off, 1 attack, 2 hold, 3 decay / sustain, 4 release */
     uint8_t live;
@@ -246,31 +273,36 @@ static void va_pack(const int8_t *p, uint8_t *b)
         b[i] = 0;
 }
 
+/* a valid blob: version 2 (VA_BLOB bytes, VA_NP values) or version 1 (its first VA_BLOB1 bytes, VA_NP1 values; the
+ * ranges of version 1's values only grew: SRC / DST gained names at the end) */
 static int va_blob_ok(const uint8_t *b)
 {
-    uint32_t i;
-    if (!b || b[0] != VA_MAGIC || b[1] != VA_VER)
+    uint32_t i, np, len;
+    if (!b || b[0] != VA_MAGIC || (b[1] != VA_VER && b[1] != 1u))
         return 0;
-    for (i = 0; i < VA_NP; i++) {
+    np = b[1] == 1u ? VA_NP1 : VA_NP;
+    len = b[1] == 1u ? VA_BLOB1 : VA_BLOB;
+    for (i = 0; i < np; i++) {
         va_rng_t r = va_range(i);
         if (b[2 + i] > (uint32_t)(r.max - r.min))
             return 0;
     }
-    for (i = 2 + VA_NP; i < VA_BLOB; i++)
+    for (i = 2 + np; i < len; i++)
         if (b[i])
             return 0;
     return 1;
 }
 
-/* blob -> patch; 0 or a bad blob: the init patch. 1 = the blob was taken */
+/* blob -> patch; 0 or a bad blob: the init patch. 1 = the blob was taken (version 1: the values version 2 added
+ * take their init values: MODE BASIC, MORPH / SPREAD / USPREAD 0, the sound as it was) */
 static int va_unpack(const uint8_t *b, int8_t *p)
 {
-    uint32_t i;
-    if (!va_blob_ok(b)) {
-        va_init_patch(p);
+    uint32_t i, np;
+    va_init_patch(p);
+    if (!va_blob_ok(b))
         return 0;
-    }
-    for (i = 0; i < VA_NP; i++)
+    np = b[1] == 1u ? VA_NP1 : VA_NP;
+    for (i = 0; i < np; i++)
         p[i] = (int8_t)(b[2 + i] + va_range(i).min);
     return 1;
 }
@@ -301,6 +333,7 @@ static void va_macros_out(track_t *t)
 #define OSC(k, w, l, c, f) O_(k, WAVE), VW_##w, O_(k, LEVEL), l, O_(k, COARSE), S8(c), O_(k, FINE), S8(f)
 #define FLT(ty, c, r, fe) VA_FTYPE, VF_##ty, VA_CUT, c, VA_RES, r, VA_FENV, S8(fe)
 #define LFO(k, r, w, d, f) L_(k, RATE), r, L_(k, WAVE), w, L_(k, DEPTH), d, L_(k, FADE), f
+#define MODE(k, m) VA_OMODE0 + (k), VOM_##m
 static const uint8_t VAP_LUSH[] = {OSC(0, SAW, 62, 0, -7), OSC(1, SAW, 62, 0, 7), OSC(2, SAW, 40, 12, 3),
     FLT(LP, 70, 14, 10), VA_FKTRK, 64, ENV1(86, 90, 120, 98), ENV2(88, 100, 60, 95), VA_VEL, 50,
     LFO(0, 50, 0, 40, 0), LFO(1, 84, 0, 20, 92), M_(0, VS_LFO1, VD_CUT, 8), M_(1, VS_LFO1 + 1, VD_PITCH, 3), 0xFF};
@@ -349,6 +382,19 @@ static const uint8_t VAP_RUBBER[] = {OSC(0, SQR, 110, 0, 0), O_(0, SHAPE), 40, F
     ENV1(0, 90, 80, 40), ENV2(0, 76, 0, 50), VA_VEL, 70, 0xFF};
 static const uint8_t VAP_SYNCBASS[] = {OSC(0, SAW, 64, 0, 0), OSC(1, SAW, 100, 12, 0), VA_SYNC2, 1,
     FLT(LP, 70, 20, 25), ENV1(0, 85, 100, 40), ENV3(0, 80, 0, 50), M_(0, VS_ENV1 + 2, VD_PIT1 + 1, 30), 0xFF};
+/* version 2: the oscillator modes, FILTER MORPH / SPREAD */
+static const uint8_t VAP_MORPHPAD[] = {OSC(0, SAW, 66, 0, -6), MODE(0, MORPH), O_(0, SHAPE), 44,
+    OSC(1, SAW, 60, 0, 6), MODE(1, MORPH), O_(1, SHAPE), 56, OSC(2, SIN, 30, -12, 0),
+    FLT(LP, 78, 12, 8), VA_FSPREAD, 40, ENV1(84, 90, 118, 96), ENV2(90, 100, 60, 96), VA_VEL, 50,
+    LFO(0, 30, 1, 127, 0), LFO(1, 38, 0, 127, 0), M_(0, VS_LFO1, VD_SHP1, 22), M_(1, VS_LFO1 + 1, VD_SHP1 + 1, -20),
+    0xFF};
+static const uint8_t VAP_VINYLKEYS[] = {OSC(0, TRI, 84, 0, 0), OSC(1, SIN, 40, 12, 3),
+    O_(3, WAVE), VN_VINYL, MODE(3, NOISE), O_(3, LEVEL), 50, O_(3, SHAPE), 40, O_(3, KTRK), 0,
+    FLT(LP, 72, 10, 18), ENV1(6, 92, 84, 76), ENV2(0, 86, 40, 76), VA_VEL, 70, M_(0, VS_VEL, VD_CUT, 14), 0xFF};
+static const uint8_t VAP_WIDESTR[] = {OSC(0, SAW, 54, 0, -10), OSC(1, SAW, 54, 0, 10), OSC(2, SAW, 48, 0, -3),
+    OSC(3, SAW, 48, 0, 4), FLT(LP, 80, 8, 6), VA_FSPREAD, 110, ENV1(86, 90, 120, 94), ENV2(90, 100, 70, 94),
+    VA_DETUNE, 30, LFO(0, 60, 0, 60, 0), LFO(1, 66, 1, 60, 0), M_(0, VS_LFO1, VD_PIT1, 2),
+    M_(1, VS_LFO1 + 1, VD_PIT1 + 1, -2), 0xFF};
 
 /* {CUT, RES, FENV, DRIVE, MIX, DTN, ATK, REL}: the macros as the patch has them (cr_va_test checks) */
 static const preset_t VA_PRESETS[] = {
@@ -372,11 +418,14 @@ static const preset_t VA_PRESETS[] = {
     {"PUNCH BASS", {45, 25, 45, 30, 64, 0, 0, 45}, {0, 85, 90, 45}, 0, 1, FX(0, 0, 10, 10), PAT(2)},
     {"RUBBER BASS", {36, 70, 35, 0, 64, 0, 0, 40}, {0, 90, 80, 40}, 0, 1, FX(0, 0, 10, 10), PAT(2)},
     {"SYNC BASS", {70, 20, 25, 0, 64, 0, 0, 40}, {0, 85, 100, 40}, 0, 1, FX(0, 0, 15, 10), PAT(1)},
+    {"MORPH PAD", {78, 12, 8, 0, 64, 0, 84, 96}, {84, 90, 118, 96}, 0, 0, FX(0, 50, 25, 70), PAT(5)},
+    {"VINYL KEYS", {72, 10, 18, 0, 64, 0, 6, 76}, {6, 92, 84, 76}, 0, 0, FX(0, 30, 20, 45), PAT(6)},
+    {"WIDE STRINGS", {80, 8, 6, 0, 64, 30, 86, 94}, {86, 90, 120, 94}, 0, 0, FX(0, 55, 15, 65), PAT(5)},
 };
 static const uint8_t *const VA_PRESET_EDITS[] = {VAP_LUSH, VAP_WARM, VAP_GLASS, VAP_SLOWSTR, VAP_ENSEMBLE, VAP_BRASS,
     VAP_SOFTBRASS, VAP_POLYKEYS, VAP_PWMKEYS, VAP_CLAV, VAP_SOFTLEAD, VAP_HOLLOW, VAP_BELLS, VAP_SWEEP, VAP_AAH,
-    VAP_ORGAN, VAP_SUB, VAP_PUNCH, VAP_RUBBER, VAP_SYNCBASS};
-_Static_assert(NELEM(VA_PRESETS) == NELEM(VA_PRESET_EDITS) && NELEM(VA_PRESETS) == 20, "a patch per VA preset");
+    VAP_ORGAN, VAP_SUB, VAP_PUNCH, VAP_RUBBER, VAP_SYNCBASS, VAP_MORPHPAD, VAP_VINYLKEYS, VAP_WIDESTR};
+_Static_assert(NELEM(VA_PRESETS) == NELEM(VA_PRESET_EDITS) && NELEM(VA_PRESETS) == 23, "a patch per VA preset");
 #define VA_NPRESETS ((uint32_t)NELEM(VA_PRESETS))
 #undef O_
 #undef E_
@@ -389,6 +438,7 @@ _Static_assert(NELEM(VA_PRESETS) == NELEM(VA_PRESET_EDITS) && NELEM(VA_PRESETS) 
 #undef OSC
 #undef FLT
 #undef LFO
+#undef MODE
 
 static void va_preset_patch(uint32_t k, int8_t *p)
 {
@@ -409,12 +459,72 @@ static int32_t va_get(const track_t *t, uint32_t page, uint32_t col)
     return tr < VA_NPART ? va_patch[tr][i] : va_range(i).def;
 }
 
+/* the deep pages' mode-dependent columns (eng_deep_t.desc): on OSC n, WAVE names the morph position (MORPH: WAVE
+ * itself does nothing) or the noise type (NOISE); on OSC n+, SHAPE is MORPH / COLOR (BROWN) / DENS (VINYL) */
+static const char *const N_VA_MPV[11][VW_N] = {   /* (each a full WAVE range of one name) */
+    {"SIN", "SIN", "SIN", "SIN", "SIN", "SIN"},
+    {"SIN>TRI", "SIN>TRI", "SIN>TRI", "SIN>TRI", "SIN>TRI", "SIN>TRI"},
+    {"TRI", "TRI", "TRI", "TRI", "TRI", "TRI"},
+    {"TRI>SAW", "TRI>SAW", "TRI>SAW", "TRI>SAW", "TRI>SAW", "TRI>SAW"},
+    {"SAW", "SAW", "SAW", "SAW", "SAW", "SAW"},
+    {"SAW>RMP", "SAW>RMP", "SAW>RMP", "SAW>RMP", "SAW>RMP", "SAW>RMP"},
+    {"RAMP", "RAMP", "RAMP", "RAMP", "RAMP", "RAMP"},
+    {"RMP>SQR", "RMP>SQR", "RMP>SQR", "RMP>SQR", "RMP>SQR", "RMP>SQR"},
+    {"SQR", "SQR", "SQR", "SQR", "SQR", "SQR"},
+    {"SQR>PLS", "SQR>PLS", "SQR>PLS", "SQR>PLS", "SQR>PLS", "SQR>PLS"},
+    {"PULSE", "PULSE", "PULSE", "PULSE", "PULSE", "PULSE"},
+};
+#define VA_MPV(k) {"MORPH", F_ENUM, 0, VW_N - 1, VW_SAW, N_VA_MPV[k], 0}
+static const param_desc_t VA_D_MORPHPV[11] = {VA_MPV(0), VA_MPV(1), VA_MPV(2), VA_MPV(3), VA_MPV(4), VA_MPV(5),
+                                              VA_MPV(6), VA_MPV(7), VA_MPV(8), VA_MPV(9), VA_MPV(10)};
+#undef VA_MPV
+static const param_desc_t VA_D_NTYPE = {"NTYPE", F_ENUM, 0, VN_N - 1, VN_WHITE, N_VA_NTYPE, 0};
+static const param_desc_t VA_D_SHAPE[4] = {{"MORPH", F_PCT, 0, 127, 0, 0, 0}, {"COLOR", F_PCT, 0, 127, 0, 0, 0},
+                                           {"DENS", F_PCT, 0, 127, 0, 0, 0}, {"SHAPE", F_PCT, 0, 127, 0, 0, 0}};
+/* the morph position's name: the shape at 0 24 48 72 96 127, "A>B" between them */
+static uint32_t va_morph_name(int32_t sh)
+{
+    int32_t seg = sh / 24, f = sh % 24;
+    if (sh >= 96)
+        return sh < 100 ? 8u : sh < 124 ? 9u : 10u;
+    return (uint32_t)(f < 4 ? 2 * seg : f > 20 ? 2 * seg + 2 : 2 * seg + 1);
+}
+static const param_desc_t *va_desc(const track_t *t, uint32_t page, uint32_t col)
+{
+    uint32_t tr = va_tr(t), k = page >> 1, mode;
+    if (page >= 8u || tr >= VA_NPART || col != (page & 1u))   /* OSC n: WAVE (col 0); OSC n+: SHAPE (col 1) */
+        return 0;
+    mode = (uint32_t)va_patch[tr][VA_OMODE0 + k];
+    if (!(page & 1u)) {
+        if (mode == VOM_MORPH)
+            return &VA_D_MORPHPV[va_morph_name(va_patch[tr][VA_OSC(k, VO_SHAPE)])];
+        return mode == VOM_NOISE ? &VA_D_NTYPE : 0;
+    }
+    if (mode == VOM_MORPH)
+        return &VA_D_SHAPE[0];
+    if (mode == VOM_NOISE)
+        return va_patch[tr][VA_OSC(k, VO_WAVE)] == VN_BROWN ? &VA_D_SHAPE[1]
+             : va_patch[tr][VA_OSC(k, VO_WAVE)] == VN_VINYL ? &VA_D_SHAPE[2] : &VA_D_SHAPE[3];
+    return 0;
+}
+
 static void va_set(track_t *t, uint32_t page, uint32_t col, int32_t v)
 {
     uint32_t tr = va_tr(t), i, k;
+    int32_t old;
     if (tr >= VA_NPART || page >= VA_NPAGES || col >= 4u || (i = VA_MAP[page][col]) == VA_X)
         return;
+    if (i < VA_SYNC2 && i % VO_N == VO_WAVE && va_patch[tr][VA_OMODE0 + i / VO_N] == VOM_NOISE)
+        v = clamp(v, 0, VN_N - 1);               /* NOISE: WAVE is the noise type */
+    old = va_patch[tr][i];
     va_patch[tr][i] = va_clampv(i, v);
+    if (i >= VA_OMODE0 && i < VA_FMORPH && va_patch[tr][i] == VOM_NOISE && old != VOM_NOISE) {   /* -> NOISE: a type,
+                                                                                                * no key tracking */
+        k = i - VA_OMODE0;
+        if (va_patch[tr][VA_OSC(k, VO_WAVE)] >= VN_N)
+            va_patch[tr][VA_OSC(k, VO_WAVE)] = VN_WHITE;
+        va_patch[tr][VA_OSC(k, VO_KTRK)] = 0;
+    }
     for (k = 0; k < 8u; k++)                     /* a macro's value: the track's P_E too (va_block sees no change) */
         if (VA_MACRO[k] == i) {
             t->p[P_E0 + k] = va_patch[tr][i];
@@ -544,6 +654,12 @@ static void va_block(track_t *t)
         va_lfo[tr].out[k] = (int16_t)((x * p[VA_LFO(k, VL_DEPTH)] * 258) >> 15);
     }
     va_lfo[tr].pwm += LFO_INC[60];               /* PWM's own sweep: ~0.8 Hz */
+    if (!va_lfo[tr].wown--) {                    /* VINYL's wow: a new target every 0.3 .. 0.75 s, eased into */
+        va_lfo[tr].wrnd = va_xs(va_lfo[tr].wrnd + 7u);
+        va_lfo[tr].wowt = (int32_t)(va_lfo[tr].wrnd >> 16) - 32768;
+        va_lfo[tr].wown = (uint16_t)(400u + (va_lfo[tr].wrnd & 511u));
+    }
+    va_lfo[tr].wow += (va_lfo[tr].wowt - va_lfo[tr].wow) >> 8;
 }
 
 static va_voice_t *va_voice(track_t *t, voice_t *v)
@@ -580,6 +696,9 @@ static void va_note_on(track_t *t, voice_t *v)
         }
         v->s[7] = 0;
         s->dc = 0;
+        memset(s->nz, 0, sizeof s->nz);
+        s->fr[0] = s->fr[1] = 0;
+        s->spr = 0;
     }
     for (k = 0; k < 4u; k++) {                   /* a retrigger: the attack from the current level */
         s->stage[k] = 1;
@@ -641,6 +760,88 @@ static int va_done(track_t *t, voice_t *v)      /* ENV 1 has ended (voice.c, eng
 /* one sample of wave w at phase ph (increment inc, shape sh Q15, pw the pulse width), +-32767 */
 #define VA_PULSE_PW(sh) (0x80000000u - (uint32_t)(sh) * 0xE666u)   /* SHAPE: 50 % .. ~5 % */
 
+/* MORPH: sine (SHAPE 0) -> triangle (24) -> saw (48) -> ramp (72) -> square (96) -> a narrowing pulse (127: BASIC
+ * SQR's width at SHAPE 127); between two neighbours a linear crossfade of the band-limited waves (polyBLEP saw, ramp
+ * and square). The waves are aligned on the saw's fundamental (SAW and SQR are BASIC's own; the sine is shifted by
+ * half a cycle, the triangle by three quarters, the ramp is the saw reversed), so no crossfade cancels the
+ * fundamental. sh: Q15 (SHAPE x 258) */
+#define VA_MP(k) ((k) * 24 * 258)               /* the shapes' positions, Q15 */
+static inline int32_t va_morph(uint32_t ph, uint32_t inc, int32_t sh)
+{
+    int32_t a, b, f;
+    if (sh >= VA_MP(2)) {
+        if (sh >= VA_MP(4))                      /* square -> narrow pulse */
+            return osc_pulse(ph, inc, VA_PULSE_PW(clamp(((sh - VA_MP(4)) * 16785) >> 12, 0, 32766)));
+        b = -osc_saw(ph + 0x80000000u, inc);     /* the ramp */
+        if (sh >= VA_MP(3)) {                    /* ramp -> square (BASIC SQR: (saw - saw half a cycle on) / 2) */
+            a = b;
+            b = (osc_saw(ph, inc) + b) >> 1;
+            f = sh - VA_MP(3);
+        } else {                                 /* saw -> ramp */
+            a = osc_saw(ph, inc);
+            f = sh - VA_MP(2);
+        }
+    } else if (sh >= VA_MP(1)) {                 /* triangle -> saw */
+        a = osc_tri(ph + 0xC0000000u);
+        b = osc_saw(ph, inc);
+        f = sh - VA_MP(1);
+    } else {                                     /* sine -> triangle */
+        a = sine_i(ph + 0x80000000u);
+        b = osc_tri(ph + 0xC0000000u);
+        f = sh;
+    }
+    return a + (((b - a) * ((f * 2710) >> 12)) >> 12);   /* (Q12 within the segment) */
+}
+
+/* NOISE BROWN: white noise through a leaky integrator (a one-pole low-pass: SHAPE (COLOR) sets its corner, 30 Hz ..
+ * 3 kHz, KTRK moves it with the key), made up to about half the white noise's RMS. The corner's coefficient (Q15)
+ * and the make-up gain (Q8) at SHAPE 0, 8, .. 127 */
+static const uint16_t VA_BROWN_K[17] = {140, 187, 249, 333, 444, 592, 789, 1050, 1396, 1852, 2451, 3234, 4249, 5552,
+                                        7200, 9248, 11397};
+static const uint16_t VA_BROWN_G[17] = {2769, 2395, 2072, 1792, 1550, 1341, 1160, 1003, 868, 751, 649, 562, 486, 421,
+                                        364, 316, 279};
+static inline int32_t va_brown(int32_t *nst, int32_t *y, int32_t k, int32_t g)
+{
+    int32_t w = (int32_t)(noise32(nst) >> 16) - 32768;
+    *y += ((w - *y) * k) >> 15;
+    return clamp((*y * g) >> 8, -32767, 32767);
+}
+/* NOISE VINYL: sparse crackle (clicks of random size and sign, each gone in ~0.2 ms; SHAPE (DENS) sets how many:
+ * thr / 65536 a sample, ~1 .. 200 a second) over a low hiss (white noise low-passed at ~2.5 kHz, about -30 dB) */
+static inline int32_t va_vinyl(int32_t *nst, int32_t *c, int32_t *h, uint32_t thr)
+{
+    uint32_t r = noise32(nst);
+    *h += ((((int32_t)(r >> 16) - 32768) - *h) * 10000) >> 15;
+    *c -= (*c >> 3) + (*c > 0);                  /* (to 0 from either side) */
+    if ((r & 0xFFFFu) < thr)
+        *c = (int32_t)(noise32(nst) >> 16) - 32768;
+    return clamp(*c + (*h >> 3), -32767, 32767);
+}
+
+/* the filter's output as weights (Q10) of the input, the band-pass (kd v1) and the low-pass (v2): LP (0, 0, 1),
+ * BP (0, 1, 0), HP (1, -1, -1), NOTCH (1, -1, 0) (exactly va_render's switch at 1024); MORPH crossfades the weights
+ * towards the next type of the cycle LP -> BP -> HP -> NOTCH -> LP (ff, Q10) */
+typedef struct { int32_t x, b, l; } va_fw_t;
+static const int8_t VA_FW[4][3] = {{0, 0, 1}, {0, 1, 0}, {1, -1, -1}, {1, -1, 0}};
+static va_fw_t va_fweights(uint32_t ty, int32_t ff)
+{
+    const int8_t *a = VA_FW[ty & 3u], *b = VA_FW[(ty + 1u) & 3u];
+    va_fw_t w;
+    w.x = (a[0] << 10) + (b[0] - a[0]) * ff;
+    w.b = (a[1] << 10) + (b[1] - a[1]) * ff;
+    w.l = (a[2] << 10) + (b[2] - a[2]) * ff;
+    return w;
+}
+/* one sample of the SVF c (state ic1, ic2) with the output weights w; the soft knee after it */
+static inline int32_t va_svf(const tsvf_t *c, int32_t x, int32_t *ic1, int32_t *ic2, int32_t kd, va_fw_t w)
+{
+    int32_t v3 = x - *ic2, v1 = (c->a1 * *ic1 + c->a2 * v3) >> 13, v2 = *ic2 + ((c->a2 * *ic1 + c->a3 * v3) >> 13), y;
+    *ic1 = clamp(2 * v1 - *ic1, -150000, 150000);
+    *ic2 = clamp(2 * v2 - *ic2, -150000, 150000);
+    y = (w.x * x + w.b * ((kd * v1) >> 12) + w.l * v2) >> 10;
+    return soft_knee(clamp(y, -200000, 200000), 16000);
+}
+
 /* the oscillator loop for one wave: x(ph, inc, sh) the sample; adds level-ramped into acc */
 #define VA_OSC_LOOP_FULL(X)                                                \
     for (i = 0; i < n; i++) {                                              \
@@ -676,18 +877,20 @@ static int va_done(track_t *t, voice_t *v)      /* ENV 1 has ended (voice.c, eng
         }                                                                  \
     }
 
-static void va_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+/* a voice's block: out gets the mono (the mid), side (0: none) the stereo side of SPREAD / USPREAD; 1 = side got
+ * something */
+static int va_render(track_t *t, voice_t *v, int32_t *out, int32_t *side, uint32_t n, const vmod_t *m)
 {
     va_voice_t *s = va_voice(t, v);
-    uint32_t tr = va_tr(t), k, i, wrap = 0, osc_on = 0;
+    uint32_t tr = va_tr(t), k, i, wrap = 0, osc_on = 0, vinyl = 0;
     const int8_t *p;
-    int32_t src[VS_N], dpit = 0, dosc[3][4] = {{0}}, dcut = 0, dres = 0, dpan = 0, drate[4] = {0}, gain = 32767;
+    int32_t src[VS_N], dpit = 0, dosc[3][4] = {{0}}, dcut = 0, dres = 0, dpan = 0, drate[4] = {0}, dfm = 0, gain = 32767;
     int32_t acc[CTL], r3[CTL];
     uint32_t sph[CTL], tinc[4];
-    int32_t tlvl[4], tshp[4], env[4], A0, A1, dA, a, cut, kd, mixg[2];
-    tsvf_t c;
+    int32_t tlvl[4], tshp[4], tsh[4], env[4], A0, A1, dA, a, cut, kd, mixg[2], dwow = 0, spr, fm8, up = 0;
+    tsvf_t c, cr;
     if (!s || !s->live || n > CTL)
-        return;
+        return 0;
     p = va_patch[tr];
     for (k = 0; k < 4u; k++)
         env[k] = va_env_tick(p, s, k, v->gate);
@@ -729,6 +932,8 @@ static void va_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
             gain = mulq15(gain, clamp(32767 - (am > 0 ? ((32767 - u) * am) >> 6 : (u * -am) >> 6), 0, 32767));
         } else if (d == VD_PAN)
             dpan += x;
+        else if (d == VD_FMORPH)
+            dfm += x;
         else
             drate[d - VD_RATE1] += x;
     }
@@ -743,10 +948,16 @@ static void va_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
         static const int8_t SPREAD[4] = {-3, 3, -1, 1};
         mixg[0] = om <= 64 ? 32767 : (127 - om) * 520;           /* MIX: 64 both pairs, 0 OSC 1+2 only, 127 3+4 */
         mixg[1] = om >= 64 ? 32767 : om * 512;
+        for (k = 0; k < 4u; k++)                 /* a VINYL oscillator sounding: the voice's pitch wows (+-6 ct) */
+            if (p[VA_OMODE0 + k] == VOM_NOISE && p[VA_OSC(k, VO_WAVE)] == VN_VINYL && p[VA_OSC(k, VO_LEVEL)])
+                vinyl = 1;
+        if (vinyl)
+            dwow = (va_lfo[tr].wow * 15) >> 15;
         for (k = 0; k < 4u; k++) {
             int32_t base = p[VA_OSC(k, VO_KTRK)] ? m->pitch16 : 60 * 16;
             int32_t ct = p[VA_OSC(k, VO_FINE)] + SPREAD[k] * d3;
-            int32_t q = (base << 4) + p[VA_OSC(k, VO_COARSE)] * 256 + ((ct * 2621) >> 10) + (((dpit + dosc[0][k]) * 3) >> 11);
+            int32_t q = (base << 4) + p[VA_OSC(k, VO_COARSE)] * 256 + ((ct * 2621) >> 10) + (((dpit + dosc[0][k]) * 3) >> 11) +
+                        dwow;
             int32_t lv, sh, fu;
             uint32_t inc;
             q = clamp(q, 0, 2047 << 4);
@@ -759,6 +970,7 @@ static void va_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
             tlvl[k] = mulq15(lv * lv * 2, mixg[k >> 1]);
             sh = clamp(p[VA_OSC(k, VO_SHAPE)] + (dosc[2][k] >> 14) + ((m->shape - (64 << 8)) >> 8), 0, 127);
             tshp[k] = sh * 258;
+            tsh[k] = sh;
             if (tlvl[k] || s->lvl[k])
                 osc_on |= 1u << k;
         }
@@ -773,9 +985,11 @@ static void va_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
         uint32_t ph = k < 3u ? v->ph[k] : s->ph4, inc0 = (uint32_t)v->s[3 + k], inc = inc0 ? inc0 : tinc[k];
         int32_t dinc = ((int32_t)(tinc[k] - inc) + ((int32_t)(tinc[k] - inc) >> 31 & (CTL - 1))) >> CTL_LOG2;
         int32_t l = (int32_t)s->lvl[k] << 16, dl = (((int32_t)tlvl[k] << 16) - l) >> CTL_LOG2;
-        int32_t sh = (int32_t)s->shp[k], dsh = (tshp[k] - sh) >> CTL_LOG2;
+        int32_t sh = p[VA_OMODE0 + k] != VOM_BASIC && !inc0 ? tshp[k] : (int32_t)s->shp[k];   /* (MORPH / NOISE: */
+        int32_t dsh = (tshp[k] - sh) >> CTL_LOG2;                    /* a fresh voice starts at its shape) */
         uint32_t sync = k == 1u && p[VA_SYNC2], rec = k == 0u && p[VA_SYNC2];
         uint32_t keep = k == 2u && p[VA_RING4], ring = k == 3u && p[VA_RING4], ratio = 0, w = (uint32_t)p[VA_OSC(k, VO_WAVE)];
+        uint32_t mode = (uint32_t)p[VA_OMODE0 + k];
         if (!((osc_on >> k) & 1u)) {             /* silent: the phase runs on (no step when it comes back) */
             ph += ((inc >> 1) + (tinc[k] >> 1)) * n;
             if (k < 3u)
@@ -791,6 +1005,10 @@ static void va_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
             ratio = tinc[1] / ((tinc[0] >> 16) | 1u);   /* OSC 2 / OSC 1, Q16 */
         if (sync && ratio > (64u << 16))
             ratio = 64u << 16;
+        if (mode == VOM_MORPH)
+            w = VW_N;                            /* (the switch's MORPH) */
+        else if (mode == VOM_NOISE)
+            w = w == VN_BROWN ? VW_N + 1u : w == VN_VINYL ? VW_N + 2u : VW_NOIS;
         switch (w) {
         case VW_SQR:
             VA_OSC_LOOP(osc_pulse(ph, inc, VA_PULSE_PW(sh)))
@@ -817,6 +1035,27 @@ static void va_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
             v->s[2] = nst;
             break;
         }
+        case VW_N:                               /* MORPH */
+            VA_OSC_LOOP(va_morph(ph, inc, sh))
+            break;
+        case VW_N + 1u: {                        /* NOISE BROWN: SHAPE the corner, KTRK moves it with the key */
+            int32_t nst = v->s[2], *y = &s->nz[k][0], e, j, fq, kq, gq;
+            e = clamp(tsh[k] + (p[VA_OSC(k, VO_KTRK)] ? ((m->pitch16 - 60 * 16) * 13) >> 7 : 0), 0, 127);
+            j = e >> 3;
+            fq = e & 7;
+            kq = VA_BROWN_K[j] + (((VA_BROWN_K[j + 1] - VA_BROWN_K[j]) * fq) >> 3);
+            gq = VA_BROWN_G[j] + (((VA_BROWN_G[j + 1] - VA_BROWN_G[j]) * fq) >> 3);
+            VA_OSC_LOOP(va_brown(&nst, y, kq, gq))
+            v->s[2] = nst;
+            break;
+        }
+        case VW_N + 2u: {                        /* NOISE VINYL: SHAPE the crackle's density */
+            int32_t nst = v->s[2], *cz = &s->nz[k][0], *hz = &s->nz[k][1];
+            uint32_t thr = 2u + (uint32_t)(tsh[k] * tsh[k] * tsh[k]) / 7000u;
+            VA_OSC_LOOP(va_vinyl(&nst, cz, hz, thr))
+            v->s[2] = nst;
+            break;
+        }
         default:
             VA_OSC_LOOP(osc_saw(ph, inc) + ((sh ? (osc_tri(ph) - osc_saw(ph, inc)) * (sh >> 3) : 0) >> 12))
             break;
@@ -833,7 +1072,19 @@ static void va_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
     cut = (p[VA_CUT] << 8) + ((env[1] * p[VA_FENV]) >> 6) + (((m->pitch16 - 60 * 16) * p[VA_FKTRK] * 150) >> 10) +
           m->cutoff + (dcut >> 7);
     kd = 8192 - clamp(p[VA_RES] + (dres >> 14), 0, 127) * 60;
-    tsvf_coef_k(&c, cut, kd);
+    spr = p[VA_FSPREAD];                         /* SPREAD: the left SVF's cutoff down, the right's up, +-1 octave */
+    if (spr) {
+        int32_t off = (spr * 7235) >> 8;         /* (14.02 cutoff steps an octave, << 8) */
+        tsvf_coef_k(&c, cut - off, kd);
+        tsvf_coef_k(&cr, cut + off, kd);
+    } else {
+        tsvf_coef_k(&c, cut, kd);
+    }
+    fm8 = clamp((p[VA_FMORPH] << 8) + (dfm >> 6), 0, 127 << 8);   /* MORPH, 1/256 */
+    if (side && t->p[P_VOICE] == V_UNISON && p[VA_USPREAD]) {     /* USPREAD: voice i of 8 at (2i - 7) / 7 */
+        int32_t kk = 2 * (int32_t)(v - t->v) - (NVOICE - 1);
+        up = clamp(kk * p[VA_USPREAD] * 37, -32767, 32767) >> 4;   /* Q11 */
+    }
     /* the amplitude: ENV 1 by velocity, the matrix's AMP, the voice's (fades, LFO -> AMP); UNISON as FM6 */
     {
         int32_t vel = v->mvel ? v->mvel : v->vel, va = p[VA_VEL];
@@ -857,29 +1108,75 @@ static void va_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
             }
             s->dc = dc;
         }
-        for (i = 0; i < n; i++) {
-            int32_t x = acc[i] >> 1, v1, v2, v3, y;
-            if (drv)
-                x = softclip((x * (g >> 4)) >> 8);
-            v3 = x - ic2;
-            v1 = (c.a1 * ic1 + c.a2 * v3) >> 13;
-            v2 = ic2 + ((c.a2 * ic1 + c.a3 * v3) >> 13);
-            ic1 = clamp(2 * v1 - ic1, -150000, 150000);
-            ic2 = clamp(2 * v2 - ic2, -150000, 150000);
-            switch (ty) {
-            case VF_BP: y = (kd * v1) >> 12; break;
-            case VF_HP: y = x - ((kd * v1) >> 12) - v2; break;
-            case VF_NOTCH: y = x - ((kd * v1) >> 12); break;
-            default: y = v2; break;
+        if (!fm8 && !spr && !up) {               /* one SVF, a discrete type, mono: the plain loop */
+            s->spr = 0;
+            for (i = 0; i < n; i++) {
+                int32_t x = acc[i] >> 1, v1, v2, v3, y;
+                if (drv)
+                    x = softclip((x * (g >> 4)) >> 8);
+                v3 = x - ic2;
+                v1 = (c.a1 * ic1 + c.a2 * v3) >> 13;
+                v2 = ic2 + ((c.a2 * ic1 + c.a3 * v3) >> 13);
+                ic1 = clamp(2 * v1 - ic1, -150000, 150000);
+                ic2 = clamp(2 * v2 - ic2, -150000, 150000);
+                switch (ty) {
+                case VF_BP: y = (kd * v1) >> 12; break;
+                case VF_HP: y = x - ((kd * v1) >> 12) - v2; break;
+                case VF_NOTCH: y = x - ((kd * v1) >> 12); break;
+                default: y = v2; break;
+                }
+                y = soft_knee(clamp(y, -200000, 200000), 16000);
+                a += dA;
+                out[i] += (mulq15(y, a) * (VOICE_FS / 4)) >> 11;
             }
-            y = soft_knee(clamp(y, -200000, 200000), 16000);
-            a += dA;
-            out[i] += (mulq15(y, a) * (VOICE_FS / 4)) >> 11;
+        } else {                                 /* MORPH, SPREAD (two SVFs: mid + side), USPREAD (the voice's pan) */
+            uint32_t pos = (ty << 13) + (uint32_t)fm8;
+            int32_t jc1 = 0, jc2 = 0;
+            va_fw_t fw = va_fweights(fm8 ? (pos >> 13) & 3u : ty, fm8 ? (int32_t)(pos & 8191u) >> 3 : 0);
+            if (spr) {
+                if (!s->spr) {                   /* SPREAD came on: the right SVF starts from the left one's state */
+                    s->fr[0] = ic1;
+                    s->fr[1] = ic2;
+                    s->spr = 1;
+                }
+                jc1 = s->fr[0];
+                jc2 = s->fr[1];
+            } else {
+                s->spr = 0;
+            }
+            for (i = 0; i < n; i++) {
+                int32_t x = acc[i] >> 1, y, o;
+                if (drv)
+                    x = softclip((x * (g >> 4)) >> 8);
+                y = va_svf(&c, x, &ic1, &ic2, kd, fw);
+                a += dA;
+                if (spr) {
+                    int32_t yr = va_svf(&cr, x, &jc1, &jc2, kd, fw);
+                    o = (mulq15((y + yr) >> 1, a) * (VOICE_FS / 4)) >> 11;
+                    if (side)
+                        side[i] += ((mulq15((yr - y) >> 1, a) * (VOICE_FS / 4)) >> 11) + ((o * up) >> 11);
+                } else {
+                    o = (mulq15(y, a) * (VOICE_FS / 4)) >> 11;
+                    if (up)
+                        side[i] += (o * up) >> 11;
+                }
+                out[i] += o;
+            }
+            if (spr) {
+                s->fr[0] = jc1;
+                s->fr[1] = jc2;
+            }
         }
         v->s[0] = ic1;
         v->s[1] = ic2;
     }
     v->s[7] = A1;
+    return side && (spr || up);
+}
+
+static void va_render_mono(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)   /* engine_t.render */
+{
+    va_render(t, v, out, 0, n, m);
 }
 
 /* fx.c mix_part: the part's pan with the matrix's PAN */
@@ -895,13 +1192,14 @@ static int32_t va_pan(const track_t *t, int32_t pan)
 static const eng_deep_t VA_DEEP = {
     .npages = NELEM(VA_PAGES),
     .pages = VA_PAGES,
-    .section = {0, 8, 10, 18, 23, 0xFF, 0xFF, 0xFF},
+    .section = {0, 8, 10, 18, 24, 0xFF, 0xFF, 0xFF},
     .get = va_get,
     .set = va_set,
     .blob_size = VA_BLOB,
     .blob_get = va_blob_get,
     .blob_set = va_blob_set,
     .blob_preset = va_blob_preset,
+    .desc = va_desc,
 };
 
 static const engine_t ENG_VA = {
@@ -923,7 +1221,8 @@ static const engine_t ENG_VA = {
     .poly = VA_POLY,
     .keep = 0x03,                /* the filter */
     .note_on = va_note_on,
-    .render = va_render,
+    .render = va_render_mono,
+    .render2 = va_render,
     .block = va_block,
     .ownenv = 1,
     .done = va_done,

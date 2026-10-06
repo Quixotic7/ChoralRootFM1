@@ -23,18 +23,25 @@ enum {
 };
 
 /* panel kinds (the device's subset of the designer's) */
-enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOARD, CR_K_ARP, CR_K_PARAMS, CR_K_GEEK,
-       CR_K_TEXT, CR_K_BIG, CR_K_SCOPE, CR_K_N };
+enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOARD, CR_K_ARP,
+       CR_K_PARAMS,                 /* (retired: the old sound pages; nothing draws it) */
+       CR_K_GEEK, CR_K_TEXT, CR_K_BIG, CR_K_SCOPE,
+       CR_K_EDIT8,                  /* the sound editor: two rows of four cells, an optional wide band over them */
+       CR_K_STACK,                  /* the sound editor: N rows (1..8) of four cells under column headings */
+       CR_K_N };
 
 /* the top line's icon: none = the bare Orchid line (mid at the left in 15 px, right at the right) */
 enum { CR_ICON_NONE, CR_ICON_PLAY, CR_ICON_REC, CR_ICON_LOOP };
 
-/* a params column's glyph */
-enum { CR_G_KNOB, CR_G_BAR, CR_G_ENV, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_FILTER, CR_G_STEPS, CR_G_DOTS,
-       CR_G_TRI,                    /* a triangle wave (cycles) */
-       CR_G_NOISE,                  /* noise: a fixed jagged line */
-       CR_G_FTYPE,                  /* a filter's response by type: n = 0 LP, 1 BP, 2 HP, 3 NOTCH */
-       CR_G_MOD };                  /* a mod slot: src -> dst in small type, a bipolar bar for pct (128 = 0) */
+/* an editor cell's glyph (the designer's params glyphs, drawn small); CR_G_NONE: a text cell */
+enum { CR_G_NONE, CR_G_KNOB, CR_G_BAR, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_STEPS, CR_G_DOTS };
+
+/* the editor's wide band (CR_K_EDIT8) */
+enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER };
+#define CR_ED_ROWS 8u               /* a stack's rows at most (the mod matrix) */
+#define CR_CF_ON 1u                 /* a cell: shown (an empty cell draws nothing) */
+#define CR_CF_PCT 2u                /* .. pct is shown (a text cell: a small bar) */
+#define CR_CF_BIP 4u                /* .. pct is centre-zero (128 = 0) */
 
 /* animations in progress (cr_screen_t.anim); each is a pure function of the fields and cr_draw's anim_ms, the time
  * since the change that started it (cr_draw.c CR_*_MS: the durations) */
@@ -53,13 +60,12 @@ enum { CR_G_KNOB, CR_G_BAR, CR_G_ENV, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_FIL
 
 typedef struct { char root[4], quality[6], sup[8]; uint8_t col_root, col_quality, col_sup; } cr_name_t;
 typedef struct { char t[6]; uint8_t col, mark; } cr_note_t;                    /* "C#5", its colour, a block under it */
-typedef struct {                                                                /* a params column (KNOB 1..4) */
-    char label[12], value[8];
-    uint8_t col, glyph, cycles, n;  /* cycles: wave / saw / square, n: steps */
-    uint16_t pct;                   /* Q8 */
-    uint8_t env[4];                 /* env: attack, decay, sustain, release (Q8, 255 = 1) */
-    char src[6], dst[6];            /* mod: the slot's source and destination */
-} cr_param_t;
+typedef struct {                                                                /* an editor cell (KNOB 1..4) */
+    char label[10], value[9];       /* label: edit8 only (a stack's columns have headings) */
+    uint8_t flags;                  /* CR_CF_* */
+    uint8_t glyph;                  /* CR_G_* */
+    uint8_t pct;                    /* Q8 of 255: the glyph's / bar's fill (square: the duty) */
+} cr_cell_t;
 typedef struct { char t[32]; uint8_t px, col, bold, center; } cr_line_t;       /* a text line (px 0 = 12) */
 
 typedef struct {
@@ -74,7 +80,7 @@ typedef struct {
     char mid[24], right[16];
 
     /* the one-line footer (empty: none; the panel then runs to the bottom) */
-    char footer[48];
+    char footer[64];
 
     /* the ring round the edge and the message box */
     uint8_t ring_on, ring_rec, ring_col, message_col;
@@ -123,11 +129,22 @@ typedef struct {
     uint8_t lit_col[CR_KEYS];       /* its colour (NONE: white keys theme, black keys accent) */
     char key_label[CR_KEYS][3];     /* text printed on key k */
 
-    /* panel: params */
-    cr_param_t par[4];
-    char page[16];                  /* top right: "ENV 4/8", "OSC 2 \267 4/33" */
-    uint8_t n_sect, sect;           /* > 1: the section marks under it, one square per section, `sect` filled */
-    char foot[48];                  /* the bottom line */
+    /* panel: edit8, stack (the sound editor, full screen: header 0; its title line is `title` in `title_col`,
+     * `page` right-aligned). Motion is the producer's (cr_edit.c): the fields below move, the renderer is pure */
+    char page[16];                  /* edit8 / stack: the title line's right text ("OSC 2 \267 A") */
+    cr_cell_t cell[CR_ED_ROWS][4];  /* rows of four cells (edit8: 1..2 rows) */
+    char head[4][10];               /* stack: the column headings */
+    char rlabel[CR_ED_ROWS][3];     /* stack: the row labels */
+    uint8_t n_rows, active;         /* rows shown; the row on KNOB 1..4 (knob colours, bars) */
+    uint8_t hot_r, hot_c;           /* the cell just turned (a filled block behind its value): row + 1 (0: none), column */
+    uint8_t wide;                   /* edit8: CR_W_* */
+    uint8_t tall;                   /* edit8: one row of tall level bars over the whole panel (the oscillator mixer) */
+    uint8_t fine;                   /* edit8 / stack: SHIFT on (fine steps): "fine" small in the title line */
+    uint8_t wv[6];                  /* env: a h d s r (Q8 of 255), the lit segment + 1 (1 A .. 5 R, 0 none);
+                                     * filter: cut res (Q8 of 255), type (0 LP, 1 BP, 2 HP, 3 NOTCH), drive */
+    int16_t bar_dy;                 /* the active row's bars, px from their place (sliding from the row before) */
+    int16_t ed_dx;                  /* the cells and headings, px from their place (a bank swap / a section sliding in) */
+    char foot[48];                  /* stripes: the bottom line */
 
     /* panel: text, geek (lines: geek's status lines are lines[0..1].t) */
     cr_line_t lines[CR_LINES_MAX];

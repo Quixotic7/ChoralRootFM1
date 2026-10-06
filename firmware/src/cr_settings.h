@@ -13,7 +13,7 @@
 #include <stdint.h>
 
 #define CRS_MAGIC 0x31535243u           /* "CRS1" */
-#define CRS_VERSION 2u
+#define CRS_VERSION 3u
 #define CRS_SIZE 192u                   /* bytes, header included; never changes (fields come out of rsv) */
 #define CRS_NPM 5                       /* perform modes (cr_engine.h CR_PM_COUNT) */
 #define CRS_NPAR 11                     /* parameters per mode (CR_P_COUNT) */
@@ -46,7 +46,9 @@ typedef struct {
     uint16_t chord_sound, bass_sound;                /* list positions: PRESETS (CRS_SOUND_DEFAULT), ALGORITHM (BASS tap's, 1..; 0 = UI default) */
     /* version 2 */
     uint8_t metro_on, metro_sig, metro_vol, loop_slot;   /* the click, 4/4 3/4 6/8, its level 0..100, slot 0..9 */
-    uint8_t rsv[24];                                 /* new fields come out of here */
+    /* version 3 */
+    uint8_t pick_roots;                              /* the engine picker's white roots: 1 engines, 0 they play */
+    uint8_t rsv[23];                                 /* new fields come out of here */
 } cr_settings_t;
 
 /* what cr_out.c's routing takes (cr_route_t, written field by field by the unit's glue) */

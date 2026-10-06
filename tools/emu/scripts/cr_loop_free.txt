@@ -56,6 +56,7 @@ btn D#4 down
 wait 1200
 btn D#4 up
 btn PLAY up
+btn OCT-                      # the layer stays open after a hold: OCT- closes it
 wait 300
 dump
 wait 2000

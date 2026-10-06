@@ -1,0 +1,51 @@
+# ChoralRoot: the sound editor on a platform engine (SOFT PAD, PRESETS +4: no deep pages). EDIT tap: OSC = EDIT 1;
+# ENV: the platform ENV under the envelope band; KNOB 2 +1: DEC 90 -> 96 (a detent: 5% of 0..127 = 6); SHIFT (GLO)
+# held + KNOB 2 +1: 96 -> 97 (fine); KNOB 2 +30: clamps at 127; KNOB 1 +7: ATK 80 -> 122; LFO: KNOB 2 +1 WAVE one
+# step; MOD: the platform MOD as 4 slots, KNOB 3 the first's amount; MIX: KNOB 3 +1 VOICE one step and back; HOME;
+# then MAJ + D4 (compared with cr_editor_ref.txt: the same without the knobs)
+wait 300
+knob PRESETS +4
+wait 1200
+btn EDIT
+wait 400
+shot build/emu/test/cr_editor_p_osc.ppm
+btn ENV
+wait 300
+knob KNOB2 +1
+wait 100
+btn GLO down
+wait 100
+knob KNOB2 +1
+wait 100
+btn GLO up
+wait 100
+knob KNOB2 +30
+wait 100
+knob KNOB1 +7
+wait 400
+shot build/emu/test/cr_editor_p_env.ppm
+btn LFO
+wait 300
+knob KNOB2 +1
+wait 300
+btn SEQ
+wait 300
+knob KNOB3 +2
+wait 400
+shot build/emu/test/cr_editor_p_mod.ppm
+btn REC
+wait 300
+knob KNOB3 +1
+wait 100
+knob KNOB3 -1
+wait 300
+btn HOME
+wait 300
+key F3 down
+wait 60
+key A down
+wait 900
+key A up
+key F3 up
+wait 2500
+dump

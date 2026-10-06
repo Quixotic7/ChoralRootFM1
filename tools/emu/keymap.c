@@ -8,7 +8,8 @@
  *   root keys, white   A  S  D  F  G  H  J  K  L  ;  '   = D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 (keys 9 ..)
  *   root keys, black   W  E  T  Y  I  O  [               = D#4 F#4 G#4 A#4 C#5 D#5 F#5
  *   chord block        F1 F2 F3 F4                       = F#3 G#3 A#3 C#4 (keys 1 3 5 8)
- *                      2  3  4  5                        = F3  G3  A3  C4  (keys 0 2 4 7); B3 (6) unmapped
+ *                      2  3  4  5                        = F3  G3  A3  C4  (keys 0 2 4 7)
+ *                      1                                 = B3 (key 6: ChoralRoot's LOCK)
  *   buttons            Z X C V B N                       = FX SEL ENV LFO EDIT GLO
  *                      , . / RightShift Return Backspace = HOME SAVE ARP SEQ PLAY REC
  *                      Left Right                        = OCT- OCT+;  Esc = OCT- + OCT+ together
@@ -54,6 +55,7 @@ const keymap_t KEYMAP[] = {
     {SDL_SCANCODE_3, KM_KEY, 2, "3"},
     {SDL_SCANCODE_4, KM_KEY, 4, "4"},
     {SDL_SCANCODE_5, KM_KEY, 7, "5"},
+    {SDL_SCANCODE_1, KM_KEY, 6, "1"},             /* B3: LOCK */
     /* buttons */
     {SDL_SCANCODE_Z, KM_BTN, EMU_B_FX, "Z"},
     {SDL_SCANCODE_X, KM_BTN, EMU_B_SEL, "X"},

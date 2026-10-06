@@ -1,0 +1,50 @@
+# ChoralRoot: a layer locks open on a hold. FX held 500 ms and released: the fx layer stays (OCT- lit as "back",
+# FX blinking); a root picks the effect; OCT- closes it (the octave untouched). FX held again, released; BASS (ENV)
+# held: the bass layer instead; a FX tap inside it: FX off (the layer stays); HOME closes it. KEY (SEL) tapped: Key
+# Mode on; held: the key layer, locked; OCT- closes it.
+wait 300
+expect led OCT- dim
+btn FX down
+wait 500
+btn FX up
+wait 300
+expect led OCT- on
+expect led OCT+ on
+shot build/emu/test/cr_lock_fx.ppm
+btn E4
+wait 200
+btn OCT-
+wait 300
+expect led OCT- dim
+dump
+btn FX down
+wait 500
+btn FX up
+wait 200
+btn ENV down
+wait 500
+btn ENV up
+wait 300
+expect led OCT- on
+shot build/emu/test/cr_lock_bass.ppm
+btn FX
+wait 300
+expect led OCT- on
+dump
+btn HOME
+wait 300
+expect led OCT- dim
+expect led FX dim
+btn SEL
+wait 200
+expect led SEL on
+btn SEL down
+wait 500
+btn SEL up
+wait 300
+shot build/emu/test/cr_lock_key.ppm
+btn OCT-
+wait 300
+expect led OCT- dim
+expect led SEL on
+dump

@@ -81,6 +81,7 @@ void cr_settings_defaults(cr_settings_t *s)
     s->loop_level = 100;
     s->loop_count_in = 1;
     s->metro_vol = 70;
+    s->pick_roots = 1;                             /* the engine picker: the roots choose engines */
     for (i = 0; i < 3u; i++) {
         s->midi_en[i] = i != CR_STREAM_RAW;        /* RAW stream off (Orchid) */
         s->midi_ch[i] = (uint8_t)i;                /* channels 1 / 2 / 3 */
@@ -158,6 +159,7 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(metro_sig, 0, 2);
     CRS_FIX(metro_vol, 0, 100);
     CRS_FIX(loop_slot, 0, 9);
+    CRS_FIX(pick_roots, 0, 1);
     /* palette, chord_sound, bass_sound: checked against the lists by the UI glue (the lists are the UI's) */
 }
 
@@ -202,6 +204,11 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
             s->metro_sig = d.metro_sig;
             s->metro_vol = d.metro_vol;
             s->loop_slot = d.loop_slot;
+        }
+        if (in.version < 3u) {                     /* version 3: the engine picker's roots (a 0 there: not set) */
+            cr_settings_t d;
+            cr_settings_defaults(&d);
+            s->pick_roots = d.pick_roots;
         }
     }
     crs_sanitize(s);
@@ -363,6 +370,7 @@ static void crs_capture(cr_settings_t *s)
     s->metro_sig = cs.metro_sig;
     s->metro_vol = cs.metro_vol;
     s->loop_slot = cs.loop_slot;
+    s->pick_roots = cs.pick_roots;
     s->split_pc = cs.split;
     s->view = cs.view;
     s->motion = cr_motion;
@@ -413,6 +421,7 @@ static void cr_settings_load(void)
     cs.metro_sig = s->metro_sig;
     cs.metro_vol = s->metro_vol;
     cs.loop_slot = s->loop_slot;
+    cs.pick_roots = s->pick_roots;
     cs.split = s->split_pc;
     cs.view = s->view;
     cr_motion = s->motion;

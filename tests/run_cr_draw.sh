@@ -77,10 +77,18 @@ if ref.exists():
     cw = 3 * SW + 4 * 12
     comp = Image.new("RGB", (2 * cw, ((len(shots) + 1) // 2) * (SW + 40) + 12), (0x16, 0x16, 0x1a))
     dc = ImageDraw.Draw(comp)
+    sys.path.insert(0, "tests")
+    import gen_cr_screens as g                        # the editor's states: cut from the editor's sheet
+    e0, epick = len(names) + len(g.DEVICE_STATES), g.EDITOR_PICK
+    eref = Path("design/choralroot-fm1-sound-editor-screens.png")
+    emock = Image.open(eref).convert("RGB") if eref.exists() else None
     for n, (stem, img) in enumerate(shots):
         x, y = (n % 2) * cw + 12, (n // 2) * (SW + 40) + 12
-        mx, my = GAP + (n % COLS) * (SW + GAP), GAP + 36 + (n // COLS) * (SW + NAME_H + GAP)
-        comp.paste(mock.crop((mx, my, mx + SW, my + SW)), (x, y))
+        src, k = mock, n
+        if emock is not None and e0 <= n < e0 + len(epick):
+            src, k = emock, epick[n - e0] - 1
+        mx, my = GAP + (k % COLS) * (SW + GAP), GAP + 36 + (k // COLS) * (SW + NAME_H + GAP)
+        comp.paste(src.crop((mx, my, mx + SW, my + SW)), (x, y))
         comp.paste(img.resize((SW, SW), Image.NEAREST), (x + SW + 12, y))
         mid = out / f"{stem}_mid.png"
         if mid.exists():
