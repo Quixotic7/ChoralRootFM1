@@ -1,6 +1,7 @@
 # Building ChoralRoot FM-1
 
-ChoralRoot FM-1 builds exactly as Felucca does (below), plus a host side that needs no toolchain.
+ChoralRoot FM-1 builds with Felucca's toolchain and scripts (below): the unit is `firmware/src/choralroot.c`
+instead of `felucca.c`. There is also a host side that needs no toolchain.
 
 ## Host side (tests and the Mac emulator)
 
@@ -15,15 +16,28 @@ sh tests/run_cr_tests.sh                         # the ChoralRoot engine tests
 sh tests/run_cr_draw.sh                          # renders every mock-up screen to build/cr_screens/
 ```
 
-## Device build (Felucca's)
+## Device build
 
-The build makes three files in `build/`:
+The build compiles `firmware/src/choralroot.c` (one compilation unit) and makes in `build/`:
 
 | File | What |
 | --- | --- |
-| `felucca.bin` | the firmware app |
-| `loader/ota.bin` | the update loader |
-| `felucca.fwsc` | the installable package (app + loader) |
+| `choralroot.bin` | the firmware app |
+| `choralroot.elf`, `choralroot.dis` | the linked app and its disassembly |
+| `loader/ota.bin` | the update loader (Felucca's) |
+| `choralroot.fwsc` | the installable package (app + loader), identity `FM-1_920` |
+
+The package identity `FM-1_920` is what the device reports on the update handshake and what the installers check
+after an install; it is constant for ChoralRoot (releases too). After the checks the build prints a size line, e.g.
+
+```
+size: .text 448672 B, .ram_text 2888 B, .data 296 B, .bss 88336 B; XIP 451856 B of 581564 (77.7%),
+      RAM 88632 B of 98304 (90.2%), POOL 315400 B of 344064 (91.7%), NOINIT 200 B of 15696 (1.3%)
+```
+
+XIP is `.text + .ram_text + .data` against the app slot in `firmware/app.ld`; RAM is `.data + .bss` (96 KiB);
+POOL and NOINIT are the big-buffer and reset-surviving regions. The build fails if RAM or POOL overflows or if the
+POOL keeps less than 8 KiB spare.
 
 ## Prerequisites (macOS)
 
@@ -59,13 +73,19 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 `JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations
 (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
 
-`./build.sh --release 1.0` makes a release build: the package identity becomes `FM-1_910`
-and the version string `v1.0`; the package is `build/felucca-1.0.fwsc`, and
+`build.sh` sets `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib` itself on macOS (macOS drops `DYLD_*` variables
+on the way into `/bin/sh`); calling `python3 tools/build.py` directly needs it exported.
+
+`./build.sh --release 1.0` makes a release build: the identity stays `FM-1_920`, the version string becomes
+`ChoralRoot 1.0`; the package is `build/choralroot-1.0.fwsc`, and
 `build/release-1.0/` holds what a release ships: the package, the app
-(`felucca-1.0-app.bin`), `SHA256SUMS`, the sample attribution, `LICENSE`, `LICENSING.md` and
+(`choralroot-1.0-app.bin`), `SHA256SUMS`, the sample attribution, `LICENSE`, `LICENSING.md` and
 `LICENSES/` (the package contains Apache-2.0 SDK files, so the licence texts travel with it).
 
-Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`, `core.h` and `icons.c`):
+`FELUCCA_SIZE=0` builds everything at `-Os` (by default the main-loop files listed in `tools/size_fns.py`, the UI,
+screens and stores, are built for size).
+
+Build options (environment, `0` or `1`; defaults in `firmware/src/choralroot.c`, `core.h` and `icons.c`):
 
 | Flag | Default | |
 | --- | --- | --- |
@@ -74,7 +94,8 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`, `c
 | `FELUCCA_CDC` | 1 | USB serial console |
 | `FELUCCA_UAC` | 1 | USB audio input (the master output, 44.1 kHz stereo) |
 | `FELUCCA_UART` | 1 | TRS MIDI IN |
-| `FELUCCA_SLICE` | 1 | the SLICE engine |
+| `FELUCCA_SLICE` | 0 | the SLICE engine (ChoralRoot: off) |
+| `FELUCCA_SLICER` | 0 | the SLICER insert and its 32 KB POOL buffer (ChoralRoot: off; Felucca and the emulator: 1) |
 | `FELUCCA_ICONS` | 1 | parameter icons on the knob cards |
 | `FELUCCA_FM4` | 0 | the retired DIGITAL engine (4-operator FM) instead of its FM6 conversion |
 
@@ -109,24 +130,25 @@ does the same for the cost files.
 
 ## Install
 
-Use the web installer in Chrome or Edge:
-<https://hugelton.github.io/Felucca/webapp/installer/>. It installs the released package.
-
 From the command line (needs `pip3 install mido python-rtmidi`):
 
 ```
-python3 tools/fm1_install.py build/felucca.fwsc
-python3 tools/fm1_install.py --info          # identity of the connected FM-1
+python3 tools/fm1_install.py build/choralroot.fwsc
+python3 tools/fm1_install.py --info          # identity of the connected FM-1 (FM-1_920 after the install)
 ```
 
-Or, to install your own build from the web installer, make a local copy of the site and open it from `localhost`
-(Web MIDI needs a secure context):
+Or install your own build from the web installer (Chrome or Edge): make a local copy of the site and open it from
+`localhost` (Web MIDI needs a secure context):
 
 ```
-python3 web/make_site.py build/felucca.fwsc dev /tmp/felucca-site
-cd /tmp/felucca-site && python3 -m http.server 8000
+python3 web/make_site.py build/choralroot.fwsc dev /tmp/choralroot-site
+cd /tmp/choralroot-site && python3 -m http.server 8000
 # open http://localhost:8000/webapp/installer/
 ```
+
+`make_site.py` reads the identity from the package (`FM-1_9xx`; ChoralRoot's `FM-1_920`) and refuses a package
+without Felucca's own loader. Felucca's released installer (<https://hugelton.github.io/Felucca/webapp/installer/>)
+installs Felucca, not ChoralRoot.
 
 Installing firmware is at your own risk. If an install fails and the FM-1 no longer
 starts, recovery needs [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).

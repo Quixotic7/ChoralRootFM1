@@ -102,7 +102,7 @@ is displayed permanently for the knobs.
   is held as a shift; LEDs flash, screen message, CC 123 on all three channels, octave reset, loops kept.
 - **Sound editing**: EDIT opens the current chord sound's pages (BASS held + EDIT: the bass sound's):
   ENGINE, the engine's own parameters (two pages), ENV, LFO, FILTER / MOD, FX sends, MIX — Felucca's
-  page model, four parameters per page on KNOB 1–4, SELECT turning pages (the stock FM-1's SELECT),
+  page model, four parameters per page on KNOB 1–4 (a detent: 5% of the range, enums one by one; OPT held: one step), SELECT turning pages (the stock FM-1's SELECT), OPT + SELECT jumping to the next section (an engine with deep pages, the VA, adds its own between EDIT 2 and ENV),
   HOME back to the view. EDIT held is the engine picker on the white root keys (ANALOG, FM6, PHASE,
   LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, PHYS, NOISE). SAVE stores the result in one of 32 user slots,
   named with the keys, listed after the factory bank on PRESETS; user bass sounds the same on

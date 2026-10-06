@@ -1,0 +1,41 @@
+# ChoralRoot: user sound slots. SAVE tap: the naming screen, the typing keys lit (white roots, D#4), the other black
+# roots dark; D4 E4 F4 + OCT+: U01 "ADG". SAVE again (U01, not edited) + G4 (J) + OCT+: a rename (the sound kept).
+# SAVE again, SAVE held 1 s: "delete?" (the slot huge in red); OCT- keeps it; held again, OCT+ deletes it.
+wait 300
+btn SAVE
+wait 300
+expect led D4 on
+expect led G5 on
+expect led D#4 on
+expect led F#4 off
+expect led OCT- on
+shot build/emu/test/cr_save_keys.ppm
+btn D4
+wait 200
+btn E4
+wait 200
+btn F4
+wait 300
+btn OCT+
+wait 1500
+btn SAVE
+wait 300
+btn G4
+wait 300
+btn OCT+
+wait 300
+shot build/emu/test/cr_save_renamed.ppm
+wait 1500
+btn SAVE
+wait 300
+btn SAVE 1200
+wait 100
+shot build/emu/test/cr_save_delete.ppm
+btn OCT-
+wait 300
+btn SAVE 1200
+wait 100
+btn OCT+
+wait 300
+shot build/emu/test/cr_save_deleted.ppm
+dump

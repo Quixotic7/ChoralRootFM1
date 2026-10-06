@@ -149,7 +149,14 @@ static uint32_t cu_preset_orig(const engine_t *e, uint32_t k)  /* ui.c preset_or
 {
     return e->presets == SMP_PRESET_TABLE && k < SMP_NSETS ? SMP_SET_ORIG[k] : k;
 }
-static int cu_engine_melodic(uint32_t e) { return eng_ok(e) && e != ENGI_DRUM && e < 13u && ENGINES[e]->npresets; }
+/* the EDIT engine picker: pitched engines with presets (not DRUM, not SLICE, not the retired DIGITAL slot) */
+static int cu_engine_melodic(uint32_t e)
+{
+#ifdef ENGI_SLICE
+    if (e == ENGI_SLICE) return 0;
+#endif
+    return eng_ok(e) && e != ENGI_DRUM && ENGINES[e]->npresets;
+}
 static const char *cu_preset_name(uint32_t e, uint32_t p)
 {
     const engine_t *en = ENGINES[e % NENGINES];
@@ -173,6 +180,7 @@ static void cu_load(track_t *t, uint32_t e, uint32_t pi, int bass)
     t->eng_req = (uint8_t)(e % NENGINES);
     t->preset = (uint8_t)pi;
     t->user = 0;
+    t->trim = 0;                                  /* (the bank's: cu_list_load) */
     for (i = 0; i < P_E0; i++)
         if (!cu_kept(i))
             t->p[i] = TP[i].def;
@@ -230,6 +238,7 @@ static void cu_load_user(track_t *t, uint32_t k, int bass)
         fm6_track_loaded(t);
     }
     t->user = (uint8_t)(k + 1u);
+    t->trim = 0;                                  /* a user sound: no trim (cr_bank.c) */
     if (t - trk < 2) {
         up_name(k, psnd[t - trk].name);
         psnd[t - trk].edited = 0;
@@ -244,6 +253,7 @@ static void cu_list_load(int bass, uint32_t pos)
     if (pos < (bass ? CB_NBASS : CB_NCHORD)) {
         const cb_entry_t *en = &(bass ? CB_BASS : CB_CHORD)[pos];
         cu_load(t, en->engine, (bass ? cb_bass_p : cb_chord_p)[pos], bass);
+        t->trim = en->trim;                       /* the bank sound's trim after LEVEL (cr_bank.c) */
         str_cpy(psnd[bass].name, en->name, sizeof psnd[0].name);
         return;
     }
@@ -282,13 +292,13 @@ static const struct { const char *name; uint8_t send; int8_t g[3]; const char *g
     {"Delay", P_DLY, {G_DTIME, G_DFDBK, G_DCOLOR}, {"time", "feedback", "colour"}},
     {"Drive", P_DIST, {-1, -1, -1}, {"", "", ""}}};
 static const char *const CU_BASSMODE[4] = {"Chords Only", "Unison Bass", "Bass Single Notes", "Solo"};
-static const char *const CU_VIEW[4] = {"Chord", "Keyboard", "Notes", "Geek Out"};
+static const char *const CU_VIEW[5] = {"Chord", "Keyboard", "Notes", "Geek Out", "Scope"};
 static const char *const CU_LOOPLEN[6] = {"Free", "1 bar", "2 bars", "4 bars", "8 bars", "16 bars"};
 static const char *const CU_SIG[CRL_NSIG] = {"4/4", "3/4", "6/8"};
 static const char *const CU_QUANT[CRL_NQUANT] = {"none", "1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32"};
 static const char *const CU_LOOP_ACT[4] = {"Overdub", "Pause", "Undo", "Clear"};
 static const char *const CU_SAVE_ACT[3] = {"Save", "Load", "Delete"};
-enum { V_CHORD, V_KEYBOARD, V_NOTES, V_GEEK, V_N };
+enum { V_CHORD, V_KEYBOARD, V_NOTES, V_GEEK, V_SCOPE, V_N };
 
 static struct {
     uint8_t playstyle, extadd, secret, key_on, tonic, scale, single, vel;
@@ -312,6 +322,7 @@ static struct {
 } cs;
 #if CR_HAVE_SETTINGS
 static void cr_settings_load(void);       /* cr_settings.c (included after this file): the record -> the UI */
+static void cr_settings_save(void);       /* .. save now (Felucca's settings_save: the panel table too) */
 #endif
 #define CR_SETTINGS_BUSY() (cr_snap.lstate == CRL_PLAYING)   /* cr_settings.c: no flash erase while a loop plays */
 
@@ -387,11 +398,11 @@ static void cu_route(void)                        /* Options > MIDI: channels an
 
 /* ------------------------------------------------------------- Options --- */
 enum { O_STYLE, O_EXTADD, O_SECRET, O_VEL, O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
-       O_CLOCK, O_VIEW, O_MOTION, O_LEDS, O_HOLD, O_VERSION, O_N };
+       O_CLOCK, O_VIEW, O_MOTION, O_LEDS, O_HOLD, O_VERSION, O_CALIB, O_N };
 static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Secret Chords", "Velocity",
     "Bass Behaviour", "Single Notes", "Split Point", "MIDI Perform", "MIDI Bass", "MIDI Raw Chord", "Raw Chord Sound",
-    "MIDI Clock", "View", "Motion", "LEDs", "Hold Time", "Version"};
-static const int16_t O_MAX[O_N] = {2, 1, 2, 127, 3, 1, 11, 16, 16, 16, 1, 1, V_N - 1, CR_MOTION_N - 1, 1, 3, 0};
+    "MIDI Clock", "View", "Motion", "LEDs", "Hold Time", "Version", "Calibrate"};
+static const int16_t O_MAX[O_N] = {2, 1, 2, 127, 3, 1, 11, 16, 16, 16, 1, 2, V_N - 1, CR_MOTION_N - 1, 1, 3, 0, 0};
 
 static int32_t opt_get(uint32_t o)
 {
@@ -405,7 +416,7 @@ static int32_t opt_get(uint32_t o)
     case O_SPLIT: return cs.split;
     case O_CH_MAIN: case O_CH_BASS: case O_CH_RAW: return cs.ch[o - O_CH_MAIN];
     case O_RAW_SOUND: return cs.raw_sound;
-    case O_CLOCK: return cr_route.clock_out;
+    case O_CLOCK: return cr_route.clock_in ? 2 : cr_route.clock_out;
     case O_VIEW: return cs.view;
     case O_MOTION: return cr_motion;
     case O_LEDS: return cs.leds;
@@ -426,7 +437,7 @@ static void opt_set(uint32_t o, int32_t v)
     case O_SPLIT: cs.split = (uint8_t)v; cu_post_single(); break;
     case O_CH_MAIN: case O_CH_BASS: case O_CH_RAW: cs.ch[o - O_CH_MAIN] = (uint8_t)v; cu_route(); break;
     case O_RAW_SOUND: cs.raw_sound = (uint8_t)v; cu_route(); break;
-    case O_CLOCK: cr_route.clock_out = (uint8_t)v; break;   /* TODO: IN (midi_clock.c sets the tempo) */
+    case O_CLOCK: cr_route.clock_in = (uint8_t)(v == 2); cr_route.clock_out = (uint8_t)(v == 1); break;
     case O_VIEW: cs.view = (uint8_t)v; break;
     case O_MOTION: cr_motion = (uint8_t)v; break;
     case O_LEDS: cs.leds = (uint8_t)v; break;
@@ -442,7 +453,7 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
     static const char *const MOTION[3] = {"Full", "Calm", "Off"};
     static const char *const LEDS[2] = {"Glow", "Stock"};
     static const char *const ONOFF[2] = {"Off", "On"};
-    static const char *const CLOCK[2] = {"Off", "Out"};
+    static const char *const CLOCK[3] = {"Off", "Out", "In"};
     int32_t v = opt_get(o);
     d[0] = 0;
     switch (o) {
@@ -458,12 +469,13 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
         if (!v) cu_cpy(d, "Off", n);
         else { cu_cpy(d, "ch ", n); cu_int(d + 3, v, 0, n > 3u ? n - 3u : 0u); }
         break;
-    case O_CLOCK: cu_cpy(d, CLOCK[v & 1], n); break;
+    case O_CLOCK: cu_cpy(d, CLOCK[v % 3], n); break;
     case O_VIEW: cu_cpy(d, CU_VIEW[v % V_N], n); break;
     case O_MOTION: cu_cpy(d, MOTION[v % 3], n); break;
     case O_LEDS: cu_cpy(d, LEDS[v & 1], n); break;
     case O_HOLD: cu_int(d, HOLD_MS[v & 3], 0, n); cu_cat(d, " ms", n); break;
     case O_VERSION: cu_cpy(d, CR_VERSION, n); break;
+    case O_CALIB: cu_cpy(d, "OCT+ starts", n); break;
     default: break;
     }
 }
@@ -482,23 +494,27 @@ static struct {
     uint32_t swallow;                     /* buttons pressed during another's hold: their release does nothing */
     uint8_t oct_chord;                    /* OCT- and OCT+ were down together (panic): no tap */
     uint32_t clear_t0;                    /* D#4 down in the loop layer (| 1): CLEAR after 1 s held */
+    uint32_t k3_t0;                       /* OPT + KNOB 3: the OPT hold (t0 | 1) that toggled the perform lock */
     uint8_t key_note[CU_NKEY];            /* root keys: note + 1 sent; 0xFF: the layer's / a picker's */
     int8_t octave;
     uint8_t opt_open, opt_sel;
     uint8_t page;                         /* PG_* */
     uint32_t last_sound;                  /* the last time a chord sounded or a key was held */
     struct { uint32_t until; uint8_t kind, col, segs; uint16_t pct; char value[8], sub[12], label[24]; } pop;
-    struct { uint32_t until; uint8_t big, col; char text[24], label[32]; } msg;
+    struct { uint32_t until; uint8_t big, col; char text[24], label[32]; } msg;   /* big: 1 PANIC, 2 red type */
 } cu;
 
 /* the sound pages and the naming screen (cr_pages.c, cr_name.c) */
 static struct {
-    uint8_t part, page;                   /* the part edited (0 chord, 1 bass), its page (CP_*) */
+    uint8_t part, page;                   /* the part edited (0 chord, 1 bass), its page (of cr_pages.c's sequence) */
+    uint8_t turn;                         /* page turns (cu_animate: the columns slide in, from the side of dir) */
+    int8_t dir;
     int8_t col;                           /* the column last turned (its glyph animates), -1 none */
     uint32_t t0;                          /* .. when */
     uint16_t from_pct, shown_pct[4];      /* the turned glyph's tween: from, and what each column last showed */
     uint8_t from_env[4], shown_env[4][4];
     uint8_t save_part, slot, save_from_edit;
+    uint8_t del_ask;                      /* naming: SAVE held 1 s on a used slot: "delete?" (OCT+ yes, OCT- no) */
 } ce;
 #define CU_GLYPH_MS 220u                  /* a turned column's glyph eases to its new value */
 #ifdef CR_TRACE                           /* the emulator's headless logs (tools/emu/emu_firmware.h) */
@@ -508,9 +524,11 @@ static struct {
 #endif
 static void cu_message(const char *t, uint32_t col);
 static void cu_edit_open(uint32_t part);
+static void cu_edit_turn(int32_t s, uint32_t sect);
 static void cu_save_open(uint32_t part);
 static void cu_save_close(void);
 static void cu_save_commit(void);
+static void cu_save_delete(void);
 static uint32_t cu_layer(void);
 static uint32_t cu_now(void) { return fm1_ms; }
 
@@ -835,13 +853,29 @@ static void cu_loop_frame(void)
     if (n != cu_did_seen) {
         uint32_t d = crl_did;
         cu_did_seen = n;
-        if (d == CRL_DID_NOTHING)
+        if (d == CRL_DID_UNDO) {                   /* the layers left, huge in red (cr_build_screen) */
+            uint32_t nl = crl.d.nlayers;
+            cu.msg.until = cu_now() + CR_MSG_MS;
+            cu.msg.big = 2;
+            cu.msg.col = CR_COL_RED;
+            cu_int(cu.msg.text, (int32_t)nl, 0, sizeof cu.msg.text);
+            cu_cpy(cu.msg.label, nl == 1u ? "layer \267 undo" : "layers \267 undo", sizeof cu.msg.label);
+            cu_trace("undo: %u layers left\n", (unsigned)nl);
+        } else if (d == CRL_DID_NOTHING)
             cu_message(cr_snap.lfull ? "loop full" : cr_snap.lstate == CRL_EMPTY ? "no loop" : "nothing to undo",
                        CR_COL_RED);
         else if (d < sizeof DID / sizeof DID[0])
             cu_message(DID[d], d == CRL_DID_PLAY || d == CRL_DID_STOP ? CR_COL_WHITE : CR_COL_RED);
         cu_trace("loop: %s (state %u layers %u events %u len %u)\n", d < sizeof DID / sizeof DID[0] ? DID[d] : "?",
                  (unsigned)crl.state, (unsigned)crl.d.nlayers, (unsigned)crl.d.nev, (unsigned)crl.d.len);
+    }
+    {                                              /* the ISR's MIDI start / stop (cr_out.c) */
+        static uint32_t rt_seen;
+        uint32_t rn = cr_rt_n;
+        if (rn != rt_seen) {
+            rt_seen = rn;
+            cu_trace("midi: %02X %s\n", (unsigned)cr_rt_last, cr_rt_last == 0xFAu ? "start" : "stop");
+        }
     }
     if (cs.save_pending && !cu_playing()) {
         uint32_t k = cs.save_pending - 1u;
@@ -862,6 +896,7 @@ static void cu_panic(void)
     cs.sticky = 0;                                /* (the engine's panic drops the latch: the LED follows) */
     cu.msg.until = cu_now() + CR_PANIC_MS;
     cu.msg.big = 1;
+    cu.msg.col = CR_COL_RED;
     cu_cpy(cu.msg.text, "PANIC", sizeof cu.msg.text);
     cu_cpy(cu.msg.label, "all notes off", sizeof cu.msg.label);
     cu.pop.until = 0;
@@ -958,13 +993,26 @@ static void cu_home_tap(void)
         cs.view = (uint8_t)((cs.view + 1u) % V_N);
 }
 
+static void cu_calib_start(void);
 static void cu_oct_tap(uint32_t b)
 {
     if (cu.page == PG_SAVE && !cu_layer()) {      /* naming: OCT- deletes, OCT+ saves */
+        if (ce.del_ask) {                         /* "delete?": OCT+ yes, OCT- no */
+            if (b == B_OCTUP)
+                cu_save_delete();
+            else
+                ce.del_ask = 0;
+            return;
+        }
         if (b == B_OCTUP)
             cu_save_commit();
         else
             cn_delete();
+        return;
+    }
+    if (b == B_OCTUP && cu.opt_open && cu.opt_sel == O_CALIB && !cu.lock && !cu.page) {
+        cu_close_all();
+        cu_calib_start();                         /* Options > Calibrate, OCT+: Felucca's HARDWARE CALIBRATION */
         return;
     }
     if (cu_picker_ctx()) {                        /* OCT+: OK (a picker's change is live already), OCT-: back */
@@ -1038,6 +1086,7 @@ static void cu_engine_switch(uint32_t part, uint32_t e)
     fm1_irq_off();
     t->eng_req = (uint8_t)e;
     t->preset = (uint8_t)p0;
+    t->trim = 0;
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = en->npresets ? (int16_t)en->presets[p0].e[i] : en->edit[i].def;
     panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
@@ -1081,6 +1130,7 @@ static void cu_sound_init(uint32_t part)
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = en->edit[i].def;
     t->p[P_VOICE] = part ? V_MONO : V_POLY;
+    t->trim = 0;
     panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
     fm1_irq_on();
     fm6_track_loaded(t);
@@ -1105,11 +1155,39 @@ static void cu_edit_open(uint32_t part)
 }
 
 /* KNOB 1..4 on a sound page */
-static void cu_edit_knob(uint32_t knob, int32_t s)
+static void cu_edit_knob(uint32_t knob, int32_t s, uint32_t fine)   /* fine: OPT held, one step */
 {
     track_t *t = cu_edit_trk();
-    uint32_t id = CP_PAGES[ce.page % CP_N].id[knob & 3u], i, n;
-    int32_t v0, v;
+    uint32_t id, i, n;
+    int32_t v0, v, dp;
+    if (ce.page >= cp_n(t))
+        ce.page = 0;
+    id = cp_id(t, ce.page, knob);
+    dp = cp_dp(t, ce.page);
+    if (dp >= 0) {                                 /* an engine's deep page: its get / set, the same steps */
+        const eng_deep_t *dd = cp_deep(t);
+        const param_desc_t *d = &dd->pages[dp].col[knob & 3u];
+        char b[8];
+        if (!d->label)
+            return;
+        ce.col = (int8_t)knob;
+        ce.t0 = cu_now();
+        ce.from_pct = ce.shown_pct[knob & 3u];
+        for (i = 0; i < 4u; i++)
+            ce.from_env[i] = ce.shown_env[knob & 3u][i];
+        v0 = dd->get(t, (uint32_t)dp, knob & 3u);
+        v = cp_dstep(d, v0, s, fine);
+        if (v != v0) {
+            dd->set(t, (uint32_t)dp, knob & 3u, v);
+            v = dd->get(t, (uint32_t)dp, knob & 3u);
+            cu_edited(ce.part);
+        }
+        cp_value(d, v, b, sizeof b);
+        cu_trace("deep: part %u page %u %s col %u %s %d -> %d (%s)%s\n", (unsigned)ce.part, (unsigned)dp,
+                 dd->pages[dp].title, (unsigned)(knob & 3u), d->label, (int)v0, (int)v, b,
+                 psnd[ce.part].edited ? " edited" : "");
+        return;
+    }
     if (id == CPX_NONE)
         return;
     ce.col = (int8_t)knob;
@@ -1133,7 +1211,7 @@ static void cu_edit_knob(uint32_t knob, int32_t s)
         return;
     }
     v0 = t->p[id];
-    v = cp_step(t, id, s);
+    v = cp_step(t, id, s, fine);
     fm1_irq_off();
     t->p[id] = (int16_t)v;
     fm1_irq_on();
@@ -1154,6 +1232,24 @@ static void cu_edit_knob(uint32_t knob, int32_t s)
     }
 }
 
+/* SELECT on a sound page: s pages on (both ways round); sect (OPT held): s sections on (cr_pages.c cp_sections) */
+static void cu_edit_turn(int32_t s, uint32_t sect)
+{
+    track_t *t = cu_edit_trk();
+    uint32_t n = cp_n(t), from = ce.page % n;
+    ce.page = (uint8_t)(sect ? cp_sect_step(t, from, s)
+                             : (from + n + (uint32_t)(s % (int32_t)n + (int32_t)n)) % n);
+    ce.col = -1;
+    if (ce.page != from) {
+        ce.turn++;
+        ce.dir = (int8_t)(s > 0 ? 1 : -1);
+    }
+    if (sect)
+        cu_trace("section: part %u %s %u/%u (section %u)\n", (unsigned)ce.part, cp_title(t, ce.page),
+                 (unsigned)ce.page + 1u, (unsigned)n, (unsigned)cp_sect(t, ce.page) + 1u);
+    cu_trace("page: part %u %s %u/%u\n", (unsigned)ce.part, cp_title(t, ce.page), (unsigned)ce.page + 1u, (unsigned)n);
+}
+
 static void cu_save_open(uint32_t part)
 {
     track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
@@ -1168,6 +1264,7 @@ static void cu_save_open(uint32_t part)
         ce.slot = (uint8_t)(k < UP_SLOTS ? k : 0u);
     }
     cn_open(psnd[part].name);
+    ce.del_ask = 0;
     cu.opt_open = 0;
     cu.lock = L_NONE;
     cu.page = PG_SAVE;
@@ -1183,6 +1280,21 @@ static void cu_save_commit(void)
     char name[16], l[4], b[24];
     int rc;
     cn_result(name);
+    if (up_used(k) && t->user == k + 1u && !psnd[part].edited) {   /* its own slot, not edited: a rename */
+        rc = up_rename(k, name);
+        up_slot_label(l, k);
+        cu_trace("save: part %u slot %s rename %s rc %d\n", (unsigned)part, l, name, rc);
+        if (rc == 0 || rc == 3) {
+            up_name(k, psnd[part].name);
+            cu_cpy(b, "renamed ", sizeof b);
+            cu_cat(b, l, sizeof b);
+            cu_message(b, CR_COL_GREEN);
+            cu.page = PG_NONE;
+        } else {
+            cu_message("save error", CR_COL_RED);
+        }
+        return;
+    }
     memset(&r, 0, sizeof r);
     r.used = UP_USED;
     r.ver = UP_VER;
@@ -1213,6 +1325,35 @@ static void cu_save_commit(void)
     } else {
         cu_message(rc == 2 ? "save error" : "bad slot", CR_COL_RED);
     }
+}
+
+/* SAVE held 1 s on the naming screen, OCT+: user slot ce.slot emptied (upreset.c up_put(k, 0), as Felucca's ERASE) */
+static void cu_save_delete(void)
+{
+    uint32_t k = ce.slot, n;
+    char l[4], b[24];
+    int rc;
+    ce.del_ask = 0;
+    rc = up_put(k, 0);
+    up_slot_label(l, k);
+    cu_trace("save: delete slot %s rc %d\n", l, rc);
+    if (rc != 0 && rc != 3) {
+        cu_message("delete error", CR_COL_RED);
+        return;
+    }
+    n = cb_count(0);                               /* the lists lost a user slot: their positions follow */
+    if (trk[CR_PART_CHORD].user)
+        cs.sound = (uint16_t)cb_pos_of_slot(0, trk[CR_PART_CHORD].user - 1u);
+    else if (cs.sound >= n)
+        cs.sound = (uint16_t)(n ? n - 1u : 0u);
+    n = cb_count(1);
+    if (trk[CR_PART_BASS].user && cb_user_bass(trk[CR_PART_BASS].user - 1u))
+        cs.bass_sound = (uint16_t)(cb_pos_of_slot(1, trk[CR_PART_BASS].user - 1u) + 1u);
+    else if (cs.bass_sound > n)
+        cs.bass_sound = (uint16_t)n;
+    cu_cpy(b, "deleted ", sizeof b);
+    cu_cat(b, l, sizeof b);
+    cu_message(b, CR_COL_RED);
 }
 
 static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the picker's item i */
@@ -1398,12 +1539,11 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         }
         break;
     case L_LOOP:                                   /* SYNC QUANT COUNT-IN LEVEL */
-        if (knob == 0) {
-            v = cs.loop_len + (s > 0 ? 1 : -1);
-            cs.loop_len = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CRL_NSYNC ? CRL_NSYNC - 1u : (uint32_t)v);
-            cr_post(CRE_LOOP, LP_CONF, LC_SYNC, cs.loop_len);
-            cu_popup_num(cs.loop_len ? 1 << (cs.loop_len - 1u) : 0, 0, cs.loop_len ? "bars" : "free", "loop sync",
-                         CR_COL_RED, 0, 16, CRL_NSYNC);
+        if (knob == 0) {                           /* SYNC: the picker itself (stopped: the length; playing: the action) */
+            v = cu_layer_sel(L_LOOP) + (s > 0 ? 1 : -1);
+            v = v < 0 ? 0 : v >= cu_layer_count(L_LOOP) ? cu_layer_count(L_LOOP) - 1 : v;
+            cu_layer_pick(L_LOOP, v);
+            cu_trace("loop: %s %d\n", cu_playing() ? "action" : "length", (int)v);
         } else if (knob == 1) {
             v = cs.loop_quant + (s > 0 ? 1 : -1);
             cs.loop_quant = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CRL_NQUANT ? CRL_NQUANT - 1u : (uint32_t)v);
@@ -1581,9 +1721,15 @@ static void cu_btn_release(uint32_t b)
 static void cu_knob(uint32_t role, int32_t s)
 {
     uint32_t l;
-    char b[8];
     int32_t v;
     cu_activity();
+    if (cu_shift() && cu.page == PG_EDIT && (role >= EN_K1 || role == EN_SELECT) && !cu_layer()) {
+        if (role == EN_SELECT)                     /* the sound pages win: OPT + SELECT jumps sections */
+            cu_edit_turn(s, 1);
+        else                                       /* .. OPT + a knob: fine */
+            cu_edit_knob(role - EN_K1, s, 1);
+        return;
+    }
     if (cu_shift()) {                              /* OPT held + a knob: the second functions */
         if (role == EN_ALGO) {
             v = trk[CR_PART_BASS].p[P_LEVEL] + s * 2;
@@ -1595,7 +1741,21 @@ static void cu_knob(uint32_t role, int32_t s)
             cu_popup(CU_NOTE[cs.split], cs.single ? "split" : "split off", "split point", CR_COL_BLUE, cs.split, 0, 11, 12);
         } else if (role == EN_SELECT) {            /* the metronome level */
             cu_layer_knob(L_METRO, 0, s);
-        } else {                                   /* TODO: K3 perform lock */
+        } else if (role == EN_K3) {                /* performance lock on / off, once per OPT hold */
+            if (cu.k3_t0 != (cu.t0 | 1u)) {
+                cu.k3_t0 = cu.t0 | 1u;
+                if (cu.lock == L_PERF) {
+                    cu.lock = L_NONE;
+                    cu_message("unlocked", CR_COL_WHITE);
+                } else {
+                    cu.lock = L_PERF;
+                    cu.opt_open = 0;
+                    cu.page = PG_NONE;
+                    cu_message("perform lock", CR_COL_WHITE);
+                }
+                cu_trace("lock: perform %u\n", (unsigned)(cu.lock == L_PERF));
+            }
+        } else {
             cu_message("shift: not yet", CR_COL_WHITE);
         }
         return;
@@ -1622,18 +1782,17 @@ static void cu_knob(uint32_t role, int32_t s)
     }
     if (cu.page == PG_EDIT && (role == EN_SELECT || role >= EN_K1)) {   /* the sound pages */
         if (role == EN_SELECT) {
-            ce.page = (uint8_t)((ce.page + CP_N + (uint32_t)(s % (int32_t)CP_N + (int32_t)CP_N)) % CP_N);
-            ce.col = -1;
-            cu_trace("page: part %u %s %u/8\n", (unsigned)ce.part, cp_title(cu_edit_trk(), ce.page),
-                     (unsigned)ce.page + 1u);
+            cu_edit_turn(s, 0);
         } else {
-            cu_edit_knob(role - EN_K1, s);
+            cu_edit_knob(role - EN_K1, s, 0);
         }
         return;
     }
     if (cu.page == PG_SAVE && (role == EN_K1 || role == EN_K2)) {        /* naming: the slot, the last letter */
-        if (role == EN_K1)
+        if (role == EN_K1) {
             ce.slot = (uint8_t)((ce.slot + UP_SLOTS + (uint32_t)(s % (int32_t)UP_SLOTS)) % UP_SLOTS);
+            ce.del_ask = 0;
+        }
         else
             cn_knob(s);
         return;
@@ -1690,12 +1849,179 @@ static void cu_knob(uint32_t role, int32_t s)
 }
 
 /* one scan: buttons first (a layer armed this pass owns the keys pressed in it), then keys, then knobs */
+/* ---------------------------------------------------------- calibration --- */
+/* Felucca's HARDWARE CALIBRATION (ui_input.c panel_setup) on ChoralRoot's screens, run from the UI frame instead of
+ * a blocking loop: press each printed button (raw matrix edges, the table is what is being taught), turn each knob
+ * right, then OCT+ keeps the new table (panel.c `panel`, saved by settings_save in the settings record as Felucca
+ * does) and OCT- (as just taught) puts the old one back. 30 s without input cancels (Felucca's SETUP_IDLE_MS).
+ * Entry: OCT- + OCT+ held at power-on (main.c, as Felucca) or Options > Calibrate, OCT+. */
+#define CU_CAL_IDLE_MS 30000u
+#define CU_CAL_DONE (NB + NE)                     /* the step asking OCT+ keep / OCT- discard */
+static struct {
+    uint8_t on, step, wait_up, req;               /* wait_up: every button let go first; req: asked at power-on */
+    uint32_t used, t0, settle;                    /* matrix ids taught; the step's start; an encoder's 300 ms */
+    panel_t old;
+} cc;
+
+static void cu_calib_start(void)
+{
+    uint32_t e;
+    cc.on = 1;
+    cc.step = 0;
+    cc.used = 0;
+    cc.wait_up = 1;
+    cc.settle = 0;
+    cc.old = panel;
+    cc.t0 = cu_now();
+    for (e = 0; e < 7u; e++)
+        fm1_enc_take(e);
+    cu_trace("calib: start\n");
+}
+
+static void cu_calib_end(int keep)
+{
+    if (keep) {
+        panel.magic = PANEL_MAGIC;
+        panel_init();                             /* (validated: a broken table falls back to the default) */
+#if CR_HAVE_SETTINGS
+        cr_settings_save();                       /* (Felucca's settings_save: the panel table in the record) */
+#endif
+        cu_message("calibrated", CR_COL_GREEN);
+    } else {
+        panel = cc.old;
+        cu_message("calibration cancelled", CR_COL_WHITE);
+    }
+    cu_trace("calib: %s\n", keep ? "saved" : "cancelled");
+    cc.on = 0;
+    {                                             /* what is still held (OCT+ that kept it): its release does nothing */
+        uint32_t b, held = 0;
+        for (b = 0; b < NB; b++)
+            held |= ((fm1_in.buttons >> panel.btn[b]) & 1u) << b;
+        cu.bheld = held;
+        cu.swallow = held;
+        cu.oct_chord = (uint8_t)((held & (CU_BIT(B_OCTDN) | CU_BIT(B_OCTUP))) != 0u);
+        cu.home_lock = (uint8_t)((held >> BT_HOME) & 1u);
+    }
+    cu.armed = NB;
+    cu.open = cu.combo = 0;
+    cu_activity();
+}
+
+static void cu_calib_input(uint32_t pe, uint32_t bm)
+{
+    uint32_t now = cu_now(), e, id;
+    if (now - cc.t0 > CU_CAL_IDLE_MS) {
+        cu_calib_end(0);
+        return;
+    }
+    if (cc.wait_up) {                             /* (the gesture that started it: let go first) */
+        if (!bm)
+            cc.wait_up = 0;
+        return;
+    }
+    if (cc.step < NB) {                           /* PRESS <label>: a matrix button not taught yet */
+        pe &= ~cc.used & 0x3FFFu;
+        if (!pe)
+            return;
+        for (id = 0; id < 14u; id++)
+            if ((pe >> id) & 1u)
+                break;
+        panel.btn[cc.step] = (uint8_t)id;
+        cc.used |= 1u << id;
+        cu_trace("calib: %s = button %u\n", B_NAME[cc.step], (unsigned)id);
+        if (++cc.step == NB) {
+            cc.used = 0;
+            for (e = 0; e < 7u; e++)
+                fm1_enc_take(e);
+        }
+        cc.t0 = now;
+        return;
+    }
+    if (cc.step < CU_CAL_DONE) {                  /* TURN RIGHT <knob>: an encoder not taught yet */
+        int32_t st = 0;
+        if (cc.settle) {                          /* Felucca: 300 ms, then what the knob still sent is dropped */
+            if (now - cc.settle < 300u)
+                return;
+            cc.settle = 0;
+            for (e = 0; e < 7u; e++)
+                if ((cc.used >> e) & 1u)
+                    fm1_enc_take(e);
+            if (cc.step == CU_CAL_DONE)
+                return;
+        }
+        for (e = 0; e < 7u; e++)
+            if (!((cc.used >> e) & 1u) && (st = fm1_enc_take(e)) != 0)
+                break;
+        if (e == 7u)
+            return;
+        panel.enc[cc.step - NB] = (uint8_t)e;
+        panel.dir[cc.step - NB] = (int8_t)(st > 0 ? 1 : -1);
+        cu_trace("calib: %s = encoder %u dir %d\n", E_NAME[cc.step - NB], (unsigned)e, st > 0 ? 1 : -1);
+        cc.used |= 1u << e;
+        cc.step++;
+        cc.settle = now ? now : 1u;
+        cc.t0 = now;
+        return;
+    }
+    for (e = 0; e < 7u; e++)                      /* the last step: the knobs do nothing */
+        fm1_enc_take(e);
+    if ((pe >> panel.btn[B_OCTUP]) & 1u)          /* the new table's OCT+: keep, OCT-: put the old one back */
+        cu_calib_end(1);
+    else if ((pe >> panel.btn[B_OCTDN]) & 1u)
+        cu_calib_end(0);
+}
+
+/* one big thing: the label to press / turn, huge; the ring shows how far through the 21 steps */
+static void cu_calib_screen(cr_screen_t *s)
+{
+    char b[12];
+    s->kind = CR_K_BIG;
+    s->size = 40;
+    s->col = CR_COL_WHITE;
+    s->header = 0;                                /* (the ring's band: no top line; the ring is the progress) */
+    s->ring_on = 1;
+    s->ring_col = CR_COL_YELLOW;
+    s->ring = (uint16_t)(cc.step * 256u / CU_CAL_DONE);
+    if (cc.wait_up) {
+        cu_cpy(s->value, "let go", sizeof s->value);
+        cu_cpy(s->label, "of every button", sizeof s->label);
+    } else if (cc.step < NB) {
+        cu_cpy(s->value, B_NAME[cc.step], sizeof s->value);
+        cu_cpy(s->label, "press", sizeof s->label);
+    } else if (cc.step < CU_CAL_DONE) {
+        cu_cpy(s->value, E_NAME[cc.step - NB], sizeof s->value);
+        cu_cpy(s->label, "turn right", sizeof s->label);
+    } else {
+        cu_cpy(s->value, "done", sizeof s->value);
+        s->col = CR_COL_GREEN;
+        cu_cpy(s->sub, "OCT+ keeps", sizeof s->sub);
+        cu_cpy(s->label, "OCT- discards", sizeof s->label);
+    }
+    if (cc.step < CU_CAL_DONE) {
+        char n[4];
+        cu_int(b, cc.step + 1, 0, sizeof b);
+        cu_cat(b, "/", sizeof b);
+        cu_int(n, CU_CAL_DONE, 0, sizeof n);
+        cu_cat(b, n, sizeof b);
+        cu_cpy(s->sub, b, sizeof s->sub);
+    }
+}
+
 static void cr_ui_input(void)
 {
     uint32_t pe = fm1_input_edges(0), ne = fm1_input_note_edges(), bm = fm1_in.buttons, km = fm1_in.notes;
     uint32_t cur = 0, edg = 0, b, k, now = cu_now();
     int32_t s;
     fm6_poll();                                    /* FM6: a sound's PTCH -> its patch (as ui_input.c) */
+    if (cc.req) {                                  /* OCT- + OCT+ held at power-on (main.c panel_setup) */
+        cc.req = 0;
+        cu_calib_start();
+    }
+    if (cc.on) {
+        cu_calib_input(pe, bm);
+        (void)ne;
+        return;
+    }
     for (b = 0; b < NB; b++) {
         cur |= ((bm >> panel.btn[b]) & 1u) << b;
         edg |= ((pe >> panel.btn[b]) & 1u) << b;
@@ -1713,7 +2039,17 @@ static void cr_ui_input(void)
                 cu_btn_release(b);
         }
     }
-    if (cu.armed != NB && !cu.open && ((cu.bheld >> cu.armed) & 1u) &&
+    if (cu.armed == BT_SAVE && cu.page == PG_SAVE && !cu.open && !cu.combo && ((cu.bheld >> BT_SAVE) & 1u) &&
+        now - cu.t0 >= 1000u) {                    /* naming: SAVE held 1 s asks to delete the slot (no loop layer) */
+        cu.combo = 1;                              /* (its release: no cancel) */
+        if (up_used(ce.slot)) {
+            ce.del_ask = 1;
+            cu_trace("save: delete slot %u?\n", (unsigned)ce.slot + 1u);
+        } else {
+            cu_message("empty slot", CR_COL_RED);
+        }
+    }
+    if (cu.armed != NB && !cu.open && ((cu.bheld >> cu.armed) & 1u) && !(cu.armed == BT_SAVE && cu.page == PG_SAVE) &&
         now - cu.t0 >= (uint32_t)HOLD_MS[settings_hold % 4u]) {
         cu.open = 1;
         cu_opened(cu.armed);
@@ -1775,10 +2111,10 @@ static int32_t cu_key_of_note(uint32_t note)       /* the root key a note sounds
 
 static void cr_leds(void)
 {
-    uint8_t nl[FM1_NCOL] = {0}, nd[FM1_NCOL] = {0}, own[FM1_NCOL] = {0};
+    uint8_t nl[FM1_NCOL] = {0}, nd[FM1_NCOL] = {0}, own[FM1_NCOL] = {0}, ld[FM1_NCOL] = {0};
     uint32_t k, b, now = cu_now(), blink = ((now / 250u) & 1u) == 0u, l = cu_layer(), held_l;
     const cr_snap_t *sn = &cr_snap;
-    if (cu.msg.big && (int32_t)(cu.msg.until - now) > 0) {   /* panic: everything flashes */
+    if (cu.msg.big == 1u && (int32_t)(cu.msg.until - now) > 0) {   /* panic: everything flashes */
         for (k = 0; k < 41u; k++)
             cu_led(nl, k < NB ? panel.btn[k] : k, (int)blink);
         for (k = 0; k < FM1_NCOL; k++) {
@@ -1852,6 +2188,10 @@ static void cr_leds(void)
     } else if (l == L_KEY) {
         for (k = CU_ROOT0; k < CU_NKEY; k++)
             cu_led(cs.key_on && (53u + k) % 12u == cs.tonic ? own : nd, 14u + k, 1);
+    } else if (cu.page == PG_SAVE) {                     /* naming: the keys that type lit (the letters, D#4 space) */
+        for (k = CU_ROOT0; k < CU_NKEY; k++)
+            if (cu_white_idx(k) >= 0 || k == 10u)
+                cu_led(own, 14u + k, 1);
     } else if (cu.opt_open) {
         for (k = CU_ROOT0; k < CU_NKEY; k++) {
             int32_t wi = cu_white_idx(k);
@@ -1861,7 +2201,7 @@ static void cr_leds(void)
     } else {
         uint32_t i;
         int32_t pk = -1;
-        if (sn->ci.sounding)
+        if (sn->ci.sounding && !sn->ldisp)              /* the player's notes (the loop's glow below) */
             for (i = 0; i < sn->ci.nnotes; i++) {
                 int32_t kk = cu_key_of_note(sn->ci.notes[i]);
                 if (kk >= 0)
@@ -1880,6 +2220,13 @@ static void cr_leds(void)
                 continue;
             cu_led(nd, 14u + k, 1);
         }
+        for (k = CU_ROOT0; k < CU_NKEY; k++) {           /* PLAN 6: the loop's notes glow dim (not the player's) */
+            int32_t n = 53 + (int32_t)k + 12 * cu.octave;
+            uint8_t q = cu_led_pos[14u + k];
+            if (n >= 0 && n < 128 && ((sn->lnote[n >> 3] >> (n & 7)) & 1u) && q != 0xFF &&
+                !((nl[q >> 3] >> (q & 7u)) & 1u))
+                cu_led(ld, 14u + k, 1);
+        }
     }
     for (k = 0; k < FM1_NCOL; k++) {
         if (cs.leds) {                                   /* STOCK: the idle ones lit, the active ones dark */
@@ -1887,6 +2234,8 @@ static void cr_leds(void)
             nd[k] = 0;
         }
         nl[k] |= own[k];
+        nd[k] |= ld[k];
+        nl[k] &= (uint8_t)~ld[k];
     }
     for (k = 0; k < FM1_NCOL; k++)
         fm1_led_dim[k] = nd[k];
@@ -1959,14 +2308,13 @@ static void cu_header(cr_screen_t *s)
         cu_int(s->right + 4, cu.octave, 1, sizeof s->right - 4u);
     } else if (cs.sticky)
         cu_cpy(s->right, "Latch", sizeof s->right);
-    /* the looper owns the top line while it runs: "Rec 2.3", "Count-in -3", "Loop 1" */
+    /* the looper owns the top line while it runs: "Rec 2.3", "Rec" (the count-in), "Loop 1" */
     if (sn->lcap != CRL_CAP_NONE || sn->lstate == CRL_PLAYING) {
         char b[8];
         s->mid_col = s->right_col = CR_COL_RED;
         s->right[0] = 0;
         if (sn->lcap == CRL_CAP_COUNTIN) {
-            cu_cpy(s->mid, "Count-in", sizeof s->mid);
-            cu_int(s->right, -(int32_t)sn->lbeat, 0, sizeof s->right);
+            cu_cpy(s->mid, "Rec", sizeof s->mid);   /* (the beats to go: the panel, cr_build_screen) */
         } else if (sn->lcap == CRL_CAP_ARMED) {
             cu_cpy(s->mid, "Rec", sizeof s->mid);
             cu_cpy(s->right, "ready", sizeof s->right);
@@ -2032,6 +2380,15 @@ static void cu_picker(cr_screen_t *s, const char *const *items, uint32_t n, uint
     cu_cpy(s->footer, footer, sizeof s->footer);
 }
 
+/* the power-on splash is the idle stripes' first CR_SPLASH_MS: the bands slide in (CR_A_INTRO, unless main.c's
+ * splash, cr_shim.c cr_splash, already played it) and the version sits under them */
+#ifndef FELUCCA_VERSION
+#define FELUCCA_VERSION "ChoralRoot 0.1"
+#endif
+#define CR_SPLASH_MS 1500u
+static uint32_t cu_boot_ms;
+static uint8_t cu_intro_played;
+
 static void cu_stripes(cr_screen_t *s)
 {
     s->kind = CR_K_STRIPES;
@@ -2045,6 +2402,11 @@ static void cu_stripes(cr_screen_t *s)
     s->title_px = 34;
     s->title_col = CR_COL_WHITE;
     s->period_ms = cr_anim_bar_ms(cs.bpm);
+    if (cu_now() - cu_boot_ms < CR_SPLASH_MS) {
+        cu_cpy(s->foot, FELUCCA_VERSION, sizeof s->foot);
+        if (!cu_intro_played)
+            s->anim = CR_A_INTRO;
+    }
 }
 
 static void cu_layer_screen(cr_screen_t *s, uint32_t l)
@@ -2123,10 +2485,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
             cu_cat(s->label, SLOTS[cs.loop_slot % 10u] + 5, sizeof s->label);
         } else {
             cu_picker(s, CU_LOOPLEN, CRL_NSYNC, cs.loop_len, CR_COL_RED, "loop length",
-                      "roots: slots \267 KNOBS sync quant count level");
-            cu_cpy(s->value, "Q ", sizeof s->value);
-            cu_cat(s->value, CU_QUANT[cs.loop_quant % CRL_NQUANT], sizeof s->value);
-            cu_cat(s->value, cs.loop_count_in ? " \267 count-in" : "", sizeof s->value);
+                      "roots: slots \267 KNOBS sync quant count level");   /* (mock-up 8: no value line) */
         }
         s->ring_on = 1;
         s->ring_col = CR_COL_RED;
@@ -2171,12 +2530,15 @@ static void cu_edit_screen(cr_screen_t *s, uint32_t now)
 {
     track_t *t = cu_edit_trk();
     const engine_t *en = ENGINES[t->eng_req % NENGINES];
-    uint32_t i, j, n;
+    uint32_t i, j, n, np;
     char b[8];
+    if (ce.page >= cp_n(t))                        /* (the engine changed: fewer pages) */
+        ce.page = 0;
+    np = cp_n(t);
     s->kind = CR_K_PARAMS;
     for (i = 0; i < 4u; i++) {
         cr_param_t *c = &s->par[i];
-        uint32_t id = CP_PAGES[ce.page % CP_N].id[i];
+        uint32_t id = cp_id(t, ce.page, i);
         if (id == CPX_ENGINE) {
             int32_t r = cu_engine_rank(t->eng_req % NENGINES);
             cu_engine_at(0, &n);
@@ -2210,12 +2572,26 @@ static void cu_edit_screen(cr_screen_t *s, uint32_t now)
         cu_cat(s->title, "*", sizeof s->title);
     s->col = ce.part ? CR_COL_ORANGE : CR_COL_WHITE;
     cu_cpy(s->page, cp_title(t, ce.page), sizeof s->page);
-    cu_cat(s->page, " ", sizeof s->page);
+    cu_cat(s->page, cp_deep(t) ? " \267 " : " ", sizeof s->page);   /* ("OSC 2 \267 4/33"; "ENV 4/8" without) */
     cu_int(b, (int32_t)ce.page + 1, 0, sizeof b);
     cu_cat(s->page, b, sizeof s->page);
-    cu_cat(s->page, "/8", sizeof s->page);
-    if (ce.page == CP_ENV && en->ownenv)
-        cu_cpy(s->foot, "FM6: the patch's own envelopes", sizeof s->foot);
+    cu_cat(s->page, "/", sizeof s->page);
+    cu_int(b, (int32_t)np, 0, sizeof b);
+    cu_cat(s->page, b, sizeof s->page);
+    if (cp_deep(t)) {                              /* the section marks */
+        uint8_t st[CP_SECT_MAX];
+        s->n_sect = (uint8_t)cp_sections(t, st);
+        s->sect = (uint8_t)cp_sect(t, ce.page);
+    }
+    if (cp_base(t, ce.page) == CP_ENV && en->ownenv) {
+        if (cp_deep(t)) {
+            cu_cpy(s->foot, en->name, sizeof s->foot);
+            cu_cat(s->foot, ": its own envelopes", sizeof s->foot);
+        } else {
+            cu_cpy(s->foot, "FM6: the patch's own envelopes", sizeof s->foot);
+        }
+    } else if (cp_deep(t) && cp_dp(t, ce.page) >= 0)
+        cu_cpy(s->foot, "SELECT: page \267 OPT+SELECT: section", sizeof s->foot);
     else
         cu_cpy(s->foot, ce.part ? "bass \267 SELECT: page \267 HOME: done" : "SELECT: page \267 HOME: done \267 SAVE: keep it",
                sizeof s->foot);
@@ -2225,6 +2601,20 @@ static void cu_edit_screen(cr_screen_t *s, uint32_t now)
 static void cu_save_screen(cr_screen_t *s, uint32_t now)
 {
     char l[4], nm[13];
+    if (ce.del_ask) {                              /* "delete?": the slot's number huge in red, its name */
+        s->kind = CR_K_BIG;
+        cu_2d(s->value, ce.slot + 1u, sizeof s->value);
+        up_name(ce.slot, nm);
+        cu_cpy(s->sub, nm, sizeof s->sub);
+        cu_cpy(s->label, "delete? OCT+ yes \267 OCT- no", sizeof s->label);
+        s->col = CR_COL_RED;
+        s->size = 104;
+        up_slot_label(l, ce.slot);
+        cu_cpy(s->mid, "Delete ", sizeof s->mid);
+        cu_cat(s->mid, l, sizeof s->mid);
+        s->mid_col = CR_COL_RED;
+        return;
+    }
     s->kind = CR_K_TEXT;
     cu_cpy(s->title, ce.save_part ? "save bass" : "save sound", sizeof s->title);
     s->title_col = ce.save_part ? CR_COL_ORANGE : CR_COL_RED;
@@ -2254,6 +2644,28 @@ static void cu_save_screen(cr_screen_t *s, uint32_t now)
     cu_cpy(s->footer, "SAVE again: cancel", sizeof s->footer);
 }
 
+/* the SCOPE view's trace: audio.c's ring of the master output (scope_buf, every 2nd sample, written in the audio
+ * ISR), 240 samples (10.9 ms) from the steepest rising zero crossing of the first 272 (a held chord stands
+ * still), auto-scaled as Felucca's graph_scope with a floor (silence: a flat line) */
+static void cu_scope(cr_screen_t *s)
+{
+    static int16_t snap[SCOPE_N];
+    uint32_t w = scope_w, i, trig = 0;
+    int32_t peak = 2048, best = 0;
+    for (i = 0; i < SCOPE_N; i++) {
+        int32_t v = snap[i] = scope_buf[(w + i) & (SCOPE_N - 1u)];
+        if (v < 0) v = -v;
+        if (v > peak) peak = v;
+    }
+    for (i = 1; i < SCOPE_N - CR_WAVE_N; i++)
+        if (snap[i - 1] < 0 && snap[i] >= 0 && snap[i] - snap[i - 1] > best) {
+            best = snap[i] - snap[i - 1];
+            trig = i;
+        }
+    for (i = 0; i < CR_WAVE_N; i++)
+        s->wave[i] = (int8_t)(snap[trig + i] * 127 / peak);
+}
+
 static void cu_view_screen(cr_screen_t *s)
 {
     const cr_snap_t *sn = &cr_snap;
@@ -2276,6 +2688,16 @@ static void cu_view_screen(cr_screen_t *s)
         return;
     }
     switch (cs.view) {
+    case V_SCOPE:                                 /* the sound itself: one bold line, the chord small on top */
+        s->kind = CR_K_SCOPE;
+        s->col = CR_COL_WHITE;
+        if (!s->mid[0] && ci->sounding) {
+            cu_cpy(s->mid, ci->root, sizeof s->mid);
+            cu_cat(s->mid, ci->qual, sizeof s->mid);
+            cu_cat(s->mid, ci->sup, sizeof s->mid);
+        }
+        cu_scope(s);
+        break;
     case V_KEYBOARD:
         s->kind = CR_K_KEYBOARD;
         cu_name(&s->name, ci);
@@ -2317,7 +2739,16 @@ static void cu_view_screen(cr_screen_t *s)
             cu_cat(s->lines[1].t, b, sizeof s->lines[1].t);
         }
         cu_cat(s->lines[1].t, " bpm", sizeof s->lines[1].t);
-        s->n_lines = 2;
+        {   /* the audio ISR, the last second (audio.c cpu_window): its longest half in us of 2902, halves late */
+            char b[12];
+            cu_cpy(s->lines[2].t, "isr ", sizeof s->lines[2].t);
+            cu_int(b, (int32_t)cpu_last.max_all_us, 0, sizeof b);
+            cu_cat(s->lines[2].t, b, sizeof s->lines[2].t);
+            cu_cat(s->lines[2].t, "us \267 late ", sizeof s->lines[2].t);
+            cu_int(b, (int32_t)felucca_dbg.late, 0, sizeof b);
+            cu_cat(s->lines[2].t, b, sizeof s->lines[2].t);
+        }
+        s->n_lines = 3;
         cu_cpy(s->right, "Trans ", sizeof s->right);
         if (cs.transpose)
             cu_int(s->right + 6, cs.transpose, 1, sizeof s->right - 6u);
@@ -2341,16 +2772,40 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
     uint32_t l = cu_layer();
     cr_screen_clear(s);
     cu_header(s);
+    if (cc.on) {                                  /* calibration: over everything */
+        cu_calib_screen(s);
+        return;
+    }
     if (sn->ci.sounding || (cu.kheld >> CU_ROOT0))
         cu.last_sound = now;
     /* 1. a message: PANIC (the whole panel red), else a box over whatever is below */
-    if (cu.msg.big && (int32_t)(cu.msg.until - now) > 0) {
+    if (cu.msg.big == 1u && (int32_t)(cu.msg.until - now) > 0) {
         s->kind = CR_K_BIG;
         cu_cpy(s->value, cu.msg.text, sizeof s->value);
         cu_cpy(s->label, cu.msg.label, sizeof s->label);
         s->block = CR_COL_RED;
         s->col = CR_COL_WHITE;
         s->size = 64;
+        return;
+    }
+    /* 1b. the count-in: the beats to go huge in red, the ring drawing itself in (over popups and layers) */
+    if (sn->lcap == CRL_CAP_COUNTIN) {
+        s->kind = CR_K_BIG;
+        cu_int(s->value, (int32_t)(sn->lbeat ? sn->lbeat : 1u), 0, sizeof s->value);
+        cu_cpy(s->label, "count-in", sizeof s->label);
+        s->col = CR_COL_RED;
+        s->size = 104;
+        cu_ring(s);
+        return;
+    }
+    /* 1c. undo: the layers left, huge in red; the ring stays */
+    if (cu.msg.big == 2u && (int32_t)(cu.msg.until - now) > 0) {
+        s->kind = CR_K_BIG;
+        cu_cpy(s->value, cu.msg.text, sizeof s->value);
+        cu_cpy(s->label, cu.msg.label, sizeof s->label);
+        s->col = cu.msg.col;
+        s->size = 104;
+        cu_ring(s);
         return;
     }
     if (!cu.msg.big && (int32_t)(cu.msg.until - now) > 0) {
@@ -2403,7 +2858,7 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         return;
     }
     /* 6. idle: nothing played yet, or nothing sounding for CR_IDLE_MS */
-    if (!sn->ci.valid || (!sn->ci.sounding && now - cu.last_sound >= CR_IDLE_MS)) {
+    if (!sn->ci.valid || (!sn->ci.sounding && now - cu.last_sound >= CR_IDLE_MS && cs.view != V_SCOPE)) {
         cu_stripes(s);
         return;
     }
@@ -2419,6 +2874,7 @@ static struct {
     uint32_t sweep_t0;
     cr_name_t name, from;
     char label[32], value[24];
+    uint8_t turn;                                 /* params: ce.turn last seen */
 } ca;
 static cr_anim_t cu_anim;
 
@@ -2491,10 +2947,31 @@ static void cu_animate(cr_screen_t *s, uint32_t now)
         s->size = (uint8_t)cr_spring(92, 104, cu_anim.t0, 240, now);   /* the number springs in */
         ca.pct = s->pct;
         break;
+    case CR_K_BIG: {                               /* a new number springs in (as the meters') */
+        int32_t to = s->size ? s->size : 118;
+        if (kind_changed || !cu_eq(s->value, ca.value))
+            cr_anim_mark(&cu_anim, now);
+        s->size = (uint8_t)cr_spring(to * 3 / 4, to, cu_anim.t0, 240, now);
+        break;
+    }
+    case CR_K_PARAMS:                              /* a page turned: its columns slide in from that side */
+        if (kind_changed) {
+            ca.anim = 0;
+            ca.slide = 0;
+            cr_anim_mark(&cu_anim, now);
+        } else if (ce.turn != ca.turn && cr_motion != CR_MOTION_OFF) {
+            ca.slide = ce.dir;
+            ca.anim = CR_A_SLIDE;
+            cr_anim_mark(&cu_anim, now);
+        }
+        ca.turn = ce.turn;
+        s->slide = ca.slide;
+        s->anim = ca.anim;
+        break;
     case CR_K_STRIPES:
         if (kind_changed)
             cr_anim_mark(&cu_anim, now);
-        s->anim = cr_motion == CR_MOTION_OFF ? 0u : CR_A_STRIPES;
+        s->anim = (uint8_t)((cr_motion == CR_MOTION_OFF ? 0u : CR_A_STRIPES) | (s->anim & CR_A_INTRO));
         break;
     default:
         if (kind_changed)
@@ -2511,8 +2988,70 @@ static void cu_animate(cr_screen_t *s, uint32_t now)
 /* --------------------------------------------------------------- frames --- */
 static cr_screen_t cu_scr;
 
+/* MIDI in (cr_out.c): the clock's tempo mirrored on screen, CC 7 / 91 / 93 / 94 and program changes applied as the
+ * knobs apply them (with their meter) */
+static void cu_midi_poll(void)
+{
+    static uint32_t bpm_n;
+    crm_act_t a;
+    if (bpm_n != cr_in_bpm_n) {
+        bpm_n = cr_in_bpm_n;
+        cs.bpm = cr_in_bpm;                       /* (the ISR set the engine's: no CRE_TEMPO back) */
+        song.g[G_BPM] = (int16_t)(cs.bpm < 40u ? 40u : cs.bpm > 240u ? 240u : cs.bpm);
+        cu_trace("bpm: %u (clock in)\n", (unsigned)cs.bpm);
+    }
+    while (cr_min_take(&a)) {
+        uint32_t p = a.part ? CR_PART_BASS : CR_PART_CHORD, i;
+        if (a.kind == CRM_PROGRAM) {
+            if (!p) {
+                if (a.v >= cb_count(0))
+                    continue;
+                cu_sound_go(a.v);
+                cu_sound_popup(0);
+                cu_trace("sound: part 0 pos %u %s (program change)\n", (unsigned)cs.sound, psnd[0].name);
+            } else {
+                if (a.v > cb_count(1))
+                    continue;
+                cu_bass_go(a.v);
+                cu_sound_popup(1);
+                cu_trace("sound: part 1 pos %u %s (program change)\n", (unsigned)cs.bass_sound,
+                         cs.bass_sound ? psnd[1].name : "off");
+            }
+        } else if (a.kind == CRM_LEVEL) {
+            fm1_irq_off();
+            trk[p].p[P_LEVEL] = (int16_t)a.v;
+            fm1_irq_on();
+            cu_popup_num(a.v, 0, "", p ? "bass level" : "level", p ? CR_COL_ORANGE : CR_COL_WHITE, 0, 127, 12);
+            cu_trace("level: part %u %u (cc 7)\n", (unsigned)p, (unsigned)a.v);
+        } else {
+            uint32_t id = a.kind == CRM_SEND_REV ? P_REV : a.kind == CRM_SEND_CHO ? P_CHOR : P_DLY;
+            for (i = 0; i < CU_NFX; i++)
+                if (CU_FX[i].send == id)
+                    break;
+            if (!p && i < CU_NFX) {               /* part 0's sends are the FX amounts */
+                cs.fx_amt[i] = a.v;
+                cs.fx_on = 1;
+                cu_fx_apply();
+            } else {
+                fm1_irq_off();
+                trk[p].p[id] = (int16_t)a.v;
+                fm1_irq_on();
+            }
+            {
+                char lb[24];
+                cu_cpy(lb, i < CU_NFX ? CU_FX[i].name : "send", sizeof lb);
+                lb[0] = (char)(lb[0] | 0x20);
+                cu_popup_num(a.v * 99 / 127, 0, "", lb, p ? CR_COL_ORANGE : CR_COL_GREEN, 0, 99, 12);
+            }
+            cu_trace("send: part %u %s %u (cc)\n", (unsigned)p, i < CU_NFX ? CU_FX[i].name : "?", (unsigned)a.v);
+        }
+    }
+}
+
 static void cr_ui_frame(void)                      /* after the scan: the engine's state, the LEDs */
 {
+    cpu_window(fm1_ms);                            /* audio.c: the last second's ISR load (console `cpu`, GEEK OUT) */
+    cu_midi_poll();
     cr_snapshot();
     cu_loop_frame();
     cr_leds();
@@ -2532,6 +3071,8 @@ static void cr_ui_init(void)
     uint32_t m, p, k;
     settings_init();                              /* (panel.c: the palette, LOWCUT, HOLD) */
     panel_init();
+    if (!cr_ring.state)
+        cr_ring_build();                          /* the loop ring's table (cr_draw.c): now, not at the first count-in */
     palette_set(NPALETTES - 1u);                  /* MOD: ChoralRoot's (gfx.c palettes: the last) */
     fm6_init();                                   /* every part's FM6 patch: the init voice */
     for (k = 0; k < G_COUNT; k++)
@@ -2570,8 +3111,12 @@ static void cr_ui_init(void)
     cs.view = V_CHORD;
     cu.armed = NB;
     cu.opt_sel = O_STYLE;
-    trk[CR_PART_CHORD].p[P_LEVEL] = TP[P_LEVEL].def;
-    trk[CR_PART_BASS].p[P_LEVEL] = TP[P_LEVEL].def;
+    /* the parts' default levels (LEVEL steps 0.5 dB; Felucca's 104 is -4 dB): the chord -6 dB, the bass -6 dB, so a
+     * 6-note chord with the bass stays under the master limiter (INTEGRATION Performance, Defaults); a sound's load
+     * keeps the part's level (cu_kept), the bank's loud sounds carry a trim after it (cr_bank.c), MASTER makes up the
+     * loudness */
+    trk[CR_PART_CHORD].p[P_LEVEL] = (int16_t)(TP[P_LEVEL].def - 12);
+    trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)(TP[P_LEVEL].def - 12);
     for (k = 2; k < NPART; k++)                   /* parts 3 and 4: unused, silent */
         trk[k].p[P_MUTE] = 1;
     cu_sound_go(cb_find(0, "TINE EP"));
@@ -2599,5 +3144,7 @@ static void cr_ui_init(void)
         cu_loop_load(cs.loop_slot);
     cu.msg.until = 0;
     song.grid = 2;                                /* seq.c's keyboard never plays (keyboard_block: every key silent) */
+    cu_boot_ms = cu_now();                        /* the splash: the idle stripes' first CR_SPLASH_MS */
+    cr_anim_mark(&cu_anim, cu_boot_ms);
     cr_draw_invalidate();
 }

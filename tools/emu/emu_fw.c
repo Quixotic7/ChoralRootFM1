@@ -176,6 +176,14 @@ void emu_fw_audio(int16_t *out, uint32_t frames)  /* the ALNK0 ISR, one half buf
             if (d > emu_hal.audio_wait_max_us)
                 emu_hal.audio_wait_max_us = d;
         }
+        if (emu_stall_blocks) {                   /* a flash erase on the device: IRQs off, the buffer zeroed */
+            emu_stall_blocks--;
+            emu_stall_blocks_all++;
+            fm1_irq_on();
+            for (i = 0; i < HALF_WORDS; i++)
+                out[2u * f + i] = 0;
+            continue;
+        }
         emu_half ^= 1u;
         fm1_alnk0_irq();
         h = &abuf[emu_half * HALF_WORDS];
@@ -251,9 +259,28 @@ void emu_fw_dump(void)
            (unsigned)cr.playstyle, (unsigned)cr.single, (unsigned)cr.split_pc);
     printf("  flash: %s, %u writes, settings saves %u (record: %s)\n", emu_flash_path[0] ? emu_flash_path : "RAM only",
            (unsigned)emu_flash_writes, (unsigned)crs_saves, crs_last_rc == 1 ? "current" : crs_last_rc == 2 ? "migrated" : "defaults");
+    printf("  voices: given up %u (budget fades + overload sheds %u), own voices taken for a new note %u\n",
+           (unsigned)voice_kills, (unsigned)shed_count, (unsigned)voice_steals);
+    printf("  flash erases with the audio stalled %u (%u blocks of silence, %u ms each erase)\n", (unsigned)emu_stalls,
+           (unsigned)emu_stall_blocks_all, (unsigned)EMU_ERASE_MS);
     fm1_irq_on();
 }
 
+/* the screen the last UI frame drew (emu.c EMU_UI_LOG): its kind, view, the texts that pick its glyphs, the animation
+ * clock, the strips drawn and blitted */
+void emu_fw_ui_info(char *buf, uint32_t n)
+{
+    static const char *const K[] = {"none", "stripes", "chord", "picker", "meter", "keyboard", "arp", "params", "geek",
+                                    "text", "big", "scope"};
+    const cr_screen_t *s = &cu_scr;
+    snprintf(buf, n, "%s view %u name '%s|%s|%s' from '%s|%s|%s' item '%s' value '%s' title '%s' size %u squeeze %u "
+             "anim %02X %u ms ring %u/%u msg '%s' blits %u",
+             s->kind < CR_K_N ? K[s->kind] : "?", (unsigned)cs.view, s->name.root, s->name.quality, s->name.sup,
+             s->from.root, s->from.quality, s->from.sup, s->kind == CR_K_PICKER ? cr_item(s, s->sel) : "",
+             s->value, s->title, (unsigned)s->size, (unsigned)s->squeeze, (unsigned)s->anim,
+             (unsigned)cr_anim_ms(&cu_anim, cu_now()), (unsigned)s->ring_on, (unsigned)s->ring, s->message,
+             (unsigned)cr_dc.blits);
+}
 void emu_fw_stats(uint32_t *shed, uint32_t *cpu_pct)
 {
     *shed = shed_count;

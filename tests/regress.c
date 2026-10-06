@@ -23,6 +23,9 @@
  *    selected track changes, the keys while the selected track changes, with ARP and the voice modes).
  * env: GOLDEN_UPDATE=1 rewrites GOLDEN_FILE, BUDGET_UPDATE=1 rewrites CPU_FILE (on purpose: review the
  * diff), VERBOSE=1 prints every render's numbers, JOBS=n children at once (default 8). */
+#ifndef FELUCCA_VA
+#define FELUCCA_VA 1             /* ChoralRoot's VA engine: its presets get renders and costs too */
+#endif
 #define main hostsim_main
 #include "hostsim.c"
 #undef main

@@ -13,6 +13,15 @@
 static uint32_t host_slots[3u * 0x14000u / 4u];          /* USR1..3 (zero: empty), as the flash at 0xA0000 */
 #define SMP_USER_XIP(k) ((const uint8_t *)host_slots + (k) * SMP_USER_SIZE)
 #define main hostsim_main
+#ifndef FELUCCA_SLICE
+#define FELUCCA_SLICE 0                               /* as choralroot.c: no SLICE engine, so engine numbers match the device */
+#endif
+#ifndef FELUCCA_VA
+#define FELUCCA_VA 1                                  /* as choralroot.c: the VA engine, its patch store */
+#endif
+#ifndef FELUCCA_SLICER
+#define FELUCCA_SLICER 1                              /* (as felucca.c; the device unit has it off) */
+#endif
 #define mix_block fx_mix_block                        /* fx.c's mix; audio.c gets ChoralRoot's below */
 #include "../../tests/hostsim.c"
 #undef mix_block

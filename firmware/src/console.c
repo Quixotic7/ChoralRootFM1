@@ -233,6 +233,31 @@ static void con_status(void)
 #endif
 }
 
+/* the audio ISR's last second (audio.c cpu_window) and what cuts the sound (docs/INTEGRATION.md, Performance) */
+static void con_cpu(void)
+{
+    con_kv("audio_budget_us", (int32_t)(HALF_FRAMES * 1000000u / FS));
+    con_kv("audio_avg_us", (int32_t)cpu_last.avg_us);         /* render, TIMER5 nested left out */
+    con_kv("audio_max_us", (int32_t)cpu_last.max_us);
+    con_kv("audio_max_all_us", (int32_t)cpu_last.max_all_us); /* render + nested: what the DMA deadline sees */
+    con_kv("audio_halves", (int32_t)cpu_last.halves);
+    con_kv("audio_late", (int32_t)cpu_last.late);              /* halves the DMA moved past (overruns) */
+    con_kv("audio_late_total", (int32_t)felucca_dbg.late);
+    con_kv("audio_max_us_total", (int32_t)felucca_dbg.max_us);
+    con_kv("cpu_pct", (int32_t)(song.cpu_q8 * 100u / 256u));
+    con_kv("voices_given_up", (int32_t)voice_kills);          /* faded for another note / part, or shed */
+    con_kv("voices_stolen", (int32_t)voice_steals);           /* a part's own voice taken for a new note */
+    con_kv("voices_shed", (int32_t)shed_count);               /* overload: two halves above 85 % */
+#if FELUCCA_FLASH
+    con_kv("flash_erases", (int32_t)st_erases);               /* each: ~45 ms of silence, IRQs off */
+#endif
+#ifdef CR_VERSION
+    con_kv("settings_saves", (int32_t)crs_saves);
+#endif
+    con_kv("ui_frame_max_ms", (int32_t)cpu_last.ui_max_ms);   /* the longest main-loop frame (15 ms nominal) */
+    con_kv("ui_frames", (int32_t)cpu_last.ui_frames);
+}
+
 static void con_dbg(void)
 {
     const uint32_t *w = (const uint32_t *)&felucca_dbg;
@@ -342,7 +367,9 @@ static void con_params(void)
 static void con_exec(const char *p)
 {
     if (con_word(&p, "help") || con_word(&p, "?"))
-        con_puts("status  dbg  inp  crash  params  memr ADDR [LEN]  flr OFF [LEN]  uboot yes\r\n");
+        con_puts("status  cpu  dbg  inp  crash  params  memr ADDR [LEN]  flr OFF [LEN]  uboot yes\r\n");
+    else if (con_word(&p, "cpu"))
+        con_cpu();
     else if (con_word(&p, "status"))
         con_status();
     else if (con_word(&p, "dbg"))

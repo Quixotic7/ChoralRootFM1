@@ -1,0 +1,457 @@
+# tools/emu/perf.sh (e): (c), then EDIT (the sound's pages, SELECT +1: its EDIT 1 page) and KNOB 1..4 turned one detent every 30 ms for 6 s
+# (the meter popups, the glyph tweens) while the E chord is held
+wait 300
+knob PRESETS +3
+wait 200
+knob SELECT +80
+wait 200
+knob ALGORITHM +1
+wait 300
+btn REC
+wait 300
+key F3 down
+key 2 down
+key 4 down
+key 5 down
+wait 40
+key A down
+wait 560
+key A up
+key G down
+wait 560
+key G up
+key F3 up
+key 2 up
+key 4 up
+key 5 up
+wait 40
+btn REC
+wait 300
+key / down
+wait 400
+key F 100
+wait 200
+key / up
+wait 300
+key X 100
+wait 300
+knob SELECT +1
+wait 300
+key F3 down
+key 2 down
+key 4 down
+key 5 down
+wait 40
+key S down
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB4 -1
+wait 30
+dump
+key S up
+key F3 up
+key 2 up
+key 4 up
+key 5 up
+wait 300
+btn PLAY
+wait 300
+key / 80
+wait 1500
+dump

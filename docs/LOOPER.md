@@ -40,6 +40,36 @@ of `CR_MAX_LOOPV` (8) loop voices, bypassing the chord-key state machine; voicin
   KNOB 1 there or OPT + SELECT = click level. The click is a 25 ms two-pole sine burst mixed after fx.c (cr_out.c
   `cr_click_mix`), 2.5 kHz on the bar's first beat.
 
+## Gestures and screens (`cr_ui.c`)
+
+| gesture | stopped | playing |
+| --- | --- | --- |
+| LOOP tap | play (a take: commit) | stop |
+| LOOP held | the **loop length** picker (Free 1 2 4 8 16 bars, red, mock-up 8) in the ring | the Overdub / Pause / Undo / Clear picker |
+| LOOP held + KNOB 1 (SYNC) or SELECT | moves the length picker (its slide; no meter) | moves the action picker |
+| LOOP held + KNOB 2 / 3 / 4 | quantize / count-in / loop level meters | the same |
+| LOOP held + OCT+ | — | does the picked action |
+| LOOP held + white root / D#4 held 1 s / F#4 | slot load / clear / undo | slot at the end of the cycle / clear / undo |
+| REC tap | arm (Free) or count-in (synced) | overdub arm / end |
+| REC held | undo: the layers left huge in red ("layers · undo"); none: "nothing to undo" | the same |
+
+The count-in takes the whole panel: the beats to go (4 3 2 1 from the time signature) huge in red, each springing
+in, "count-in" under it, the top line `Rec`, the red ring drawing itself in over the bar. It is above popups and
+layers, below PANIC.
+
+While the loop sounds, its notes glow **dim** on the root keys where they sit in the current octave window
+(`cr_snap_t.lnote`, a 128-bit note mask from the 8 loop voices, taken with the snapshot); the player's own notes stay
+lit, and a chord shown on screen that is the loop's lights nothing. With Options > LEDs = Glow every idle key glows
+dim anyway, so the glow is visible with LEDs = Stock (idle keys lit, the loop's dim): `tools/emu/scripts/cr_loop_glow.txt`.
+
+With Options > MIDI Clock = Out (the default) the ISR sends 0xFA (start) when the loop starts playing (LOOP from
+stopped, a take committed into playback) and 0xFC (stop) when it stops, USB MIDI CIN 0x0F; the 0xF8 pulses run as
+before, restarting their phase at the start.
+
+With MIDI Clock = In the loop follows the other way (cr_out.c `cr_in_transport`): 0xFA starts it from its start
+(restarts it if playing), 0xFB plays it if stopped, 0xFC stops it; a take in progress is left alone, an empty loop
+ignores them, and nothing is sent out.
+
 ## Slots and the record
 
 Ten slots; only the selected one lives in RAM. LOOP held + a white root D4..F5 selects a slot (load when stopped,

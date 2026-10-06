@@ -9,7 +9,8 @@
  * the CRX (104 px, the chord charset) and CRB (40 px) faces (cr_gfx.c); the regular ones (500) are Felucca's own
  * AF_M (15 px) and AF_S (12 px), drawn natively at 12..15 px and resampled below 12. See CR_SCREENS.md.
  * Cache: a signature of the struct, the animation's frame and the palette: unchanged, nothing is drawn; else every
- * strip is drawn and only the strips whose pixels changed are blitted (cr_draw_invalidate: all of them, once).
+ * strip is drawn and only the strips whose pixels changed are blitted (cr_draw_invalidate: all of them, once); when
+ * only the ring's fraction moved, only the strips its tip crossed are drawn (the ring itself: a table, cr_ring_draw).
  * Animations are pure functions of (s, anim_ms): anim_ms is the time since the change that started the ones in
  * s->anim (the firmware's tween clock); cr_anim_busy says whether more frames are still to come.
  * Included after gfx.c and cr_gfx.c (felucca.c's single compilation unit). */
@@ -123,15 +124,23 @@ static void cr_text_fit(int32_t x, int32_t y, const char *s, uint32_t px, int bo
 #define CR_THIN 330                      /* .. the column: 8 % (Q12; cr_gfx.c resamples down to 1/16) */
 #define CR_SLIDE_MS 160u                 /* a picker's slide */
 #define CR_FILL_MS 30u                   /* a meter: a stripe every 30 ms */
+#define CR_INTRO_MS 220u                 /* power-on: each band slides in, 90 ms after the one above */
+#define CR_INTRO_GAP 90u
+#define CR_INTRO_NAME 300u               /* .. the name lands from 300 ms, over 150 ms */
+#define CR_DEAL_MS 110u                  /* a params page turned: each column rises into place .. */
+#define CR_DEAL_GAP 30u                  /* .. 30 ms after its neighbour, from the side turned to */
 #define CR_SWEEP_MS 240u                 /* the idle stripes swept off, each band 40 ms after the one above */
 typedef struct {
     int32_t sq;                          /* chord: the squeeze of the name drawn (Q12) */
     int32_t slide;                       /* picker: how far the selection still has to slide (Q12 of its pitch) */
     int32_t shift;                       /* stripes: Q8 px */
     int32_t sweep[4];                    /* stripes: Q8 px each band is swept right */
+    int32_t name_dy;                     /* stripes (CR_A_INTRO): Q8 px the name is still above its place */
+    uint8_t name_off;                    /* stripes (CR_A_INTRO): the name not drawn yet */
     uint8_t from;                        /* chord: 1 = `from` is drawn (the first half of the squeeze) */
     uint8_t filled;                      /* meter: stripes filled */
     uint8_t busy;                        /* more frames to come */
+    uint8_t hide;                        /* params (CR_A_SLIDE): bit k: column k not dealt yet; sweep[k]: still to rise */
 } cr_frame_t;
 
 /* 1 - (1 - x)^2 over x = t / d, Q12 */
@@ -172,6 +181,14 @@ static void cr_frame(const cr_screen_t *s, uint32_t t, cr_frame_t *fr)
         fr->busy = 1;
         fr->slide = 4096 - cr_ease_out(t, CR_SLIDE_MS);
     }
+    if (s->kind == CR_K_PARAMS && (s->anim & CR_A_SLIDE) && s->slide) {
+        for (i = 0; i < 4u; i++) {                                 /* dealt from the side the page came from */
+            uint32_t d = (s->slide > 0 ? i : 3u - i) * CR_DEAL_GAP;
+            if (t < d) fr->hide |= (uint8_t)(1u << i);
+            else fr->sweep[i] = ((4096 - cr_ease_out(t - d, CR_DEAL_MS)) * 14) >> 4;
+            if (t < d + CR_DEAL_MS) fr->busy = 1;
+        }
+    }
     if (s->kind == CR_K_METER && (s->anim & CR_A_FILL)) {
         uint32_t a = cr_filled(s, s->pct_from), b = fr->filled, n = a < b ? b - a : a - b, done = t / CR_FILL_MS;
         if (done < n) {
@@ -190,6 +207,19 @@ static void cr_frame(const cr_screen_t *s, uint32_t t, cr_frame_t *fr)
                 fr->sweep[i] = t <= d ? 0 : (cr_ease_out(t - d, CR_SWEEP_MS) * 300) >> 4;
                 if (t < d + CR_SWEEP_MS) fr->busy = 1;
             }
+        if (s->anim & CR_A_INTRO) {                                /* (anim_ms settled: the final picture) */
+            for (i = 0; i < 4u; i++) {
+                uint32_t d = i * CR_INTRO_GAP;
+                fr->sweep[i] -= t <= d ? 300 * 256 : ((4096 - cr_ease_out(t - d, CR_INTRO_MS)) * 300) >> 4;
+                if (t < d + CR_INTRO_MS) fr->busy = 1;
+            }
+            fr->name_off = t < CR_INTRO_NAME;
+            if (t < CR_INTRO_NAME + 150u) {
+                fr->busy = 1;
+                if (t >= CR_INTRO_NAME)
+                    fr->name_dy = ((4096 - cr_ease_out(t - CR_INTRO_NAME, 150u)) * 24) >> 4;
+            }
+        }
     }
 }
 /* 1 while an animation of s still moves at anim_ms (the firmware keeps calling cr_draw with a running clock) */
@@ -424,10 +454,10 @@ static void cr_p_stripes(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
             cr_frect(x16, (yb + j) * 16, 360 * 16, 16, c);
         }
     }
-    if (s->title[0]) {
+    if (s->title[0] && !fr->name_off) {
         uint32_t px = s->title_px ? s->title_px : 34u;
         int32_t w = cr_tw(s->title, px, 1), sx = w > P8(224) ? ((P8(224) << 12) / w) : 4096;
-        cr_text(P8(120), P8(s->title_y ? CR_PY0 + s->title_y : y0 - 22), s->title, px, 1, CR_C, sx,
+        cr_text(P8(120), P8(s->title_y ? CR_PY0 + s->title_y : y0 - 22) - fr->name_dy, s->title, px, 1, CR_C, sx,
                 cr_rgb(s->title_col, CR_WHITE), T_BG, 0);
     }
     if (s->foot[0]) cr_text(P8(120), P8(CR_PY0 + ph - 8), s->foot, 12, 0, CR_C, 4096, T_MID, T_BG, 0);
@@ -525,6 +555,54 @@ static void cr_glyph_param(const cr_param_t *c, int32_t x, int32_t gy, uint16_t 
         cr_poly(p, np, 16, 32, 80, T_MID);
         break;
     }
+    case CR_G_TRI: {
+        int32_t sw = (cw - 12) * 16 / (int32_t)cyc;
+        CR_PT((x + 6) * 16, (gy + gh / 2) * 16);
+        for (k = 0; k < (int32_t)cyc; k++) {
+            CR_PT((x + 6) * 16 + k * sw + sw / 4, (gy + 10) * 16);
+            CR_PT((x + 6) * 16 + k * sw + sw * 3 / 4, (gy + gh - 10) * 16);
+        }
+        CR_PT((x + cw - 6) * 16, (gy + gh / 2) * 16);
+        cr_poly(p, np, w, 0, 0, col);
+        break;
+    }
+    case CR_G_NOISE: {                   /* a fixed jagged line (a frame costs what a wave does) */
+        static const int8_t NZ[15] = {0, 70, -40, 95, -85, 30, -100, 60, 10, -70, 100, -25, 80, -55, 0};
+        for (k = 0; k < 15; k++)
+            CR_PT((x + 6) * 16 + k * (cw - 12) * 16 / 14, (gy + gh / 2) * 16 - NZ[k] * (gh / 2 - 10) * 16 / 100);
+        cr_poly(p, np, 32, 0, 0, col);
+        break;
+    }
+    case CR_G_FTYPE: {                   /* LP, BP, HP, NOTCH: the response over the pass level (dashed) */
+        static const int8_t FT[4][7][2] = {
+            {{6, 18}, {30, 18}, {35, 13}, {41, 56}, {50, 56}, {-1, 0}},
+            {{6, 56}, {17, 46}, {25, 13}, {31, 13}, {39, 46}, {50, 56}, {-1, 0}},
+            {{6, 56}, {15, 56}, {21, 13}, {26, 18}, {50, 18}, {-1, 0}},
+            {{6, 18}, {21, 18}, {26, 56}, {30, 56}, {35, 18}, {50, 18}, {-1, 0}}};
+        const int8_t(*f)[2] = FT[c->n & 3u];
+        for (k = 0; k < 7 && f[k][0] >= 0; k++)
+            CR_PT((x + f[k][0]) * 16, (gy + f[k][1]) * 16);
+        cr_poly(p, np, w, 0, 0, col);
+        np = 0;
+        CR_PT((x + 6) * 16, (gy + 18) * 16); CR_PT((x + cw - 6) * 16, (gy + 18) * 16);
+        cr_poly(p, np, 16, 32, 80, T_MID);
+        break;
+    }
+    case CR_G_MOD: {                     /* SRC over DST, an arrow between, the amount a bar out of the middle */
+        int32_t a = (pct - 128) * 22 / 128;
+        cr_text_fit(P8(cx), P8(gy + 12), c->src, 11, 1, CR_C, col, T_BG, P8(54));
+        CR_PT(cx * 16, (gy + 17) * 16); CR_PT(cx * 16, (gy + 27) * 16);
+        cr_poly(p, np, 32, 0, 0, T_MID);
+        np = 0;
+        CR_PT((cx - 4) * 16, (gy + 23) * 16); CR_PT(cx * 16, (gy + 28) * 16); CR_PT((cx + 4) * 16, (gy + 23) * 16);
+        cr_poly(p, np, 32, 0, 0, T_MID);
+        cr_text_fit(P8(cx), P8(gy + 42), c->dst, 11, 1, CR_C, CR_WHITE, T_BG, P8(54));
+        cr_fill(x + 6, gy + 54, cw - 12, 2, T_LINE);
+        cr_fill(cx - 1, gy + 50, 2, 10, T_MID);
+        if (a > 0) cr_fill(cx + 1, gy + 52, a, 6, col);
+        else if (a < 0) cr_fill(cx - 1 + a, gy + 52, -a, 6, col);
+        break;
+    }
     case CR_G_BAR: {
         int32_t bh = (gh - 8) * pct / 256;
         for (k = 0; k < 7; k++)
@@ -562,13 +640,18 @@ static void cr_glyph_param(const cr_param_t *c, int32_t x, int32_t gy, uint16_t 
 #undef CR_PT
 }
 
-static void cr_p_params(const cr_screen_t *s, int32_t ph)
+static void cr_p_params(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
 {
     static const uint8_t KC[4] = {CR_COL_BLUE, CR_COL_ORANGE, CR_COL_WHITE, CR_COL_RED};
     int32_t y = CR_PY0 + 4, gy, i;
     if (s->title[0]) {
         cr_text(P8(10), P8(y + 14), s->title, 15, 1, CR_L, 4096, cr_rgb(s->col, CR_WHITE), T_BG, 0);
         if (s->page[0]) cr_text(P8(230), P8(y + 14), s->page, 12, 0, CR_R, 4096, T_MID, T_BG, 0);
+        if (s->n_sect > 1u) {            /* the section marks: one square each, the current one filled */
+            int32_t n = s->n_sect > 16u ? 16 : s->n_sect, x0 = 230 - n * 7 + 3;
+            for (i = 0; i < n; i++)
+                cr_fill(x0 + i * 7, y + 18, 4, 4, i == s->sect ? cr_rgb(s->col, CR_WHITE) : T_LINE);
+        }
         y += 22;
     }
     gy = y + 10;
@@ -577,6 +660,14 @@ static void cr_p_params(const cr_screen_t *s, int32_t ph)
         uint16_t col = cr_rgb(c->col ? c->col : KC[i], CR_WHITE);
         int32_t x = 8 + i * 58, cx = x + 28;
         if (!c->label[0] && !c->value[0]) continue;
+        if ((fr->hide >> i) & 1u) continue;                        /* (a page turn: not dealt yet) */
+        if (fr->sweep[i]) {                                        /* .. rising into place */
+            int32_t dy = (fr->sweep[i] + 128) >> 8;
+            cr_glyph_param(c, x, gy + dy, col);
+            cr_text_fit(P8(cx), P8(gy + dy + 64 + 14), c->label, 11, 1, CR_C, T_MID, T_BG, P8(54));
+            cr_text_fit(P8(cx), P8(gy + dy + 64 + 33), c->value, 15, 1, CR_C, col, T_BG, P8(54));
+            continue;
+        }
         cr_glyph_param(c, x, gy, col);
         cr_text_fit(P8(cx), P8(gy + 64 + 14), c->label, 11, 1, CR_C, T_MID, T_BG, P8(54));
         cr_text_fit(P8(cx), P8(gy + 64 + 33), c->value, 15, 1, CR_C, col, T_BG, P8(54));
@@ -591,7 +682,7 @@ static void cr_p_geek(const cr_screen_t *s, int32_t ph)
     for (i = 0; i < s->n_notes; i++)
         cr_text(P8(230), P8(CR_PY0 + 30 + 14 * (int32_t)i), s->note[i].t, 12, 1, CR_R, 4096,
                 cr_rgb(s->note[i].col, CR_WHITE), T_BG, 0);
-    for (i = 0; i < s->n_lines && i < 2u; i++)
+    for (i = 0; i < s->n_lines && i < 3u; i++)    /* (the third: the audio ISR's load, cr_ui.c) */
         cr_text_fit(P8(10), P8(CR_PY0 + 72 + 11 * (int32_t)i), s->lines[i].t, 10, 0, CR_L, T_MID, T_BG, P8(150));
     cr_keyboard(s, CR_PY0 + ph - 30, 26);
 }
@@ -621,12 +712,157 @@ static void cr_p_big(const cr_screen_t *s, int32_t ph)
     uint32_t size = s->size ? s->size : 118u;
     int32_t vy = P8(CR_PY0) + P8(ph) / 2 + (int32_t)(size * 87u) - P8(s->sub[0] ? 12 : 4), w = cr_tw(s->value, size, 1);
     int32_t sx = w > P8(228) ? ((P8(228) << 12) / w) : 4096;
+    int32_t lift = s->ring_on ? 22 : 0;  /* the ring's band: the lines under the value stay inside it */
     uint16_t under = s->block ? cr_rgb(s->block, CR_RED) : T_BG;
     if (s->block) cr_fill(0, CR_PY0, 240, ph, under);
-    cr_text(P8(120), vy, s->value, size, 1, CR_C, sx, s->block ? T_BG : cr_rgb(s->col, CR_WHITE), under, 0);
-    if (s->sub[0]) cr_text(P8(120), P8(CR_PY0 + ph - 26), s->sub, 15, 1, CR_C, 4096, s->block ? T_BG : T_TEXT, under, 0);
-    if (s->label[0]) cr_text(P8(120), P8(CR_PY0 + ph - 8), s->label, 14, 0, CR_C, 4096, s->block ? T_BG : T_MID, under, 0);
+    cr_text(P8(120), vy - P8(lift / 2), s->value, size, 1, CR_C, sx, s->block ? T_BG : cr_rgb(s->col, CR_WHITE), under, 0);
+    if (s->sub[0]) cr_text(P8(120), P8(CR_PY0 + ph - 26 - lift), s->sub, 15, 1, CR_C, 4096, s->block ? T_BG : T_TEXT, under, 0);
+    if (s->label[0]) cr_text(P8(120), P8(CR_PY0 + ph - 8 - lift), s->label, 14, 0, CR_C, 4096, s->block ? T_BG : T_MID, under, 0);
     if (s->title[0]) cr_text(P8(10), P8(CR_PY0 + 14), s->title, 12, 1, CR_L, 4096, T_MID, under, 0);
+}
+
+/* the scope: the master output as one bold line (3 px, white) over a thin grey centre line. Cheap: a column at a
+ * time, the span the polyline covers within a pixel either side (its neighbours' samples) +- 1.5 px, one
+ * fractional rectangle per column, only for the columns crossing the strip's rows */
+static void cr_p_scope(const cr_screen_t *s, int32_t ph)
+{
+    int32_t cy = (CR_PY0 + ph / 2) * 16 + 8, amp = (ph / 2 - 6) * 16, r0 = cr_row0() * 16, r1 = cr_row1() * 16, x;
+    int32_t prev, cur, next;
+    cr_fill(0, CR_PY0 + ph / 2, 240, 1, CR_NAMED[CR_COL_GREY]);
+    cur = cy - s->wave[0] * amp / 127;
+    prev = cur;
+    for (x = 0; x < (int32_t)CR_WAVE_N; x++) {
+        int32_t lo, hi;
+        next = x + 1 < (int32_t)CR_WAVE_N ? cy - s->wave[x + 1] * amp / 127 : cur;
+        lo = cur < prev ? cur : prev;
+        lo = next < lo ? next : lo;
+        hi = cur > prev ? cur : prev;
+        hi = next > hi ? next : hi;
+        lo -= 24;
+        hi += 24;
+        if (hi > r0 && lo < r1)
+            cr_frect(x * 16, lo, 16, hi - lo, cr_rgb(s->col, CR_WHITE));
+        prev = cur;
+        cur = next;
+    }
+}
+
+/* ------------------------------------------------------------ ring --- */
+/* Orchid's ring: a dotted circle round the edge (cr_arc width 5, dash 2 of 6 at R 113, T_LINE) and the progress
+ * over it (the same band solid, clockwise from 12 o'clock). Only its colour and fraction change, so the coverage
+ * of every pixel of the band is computed once (cr_arc_px, the first time a ring is drawn) into the POOL: per row up
+ * to two runs of pixels, a byte a pixel (the solid band's and the dotted circle's sample counts, d <= s, as one
+ * index of the 153 pairs). A frame blends the runs of its rows from the table; the progress is decided per run
+ * from its end pixels' angles (the angle is monotonic along a row): the runs well inside or outside the sweep take
+ * the band's coverage or none, and only the pixels within 64 / 65536 turn of its start or tip (more than a sample's
+ * angle can differ from its pixel's) take cr_arc_px's samples. The pixels are cr_arc's (tests/run_cr_draw.sh). */
+#define CR_RING_C (120 * 16)
+#define CR_RING_R (113 * 16)
+#define CR_RING_W (5 * 16)
+#define CR_RING_TOP 49152u                /* 12 o'clock */
+#define CR_RING_MAX 4352u                 /* the band's pixels (4 232: tests/cr_draw_test.c) */
+static struct {
+    uint16_t off[241];                    /* row j's pixels: cov[off[j] .. off[j + 1]) */
+    uint8_t x0[240][2], n[240][2];        /* its runs */
+    uint8_t ps[153], pd[153];             /* a pair's solid and dotted sample counts */
+    uint8_t cov[CR_RING_MAX];
+    uint8_t state;                        /* 0 not built, 1 built, 2 did not fit (cr_arc then) */
+} cr_ring __attribute__((section(".pool")));      /* (zero-initialised) */
+
+static void cr_ring_build(void)
+{
+    cr_arcg_t gs, gd;
+    uint32_t k = 0, q = 0, s, d;
+    int32_t i, j;
+    cr_arc_geom(&gs, CR_RING_C, CR_RING_C, CR_RING_R, CR_RING_W, 0, 65536u, 0, 0, 0);
+    cr_arc_geom(&gd, CR_RING_C, CR_RING_C, CR_RING_R, CR_RING_W, 0, 65536u, 0, 2 * 16, 6 * 16);
+    for (s = 0; s <= 16u; s++)
+        for (d = 0; d <= s; d++) {
+            cr_ring.ps[q] = (uint8_t)s;
+            cr_ring.pd[q++] = (uint8_t)d;
+        }
+    cr_ring.state = 2;
+    for (j = 0; j < 240; j++) {
+        int runs = 0, open = 0;
+        cr_ring.off[j] = (uint16_t)k;
+        cr_ring.n[j][0] = cr_ring.n[j][1] = 0;
+        for (i = 0; i < 240; i++) {
+            s = cr_arc_px(&gs, i, j);
+            if (!s) {
+                open = 0;
+                continue;
+            }
+            if (!open) {
+                if (runs == 2 || k >= CR_RING_MAX) return;
+                cr_ring.x0[j][runs++] = (uint8_t)i;
+                open = 1;
+            }
+            if (k >= CR_RING_MAX) return;
+            d = cr_arc_px(&gd, i, j);
+            cr_ring.cov[k++] = (uint8_t)(s * (s + 1u) / 2u + d);
+            cr_ring.n[j][runs - 1]++;
+        }
+    }
+    cr_ring.off[240] = (uint16_t)k;
+    cr_ring.state = 1;
+}
+
+/* the progress over a run of row j from x0 to x1: 0 none, 1 the band's coverage, 2 pixel by pixel */
+static int cr_ring_run(int32_t j, int32_t x0, int32_t x1, uint32_t sweep)
+{
+    int32_t pdy = j * 16 + 8 - CR_RING_C, rf, e, lo, hi;
+    uint32_t af, al;
+    if (sweep >= 65536u) return 1;
+    af = cr_atan2(pdy, x0 * 16 + 8 - CR_RING_C);
+    al = cr_atan2(pdy, x1 * 16 + 8 - CR_RING_C);
+    rf = (int32_t)((af - CR_RING_TOP) & 65535u);
+    e = rf + (int16_t)(uint16_t)(al - af);  /* the run spans under half a turn */
+    if (e < 0 || e > 65535) return 2;     /* across 12 o'clock */
+    lo = rf < e ? rf : e;
+    hi = rf < e ? e : rf;
+    if (lo >= 96 && hi + 96 <= (int32_t)sweep) return 1;
+    if (lo > (int32_t)sweep + 96 && hi < 65536 - 96) return 0;
+    return 2;
+}
+
+static void cr_ring_draw(const cr_screen_t *s)
+{
+    uint16_t lc = T_LINE, pc = s->ring_rec ? T_REC : cr_rgb(s->ring_col, CR_RED);
+    uint32_t sweep = !s->ring ? 0u : s->ring >= 256u ? 65536u : (uint32_t)s->ring << 8;
+    int32_t j, r0 = cr_row0(), r1 = cr_row1();
+    cr_arcg_t gp;
+    if (!cr_ring.state) cr_ring_build();
+    if (cr_ring.state != 1) {             /* (not reached: the table fits) */
+        cr_arc(CR_RING_C, CR_RING_C, CR_RING_R, CR_RING_W, 0, 65536u, 0, 2 * 16, 6 * 16, lc);
+        if (sweep) cr_arc(CR_RING_C, CR_RING_C, CR_RING_R, CR_RING_W, CR_RING_TOP, sweep, 0, 0, 0, pc);
+        return;
+    }
+    if (sweep) cr_arc_geom(&gp, CR_RING_C, CR_RING_C, CR_RING_R, CR_RING_W, CR_RING_TOP, sweep, 0, 0, 0);
+    for (j = r0; j < r1; j++) {
+        uint16_t *row = cv_px + (uint32_t)(j + cv_oy) * cv_w;
+        const uint8_t *cv = cr_ring.cov + cr_ring.off[j];
+        uint32_t h;
+        for (h = 0; h < 2u && cr_ring.n[j][h]; h++) {
+            int32_t x0 = cr_ring.x0[j][h], x1 = x0 + cr_ring.n[j][h], i;
+            int mode = sweep ? cr_ring_run(j, x0, x1 - 1, sweep) : 0;
+            for (i = x0; i < x1; i++) {
+                uint32_t q = *cv++, n = 0;
+                if (i < cr_clip.x0 || i >= cr_clip.x1) continue;
+                if (mode == 1) n = cr_ring.ps[q];
+                else if (mode == 2) {
+                    uint32_t rel = (cr_atan2(j * 16 + 8 - CR_RING_C, i * 16 + 8 - CR_RING_C) - CR_RING_TOP) & 65535u;
+                    if (rel >= 64u && rel + 64u <= sweep) n = cr_ring.ps[q];
+                    else if (!(rel > sweep + 64u && rel < 65536u - 64u)) n = cr_arc_px(&gp, i, j);
+                }
+                if (n >= 16u) {
+                    row[i] = swap16(pc);
+                    continue;
+                }
+                if (cr_ring.pd[q]) cr_mix(row + i, lc, cr_ring.pd[q] * 16u);
+                if (n) cr_mix(row + i, pc, n * 16u);
+            }
+        }
+    }
 }
 
 /* the whole screen into the canvas (its rows only) */
@@ -641,10 +877,11 @@ static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
     case CR_K_METER: cr_p_meter(s, fr, ph); break;
     case CR_K_KEYBOARD: cr_p_keyboard(s, ph); break;
     case CR_K_ARP: cr_p_arp(s, ph); break;
-    case CR_K_PARAMS: cr_p_params(s, ph); break;
+    case CR_K_PARAMS: cr_p_params(s, fr, ph); break;
     case CR_K_GEEK: cr_p_geek(s, ph); break;
     case CR_K_TEXT: cr_p_text(s); break;
     case CR_K_BIG: cr_p_big(s, ph); break;
+    case CR_K_SCOPE: cr_p_scope(s, ph); break;
     default: break;
     }
     if (s->footer[0]) {
@@ -652,12 +889,8 @@ static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
         int cut = cr_fit(b, sizeof b, s->footer, 12, 0, P8(224));
         cr_text(P8(120), P8(226), b, 12, 0, CR_C, 4096, T_MID, T_BG, cut ? 9u : 0u);
     }
-    if (s->ring_on) {                    /* Orchid's ring: a dotted circle round the edge, the progress solid */
-        cr_arc(120 * 16, 120 * 16, 113 * 16, 5 * 16, 0, 65536u, 0, 2 * 16, 6 * 16, T_LINE);
-        if (s->ring)
-            cr_arc(120 * 16, 120 * 16, 113 * 16, 5 * 16, 49152u, s->ring >= 256u ? 65536u : (uint32_t)s->ring << 8, 0, 0,
-                   0, s->ring_rec ? T_REC : cr_rgb(s->ring_col, CR_RED));
-    }
+    if (s->ring_on)                      /* Orchid's ring: a dotted circle round the edge, the progress solid */
+        cr_ring_draw(s);
     if (s->message[0]) {                 /* a transient message box over the panel */
         int32_t w = (cr_tw(s->message, 16, 1) >> 8) + 28;
         uint16_t c = cr_rgb(s->message_col, CR_WHITE);
@@ -671,10 +904,11 @@ static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
 #define CR_STRIP_H 40u
 #define CR_NSTRIP (240u / CR_STRIP_H)
 static struct {
-    uint32_t sig, pix[CR_NSTRIP];
+    uint32_t sig, base, pix[CR_NSTRIP];  /* base: the signature without the ring's fraction */
+    uint16_t ring;                       /* .. which was drawn */
     uint8_t valid, force;
     uint8_t blits;                       /* strips blitted by the last cr_draw (the host test reads it) */
-} cr_dc;
+} cr_dc __attribute__((section(".pool")));        /* (zero-initialised) */
 static uint32_t cr_strip_y;              /* the strip being drawn: its top row */
 
 static uint32_t cr_hash(uint32_t h, const void *p, uint32_t n)
@@ -693,17 +927,52 @@ static uint32_t cr_hash_px(void)
 /* the next cr_draw draws and blits the whole screen (after something else drew on it, a palette change) */
 static void cr_draw_invalidate(void) { cr_dc.force = 1; }
 
+/* the strips (bit k) holding pixels the ring's progress covers at one fraction and not the other (Q8): the band's
+ * rows over the angles between the two tips, widened by the samples' reach (cr_ring_draw) and two pixels */
+static uint32_t cr_ring_strips(uint32_t q0, uint32_t q1)
+{
+    uint32_t w0 = !q0 ? 0u : q0 >= 256u ? 65536u : q0 << 8, w1 = !q1 ? 0u : q1 >= 256u ? 65536u : q1 << 8;
+    uint32_t lo = w0 < w1 ? w0 : w1, hi = w0 < w1 ? w1 : w0, a0, len, m = 0, k;
+    int32_t s0, s1, smin, smax, rin = CR_RING_R - CR_RING_W / 2 - 12, rout = CR_RING_R + CR_RING_W / 2 + 12;
+    int32_t y0, y1;
+    if (hi - lo + 256u >= 65536u) return (1u << CR_NSTRIP) - 1u;
+    a0 = (CR_RING_TOP + lo - 128u) & 65535u;
+    len = hi - lo + 256u;
+    s0 = cr_sin(a0);
+    s1 = cr_sin(a0 + len);
+    smin = s0 < s1 ? s0 : s1;
+    smax = s0 < s1 ? s1 : s0;
+    if (((16384u - a0) & 65535u) <= len) smax = 16384;       /* the bottom within the angles */
+    if (((49152u - a0) & 65535u) <= len) smin = -16384;      /* the top */
+    y0 = CR_RING_C + (((smin < 0 ? rout : rin) * smin) >> 14);
+    y1 = CR_RING_C + (((smax < 0 ? rin : rout) * smax) >> 14);
+    y0 = (y0 >> 4) - 2;
+    y1 = (y1 >> 4) + 2;
+    for (k = 0; k < CR_NSTRIP; k++)
+        if ((int32_t)((k + 1u) * CR_STRIP_H) > y0 && (int32_t)(k * CR_STRIP_H) <= y1) m |= 1u << k;
+    return m;
+}
+
 static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
 {
     cr_frame_t fr;
-    uint32_t sig, k;
+    uint32_t sig, base, k, strips = (1u << CR_NSTRIP) - 1u;
     cr_frame(s, anim_ms, &fr);
-    sig = cr_hash(cr_hash(2166136261u ^ ux.gen, s, sizeof *s), &fr, sizeof fr);
+    /* the struct's bytes with the ring's fraction left out, the frame, the palette; then the fraction */
+    base = cr_hash(2166136261u ^ ux.gen, s, (uint32_t)__builtin_offsetof(cr_screen_t, ring));
+    base = cr_hash(base, (const uint8_t *)s + __builtin_offsetof(cr_screen_t, ring) + sizeof s->ring,
+                   (uint32_t)(sizeof *s - __builtin_offsetof(cr_screen_t, ring) - sizeof s->ring));
+    base = cr_hash(base, &fr, sizeof fr);
+    sig = cr_hash(base, &s->ring, sizeof s->ring);
     cr_dc.blits = 0;
     if (cr_dc.valid && !cr_dc.force && sig == cr_dc.sig)
         return;                          /* nothing changed: nothing drawn */
+    if (cr_dc.valid && !cr_dc.force && base == cr_dc.base && s->ring_on)
+        strips = cr_ring_strips(cr_dc.ring, s->ring);   /* only the fraction moved: the strips its tip crossed */
     for (k = 0; k < CR_NSTRIP; k++) {
         uint32_t h;
+        if (!(strips >> k & 1u))
+            continue;
         cr_strip_y = k * CR_STRIP_H;
         cv_begin(240u, CR_STRIP_H, T_BG);
         cv_oy = -(int32_t)cr_strip_y;
@@ -718,6 +987,8 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
         }
     }
     cr_dc.sig = sig;
+    cr_dc.base = base;
+    cr_dc.ring = s->ring;
     cr_dc.valid = 1;
     cr_dc.force = 0;
 }

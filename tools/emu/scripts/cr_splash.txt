@@ -1,0 +1,11 @@
+# ChoralRoot: the power-on splash = the idle stripes' first 1.5 s: the bands slide in from the left one after
+# another (red, orange, white), the name lands on them, the version under them; then the idle screen goes on.
+wait 150
+shot build/emu/test/cr_splash_150.ppm
+wait 250
+shot build/emu/test/cr_splash_400.ppm
+wait 600
+shot build/emu/test/cr_splash_1000.ppm
+wait 500
+shot build/emu/test/cr_splash_1500.ppm
+dump

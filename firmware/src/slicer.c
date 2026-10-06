@@ -17,6 +17,9 @@
  * in time), restarted with the transport (seq_start -> slicer_start: step 0 starts with the
  * sequencer's step 0), BPM and the track's + the global SWING as the sequencer has them (seq.c
  * step_samples); sample exact. With the SLICER OFF and no ramp left, the signal is not touched. */
+#ifndef FELUCCA_SLICER
+#define FELUCCA_SLICER 1         /* 0: no SLICER (stubs below; perform.c's buffer effects off) */
+#endif
 #define SL_NPAT 16
 #define SL_LEN 4096u                    /* recording, 22.05 kHz samples a track: 186 ms, 8 KB */
 #define SL_RAMP_LOG2 7
@@ -24,6 +27,7 @@
 #define SL_SLOPE (32768 / SL_RAMP)
 enum { SL_OFF, SL_GATE, SL_STUT };      /* P_SLCR (params.c N_SLCR) */
 
+#if FELUCCA_SLICER
 /* bit k = step k: 1 = 'x' (open / live), 0 = '.' (closed / repeat) */
 static const uint16_t SL_PAT[SL_NPAT] = {
     0x5555,   /*  1 x.x.x.x.x.x.x.x. */
@@ -46,6 +50,9 @@ static const uint16_t SL_PAT[SL_NPAT] = {
 static const uint8_t SL_DEN[6] = {2, 4, 8, 3, 6, 12};   /* P_SLRATE (N_SLDIV): a step = 1 / DEN beats */
 
 static int16_t sl_buf[NTRK][SL_LEN] __attribute__((section(".pool")));
+#else
+static int16_t sl_buf[1][2];       /* (perform.c's names; never touched: perf_press is off) */
+#endif
 typedef struct {
     uint32_t pos, len;           /* samples into the step, its length */
     uint32_t base;               /* the step without swing */
@@ -60,6 +67,8 @@ typedef struct {
 } sl_t;
 static sl_t sl[NTRK];
 static uint8_t sl_lent;          /* perform.c has borrowed sl_buf: STUT plays live, records nothing */
+
+#if FELUCCA_SLICER
 
 static void slicer_start(void)   /* seq_start: the next block starts step 0 of every track */
 {
@@ -170,3 +179,8 @@ static int slicer_busy(const track_t *t)
     const sl_t *s = &sl[t - trk];
     return s->w || (t->p[P_SLCR] == SL_STUT && s->loop);
 }
+#else
+static void slicer_start(void) {}
+static void slicer_track(const track_t *t, int32_t *b, uint32_t n) { (void)t; (void)b; (void)n; }
+static int slicer_busy(const track_t *t) { (void)t; return 0; }
+#endif

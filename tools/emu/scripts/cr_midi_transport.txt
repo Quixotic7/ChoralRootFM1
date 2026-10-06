@@ -1,0 +1,62 @@
+# ChoralRoot: MIDI start / continue / stop in (Options > MIDI Clock = In) drive the loop; with Clock = Out they are
+# ignored. A 1-bar Free loop (as cr_loop_free), LOOP stops it, then FC / FA / FC / FB / FA-while-playing; Out: FA.
+wait 300
+key N 80                     # Options: MIDI Clock -> In
+wait 100
+knob SELECT +11
+knob KNOB1 +2
+wait 100
+key N 80
+wait 200
+btn REC
+wait 300
+btn A#3 down
+btn D4 down
+wait 500
+btn D4 up
+btn A#3 up
+wait 500
+btn G#3 down
+btn E4 down
+wait 500
+btn E4 up
+btn G#3 up
+wait 400
+btn REC                      # commit: plays
+wait 400
+expect led GREEN on          # 1
+btn PLAY                     # LOOP: stop
+wait 300
+expect led GREEN off         # 2
+midi FC                      # stop while stopped: nothing
+wait 200
+expect led GREEN off         # 3
+midi FA                      # start: plays
+wait 200
+expect led GREEN on          # 4
+dump
+midi FC                      # stop
+wait 200
+expect led GREEN off         # 5
+dump
+midi FB                      # continue: plays
+wait 200
+expect led GREEN on          # 6
+midi FA                      # start while playing: from the top, still playing
+wait 200
+expect led GREEN on          # 7
+midi FC
+wait 200
+expect led GREEN off         # 8
+key N 80                     # Options: MIDI Clock -> Out
+wait 100
+knob KNOB1 -1
+wait 100
+key N 80
+wait 200
+midi FA                      # Out: ignored
+wait 300
+expect led GREEN off         # 9
+dump
+wait 2000
+dump

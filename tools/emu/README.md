@@ -25,6 +25,7 @@ build/host/emu --help          # options and the key map
 | `emu_fw.c`, `emu_firmware.h`, `emu_hal_fw.h` | the firmware side: its sources, the HAL, power-on, frame, audio ISR |
 | `emu_midi.c` | CoreMIDI: source "ChoralRoot FM-1" (out), destination "ChoralRoot FM-1 In" (in) |
 | `emu_img.c` | LCD to PNG / PPM |
+| `perf.sh`, `scripts/perf_*.txt`, `wavclicks.py` | the worst cases for the CPU and the pops (docs/INTEGRATION.md, Performance): the audio block's cost and its device estimate, the UI frame's, voices stolen, flash erases, and the WAV checked for jumps, silent holes and clicks |
 | `scripts/`, `test.sh`, `test_cr.sh` | headless scripts and their checks (`sel.txt`, `knobs.txt`, `acceptance.txt`: Felucca's UI, no longer run) |
 
 ## Windowed mode: never in front by default
@@ -43,7 +44,8 @@ wheel over them or a vertical drag; a click selects a knob for Up / Down. At exi
 render time (avg / max us), the device callback gaps and the UI frame time.
 
 Other options: `--flash PATH` / `--no-flash` / `--save-on-exit` (the flash file: settings, user sounds, loops), `--demo` (ignored by ChoralRoot), `--quit-after S`, `--midi-log`, `--no-midi`, `--no-audio`,
-`--shot PATH` (the LCD at exit).
+`--shot PATH` (the LCD at exit). A flash erase plays as on the device: 45 ms of silence with the audio ISR not run
+(`emu_hal_fw.h` `st_erase`; the dump's `flash erases with the audio stalled` line counts them).
 
 ## Key map (physical US-layout positions; `keymap.c`)
 
@@ -80,7 +82,11 @@ No window and no audio device: `SDL_Init(0)` with `SDL_VIDEODRIVER=dummy` and `S
 Time is simulated (the 1 ms timer, a UI frame every 15 ms, the 128-frame audio blocks as they fall due), so
 a run is deterministic: the same script gives the same LCD and the same audio, bit for bit. It runs N
 frames of 15 ms (`--frames N`; without it, to the end of the script, else 600 frames), then prints the
-peak / rms, the block render time, **the number of non-silent blocks and non-zero samples**, and exits
+peak / rms, the block render time, the host instructions per audio block and UI frame with the device estimate
+(`EMU_CPU_LOG=PCT` lists every block above PCT % of the device's budget; `EMU_UI_LOG=N` every UI frame above N
+million host instructions, with its index, time, device estimate and the screen it drew: kind, view, name / item /
+title, animation clock, ring, message, strips blitted), **the number of non-silent blocks and
+non-zero samples**, and exits
 1 if an `expect` failed (2 on a script error). `--frames` alone implies `--headless`.
 
 ### Script grammar

@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-"""Build Felucca: the app, the update loader and an installable .fwsc package.
+"""Build ChoralRoot FM-1: the app, the update loader and an installable .fwsc package.
 
   tools/build.py [--release X.Y[-suffix]]
 
-Outputs in build/: felucca.bin (app), loader/ota.bin (update loader),
-felucca.fwsc (package). A release build (--release X.Y) writes felucca-X.Y.fwsc and a folder
-release-X.Y/ with the package, the app, SHA256SUMS, the sample attribution and the licence files.
+The unit is firmware/src/choralroot.c (ChoralRoot's single compilation unit, a fork of Felucca's felucca.c).
+Outputs in build/: choralroot.bin (app), choralroot.elf, choralroot.dis, loader/ota.bin (update loader),
+choralroot.fwsc (package, identity FM-1_920). A release build (--release X.Y) keeps the identity, sets the
+version string to "ChoralRoot X.Y" and writes choralroot-X.Y.fwsc and a folder release-X.Y/ with the package,
+the app (choralroot-X.Y-app.bin), SHA256SUMS, the sample attribution and the licence files.
+After the checks it prints the section sizes against the XIP slot and the RAM / POOL / NOINIT regions.
 See BUILDING.md for the toolchain and the SDK.
 
 The JieLi toolchain is Linux x86-64 only. JIELI_TOOLCHAIN points at it; on
@@ -49,8 +52,10 @@ SDK_SHA256 = {
     "cfg/eq_cfg_hw.bin": "41167491bffed4651750719c973d2758adeb9021a5670d02d6a53c85ed80ea7d",
 }
 
-PRODUCT = "FM-1_900"                # package identity; release builds are FM-1_9XY
-VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/felucca.c)
+UNIT = "choralroot"                 # firmware/src/UNIT.c; outputs build/UNIT.{bin,elf,dis,fwsc}
+PRODUCT = "FM-1_920"                # package identity (ChoralRoot: constant, releases too)
+VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/choralroot.c)
+XIP_LEN, RAM_LEN, POOL_LEN, NOINIT_LEN = 0x8DFBC, 96 * 1024, 0x54000, 0x3D50   # firmware/app.ld
 
 
 def toolchain():
@@ -180,40 +185,43 @@ def build_loader():
 def build_app():
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_OTA_RAMONLY", "FELUCCA_CDC",
-                 "FELUCCA_UART", "FELUCCA_UAC", "FELUCCA_UAC_TONE", "FELUCCA_ICONS", "FELUCCA_SLICE", "FELUCCA_FM4"):
-        v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
+                 "FELUCCA_UART", "FELUCCA_UAC", "FELUCCA_UAC_TONE", "FELUCCA_ICONS", "FELUCCA_SLICE", "FELUCCA_SLICER",
+                 "FELUCCA_FM4"):
+        v = os.environ.get(flag)    # unset: the default in firmware/src/choralroot.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     if VERSION:
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
-    # felucca.c goes to LLVM IR without the optimizer, the main-loop functions (UI, stores, editor) are
+    # the unit goes to LLVM IR without the optimizer, the main-loop functions (UI, screens, stores) are
     # marked minsize (tools/size_fns.py), then the IR is compiled at -Os. FELUCCA_SIZE=0: -Os everywhere
     size = os.environ.get("FELUCCA_SIZE") != "0"
+    unit = FW / "src" / f"{UNIT}.c"
     cmain = (("cc", *flags, "-S", "-emit-llvm", "-Xclang", "-disable-llvm-optzns", "-c",
-              FW / "src" / "felucca.c", "-o", OUT / "felucca.ll") if size else
-             ("cc", *flags, "-c", FW / "src" / "felucca.c", "-o", OUT / "felucca.o"))
+              unit, "-o", OUT / f"{UNIT}.ll") if size else
+             ("cc", *flags, "-c", unit, "-o", OUT / f"{UNIT}.o"))
     tc_all(("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
            ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
            ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
            cmain)
     if size:
-        subprocess.run([sys.executable, SRC / "tools" / "size_fns.py", OUT / "felucca.ll", OUT / "felucca_size.ll"],
+        subprocess.run([sys.executable, SRC / "tools" / "size_fns.py", OUT / f"{UNIT}.ll", OUT / f"{UNIT}_size.ll"],
                        check=True)
         tc("cc", *[f for f in flags if not f.startswith(("-I", "-D", "-W"))], "-c",
-           OUT / "felucca_size.ll", "-o", OUT / "felucca.o")
-    elf = OUT / "felucca.elf"
+           OUT / f"{UNIT}_size.ll", "-o", OUT / f"{UNIT}.o")
+    elf = OUT / f"{UNIT}.elf"
     tc("pi32v2/bin/ld", "-T", FW / "app.ld", OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
-       OUT / "felucca.o", "-o", elf)
+       OUT / f"{UNIT}.o", "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin"):
         (OUT / sect).unlink(missing_ok=True)
-    *_, syms, dis, rt = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
+    *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
                                ("common/bin/objdump", "-t", elf),
                                ("common/bin/objdump", "-d", elf),
-                               ("common/bin/objdump", "-d", "-j", ".ram_text", elf))
-    (OUT / "felucca.dis").write_text(dis)
+                               ("common/bin/objdump", "-d", "-j", ".ram_text", elf),
+                               ("common/bin/objdump", "-h", elf))
+    (OUT / f"{UNIT}.dis").write_text(dis)
 
     def symv(name):
         return int(re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M).group(1), 16)
@@ -230,8 +238,26 @@ def build_app():
             img += b"\xff" * (load - APP_XIP - len(img))
             img += blob
     img += b"\xff" * (-len(img) % 4)
-    (OUT / "felucca.bin").write_bytes(img)
-    return bytes(img), syms, dis, rt
+    (OUT / f"{UNIT}.bin").write_bytes(img)
+    return bytes(img), syms, dis, rt, hdr
+
+
+def size_line(hdr):
+    """section sizes (objdump -h) against firmware/app.ld's regions"""
+    sz = {}
+    for ln in hdr.splitlines():
+        p = ln.split()
+        if len(p) > 3 and p[0].isdigit() and p[1].startswith("."):
+            sz[p[1]] = int(p[2], 16)
+    t, rt, d, b = (sz.get(k, 0) for k in (".text", ".ram_text", ".data", ".bss"))
+    xip, ram = t + rt + d, d + b
+    s = (f"size: .text {t} B, .ram_text {rt} B, .data {d} B, .bss {b} B; "
+         f"XIP {xip} B of {XIP_LEN} ({100 * xip / XIP_LEN:.1f}%), RAM {ram} B of {RAM_LEN} ({100 * ram / RAM_LEN:.1f}%)")
+    if ".pool" in sz:
+        s += f", POOL {sz['.pool']} B of {POOL_LEN} ({100 * sz['.pool'] / POOL_LEN:.1f}%)"
+    if ".noinit" in sz:
+        s += f", NOINIT {sz['.noinit']} B of {NOINIT_LEN} ({100 * sz['.noinit'] / NOINIT_LEN:.1f}%)"
+    return s
 
 
 def check(img, syms, dis, rt):
@@ -315,19 +341,18 @@ def mmio_check():
 
 
 def main():
-    global PRODUCT, VERSION
+    global VERSION
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_9XY, version string vX.Y")
+    ap.add_argument("--release", metavar="X.Y", help=f"release build: identity {PRODUCT}, version string ChoralRoot X.Y")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     a = ap.parse_args()
-    name = "felucca.fwsc"
-    if a.release:                   # one digit each: the identity has room for two (X.Y.Z keeps X.Y's)
+    name = f"{UNIT}.fwsc"
+    if a.release:                   # the identity stays FM-1_920: only the version string and the names change
         m = re.fullmatch(r"(\d)\.(\d)(?:\.\d)?(-[A-Za-z0-9]+)?", a.release)
         if not m:
             raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z or X.Y-suffix, one digit each")
-        PRODUCT = "FM-1_9" + m[1] + m[2]
-        VERSION = "v" + a.release.lower()      # e.g. v1.0, v1.1-rc1
-        name = f"felucca-{a.release}.fwsc"
+        VERSION = "ChoralRoot " + a.release.lower()      # e.g. ChoralRoot 1.0, ChoralRoot 1.1-rc1
+        name = f"{UNIT}-{a.release}.fwsc"
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
@@ -337,7 +362,7 @@ def main():
         gen, ldr = ex.submit(generate), ex.submit(build_loader)
         gen.result()
         ota = ldr.result()
-    img, syms, dis, rt = build_app()
+    img, syms, dis, rt, hdr = build_app()
     errors, notes = check(img, syms, dis, rt)
     hal_err = mmio_check()
     errors += hal_err
@@ -347,6 +372,7 @@ def main():
         print("  ok   ", n)
     for e in errors:
         print("  FAIL ", e)
+    print(size_line(hdr))
     if errors:
         raise SystemExit("build: checks failed")
     pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY), ota, PRODUCT)
@@ -354,14 +380,14 @@ def main():
     att = SRC / "assets" / "samples-cc0" / "ATTRIBUTION.txt"
     if att.exists():
         shutil.copy(att, OUT / "ATTRIBUTION.txt")
-    print(f"app      {OUT / 'felucca.bin'}  {len(img)} B")
+    print(f"app      {OUT / f'{UNIT}.bin'}  {len(img)} B")
     print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")
     if a.release:                   # what a release carries: the package, the app and every licence they need
         rel = OUT / f"release-{a.release}"
         shutil.rmtree(rel, ignore_errors=True)
         (rel / "LICENSES").mkdir(parents=True)
-        app = f"felucca-{a.release}-app.bin"
+        app = f"{UNIT}-{a.release}-app.bin"
         (rel / name).write_bytes(pkg)
         (rel / app).write_bytes(img)
         (rel / "SHA256SUMS").write_text("".join(f"{hashlib.sha256(b).hexdigest()}  {n}\n"

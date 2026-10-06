@@ -1,0 +1,16 @@
+# test_persist.sh, VA run 2 (the same flash file): the power-on sound is LUSH PAD (bank 25, the settings record of
+# run 1); PRESETS +16 reaches U01 after the 40 bank sounds: the trace "va: load slot 1 patch crc XXXX" (the same patch
+# as saved); a chord on it sounds
+wait 500
+knob PRESETS +16
+wait 400
+key F3 down
+wait 40
+key A down
+wait 600
+expect sound
+key A up
+key F3 up
+wait 300
+dump
+quit

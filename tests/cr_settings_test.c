@@ -68,7 +68,7 @@ static void t_defaults(void)
             }
     ok(1, "defaults: perform parameters checked");
     e = d;
-    o.clock_out = 1; o.part[0] = 0; o.part[1] = 1; o.part[2] = CRS_NONE;
+    o.clock_out = 1; o.clock_in = 0; o.part[0] = 0; o.part[1] = 1; o.part[2] = CRS_NONE;
     o.midi_en[0] = o.midi_en[1] = 1; o.midi_en[2] = 0; o.ch[0] = 0; o.ch[1] = 1; o.ch[2] = 2;
     cr_settings_capture(&e, &C, &o);
     ok(cr_settings_equal(&e, &d), "capture of a fresh engine = the defaults");
@@ -105,6 +105,11 @@ static void t_roundtrip(void)
     o2 = o; o2.clock_out = 1;
     cr_settings_capture(&back, &C, &o2);
     ok(back.clock_mode == CRS_CLOCK_OUT, "capture: clock out");
+    o2.clock_out = 0; o2.clock_in = 1;
+    cr_settings_capture(&back, &C, &o2);
+    ok(back.clock_mode == CRS_CLOCK_IN, "capture: clock in");
+    cr_settings_apply(&back, &C, &o2);
+    ok(o2.clock_in && !o2.clock_out, "apply: clock in");
 }
 
 static void t_corruption(void)

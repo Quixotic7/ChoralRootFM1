@@ -1,0 +1,26 @@
+# ChoralRoot: the edit-page knob steps. EDIT tap on the ENV page; KNOB 2 +1: DEC 90 -> 96 (a detent: 5% of
+# 0..127 = 6); OPT (N) held + KNOB 2 +1: 96 -> 97 (fine); KNOB 2 +30: clamps at 127; SELECT +1 (LFO) KNOB 2 +1:
+# WAVE one step; SELECT +3 (MIX) KNOB 3 +1: VOICE one step
+wait 300
+knob PRESETS +4
+wait 1200
+btn SEL
+wait 300
+knob KNOB2 +1
+wait 100
+key N down
+wait 100
+knob KNOB2 +1
+wait 100
+key N up
+wait 100
+knob KNOB2 +30
+wait 100
+knob SELECT +1
+wait 100
+knob KNOB2 +1
+wait 100
+knob SELECT +3
+wait 100
+knob KNOB3 +1
+wait 300

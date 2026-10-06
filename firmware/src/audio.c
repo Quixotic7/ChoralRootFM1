@@ -22,6 +22,38 @@ struct felucca_dbg {
 static volatile uint32_t audio_halves, audio_max_us;
 static volatile uint32_t t5_nested_ticks;              /* TIMER4 ticks TIMER5 spent nested in this ISR (main.c) */
 static uint32_t audio_cpu_rem;                         /* keep the fractional IIR step: no low-load bias */
+/* the last second's audio ISR (ChoralRoot's console `cpu`, the GEEK OUT view): the ISR adds each half's render time
+ * (us, TIMER5 nested in it left out) and its whole time (ticks, nested included: what the DMA deadline sees);
+ * cpu_window() in the main loop closes a window every second (cpu_last) */
+static volatile uint32_t aw_max_us, aw_sum_us, aw_n, aw_max_all;
+static volatile uint8_t aw_reset;                /* the UI took the window: the ISR starts a new one (lock-free) */
+static struct {
+    uint32_t avg_us, max_us, max_all_us, halves, late, ui_max_ms, ui_frames;   /* the last full second */
+    uint32_t late0, t0, ui_last, ui_max, ui_n;                                 /* the window being filled */
+} cpu_last;
+static void cpu_window(uint32_t now_ms)          /* once per UI frame: a frame's period, and the second's close */
+{
+    uint32_t d = now_ms - cpu_last.ui_last;
+    if (cpu_last.ui_last && d > cpu_last.ui_max)
+        cpu_last.ui_max = d;
+    cpu_last.ui_last = now_ms;
+    cpu_last.ui_n++;
+    if (now_ms - cpu_last.t0 < 1000u)
+        return;
+    if (aw_reset)
+        return;                                  /* (the ISR has not taken the last one yet: no half since) */
+    cpu_last.avg_us = aw_n ? aw_sum_us / aw_n : 0u;
+    cpu_last.max_us = aw_max_us;
+    cpu_last.max_all_us = aw_max_all / FM1_TICKS_PER_US;
+    cpu_last.halves = aw_n;
+    aw_reset = 1;
+    cpu_last.late = felucca_dbg.late - cpu_last.late0;
+    cpu_last.late0 = felucca_dbg.late;
+    cpu_last.ui_max_ms = cpu_last.ui_max;
+    cpu_last.ui_frames = cpu_last.ui_n;
+    cpu_last.ui_max = cpu_last.ui_n = 0;
+    cpu_last.t0 = now_ms;
+}
 #define SCOPE_N 512u
 static int16_t scope_buf[SCOPE_N];
 static uint32_t scope_w;
@@ -119,9 +151,22 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         }
         fm1_audio_ack_half();
         audio_halves++;
-        us = shed_check(fm1_ticks() - t0);
+        {
+            uint32_t all = fm1_ticks() - t0;
+            us = shed_check(all);
+            if (aw_reset) {                             /* cpu_window took the last second */
+                aw_max_us = aw_sum_us = aw_n = aw_max_all = 0;
+                aw_reset = 0;
+            }
+            if (all > aw_max_all)
+                aw_max_all = all;
+        }
         if (us > audio_max_us)
             audio_max_us = us;
+        if (us > aw_max_us)
+            aw_max_us = us;
+        aw_sum_us += us;
+        aw_n++;
         {
             uint32_t load = song.cpu_q8 * (CPU_AVG - 1u) + (us * 256u) / (HALF_FRAMES * 1000000u / FS) + audio_cpu_rem;
             song.cpu_q8 = load / CPU_AVG;

@@ -37,15 +37,25 @@ dv_out 35
 slicer_track 632
 slice_render 453
 slc_rev 120
-fm1_alnk0_irq 37502
+# ChoralRoot (build/choralroot.dis, 2026-10-06): the audio ISR also ticks the ChoralRoot engine, the looper, MIDI in,
+# the click and the clock (cr_out.c cr_audio_block, inlined into the half's block loop), and the master limiter has
+# ChoralRoot's smoothed branch (fx.c fx_smooth): 41834 against Felucca's 37502 (+12 %). Measured, not guessed: the
+# emulator's worst cases (tools/emu/perf.sh: FM6 6-note chords, the bass, a playing loop and the arp at 200 BPM)
+# cost 20-24 % of the 2.9 ms half on average and 46 % at most on the device scale (1.7 % per 100 host instructions
+# a sample); the device's own figure is the console's `cpu` (docs/INTEGRATION.md, Performance). The +10 % check
+# still catches a render loop that grows from here.
+fm1_alnk0_irq 41834
 fm1_timer5_irq 33386
 mod_begin 158
 mod_voice 30
 mod_end 7
-perf_begin 28
+# ChoralRoot: perform.c with FELUCCA_SLICER 0 (slicer.c's stubs inlined): 34 static, never busy (perf_press returns)
+perf_begin 34
 perf_mute 21
 perf_pre 27
 perf_block 814
 perf_master 31
 rev_room 218
 rev_spring 126
+va_render 32669
+va_block 93

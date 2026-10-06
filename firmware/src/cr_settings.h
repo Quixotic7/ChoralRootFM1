@@ -41,7 +41,7 @@ typedef struct {
     int16_t par[CRS_NPM][CRS_NPAR];                  /* per-mode perform parameters (cr_engine.h cr_param_t) */
     uint8_t loop_sync, loop_quant, loop_count_in, loop_level;   /* 0..5 (Free, 1..16 bars), 0..6, 0/1, 0..100 */
     uint8_t midi_en[3], midi_ch[3];                  /* per stream (MAIN BASS RAW): MIDI out on, channel 0..15 */
-    uint8_t clock_mode, raw_sound, view, motion;     /* CRS_CLOCK_*, RAW also plays part 0, View 0..3, Motion 0..2 */
+    uint8_t clock_mode, raw_sound, view, motion;     /* CRS_CLOCK_*, RAW also plays part 0, View 0..4, Motion 0..2 */
     uint8_t palette, leds, fx_on, rsv1;              /* palette index (CRS_PALETTE_MOD), LEDs Glow / Stock, FX on */
     uint16_t chord_sound, bass_sound;                /* list positions: PRESETS (CRS_SOUND_DEFAULT), ALGORITHM (BASS tap's, 1..; 0 = UI default) */
     /* version 2 */
@@ -54,6 +54,7 @@ typedef struct {
     uint8_t part[3];                    /* 0 = CHORD part, CRS_NONE: none (RAW only: Raw Chord Sound) */
     uint8_t midi_en[3], ch[3];
     uint8_t clock_out;
+    uint8_t clock_in;                   /* Options > MIDI Clock = In (clock_out is then 0) */
 } cr_settings_out_t;
 
 void cr_settings_defaults(cr_settings_t *s);

@@ -154,11 +154,19 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
     memcpy(dst, emu_flash + off, n);
     return 0;
 }
+/* the device's erase (storage_hw.c st_erase): the audio buffer zeroed and every IRQ off for the 4 KiB erase (typ.
+ * ~45 ms on the FM-1's NOR, up to 400 ms): no render, the DMA loops silence. The emulator plays the same hole:
+ * EMU_ERASE_MS of zero blocks, the firmware's audio ISR not run meanwhile (emu_fw_audio) */
+#define EMU_ERASE_MS 45u
+static uint32_t emu_stall_blocks, emu_stalls, emu_stall_blocks_all;
+#define st_erases emu_stalls                      /* (storage_hw.c's count: the console, the GEEK OUT view) */
 static int st_erase(uint32_t off)
 {
     off &= ~0xFFFu;
     if (off >= EMU_FLASH_SIZE)
         return -8;
+    emu_stall_blocks += (EMU_ERASE_MS * 44100u / 1000u + HALF_FRAMES - 1u) / HALF_FRAMES;
+    emu_stalls++;
     memset(emu_flash + off, 0xFF, 0x1000u);
     emu_flash_sync(off, 0x1000u);
     return 0;

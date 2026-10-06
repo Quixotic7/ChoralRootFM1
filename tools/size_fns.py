@@ -4,9 +4,10 @@
 """Build the main-loop code for size (build.py): the functions defined in SIZE_FILES get LLVM's
 minsize (about -Oz) while everything else (the sound, render and ISR code, the flash and OTA code,
 the main loop) keeps -Os. The JieLi clang 4 has no '#pragma clang attribute' and its minsize
-attribute is an error on variables, so build.py compiles felucca.c to LLVM IR without the
+attribute is an error on variables, so build.py compiles the unit (choralroot.c) to LLVM IR without the
 optimizer, this script adds 'minsize' to those definitions, and the IR is then compiled at -Os
-(without the edit, that round trip is byte-identical to compiling felucca.c directly).
+(without the edit, that round trip is byte-identical to compiling the unit directly). A listed file that is
+missing is skipped (Felucca's UI files stay listed: they are not in ChoralRoot's unit, so their names match nothing).
   size_fns.py IN.ll OUT.ll"""
 import re
 import sys
@@ -17,7 +18,10 @@ SRC = _ROOT / "firmware" / "src" if (_ROOT / "firmware" / "src").is_dir() else _
 # the UI, the stores, the editor and the console: main loop only, never called by sound code
 SIZE_FILES = ["ui.c", "favorites.c", "icons.c", "ui_graph.c", "ui_draw.c", "ui_menu.c", "ui_input.c",
               "storage.c", "upreset.c", "project.c", "settings_persist.c",
-              "editor.c", "editor_preferences.c", "editor_backup.c", "console.c"]
+              "editor.c", "editor_preferences.c", "editor_backup.c", "console.c",
+              # ChoralRoot's UI, screens and stores (not cr_engine.c, cr_out.c, cr_loop.c: they tick in the audio ISR)
+              "cr_ui.c", "cr_draw.c", "cr_gfx.c", "cr_pages.c", "cr_bank.c", "cr_name.c", "cr_settings.c",
+              "cr_anim.c", "cr_shim.c"]
 DEF = re.compile(r"^(?:static|void|int|uint\w*|int\w*|const)\b[^;=(]*?\b([A-Za-z_]\w*)\s*\(", re.M)
 IR_DEF = re.compile(r"^(define [^\n]*?@\"?([\w.]+)\"?\([^\n]*\)(?: unnamed_addr| local_unnamed_addr)?)( #\d+[^\n]*\{)$",
                     re.M)
@@ -43,7 +47,8 @@ def definitions(text):
 def size_names():
     names = set()
     for f in SIZE_FILES:
-        names.update(definitions((SRC / f).read_text()))
+        if (SRC / f).is_file():
+            names.update(definitions((SRC / f).read_text()))
     return names
 
 

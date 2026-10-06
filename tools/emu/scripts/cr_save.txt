@@ -1,5 +1,5 @@
-# ChoralRoot: SAVE tap: the naming screen; D4 E4 F4 type A D G; OCT+ saves to U01; PRESETS +24 reaches it (after
-# the 24 bank sounds); BASS held (ENV) + EDIT (SEL): the bass sound's pages; KNOB 1 there edits part 1
+# ChoralRoot: SAVE tap: the naming screen; D4 E4 F4 type A D G; OCT+ saves to U01; PRESETS -1 +1 reaches it (after
+# the 40 bank sounds); BASS held (ENV) + EDIT (SEL): the bass sound's pages; KNOB 1 there edits part 1
 wait 300
 btn SAVE
 wait 300

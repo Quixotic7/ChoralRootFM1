@@ -1,4 +1,4 @@
-# ChoralRoot: EDIT tap (SEL) on SOFT PAD (PRESETS +4): the ENV page; KNOB 1 +20: ATK up (the envelope glyph
+# ChoralRoot: EDIT tap (SEL) on SOFT PAD (PRESETS +4): the ENV page; KNOB 1 +7: ATK up (the envelope glyph
 # eases); SELECT +1: the LFO page; HOME; then MAJ + D4 (compared with cr_edit_ref.txt: the same without the turn)
 wait 300
 knob PRESETS +4
@@ -6,7 +6,7 @@ wait 1200
 btn SEL
 wait 300
 shot build/emu/test/cr_edit_env.ppm
-knob KNOB1 +20
+knob KNOB1 +7
 wait 60
 shot build/emu/test/cr_edit_turn.ppm
 wait 400

@@ -34,17 +34,10 @@ static void cr_clip_all(void) { cr_clip_set(0, 0, 240, 240); }
 static int32_t cr_row0(void) { int32_t r = -cv_oy; return r > cr_clip.y0 ? r : cr_clip.y0; }
 static int32_t cr_row1(void) { int32_t r = (int32_t)cv_h - cv_oy; return r < cr_clip.y1 ? r : cr_clip.y1; }
 
-/* blend colour c over the canvas pixel at screen (x, y) by a (0..256) */
-static void cr_blend(int32_t x, int32_t y, uint16_t c, uint32_t a)
+/* blend colour c over the canvas pixel *p by a (1..256) */
+static inline void cr_mix(uint16_t *p, uint16_t c, uint32_t a)
 {
-    uint16_t *p;
     uint32_t d, r, g, b, na;
-    if (!a || x < cr_clip.x0 || x >= cr_clip.x1 || y < cr_clip.y0 || y >= cr_clip.y1)
-        return;
-    y += cv_oy;
-    if ((uint32_t)x >= cv_w || (uint32_t)y >= cv_h)
-        return;
-    p = &cv_px[(uint32_t)y * cv_w + (uint32_t)x];
     if (a >= 256u) {
         *p = swap16(c);
         return;
@@ -55,6 +48,17 @@ static void cr_blend(int32_t x, int32_t y, uint16_t c, uint32_t a)
     g = (((d >> 5) & 63u) * na + ((uint32_t)(c >> 5) & 63u) * a + 128u) >> 8;
     b = ((d & 31u) * na + ((uint32_t)c & 31u) * a + 128u) >> 8;
     *p = swap16((uint16_t)(r << 11 | g << 5 | b));
+}
+
+/* blend colour c over the canvas pixel at screen (x, y) by a (0..256) */
+static void cr_blend(int32_t x, int32_t y, uint16_t c, uint32_t a)
+{
+    if (!a || x < cr_clip.x0 || x >= cr_clip.x1 || y < cr_clip.y0 || y >= cr_clip.y1)
+        return;
+    y += cv_oy;
+    if ((uint32_t)x >= cv_w || (uint32_t)y >= cv_h)
+        return;
+    cr_mix(&cv_px[(uint32_t)y * cv_w + (uint32_t)x], c, a);
 }
 
 /* a solid rectangle, whole pixels, inside the clip */
@@ -171,60 +175,99 @@ static void cr_disc(int32_t cx, int32_t cy, int32_t r, uint16_t c)
 
 /* an arc: centre (cx, cy), radius r and width w (Q4), from angle a0 for `sweep` (65536 = the whole circle),
  * round end caps (caps), dashes along it (dash_on of every dash_per, Q4 px of the arc at radius r; 0 = solid) */
+typedef struct {
+    int32_t cx, cy, r, ro, ri, ro2, ri2, hw2, ex0, ey0, ex1, ey1, circ, dash_on, dash_per;
+    uint32_t a0, sweep;
+    int caps, full;
+} cr_arcg_t;
+
+static void cr_arc_geom(cr_arcg_t *g, int32_t cx, int32_t cy, int32_t r, int32_t w, uint32_t a0, uint32_t sweep,
+                        int caps, int32_t dash_on, int32_t dash_per)
+{
+    g->cx = cx; g->cy = cy; g->r = r;
+    g->ro = r + w / 2; g->ri = r - w / 2; g->ro2 = g->ro * g->ro; g->ri2 = g->ri * g->ri; g->hw2 = (w / 2) * (w / 2);
+    g->ex0 = cx + ((r * cr_cos(a0)) >> 14); g->ey0 = cy + ((r * cr_sin(a0)) >> 14);
+    g->ex1 = cx + ((r * cr_cos(a0 + sweep)) >> 14); g->ey1 = cy + ((r * cr_sin(a0 + sweep)) >> 14);
+    g->circ = (r * 6434) >> 10;           /* the circumference, Q4 */
+    g->a0 = a0; g->sweep = sweep; g->caps = caps; g->full = sweep >= 65536u;
+    g->dash_on = dash_on; g->dash_per = dash_per;
+}
+
+/* the samples of pixel (i, j) the arc covers (0..16); 0 at once for a pixel well off its band */
+static uint32_t cr_arc_px(const cr_arcg_t *g, int32_t i, int32_t j)
+{
+    int32_t pdx = i * 16 + 8 - g->cx, pdy = j * 16 + 8 - g->cy, pd2 = pdx * pdx + pdy * pdy, pd, ang = -1;
+    uint32_t pa, n = 0, a, b;
+    if (pd2 > (g->ro + 12) * (g->ro + 12) || (pd2 < (g->ri - 12) * (g->ri - 12) && g->ri > 12)) return 0;
+    pa = cr_atan2(pdy, pdx);
+    pd = (int32_t)cr_isqrt((uint32_t)pd2);
+    if (pd < 1) pd = 1;
+    /* a sample's angle is the pixel's moved by at most |offset| (<= 6 sqrt 2 Q4) x 10430 / pd: a pixel whose centre
+     * is that far inside the sweep has every sample's angle in it, that far outside none (undashed: no sample's
+     * angle needed then) */
+    if (!g->full && !g->dash_per) {
+        uint32_t rc = (pa - g->a0) & 65535u, dev = (uint32_t)(88508 * (pd + 1) / (pd * pd)) + 1u;
+        if (rc >= dev && rc + dev <= g->sweep) ang = 1;
+        else if (rc > g->sweep + dev && rc + dev < 65536u) ang = 0;
+    }
+    for (b = 0; b < 4u; b++)
+        for (a = 0; a < 4u; a++) {
+            int32_t ox = (int32_t)CR_SS[a] - 8, oy = (int32_t)CR_SS[b] - 8;
+            int32_t dx = pdx + ox, dy = pdy + oy, d2 = dx * dx + dy * dy, in = 0;
+            if (d2 <= g->ro2 && d2 >= g->ri2) {
+                if (ang >= 0) {
+                    in = ang;
+                } else {
+                    /* the sample's angle: the pixel's, moved by the tangential offset / radius */
+                    uint32_t sa = (pa + (uint32_t)((((-pdy * ox + pdx * oy) * 10430) / pd) / pd)) & 65535u;
+                    uint32_t rel = (sa - g->a0) & 65535u;
+                    in = g->full || rel <= g->sweep;
+                    if (in && g->dash_per) {
+                        int32_t s = (int32_t)((rel * (uint32_t)g->circ) >> 16);
+                        in = s % g->dash_per < g->dash_on;
+                    }
+                }
+            }
+            if (!in && g->caps) {
+                int32_t ax = i * 16 + CR_SS[a] - g->ex0, ay = j * 16 + CR_SS[b] - g->ey0;
+                int32_t bx = i * 16 + CR_SS[a] - g->ex1, by = j * 16 + CR_SS[b] - g->ey1;
+                in = ax * ax + ay * ay <= g->hw2 || bx * bx + by * by <= g->hw2;
+            }
+            n += (uint32_t)in;
+        }
+    return n;
+}
+
 static void cr_arc(int32_t cx, int32_t cy, int32_t r, int32_t w, uint32_t a0, uint32_t sweep, int caps,
                    int32_t dash_on, int32_t dash_per, uint16_t c)
 {
-    int32_t ro = r + w / 2, ri = r - w / 2, ro2 = ro * ro, ri2 = ri * ri, hw2 = (w / 2) * (w / 2);
-    int32_t x0 = (cx - ro) >> 4, x1 = (cx + ro + 15) >> 4, y0 = (cy - ro) >> 4, y1 = (cy + ro + 15) >> 4, i, j;
-    int32_t ex0 = cx + ((r * cr_cos(a0)) >> 14), ey0 = cy + ((r * cr_sin(a0)) >> 14);
-    int32_t ex1 = cx + ((r * cr_cos(a0 + sweep)) >> 14), ey1 = cy + ((r * cr_sin(a0 + sweep)) >> 14);
-    int32_t circ = (r * 6434) >> 10;      /* the circumference, Q4 */
-    int full = sweep >= 65536u;
+    cr_arcg_t g;
+    int32_t x0, x1, y0, y1, i, j;
+    cr_arc_geom(&g, cx, cy, r, w, a0, sweep, caps, dash_on, dash_per);
+    x0 = (cx - g.ro) >> 4; x1 = (cx + g.ro + 15) >> 4; y0 = (cy - g.ro) >> 4; y1 = (cy + g.ro + 15) >> 4;
     if (y0 < cr_row0()) y0 = cr_row0();
     if (y1 > cr_row1()) y1 = cr_row1();
     if (x0 < cr_clip.x0) x0 = cr_clip.x0;
     if (x1 > cr_clip.x1) x1 = cr_clip.x1;
     for (j = y0; j < y1; j++)
-        for (i = x0; i < x1; i++) {
-            int32_t pdx = i * 16 + 8 - cx, pdy = j * 16 + 8 - cy, pd2 = pdx * pdx + pdy * pdy, pd;
-            uint32_t pa, n = 0, a, b;
-            if (pd2 > (ro + 12) * (ro + 12) || (pd2 < (ri - 12) * (ri - 12) && ri > 12)) continue;
-            pa = cr_atan2(pdy, pdx);
-            pd = (int32_t)cr_isqrt((uint32_t)pd2);
-            if (pd < 1) pd = 1;
-            for (b = 0; b < 4u; b++)
-                for (a = 0; a < 4u; a++) {
-                    int32_t ox = (int32_t)CR_SS[a] - 8, oy = (int32_t)CR_SS[b] - 8;
-                    int32_t dx = pdx + ox, dy = pdy + oy, d2 = dx * dx + dy * dy, in = 0;
-                    if (d2 <= ro2 && d2 >= ri2) {
-                        /* the sample's angle: the pixel's, moved by the tangential offset / radius */
-                        uint32_t sa = (pa + (uint32_t)((((-pdy * ox + pdx * oy) * 10430) / pd) / pd)) & 65535u;
-                        uint32_t rel = (sa - a0) & 65535u;
-                        in = full || rel <= sweep;
-                        if (in && dash_per) {
-                            int32_t s = (int32_t)((rel * (uint32_t)circ) >> 16);
-                            in = s % dash_per < dash_on;
-                        }
-                    }
-                    if (!in && caps) {
-                        int32_t ax = i * 16 + CR_SS[a] - ex0, ay = j * 16 + CR_SS[b] - ey0;
-                        int32_t bx = i * 16 + CR_SS[a] - ex1, by = j * 16 + CR_SS[b] - ey1;
-                        in = ax * ax + ay * ay <= hw2 || bx * bx + by * by <= hw2;
-                    }
-                    n += (uint32_t)in;
-                }
-            cr_blend(i, j, c, n * 16u);
-        }
+        for (i = x0; i < x1; i++)
+            cr_blend(i, j, c, cr_arc_px(&g, i, j) * 16u);
 }
 
 /* a polyline of n points (Q4 pairs), w wide (Q4), round joins and caps; dashes (dash_on of every dash_per Q4 px
- * along it; 0 = solid). A pixel's samples are tested against every segment: joins blend once */
+ * along it; 0 = solid). A pixel's samples are tested against the segments near it (a sample is in when any segment
+ * covers it: joins blend once). Per row, the segments whose box (grown by w / 2) reaches the row's samples; per
+ * pixel, those of them reaching its samples' columns: a pixel no segment reaches is skipped at once (the boxes are
+ * the per-sample test's own, so the pixels are the same as testing every segment: a curve across the screen, the
+ * arp's hop, costs its own pixels, not its box's) */
 #define CR_POLY_MAX 48u
 static void cr_poly(const int16_t *p, uint32_t n, int32_t w, int32_t dash_on, int32_t dash_per, uint16_t c)
 {
     int32_t x0 = 99999, y0 = 99999, x1 = -99999, y1 = -99999, hw = w / 2, hw2 = (w / 2) * (w / 2), i, j;
     int32_t len[CR_POLY_MAX], s0[CR_POLY_MAX];
-    uint32_t k;
+    int16_t bx0[CR_POLY_MAX], bx1[CR_POLY_MAX], by0[CR_POLY_MAX], by1[CR_POLY_MAX];
+    uint8_t row[CR_POLY_MAX], near[CR_POLY_MAX];
+    uint32_t k, nrow, nnear, q;
     if (n < 2u) return;
     if (n > CR_POLY_MAX) n = CR_POLY_MAX;
     for (k = 0; k < n; k++) {
@@ -234,28 +277,40 @@ static void cr_poly(const int16_t *p, uint32_t n, int32_t w, int32_t dash_on, in
         if (p[2 * k + 1] > y1) y1 = p[2 * k + 1];
     }
     for (k = 0; k + 1u < n; k++) {
-        int32_t dx = p[2 * k + 2] - p[2 * k], dy = p[2 * k + 3] - p[2 * k + 1];
+        int32_t ax = p[2 * k], ay = p[2 * k + 1], bx = p[2 * k + 2], by = p[2 * k + 3], dx = bx - ax, dy = by - ay;
         len[k] = (int32_t)cr_isqrt((uint32_t)(dx * dx + dy * dy));
         s0[k] = k ? s0[k - 1] + len[k - 1] : 0;
+        bx0[k] = (int16_t)((ax < bx ? ax : bx) - hw);
+        bx1[k] = (int16_t)((ax > bx ? ax : bx) + hw);
+        by0[k] = (int16_t)((ay < by ? ay : by) - hw);
+        by1[k] = (int16_t)((ay > by ? ay : by) + hw);
     }
     x0 = (x0 - hw) >> 4; y0 = (y0 - hw) >> 4; x1 = (x1 + hw + 15) >> 4; y1 = (y1 + hw + 15) >> 4;
     if (y0 < cr_row0()) y0 = cr_row0();
     if (y1 > cr_row1()) y1 = cr_row1();
     if (x0 < cr_clip.x0) x0 = cr_clip.x0;
     if (x1 > cr_clip.x1) x1 = cr_clip.x1;
-    for (j = y0; j < y1; j++)
+    for (j = y0; j < y1; j++) {
+        int32_t ry0 = j * 16 + CR_SS[0], ry1 = j * 16 + CR_SS[3];
+        for (k = 0, nrow = 0; k + 1u < n; k++)
+            if (by1[k] >= ry0 && by0[k] <= ry1) row[nrow++] = (uint8_t)k;
+        if (!nrow) continue;
         for (i = x0; i < x1; i++) {
+            int32_t rx0 = i * 16 + CR_SS[0], rx1 = i * 16 + CR_SS[3];
             uint32_t cnt = 0, a, b;
+            for (q = 0, nnear = 0; q < nrow; q++)
+                if (bx1[row[q]] >= rx0 && bx0[row[q]] <= rx1) near[nnear++] = row[q];
+            if (!nnear) continue;
             for (b = 0; b < 4u; b++)
                 for (a = 0; a < 4u; a++) {
                     int32_t sx = i * 16 + CR_SS[a], sy = j * 16 + CR_SS[b];
                     int in = 0;
-                    for (k = 0; k + 1u < n && !in; k++) {
-                        int32_t ax = p[2 * k], ay = p[2 * k + 1], bx = p[2 * k + 2], by = p[2 * k + 3];
-                        int32_t mx0 = (ax < bx ? ax : bx) - hw, mx1 = (ax > bx ? ax : bx) + hw;
-                        int32_t my0 = (ay < by ? ay : by) - hw, my1 = (ay > by ? ay : by) + hw;
-                        int32_t ux = bx - ax, uy = by - ay, vx = sx - ax, vy = sy - ay, dot, cr, along;
-                        if (sx < mx0 || sx > mx1 || sy < my0 || sy > my1) continue;
+                    for (q = 0; q < nnear && !in; q++) {
+                        int32_t ax, ay, ux, uy, vx, vy, dot, cr, along;
+                        k = near[q];
+                        if (sx < bx0[k] || sx > bx1[k] || sy < by0[k] || sy > by1[k]) continue;
+                        ax = p[2 * k]; ay = p[2 * k + 1];
+                        ux = p[2 * k + 2] - ax; uy = p[2 * k + 3] - ay; vx = sx - ax; vy = sy - ay;
                         dot = vx * ux + vy * uy;
                         if (len[k] && dot > 0 && dot < len[k] * len[k]) {
                             cr = vx * uy - vy * ux;
@@ -263,7 +318,7 @@ static void cr_poly(const int16_t *p, uint32_t n, int32_t w, int32_t dash_on, in
                             if (cr > hw * len[k]) continue;
                             along = s0[k] + dot / len[k];
                         } else {
-                            int32_t qx = dot <= 0 ? vx : sx - bx, qy = dot <= 0 ? vy : sy - by;
+                            int32_t qx = dot <= 0 ? vx : sx - p[2 * k + 2], qy = dot <= 0 ? vy : sy - p[2 * k + 3];
                             if (qx * qx + qy * qy > hw2) continue;
                             along = dot <= 0 ? s0[k] : s0[k] + len[k];
                         }
@@ -273,6 +328,7 @@ static void cr_poly(const int16_t *p, uint32_t n, int32_t w, int32_t dash_on, in
                 }
             cr_blend(i, j, c, cnt * 16u);
         }
+    }
 }
 /* a quadratic curve from (ax, ay) by (bx, by) to (cx, cy), Q4, as a polyline of 16 segments */
 static void cr_quad(int32_t ax, int32_t ay, int32_t bx, int32_t by, int32_t cx, int32_t cy, int32_t w,

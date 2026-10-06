@@ -111,7 +111,7 @@ static uint32_t perf_avail(void)
 /* seq.c keyboard_block: a layer key down / up (e: PF_*, PF_N = no effect) */
 static void perf_press(uint32_t e, int down)
 {
-    if (e >= PF_N)
+    if (e >= PF_N || !FELUCCA_SLICER)  /* no SLICER: no sl_buf to borrow, no layer effect (none sets kb_mask) */
         return;
     if (down) {
         perf_held |= PF_BIT(e);

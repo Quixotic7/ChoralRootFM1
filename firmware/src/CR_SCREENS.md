@@ -16,7 +16,7 @@ cr_draw(&s, ms_since_the_change);     /* every frame; cheap when nothing changed
 ## The view-model (`cr_screen.h`)
 
 `cr_screen_t` mirrors the designer's `screen` object, flattened: `kind` (`CR_K_STRIPES CHORD PICKER METER KEYBOARD
-ARP PARAMS GEEK TEXT BIG`), the top line (`header`, `icon` none/play/rec/loop, `mid`/`mid_col`, `right`/`right_col`,
+ARP PARAMS GEEK TEXT BIG SCOPE`), the top line (`header`, `icon` none/play/rec/loop, `mid`/`mid_col`, `right`/`right_col`,
 `batt`), `footer` (one line; empty = none, the panel then runs to row 240), the ring (`ring_on`, `ring` Q8,
 `ring_rec`, `ring_col`), `message`/`message_col`, and the panel fields of every kind (fixed char arrays; the chord
 name as `cr_name_t {root, quality, sup, col_root, col_quality, col_sup}`; up to 8 notes `{t, col, mark}`; a picker
@@ -40,9 +40,15 @@ the designer resolves in its MOD palette becomes the named colour: THEME red, AC
 | --- | --- | --- |
 | `CR_A_SQUEEZE` | `from`, `name`, `squeeze` | 120 ms: `from` thins to an 8 % column (ease-in, 60 ms), `name` stretches out of it (ease-out, 60 ms); no `from`: stretch only. Multiplies the fit-to-224 px factor and the forced `squeeze` (state 24's frame) |
 | `CR_A_SLIDE` | `slide` (sel came from sel − slide) | 160 ms ease-out: the old item leaves and the new one enters inside the item's box (a reel); vertical or horizontal |
+| `CR_A_SLIDE` (params) | `slide` (the page came from that side) | the columns dealt in: each rises 14 px into place (110 ms ease-out), 30 ms after its neighbour, from the side turned to |
 | `CR_A_FILL` | `pct_from` → `pct` | one stripe every 30 ms |
 | `CR_A_STRIPES` | `phase`, `period_ms` | the bands' phase advances a cycle per `period_ms` (40 px per cycle, as the designer's `phase`) |
 | `CR_A_SWEEP` | — | the bands are swept off to the right, 240 ms each, 40 ms apart (the first chord) |
+
+No flag, the producer's motion (`cr_ui.c` `cu_animate`, `cr_anim.c` `cr_spring`): a meter's number and a `big`
+panel's value **spring in** through `size` (meter 92 → 104 px, big ¾ → its size, 240 ms) whenever the value changes:
+the count-in's 4 3 2 1, undo's layers left, PANIC. `size` is in the hashed bytes, so the cache redraws each step.
+A `big` panel with `ring_on` lifts its value, sub and label 22 px clear of the ring's band.
 
 ## Strips and the cache
 
@@ -56,7 +62,22 @@ message.
   drawn, nothing blitted) — a settled screen costs one hash per frame.
 - **Changed**: every strip is drawn, its pixels hashed, and only strips whose hash changed are blitted (the SPI
   transfer is the expensive part). A header change blits 1 strip; the ring appearing blits 6.
+- **Only the ring's fraction moved** (the signature without `ring` unchanged: a playing loop on a still screen):
+  only the strips holding band pixels between the old and the new tip are drawn (`cr_ring_strips`: the band's rows
+  over those angles, widened by two pixels; usually one strip, two where a strip edge is crossed; the loop's restart
+  clears the whole ring: all six). The other strips are neither drawn nor blitted.
 - `cr_draw_invalidate()`: the next draw blits all six (after Felucca's UI drew, a palette change, power-up).
+
+**The ring** (`cr_ring_draw`): its pixels never move, only its colour and fraction change, so the coverage of the
+band is computed once (`cr_ring_build`, from `cr_ui_init`: ~27 ms on the device scale) with `cr_arc`'s own per-pixel
+code (`cr_arc_px`) into the POOL: per row up to two runs of pixels, a byte a pixel (the solid band's and the dotted
+circle's sample counts as one index of the 153 pairs d <= s), 4 232 pixels, 6.1 KB. A frame blends its rows' runs
+from the table; the progress is decided per run from the angles of its end pixels (the angle is monotonic along a
+row): a run well inside the sweep takes the band's coverage, one well outside nothing, and only pixels within
+64 / 65536 turn of the start or the tip (more than any sample's angle differs from its pixel's) take `cr_arc_px`'s
+16 samples. The pixels are exactly `cr_arc`'s (`tests/cr_draw_test.c` compares both at 258 fractions over a pattern,
+and the partial draws with full draws). Host instructions a UI frame with a loop playing on the chord screen: 1.0 M
+(0.58 M with no ring at all); before, 12.8 M with the arp (`tools/emu/perf.sh` c: now 2.4 M, 1.2 M with no ring).
 
 ## Type: faces, sizes, flash
 
@@ -84,14 +105,18 @@ filter, overlaps in 1/256 px, scales in Q12, up to 16 source pixels per axis), q
 blended with gfx.c's coverage curve into whatever the canvas holds (so type on a block, a key or a stripe needs no
 "under" colour). At 1:1 it is a straight copy at whole pixels. A squeeze is a horizontal scale only.
 
-RAM (`.pool`): glyph buffer 8 192 B, column weights 9 216 B, two Huffman tables 1 032 B — 18.4 KB.
+RAM (`.pool`): glyph buffer 8 192 B, column weights 9 216 B, two Huffman tables 1 032 B — 18.4 KB; the ring's
+table (`cr_draw.c` `cr_ring`) 6.1 KB and the cache (`cr_dc`) 44 B.
 
 ## Shapes (`cr_gfx.c`)
 
 All anti-aliased with 4 × 4 samples, blended into the canvas: `cr_frect` (fractional edges), `cr_disc`, `cr_arc`
 (radius, width, start, sweep, round caps, dashes along the arc: the ring's dotted circle is width 5, dash 2 of 6 at
-R 113), `cr_poly` (polyline, round joins and caps, dashes; joins blend once), `cr_quad` (quadratic, as a 16-segment
-polyline: the arp's dotted hop, the filter glyph). Integer `cr_sin`/`cr_cos` (quarter table), `cr_atan2`, `cr_isqrt`.
+R 113), `cr_poly` (polyline, round joins and caps, dashes; joins blend once; per row only the segments whose box reaches
+it, per pixel only those reaching its columns, a pixel none reaches skipped: a curve's cost is its own pixels, not its
+box's), `cr_quad` (quadratic, as a 16-segment polyline: the arp's dotted hop, the filter glyph). `cr_arc_px` takes a
+pixel whose centre is well inside or outside an undashed arc's sweep (by more than a sample's angle can differ) as
+all in / out without the samples' angles. Both are pixel for pixel the exhaustive tests (INTEGRATION Performance). Integer `cr_sin`/`cr_cos` (quarter table), `cr_atan2`, `cr_isqrt`.
 `cr_clip` limits these draws to a rectangle (the picker's slide window). gfx.c is unchanged.
 
 ## The MOD palette
@@ -117,6 +142,21 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
   every phase, so the slide only shows with `skew` or the sweep (as in the designer).
 - **The picker's change** is a slide (a reel inside the item's box), not a split-flap flip.
 - The chord squeeze is the designer's horizontal scale, applied to the glyph rasters (no hinting at any width).
+- **`CR_K_SCOPE`** (device-only, no mock-up yet): `wave[240]` (int8, ±127 = the panel's half height less 6 px), one
+  sample a column. Drawn as a 3 px line, a column at a time: the span the polyline covers within a pixel either side
+  (the neighbours' samples) ± 1.5 px as one fractional rectangle (`cr_frect`), only the columns crossing the strip's
+  rows; a 1 px grey centre line. `cr_poly` is not used (48 points, every segment tested per sample: far too slow
+  for 240 points). The samples are in the hashed struct: a still trace costs one hash, a moving one redraws and
+  blits only the strips whose pixels changed. States 25-29 of `tests/gen_cr_screens.py` (`DEVICE_STATES`, not in the
+  designer's JSON): the scope sounding and silent, three calibration steps (`CR_K_BIG` 40 px, the ring as progress).
+- **`CR_K_PARAMS`, deep pages** (an engine's own, `cr_pages.c` `cp_dcolumn`; states 30-34, `VA_STATES`): `page[16]`
+  carries `OSC 2 · 4/39`; `n_sect` > 1 draws one 4 px square per section under it (7 px pitch, right-aligned at 230,
+  `sect` filled in the title's colour). Glyphs added in the same 2.5 px line: `CR_G_TRI`, `CR_G_NOISE` (a fixed
+  15-point jag), `CR_G_FTYPE` (`n` 0 LP, 1 BP, 2 HP, 3 NOTCH over the dashed pass level), `CR_G_MOD` (`src` over
+  `dst` in 11 px with an arrow, `pct` a bipolar bar out of the middle); the waveform column picks `SAW` / `SQUARE`
+  (a pulse: `pct` 64) / `TRI` / `WAVE` / `NOISE` by the value's name; the page's ATK DEC SUS REL fill `env[]` of
+  every column. An empty column (no label, no value) draws nothing. `CR_A_SLIDE` with `slide` on a params panel:
+  a page turned, the columns are dealt in from that side, each rising 14 px into place over 110 ms, 30 ms apart.
 - Not implemented (not on the device): the designer kinds `tiles list scope dial roundel splash loop notes`, `big`
   with `pct` (the inverted fill), knob cards, keycap footers, `bubbleStyle: "disc"`, the chord panel's `key`/`trans`.
 

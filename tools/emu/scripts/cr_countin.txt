@@ -1,0 +1,48 @@
+# ChoralRoot looper: the loop-length layer, the count-in, undo (120 BPM, 4/4: a bar = 2 s).
+# LOOP held (RETURN): the "loop length" picker (mock-up 8) in the empty ring; KNOB 1 +1 moves it (Free -> 1 bar, a
+# slide, no meter); REC: the one-bar count-in, 4 3 2 1 huge in red; D recorded, the take commits by itself; REC +
+# G overdubbed; REC held: undo, the layers left huge in red.
+wait 300
+btn PLAY down
+wait 700
+shot build/emu/test/cr_loop_length.ppm
+knob KNOB1 +1
+wait 60
+shot build/emu/test/cr_loop_length_slide.ppm
+wait 300
+shot build/emu/test/cr_loop_length_1bar.ppm
+btn PLAY up
+wait 600
+btn REC
+wait 250
+shot build/emu/test/cr_countin_4.ppm
+wait 600
+shot build/emu/test/cr_countin_3.ppm
+wait 1000
+shot build/emu/test/cr_countin_1.ppm
+wait 300
+btn A#3 down
+btn D4 down
+wait 600
+btn D4 up
+btn A#3 up
+wait 1800
+dump
+btn REC
+wait 200
+btn A#3 down
+btn G4 down
+wait 400
+btn G4 up
+btn A#3 up
+wait 200
+btn REC
+wait 300
+dump
+btn REC 600
+wait 150
+shot build/emu/test/cr_undo.ppm
+dump
+btn PLAY
+wait 2000
+dump

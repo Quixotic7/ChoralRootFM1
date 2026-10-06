@@ -6,10 +6,11 @@
  *      ChoralRoot's meaning: no undo copy (load_begin / load_end), no pattern (load_pat16 / load_grid16), the
  *      messages through cr_ui.c (ui_message, ui_say: prototypes here, bodies in cr_ui.c), `ui` (main.c's fields);
  *   2. upreset.c itself (and fm6_bank.c, which it includes);
- *   3. the ChoralRoot factory bank: 24 chord sounds for PRESETS and 8 basses for ALGORITHM, picked from Felucca's
+ *   3. the ChoralRoot factory bank: 24 chord sounds for PRESETS and 8 basses for ALGORITHM (with FELUCCA_VA 16 and 4
+ *      more after them, the VA's: eng_va.c), picked from Felucca's
  *      engines by preset name and engine character (pads, EPs, organs, strings, keys, plucks), as a table of
- *      (engine, Felucca preset name, display name); the name resolves to the preset index at boot (cb_boot), so a
- *      reordered engine table cannot load the wrong sound;
+ *      (engine, Felucca preset name, display name, level trim); the name resolves to the preset index at boot
+ *      (cb_boot), so a reordered engine table cannot load the wrong sound;
  *   4. the lists PRESETS / ALGORITHM browse: the bank first, then the used user slots (ALGORITHM: the user sounds
  *      saved MONO / LEGATO, i.e. basses).
  * Included before cr_ui.c, after storage.c (device) and cr_anim.c. */
@@ -82,26 +83,46 @@ static void cr_bank_boot(void)                    /* persist_boot (after flash_o
 #define CB_GRAIN 8u
 #define CB_PHYS 9u
 #define CB_FM6 12u
-typedef struct { uint8_t engine; const char *preset, *name; } cb_entry_t;
+#define CB_VA ENGI_VA            /* the VA engine (eng_va.c, 13): its sounds after Felucca's */
+/* trim: the sound's level after the part's LEVEL (track_t.trim, fx.c mix_part), signed 0.5 dB steps, 0 none; set
+ * when the bank's sound loads (cu_list_load), 0 for a user sound, an engine preset or INIT. LEVEL stays the part's
+ * (the MIX page: kept across loads); the trim evens out the bank's loud sounds so a held 6-note chord with the bass
+ * at the default levels stays under the master limiter (limited <= 10 % of the hold with SUB BASS, docs/INTEGRATION.md
+ * Defaults) */
+typedef struct { uint8_t engine; const char *preset, *name; int8_t trim; } cb_entry_t;
 static const cb_entry_t CB_CHORD[] = {           /* PRESETS 01..24 */
     {CB_FM6, "TINE EP", "TINE EP"},       {CB_FM6, "BELL", "FM BELL"},
     {CB_SAMPLE, "PIANO", "PIANO"},        {CB_FM6, "PAD", "FM PAD"},
-    {CB_ANALOG, "SOFT PAD", "SOFT PAD"},  {CB_ANALOG, "STRINGS", "STRINGS"},
-    {CB_ANALOG, "PWM STR", "PWM STRINGS"},{CB_PHASE, "STRING", "CZ STRINGS"},
+    {CB_ANALOG, "SOFT PAD", "SOFT PAD"},  {CB_ANALOG, "STRINGS", "STRINGS", -2},
+    {CB_ANALOG, "PWM STR", "PWM STRINGS"},{CB_PHASE, "STRING", "CZ STRINGS", -16},
     {CB_WHEEL, "FULL ORGAN", "FULL ORGAN"},{CB_WHEEL, "GOSPEL", "GOSPEL ORGAN"},
     {CB_WHEEL, "JAZZ PERC", "JAZZ ORGAN"},{CB_FM6, "ORGAN", "FM ORGAN"},
-    {CB_PHASE, "ORGAN", "CZ ORGAN"},      {CB_VOICE, "CHOIR AAH", "CHOIR"},
+    {CB_PHASE, "ORGAN", "CZ ORGAN", -16},      {CB_VOICE, "CHOIR AAH", "CHOIR", -6},
     {CB_GRAIN, "CLOUD PAD", "CLOUD PAD"}, {CB_GRAIN, "SHIMMER", "SHIMMER"},
-    {CB_ANALOG, "BRASS", "SYNTH BRASS"},  {CB_PHASE, "BRASS", "CZ BRASS"},
+    {CB_ANALOG, "BRASS", "SYNTH BRASS"},  {CB_PHASE, "BRASS", "CZ BRASS", -6},
     {CB_FM6, "MARIMBA", "MARIMBA"},       {CB_PHYS, "HARP", "HARP"},
     {CB_PHYS, "KALIMBA", "KALIMBA"},      {CB_ANALOG, "PLUCK", "PLUCK"},
     {CB_FM6, "PLUCK", "FM PLUCK"},        {CB_ANALOG, "SINE KEY", "SINE KEYS"},
+#if FELUCCA_VA                                   /* PRESETS 25..40: the VA's chord sounds (levels set in the preset) */
+    {CB_VA, "LUSH PAD", "LUSH PAD"},      {CB_VA, "WARM PAD", "WARM PAD"},
+    {CB_VA, "GLASS PAD", "GLASS PAD"},    {CB_VA, "SLOW STRINGS", "SLOW STRINGS"},
+    {CB_VA, "ENSEMBLE STR", "ENSEMBLE STR"}, {CB_VA, "SYNTH BRASS", "VA BRASS"},
+    {CB_VA, "SOFT BRASS", "SOFT BRASS"},  {CB_VA, "POLY KEYS", "POLY KEYS"},
+    {CB_VA, "PWM KEYS", "PWM KEYS"},      {CB_VA, "CLAV", "CLAV"},
+    {CB_VA, "SOFT LEAD", "SOFT LEAD"},    {CB_VA, "HOLLOW", "HOLLOW"},
+    {CB_VA, "BELLS", "BELLS"},            {CB_VA, "SWEEP PAD", "SWEEP PAD"},
+    {CB_VA, "SOFT AAH", "SOFT AAH"},      {CB_VA, "ORGANISH", "ORGANISH"},
+#endif
 };
 static const cb_entry_t CB_BASS[] = {            /* ALGORITHM 1..8 (0 = OFF) */
     {CB_ANALOG, "SUB BASS", "SUB BASS"},  {CB_ANALOG, "SQR BASS", "SQUARE BASS"},
     {CB_FM6, "FM BASS", "FM BASS"},       {CB_TRIO, "FAT BASS", "FAT BASS"},
     {CB_ANALOG, "ACID", "ACID BASS"},     {CB_LOFI, "WAVE BASS", "WAVE BASS"},
     {CB_VOICE, "WOW BASS", "WOW BASS"},   {CB_PHYS, "PLUCK", "PLUCK BASS"},
+#if FELUCCA_VA                                   /* ALGORITHM 9..12: the VA's basses */
+    {CB_VA, "DEEP SUB", "DEEP SUB"},      {CB_VA, "PUNCH BASS", "PUNCH BASS"},
+    {CB_VA, "RUBBER BASS", "RUBBER BASS"},{CB_VA, "SYNC BASS", "SYNC BASS"},
+#endif
 };
 #define CB_NCHORD ((uint32_t)NELEM(CB_CHORD))
 #define CB_NBASS ((uint32_t)NELEM(CB_BASS))

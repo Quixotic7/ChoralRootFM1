@@ -1,0 +1,18 @@
+# tools/emu/perf.sh (a): MAJ + 6 + M7 + 9 held, D4: a 6-note chord (D6/9maj7) held 6 s on the power-on sound
+# (TINE EP, FM6), then released
+wait 500
+key F3 down
+key 2 down
+key 4 down
+key 5 down
+wait 40
+key A down
+wait 6000
+dump
+key A up
+key F3 up
+key 2 up
+key 4 up
+key 5 up
+wait 1500
+dump

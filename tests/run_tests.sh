@@ -98,15 +98,15 @@ run "USB audio input: descriptors (with CDC), ring and packets" "$OUT/uac_test"
 $CC -DT_CDC=0 -DHALF_FRAMES=$HALF -o "$OUT/uac_test_nocdc" tests/uac_test.c
 run "USB audio input: descriptors (without CDC), ring and packets" "$OUT/uac_test_nocdc"
 
-[ -f build/felucca.fwsc ] || { echo "run ./build.sh first"; exit 1; }
+[ -f build/choralroot.fwsc ] || { echo "run ./build.sh first"; exit 1; }
 
 $CC -DOWN_PKG=1 -o "$OUT/ota_test" tests/ota_test.c
-run "M-UPGRADE entry (own loader)" "$OUT/ota_test" build/felucca.fwsc
+run "M-UPGRADE entry (own loader)" "$OUT/ota_test" build/choralroot.fwsc
 
-head -c 200000 build/felucca.bin > "$OUT/old_app.bin"
+head -c 200000 build/choralroot.bin > "$OUT/old_app.bin"
 python3 tools/fm1pkg_make.py "$OUT/old_app.bin" build/loader/ota.bin "$OUT/old.fwsc" >/dev/null
 $CC -o "$OUT/ldr_test" tests/ldr_test.c
-run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" build/felucca.fwsc
+run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" build/choralroot.fwsc
 
 if [ -f build/gen/felucca_tables.h ]; then
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hostsim" tests/hostsim.c -lm
@@ -220,7 +220,7 @@ else
 fi
 
 run "regression: target cost of the render loops (pi32v2 disassembly)" python3 tests/target_budget.py \
-    build/felucca.dis tests/target_budget.txt
+    build/choralroot.dis tests/target_budget.txt
 
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
 

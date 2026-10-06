@@ -1,0 +1,56 @@
+# ChoralRoot looper: the loop's notes glow dim on the keys (PLAN 6) and MIDI start / stop (INTEGRATION 2).
+# Options (N): LEDs = Stock (every idle key lit, so a dim key is the loop's glow); MIDI Clock is Out (the default,
+# as Orchid). A free loop of D
+# (MAJ + D4): while it plays D its keys D4 F#4 A4 are dim (not lit), the others lit; in its silent part all lit.
+# REC commits the take into playback: 0xFA; LOOP tap stops it: 0xFC (the trace "midi: FA start" / "midi: FC stop").
+# Then MIDI Clock Off: LOOP plays and stops it again with no start / stop sent.
+wait 300
+key N 80
+wait 200
+knob SELECT +14
+wait 100
+knob KNOB1 +1
+wait 200
+shot build/emu/test/cr_glow_options.ppm
+key N 80
+wait 300
+expect led D4 on
+btn REC
+wait 300
+btn A#3 down
+btn D4 down
+wait 300
+btn D4 up
+btn A#3 up
+wait 1300
+btn REC
+wait 150
+dump
+expect led D4 dim
+expect led F#4 dim
+expect led A4 dim
+expect led E4 on
+shot build/emu/test/cr_glow_playing.ppm
+wait 600
+expect led D4 on
+expect led A4 on
+wait 1050
+expect led D4 dim
+btn PLAY
+wait 300
+expect led D4 on
+expect led F#4 on
+dump
+key N 80
+wait 200
+knob SELECT -3
+wait 100
+knob KNOB1 -1
+wait 100
+key N 80
+wait 300
+btn PLAY
+wait 600
+btn PLAY
+wait 2000
+dump

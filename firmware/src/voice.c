@@ -124,6 +124,7 @@ static uint32_t voice_victim(const track_t *self, int soft, track_t **pp)
 }
 
 static uint32_t voice_kills;                            /* voices given up (budget, overload): console, hostsim */
+static uint32_t voice_steals;                           /* a part's own sounding voice restarted for a new note */
 static void voice_kill(voice_t *v)                      /* fade out over the next block (env_tick stage 4) */
 {
     v->gate = 0;
@@ -161,25 +162,82 @@ static voice_t *voice_reuse(track_t *t, voice_t *v)
  * held one, never the lowest held note (the bass). A free voice needs room in the
  * shared budget: when the voice to give up is one of this part's, it is restarted
  * in place instead. */
-static voice_t *voice_alloc(track_t *t, uint32_t note)
+/* ChoralRoot (cr_out.c sets it; 0 in Felucca and its golden renders): a part's own sounding voice is never
+ * restarted in place for another note (the old note's tail cut at once and the new note starting at its level:
+ * "a new note cuts the previous one's envelope", on every change of a 6-note chord). It fades out over the next
+ * block (stage 4, as a voice given up for another part) and the note waits in vsq for that block: engine_block
+ * starts it on the voice the fade freed, 0.7 to 1.5 ms later. A note-off meanwhile drops it. */
+static uint8_t voice_fade_steal;
+#define VSQ 8u
+static struct { uint8_t note[VSQ], vel[VSQ], armed[VSQ], n; } vsq[NPART];   /* armed: its block rendered */
+static int vsq_push(track_t *t, uint32_t note, uint32_t vel)   /* 0: full (the caller restarts in place) */
+{
+    uint32_t p = (uint32_t)(t - trk), i;
+    if (p >= NPART)
+        return 0;
+    for (i = 0; i < vsq[p].n; i++)
+        if (vsq[p].note[i] == note) {
+            vsq[p].vel[i] = (uint8_t)vel;
+            return 1;
+        }
+    if (vsq[p].n >= VSQ)
+        return 0;
+    vsq[p].note[vsq[p].n] = (uint8_t)note;
+    vsq[p].armed[vsq[p].n] = 0;
+    vsq[p].vel[vsq[p].n++] = (uint8_t)vel;
+    return 1;
+}
+static void vsq_drop(track_t *t, uint32_t note)            /* note 128: all */
+{
+    uint32_t p = (uint32_t)(t - trk), i, k = 0;
+    if (p >= NPART)
+        return;
+    for (i = 0; i < vsq[p].n; i++)
+        if (note < 128u && vsq[p].note[i] != note) {
+            vsq[p].note[k] = vsq[p].note[i];
+            vsq[p].armed[k] = vsq[p].armed[i];
+            vsq[p].vel[k++] = vsq[p].vel[i];
+        }
+    vsq[p].n = (uint8_t)k;
+}
+
+static voice_t *voice_alloc(track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t i, np = trk_nvoice(t), best = np, low = np, nfree = 0;
     int32_t bd = 0x7FFFFFFF;
+    if (voice_fade_steal) {                             /* already waiting for a fade: its velocity, once */
+        uint32_t p = (uint32_t)(t - trk);
+        for (i = 0; p < NPART && i < vsq[p].n; i++)
+            if (vsq[p].note[i] == note) {
+                vsq[p].vel[i] = (uint8_t)vel;
+                return 0;
+            }
+    }
     if (t->engine == ENGI_DRUM) {
         voice_t *v = drum_reuse(t, note);
         if (v)
             return voice_reuse(t, v);
     }
     for (i = 0; i < np; i++) {
-        if (t->v[i].active && t->v[i].note == note)
+        if (t->v[i].active && t->v[i].note == note) {
+            /* ChoralRoot: a sampled engine restarts its sample on a retrigger (a step at the voice's level): the
+             * sounding voice fades over a block, the note starts fresh after it (vsq) */
+            if (voice_fade_steal && ENGINES[t->engine]->sampled && t->v[i].env_out && t->v[i].stage != 4u &&
+                vsq_push(t, note, vel)) {
+                voice_kill(&t->v[i]);
+                return 0;
+            }
             return voice_reuse(t, &t->v[i]);
+        }
         nfree += !t->v[i].active;
     }
     if (nfree && voices_busy() >= NVOICE) {
         track_t *vp = 0;
         uint32_t k = voice_victim(t, 0, &vp);
-        if (k < np && vp == t)
+        if (k < np && vp == t && (!voice_fade_steal || !t->v[k].env_out)) {
+            voice_steals++;
             return &t->v[k];                            /* our own: restart it in place (no click) */
+        }
         if (k < NVOICE)
             voice_kill(&vp->v[k]);
     }
@@ -214,8 +272,15 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
             best = i;
     if (best == np)
         for (i = 0; i < np; i++)                         /* oldest held, not the bass */
-            if (i != low && (best == np || t->v[i].age < t->v[best].age))
+            if (i != low && (!voice_fade_steal || t->v[i].stage != 4u) && (best == np || t->v[i].age < t->v[best].age))
                 best = i;
+    voice_steals++;
+    if (voice_fade_steal && !(best < np && !t->v[best].env_out) && vsq_push(t, note, vel)) {   /* fade it, the note
+                                                         * next block (vsq); one not rendered yet (silent): in place */
+        if (best < np)
+            voice_kill(&t->v[best]);
+        return 0;
+    }
     return voice_reuse(t, &t->v[best == np ? 0 : best]);
 }
 
@@ -360,9 +425,11 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
         t->lfo_fade = 0;
     }
     if (mode == V_POLY) {
-        voice_t *v = voice_alloc(t, note);
+        voice_t *v = voice_alloc(t, note, vel);
         t->nmono = 0;                                   /* no stale mono stack after a mode change */
         t->mono_note = 0;
+        if (!v)
+            return;                                     /* (voice_fade_steal: it starts next block) */
         v->fine = 0;
         voice_start(t, v, note, vel, t->p[P_GLIDE] != 0 && !ENGINES[t->engine]->oneshot);
         return;
@@ -392,6 +459,7 @@ static void trk_note_off(track_t *t, uint32_t note)
             t->xp_vel[k++] = t->xp_vel[i];
         }
     t->xp_n = (uint8_t)k;
+    vsq_drop(t, note);                                 /* waiting for a stolen voice's fade: forget it */
     mono_remove(t, note);                              /* a mode change must not retain a released key */
     if (mode != V_POLY) {
         uint32_t nv = mode == V_UNISON ? trk_nvoice(t) : 1u;
@@ -426,6 +494,7 @@ static void trk_all_off(track_t *t)
     t->nmono = 0;
     t->mono_note = 0;
     t->xp_n = 0;
+    vsq_drop(t, 128u);
 }
 
 /* engine switch, at each block start (events_block), before any note of the block. The UI writes
@@ -469,6 +538,27 @@ static void engine_block(track_t *t)
     }
     for (i = 0; i < 8u; i++)                            /* the engine's own values, for a later fade */
         t->pe_old[i] = t->p[P_E0 + i];
+    {   /* notes that waited one rendered block for a stolen voice's fade (voice_alloc, vsq): the armed ones start
+         * (a voice still missing: it fades another and waits again), the others are armed for the next block */
+        uint32_t p = (uint32_t)(t - trk);
+        if (p < NPART && vsq[p].n) {
+            uint8_t nn[VSQ], vv[VSQ];
+            uint32_t n = 0, k = 0;
+            for (i = 0; i < vsq[p].n; i++) {
+                if (vsq[p].armed[i]) {
+                    nn[n] = vsq[p].note[i];
+                    vv[n++] = vsq[p].vel[i];
+                } else {
+                    vsq[p].note[k] = vsq[p].note[i];
+                    vsq[p].vel[k] = vsq[p].vel[i];
+                    vsq[p].armed[k++] = 1;
+                }
+            }
+            vsq[p].n = (uint8_t)k;
+            for (i = 0; i < n; i++)
+                trk_note_on(t, nn[i], vv[i]);
+        }
+    }
 }
 
 /* one control tick (CTL samples) of the amplitude envelope; returns Q15 */

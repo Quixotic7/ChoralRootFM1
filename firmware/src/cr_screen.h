@@ -24,13 +24,17 @@ enum {
 
 /* panel kinds (the device's subset of the designer's) */
 enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOARD, CR_K_ARP, CR_K_PARAMS, CR_K_GEEK,
-       CR_K_TEXT, CR_K_BIG, CR_K_N };
+       CR_K_TEXT, CR_K_BIG, CR_K_SCOPE, CR_K_N };
 
 /* the top line's icon: none = the bare Orchid line (mid at the left in 15 px, right at the right) */
 enum { CR_ICON_NONE, CR_ICON_PLAY, CR_ICON_REC, CR_ICON_LOOP };
 
 /* a params column's glyph */
-enum { CR_G_KNOB, CR_G_BAR, CR_G_ENV, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_FILTER, CR_G_STEPS, CR_G_DOTS };
+enum { CR_G_KNOB, CR_G_BAR, CR_G_ENV, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_FILTER, CR_G_STEPS, CR_G_DOTS,
+       CR_G_TRI,                    /* a triangle wave (cycles) */
+       CR_G_NOISE,                  /* noise: a fixed jagged line */
+       CR_G_FTYPE,                  /* a filter's response by type: n = 0 LP, 1 BP, 2 HP, 3 NOTCH */
+       CR_G_MOD };                  /* a mod slot: src -> dst in small type, a bipolar bar for pct (128 = 0) */
 
 /* animations in progress (cr_screen_t.anim); each is a pure function of the fields and cr_draw's anim_ms, the time
  * since the change that started it (cr_draw.c CR_*_MS: the durations) */
@@ -39,11 +43,13 @@ enum { CR_G_KNOB, CR_G_BAR, CR_G_ENV, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_FIL
 #define CR_A_FILL 4u                /* meter: the stripes fill one by one from pct_from to pct */
 #define CR_A_STRIPES 8u             /* stripes: they slide, a cycle every `period_ms` from `phase` */
 #define CR_A_SWEEP 16u              /* stripes: they are swept off to the right (the first chord) */
+#define CR_A_INTRO 32u              /* stripes: power-on, the bands slide in from the left one after another, the name lands */
 
 #define CR_PICK_MAX 8u              /* picker items held (a window of the list around the selection) */
 #define CR_NOTES_MAX 8u
 #define CR_KEYS 27u                 /* key index 0..26 = F3..G5 */
 #define CR_LINES_MAX 6u
+#define CR_WAVE_N 240u              /* scope: one sample per column */
 
 typedef struct { char root[4], quality[6], sup[8]; uint8_t col_root, col_quality, col_sup; } cr_name_t;
 typedef struct { char t[6]; uint8_t col, mark; } cr_note_t;                    /* "C#5", its colour, a block under it */
@@ -52,6 +58,7 @@ typedef struct {                                                                
     uint8_t col, glyph, cycles, n;  /* cycles: wave / saw / square, n: steps */
     uint16_t pct;                   /* Q8 */
     uint8_t env[4];                 /* env: attack, decay, sustain, release (Q8, 255 = 1) */
+    char src[6], dst[6];            /* mod: the slot's source and destination */
 } cr_param_t;
 typedef struct { char t[32]; uint8_t px, col, bold, center; } cr_line_t;       /* a text line (px 0 = 12) */
 
@@ -118,12 +125,17 @@ typedef struct {
 
     /* panel: params */
     cr_param_t par[4];
-    char page[12];                  /* top right: "ENV 4/8" */
+    char page[16];                  /* top right: "ENV 4/8", "OSC 2 \267 4/33" */
+    uint8_t n_sect, sect;           /* > 1: the section marks under it, one square per section, `sect` filled */
     char foot[48];                  /* the bottom line */
 
     /* panel: text, geek (lines: geek's status lines are lines[0..1].t) */
     cr_line_t lines[CR_LINES_MAX];
     uint8_t n_lines;
+
+    /* panel: scope (the master output, triggered; -127..127 = the panel's half height; hashed with the rest, so a
+     * moving trace redraws and a still one costs nothing) */
+    int8_t wave[CR_WAVE_N];
 } cr_screen_t;
 
 static inline void cr_screen_clear(cr_screen_t *s)

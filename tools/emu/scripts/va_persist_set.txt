@@ -1,0 +1,19 @@
+# test_persist.sh, VA run 1: PRESETS +24 (LUSH PAD, the VA), EDIT (SEL) -> SELECT +1: EDIT 1, KNOB 1 +9 (the CUT macro:
+# the patch changes), HOME; SAVE, OCT+ (U01): the trace "va: save slot 1 .. patch crc XXXX"; quit
+wait 500
+knob PRESETS +24
+wait 400
+key X 100
+wait 300
+knob SELECT +1
+wait 300
+knob KNOB1 +9
+wait 400
+btn HOME
+wait 400
+btn SAVE
+wait 400
+btn OCT+
+wait 1500
+dump
+quit

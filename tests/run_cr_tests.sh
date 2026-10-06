@@ -10,4 +10,7 @@ cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_engine_test tes
 cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_loop_test tests/cr_loop_test.c firmware/src/cr_loop.c firmware/src/cr_engine.c
 ./build/host/cr_loop_test
 cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_settings_test tests/cr_settings_test.c firmware/src/cr_settings.c firmware/src/cr_engine.c
-exec ./build/host/cr_settings_test
+./build/host/cr_settings_test
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Ibuild/gen -o build/host/cr_va_test tests/cr_va_test.c -lm && ./build/host/cr_va_test
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_midi_test tests/cr_midi_test.c
+exec ./build/host/cr_midi_test

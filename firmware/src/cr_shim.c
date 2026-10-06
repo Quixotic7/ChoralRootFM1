@@ -65,6 +65,37 @@ static void settings_save(void) {}
 #endif
 static void ed_service(void) {}        /* (Felucca's web editor SysEx: not in ChoralRoot 0.1) */
 
+/* ------------------------------------------------------- the power-on splash --- */
+/* main.c's splash(): the idle stripes (cr_ui.c cu_stripes) sliding in with the version under them, played here
+ * while main.c boots (IRQs still off: a busy-wait clock). Options > Motion from the record persist_boot read:
+ * Off draws the settled picture, Calm plays it at double speed. The main loop's idle screen then continues it
+ * (cu_intro_played: no second slide; the version stays CR_SPLASH_MS) */
+#define CR_SPLASH_PLAY_MS 480u
+static void cr_splash(void)
+{
+    static cr_screen_t s;                          /* (static: ~1 KB off the boot stack) */
+    uint32_t t, mo = CR_MOTION_FULL;
+#if CR_HAVE_SETTINGS
+    if (crs_booted && crs_rec.cr.motion < CR_MOTION_N)
+        mo = crs_rec.cr.motion;
+#endif
+    palette_set(NPALETTES - 1u);                   /* MOD (cr_ui_init sets it again, then the saved one) */
+    cr_screen_clear(&s);
+    cu_stripes(&s);
+    s.batt = 255;
+    cu_cpy(s.foot, FELUCCA_VERSION, sizeof s.foot);
+    s.anim = CR_A_INTRO;
+    cr_draw_invalidate();
+    for (t = 0; mo != CR_MOTION_OFF && t < CR_SPLASH_PLAY_MS; t += 16u) {
+        cr_draw(&s, mo == CR_MOTION_CALM ? t * 2u : t);
+        fm1_wdt_feed();
+        fm1_delay_ms(16);
+    }
+    cr_draw(&s, CR_ANIM_SETTLED);
+    cu_intro_played = 1;
+    cr_draw_invalidate();                          /* the UI's first frame draws everything */
+}
+
 /* ------------------------------------------------------------ the frame --- */
 static void ui_input(void)
 {

@@ -20,7 +20,11 @@
 #define FELUCCA_FM4 0            /* the DIGITAL engine (eng_digital.c, four-operator FM): kept in the tree, not built
                                   * by default; replaced by FM6, its sounds convert (fm4_convert.c) */
 #endif
-#define NENGINES (13 + FELUCCA_SLICE)   /* SLICE (13) comes last: the other engines keep their numbers */
+#ifndef FELUCCA_VA
+#define FELUCCA_VA 0             /* ChoralRoot's VA engine (eng_va.c, docs/VA.md): engine 13 + FELUCCA_SLICE; Felucca builds
+                                  * without it (choralroot.c, the emulator and tests/regress.c set 1) */
+#endif
+#define NENGINES (13 + FELUCCA_SLICE + FELUCCA_VA)   /* SLICE (13) and VA come last: the other engines keep their numbers */
 #define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
 #define NENG_SHOWN (NENGINES - !FELUCCA_FM4)   /* the engines one can pick: PRESETS, the EDIT layer, the editor,
                                                 * in the display order of engines.c ENGINE_ORDER */
@@ -158,6 +162,26 @@ typedef struct {
 #define PAT(n) .pat = (n)
 
 struct track;
+/* ChoralRoot: deep editing. An engine with more parameters than its eight P_E publishes pages of four
+ * (cr_pages.c shows them after ENGINE / EDIT 1 / EDIT 2 and before ENV; SELECT turns, OPT + SELECT jumps to the
+ * next section). Its parameters live in a patch the engine owns (RAM per track); the patch travels with a user
+ * slot as a blob (cr_bank.c / the VA patch store), factory presets carry one too. get / set run in the main loop;
+ * the engine picks changes up in its block(). */
+typedef struct {
+    const char *title;           /* "OSC 1" (<= 7 chars) */
+    param_desc_t col[4];         /* KNOB 1..4; label 0 = an empty column */
+} eng_page_t;
+typedef struct {
+    uint32_t npages;
+    const eng_page_t *pages;
+    uint8_t section[8];          /* first page of each section, in order; 0xFF ends the list */
+    int32_t (*get)(const struct track *t, uint32_t page, uint32_t col);
+    void (*set)(struct track *t, uint32_t page, uint32_t col, int32_t v);
+    uint32_t blob_size;          /* the patch, packed (<= 128 bytes) */
+    void (*blob_get)(const struct track *t, uint8_t *out);
+    void (*blob_set)(struct track *t, const uint8_t *in);          /* 0 or a bad blob = the init patch */
+    void (*blob_preset)(struct track *t, uint32_t k);              /* factory preset k's patch (engine_t.presets[k]) */
+} eng_deep_t;
 typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c files) */
     const char *name;            /* "ANALOG" (PRESETS, the editor) */
     const char *page_title[2];   /* EDIT 1 and EDIT 2 */
@@ -188,6 +212,7 @@ typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c 
      * done() says so (once per control tick, before the render), not at the end of the ADSR's release */
     uint8_t ownenv;
     int (*done)(struct track *t, voice_t *v);
+    const eng_deep_t *deep;      /* ChoralRoot: deep editing pages and the patch blob, 0 = the eight P_E only */
 } engine_t;
 
 /* ------------------------------------------------- tracks, the song --- */
@@ -230,6 +255,8 @@ typedef struct track {
     uint8_t engine, preset;      /* engine: what the audio ISR renders */
     uint8_t eng_req;             /* engine the UI asked for (the ISR switches at a block start) */
     uint8_t user;                /* user preset slot + 1 the sound came from (UI), 0 = none */
+    int8_t trim;                 /* a gain after P_LEVEL, LEVEL steps (0.5 dB): ChoralRoot's factory sound's own
+                                  * (cr_bank.c), set on its load; 0 = none (user sounds, Felucca) */
     voice_t v[NVOICE];
     /* LFO */
     uint32_t lfo_ph;

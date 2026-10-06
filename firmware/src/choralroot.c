@@ -42,8 +42,14 @@
 #ifndef FELUCCA_SLICE
 #define FELUCCA_SLICE 0          /* no SLICE engine (ChoralRoot: melodic engines only) */
 #endif
+#ifndef FELUCCA_SLICER
+#define FELUCCA_SLICER 0         /* no SLICER insert (slicer.c stubs; frees its 32 KB POOL buffer) */
+#endif
 #ifndef FELUCCA_FM4
 #define FELUCCA_FM4 0
+#endif
+#ifndef FELUCCA_VA
+#define FELUCCA_VA 1             /* the VA engine (eng_va.c, engine 13) and its patch store (va_store.c) */
 #endif
 #ifndef FELUCCA_ID
 #define FELUCCA_ID "FM-1_920"    /* package identity (build.py: the .fwsc marker string) */

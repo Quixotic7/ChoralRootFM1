@@ -1,0 +1,73 @@
+# ChoralRoot: the VA's deep pages (cr_pages.c, eng_va.c VA_DEEP). EDIT held + F4 (the third white root: VA),
+# KNOB 1: its next preset (not edited); EDIT tap: OSC 1, the first deep page (after EDIT 2); SELECT -1 / +1: EDIT 2
+# and back; KNOB 1 +1: WAVE one step; KNOB 2 +1: LEVEL a detent (5%); OPT + KNOB 2: one step; OPT + SELECT: the
+# next sections (FILTER, ENV 1, LFO 1, MOD 1, the platform's ENV, FX, MIX, ENGINE) and back; KNOB 1 on ENV 1: the
+# envelope glyph; KNOB 3 on MOD 1: the slot's amount; HOME. (cr_deep.txt: the same on the CR_DEEP_STUB build)
+wait 300
+btn SEL down
+wait 500
+btn F4
+wait 300
+knob KNOB1 +1
+wait 300
+btn SEL up
+wait 300
+btn SEL
+wait 300
+knob SELECT -1
+wait 100
+knob SELECT +1
+wait 300
+shot build/emu/test/cr_deep_osc.ppm
+knob KNOB1 +1
+wait 60
+shot build/emu/test/cr_deep_osc_turn.ppm
+wait 400
+shot build/emu/test/cr_deep_osc_wave.ppm
+knob KNOB2 +1
+wait 100
+key N down
+wait 100
+knob KNOB2 +1
+wait 100
+knob SELECT +1
+wait 300
+shot build/emu/test/cr_deep_filter.ppm
+knob SELECT +1
+wait 100
+key N up
+wait 300
+shot build/emu/test/cr_deep_env.ppm
+knob KNOB1 +4
+wait 400
+shot build/emu/test/cr_deep_env_atk.ppm
+key N down
+wait 100
+knob SELECT +1
+wait 100
+knob SELECT +1
+wait 100
+key N up
+knob KNOB1 -1
+wait 100
+knob KNOB3 -3
+wait 400
+shot build/emu/test/cr_deep_mod.ppm
+key N down
+wait 100
+knob SELECT +1
+wait 300
+shot build/emu/test/cr_deep_va_env.ppm
+knob SELECT +1
+wait 100
+knob SELECT +1
+wait 100
+knob SELECT +1
+wait 100
+knob SELECT -1
+wait 100
+key N up
+wait 300
+btn HOME
+wait 300
+dump

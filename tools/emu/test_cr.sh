@@ -122,13 +122,21 @@ echo "EDIT: the sound pages"
 run cr_edit --wav "$OUT/cr_edit.wav"
 run cr_edit_ref --wav "$OUT/cr_edit_ref.wav"
 has '^edit: part 0 page ENV' "$OUT/cr_edit.log" && ok "EDIT tap: the chord sound's ENV page: $OUT/cr_edit_env.ppm" || bad "EDIT tap: no ENV page"
-has '^param: part 0 ENV ATK 80 -> 120' "$OUT/cr_edit.log" && ok "KNOB 1 +20: ATK 80 -> 120 ($(sed -n 's/^param: .*(\(.*\))/\1/p' "$OUT/cr_edit.log"))" \
+has '^param: part 0 ENV ATK 80 -> 122' "$OUT/cr_edit.log" && ok "KNOB 1 +7 (6 a detent): ATK 80 -> 122 ($(sed -n 's/^param: .*(\(.*\))/\1/p' "$OUT/cr_edit.log"))" \
     || bad "KNOB 1: ATK not changed"
 differ cr_edit_env cr_edit_atk "the ENV page redrawn with the new attack: $OUT/cr_edit_atk.ppm"
 differ cr_edit_turn cr_edit_atk "the turned glyph eases (mid-tween $OUT/cr_edit_turn.ppm)"
+run cr_edit_steps
+L="$OUT/cr_edit_steps.log"
+has '^param: part 0 ENV DEC 90 -> 96 ' "$L" && ok "a detent: DEC 90 -> 96 (5% of 0..127)" || bad "coarse step: $(grep -m1 '^param:' "$L")"
+has '^param: part 0 ENV DEC 96 -> 97 ' "$L" && ok "OPT held + KNOB 2: DEC 96 -> 97 (fine)" || bad "fine step"
+grep '^param: part 0 ENV DEC' "$L" | tail -1 | grep -q -- '-> 127 ' && ok "KNOB 2 +30: DEC clamps at 127" || bad "no clamp at 127"
+grep -q '^split\|split point' "$L" && bad "OPT + KNOB 1 reached the split point" || true
+has '^param: part 0 LFO WAVE 0 -> 1 ' "$L" && ok "LFO WAVE steps by one" || bad "WAVE: $(grep 'LFO WAVE' "$L")"
+grep '^param: part 0 MIX VCE' "$L" | grep -q -- '\([0-9]*\) -> ' && ok "MIX VOICE: $(grep '^param: part 0 MIX VCE' "$L" | sed 's/^param: //')" || bad "no VOICE step"
 has '^page: part 0 LFO 5/8' "$OUT/cr_edit.log" && ok "SELECT +1: the LFO page 5/8: $OUT/cr_edit_lfo.ppm" || bad "SELECT: no page turn"
 cmp -s "$OUT/cr_edit.wav" "$OUT/cr_edit_ref.wav" && bad "the same audio with another attack" \
-    || ok "the same chord with ATK 120: the audio differs ($(num "non-zero samples" "$OUT/cr_edit.log") / $(num "non-zero samples" "$OUT/cr_edit_ref.log") non-zero samples)"
+    || ok "the same chord with ATK 122: the audio differs ($(num "non-zero samples" "$OUT/cr_edit.log") / $(num "non-zero samples" "$OUT/cr_edit_ref.log") non-zero samples)"
 silent_end cr_edit
 
 echo "EDIT held: the engine picker"
@@ -141,10 +149,55 @@ silent_end cr_engine
 echo "SAVE: naming, the user slot"
 run cr_save
 has '^save: part 0 slot U01 name ADG' "$OUT/cr_save.log" && ok "SAVE, D4 E4 F4, OCT+: U01 \"ADG\": $OUT/cr_save_typed.ppm" || bad "not saved"
-has '^sound: part 0 pos 24 ADG' "$OUT/cr_save.log" && ok "PRESETS reaches U01 after the 24 bank sounds: $OUT/cr_save_preset.ppm" \
+has '^sound: part 0 pos 40 ADG' "$OUT/cr_save.log" && ok "PRESETS reaches U01 after the 40 bank sounds (24 + the VA's 16): $OUT/cr_save_preset.ppm" \
     || bad "U01 not on PRESETS"
 has '^edit: part 1 page' "$OUT/cr_save.log" && has '^param: part 1 ENV ATK' "$OUT/cr_save.log" &&
     ok "BASS held + EDIT: the bass sound's pages, KNOB 1 edits part 1: $OUT/cr_edit_bass.ppm" || bad "BASS + EDIT"
+
+echo "EDIT: an engine's deep pages (OSC, FILTER, ENV, MOD; OPT + SELECT: sections)"
+# the VA's pages when it is in the build (engines.c), else the UI's test engine: the firmware built with
+# -DCR_DEEP_STUB (cr_pages.c: ANALOG gets four deep pages) as build/host/emu_stub
+EMU0=$EMU
+if grep -q '&ENG_VA' firmware/src/engines.c 2>/dev/null; then
+    DEEP=cr_deep_va
+else
+    DEEP=cr_deep
+    EMU=build/host/emu_stub
+    mkdir -p build/host/stub_obj
+    ${CC:-clang} -O2 -w -DCR_DEEP_STUB -Ibuild/gen -Ifirmware/src -c tools/emu/emu_fw.c -o build/host/stub_obj/emu_fw.o &&
+    ${CC:-clang} -o "$EMU" build/host/emu_obj/emu.o build/host/emu_obj/keymap.o build/host/emu_obj/emu_img.o \
+        build/host/emu_obj/emu_midi.o build/host/stub_obj/emu_fw.o \
+        $(/opt/homebrew/bin/sdl2-config --libs 2>/dev/null || echo "-L/opt/homebrew/lib -lSDL2") -lz -lm \
+        -framework CoreMIDI -framework CoreFoundation || bad "the CR_DEEP_STUB build"
+fi
+export EMU_UI_LOG=5
+run $DEEP
+unset EMU_UI_LOG
+EMU=$EMU0
+L="$OUT/$DEEP.log"
+dv() { grep "^deep: part 0 page $1 .* col $2 " "$L" | sed -n "$3p" | sed 's/.* \(-*[0-9]*\) -> \(-*[0-9]*\) .*/\1 \2/'; }
+pg=$(grep -m1 '^page: part 0 .* 4/' "$L" | sed 's/^page: part 0 //; s/ [0-9]*\/[0-9]*$//')
+[ -n "$pg" ] && has "^edit: part 0 page $pg\$" "$L" && ok "EDIT: the first deep page, after EDIT 2: $pg 4/N: $OUT/cr_deep_osc.ppm" \
+    || bad "no deep page 4: $(grep '^page:' "$L" | head -2 | tr '\n' ' ')"
+has '^deep: part 0 page 0 .* col 0 .* edited' "$L" && ok "KNOB 1 on it (the sound marked edited): $(grep -m1 '^deep:' "$L" | sed 's/^deep: //')" \
+    || bad "KNOB 1: no deep edit"
+a=$(dv 0 1 1); b=$(dv 0 1 2)
+[ -n "$a" ] && [ -n "$b" ] && [ $(( ${a#* } - ${a% *} )) -gt 1 ] && [ $(( ${b#* } - ${b% *} )) = 1 ] &&
+    ok "KNOB 2: a detent (${a% *} -> ${a#* }), OPT held: one step (${b% *} -> ${b#* })" || bad "coarse / fine on a deep page: '$a' '$b'"
+has '^section: ' "$L" && ok "OPT + SELECT: $(grep '^section:' "$L" | sed 's/^section: part 0 //; s/ (section [0-9]*)//' | tr '\n' ',' | sed 's/,$//; s/,/ -> /g')" \
+    || bad "OPT + SELECT: no section jump"
+has '^section: part 0 ENV [0-9]*/' "$L" && has '^section: part 0 FX ' "$L" && has '^section: part 0 MIX ' "$L" &&
+    ok "the platform's ENV, FX and MIX are sections" || bad "platform sections"
+s1=$(grep '^section:' "$L" | tail -1); s3=$(grep '^section:' "$L" | tail -3 | sed -n 1p)
+[ -n "$s1" ] && [ "$s1" = "$s3" ] && ok "OPT + SELECT turned back: the previous section (${s1#section: part 0 })" || bad "OPT + SELECT back: $s1"
+has '^deep: part 0 page [0-9]* ENV[^ ]* [0-9]* col 0 ATK' "$L" && ok "the ENV page's ATK: $OUT/cr_deep_env.ppm -> $OUT/cr_deep_env_atk.ppm" \
+    || bad "no ENV ATK edit"
+differ cr_deep_env cr_deep_env_atk "the envelope glyph redrawn with the new attack"
+differ cr_deep_osc cr_deep_osc_wave "the waveform glyph redrawn with the new wave ($OUT/cr_deep_osc_wave.ppm)"
+has '^deep: part 0 page [0-9]* MOD.* col 2 AMT' "$L" && ok "a MOD slot's amount: $OUT/cr_deep_mod.ppm" || bad "no MOD AMT edit"
+u=$(sed -n 's/^ui: frame .*: \([0-9.]*\) M instructions.*: params .*/\1/p' "$L" | sort -n | tail -1)
+[ "${u:-0}" = 0 ] || [ "${u%.*}" -lt 10 ] && ok "UI frames on the sound pages: max ${u:-<5} M host instructions (< 10)" || bad "a UI frame of $u M instructions"
+silent_end $DEEP
 
 mkdir -p "$OUT/cr_again"
 echo "LOOP / REC: the looper"
@@ -186,6 +239,111 @@ a=$(L cr_loop_load 1); b=$(L cr_loop_load 2); c=$(L cr_loop_load 4)
 silent_end cr_loop_load
 "$EMU" --headless --script "$S/cr_loop_free.txt" --wav "$OUT/cr_again/cr_loop_free.wav" >/dev/null 2>&1
 cmp -s "$OUT/cr_loop_free.wav" "$OUT/cr_again/cr_loop_free.wav" && ok "the looper is deterministic (the same audio twice)" || bad "looper audio differs"
+
+echo "the loop-length layer, the count-in, undo"
+run cr_countin
+has '^loop: length 1' "$OUT/cr_countin.log" && ok "LOOP held + KNOB 1 +1: the length picker moved (Free -> 1 bar), no meter: $OUT/cr_loop_length_1bar.ppm" \
+    || bad "KNOB 1 in the loop layer"
+differ cr_loop_length cr_loop_length_1bar "the picker's selection changed: $OUT/cr_loop_length.ppm"
+differ cr_countin_4 cr_countin_3 "the count-in counts down huge in red: $OUT/cr_countin_4.ppm -> cr_countin_3.ppm"
+p=$(pixel "$OUT/cr_countin_4.ppm" 120 130); set -- $p
+[ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 90 ] && ok "the beat number is red ($p)" || bad "count-in number not red ($p)"
+has '^undo: 1 layers left' "$OUT/cr_countin.log" && ok "REC held: undo, the layers left huge: $OUT/cr_undo.ppm" || bad "undo trace"
+silent_end cr_countin
+
+echo "the loop's notes glow; MIDI start / stop"
+run cr_loop_glow
+[ "$(grep -c 'expect led .* dim .*: ok' "$OUT/cr_loop_glow.log")" = 4 ] &&
+    ok "LEDs Stock: D4 F#4 A4 dim while the loop sounds D, lit when it is silent: $OUT/cr_glow_playing.ppm" || bad "loop glow"
+has '^midi: FA start' "$OUT/cr_loop_glow.log" && has '^midi: FC stop' "$OUT/cr_loop_glow.log" &&
+    ok "MIDI Clock Out: 0xFA at the commit, 0xFC at LOOP stop" || bad "MIDI start / stop"
+[ "$(grep -c '^midi:' "$OUT/cr_loop_glow.log")" = 2 ] && ok "MIDI Clock Off: LOOP played and stopped, no start / stop sent" \
+    || bad "MIDI start / stop sent with MIDI Clock Off"
+silent_end cr_loop_glow
+
+echo "OPT + KNOB 3: perform lock"
+run cr_perf_lock
+has '^lock: perform 1' "$OUT/cr_perf_lock.log" && has '^lock: perform 0' "$OUT/cr_perf_lock.log" &&
+    ok "locked (one toggle per OPT hold), then unlocked: $OUT/cr_perf_lock.ppm" || bad "perform lock"
+differ cr_perf_lock cr_perf_unlock "unlocked: the perform picker gone"
+
+echo "user sound slots: rename, delete, the naming keys"
+run cr_save_del
+has '^save: part 0 slot U01 rename J' "$OUT/cr_save_del.log" && ok "saving over its own unedited slot renames it: $OUT/cr_save_renamed.ppm" || bad "rename"
+[ "$(grep -c '^save: delete slot 1?' "$OUT/cr_save_del.log")" = 2 ] && has '^save: delete slot U01 rc 0' "$OUT/cr_save_del.log" &&
+    ok "SAVE held 1 s: delete? (OCT- kept it), OCT+ deleted U01: $OUT/cr_save_delete.ppm" || bad "delete"
+[ "$(grep -c '^expect led .*: ok' "$OUT/cr_save_del.log")" = 5 ] && ok "naming: the typing keys lit, F#4 dark, OCT- lit" || bad "naming LEDs"
+
+echo "the power-on splash: the idle stripes slide in, the name lands, the version under them"
+run cr_splash
+grep -qi 'error' "$OUT/cr_splash.log" && bad "cr_splash: an error in the log" || ok "cr_splash: no error in the log"
+for t in 150 400 1000 1500; do [ -s "$OUT/cr_splash_$t.ppm" ] || bad "no shot $OUT/cr_splash_$t.ppm"; done
+p=$(pixel "$OUT/cr_splash_150.ppm" 200 180); set -- $p     # the orange band, 150 ms: still sliding in
+[ "${1:-255}" -lt 60 ] && ok "150 ms: the orange band not yet across ($p): $OUT/cr_splash_150.ppm" || bad "150 ms: orange band already in ($p)"
+p=$(pixel "$OUT/cr_splash_400.ppm" 200 154); set -- $p
+[ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 120 ] && ok "400 ms: the red band in ($p): $OUT/cr_splash_400.ppm" || bad "400 ms: no red band ($p)"
+p=$(pixel "$OUT/cr_splash_400.ppm" 200 206); set -- $p
+[ "${1:-0}" -gt 200 ] && [ "${3:-0}" -gt 200 ] && ok "400 ms: the white band in ($p)" || bad "400 ms: no white band ($p)"
+differ cr_splash_150 cr_splash_400 "the stripes moved between 150 and 400 ms"
+differ cr_splash_400 cr_splash_1500 "the name landed and the idle stripes go on: $OUT/cr_splash_1500.ppm"
+
+echo "MIDI in: clock In sets the tempo, program change, CC 7 / 91, notes on the CHORD channel"
+run cr_midi_in
+ML="$OUT/cr_midi_in.log"
+has '^bpm: 100 (clock in)' "$ML" && ok "clock in at 25 ms a pulse: 100 BPM" || bad "clock in: no 100 BPM"
+[ "$(grep '^bpm:' "$ML" | tail -1)" = "bpm: 140 (clock in)" ] && has 'bpm 140 view' "$ML" &&
+    ok "140 BPM pulses: the tempo (and the screen's) follow; a SELECT turn is re-asserted" || bad "clock in: not 140"
+o=$(grep 'parts busy' "$ML" | sed -n 's/.* out \([0-9]*\).*/\1/p' | sort -u | wc -l | tr -d ' ')
+[ "$o" = 1 ] && ok "clock In: nothing sent out" || bad "clock In: MIDI out moved"
+has '^sound: part 0 pos 3 .*(program change)' "$ML" && has '^sound: part 1 pos 2 .*(program change)' "$ML" &&
+    [ "$(grep -c '(program change)' "$ML")" = 2 ] && ok "program change: chord sound 3, bass sound 2, 127 ignored" || bad "program change"
+has 'part 0: .*level 64' "$ML" && has 'part 1: .*level 32' "$ML" && has '^send: part 0 Reverb 80' "$ML" &&
+    ok "CC 7 on channels 1 / 2: the parts' levels; CC 91: part 0's reverb" || bad "CC 7 / 91"
+has 'expect sound .*: ok' "$ML" && has 'part 0: .*voices 1' "$ML" && ok "a note on channel 1 plays part 0" || bad "note in"
+silent_end cr_midi_in
+
+echo "SCOPE view: HOME x4, a held chord as one bold line; silence a flat line"
+run cr_scope
+SL="$OUT/cr_scope.log"
+has 'expect sound .*: ok' "$SL" && ok "the chord sounds in the SCOPE view" || bad "SCOPE: no sound"
+p=$(pixel "$OUT/cr_scope_flat.ppm" 60 134); set -- $p
+[ "${1:-0}" -gt 200 ] && [ "${3:-0}" -gt 200 ] && ok "quiet: the trace is flat on the centre line ($p): $OUT/cr_scope_flat.ppm" || bad "quiet: no flat line ($p)"
+w=$(od -An -tu1 -v -j $((15 + 60 * 240 * 3)) -N$((60 * 240 * 3)) "$OUT/cr_scope.ppm" | tr -s ' \n' '\n\n' | grep -v '^$' |
+    awk '{ v[n++] = $1 } END { c = 0; for (i = 0; i + 2 < n; i += 3) if (v[i] > 200 && v[i+1] > 200 && v[i+2] > 200) c++; print c }')
+[ "${w:-0}" -gt 100 ] && ok "sounding: the trace swings above the centre ($w white px in rows 60..119): $OUT/cr_scope.ppm" || bad "sounding: no trace ($w)"
+differ cr_scope cr_scope_flat "the scope is live (sounding != quiet)"
+silent_end cr_scope
+
+echo "Calibration: Options > Calibrate, OCT+; each button pressed, each knob turned, OCT+ keeps"
+run cr_calib
+CL="$OUT/cr_calib.log"
+[ "$(grep -c '^calib: .* = ' "$CL")" = 21 ] && ok "21 steps taught (14 buttons, 7 knobs)" || bad "calib: not 21 steps"
+has '^calib: FX = button 2' "$CL" && has '^calib: OCT+ = button 1' "$CL" && has '^calib: PRESETS = encoder 6 dir 1' "$CL" &&
+    has '^calib: KNOB 4 = encoder 5 dir 1' "$CL" && ok "the table taught = the emulator's (panel.c PANEL_DEFAULT)" || bad "calib: wrong table"
+has '^calib: saved' "$CL" && ok "OCT+ kept it (settings_save)" || bad "calib: not saved"
+differ cr_calib_01 cr_calib_15 "a step at a time: $OUT/cr_calib_01.ppm, _14, _15, _21, _done, _saved"
+p=$(pixel "$OUT/cr_calib_done.ppm" 120 8); set -- $p
+[ "${1:-0}" -gt 200 ] && [ "${3:-255}" -lt 90 ] && ok "done: the ring full, yellow ($p)" || bad "done: no full ring ($p)"
+has 'expect sound .*: ok' "$CL" && ok "a chord plays after the calibration" || bad "calib: no sound after"
+silent_end cr_calib
+
+echo "MIDI start / continue / stop in (Clock In) drive the loop; ignored with Clock Out"
+run cr_midi_transport
+ML="$OUT/cr_midi_transport.log"
+[ "$(grep -c '^expect led GREEN .*: ok' "$ML")" = 9 ] &&
+    ok "LOOP stop, FC nothing, FA plays, FC stops, FB plays, FA restarts (still playing), FC stops; Out: FA ignored" ||
+    bad "MIDI transport in: $(grep -c '^expect led GREEN .*: ok' "$ML") of 9 GREEN checks"
+silent_end cr_midi_transport
+
+echo "VA (eng_va.c, docs/VA.md): a bank row, a held 6-note chord, a chord change"
+rm -f "$OUT"/va_chord*
+run va_chord --wav "$OUT/va_chord.wav"
+has 'part 0: VA / LUSH PAD' "$OUT/va_chord.log" && ok "PRESETS +24: LUSH PAD on the VA" || bad "va_chord: not the VA's LUSH PAD"
+[ "$(grep -c '^expect .*: ok' "$OUT/va_chord.log")" = 3 ] && ok "va_chord: sound held, the tails, then silence" ||
+    bad "va_chord: $(grep -c '^expect .*: ok' "$OUT/va_chord.log") of 3 expectations"
+wc=$(python3 tools/emu/wavclicks.py "$OUT/va_chord.wav" --from 0.4 | tail -1)
+echo "$wc" | grep -q ': 0 jumps > 0.5 FS, 0 silent holes mid-sound, 0 clicks' && ok "va_chord: $wc" || bad "va_chord: $wc"
+[ -s "$OUT/va_chord_held.ppm" ] && ok "screenshot: $OUT/va_chord_held.ppm" || bad "no va_chord_held.ppm"
 
 echo "determinism"
 mkdir -p "$OUT/cr_again"

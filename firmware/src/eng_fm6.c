@@ -172,9 +172,15 @@ static void fm6_load_slot(uint32_t tr, uint32_t s)
 }
 
 /* a sound load put a PTCH value in (a preset, a user preset, undo, an engine change): its patch */
+#if FELUCCA_VA
+static void va_track_loaded(const track_t *t);   /* eng_va.c: VA's patch on the same load paths */
+#endif
 static void fm6_track_loaded(const track_t *t)
 {
     uint32_t tr = (uint32_t)(t - trk);
+#if FELUCCA_VA
+    va_track_loaded(t);
+#endif
     if (tr < NTRK && t->eng_req == ENGI_FM6)
         fm6_load_slot(tr, (uint32_t)clamp(t->p[P_E7], 0, FM6_NSLOT - 1));
 }

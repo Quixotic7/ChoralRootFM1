@@ -1,14 +1,19 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-# Build Felucca on macOS (see BUILDING.md).
-#   ./build.sh [--release X.Y]
+# Build ChoralRoot FM-1 on macOS (see BUILDING.md): build/choralroot.fwsc (identity FM-1_920).
+#   ./build.sh [--release X.Y]      (a release: build/choralroot-X.Y.fwsc, version "ChoralRoot X.Y")
 #   JIELI_TOOLCHAIN  JieLi Linux toolchain (default: ~/.jieli/toolchain)
 #   AC79_SDK         JieLi AC79 SDK checkout (default: ~/fw-AC79_AIoT_SDK)
 set -e
 cd "$(dirname "$0")"
 export JIELI_TOOLCHAIN="${JIELI_TOOLCHAIN:-$HOME/.jieli/toolchain}"
 export AC79_SDK="${AC79_SDK:-$HOME/fw-AC79_AIoT_SDK}"
+# Pillow finds Homebrew's libraqm (the UI fonts' kerning). macOS strips DYLD_* from the environment of /bin/sh,
+# so an exported value does not reach this script: set it here.
+if [ "$(uname -s)" = Darwin ] && [ -z "$DYLD_FALLBACK_LIBRARY_PATH" ] && [ -f /opt/homebrew/lib/libraqm.dylib ]; then
+    export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
+fi
 PY="${PYTHON:-python3}"
 
 "$PY" -c 'import PIL' 2>/dev/null || { echo "build.sh: $PY has no Pillow (pip3 install Pillow)"; exit 1; }

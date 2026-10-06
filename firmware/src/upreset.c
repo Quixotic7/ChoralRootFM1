@@ -205,10 +205,17 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
 }
 
 #ifndef UP_HOST
+#if FELUCCA_VA
+#include "va_store.c"                          /* ChoralRoot: the VA patches, one per slot (the hooks below) */
+static uint8_t up_va_keep;                     /* up_rename: the slot's stored VA patch stays */
+#endif
 static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for its engine */
 {
     int16_t def[P_COUNT];
     uint32_t i;
+#if FELUCCA_VA
+    va_store_loading(r);                       /* a VA record: its slot's patch on the load (va_track_loaded) */
+#endif
     for (i = 0; i < P_COUNT; i++)
         def[i] = param_desc_of(r->engine, i)->def;
     up_params(r, v, def);
@@ -228,6 +235,9 @@ static void up_boot(void)                      /* persist_boot: the banks from f
         up_bank_check(b, flash_ok ? st_load(OBJ_UPRESET0 + b, &up_bank[b], sizeof up_bank[b]) : -1);
 #endif
     fm6_bank_boot();
+#if FELUCCA_VA
+    va_store_boot();
+#endif
 #ifdef FELUCCA_FAVORITES
     for (uint32_t k = 0; k < UP_SLOTS; k++)
         if (!up_used(k)) favorite_set(NENGINES, k, 0);
@@ -283,6 +293,10 @@ static int up_put(uint32_t k, const up_rec_t *r)
                 trk[i].user = 0;
     }
     up_gen++;
+#if FELUCCA_VA
+    if (!up_va_keep)                                   /* the VA patch of the sound saved (va_store.c), or none */
+        va_store_saved(k, r);
+#endif
 #if FELUCCA_FLASH
     if (flash_ok)
         return 0;
@@ -361,7 +375,17 @@ static int up_rename(uint32_t k, const char *name)
         return 1;
     r = *up_rec(k);
     up_set_name(&r, k, name);
+#if FELUCCA_VA
+    {
+        int rc;
+        up_va_keep = 1;                                /* the sound as it is: its stored patch too */
+        rc = up_put(k, &r);
+        up_va_keep = 0;
+        return rc;
+    }
+#else
     return up_put(k, &r);
+#endif
 }
 
 /* slot k -> the selected part's sound: engine and every parameter except the track's own (param_kept:
@@ -447,6 +471,9 @@ static void up_pat_load(track_t *t, uint32_t k)
         load_grid16(t, r->note, r->flags);
     else
         load_pat16(t, r->note, r->flags);
+#if FELUCCA_VA
+    va_user_pending = 0;                               /* (a pattern only: no sound load follows) */
+#endif
     for (i = P_SDIV; i <= P_SGATE; i++)
         t->p[i] = v[i];
     t->p[P_SLEN] = (int16_t)clamp(v[P_SLEN], 1, 16);   /* (the pattern has 16 steps) */

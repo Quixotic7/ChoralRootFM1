@@ -1,0 +1,45 @@
+# ChoralRoot: MIDI in (docs/INTEGRATION.md section 2). Options > MIDI Clock = In, clock pulses at 100 BPM (25 ms),
+# then 140 BPM; a SELECT turn (the clock re-asserts); program changes on the CHORD / BASS channels; CC 7 / 91;
+# a note on channel 1 plays part 0; a note on channel 5 (no part) is ignored
+wait 300
+key N 80                     # Options
+wait 100
+knob SELECT +11              # MIDI Clock
+knob KNOB1 +2                # Off/Out -> In
+wait 100
+key N 80
+wait 100
+dump
+midi F8 x60 25               # 100 BPM
+wait 100
+dump
+midi F8 x60 17.857           # 140 BPM
+wait 100
+dump
+knob SELECT +5               # the meter shows 145 .. the next pulses re-assert 140
+wait 100
+midi F8 x30 17.857
+wait 100
+dump
+midi 94 3C 64                # channel 5: nothing
+wait 200
+dump
+midi 90 3C 64                # channel 1: part 0 plays C4
+wait 300
+expect sound
+dump
+midi 80 3C 00
+wait 2000
+dump
+midi C0 03                   # chord sound: position 3
+wait 100
+midi C1 02                   # bass sound: ALGORITHM position 2
+wait 100
+midi C0 7F                   # out of range: ignored
+wait 100
+midi B0 07 40                # part 0 level 64
+midi B1 07 20                # part 1 level 32
+midi B0 5B 50                # part 0 reverb 80
+wait 100
+dump
+dump

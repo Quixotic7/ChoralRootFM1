@@ -12,6 +12,11 @@
 #include <string.h>
 #include <limits.h>
 #include <sys/stat.h>
+#include <unistd.h>
+#ifdef __APPLE__
+#include <libproc.h>
+#include <sys/resource.h>
+#endif
 #include "emu.h"
 #include "emu_hooks.h"
 
@@ -371,11 +376,49 @@ static struct {
 static struct { uint64_t frames; double sum_us, max_us, first, last; } ust;
 #define BLOCK_US (EMU_BLOCK * 1e6 / EMU_FS)
 
+/* headless: host instructions (kernel-counted, deterministic within ~1 %) per audio block and UI frame, and the
+ * device estimate from them: 1.7 % of the device's audio budget per 100 host instructions a sample (the ratio
+ * tests/fm6_test.c and drum_test.c use, from the PHYS measurements on the device), i.e. ~5880 instructions a
+ * sample = the whole 2.9 ms block: device us = instructions / 259 */
+static int headless;
+static uint64_t instr_now(void)
+{
+#ifdef __APPLE__
+    struct rusage_info_v4 ri;
+    if (headless && !proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri))
+        return ri.ri_instructions;
+#endif
+    return 0;
+}
+#define DEV_INSTR_PER_US (5882.0 * EMU_BLOCK / BLOCK_US)
+static struct { uint64_t n, sum, max, over, over80; uint64_t ui_n, ui_sum, ui_max; } ist;
+
 static void render_block(int16_t *out)
 {
     double t0 = perf_us(), d;
+    uint64_t i0 = instr_now();
     emu_fw_audio(out, EMU_BLOCK);
     d = perf_us() - t0;
+    if (i0 && ast.blocks > EMU_FS / EMU_BLOCK / 4) {   /* (after 0.25 s: the power-on loads) */
+        uint64_t di = instr_now() - i0;
+        ist.n++;
+        ist.sum += di;
+        if (di > ist.max)
+            ist.max = di;
+        {   /* EMU_CPU_LOG=PCT: every block above PCT % of the device budget (estimate), with its time */
+            static double log_pct = -1;
+            if (log_pct < 0) {
+                const char *e = getenv("EMU_CPU_LOG");
+                log_pct = e ? atof(e) : 1e9;
+            }
+            if (100.0 * (double)di / DEV_INSTR_PER_US / BLOCK_US > log_pct)
+                printf("cpu: block %llu at %.3f s: %.0f %% of the device budget (estimate)\n",
+                       (unsigned long long)ast.blocks, (double)ast.blocks * EMU_BLOCK / EMU_FS,
+                       100.0 * (double)di / DEV_INSTR_PER_US / BLOCK_US);
+        }
+        ist.over += di > DEV_INSTR_PER_US * BLOCK_US;
+        ist.over80 += di > DEV_INSTR_PER_US * BLOCK_US * 0.8;
+    }
     ast.blocks++;
     ast.sum_us += d;
     if (d > ast.max_us)
@@ -446,6 +489,18 @@ static void print_stats(void)
                (unsigned long long)ust.frames,
                ust.frames > 1 ? (ust.last - ust.first) / 1000.0 / (double)(ust.frames - 1) : 0.0,
                ust.sum_us / (double)ust.frames, ust.max_us);
+    if (ist.n)
+        printf("cpu: host instructions per %d-frame block avg %.0f, max %llu -> device estimate avg %.0f us, max %.0f us "
+               "of %.0f (%.0f %% / %.0f %%); blocks over the device budget %llu, over 80 %% %llu\n",
+               EMU_BLOCK, (double)ist.sum / (double)ist.n, (unsigned long long)ist.max,
+               (double)ist.sum / (double)ist.n / DEV_INSTR_PER_US, (double)ist.max / DEV_INSTR_PER_US, BLOCK_US,
+               100.0 * (double)ist.sum / (double)ist.n / DEV_INSTR_PER_US / BLOCK_US,
+               100.0 * (double)ist.max / DEV_INSTR_PER_US / BLOCK_US, (unsigned long long)ist.over,
+               (unsigned long long)ist.over80);
+    if (ist.ui_n)
+        printf("cpu: host instructions per UI frame avg %.0f, max %llu -> device estimate avg %.0f us, max %.0f us\n",
+               (double)ist.ui_sum / (double)ist.ui_n, (unsigned long long)ist.ui_max,
+               (double)ist.ui_sum / (double)ist.ui_n / DEV_INSTR_PER_US, (double)ist.ui_max / DEV_INSTR_PER_US);
     printf("firmware: voices shed on overload %u, CPU meter %u %%; CPU lock: the UI held it at most %u us, "
            "the audio waited for it at most %u us\n", shed, cpu, emu_hal.ui_lock_max_us, emu_hal.audio_wait_max_us);
 }
@@ -453,8 +508,30 @@ static void print_stats(void)
 static void ui_frame(double now_us)
 {
     double t0 = perf_us(), d;
+    uint64_t i0 = instr_now();
     emu_fw_frame();
     d = perf_us() - t0;
+    if (i0 && ust.frames > 20u) {
+        uint64_t di = instr_now() - i0;
+        ist.ui_n++;
+        ist.ui_sum += di;
+        if (di > ist.ui_max)
+            ist.ui_max = di;
+        {   /* EMU_UI_LOG=N: every UI frame above N million host instructions, with the screen it drew */
+            static double log_m = -1;
+            if (log_m < 0) {
+                const char *e = getenv("EMU_UI_LOG");
+                log_m = e ? atof(e) : 1e12;
+            }
+            if ((double)di > log_m * 1e6) {
+                char info[400];
+                emu_fw_ui_info(info, sizeof info);
+                printf("ui: frame %llu at %.3f s: %.1f M instructions (%.0f us device): %s\n",
+                       (unsigned long long)ust.frames, now_us / 1e6, (double)di / 1e6, (double)di / DEV_INSTR_PER_US,
+                       info);
+            }
+        }
+    }
     if (!ust.frames)
         ust.first = now_us;
     ust.last = now_us;
@@ -557,15 +634,16 @@ static char window_pending[32];                  /* taken in present(), before t
  *   expect led NAME on|dim|off    check a key's / button's LED now (on = lit; GREEN: PLAY's green LED);
  *                           a failure: exit status 1
  *   expect sound|silence    non-zero samples since the previous "expect sound|silence" (or power-on)
+ *   midi HEX [HEX [HEX]]    one MIDI message into the firmware's MIDI in (usb.c's queue, as from USB): "midi B0 07 64";
+ *                           "midi F8 xN MS": N clock pulses MS apart (MS may be fractional: 20.833), the clock moves on
  *   dump | rec | window NAME | quit       F12's print, F11's LCD recording, a window shot, stop here
  * Also accepted (older scripts): press KEY [MS], tap, hold / down, release / up, turn KNOB N, and a leading
  * "<ms>" for an absolute time ("1200 down A"). Names: a computer key wins for key/press/hold, a panel control
  * for btn; "note:F3" names the note F3. */
-enum { OP_DOWN, OP_UP, OP_TURN, OP_SHOT, OP_WINDOW, OP_DUMP, OP_REC, OP_QUIT, OP_MASTER, OP_EXPECT_LED, OP_EXPECT_SND };
+enum { OP_DOWN, OP_UP, OP_TURN, OP_SHOT, OP_WINDOW, OP_DUMP, OP_REC, OP_QUIT, OP_MASTER, OP_EXPECT_LED, OP_EXPECT_SND, OP_MIDI };
 typedef struct { uint32_t ms, seq; int op, kind, idx, n; const keymap_t *km; char name[96]; } sev_t;
 static sev_t *sev;
 static int sev_n, sev_cap, sev_i, quit_req;
-static int headless;
 static int expect_ok, expect_fail;
 static uint64_t expect_nz_mark;
 
@@ -699,6 +777,30 @@ static void load_script(const char *path)
         if (!strcmp(cmd, "dump")) { sev_add(cur, OP_DUMP, NULL, 0, 0, 0, NULL); continue; }
         if (!strcmp(cmd, "rec")) { sev_add(cur, OP_REC, NULL, 0, 0, 0, NULL); continue; }
         if (!strcmp(cmd, "quit")) { sev_add(cur, OP_QUIT, NULL, 0, 0, 0, NULL); continue; }
+        if (!strcmp(cmd, "midi")) {               /* (USB-MIDI packet: CIN, status, d1, d2) */
+            unsigned b[3] = {0, 0, 0}, i, nb = 0;
+            const char *ws[3] = {arg, arg2, arg3};
+            char *e;
+            for (i = 0; i < 3u && ws[i][0] && ws[i][0] != 'x'; i++, nb++) {
+                b[i] = (unsigned)strtoul(ws[i], &e, 16);
+                if (*e || b[i] > 255u) { BAD("midi: \"%s\" is not a hex byte", ws[i]); break; }
+            }
+            if (!nb || b[0] < 0x80u) { BAD("midi: a status byte (80..FF) first"); continue; }
+            {
+                uint32_t pkt = (b[0] >= 0xF0u ? 0x0Fu : b[0] >> 4) | b[0] << 8 | (b[1] & 0x7Fu) << 16 | (b[2] & 0x7Fu) << 24;
+                if (nb < 3u && ws[nb][0] == 'x') {     /* xN MS: a train */
+                    int k, cnt = atoi(ws[nb] + 1);
+                    double step = nb + 1u < 3u ? strtod(ws[nb + 1], NULL) : 0, at = cur;
+                    for (k = 0; k < cnt; k++, at += step)
+                        sev_add((uint32_t)(at + .5), OP_MIDI, NULL, 0, 0, (int)pkt, NULL);
+                    if (!t)
+                        cur = (uint32_t)(at + .5);
+                } else {
+                    sev_add(cur, OP_MIDI, NULL, 0, 0, (int)pkt, NULL);
+                }
+            }
+            continue;
+        }
         if (!strcmp(cmd, "master")) { sev_add(cur, OP_MASTER, NULL, 0, 0, atoi(arg), NULL); continue; }
         if (!strcmp(cmd, "expect")) {
             if (!strcmp(arg, "sound") || !strcmp(arg, "silence")) {
@@ -802,6 +904,10 @@ static void run_script(uint32_t ms)
             break;
         case OP_TURN: turn(e->idx, e->n); break;
         case OP_MASTER: emu_hal.master = e->n; break;
+        case OP_MIDI:
+            if (!emu_fw_midi_in((uint32_t)e->n))
+                printf("script: midi in full at %u ms\n", (unsigned)ms);
+            break;
         case OP_SHOT: shot(e->name[0] ? e->name : NULL); break;
         case OP_WINDOW:
             if (headless)

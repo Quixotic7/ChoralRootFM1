@@ -31,7 +31,7 @@ NAMES = {"white": "WHITE", "cream": "WHITE", "red": "RED", "coral": "RED", "mage
          "theme": "RED", "accent": "YELLOW", "text": "WHITE", "mid": "MID", "dim": "DIM", "rec": "REC", "line": "LINE",
          "bg": "BG", "surf": "SURF"}
 KIND = {"stripes": "STRIPES", "chord": "CHORD", "picker": "PICKER", "meter": "METER", "keyboard": "KEYBOARD",
-        "arp": "ARP", "params": "PARAMS", "geek": "GEEK", "text": "TEXT", "big": "BIG"}
+        "arp": "ARP", "params": "PARAMS", "geek": "GEEK", "text": "TEXT", "big": "BIG", "scope": "SCOPE"}
 ICON = {"none": "NONE", "play": "PLAY", "rec": "REC", "loop": "LOOP", "stop": "NONE"}
 GLYPH = ["knob", "bar", "env", "wave", "saw", "square", "filter", "steps", "dots"]
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -256,13 +256,20 @@ def screen(sc, prev_name):
             env = c.get("env") or [0.2, 0.3, 0.6, 0.3]
             cs.append(f"{{{cstr(c.get('label'), 12)}, {cstr(c.get('value'), 8)}, {col(c.get('col') or kc[i])}, "
                       f"CR_G_{(c.get('glyph') or 'knob').upper()}, {c.get('cycles') or 2}, {c.get('n') or 8}, "
-                      f"{q8(c.get('pct', 0.5))}, {{{', '.join(str(min(255, q8(e))) for e in env)}}}}}")
+                      f"{q8(c.get('pct', 0.5))}, {{{', '.join(str(min(255, q8(e))) for e in env)}}}, "
+                      f"{cstr(c.get('src'), 6)}, {cstr(c.get('dst'), 6)}}}")
         f.append(".par = {" + ", ".join(cs) + "}")
         if p.get("title"):
             f.append(f".title = {cstr(p['title'], 24)}")
         f.append(f".col = {col(p.get('col'), 'WHITE')}")
         if p.get("page"):
-            f.append(f".page = {cstr(p['page'], 12)}")
+            f.append(f".page = {cstr(p['page'], 16)}")
+        if p.get("sections"):                              # (device: [how many, the current one])
+            f.append(f".n_sect = {p['sections'][0]}")
+            f.append(f".sect = {p['sections'][1]}")
+        if p.get("slide"):                                 # (device: a page turned, the columns dealt in)
+            f.append(f".slide = {p['slide']}")
+            anim.append("CR_A_SLIDE")
         if p.get("foot"):
             f.append(f".foot = {cstr(p['foot'], 48)}")
     elif kind == "text":
@@ -276,6 +283,9 @@ def screen(sc, prev_name):
                       f"{1 if (o.get('w') or 500) >= 600 else 0}, {1 if o.get('center') else 0}}}")
         f.append(".lines = {" + ", ".join(ls) + "}")
         f.append(f".n_lines = {len(ls)}")
+    elif kind == "scope":
+        f.append(f".col = {col(p.get('col'), 'WHITE')}")
+        f.append(".wave = {" + ", ".join(str(int(v)) for v in scope_wave(p.get("freqs", []))) + "}")
     elif kind == "big":
         f.append(f".value = {cstr(p.get('value'), 24)}")
         if p.get("label"):
@@ -294,6 +304,89 @@ def screen(sc, prev_name):
     return f, shown
 
 
+def scope_wave(freqs):
+    """the firmware's cr_ui.c cu_scope on a synthetic chord (sines at freqs Hz, the scope's 22.05 kHz): 240 samples
+    from the steepest rising zero crossing, auto-scaled to -127..127 (no freqs: silence, a flat line)"""
+    import math
+    fs, n = 22050.0, 512
+    x = [sum(math.sin(2 * math.pi * f * i / fs + k) for k, f in enumerate(freqs)) * 6000 for i in range(n)]
+    x = [int(v) for v in x]
+    peak = max([2048] + [abs(v) for v in x])
+    trig, best = 0, 0
+    for i in range(1, n - 240):
+        if x[i - 1] < 0 <= x[i] and x[i] - x[i - 1] > best:
+            best, trig = x[i] - x[i - 1], i
+    return [int(x[trig + i] * 127 / peak) for i in range(240)]
+
+
+# the VA's deep pages (cr_pages.c cp_dcolumn): 31 pages between EDIT 2 and ENV, nine sections
+VA_SECT = 9
+NONE_COL = {"label": "", "value": ""}
+VA_FOOT = "SELECT: page \u00b7 OPT+SELECT: section"
+
+# device-only states (no mock-up yet; not in the JSON): rendered and linted after the mock-up states
+DEVICE_STATES = [
+    {"name": "Device · Scope view (D major held)",
+     "screen": {"header": {"mid": "D", "batt": False}, "panel": {"kind": "scope", "freqs": [293.66, 369.99, 440.0]}}},
+    {"name": "Device · Scope view (silence)",
+     "screen": {"header": {"mid": "", "batt": False}, "panel": {"kind": "scope"}}},
+    {"name": "Device · Calibration step (press FX)",
+     "screen": {"ring": 0, "ringCol": "yellow",
+                "panel": {"kind": "big", "value": "FX", "sub": "1/21", "label": "press", "size": 40}}},
+    {"name": "Device · Calibration step (turn KNOB 1)",
+     "screen": {"ring": 17 / 21, "ringCol": "yellow",
+                "panel": {"kind": "big", "value": "KNOB 1", "sub": "18/21", "label": "turn right", "size": 40}}},
+    {"name": "Device · Calibration done",
+     "screen": {"ring": 1, "ringCol": "yellow",
+                "panel": {"kind": "big", "value": "done", "col": "green", "sub": "OCT+ keeps", "label": "OCT- discards",
+                          "size": 40}}},
+]
+
+# .. then the deep pages (an engine's own, core.h eng_deep_t)
+VA_STATES = [
+    {"name": "Device · VA deep page OSC 1 (dealt in)",
+     "screen": {"header": {"mid": "", "batt": 3}, "panel": {
+         "kind": "params", "title": "VA BRASS*", "page": "OSC 1 \u00b7 4/39", "col": "white", "sections": [VA_SECT, 1],
+         "slide": 1, "foot": VA_FOOT, "cols": [
+             {"label": "Wave", "value": "SAW", "glyph": "saw", "cycles": 2, "pct": 0.5},
+             {"label": "Level", "value": "80%", "glyph": "bar", "pct": 0.8},
+             {"label": "Coarse", "value": "+12", "glyph": "knob", "pct": 0.75},
+             {"label": "Fine", "value": "-7", "glyph": "knob", "pct": 0.43}]}}},
+    {"name": "Device · VA deep page FILTER",
+     "screen": {"header": {"mid": "", "batt": 3}, "panel": {
+         "kind": "params", "title": "VA BRASS", "page": "FILTER \u00b7 12/39", "col": "white", "sections": [VA_SECT, 2],
+         "foot": VA_FOOT, "cols": [
+             {"label": "Type", "value": "BP", "glyph": "ftype", "n": 1},
+             {"label": "Cutoff", "value": "2.4kHz", "glyph": "filter", "pct": 0.62},
+             {"label": "Reso", "value": "35%", "glyph": "knob", "pct": 0.35},
+             {"label": "Drive", "value": "20%", "glyph": "bar", "pct": 0.2}]}}},
+    {"name": "Device · VA deep page ENV 2",
+     "screen": {"header": {"mid": "", "batt": 3}, "panel": {
+         "kind": "params", "title": "VA BRASS", "page": "ENV 2 \u00b7 16/39", "col": "white", "sections": [VA_SECT, 3],
+         "foot": VA_FOOT, "cols": [
+             {"label": "Attack", "value": "120ms", "glyph": "env", "env": [0.45, 0.35, 0.55, 0.6]},
+             {"label": "Decay", "value": "300ms", "glyph": "knob", "pct": 0.35},
+             {"label": "Sustain", "value": "55%", "glyph": "bar", "pct": 0.55},
+             {"label": "Release", "value": "800ms", "glyph": "knob", "pct": 0.6}]}}},
+    {"name": "Device · VA deep page MOD 3 (bass)",
+     "screen": {"header": {"mid": "", "batt": 3}, "panel": {
+         "kind": "params", "title": "SUB BASS", "page": "MOD 3 \u00b7 33/39", "col": "orange", "sections": [VA_SECT, 5],
+         "foot": VA_FOOT, "cols": [
+             {"label": "Source", "value": "LFO1", "glyph": "dots", "pct": 0.25},
+             {"label": "Dest", "value": "CUT", "glyph": "dots", "pct": 0.4},
+             {"label": "Amount", "value": "-40%", "glyph": "mod", "pct": 0.3, "src": "LFO1", "dst": "CUT"},
+             NONE_COL]}}},
+    {"name": "Device · VA deep page OSC 2 (triangle, noise)",
+     "screen": {"header": {"mid": "", "batt": 3}, "panel": {
+         "kind": "params", "title": "VA BRASS", "page": "OSC 2 \u00b7 5/39", "col": "white", "sections": [VA_SECT, 1],
+         "foot": VA_FOOT, "cols": [
+             {"label": "Wave", "value": "TRI", "glyph": "tri", "cycles": 2, "pct": 0.5},
+             {"label": "Level", "value": "60%", "glyph": "bar", "pct": 0.6},
+             {"label": "Wave", "value": "NOISE", "glyph": "noise", "pct": 0.5},
+             {"label": "Wave", "value": "PULSE", "glyph": "square", "cycles": 2, "pct": 0.25}]}}},
+]
+
+
 def slug(name):
     name = name.split("·", 1)[-1]
     words = re.findall(r"[a-z0-9]+", name.lower())
@@ -307,6 +400,7 @@ def slug(name):
 
 def main():
     d = json.loads(SRC.read_text())
+    d["states"] = list(d["states"]) + DEVICE_STATES + VA_STATES
     if d.get("palette") not in (None, "MOD"):
         print(f"gen_cr_screens: note: the design's palette is {d.get('palette')}; the device draws MOD")
     out = ["/* generated by tests/gen_cr_screens.py from design/choralroot-fm1-mockups.json: the mock-up states as",

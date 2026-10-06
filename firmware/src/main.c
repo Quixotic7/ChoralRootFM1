@@ -123,35 +123,12 @@ static void felucca_init(void)
     ui.force = 1;
 }
 
-/* the power-on splash: CHORALROOT, ChoralRoot's stripes and the version. With the screens in the unit (cr_draw.c is
- * included before main.c in choralroot.c) it is their idle stripes panel in the MOD palette; otherwise (felucca.c)
- * plain text on gfx.c */
+/* the power-on splash: with the screens in the unit (choralroot.c) ChoralRoot's (cr_shim.c cr_splash: the idle
+ * stripes sliding in, the version under them); otherwise (felucca.c) plain text on gfx.c */
 static void splash(void)
 {
 #ifdef CR_A_STRIPES
-    static cr_screen_t s;                        /* (static: ~1 KB off the boot stack) */
-    memset(&s, 0, sizeof s);
-    palette_set(NPALETTES - 1u);                 /* MOD (cr_ui_init sets it again, then the saved one) */
-    s.kind = CR_K_STRIPES;
-    s.batt = 255;
-    s.bands[0] = CR_COL_RED;
-    s.bands[1] = CR_COL_ORANGE;
-    s.bands[2] = CR_COL_WHITE;
-    s.n_bands = 3;
-    s.band = 18;
-    s.gap = 8;
-    memcpy(s.title, "CHORALROOT", 11);
-    s.title_px = 34;
-    s.title_col = CR_COL_WHITE;
-    {
-        const char *v = FELUCCA_VERSION;
-        uint32_t i;
-        for (i = 0; v[i] && i + 1u < sizeof s.footer; i++)
-            s.footer[i] = v[i];
-    }
-    cr_draw_invalidate();
-    cr_draw(&s, 0);
-    cr_draw_invalidate();                        /* the UI's first frame draws everything */
+    cr_splash();
 #else
     lcd_fill(0, 0, 240, 240, T_BG);
     draw_text_box(0, 94, 240, &AF_L, "CHORALROOT", T_THEME, 1);
@@ -161,76 +138,9 @@ static void splash(void)
 
 #ifdef CR_A_STRIPES
 /* OCT- + OCT+ held at power-on: Felucca's HARDWARE CALIBRATION (ui_input.c panel_setup, which the ChoralRoot unit
- * does not include), the same sequence on plain gfx.c text: press each printed button, turn each knob right; 30 s
- * without input cancels and keeps the old table. The caller saves it (settings_save -> the flash record). */
-#define CR_SETUP_IDLE_MS 30000u
-static void cr_setup_show(const char *what, const char *name)
-{
-    lcd_fill(0, 0, 240, 240, T_BG);
-    draw_text_box(0, 8, 240, &AF_M, "HARDWARE CALIBRATION", T_TEXT, 1);
-    draw_text_box(0, 32, 240, &AF_S, "TEACH EACH BUTTON AND KNOB", T_MID, 1);
-    lcd_fill(16, 56, 208, 1, T_LINE);
-    draw_text_box(0, 80, 240, &AF_S, what, T_MID, 1);
-    draw_text_box(0, 100, 240, &AF_L, name, T_THEME, 1);
-}
-static void cr_panel_setup(void)
-{
-    uint32_t i, used = 0, t0 = fm1_ms;
-    const panel_t old = panel;
-    cr_setup_show("LET GO OF OCT- / OCT+", "");
-    while (fm1_in.buttons) {
-        fm1_wdt_feed();
-        if (fm1_ms - t0 > CR_SETUP_IDLE_MS)
-            goto timeout;
-    }
-    fm1_input_edges(0);
-    for (i = 0; i < NB; i++) {
-        uint32_t p = 0, id;
-        cr_setup_show("PRESS", B_NAME[i]);
-        t0 = fm1_ms;
-        while (!(p & ~used)) {
-            fm1_wdt_feed();
-            p |= fm1_input_edges(0);
-            if (fm1_ms - t0 > CR_SETUP_IDLE_MS)
-                goto timeout;
-        }
-        for (id = 0; id < 14u; id++)
-            if (((p & ~used) >> id) & 1u)
-                break;
-        panel.btn[i] = (uint8_t)id;
-        used |= 1u << id;
-    }
-    used = 0;
-    for (i = 0; i < NE; i++) {
-        uint32_t e;
-        int32_t st = 0;
-        cr_setup_show("TURN RIGHT", E_NAME[i]);
-        for (e = 0; e < 7u; e++)
-            fm1_enc_take(e);
-        t0 = fm1_ms;
-        for (;;) {
-            fm1_wdt_feed();
-            if (fm1_ms - t0 > CR_SETUP_IDLE_MS)
-                goto timeout;
-            for (e = 0; e < 7u; e++)
-                if (!((used >> e) & 1u) && (st = fm1_enc_take(e)) != 0)
-                    break;
-            if (e < 7u)
-                break;
-        }
-        panel.enc[i] = (uint8_t)e;
-        panel.dir[i] = (int8_t)(st > 0 ? 1 : -1);
-        used |= 1u << e;
-        fm1_delay_ms(300);
-        fm1_enc_take(e);
-    }
-    panel.magic = PANEL_MAGIC;
-    lcd_fill(0, 0, 240, 240, T_BG);
-    return;
-timeout:
-    panel = old;
-    lcd_fill(0, 0, 240, 240, T_BG);
-}
+ * does not include) runs on ChoralRoot's screens, from the UI frame (cr_ui.c cu_calib_*: press each printed button,
+ * turn each knob right, OCT+ keeps, 30 s idle cancels); it saves the table itself (settings_save). */
+static void cr_panel_setup(void) { cc.req = 1; }
 #define panel_setup cr_panel_setup
 #endif
 

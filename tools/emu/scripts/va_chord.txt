@@ -1,0 +1,31 @@
+# VA (eng_va.c, docs/VA.md): PRESETS +24 -> bank row 25, LUSH PAD (the VA's first); a 6-note chord (MAJ + 6 + M7 + 9 on
+# D4) held 2 s, then a chord change to G4 (the same chord type) held 1.5 s, released; the sound, the screen; silent
+# 9 s after the release (the release and the FX tails rang out: no voice left)
+wait 500
+knob PRESETS +24
+wait 600
+shot build/emu/test/va_chord_sound.ppm
+dump
+key F3 down
+key 2 down
+key 4 down
+key 5 down
+wait 40
+key A down
+wait 2000
+expect sound
+shot build/emu/test/va_chord_held.ppm
+key A up
+key G down
+wait 1500
+dump
+key G up
+key F3 up
+key 2 up
+key 4 up
+key 5 up
+wait 6000
+expect sound
+wait 3000
+expect silence
+quit

@@ -23,9 +23,10 @@ typedef struct {
     uint8_t midi_en[CR_NSTREAM];     /* the stream goes out on MIDI */
     uint8_t ch[CR_NSTREAM];          /* its MIDI channel 0..15 (Orchid: 1 / 2 / 3) */
     uint8_t clock_out;               /* 24 PPQN MIDI clock out (Options > MIDI Clock: OUT) */
+    uint8_t clock_in;                /* follow 0xF8 / FA / FB / FC in (Options > MIDI Clock: IN; nothing is sent) */
 } cr_route_t;
 /* written by the UI (Options), read by the ISR: a byte each, a change applies to the next note */
-static volatile cr_route_t cr_route = {{CR_PART_CHORD, CR_PART_BASS, CR_NOPART}, {1, 1, 1}, {0, 1, 2}, 0};
+static volatile cr_route_t cr_route = {{CR_PART_CHORD, CR_PART_BASS, CR_NOPART}, {1, 1, 1}, {0, 1, 2}, 0, 0};
 
 static cr_t cr;                                  /* the engine (owned by the audio ISR) */
 static cr_loop_t crl;                            /* the looper (cr_loop.c; the audio ISR's too) */
@@ -33,8 +34,13 @@ static crl_data_t crl_stage;                     /* a slot loaded by the UI, wai
 static volatile uint8_t crl_stage_busy;          /* 1: posted, 2: queued for the cycle's end; 0: the UI's again */
 static volatile uint8_t crl_did;                 /* the last transport result (CRL_DID_*) .. */
 static volatile uint32_t crl_did_n;              /* .. and a count of them (the UI's message) */
-static uint8_t cr_och[CR_NSTREAM][128];          /* channel + 1 of each sounding MIDI note (its note-off goes there) */
-static uint8_t cr_opart[CR_NSTREAM][128];        /* part + 1 of each sounding note (a re-route never strands one) */
+/* each sounding note of a stream: its MIDI channel + 1 (bits 0-4: its note-off goes there) and its part + 1 (bits 5-7:
+ * a re-route never strands one); one byte for both (RAM) */
+static uint8_t cr_ono[CR_NSTREAM][128];
+#define CR_OCH(s, n) (cr_ono[s][n] & 31u)
+#define CR_OPART(s, n) ((uint32_t)cr_ono[s][n] >> 5)
+#define CR_OCH_SET(s, n, v) (cr_ono[s][n] = (uint8_t)((cr_ono[s][n] & 0xE0u) | (v)))
+#define CR_OPART_SET(s, n, v) (cr_ono[s][n] = (uint8_t)((cr_ono[s][n] & 31u) | (v) << 5))
 static uint32_t cr_now_ms, cr_ms_rem;            /* the engine clock: audio samples -> ms */
 static uint32_t cr_clk_acc;                      /* MIDI clock: samples x bpm x 24 since the last pulse */
 static volatile uint16_t cr_out_bpm = 120;       /* the tempo the clock pulses at (the UI sets it with the engine's) */
@@ -53,12 +59,12 @@ static void cr_cb_note_on(void *ud, cr_stream_t s, uint8_t note, uint8_t vel)
     note &= 0x7Fu;
     if (p < NPART) {
         trk_note_on(&trk[p], note, vel);
-        cr_opart[s][note] = (uint8_t)(p + 1u);
+        CR_OPART_SET(s, note, p + 1u);
     }
     if (cr_route.midi_en[s]) {
         uint32_t ch = cr_route.ch[s] & 15u;
         cr_midi(0x90u | ch, note, vel ? vel : 1u);
-        cr_och[s][note] = (uint8_t)(ch + 1u);
+        CR_OCH_SET(s, note, ch + 1u);
     }
     cr_out_notes++;
 }
@@ -67,13 +73,13 @@ static void cr_cb_note_off(void *ud, cr_stream_t s, uint8_t note)
 {
     (void)ud;
     note &= 0x7Fu;
-    if (cr_opart[s][note]) {
-        trk_note_off(&trk[cr_opart[s][note] - 1u], note);
-        cr_opart[s][note] = 0;
+    if (CR_OPART(s, note)) {
+        trk_note_off(&trk[CR_OPART(s, note) - 1u], note);
+        CR_OPART_SET(s, note, 0u);
     }
-    if (cr_och[s][note]) {
-        cr_midi(0x80u | (cr_och[s][note] - 1u), note, 0);
-        cr_och[s][note] = 0;
+    if (CR_OCH(s, note)) {
+        cr_midi(0x80u | (CR_OCH(s, note) - 1u), note, 0);
+        CR_OCH_SET(s, note, 0u);
     }
 }
 
@@ -83,12 +89,11 @@ static void cr_cb_all_off(void *ud, cr_stream_t s)
     uint32_t n, p = cr_route.part[s];
     (void)ud;
     for (n = 0; n < 128u; n++) {
-        if (cr_opart[s][n] && cr_opart[s][n] - 1u != p)
-            trk_all_off(&trk[cr_opart[s][n] - 1u]);
-        cr_opart[s][n] = 0;
-        if (cr_och[s][n] && cr_och[s][n] - 1u != (cr_route.ch[s] & 15u))
-            cr_midi(0xB0u | (cr_och[s][n] - 1u), 123, 0);
-        cr_och[s][n] = 0;
+        if (CR_OPART(s, n) && CR_OPART(s, n) - 1u != p)
+            trk_all_off(&trk[CR_OPART(s, n) - 1u]);
+        if (CR_OCH(s, n) && CR_OCH(s, n) - 1u != (cr_route.ch[s] & 15u))
+            cr_midi(0xB0u | (CR_OCH(s, n) - 1u), 123, 0);
+        cr_ono[s][n] = 0;
     }
     if (p < NPART)
         trk_all_off(&trk[p]);
@@ -211,6 +216,106 @@ static void cr_apply(const cr_ev_in_t *e)
     }
 }
 
+/* ------------------------------------------------------------- MIDI in --- */
+/* usb.c's midi_in_q (USB and TRS) is drained here, in the audio ISR, before fx.c's events_block (seq.c) runs in the
+ * same block, so seq.c's own MIDI-in loop finds it empty (its overflow recovery stays: the queue is left to it).
+ *   0xF8 / FA / FB / FC   Options > MIDI Clock = In: the tempo (cr_midi.c's follower -> cr_set_tempo) and the loop's
+ *                         transport (the LP_PLAY path); otherwise ignored
+ *   the CHORD / BASS channels (Options' channels; Off: ignored): CC 7 / 91 / 93 / 94 and program changes go to the UI
+ *                         (cr_min_q: it applies them as a knob would, with the meter); notes, pedal, bend, pressure and
+ *                         the other CCs (123: all notes off) go to Felucca's midi_event as channel 1 (part 0) or 2
+ *                         (part 1), exactly as MIDI in on channels 1 / 2 played the parts before
+ *   other channels        ignored */
+#include "cr_midi.c"
+static crm_clock_t cr_cin;
+static uint8_t cr_cin_mode;                      /* clock_in as last seen (a change resets the follower) */
+static volatile uint16_t cr_in_bpm;              /* the tempo the clock set (the UI mirrors it into cs.bpm) .. */
+static volatile uint32_t cr_in_bpm_n;            /* .. and a count of its changes */
+static volatile uint32_t cr_in_rt_n;             /* start / stop received (In) */
+static volatile uint8_t cr_in_rt_last;
+#define CR_MINQ 32u                              /* ISR -> UI: CC / program change (a power of two) */
+static crm_act_t cr_minq[CR_MINQ];
+static volatile uint32_t cr_minq_w, cr_minq_r;
+
+static void cr_min_post(const crm_act_t *a)
+{
+    if (cr_minq_w - cr_minq_r >= CR_MINQ)
+        return;                                  /* (a burst of controllers: the latest values lost, nothing stuck) */
+    cr_minq[cr_minq_w % CR_MINQ] = *a;
+    RING_PUBLISH();
+    cr_minq_w++;
+}
+static int cr_min_take(crm_act_t *a)             /* the UI */
+{
+    if (cr_minq_r == cr_minq_w)
+        return 0;
+    *a = cr_minq[cr_minq_r % CR_MINQ];
+    RING_PUBLISH();
+    cr_minq_r++;
+    return 1;
+}
+
+static void cr_loop_op(const cr_ev_in_t *e);
+static void cr_in_transport(uint32_t st)         /* FA start / FB continue: the loop plays (FA: from its start); FC */
+{
+    cr_ev_in_t e = {CRE_LOOP, LP_PLAY, 0, 0, 0};
+    int n;
+    cr_in_rt_last = (uint8_t)st;
+    cr_in_rt_n++;
+    n = crm_transport(st, crl.state == CRL_PLAYING, crl.state == CRL_STOPPED, crl.cap != CRL_CAP_NONE);
+    while (n-- > 0)
+        cr_loop_op(&e);
+}
+
+static void cr_midi_in(void)
+{
+    uint32_t w = mi_w;
+    uint8_t en[2], ch[2];
+    if (cr_cin_mode != cr_route.clock_in) {
+        cr_cin_mode = cr_route.clock_in;
+        crm_clock_reset(&cr_cin);
+    }
+    if (midi_in_overflow)                        /* seq.c's recovery: the queue dropped, every part released */
+        return;
+    en[0] = cr_route.midi_en[CR_STREAM_MAIN];
+    en[1] = cr_route.midi_en[CR_STREAM_BASS];
+    ch[0] = cr_route.ch[CR_STREAM_MAIN];
+    ch[1] = cr_route.ch[CR_STREAM_BASS];
+    while (mi_r != w) {
+        uint32_t at = mi_r % MQ, pkt = midi_in_q[at], status = (pkt >> 8) & 0xFFu;
+        uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu, ms = midi_in_ms[at];
+        mi_r++;
+        if (status >= 0xF8u) {
+            if (!cr_cin_mode)
+                continue;
+            if (status == 0xF8u) {
+                int b = crm_clock_pulse(&cr_cin, ms);
+                if (b) {
+                    cr_in_bpm = (uint16_t)b;
+                    cr_in_bpm_n++;
+                }
+                if (cr_cin.bpm && cr.bpm != cr_cin.bpm) {    /* (a SELECT turn meanwhile: the clock wins) */
+                    cr_set_tempo(&cr, cr_cin.bpm);
+                    cr_out_bpm = cr_cin.bpm;
+                    if (!b)
+                        cr_in_bpm_n++;
+                }
+            } else if (status == 0xFAu || status == 0xFBu || status == 0xFCu) {
+                cr_in_transport(status);
+            }
+        } else if (status >= 0x80u && status < 0xF0u) {
+            crm_act_t a[2];
+            int i, n = crm_map(status, d1, d2, en, ch, a);
+            for (i = 0; i < n; i++) {
+                if (a[i].kind == CRM_FORWARD)
+                    midi_event(status & 0xF0u, a[i].part, d1, d2);
+                else
+                    cr_min_post(&a[i]);
+            }
+        }
+    }
+}
+
 /* ------------------------------------------------------- the audio side --- */
 static void cr_out_init(void)                    /* power-on (the audio ISR may already run: IRQ off) */
 {
@@ -218,6 +323,9 @@ static void cr_out_init(void)                    /* power-on (the audio ISR may 
     cr_ready = 0;
     cr_init(&cr, &CR_OUT);
     cr_seed(&cr, 0x43524631u);
+    voice_fade_steal = 1;                        /* voice.c: a stolen voice fades out, its new note waits a block */
+    fx_smooth = 1;                               /* fx.c: the limiter's gain eased (no audio-rate crackle), the delay's
+                                                  * new times crossfaded (no click on a tempo change) */
     cr_loop_init(&crl);
     crl_stage_busy = 0;
     cr_now_ms = cr_ms_rem = cr_clk_acc = 0;
@@ -225,6 +333,12 @@ static void cr_out_init(void)                    /* power-on (the audio ISR may 
     cr_ready = 1;
     fm1_irq_on();
 }
+
+/* MIDI start / stop with the loop (Options > MIDI Clock = Out): 0xFA when it starts playing (LOOP from stopped, a
+ * take committed into playback), 0xFC when it stops; the UI traces them (cr_rt_n, cr_rt_last) */
+static uint8_t cr_rt_was;
+static volatile uint32_t cr_rt_n;
+static volatile uint8_t cr_rt_last;
 
 /* the audio ISR, once per CTL-sample block, before the block renders: input, the scheduler, the clock */
 static void cr_audio_block(uint32_t n)
@@ -236,6 +350,7 @@ static void cr_audio_block(uint32_t n)
         cr_apply(&cr_evq[cr_evq_r % CR_EVQ]);
         cr_evq_r++;
     }
+    cr_midi_in();
     cr_ms_rem += n * 1000u;                      /* samples -> ms, the remainder kept (no drift) */
     while (cr_ms_rem >= FS) {
         cr_ms_rem -= FS;
@@ -245,7 +360,17 @@ static void cr_audio_block(uint32_t n)
     cr_loop_tick(&crl, &cr, cr_now_ms);          /* the loop's playback and capture, the click */
     if (crl_stage_busy == 2u && !crl.next_on)
         crl_stage_busy = 0;
-    if (cr_route.clock_out) {                    /* 24 PPQN: a pulse every FS * 60 / (bpm * 24) samples */
+    if ((crl.state == CRL_PLAYING) != cr_rt_was) {
+        cr_rt_was = crl.state == CRL_PLAYING;
+        if (cr_route.clock_out && !cr_route.clock_in) {   /* USB MIDI CIN 0x0F: a single-byte system real-time message */
+            cr_rt_last = cr_rt_was ? 0xFAu : 0xFCu;
+            if (cr_rt_was)
+                cr_clk_acc = 0;                  /* the pulses start with it */
+            midi_out_event(0x0Fu | (uint32_t)cr_rt_last << 8);
+            cr_rt_n++;
+        }
+    }
+    if (cr_route.clock_out && !cr_route.clock_in) {   /* 24 PPQN: a pulse every FS * 60 / (bpm * 24) samples */
         cr_clk_acc += n * (uint32_t)cr_out_bpm * 24u;
         while (cr_clk_acc >= FS * 60u) {
             cr_clk_acc -= FS * 60u;
@@ -295,6 +420,8 @@ typedef struct {
     uint8_t lstate, lcap, lnlayers, lfull, lnext, ldirty, lsig;
     uint16_t lnev, lring;
     uint32_t llen, lbar, lbeat, lplayed;
+    uint8_t lnote[16];               /* bit n: a loop voice sounds note n (PLAN 6: their keys glow dim) */
+    uint8_t ldisp;                   /* the chord shown (ci) is a loop voice's, not the player's */
 } cr_snap_t;
 static cr_snap_t cr_snap;
 
@@ -330,6 +457,16 @@ static void cr_snapshot(void)
     cr_snap.lring = cr_loop_ring(&crl);
     cr_loop_where(&crl, &cr_snap.lbar, &cr_snap.lbeat);
     cr_snap.lplayed = crl.played;
+    for (n = 0; n < 16u; n++)
+        cr_snap.lnote[n] = 0;
+    for (n = 0; n < (uint32_t)CR_MAX_LOOPV; n++) {    /* the 8 loop voices' voiced notes */
+        const cr_voice_t *v = &cr.v[CR_MAX_VOICES + CR_MAX_PADS + n];
+        uint32_t i;
+        if (v->used)
+            for (i = 0; i < v->nnotes; i++)
+                cr_snap.lnote[(v->notes[i] >> 3) & 15u] |= (uint8_t)(1u << (v->notes[i] & 7u));
+    }
+    cr_snap.ldisp = (uint8_t)(cr.disp_vi >= CR_MAX_VOICES + CR_MAX_PADS && cr.disp_vi < CR_NVOICE);
     fm1_irq_on();
 }
 

@@ -22,13 +22,17 @@ FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_re
          "dv_rim_run", "dv_bell_run", "dv_cym_run", "dv_out",
          "slicer_track",
          "slice_render", "slc_rev",                          # SLICE (eng_slice.c): the render, the reverse windows
+         "va_render", "va_block",                            # VA (eng_va.c, ChoralRoot): the voice, the part's LFOs
          "fm1_alnk0_irq", "fm1_timer5_irq",               # the audio ISR; TIMER5: the key / LED scan (hal/fm1_input.h)
          "mod_begin", "mod_voice", "mod_end",                 # the modulation matrix (mod.c), called when active
          "perf_begin", "perf_mute", "perf_pre", "perf_block", "perf_master",   # the FX layer (perform.c), when busy
          "rev_room", "rev_spring"]                # the reverb bus (fx.c): REVERB TYPE ROOM / SPRING
 # built only with FELUCCA_FM4=1 (DIGITAL, src/eng_digital.c; not in the default build, so not in BUDGET): absent,
 # they are skipped; present, checked against these (their budget lines until the engine was retired in 1.0)
-OPTIONAL = {"digital_render": 12, "digital_render_legacy": 333, "digital_render_custom": 558}
+OPTIONAL = {"digital_render": 12, "digital_render_legacy": 333, "digital_render_custom": 558,
+            # ChoralRoot builds without the SLICE engine and the SLICER insert (choralroot.c FELUCCA_SLICE 0,
+            # FELUCCA_SLICER 0): absent from build/choralroot.dis, checked when built (felucca.c)
+            "slicer_track": 632, "slice_render": 453, "slc_rev": 120}
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not
 DIV_W = 8                       # a divide weighs 1 + 8 instructions
 NEST = 4                        # an instruction in a loop inside a loop weighs 4, two deep 16, ...

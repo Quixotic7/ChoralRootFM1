@@ -1,0 +1,54 @@
+# tools/emu/perf.sh (c): FM PAD, 200 BPM (SELECT +80), the bass on (ALGORITHM 1, SUB BASS), a free 1-bar loop of two
+# 6-note chords (D, G) recorded and playing, PERF held + G4: Arpeggiate; then the 6-note E chord held 6 s over all of it
+wait 300
+knob PRESETS +3
+wait 200
+knob SELECT +80
+wait 200
+knob ALGORITHM +1
+wait 300
+btn REC
+wait 300
+key F3 down
+key 2 down
+key 4 down
+key 5 down
+wait 40
+key A down
+wait 560
+key A up
+key G down
+wait 560
+key G up
+key F3 up
+key 2 up
+key 4 up
+key 5 up
+wait 40
+btn REC
+wait 300
+key / down
+wait 400
+key F 100
+wait 200
+key / up
+wait 300
+key F3 down
+key 2 down
+key 4 down
+key 5 down
+wait 40
+key S down
+wait 6000
+dump
+key S up
+key F3 up
+key 2 up
+key 4 up
+key 5 up
+wait 300
+btn PLAY
+wait 300
+key / 80
+wait 1500
+dump

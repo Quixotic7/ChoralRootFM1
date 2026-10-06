@@ -15,6 +15,7 @@
  * Exit 1 on a finding or a failed check. */
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #define __attribute__(x)
 
@@ -199,6 +200,92 @@ int main(int argc, char **argv)
         cr_draw_invalidate();
         cr_draw(&s, 0);
         check("cr_draw_invalidate: all six again", cr_dc.blits == CR_NSTRIP);
+    }
+
+    {   /* the ring's table (cr_draw.c cr_ring_draw): pixel for pixel the two cr_arc calls it replaces, over a pattern,
+         * at every fraction and both colours */
+        static uint16_t ref[240 * 40];
+        uint32_t f, k, p, diffs = 0, maxd = 0;
+        cr_screen_t s;
+        cr_screen_clear(&s);
+        s.ring_on = 1;
+        for (f = 0; f <= 257u; f++)
+            for (k = 0; k < CR_NSTRIP; k++) {
+                s.ring = (uint16_t)(f > 256u ? 300u : f);
+                s.ring_rec = (uint8_t)(f & 1u);
+                s.ring_col = (uint8_t)(f % 3u ? CR_COL_BLUE : CR_COL_NONE);
+                cv_begin(240u, CR_STRIP_H, T_BG);
+                cv_oy = -(int32_t)(k * CR_STRIP_H);
+                cr_clip_all();
+                for (p = 0; p < 240u * CR_STRIP_H; p++) cv_px[p] = (uint16_t)(p * 2654435761u >> 16);
+                cr_arc(120 * 16, 120 * 16, 113 * 16, 5 * 16, 0, 65536u, 0, 2 * 16, 6 * 16, T_LINE);
+                if (s.ring)
+                    cr_arc(120 * 16, 120 * 16, 113 * 16, 5 * 16, 49152u, s.ring >= 256u ? 65536u : (uint32_t)s.ring << 8,
+                           0, 0, 0, s.ring_rec ? T_REC : cr_rgb(s.ring_col, CR_RED));
+                memcpy(ref, cv_px, sizeof ref);
+                for (p = 0; p < 240u * CR_STRIP_H; p++) cv_px[p] = (uint16_t)(p * 2654435761u >> 16);
+                cr_ring_draw(&s);
+                for (p = 0; p < 240u * CR_STRIP_H; p++)
+                    if (cv_px[p] != ref[p]) {
+                        uint32_t a = swap16(cv_px[p]), b = swap16(ref[p]), d;
+                        d = (uint32_t)abs((int)(a >> 11) - (int)(b >> 11));
+                        if ((uint32_t)abs((int)((a >> 5) & 63u) - (int)((b >> 5) & 63u)) > d)
+                            d = (uint32_t)abs((int)((a >> 5) & 63u) - (int)((b >> 5) & 63u));
+                        if ((uint32_t)abs((int)(a & 31u) - (int)(b & 31u)) > d) d = (uint32_t)abs((int)(a & 31u) - (int)(b & 31u));
+                        diffs++;
+                        if (d > maxd) maxd = d;
+                    }
+            }
+        cv_oy = 0;
+        snprintf(name, sizeof name, "the ring's table: %u band pixels (of %u), as cr_arc at 258 fractions (%u px differ, max %u)",
+                 cr_ring.off[240], CR_RING_MAX, diffs, maxd);
+        check(name, cr_ring.state == 1u && diffs == 0);
+    }
+
+    {   /* the ring's fraction alone moves: only the strips its tip crossed are drawn, and the screen is the full draw's */
+        uint32_t k, f, same = 1, found = 0, most = 0, sum = 0, steps = 0;
+        for (k = 0; k < CR_NSCREENS && !found; k++)
+            if (CR_SCREENS[k].ring_on) {
+                cr_screen_t s = CR_SCREENS[k];
+                found = 1;
+                s.anim = 0;
+                s.ring = 0;
+                render(&s, 0);
+                for (f = 3; f <= 270u; f += 3) {
+                    s.ring = (uint16_t)(f == 270u ? 0u : f);   /* (and back to 0: the loop starts again) */
+                    cr_draw(&s, 0);
+                    memcpy(a, host_screen, sizeof a);
+                    if (f < 270u) {                            /* (the jump back to 0 clears the whole ring) */
+                        if (cr_dc.blits > most) most = cr_dc.blits;
+                        sum += cr_dc.blits;
+                        steps++;
+                    }
+                    cr_draw_invalidate();
+                    cr_draw(&s, 0);
+                    same &= !memcmp(a, host_screen, sizeof a);
+                }
+            }
+        snprintf(name, sizeof name, "the ring's fraction moves: the strips its tip crosses (avg %.1f, max %u), as a full draw%s",
+                 (double)sum / (double)(steps ? steps : 1u), most, same ? "" : " (DIFFERS)");
+        check(name, found && same && most <= 3u);
+    }
+
+    {   /* the scope: its samples are in the signature; one moved sample redraws, the same trace costs nothing */
+        uint32_t k, found = 0;
+        for (k = 0; k < CR_NSCREENS; k++)
+            if (CR_SCREENS[k].kind == CR_K_SCOPE && CR_SCREENS[k].wave[60]) {
+                cr_screen_t s = CR_SCREENS[k];
+                found = 1;
+                render(&s, 0);
+                cr_draw(&s, 0);
+                check("scope: the same trace again: nothing drawn", cr_dc.blits == 0);
+                s.wave[120] = (int8_t)(s.wave[120] > 0 ? -100 : 100);
+                cr_draw(&s, 0);
+                check("scope: a sample moved: redrawn, only the strips it crosses blitted",
+                      cr_dc.blits > 0 && cr_dc.blits < CR_NSTRIP);
+                break;
+            }
+        check("scope: a sounding scope state is in the table", found);
     }
 
     {   /* animations: pure and settling */

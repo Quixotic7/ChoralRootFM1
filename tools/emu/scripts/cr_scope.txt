@@ -1,0 +1,26 @@
+# ChoralRoot: the SCOPE view. HOME taps cycle the View (Chord Keyboard Notes Geek-Out Scope); MAJ + D4 held: the
+# master output as one bold line, triggered on the steepest rising zero crossing; released and quiet: a flat line
+# (the scope stays, no idle stripes)
+wait 500
+btn HOME
+wait 100
+btn HOME
+wait 100
+btn HOME
+wait 100
+btn HOME
+wait 100
+key F3 down
+wait 60
+key A down
+wait 700
+expect sound
+shot build/emu/test/cr_scope.ppm
+wait 300
+shot build/emu/test/cr_scope_b.ppm
+dump
+key A up
+key F3 up
+wait 4000
+shot build/emu/test/cr_scope_flat.ppm
+dump

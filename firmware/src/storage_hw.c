@@ -25,12 +25,14 @@ static void audio_silence(void)                 /* IRQs off: the DMA would loop 
     for (i = 0; i < sizeof abuf / sizeof abuf[0]; i++)
         abuf[i] = 0;
 }
+static uint32_t st_erases;                      /* erases done: each one a ~45 ms silence (console `cpu`) */
 static int st_erase(uint32_t off)
 {
     uint32_t took, f;
     int rc;
     if (!FL_STORE_OK(off, 0x1000u))
         return -8;
+    st_erases++;
     f = irq_save();
     audio_silence();
     rc = FL_FAR(fl_erase4k_ram)(off, &took);

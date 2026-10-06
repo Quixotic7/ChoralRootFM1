@@ -12,7 +12,12 @@
  *   cr_settings_boot()   persist_boot: the flash object -> Felucca's fields (panel table, HOLD) + our record
  *   cr_settings_load()   the end of cr_ui_init: the record -> engine, routing, the UI mirror, sounds, palette
  *   cr_settings_poll()   every UI frame: a change (captured from the UI) is saved once nothing changed for
- *                        CRS_QUIET_MS, never while a loop plays (CR_SETTINGS_BUSY()), retried after a flash error
+ *                        CRS_QUIET_MS and nothing has sounded for CRS_IDLE_MS (crs_sounding: no voice of the parts,
+ *                        no chord held or latched, no scheduled note, the master output below -60 dBFS), never
+ *                        while a loop plays (CR_SETTINGS_BUSY()), retried after a flash error. A flash erase holds
+ *                        every IRQ for ~45 ms with the audio buffer zeroed (storage_hw.c st_erase): saved under a
+ *                        sounding chord it was a 46 ms hole with a click at each edge (docs/INTEGRATION.md,
+ *                        Performance)
  *   cr_settings_save()   save now (still deferred while a loop plays)
  * Nothing here writes flash from the audio ISR. */
 #ifndef CR_ENGINE_H
@@ -145,7 +150,7 @@ static void crs_sanitize(cr_settings_t *s)
     }
     CRS_FIX(clock_mode, 0, CRS_CLOCK_IN);
     CRS_FIX(raw_sound, 0, 1);
-    CRS_FIX(view, 0, 3);
+    CRS_FIX(view, 0, 4);
     CRS_FIX(motion, 0, 2);
     CRS_FIX(leds, 0, 1);
     CRS_FIX(fx_on, 0, 1);
@@ -236,6 +241,7 @@ void cr_settings_apply(const cr_settings_t *s, cr_t *c, cr_settings_out_t *o)
         o->part[CR_STREAM_BASS] = 1;
         o->part[CR_STREAM_RAW] = s->raw_sound ? 0 : CRS_NONE;
         o->clock_out = s->clock_mode == CRS_CLOCK_OUT;
+        o->clock_in = s->clock_mode == CRS_CLOCK_IN;
     }
 }
 
@@ -268,8 +274,7 @@ void cr_settings_capture(cr_settings_t *s, const cr_t *c, const cr_settings_out_
             s->midi_ch[i] = (uint8_t)(o->ch[i] & 15u);
         }
         s->raw_sound = o->part[CR_STREAM_RAW] != CRS_NONE;
-        if (s->clock_mode != CRS_CLOCK_IN || o->clock_out)    /* (IN is the UI's: kept unless OUT took over) */
-            s->clock_mode = o->clock_out ? CRS_CLOCK_OUT : CRS_CLOCK_OFF;
+        s->clock_mode = o->clock_in ? CRS_CLOCK_IN : o->clock_out ? CRS_CLOCK_OUT : CRS_CLOCK_OFF;
     }
     cr_settings_seal(s);
 }
@@ -280,6 +285,8 @@ void cr_settings_capture(cr_settings_t *s, const cr_t *c, const cr_settings_out_
 #define CR_SETTINGS_BUSY() 0                       /* (cr_ui.c defines it: a loop is playing, no flash erase) */
 #endif
 #define CRS_QUIET_MS 1500u                         /* a change is saved once nothing changed for this long */
+#define CRS_IDLE_MS 1000u                          /* .. and nothing sounded for this long (crs_sounding) */
+#define CRS_QUIET_PEAK 32                          /* the master output (audio.c scope_buf, Q15): -60 dBFS */
 
 #include "settings_persist.c"                      /* Felucca's record, PER5: its last member is cr_settings_t */
 
@@ -320,6 +327,7 @@ static void crs_capture(cr_settings_t *s)
         o.part[i] = cr_route.part[i] == CR_NOPART ? CRS_NONE : cr_route.part[i];
     }
     o.clock_out = cr_route.clock_out;
+    o.clock_in = cr_route.clock_in;
     fm1_irq_off();
     cr_settings_capture(s, &cr, &o);
     fm1_irq_on();
@@ -396,6 +404,7 @@ static void cr_settings_load(void)
         cs.ch[i] = (uint8_t)(s->midi_en[i] ? s->midi_ch[i] + 1u : 0u);
     cs.raw_sound = s->raw_sound;
     cr_route.clock_out = o.clock_out;
+    cr_route.clock_in = o.clock_in;
     cs.loop_len = s->loop_sync;
     cs.loop_quant = s->loop_quant;
     cs.loop_count_in = s->loop_count_in;
@@ -448,12 +457,29 @@ static int crs_write(void)                         /* the captured state -> flas
     return 0;
 }
 
+/* something sounds or is about to: a voice of the parts (release tails too), a chord the engine holds or latches,
+ * a scheduled note (arp, strum), or the master output (the FX tails) above CRS_QUIET_PEAK over the scope's last
+ * 512 samples (~23 ms). No flash erase then: it would cut the audio (see the top) */
+static uint32_t crs_loud_ms;
+static int crs_sounding(void)
+{
+    uint32_t i;
+    if (cr_parts_busy() || cr_snap.voices || cr_snap.pending)
+        return 1;
+    for (i = 0; i < SCOPE_N; i++)
+        if (scope_buf[i] > CRS_QUIET_PEAK || scope_buf[i] < -CRS_QUIET_PEAK)
+            return 1;
+    return 0;
+}
+
 /* every UI frame (main.c settings_poll) */
 static void cr_settings_poll(void)
 {
     cr_settings_t now;
     if (!crs_loaded)
         return;
+    if (crs_sounding())
+        crs_loud_ms = fm1_ms;
     crs_capture(&now);
     if (!cr_settings_equal(&now, &crs_seen)) {
         crs_seen = now;
@@ -461,7 +487,8 @@ static void cr_settings_poll(void)
         crs_pending = 1;
         return;
     }
-    if (!crs_pending || CR_SETTINGS_BUSY() || (uint32_t)(fm1_ms - crs_change_ms) < CRS_QUIET_MS)
+    if (!crs_pending || CR_SETTINGS_BUSY() || (uint32_t)(fm1_ms - crs_change_ms) < CRS_QUIET_MS ||
+        (uint32_t)(fm1_ms - crs_loud_ms) < CRS_IDLE_MS)
         return;
     if (crs_pending == 2u && (uint32_t)(fm1_ms - crs_retry_ms) < 1000u)
         return;

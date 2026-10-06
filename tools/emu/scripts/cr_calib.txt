@@ -1,0 +1,75 @@
+# ChoralRoot: the calibration (Felucca's HARDWARE CALIBRATION) on ChoralRoot's screens, from Options > Calibrate:
+# OPT tap, SELECT to the last setting, OCT+ starts; press each printed button in Felucca's order, turn each knob
+# right, OCT+ keeps the table (the trace: "calib: ..."). The MASTER pot is not part of Felucca's calibration: moving
+# it mid-way changes nothing. Then a chord still plays (the table taught = the emulator's).
+wait 500
+btn GLO
+wait 100
+knob SELECT +30
+wait 100
+shot build/emu/test/cr_calib_opt.ppm
+btn OCT+
+wait 100
+shot build/emu/test/cr_calib_01.ppm
+btn FX
+wait 60
+btn SCL
+wait 60
+btn ENV
+wait 60
+btn LFO
+wait 60
+btn EDIT
+wait 60
+btn GLO
+wait 60
+btn HOME
+wait 60
+btn SAVE
+wait 60
+btn ARP
+wait 60
+btn SEQ
+wait 60
+master 0
+btn PLAY
+wait 60
+master 1023
+btn REC
+wait 60
+btn OCT-
+wait 60
+shot build/emu/test/cr_calib_14.ppm
+btn OCT+
+wait 60
+shot build/emu/test/cr_calib_15.ppm
+knob SELECT +1
+wait 400
+knob ALGORITHM +1
+wait 400
+knob PRESETS +1
+wait 400
+knob KNOB1 +1
+wait 400
+knob KNOB2 +1
+wait 400
+knob KNOB3 +1
+wait 400
+shot build/emu/test/cr_calib_21.ppm
+knob KNOB4 +1
+wait 400
+shot build/emu/test/cr_calib_done.ppm
+btn OCT+
+wait 200
+shot build/emu/test/cr_calib_saved.ppm
+master 724
+wait 1500
+key F3 down
+wait 60
+key A down
+wait 500
+expect sound
+key A up
+key F3 up
+wait 2000
+dump

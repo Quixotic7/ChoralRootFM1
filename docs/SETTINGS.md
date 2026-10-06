@@ -89,7 +89,7 @@ Never reorder or remove a field. A retired field stays in place, unused.
 | --- | --- | --- |
 | `cr_settings_boot()` | `persist_boot` (cr_shim.c), the emulator's `emu_fw_init` | the flash object → Felucca's fields (panel table, palette, HOLD, LEDs) + the block |
 | `cr_settings_load()` | the end of `cr_ui_init` (**patch below**); the emulator calls it after `cr_ui_init` until then | the block → engine (IRQ off), `cr_route`, the UI mirror `cs`, motion, palette, the sounds, tempo |
-| `cr_settings_poll()` | every frame (`main.c` `settings_poll` → cr_shim.c; the emulator's `emu_fw_frame`) | captures the state; a change is written once nothing changed for 1.5 s, never while a loop plays (`CR_SETTINGS_BUSY()`, TODO with `cr_loop.c`), retried 1 s after a flash error, and skipped when the bytes are unchanged |
+| `cr_settings_poll()` | every frame (`main.c` `settings_poll` → cr_shim.c; the emulator's `emu_fw_frame`) | captures the state; a change is written once nothing changed for 1.5 s and nothing has sounded for 1 s (no voice of the parts, no chord held or latched, no scheduled note, the master output under -60 dBFS: a flash erase stops the audio for ~45 ms, docs/INTEGRATION.md Performance), never while a loop plays (`CR_SETTINGS_BUSY()`), retried 1 s after a flash error, and skipped when the bytes are unchanged |
 | `cr_settings_save()` | `settings_save` (cr_shim.c): the power-on calibration, Options | save now |
 
 Saving is driven by change detection, so `cr_ui.c` needs no save call at each setting. The only call it needs

@@ -24,7 +24,10 @@ static struct {
     int32_t sp_lp, sp_hp, sp_he, sp_size;   /* .. its loop low-pass, low cut (and its remainder), the loop
                                              * length (Q8, glides) */
     uint32_t sp_ph;                      /* .. the output tap's wobble */
+    uint16_t dly_dl, dly_old, dly_xf;    /* DELAY: the tap in use, the one it fades from, samples left of the fade */
 } fx;
+#define DLY_XF 512u                      /* fx_smooth: a new delay time (TIME, the tempo, a MIDI clock) crossfades in
+                                          * 11.6 ms: the read index jumping was a click on every tempo step while it rang */
 
 /* SPRING (G_RTYPE 1): one spring of a spring tank, mono like the other buses, in the ROOM's own buffers (no
  * RAM of its own): the input and the loop's return -> a low cut (~110 Hz: a spring carries little bass) ->
@@ -72,6 +75,14 @@ static void track_dist(track_t *t, int32_t *b, uint32_t n)
  * get quieter instead of crushed. */
 #define LIM_T 18000
 static int32_t lim_env = LIM_T;
+/* ChoralRoot (cr_out.c sets it; 0 in Felucca, its golden renders and reverb_test's bit-exact buses): the delay's
+ * new times crossfade (DLY_XF), and the limiter is smoothed. A 6-note chord with the bass keeps the limiter
+ * working (pre-limiter peaks ~2x LIM_T on ANALOG / WHEEL sounds, 60 % of the samples limited), and its 4-sample
+ * attack re-attacking on every new peak of the beating chord modulated the gain at audio rate: -49 dB of
+ * sidebands above 1 kHz, a crackle on held chords, louder with the FX sends. Smoothed (lim_g): -57 dB, the same
+ * loudness; the peaks the slower gain lets through (to ~25000) go into the soft clipper's near-linear part */
+static uint8_t fx_smooth;
+static int32_t lim_g = 32768;
 static volatile uint8_t fx_lowcut;     /* settings: 1 LOWCUT 12 dB/oct ~110 Hz, 2 BASS+ (the small speaker):
                                         * 12 dB/oct ~220 Hz plus the harmonics of the bass (spk_bass) */
 static int32_t lc_l1, lc_l2, lc_r1, lc_r2, dc_l, dc_r, dce_l, dce_r;
@@ -136,6 +147,25 @@ static inline void master_out(int32_t *l, int32_t *r)
     al = *l < 0 ? -*l : *l;
     ar = *r < 0 ? -*r : *r;
     a = al > ar ? al : ar;
+    if (fx_smooth) {                 /* ChoralRoot: the peak held at once, the gain eased down over ~1.5 ms */
+        int32_t gt;
+        if (a > lim_env)
+            lim_env = a;
+        else if (lim_env > LIM_T)
+            lim_env -= ((lim_env - LIM_T) >> 12) + 1;
+        gt = lim_env > LIM_T ? (int32_t)(((uint32_t)LIM_T << 15) / (uint32_t)lim_env) : 32768;
+        if (gt < lim_g)
+            lim_g += (gt - lim_g) >> 6;
+        else
+            lim_g = gt;
+        if (lim_g < 32768) {
+            *l = ((*l >> 4) * lim_g) >> 11;
+            *r = ((*r >> 4) * lim_g) >> 11;
+        }
+        *l = softclip(*l);
+        *r = softclip(*r);
+        return;
+    }
     if (a > lim_env)
         lim_env += (a - lim_env) >> 2;
     else if (lim_env > LIM_T)
@@ -270,6 +300,13 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     int32_t dmix = song.g[G_DMIX] * 258;
     int32_t cdepth = song.g[G_CDEPTH] * 6, rt;
     uint32_t cinc = LFO_INC[song.g[G_CRATE] & 127] / CTL;
+    if (dl != fx.dly_dl) {                              /* ChoralRoot (fx_smooth): a new delay time crossfades */
+        if (fx.dly_dl && fx_smooth) {
+            fx.dly_old = fx.dly_xf > DLY_XF / 2u ? fx.dly_old : fx.dly_dl;   /* (mid-fade: the nearer of the two) */
+            fx.dly_xf = DLY_XF;
+        }
+        fx.dly_dl = (uint16_t)dl;
+    }
     for (i = 0; i < n; i++) {
         int32_t y = 0, x, r;
         /* chorus: modulated short delay, 5..15 ms */
@@ -285,6 +322,11 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
         fx.cho_w++;
         /* delay with a low-passed feedback */
         x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)];
+        if (fx.dly_xf) {                                /* from the old tap to the new one, linear */
+            int32_t xo = dly_buf[(fx.dly_w - fx.dly_old) & (DLY_LEN - 1u)];
+            x += (int32_t)(((xo - x) * (int32_t)fx.dly_xf) / (int32_t)DLY_XF);
+            fx.dly_xf--;
+        }
         fx.dly_lp += mulq15(x - fx.dly_lp, col);
         dly_buf[fx.dly_w & (DLY_LEN - 1u)] =
             (int16_t)clamp((dly_in[i] >> 1) + mulq15(fx.dly_lp, fb), -32768, 32767);
@@ -334,7 +376,13 @@ static void mix_part(track_t *t, uint32_t n)
         return;
     }
     {
-        int32_t lvl = LEVEL_Q12[t->p[P_LEVEL] & 127], pan = t->p[P_PAN];
+        int32_t lv = t->p[P_LEVEL] & 127, lvl, pan = t->p[P_PAN];
+        if (t->trim && lv)                              /* the sound's trim (ChoralRoot), after LEVEL: 0.5 dB steps */
+            lv = clamp(lv + t->trim, 1, 127);
+        lvl = LEVEL_Q12[lv];
+#if FELUCCA_VA
+        pan = va_pan(t, pan);                           /* eng_va.c: VA's matrix PAN */
+#endif
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
         int32_t c = t->p[P_CHOR] * 258, d = t->p[P_DLY] * 258, r = t->p[P_REV] * 258, pk = t->peak;
         int32_t xmax = c > d ? c : d;

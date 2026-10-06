@@ -22,6 +22,9 @@
 #if FELUCCA_SLICE
 #include "eng_slice.c"
 #endif
+#if FELUCCA_VA
+#include "eng_va.c"             /* VA: ChoralRoot's four-oscillator virtual analog (deep pages, its own patch) */
+#endif
 
 /* the editor protocol, user presets and projects store these indices: append, never reorder */
 static const engine_t *const ENGINES[NENGINES] = {
@@ -45,6 +48,9 @@ static const engine_t *const ENGINES[NENGINES] = {
 #if FELUCCA_SLICE
     &ENG_SLICE,                  /* 13 (FELUCCA_SLICE=0 builds without it) */
 #endif
+#if FELUCCA_VA
+    &ENG_VA,                     /* 13 + FELUCCA_SLICE (ENGI_VA; ChoralRoot: 13) */
+#endif
 };
 
 /* a track's engine number as an index (the audio paths: a compare, cheaper than % NENGINES; a bad number: 0) */
@@ -56,6 +62,9 @@ static inline uint32_t eng_idx(uint32_t e) { return e < NENGINES ? e : 0u; }
 static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
     0,                           /* ANALOG */
     12,                          /* FM6 */
+#if FELUCCA_VA
+    ENGI_VA,                     /* VA */
+#endif
 #if FELUCCA_FM4
     1,                           /* DIGITAL */
 #endif
