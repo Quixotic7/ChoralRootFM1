@@ -1100,12 +1100,7 @@ static uint32_t ce_seg(const track_t *t, ce_ref_t r)
 
 /* the battery as Felucca's header showed it (ui_draw.c batt_shown): 4 on USB power, else 0..3 by the smoothed ADC
  * (thresholds 531 / 561 / 591) */
-static uint32_t ce_batt(void)
-{
-    if (usb.config && !usb.suspended)
-        return 4u;
-    return song.batt_raw >= 591 ? 3u : song.batt_raw >= 561 ? 2u : song.batt_raw >= 531 ? 1u : 0u;
-}
+
 
 /* the matrix's marks: per destination the colour of its source (white: several), 0 none */
 #define CE_NDST 48u
@@ -1149,8 +1144,7 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     s->title_col = p ? CR_COL_ORANGE : CR_COL_NONE;
     cu_cpy(s->page, vw.right, sizeof s->page);
     s->fine = (uint8_t)(cx.shift || cu_shift());
-    if (g == CE_MIX)                              /* the "global menu": the battery at the title line's right end */
-        s->batt = (uint8_t)ce_batt();
+    s->batt = 255;                                /* no battery in the editor (it is on the Options page) */
     s->n_rows = vw.n;
     s->active = vw.active;
     s->wide = vw.wide;

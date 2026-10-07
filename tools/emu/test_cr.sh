@@ -284,9 +284,13 @@ region_differs cr_modes_morph_b cr_modes_morph_c 20 42 80 74 && ok "MORPH: one m
 has '^deep: part 0 page [0-9]* FILTER col 2 FTYPE 0 -> ' "$L" && region_differs cr_modes_ftype_a cr_modes_ftype_b 8 44 232 118 &&
     ok "FTYPE from LP toward BP ($(grep -m1 'FILTER col 2 FTYPE' "$L" | sed 's/.*FTYPE //')): the band's curve morphs: $OUT/cr_modes_ftype_a.ppm -> $OUT/cr_modes_ftype_b.ppm" \
     || bad "FTYPE band: $(grep -m1 'FTYPE' "$L")"
-differ cr_modes_ftype_a cr_modes_mix "MIX: the battery in the title line: $OUT/cr_modes_mix.ppm"
-[ "$(pixel "$OUT/cr_modes_mix.ppm" 230 12)" != "$(pixel "$OUT/cr_modes_ftype_a.ppm" 230 12)" ] &&
-    ok "MIX: the battery's nub at the title line's right end" || bad "MIX: no battery in the title line"
+# the battery shows on the Options page only: none in the editor's title lines
+for shot in cr_modes_mix; do                      # (the FILTER shot has its right text under that pixel)
+    [ "$(pixel "$OUT/$shot.ppm" 230 12)" = "$(pixel "$OUT/$shot.ppm" 2 2)" ] &&
+        ok "$shot: no battery in the editor's title line" || bad "$shot: a battery in the editor's title line"
+done
+[ -f "$OUT/cr_glow_options.ppm" ] && { [ "$(pixel "$OUT/cr_glow_options.ppm" 230 12)" != "$(pixel "$OUT/cr_glow_options.ppm" 2 2)" ] &&
+    ok "Options: the battery at the top line's right end: $OUT/cr_glow_options.ppm" || bad "Options: no battery on the Options page"; }
 has '^edit: group OSC screen 1 lane 1 part 0' "$L" && ok "VINYL KEYS: OSC 4's NOISE VINYL glyph: $OUT/cr_modes_noise.ppm" || bad "VINYL KEYS OSC"
 u=$(grep -E '^ui: frame .* M instructions .*\): (edit8|stack) ' "$L" | sed -n 's/^ui: frame .*: \([0-9.]*\) M instructions.*/\1/p' | sort -n | tail -1)
 [ "${u:-0}" = 0 ] || [ "${u%.*}" -lt 10 ] && ok "UI frames with the morph / noise glyphs and the FTYPE band: max ${u:-<5} M host instructions (< 10)" || bad "a UI frame of $u M instructions"

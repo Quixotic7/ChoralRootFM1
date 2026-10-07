@@ -531,6 +531,7 @@ static struct {
 #define cu_trace(...) ((void)0)
 #endif
 static void cu_message(const char *t, uint32_t col);
+static uint32_t cu_batt(void);
 static void cu_edit_open(uint32_t part);
 #define CR_EDIT_HOOKS 1                   /* the sound editor (cr_edit.c, included below) */
 enum { CE_TAP, CE_HOLD, CE_SHIFT };
@@ -2457,12 +2458,21 @@ static uint32_t cu_lit(const cr_chord_info_t *ci)  /* the keyboard strip: bit k 
     return m;
 }
 
+/* the battery as Felucca's header showed it (ui_draw.c batt_shown): 4 on USB power (charging), else 0..3 by the
+ * smoothed ADC (main.c batt_raw, thresholds 531 / 561 / 591); shown on the Options page's top line only */
+static uint32_t cu_batt(void)
+{
+    if (usb.config && !usb.suspended)
+        return 4u;
+    return song.batt_raw >= 591 ? 3u : song.batt_raw >= 561 ? 2u : song.batt_raw >= 531 ? 1u : 0u;
+}
+
 static void cu_header(cr_screen_t *s)
 {
     const cr_snap_t *sn = &cr_snap;
     s->header = 1;
     s->icon = CR_ICON_NONE;
-    s->batt = 255;
+    s->batt = 255;                     /* the battery shows on the Options page only (the user's call) */
     s->mid_col = CR_COL_WHITE;
     s->right_col = CR_COL_WHITE;
     if (cs.key_on) {
@@ -2703,6 +2713,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
 
 static void cu_options_screen(cr_screen_t *s)
 {
+    s->batt = (uint8_t)cu_batt();                  /* the one page with the battery level */
     cu_picker(s, O_NAME, O_N, cu.opt_sel, CR_COL_WHITE, "options \267 KNOB 1 sets", "");
     opt_text(cu.opt_sel, s->value, sizeof s->value);
 }

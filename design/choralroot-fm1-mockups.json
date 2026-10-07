@@ -157,7 +157,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -284,7 +284,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -436,7 +436,7 @@
      "bpm": "",
      "mid": "",
      "right": "lock",
-     "batt": 3,
+     "batt": 255,
      "usb": false,
      "rightCol": "white"
     },
@@ -589,7 +589,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -739,7 +739,7 @@
      "bpm": "",
      "mid": "Key: C",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false,
      "midCol": "yellow"
     },
@@ -904,7 +904,7 @@
      "bpm": "",
      "mid": "Key: C",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false,
      "midCol": "yellow"
     },
@@ -1037,7 +1037,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -1167,7 +1167,7 @@
      "bpm": "",
      "mid": "",
      "right": "Arp",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -1322,7 +1322,7 @@
      "bpm": "",
      "mid": "Loop",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false,
      "midCol": "red"
     },
@@ -1450,7 +1450,7 @@
      "bpm": "",
      "mid": "Rec",
      "right": "2.3",
-     "batt": 3,
+     "batt": 255,
      "usb": false,
      "midCol": "red"
     },
@@ -1599,7 +1599,7 @@
      "bpm": "",
      "mid": "Loop 1",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false,
      "midCol": "red"
     },
@@ -1867,7 +1867,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -2009,7 +2009,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -2122,7 +2122,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -2249,7 +2249,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -2379,7 +2379,7 @@
      "bpm": "",
      "mid": "Key: D minor",
      "right": "Trans +0",
-     "batt": 3,
+     "batt": 255,
      "usb": false,
      "midCol": "yellow"
     },
@@ -2530,7 +2530,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -2651,7 +2651,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -2770,7 +2770,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -3132,7 +3132,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -3269,7 +3269,7 @@
      "bpm": "",
      "mid": "",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false
     },
     "cards": null,
@@ -3410,7 +3410,7 @@
      "bpm": "",
      "mid": "Key: C",
      "right": "",
-     "batt": 3,
+     "batt": 255,
      "usb": false,
      "midCol": "yellow"
     },

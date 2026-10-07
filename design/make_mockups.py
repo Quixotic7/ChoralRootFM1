@@ -79,9 +79,9 @@ EDITOR_BUTTON_LABELS = {
 KEY_COLS = {"Key": "yellow", "Rec": "red", "Loop": "red"}
 
 
-def header(key="", right="", icon="none", bpm="", rec=False, right_col=None, mid_col=None):
+def header(key="", right="", icon="none", bpm="", rec=False, right_col=None, mid_col=None, batt=None):
     """Orchid's top line: the key top-left (in the colour of what owns it), a status top-right, the battery"""
-    h = {"icon": icon, "bpm": bpm, "mid": key, "right": right, "batt": 3, "usb": False}
+    h = {"icon": icon, "bpm": bpm, "mid": key, "right": right, "batt": 3 if batt else 255, "usb": False}   # the battery: the Options page only
     for word, col in KEY_COLS.items():
         if key.startswith(word):
             h["midCol"] = col
@@ -94,9 +94,9 @@ def header(key="", right="", icon="none", bpm="", rec=False, right_col=None, mid
     return h
 
 
-def scr(panel, key="", right="", icon="none", bpm="", rec=False, ring=None, ring_rec=False, foot=None, message=None, message_col=None, note="", right_col=None):
+def scr(panel, key="", right="", icon="none", bpm="", rec=False, ring=None, ring_rec=False, foot=None, message=None, message_col=None, note="", right_col=None, batt=None):
     """one big thing per screen: a panel under Orchid's thin top line, an optional one-line footer"""
-    o = {"header": header(key, right, icon, bpm, rec, right_col), "cards": None, "panel": panel,
+    o = {"header": header(key, right, icon, bpm, rec, right_col, batt=batt), "cards": None, "panel": panel,
          "footer": {"text": foot} if foot else None, "note": note}
     if ring is not None:
         o["ring"] = ring
@@ -484,7 +484,7 @@ S.append(state(
     buttons={"GLO": LIT, "OCT-": LIT, "OCT+": BLINK},
     button_notes={"GLO": "OPT lit while the menu is open; tap again, HOME or OCT- to leave"},
     encoders={"SELECT": ("SCROLL", ""), "KNOB1": ("VALUE", ""), "KNOB2": "", "KNOB3": "", "KNOB4": ""},
-    screen=scr({'kind': 'picker', 'items': ['Battery', 'View', 'Audio Output', 'MIDI Channels', 'MIDI In', 'MIDI Out', 'MIDI Clock', 'Play Style', 'Extension Addition', 'Single Notes', 'Secret Chords', 'Quantization', 'Metronome', 'Velocity Sense', 'Motion', 'Palette', 'LEDs', 'Version', 'Upgrade firmware'], 'sel': 7, 'label': 'options · KNOB 1 sets', 'col': 'white', 'value': 'Simple'}, note="OPT tapped: one setting per screen — its name big, its value under it; SELECT slides to the next setting, KNOB 1 changes the value."),
+    screen=scr({'kind': 'picker', 'items': ['Battery', 'View', 'Audio Output', 'MIDI Channels', 'MIDI In', 'MIDI Out', 'MIDI Clock', 'Play Style', 'Extension Addition', 'Single Notes', 'Secret Chords', 'Quantization', 'Metronome', 'Velocity Sense', 'Motion', 'Palette', 'LEDs', 'Version', 'Upgrade firmware'], 'sel': 7, 'label': 'options · KNOB 1 sets', 'col': 'white', 'value': 'Simple'}, batt=True, note="OPT tapped: one setting per screen — its name big, its value under it; SELECT slides to the next setting, KNOB 1 changes the value."),
 ))
 
 # 13 ------------------------------------------------------------------------------ secret chord

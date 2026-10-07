@@ -8,7 +8,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 1: 1 · idle (CHORD view) */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .kind = CR_K_STRIPES,
@@ -27,7 +27,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 2: 2 · MAJ + M7 held, D4 pressed → Dmaj7 */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .kind = CR_K_CHORD,
@@ -41,7 +41,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 3: 3 · LOCK on: MIN + 6 + 9 latched, D4 → Dm6/9 */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .right = "lock",
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
@@ -57,7 +57,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 4: 4 · VOICING turned +2 while holding */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .kind = CR_K_CHORD,
@@ -73,7 +73,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 5: 5 · Key Mode on (C major), E4 pressed → Em */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid = "Key: C",
         .mid_col = CR_COL_YELLOW,
         .right_col = CR_COL_WHITE,
@@ -89,7 +89,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 6: 6 · KEY held: the key layer (locked open) */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid = "Key: C",
         .mid_col = CR_COL_YELLOW,
         .right_col = CR_COL_WHITE,
@@ -107,7 +107,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 7: 7 · PERF held: the perform layer (locked open) */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .footer = "a root: mode \267 OCT-: back \267 HOME: home",
@@ -127,7 +127,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 8: 8 · ARP on, Am7 held: arpeggio playing */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .right = "Arp",
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
@@ -144,7 +144,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 9: 9 · LOOP held: the loop layer (locked open) */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid = "Loop",
         .mid_col = CR_COL_RED,
         .right_col = CR_COL_WHITE,
@@ -166,7 +166,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 10: 10 · REC tapped: recording a 4-bar loop (bar 2 of 4) */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid = "Rec",
         .right = "2.3",
         .mid_col = CR_COL_RED,
@@ -187,7 +187,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 11: 11 · loop playing, overdub armed, loop layer open */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid = "Loop 1",
         .mid_col = CR_COL_RED,
         .right_col = CR_COL_WHITE,
@@ -228,7 +228,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 13: 13 · Secret chord: DIM + SUS + D4 → D5 (power) */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .kind = CR_K_CHORD,
@@ -243,7 +243,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 14: 14 · BASS on (03 SUB), bass voicing -1 */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .kind = CR_K_METER,
@@ -260,7 +260,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 15: 15 · BASS held: the bass layer (locked open) */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .footer = "KNOB 3: sound \267 OCT-: back \267 HOME: home",
@@ -279,7 +279,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 16: 16 · FX held: the fx layer (locked open) */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .footer = "a root: effect \267 OCT-: back \267 HOME: home",
@@ -299,7 +299,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 17: 17 · GEEK OUT view (HOME tapped again) */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid = "Key: D minor",
         .right = "Trans +0",
         .mid_col = CR_COL_YELLOW,
@@ -318,7 +318,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 18: 18 · PRESETS turned: browsing sounds */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .kind = CR_K_METER,
@@ -335,7 +335,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 19: 19 · OCT- + OCT+ together: PANIC */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .kind = CR_K_BIG,
@@ -350,7 +350,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 20: 20 · KNOB 4 turned: Reverb 05 (SELECT: the BPM the same way) */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .kind = CR_K_METER,
@@ -380,7 +380,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 22: 22 · EDIT held: the engine picker */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .footer = "a root: engine \267 OCT-: back \267 HOME: home",
@@ -400,7 +400,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 23: 23 · SAVE tapped: name and save the sound */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid_col = CR_COL_WHITE,
         .right_col = CR_COL_WHITE,
         .footer = "SAVE again: cancel",
@@ -415,7 +415,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 24: 24 · a chord change, mid-squeeze (Dmaj7 → Em, frame 2 of 6) */
         .header = 1,
         .icon = CR_ICON_NONE,
-        .batt = 3,
+        .batt = 255,
         .mid = "Key: C",
         .mid_col = CR_COL_YELLOW,
         .right_col = CR_COL_WHITE,

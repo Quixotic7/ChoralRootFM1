@@ -210,7 +210,7 @@ Left: the sound's name in 13 px bold, white; a trailing **`*`** once edited (dee
 ` · BASS` and the whole title in **orange** (`PUNCH BASS · BASS`). Right, 11 px grey, right-aligned: the group and
 what is on the knobs — `OSC 1 · A` (screen A, lane OSC 1), `OSC 2 · B`, `OSC · MIX`, `FILTER`, `ENV 1 · amp`,
 `ENV 2 · filter`, `LFO 2 · B`, `MOD 3`, `FX`, `MIX`. With SHIFT on (latched or held), the word **`fine`** (9 px,
-white) left of it. On the MIX screens (the "global menu") the **battery** sits at the right end, left of nothing:
+white) left of it. The editor's title line has no battery (it shows on the Options page only); the section text sits at the right end:
 the header's 16 x 10 case and nub, 0–3 quarters filled, full on USB power (`cr_screen_t.batt`, 255 = none; the
 right text moves left of it).
 
