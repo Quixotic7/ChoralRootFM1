@@ -129,3 +129,8 @@ user data (user sounds U01 SHIMMER, U02 TINE EP, settings) is backed up on the M
 - Docs updated: `docs/INSTALL-COMPAT.md` ("Before an install", checklist item 0), README ("Before any install").
 - The loader analysis stands as written above; `fm1_updata_parm_clear` (hal/fm1_sys.h) zeroes the RAM record only,
   so the flash record at 0xE4F00 should have survived: the dump decides whether the SPL honours it.
+- **The Unbricker was wrong and is fixed** (MvaveFM1Unbricker f6e1bc2, pushed): it sliced the logical image from
+  0x4000 instead of the package's flash.bin (at 0x400 through the UFW entry list), so a `restore` would have written
+  bytes shifted by 0x400. Its V15 hash identifies the genuine file (the logical slice); the flash-region hash
+  `V15_FLASH_FW_SHA256` is unpinned until `extract FM-1.fwsc out.bin --verify-v15` runs on the genuine file. Check
+  u/acrawf1's `fm1_extract_app.py` for the same bug before trusting it.
