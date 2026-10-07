@@ -1,0 +1,1195 @@
+{
+ "format": "fm1-panel-design",
+ "version": 1,
+ "device": "M-VAVE FM-1",
+ "name": "ChoralRoot FM-1 layer knob-row mockups (KEY, LOOP, METRO)",
+ "palette": "MOD",
+ "labels": {
+  "buttons": {
+   "FX": "FX",
+   "SEL": "KEY",
+   "ENV": "BASS",
+   "LFO": "LATCH",
+   "EDIT": "EDIT",
+   "GLO": "OPT",
+   "HOME": "HOME",
+   "SAVE": "SAVE",
+   "ARP": "PERF",
+   "SEQ": "METRO",
+   "PLAY": "LOOP",
+   "REC": "REC",
+   "OCT-": "OCT-",
+   "OCT+": "OCT+"
+  },
+  "encoders": {
+   "MASTER": "VOLUME",
+   "SELECT": "BPM",
+   "PRESETS": "SOUND",
+   "ALGORITHM": "BASS SND",
+   "KNOB1": "VOICING",
+   "KNOB2": "BASS VOICE",
+   "KNOB3": "PERFORM",
+   "KNOB4": "FX"
+  }
+ },
+ "notes": "The knob row on the three layers with a wrinkle: KEY (A: the keyboard kept as the band over the cells; B: the key name big), LOOP (A: inside the ring, stopped and playing; B: without the ring), METRO (one cell). Recommended: KEY A, LOOP A, METRO as drawn.",
+ "states": [
+  {
+   "name": "1 \u00b7 KEY \u00b7 A: the keyboard stays, the knob row under it",
+   "notes": "KEY held: the keyboard slides up with the tonic lit yellow (today's screen) and the four cells sit under it: TONIC (text), SCALE (text), TRANSPOSE (the staff-and-square shift glyph, centre = 0), SINGLE NOTES (Full / Split). The root keys pick the tonic, KNOB 1 too. The keyboard is the band: the designer draws it with `band: keyboard`.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK",
+    "9": "D",
+    "10": "D#",
+    "11": "E",
+    "12": "F",
+    "13": "F#",
+    "14": "G",
+    "15": "G#",
+    "16": "A",
+    "17": "A#",
+    "18": "B",
+    "19": "C",
+    "20": "C#",
+    "21": "D",
+    "22": "D#",
+    "23": "E",
+    "24": "F",
+    "25": "F#",
+    "26": "G"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 3,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "SEL": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "TONIC",
+     "value": "C"
+    },
+    "KNOB2": {
+     "note": "SCALE",
+     "value": "MAJ"
+    },
+    "KNOB3": {
+     "note": "TRANSPOSE",
+     "value": "+0"
+    },
+    "KNOB4": {
+     "note": "SINGLE NOTES",
+     "value": "FULL"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Key: C",
+     "right": "",
+     "batt": false,
+     "usb": false,
+     "midCol": "yellow"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "C",
+      "C#",
+      "D",
+      "D#",
+      "E",
+      "F",
+      "F#",
+      "G",
+      "G#",
+      "A",
+      "A#",
+      "B"
+     ],
+     "sel": 0,
+     "col": "yellow",
+     "label": "key",
+     "cells": [
+      {
+       "label": "Tonic",
+       "value": "C"
+      },
+      {
+       "label": "Scale",
+       "value": "Major"
+      },
+      {
+       "label": "Transpose",
+       "value": "+0",
+       "glyph": "shift",
+       "pct": 0.5
+      },
+      {
+       "label": "Single",
+       "value": "Full"
+      }
+     ],
+     "hot": null,
+     "value": "",
+     "band": "keyboard",
+     "lit": [
+      {
+       "k": "C5",
+       "col": "yellow"
+      }
+     ]
+    },
+    "footer": {
+     "text": "MIN: minor \u00b7 OCT-: back \u00b7 HOME: home"
+    },
+    "note": "A: the keyboard as the band, the tonic lit; the cells under it."
+   }
+  },
+  {
+   "name": "2 \u00b7 KEY \u00b7 B: the plain knob row (the key name big)",
+   "notes": "The same layer as a plain knob row: the tonic big in yellow with its neighbours (B \u00b7 C \u00b7 C#), twelve marks, the scale as the value line ('major'), the cells under it. Loses the keyboard picture.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK",
+    "9": "D",
+    "10": "D#",
+    "11": "E",
+    "12": "F",
+    "13": "F#",
+    "14": "G",
+    "15": "G#",
+    "16": "A",
+    "17": "A#",
+    "18": "B",
+    "19": "C",
+    "20": "C#",
+    "21": "D",
+    "22": "D#",
+    "23": "E",
+    "24": "F",
+    "25": "F#",
+    "26": "G"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 3,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "SEL": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "TONIC",
+     "value": "C"
+    },
+    "KNOB2": {
+     "note": "SCALE",
+     "value": "MAJ"
+    },
+    "KNOB3": {
+     "note": "TRANSPOSE",
+     "value": "+0"
+    },
+    "KNOB4": {
+     "note": "SINGLE NOTES",
+     "value": "FULL"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Key: C",
+     "right": "",
+     "batt": false,
+     "usb": false,
+     "midCol": "yellow"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "C",
+      "C#",
+      "D",
+      "D#",
+      "E",
+      "F",
+      "F#",
+      "G",
+      "G#",
+      "A",
+      "A#",
+      "B"
+     ],
+     "sel": 0,
+     "col": "yellow",
+     "label": "key",
+     "cells": [
+      {
+       "label": "Tonic",
+       "value": "C"
+      },
+      {
+       "label": "Scale",
+       "value": "Major"
+      },
+      {
+       "label": "Transpose",
+       "value": "+0",
+       "glyph": "shift",
+       "pct": 0.5
+      },
+      {
+       "label": "Single",
+       "value": "Full"
+      }
+     ],
+     "hot": null,
+     "value": "major"
+    },
+    "footer": {
+     "text": "MIN: minor \u00b7 OCT-: back \u00b7 HOME: home"
+    },
+    "note": "B: the key name big over the cells."
+   }
+  },
+  {
+   "name": "3 \u00b7 KEY \u00b7 A, TRANSPOSE just turned to +5",
+   "notes": "KNOB 3 turned: the shift glyph's square climbs (centre = 0, top = +24), the value on a white hot block; no popup.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK",
+    "9": "D",
+    "10": "D#",
+    "11": "E",
+    "12": "F",
+    "13": "F#",
+    "14": "G",
+    "15": "G#",
+    "16": "A",
+    "17": "A#",
+    "18": "B",
+    "19": "C",
+    "20": "C#",
+    "21": "D",
+    "22": "D#",
+    "23": "E",
+    "24": "F",
+    "25": "F#",
+    "26": "G"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 3,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "SEL": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "TONIC",
+     "value": "C"
+    },
+    "KNOB2": {
+     "note": "SCALE",
+     "value": "MAJ"
+    },
+    "KNOB3": {
+     "note": "TRANSPOSE",
+     "value": "+5"
+    },
+    "KNOB4": {
+     "note": "SINGLE NOTES",
+     "value": "FULL"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Key: C",
+     "right": "",
+     "batt": false,
+     "usb": false,
+     "midCol": "yellow"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "C",
+      "C#",
+      "D",
+      "D#",
+      "E",
+      "F",
+      "F#",
+      "G",
+      "G#",
+      "A",
+      "A#",
+      "B"
+     ],
+     "sel": 0,
+     "col": "yellow",
+     "label": "key",
+     "cells": [
+      {
+       "label": "Tonic",
+       "value": "C"
+      },
+      {
+       "label": "Scale",
+       "value": "Major"
+      },
+      {
+       "label": "Transpose",
+       "value": "+5",
+       "glyph": "shift",
+       "pct": 0.604
+      },
+      {
+       "label": "Single",
+       "value": "Full"
+      }
+     ],
+     "hot": 2,
+     "value": "",
+     "band": "keyboard",
+     "lit": [
+      {
+       "k": "C5",
+       "col": "yellow"
+      }
+     ]
+    },
+    "footer": {
+     "text": "MIN: minor \u00b7 OCT-: back \u00b7 HOME: home"
+    },
+    "note": "A with a hot Transpose cell."
+   }
+  },
+  {
+   "name": "4 \u00b7 LOOP \u00b7 A: stopped, the knob row inside the ring",
+   "notes": "LOOP held with no loop playing: the ring stays (decided with the dial), the length picker inside it ('4 bars', red) and the four cells under it, narrowed to the ring's inner width: SYNC (a span: Free .. 16 bars; it is the picker's own value, so the cell repeats it), QUANTIZE (pulses at the grid's density), COUNT-IN (a gate: on / off), LEVEL (a bar). Tight, but everything is on screen.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    3,
+    0,
+    2,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "1",
+    "11": "2",
+    "12": "3",
+    "14": "4",
+    "16": "5",
+    "18": "6",
+    "19": "7",
+    "21": "8",
+    "23": "9",
+    "24": "10",
+    "10": "CLEAR",
+    "13": "UNDO"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SYNC",
+     "value": "4 BAR"
+    },
+    "KNOB2": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB3": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB4": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop",
+     "right": "",
+     "batt": false,
+     "usb": false,
+     "midCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "Free",
+      "1 bar",
+      "2 bars",
+      "4 bars",
+      "8 bars",
+      "16 bars"
+     ],
+     "sel": 3,
+     "col": "red",
+     "label": "loop length",
+     "cells": [
+      {
+       "label": "Sync",
+       "value": "4 bars",
+       "glyph": "range",
+       "pct": 0.8
+      },
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      }
+     ],
+     "hot": null,
+     "value": ""
+    },
+    "footer": null,
+    "note": "A: the picker and the cells inside the empty ring.",
+    "ring": 0
+   }
+  },
+  {
+   "name": "5 \u00b7 LOOP \u00b7 A: playing, the action picker inside the ring",
+   "notes": "The loop plays: the ring runs, the picker is Overdub / Pause / Undo / Clear (OCT+ does it), the cells show SYNC (fixed while playing: dim), QUANTIZE, COUNT-IN, LEVEL (the one knob you ride live: a bar).",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 2,
+    "OCT-": 1,
+    "OCT+": 3
+   },
+   "playGreen": 1,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "OCT+": "OK: does the picked action"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SYNC",
+     "value": "4 BAR"
+    },
+    "KNOB2": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB3": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB4": {
+     "note": "LOOP LEVEL",
+     "value": "80"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 1",
+     "right": "",
+     "batt": false,
+     "usb": false,
+     "midCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "Overdub",
+      "Pause",
+      "Undo",
+      "Clear"
+     ],
+     "sel": 0,
+     "col": "red",
+     "label": "loop 1",
+     "cells": [
+      {
+       "label": "Sync",
+       "value": "4 bars",
+       "glyph": "range",
+       "pct": 0.8,
+       "dim": true
+      },
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "80",
+       "glyph": "bar",
+       "pct": 0.8
+      }
+     ],
+     "hot": 3,
+     "value": ""
+    },
+    "footer": null,
+    "note": "A, playing: the action picker, LEVEL hot after a turn.",
+    "ring": 0.62
+   }
+  },
+  {
+   "name": "6 \u00b7 LOOP \u00b7 B: stopped, no ring (for comparison)",
+   "notes": "The same stopped layer without the ring: the row gets the full width. Against it: the ring is the loop's own picture and the user kept it for this layer; B is here only to compare the room.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    3,
+    0,
+    2,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "1",
+    "11": "2",
+    "12": "3",
+    "14": "4",
+    "16": "5",
+    "18": "6",
+    "19": "7",
+    "21": "8",
+    "23": "9",
+    "24": "10",
+    "10": "CLEAR",
+    "13": "UNDO"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SYNC",
+     "value": "4 BAR"
+    },
+    "KNOB2": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB3": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB4": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop",
+     "right": "",
+     "batt": false,
+     "usb": false,
+     "midCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "Free",
+      "1 bar",
+      "2 bars",
+      "4 bars",
+      "8 bars",
+      "16 bars"
+     ],
+     "sel": 3,
+     "col": "red",
+     "label": "loop length",
+     "cells": [
+      {
+       "label": "Sync",
+       "value": "4 bars",
+       "glyph": "range",
+       "pct": 0.8
+      },
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      }
+     ],
+     "hot": null,
+     "value": ""
+    },
+    "footer": null,
+    "note": "B: no ring, the full-width row."
+   }
+  },
+  {
+   "name": "7 \u00b7 METRO \u00b7 the time signature over the click level",
+   "notes": "METRO held: the time signature picker (4/4 \u00b7 3/4 \u00b7 6/8) in white over one cell, CLICK (KNOB 1, a bar); the other three '\u2013'. METRO tap still toggles the click. (OPT + SELECT sets the same level from anywhere.)",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {},
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 3,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "SEQ": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "CLICK",
+     "value": "70"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Metro",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "4/4",
+      "3/4",
+      "6/8"
+     ],
+     "sel": 0,
+     "col": "white",
+     "label": "metronome",
+     "cells": [
+      {
+       "label": "Click",
+       "value": "70",
+       "glyph": "bar",
+       "pct": 0.7
+      },
+      null,
+      null,
+      null
+     ],
+     "hot": null,
+     "value": ""
+    },
+    "footer": {
+     "text": "OCT-: back \u00b7 HOME: home"
+    },
+    "note": "METRO: the signature big, the click level on KNOB 1."
+   }
+  }
+ ]
+}
