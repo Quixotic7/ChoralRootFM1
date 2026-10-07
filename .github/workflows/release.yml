@@ -49,8 +49,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = push ]; then v="${GITHUB_REF_NAME#v}"; else v="$INPUT_VERSION"; fi
-          if [[ ! "$v" =~ ^[0-9]\.[0-9](\.[0-9])?(-[A-Za-z0-9]+)?$ ]]; then
-            echo "::error::version '$v' is not X.Y, X.Y.Z or X.Y-suffix (one digit each); tags are vX.Y"
+          if [[ ! "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "::error::version '$v' is not X.Y, X.Y.Z or X.Y-suffix; tags are vX.Y"
             exit 1
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"

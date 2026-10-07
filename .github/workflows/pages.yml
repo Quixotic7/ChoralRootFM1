@@ -58,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${TAG#v}"
-          if [[ "$TAG" != v* || ! "$version" =~ ^[0-9]\.[0-9](\.[0-9])?$ ]]; then
+          if [[ "$TAG" != v* || ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
             echo "::notice::release $TAG is not a vX.Y (or vX.Y.Z) tag: the site stays as it is (run pages.yml by hand to publish it)"
             exit 0
           fi
@@ -78,7 +78,7 @@ jobs:
       - name: Check the version
         run: |
           set -euo pipefail
-          if [[ ! "$VERSION" =~ ^[0-9]\.[0-9](\.[0-9])?(-[A-Za-z0-9]+)?$ ]]; then
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.]+)?$ ]]; then
             echo "::error::version '$VERSION' is not X.Y, X.Y.Z or X.Y-suffix (e.g. 0.1, without the v)"
             exit 1
           fi

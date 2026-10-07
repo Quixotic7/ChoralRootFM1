@@ -348,9 +348,9 @@ def main():
     a = ap.parse_args()
     name = f"{UNIT}.fwsc"
     if a.release:                   # the identity stays FM-1_920: only the version string and the names change
-        m = re.fullmatch(r"(\d)\.(\d)(?:\.\d)?(-[A-Za-z0-9]+)?", a.release)
+        m = re.fullmatch(r"\d+\.\d+(?:\.\d+)?(?:-[A-Za-z0-9.]+)?", a.release)   # the identity never encodes it
         if not m:
-            raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z or X.Y-suffix, one digit each")
+            raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z or X.Y-suffix")
         VERSION = "ChoralRoot " + a.release.lower()      # e.g. ChoralRoot 1.0, ChoralRoot 1.1-rc1
         name = f"{UNIT}-{a.release}.fwsc"
     fm1pkg_make.SDK = a.sdk
