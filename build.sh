@@ -4,11 +4,14 @@
 # Build ChoralRoot FM-1 on macOS (see BUILDING.md): build/choralroot.fwsc (identity FM-1_920).
 #   ./build.sh [--release X.Y]      (a release: build/choralroot-X.Y.fwsc, version "ChoralRoot X.Y")
 #   JIELI_TOOLCHAIN  JieLi Linux toolchain (default: ~/.jieli/toolchain)
-#   AC79_SDK         JieLi AC79 SDK checkout (default: ~/fw-AC79_AIoT_SDK)
+#   AC79_SDK         JieLi AC79 SDK checkout (default: ~/fw-AC79_AIoT_SDK if present, else tools/sdk: the three files, vendored)
 set -e
 cd "$(dirname "$0")"
 export JIELI_TOOLCHAIN="${JIELI_TOOLCHAIN:-$HOME/.jieli/toolchain}"
-export AC79_SDK="${AC79_SDK:-$HOME/fw-AC79_AIoT_SDK}"
+if [ -z "${AC79_SDK:-}" ]; then                   # an SDK checkout if there is one, else the vendored files (tools/sdk)
+    if [ -f "$HOME/fw-AC79_AIoT_SDK/cpu/wl82/tools/uboot.boot" ]; then AC79_SDK="$HOME/fw-AC79_AIoT_SDK"; else AC79_SDK="$PWD/tools/sdk"; fi
+fi
+export AC79_SDK
 # Pillow finds Homebrew's libraqm (the UI fonts' kerning). macOS strips DYLD_* from the environment of /bin/sh,
 # so an exported value does not reach this script: set it here.
 if [ "$(uname -s)" = Darwin ] && [ -z "$DYLD_FALLBACK_LIBRARY_PATH" ] && [ -f /opt/homebrew/lib/libraqm.dylib ]; then

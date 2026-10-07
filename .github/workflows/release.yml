@@ -28,7 +28,6 @@ defaults:
 
 env:
   # the three SDK files the package uses (tools/fm1pkg_make.py); their SHA-256 are tools/build.py SDK_SHA256
-  AC79_SDK_URL: https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git
   AC79_SDK_TAG: AC79NN_SDK_V1.2.1_2023-12-13
   # the versions the reference packages were built with (Python 3.11: tools/gen_samples.py's sums differ by version)
   PYTHON_VERSION: "3.11"
@@ -57,7 +56,7 @@ jobs:
           {
             echo "VERSION=$v"
             echo "JIELI_TOOLCHAIN=$HOME/.jieli/toolchain"
-            echo "AC79_SDK=$HOME/fw-AC79_AIoT_SDK"
+            echo "AC79_SDK=$GITHUB_WORKSPACE/tools/sdk"
           } >> "$GITHUB_ENV"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -85,22 +84,6 @@ jobs:
       - name: Fetch the JieLi toolchain (pkgman.jieliapp.com)
         if: steps.toolchain-cache.outputs.cache-hit != 'true'
         run: sh tools/get_toolchain.sh "$HOME/.jieli"
-
-      - name: Cache the AC79 SDK files
-        id: sdk-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/fw-AC79_AIoT_SDK
-          key: ac79-sdk-${{ env.AC79_SDK_TAG }}-sparse-1
-
-      - name: Fetch the AC79 SDK files (gitee.com, sparse)
-        if: steps.sdk-cache.outputs.cache-hit != 'true'
-        run: |
-          set -euo pipefail
-          # a blobless, sparse clone: about 3 MB instead of the whole SDK (1 GB)
-          git clone --depth 1 --filter=blob:none --sparse --branch "$AC79_SDK_TAG" "$AC79_SDK_URL" "$AC79_SDK"
-          git -C "$AC79_SDK" sparse-checkout set --no-cone \
-              /cpu/wl82/tools/uboot.boot /cpu/wl82/tools/cfg_tool.bin /cpu/wl82/tools/cfg/eq_cfg_hw.bin
 
       - name: Check the toolchain and the SDK files
         run: |

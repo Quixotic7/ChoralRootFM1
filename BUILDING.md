@@ -53,8 +53,9 @@ POOL keeps less than 8 KiB spare.
   tools/get_toolchain.sh            # installs to ~/.jieli/toolchain
   ```
 
-- The JieLi AC79 SDK (Apache-2.0). The package uses three of its files
-  (`cpu/wl82/tools/uboot.boot`, `cfg_tool.bin`, `cfg/eq_cfg_hw.bin`); they are not part of this tree.
+- The JieLi AC79 SDK (Apache-2.0): the package uses three of its files
+  (`cpu/wl82/tools/uboot.boot`, `cfg_tool.bin`, `cfg/eq_cfg_hw.bin`). They are vendored in `tools/sdk/` (used when
+  no checkout is found), so this step is optional:
 
   ```
   git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
