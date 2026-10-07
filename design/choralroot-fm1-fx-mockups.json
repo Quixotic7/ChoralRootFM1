@@ -1,0 +1,1278 @@
+{
+ "format": "fm1-panel-design",
+ "version": 1,
+ "device": "M-VAVE FM-1",
+ "name": "ChoralRoot FM-1 fx layer mockups",
+ "palette": "MOD",
+ "labels": {
+  "buttons": {
+   "FX": "FX",
+   "SEL": "KEY",
+   "ENV": "BASS",
+   "LFO": "LATCH",
+   "EDIT": "EDIT",
+   "GLO": "OPT",
+   "HOME": "HOME",
+   "SAVE": "SAVE",
+   "ARP": "PERF",
+   "SEQ": "METRO",
+   "PLAY": "LOOP",
+   "REC": "REC",
+   "OCT-": "OCT-",
+   "OCT+": "OCT+"
+  },
+  "encoders": {
+   "MASTER": "VOLUME",
+   "SELECT": "BPM",
+   "PRESETS": "SOUND",
+   "ALGORITHM": "BASS SND",
+   "KNOB1": "VOICING",
+   "KNOB2": "BASS VOICE",
+   "KNOB3": "PERFORM",
+   "KNOB4": "FX"
+  }
+ },
+ "notes": "The fx layer today shows the effect picker alone; KNOB 1-3's parameters differ per effect and appear only as popups (state 1). Proposal (2-5): a layer grammar, the `knobrow` kind: the picker on top (the choice big in the layer's colour, neighbours peeking, square marks), one row of four cells under it in the knob colours (blue orange white green) with stripe bars and values, the cell just turned on a hot block; missing parameters are a dim '\u2013'; the FX amount lands on green KNOB 4. Alternatives (6, 7): four tall stripes, the amount first. The grammar on the perform and bass layers (8, 9). Recommended: the knob row, on every layer.",
+ "states": [
+  {
+   "name": "1 \u00b7 today: the fx layer is a picker; the knobs are a surprise",
+   "notes": "As built (walk-through state 16): FX held opens the layer; the white roots pick the effect, KNOB 1-3 its parameters, KNOB 4 the amount. The screen shows the effect and the amount only; what KNOB 1-3 do (size / damp / type here) appears as a popup when a knob turns, so the layer never shows its own controls.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "REVERB",
+    "11": "CHORUS",
+    "12": "DELAY",
+    "14": "DRIVE"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 3,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "FX": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SIZE",
+     "value": "90"
+    },
+    "KNOB2": {
+     "note": "DAMP",
+     "value": "60"
+    },
+    "KNOB3": {
+     "note": "TYPE",
+     "value": "ROOM"
+    },
+    "KNOB4": {
+     "note": "AMOUNT",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "picker",
+     "items": [
+      "Reverb",
+      "Chorus",
+      "Delay",
+      "Drive"
+     ],
+     "sel": 0,
+     "label": "fx \u00b7 KNOB 4 amount",
+     "col": "green",
+     "value": "25"
+    },
+    "footer": {
+     "text": "a root: effect \u00b7 OCT-: back \u00b7 HOME: home"
+    },
+    "note": "today: the effect and its amount; KNOB 1-3 unseen."
+   }
+  },
+  {
+   "name": "2 \u00b7 knob row: Reverb",
+   "notes": "Proposal: the picker keeps the top of the panel (Reverb big in green, Chorus peeking at the right, the four square marks), and under it one row of four cells, one per knob, in the knob colours: SIZE (blue, KNOB 1), DAMP (orange, KNOB 2), TYPE (white, KNOB 3), AMOUNT (green, KNOB 4): the amount is green because KNOB 4 is, which is also the FX colour. Each cell: its name small, a stripe bar, the value bold; the row is the readout, no popup. Motion: a root or SELECT flips the effect name (the split-flap) and the row's labels and bars change with it, sliding in from the right; a turned bar fills stripe by stripe.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "REVERB",
+    "11": "CHORUS",
+    "12": "DELAY",
+    "14": "DRIVE"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 3,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "FX": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SIZE",
+     "value": "90"
+    },
+    "KNOB2": {
+     "note": "DAMP",
+     "value": "60"
+    },
+    "KNOB3": {
+     "note": "TYPE",
+     "value": "ROOM"
+    },
+    "KNOB4": {
+     "note": "AMOUNT",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "Reverb",
+      "Chorus",
+      "Delay",
+      "Drive"
+     ],
+     "sel": 0,
+     "col": "green",
+     "label": "fx",
+     "cells": [
+      {
+       "label": "Size",
+       "value": "90",
+       "pct": 0.709
+      },
+      {
+       "label": "Damp",
+       "value": "60",
+       "pct": 0.472
+      },
+      {
+       "label": "Type",
+       "value": "Room"
+      },
+      {
+       "label": "Amount",
+       "value": "25",
+       "pct": 0.25
+      }
+     ],
+     "hot": null,
+     "value": ""
+    },
+    "footer": {
+     "text": "a root: effect \u00b7 OCT-: back \u00b7 HOME: home"
+    },
+    "note": "the knob row: Reverb big in green over the four cells in the knob colours; the amount green on KNOB 4."
+   }
+  },
+  {
+   "name": "3 \u00b7 knob row: Delay, KNOB 2 just turned (hot)",
+   "notes": "Delay selected (F4): TIME / FEEDBACK / COLOUR / AMOUNT. KNOB 2 has just moved: FEEDBACK's value sits on an orange block for 800 ms (the editor's hot cell), no popup over the screen.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "REVERB",
+    "11": "CHORUS",
+    "12": "DELAY",
+    "14": "DRIVE"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 3,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "FX": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "TIME",
+     "value": "1/8"
+    },
+    "KNOB2": {
+     "note": "FEEDBACK",
+     "value": "60"
+    },
+    "KNOB3": {
+     "note": "COLOUR",
+     "value": "70"
+    },
+    "KNOB4": {
+     "note": "AMOUNT",
+     "value": "40"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "Reverb",
+      "Chorus",
+      "Delay",
+      "Drive"
+     ],
+     "sel": 2,
+     "col": "green",
+     "label": "fx",
+     "cells": [
+      {
+       "label": "Time",
+       "value": "1/8",
+       "pct": 0.5
+      },
+      {
+       "label": "Feedback",
+       "value": "60",
+       "pct": 0.5
+      },
+      {
+       "label": "Colour",
+       "value": "70",
+       "pct": 0.551
+      },
+      {
+       "label": "Amount",
+       "value": "40",
+       "pct": 0.4
+      }
+     ],
+     "hot": 1,
+     "value": ""
+    },
+    "footer": {
+     "text": "a root: effect \u00b7 OCT-: back \u00b7 HOME: home"
+    },
+    "note": "Delay: the hot cell (FEEDBACK on an orange block) is the only trace of the turn."
+   }
+  },
+  {
+   "name": "4 \u00b7 knob row: Chorus (two parameters) and Drive (amount only)",
+   "notes": "Effects with fewer parameters leave their cells as a dim '\u2013' (Chorus: RATE, DEPTH, \u2013, AMOUNT; Drive: \u2013, \u2013, \u2013, AMOUNT): the row's shape stays, so the hand always finds the amount on KNOB 4. This state shows Chorus.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "REVERB",
+    "11": "CHORUS",
+    "12": "DELAY",
+    "14": "DRIVE"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 3,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "FX": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "RATE",
+     "value": "0.8 Hz"
+    },
+    "KNOB2": {
+     "note": "DEPTH",
+     "value": "60"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "AMOUNT",
+     "value": "30"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "Reverb",
+      "Chorus",
+      "Delay",
+      "Drive"
+     ],
+     "sel": 1,
+     "col": "green",
+     "label": "fx",
+     "cells": [
+      {
+       "label": "Rate",
+       "value": "0.8 Hz",
+       "pct": 0.315
+      },
+      {
+       "label": "Depth",
+       "value": "60",
+       "pct": 0.472
+      },
+      null,
+      {
+       "label": "Amount",
+       "value": "30",
+       "pct": 0.3
+      }
+     ],
+     "hot": null,
+     "value": ""
+    },
+    "footer": {
+     "text": "a root: effect \u00b7 OCT-: back \u00b7 HOME: home"
+    },
+    "note": "Chorus: two cells and a dim '\u2013'; the amount stays on KNOB 4."
+   }
+  },
+  {
+   "name": "5 \u00b7 knob row: Drive, FX off",
+   "notes": "Drive has no parameters: three '\u2013' and the amount. With the effect switched off (FX tap) the amount cell reads 'off' and its bar is empty; a KNOB 4 turn switches it on again (today's rule).",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "REVERB",
+    "11": "CHORUS",
+    "12": "DELAY",
+    "14": "DRIVE"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 3,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "FX": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB2": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "AMOUNT",
+     "value": "off"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "Reverb",
+      "Chorus",
+      "Delay",
+      "Drive"
+     ],
+     "sel": 3,
+     "col": "green",
+     "label": "fx",
+     "cells": [
+      null,
+      null,
+      null,
+      {
+       "label": "Amount",
+       "value": "off",
+       "pct": 0.0
+      }
+     ],
+     "hot": null,
+     "value": ""
+    },
+    "footer": {
+     "text": "a root: effect \u00b7 OCT-: back \u00b7 HOME: home"
+    },
+    "note": "Drive, FX off: the amount cell reads off."
+   }
+  },
+  {
+   "name": "6 \u00b7 alternative: four tall stripes",
+   "notes": "The OSC mixer's tall meters instead of a row: the effect name as the layer's top line, four tall stripe meters in the knob colours filling from the bottom, the values at the foot. Bigger and more graphic, but a text value (TYPE = Room) has no height to fill, and the effect picker has no room left: the roots pick blind.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "REVERB",
+    "11": "CHORUS",
+    "12": "DELAY",
+    "14": "DRIVE"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 3,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "FX": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SIZE",
+     "value": "90"
+    },
+    "KNOB2": {
+     "note": "DAMP",
+     "value": "60"
+    },
+    "KNOB3": {
+     "note": "TYPE",
+     "value": "ROOM"
+    },
+    "KNOB4": {
+     "note": "AMOUNT",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "Reverb",
+     "titleCol": "green",
+     "right": "fx \u00b7 1 of 4",
+     "tall": true,
+     "rows": [
+      [
+       {
+        "label": "Size",
+        "value": "90",
+        "pct": 0.709
+       },
+       {
+        "label": "Damp",
+        "value": "60",
+        "pct": 0.472
+       },
+       {
+        "label": "Type",
+        "value": "Room",
+        "pct": 0.0
+       },
+       {
+        "label": "Amount",
+        "value": "25",
+        "pct": 0.25
+       }
+      ]
+     ],
+     "active": 0
+    },
+    "footer": null,
+    "note": "four tall stripes (drawn full height like the editor's mixer): graphic, but no picker, no footer and no height for a text value."
+   }
+  },
+  {
+   "name": "7 \u00b7 alternative: the amount first",
+   "notes": "Today's popup made permanent: the amount huge in green over its stripe meter (what the hand rides on KNOB 4), the effect name as the label, and KNOB 1-3's values as one small line under it. Honest about what matters live, but the three parameters are a footnote and still need a popup to be edited.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "REVERB",
+    "11": "CHORUS",
+    "12": "DELAY",
+    "14": "DRIVE"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 3,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "FX": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SIZE",
+     "value": "90"
+    },
+    "KNOB2": {
+     "note": "DAMP",
+     "value": "60"
+    },
+    "KNOB3": {
+     "note": "TYPE",
+     "value": "ROOM"
+    },
+    "KNOB4": {
+     "note": "AMOUNT",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "meter",
+     "value": "25",
+     "label": "reverb \u00b7 size 90 \u00b7 damp 60 \u00b7 room",
+     "col": "green",
+     "pct": 0.25,
+     "segments": 12
+    },
+    "footer": {
+     "text": "a root: effect \u00b7 OCT-: back \u00b7 HOME: home"
+    },
+    "note": "amount first: the popup as the screen, the parameters as a line."
+   }
+  },
+  {
+   "name": "8 \u00b7 the same grammar: the perform layer",
+   "notes": "The knob row is a layer grammar, not an FX screen: PERF held shows the mode big in white (Arpeggiate; Slop and Arp 2 Octaves peeking) over RATE / ORDER / RANGE / GATE in the knob colours. Today the mode's parameters are popups too.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "STRUM",
+    "11": "STR 2",
+    "12": "SLOP",
+    "14": "ARP",
+    "16": "ARP 2",
+    "18": "PATT",
+    "19": "HARP"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 3,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "ARP": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "RATE",
+     "value": "1/8"
+    },
+    "KNOB2": {
+     "note": "ORDER",
+     "value": "UP"
+    },
+    "KNOB3": {
+     "note": "RANGE",
+     "value": "1 OCT"
+    },
+    "KNOB4": {
+     "note": "GATE",
+     "value": "70%"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "Strum",
+      "Strum 2 Octaves",
+      "Slop",
+      "Arpeggiate",
+      "Arp 2 Octaves",
+      "Pattern",
+      "Harp"
+     ],
+     "sel": 3,
+     "col": "white",
+     "label": "perform",
+     "cells": [
+      {
+       "label": "Rate",
+       "value": "1/8",
+       "pct": 0.5
+      },
+      {
+       "label": "Order",
+       "value": "Up"
+      },
+      {
+       "label": "Range",
+       "value": "1 oct",
+       "pct": 0.33
+      },
+      {
+       "label": "Gate",
+       "value": "70%",
+       "pct": 0.7
+      }
+     ],
+     "hot": null,
+     "value": ""
+    },
+    "footer": {
+     "text": "a root: mode \u00b7 OCT-: back \u00b7 HOME: home"
+    },
+    "note": "the perform layer in the same grammar: the mode over its four parameters."
+   }
+  },
+  {
+   "name": "9 \u00b7 the same grammar: the bass layer",
+   "notes": "BASS held: the behaviour big in orange over REGISTER / SOUND / LEVEL and, on KNOB 1, the behaviour itself (the picker and KNOB 1 are the same control, so the first cell repeats the choice small). Today: the picker alone.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {},
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 3,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "ENV": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "BEHAVIOUR",
+     "value": "CHORDS"
+    },
+    "KNOB2": {
+     "note": "REGISTER",
+     "value": "-1"
+    },
+    "KNOB3": {
+     "note": "SOUND",
+     "value": "03 SUB"
+    },
+    "KNOB4": {
+     "note": "LEVEL",
+     "value": "80"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "Chords Only",
+      "Unison Bass",
+      "Bass Single Notes",
+      "Solo"
+     ],
+     "sel": 0,
+     "col": "orange",
+     "label": "bass",
+     "cells": [
+      {
+       "label": "Behaviour",
+       "value": "Chords"
+      },
+      {
+       "label": "Register",
+       "value": "-1",
+       "pct": 0.167
+      },
+      {
+       "label": "Sound",
+       "value": "03 SUB"
+      },
+      {
+       "label": "Level",
+       "value": "80",
+       "pct": 0.8
+      }
+     ],
+     "hot": null,
+     "value": ""
+    },
+    "footer": {
+     "text": "a root: preview \u00b7 OCT-: back \u00b7 HOME"
+    },
+    "note": "the bass layer: behaviour over register, sound and level."
+   }
+  }
+ ]
+}

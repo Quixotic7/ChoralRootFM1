@@ -8,17 +8,12 @@ EVERY screen (cr_ui.c cr_build_screen: cu_ring under every layer, page and view)
 a dotted circle, the pickers shrink into it, and the Options and the layers all carry it. The ring is right where the
 loop is the subject (recording, the count-in, undo, the LOOP layer, the loop save dialog) and wrong everywhere else.
 
-Three alternatives for "a loop is playing", drawn on the screens where it hurts most, plus the screens where the ring
-stays. The companion of make_mockups.py (its helpers are imported); the designer draws the indicators with its `loop`
-screen key (FORMAT.md): `bar` (a thin progress stripe), `dial` (a miniature ring in the top line), `mark` (a square
-that fills on the downbeat).
-
-  A  the beat stripe: a 3 px red stripe under the top line, filling left to right over the cycle, a gap at each bar;
-     a white tick at the tip on the downbeat. Nothing else changes: the chord name, the pickers and Options keep the
-     whole panel. The editor shows nothing (its screens use every pixel; LOOP's green LED is the indicator there).
-  B  the corner dial: Orchid's ring shrunk to 16 px, at the right end of the top line next to "Loop 1".
-  C  the pulse mark: no progress at all; "Loop 1" in red with a square that fills on each downbeat; the progress is
-     only seen where the loop is the subject (the LOOP layer's ring).
+Decided (the user, 2026-10-07, from the first sheet of three alternatives): **B, the corner dial**: Orchid's ring
+shrunk to a 16 px dial at the right end of the top line, next to "Loop 1" (dotted track, red progress from 12
+o'clock, a thicker arc for one frame on the downbeat). Not shown in the sound editor and not on the Options pages
+(the LOOP LED carries it there); the ring stays where the loop is the subject. This sheet is the dial on every screen
+it touches. The companion of make_mockups.py (its helpers are imported); the designer draws the dial with its `loop`
+screen key (FORMAT.md, style `dial`).
 """
 import json
 import os
@@ -27,16 +22,15 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from make_mockups import (state, scr, chord, bubbles, editor_screen, osc_stack, WARM_OSC, EDITOR_BUTTON_LABELS,  # noqa: E402
                           BUTTON_LABELS, ENCODER_LABELS, IDLE_ENC, LAYER_BTN_NOTE, LAYER_FOOT, LIT, BLINK, OFF,
-                          ROOT_WHITE, key_of, C_CHORD, C_BASS)
+                          ROOT_WHITE, ROOT_BLACK, key_of, C_CHORD, C_BASS, C_KEY)
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "choralroot-fm1-loop-mockups.json")
 
-# the moment every state shows: loop 1, 4 bars, bar 3 beat 2 (62 % of the cycle)
-PCT, BARS, BAR = 0.62, 4, 3
+PCT = 0.62                                     # loop 1, 4 bars, bar 3 beat 2
 
 
-def with_loop(screen, style, pos="top", on=False, pct=PCT):
-    screen["loop"] = {"style": style, "pos": pos, "pct": pct, "bars": BARS, "bar": BAR, "on": on, "col": "red"}
+def dial(screen, on=False, pct=PCT):
+    screen["loop"] = {"style": "dial", "pct": pct, "on": on, "col": "red"}
     return screen
 
 
@@ -50,134 +44,112 @@ S = []
 
 # 1 ---------------------------------------------------------------- today
 S.append(state(
-    "1 · today: the loop plays, the chord view wears the ring",
+    "1 · today: the loop plays, every screen wears the ring",
     "As built: while loop 1 plays, Orchid's ring (the dotted circle, the red progress) is drawn round every screen, so "
-    "the chord name sits inside it and every picker, layer and Options page shrinks into it. The user's verdict: "
-    "invasive. The states that follow are the alternatives.",
+    "the chord name sits inside it and every picker, layer and Options page shrinks into it. Kept here for comparison.",
     held=["MAJ"], lit=["G4", "B4", "D5"], buttons=PLAY_BTN, play_green=1, button_notes=PLAY_NOTE, encoders=IDLE_ENC,
     screen=scr(gchord(), key="Loop 1", ring=PCT, note="today: the ring round the chord, the name pushed inside it."),
 ))
 
-# 2..5 ------------------------------------------------------------- A: the beat stripe
+# 2, 3 ------------------------------------------------------------- the dial on the chord view
 S.append(state(
-    "2 · A · the beat stripe: the chord view",
-    "Proposal A. A loop playing shows as a 3 px red stripe under the top line, filling left to right over the cycle "
-    "(here 62 %: bar 3 of 4), with a thin gap at each bar so the stripe reads as bar segments: the stripe meter "
-    "language the knobs already use, turned into a clock. 'Loop 1' stays top-left in red. The chord name has the whole "
-    "panel back. Motion: the stripe fills continuously; a white tick flashes at its tip on every downbeat; on the "
-    "cycle's wrap the stripe sweeps off to the right and starts again (the idle stripes' sweep, in red).",
+    "2 · the corner dial: the chord view",
+    "Decided: a loop playing shows as a 16 px dial at the right end of the top line (the dotted track in grey, the red "
+    "progress from 12 o'clock; here 62 %: bar 3 of 4), with 'Loop 1' top-left in red. The chord has the whole panel. "
+    "Motion: the arc grows continuously; on each downbeat the arc thickens for one frame (state 3); at the cycle's wrap "
+    "the arc empties in one sweep.",
     held=["MAJ"], lit=["G4", "B4", "D5"], buttons=PLAY_BTN, play_green=1, button_notes=PLAY_NOTE, encoders=IDLE_ENC,
-    screen=with_loop(scr(gchord(), key="Loop 1", note="A: the red stripe under the top line, 62 % filled with a gap at each bar; the chord fills the panel as when no loop plays."), "bar"),
+    screen=dial(scr(gchord(), key="Loop 1", note="the dial top-right, 62 % round; the chord fills the panel.")),
 ))
 
 S.append(state(
-    "3 · A · the beat stripe at a downbeat (bar 4)",
-    "The same stripe one bar later, on the downbeat of bar 4: the tip carries a white tick for one frame (~100 ms), "
-    "the loop's pulse without a metronome. With Options > Motion = Off the tick is skipped and the stripe just fills.",
+    "3 · the dial on a downbeat (bar 4)",
+    "The downbeat of bar 4: the dial's arc is drawn thick for one frame (~100 ms), the loop's pulse without a "
+    "metronome. With Options > Motion = Off the pulse is skipped and the arc just grows.",
     held=["MAJ"], lit=["G4", "B4", "D5"], buttons=PLAY_BTN, play_green=1, button_notes=PLAY_NOTE, encoders=IDLE_ENC,
-    screen=with_loop(scr(gchord(), key="Loop 1", note="A: the downbeat frame: a white tick at the stripe's tip, 75 % filled."), "bar", on=True, pct=0.75),
+    screen=dial(scr(gchord(), key="Loop 1", note="the downbeat frame: the arc thick, 75 % round."), on=True, pct=0.75),
 ))
 
+# 4..6 ------------------------------------------------------------- the dial on the layers
 perf_modes = ["STRUM", "STR 2", "SLOP", "ARP", "ARP 2", "PATT", "HARP"]
 S.append(state(
-    "4 · A · the perform layer open while the loop plays",
-    "A layer over a playing loop: the picker keeps its full size and its footer hints (today it is squeezed into the "
-    "ring and loses its position marks); the stripe is the only trace of the loop. The same for the KEY, FX, BASS and "
-    "METRO layers and the engine picker.",
+    "4 · the dial over the perform layer",
+    "A layer over a playing loop: the picker keeps its full size, its marks and its footer hints (today it is squeezed "
+    "into the ring); the dial sits in the top line. The same for the KEY, FX, BASS and METRO layers and the engine "
+    "picker.",
     keys=[OFF] * 27, lit=["G4"], buttons={"ARP": BLINK, "PLAY": LIT}, play_green=1,
     key_labels={ROOT_WHITE[i]: m for i, m in enumerate(perf_modes)},
     button_notes={"ARP": LAYER_BTN_NOTE},
     encoders={"KNOB1": ("RATE", "1/8"), "KNOB2": ("ORDER", "UP"), "KNOB3": ("RANGE", "1 OCT"), "KNOB4": ("GATE", "70%")},
-    screen=with_loop(scr({'kind': 'picker', 'items': ['Strum', 'Strum 2 Octaves', 'Slop', 'Arpeggiate', 'Arp 2 Octaves', 'Pattern', 'Harp'], 'sel': 3, 'label': 'perform', 'col': 'white', 'value': '1/8'},
-                         key="Loop 1", foot="a root: mode · " + LAYER_FOOT, note="A: the perform picker at full size, its marks and footer back; the stripe under the top line is the loop."), "bar"),
+    screen=dial(scr({'kind': 'picker', 'items': ['Strum', 'Strum 2 Octaves', 'Slop', 'Arpeggiate', 'Arp 2 Octaves', 'Pattern', 'Harp'], 'sel': 3, 'label': 'perform', 'col': 'white', 'value': '1/8'},
+                    key="Loop 1", foot="a root: mode · " + LAYER_FOOT, note="the perform picker at full size; the dial in the top line.")),
     chord_block=False,
 ))
 
 S.append(state(
-    "5 · A · Options while the loop plays",
-    "Options with a loop playing: one setting per screen, as drawn in the walk-through; the stripe under the top line. "
-    "(Today Options is drawn inside the ring.)",
-    buttons={"GLO": LIT, "OCT-": LIT, "OCT+": BLINK, "PLAY": LIT}, play_green=1,
-    encoders={"SELECT": ("SCROLL", ""), "KNOB1": ("VALUE", ""), "KNOB2": "", "KNOB3": "", "KNOB4": ""},
-    screen=with_loop(scr({'kind': 'picker', 'items': ['Hold Time', 'USB Record', 'USB Level', 'Version', 'Calibrate'], 'sel': 1, 'label': 'options · KNOB 1 sets', 'col': 'white', 'value': 'On'},
-                         key="Loop 1", batt=True, note="A: Options at full size; the stripe is the loop."), "bar"),
+    "5 · the dial over the key layer",
+    "The key layer (the keyboard slides up, the tonic lit yellow) with the loop playing: 'Key: C' owns the top-left in "
+    "yellow, so the loop shows as the dial alone at the right. Where the top-left is taken by Key Mode, the dial is "
+    "the whole loop indicator.",
+    lit=["C5"], buttons={"SEL": BLINK, "PLAY": LIT}, play_green=1,
+    key_labels={k: n for k, n in ((key_of("C5"), "C"),)},
+    button_notes={"SEL": LAYER_BTN_NOTE},
+    encoders={"KNOB1": ("TONIC", "C"), "KNOB2": ("SCALE", "MAJ"), "KNOB3": ("TRANSPOSE", "+0"), "KNOB4": ("SINGLE NOTES", "FULL")},
+    screen=dial(scr({"kind": "keyboard", "title": "select key", "titleSize": 26, "col": C_KEY, "lit": [{"k": "C5", "col": C_KEY}], "labels": {str(ROOT_WHITE[6]): "C"}},
+                    key="Key: C", foot="MIN: minor · " + LAYER_FOOT, note="Key Mode owns the top-left; the dial alone says the loop plays.")),
 ))
 
-# 6 ---------------------------------------------------------------- A in the editor: nothing
 S.append(state(
-    "6 · A · the sound editor while the loop plays: no indicator",
-    "The editor's screens use every pixel (no header bar, no footer; the knob bars sit on the bottom row), so no "
-    "stripe is drawn there: LOOP's green LED says the loop plays, 'Loop 1' is back the moment the editor is left. "
-    "(Today the ring is drawn over the editor's rows too.)",
+    "6 · the dial with Key Mode on the chord view",
+    "Key Mode on and a loop playing: 'Key: C' top-left in yellow, the dial top-right in red. Both fit the top line; "
+    "the chord keeps the panel.",
+    held=["MIN"], lit=["E4", "G4", "B4"], buttons={"SEL": LIT, "PLAY": LIT}, play_green=1, encoders=IDLE_ENC,
+    screen=dial(scr(chord("E", quality="m", cols={"root": C_CHORD}, bubbles=bubbles(["E4", "G4", "B4"])), key="Key: C",
+                    note="Key: C and the dial share the top line.")),
+))
+
+# 7 ---------------------------------------------------------------- overdub armed
+S.append(state(
+    "7 · overdub armed while playing (REC lit)",
+    "REC tapped while the loop plays: the overdub is armed (REC lit) and the next chord opens a layer. The top line "
+    "says 'Dub 3.2' at the right in red, left of the dial; once the overdub records, the ring returns (state 9) "
+    "because recording is the subject again.",
+    held=["MAJ"], lit=["G4", "B4", "D5"], buttons={"PLAY": LIT, "REC": LIT}, play_green=1,
+    button_notes={"REC": "lit: overdub armed; blinks once it records"}, encoders=IDLE_ENC,
+    screen=dial(scr(gchord(), key="Loop 1", right="Dub 3.2", right_col="red", note="armed: 'Dub 3.2' left of the dial; no ring until the overdub records.")),
+))
+
+# 8 ---------------------------------------------------------------- the editor and Options: none
+S.append(state(
+    "8 · the sound editor and Options: no dial",
+    "Decided: the editor's screens (no header bar; every pixel used) and the Options pages show nothing of the loop: "
+    "LOOP's green LED says it plays, and the dial is back the moment they are left. Shown: the editor's OSC stack.",
     held=["MAJ"], lit=["D4", "F#4", "A4"], buttons={"EDIT": BLINK, "FX": LIT, "PLAY": LIT}, play_green=1,
     button_labels=EDITOR_BUTTON_LABELS,
     button_notes={"EDIT": "blinks: the editor is open", "PLAY": "FX group in the editor; its green LED still shows the loop playing"},
     encoders={"SELECT": ("OSC", "1"), "KNOB1": ("WAVE", "PWM"), "KNOB2": ("LEVEL", "63%"), "KNOB3": ("COARSE", "0"), "KNOB4": ("FINE", "0")},
-    screen=editor_screen(osc_stack("WARM PAD", WARM_OSC, 0), note="A: the editor untouched; the loop is on the LED only."),
+    screen=editor_screen(osc_stack("WARM PAD", WARM_OSC, 0), note="the editor untouched; the loop is on the LED only (Options the same)."),
 ))
 
-# 7 ---------------------------------------------------------------- A variant: the stripe at the bottom edge
+# 9, 10 ------------------------------------------------------------ where the ring stays
 S.append(state(
-    "7 · A' · the stripe along the bottom edge instead",
-    "The same stripe placed along the bottom edge (4 px). Weighed against the top placement: it collides with the "
-    "layers' footer hints and the editor's knob bars, and the eye reads the top line for status anyway; drawn here so "
-    "the two can be compared on the sheet.",
-    held=["MAJ"], lit=["G4", "B4", "D5"], buttons=PLAY_BTN, play_green=1, button_notes=PLAY_NOTE, encoders=IDLE_ENC,
-    screen=with_loop(scr(gchord(), key="Loop 1", note="A': the stripe at the bottom edge."), "bar", pos="bottom"),
-))
-
-# 8 ---------------------------------------------------------------- B: the corner dial
-S.append(state(
-    "8 · B · the corner dial",
-    "Proposal B. Orchid's ring shrunk to a 16 px dial at the right end of the top line (dotted track, red progress from "
-    "12 o'clock), next to 'Loop 1'. Keeps the ring's idea without taking the panel; small enough to ignore, big enough "
-    "to glance at. Motion: the arc grows continuously; a pulse of the dial's size on the downbeat.",
-    held=["MAJ"], lit=["G4", "B4", "D5"], buttons=PLAY_BTN, play_green=1, button_notes=PLAY_NOTE, encoders=IDLE_ENC,
-    screen=with_loop(scr(gchord(), key="Loop 1", note="B: a 16 px ring in the top-right corner, 62 % round."), "dial"),
-))
-
-# 9 ---------------------------------------------------------------- C: the pulse mark
-S.append(state(
-    "9 · C · the pulse mark (no progress)",
-    "Proposal C. No progress on the views at all: 'Loop 1' top-left in red and an 8 px square at the right end of the "
-    "top line that fills on every downbeat and empties over the beat (the LOOP LED's pulse on the screen). The cycle "
-    "position is shown only where the loop is the subject (the LOOP layer's ring, state 11). The quietest option; the "
-    "player feels the bar, the screen does not count it.",
-    held=["MAJ"], lit=["G4", "B4", "D5"], buttons=PLAY_BTN, play_green=1, button_notes=PLAY_NOTE, encoders=IDLE_ENC,
-    screen=with_loop(scr(gchord(), key="Loop 1", note="C: the square top-right filled on the downbeat frame; outlined between beats."), "mark", on=True),
-))
-
-# 10, 11 ----------------------------------------------------------- where the ring stays
-S.append(state(
-    "10 · the ring stays where the loop is the subject: recording",
-    "Unchanged in every proposal: while recording or overdubbing (and during the count-in and the undo screen) the "
-    "loop IS the subject, so the red ring runs round the edge as the Orchid's does, with 'Rec' and bar.beat in the top "
-    "line. It leaves with the take; playback then shows the chosen indicator.",
+    "9 · the ring stays where the loop is the subject: recording",
+    "Unchanged: while recording or overdubbing (and during the count-in and the undo screen) the loop IS the subject, "
+    "so the red ring runs round the edge as the Orchid's does, with 'Rec' and bar.beat in the top line. It leaves with "
+    "the take; playback then shows the dial.",
     held=["MAJ"], lit=["F4", "A4", "C5"], buttons={"REC": BLINK, "PLAY": LIT}, encoders=IDLE_ENC,
     screen=scr(chord("F", cols={"root": C_CHORD}, bubbles=bubbles(["F4", "A4", "C5"])), key="Rec", right="2.3", ring=0.35, ring_rec=True,
                note="recording: the red ring, as today."),
 ))
 
 S.append(state(
-    "11 · the ring stays in the LOOP layer while playing",
+    "10 · the ring stays in the LOOP layer while playing",
     "Unchanged: LOOP held opens the loop layer with the Overdub / Pause / Undo / Clear picker inside the ring (OCT+ "
-    "does it); the ring shows the cycle. SAVE held (the loop save / load / delete) keeps its ring too. Everywhere else "
-    "the playing loop is the stripe (A), the dial (B) or the mark (C).",
+    "does it); the ring shows the cycle. SAVE held (the loop save / load / delete) keeps its ring too.",
     held=["MAJ"], lit=["G4", "B4", "D5"], buttons={"PLAY": BLINK, "REC": LIT, "OCT+": BLINK}, play_green=1,
     button_notes={"PLAY": LAYER_BTN_NOTE, "OCT+": "OK: does the picked action"}, encoders=IDLE_ENC,
     screen=scr({'kind': 'picker', 'items': ['Overdub', 'Pause', 'Undo', 'Clear'], 'sel': 0, 'label': 'loop 1', 'col': 'red'}, key="Loop 1", ring=PCT,
                note="the loop layer: the picker inside the ring, as today."),
-))
-
-# 12 --------------------------------------------------------------- A with the overdub armed
-S.append(state(
-    "12 · A · overdub armed while playing (REC lit)",
-    "REC tapped while the loop plays: the overdub is armed (REC lit) and the next chord opens a layer. In proposal A "
-    "the stripe stays and the top line says 'Dub 3.2' at the right in red (today's text), so arming is visible without "
-    "the ring; once the overdub records, the ring returns (state 10) because recording is the subject again.",
-    held=["MAJ"], lit=["G4", "B4", "D5"], buttons={"PLAY": LIT, "REC": LIT}, play_green=1,
-    button_notes={"REC": "lit: overdub armed; blinks once it records"}, encoders=IDLE_ENC,
-    screen=with_loop(scr(gchord(), key="Loop 1", right="Dub 3.2", right_col="red", note="A: armed: the stripe and 'Dub 3.2' top-right in red; no ring until the overdub records."), "bar"),
 ))
 
 for _s in S:                                   # the battery shows on the Options page only (255 = none; the designer
@@ -193,11 +165,10 @@ design = {
     "palette": "MOD",
     "labels": {"buttons": BUTTON_LABELS, "encoders": ENCODER_LABELS},
     "notes": "What the screen shows while a loop plays. Today Orchid's progress ring is drawn round every screen (state 1). "
-             "Three alternatives: A the beat stripe (states 2-7, 12: a 3 px red stripe under the top line filling over the "
-             "cycle, bar gaps, a white tick on the downbeat; nothing in the editor), B the corner dial (state 8: a 16 px ring "
-             "in the top line), C the pulse mark (state 9: a square that fills on the downbeat, no progress). In all of them the "
-             "ring stays where the loop is the subject: recording, the count-in, undo, the LOOP layer and the loop save dialog "
-             "(states 10, 11). Recommended: A.",
+             "Decided (2026-10-07): the corner dial, a 16 px ring at the right end of the top line (states 2-7: the chord view, "
+             "the downbeat pulse, the perform and key layers, Key Mode, the overdub armed); nothing in the sound editor or "
+             "Options (8); the ring stays where the loop is the subject: recording, the count-in, undo, the LOOP layer and "
+             "the loop save dialog (9, 10).",
     "states": S,
 }
 
