@@ -34,5 +34,10 @@ tail -1 build/host/cr_cz_test.log
 cc -O1 -w -fsanitize=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o build/host/fm4_div0_test tests/fm4_div0_test.c -lm
 ./build/host/fm4_div0_test > build/host/fm4_div0_test.log || { cat build/host/fm4_div0_test.log; exit 1; }
 grep -c ' ok$' build/host/fm4_div0_test.log | sed 's/^/fm4_div0_test: /; s/$/ checks ok/'
+# USB audio (Melodee's, docs/USB-AUDIO.md): usb.c's descriptors in each presentation (Out + In, one, the console), the
+# capture / playback routing, the PCM packing, the rings against clock drift and the host stopping (usb_audio_stream.c)
+cc -std=gnu11 -O2 -w -o build/host/cr_usbaudio_test tests/cr_usbaudio_test.c
+./build/host/cr_usbaudio_test > build/host/cr_usbaudio_test.log || { cat build/host/cr_usbaudio_test.log; exit 1; }
+tail -1 build/host/cr_usbaudio_test.log
 cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_midi_test tests/cr_midi_test.c
 exec ./build/host/cr_midi_test

@@ -17,9 +17,11 @@ extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[];
  * encoders lost frames. Nested in ALNK0 it only scans (GPIO + fm1_in, nothing the audio ISR touches)
  * and counts ms; USB and UART polls wait for the first tick after the render, as they always did,
  * and the time spent nested is handed to the audio ISR so its load figures stay render-only.
- * The USB audio stream cannot wait for the render (one packet per 1 ms frame, a render takes up to
- * ~5 ms): uac_service also runs nested. It touches only EP4 (INDEX is set on every access) and the
- * consumer side of the audio ring, and usb_poll never runs nested, so the two never interleave. */
+ * The USB audio streams cannot wait for the render (a packet each way per 1 ms frame, a render takes up to
+ * ~5 ms): ua_service also runs nested, by elapsed time (every 250 us at most: work spanning ticks does not
+ * stretch the next deadline). It touches only the audio endpoints (INDEX is set on every access) and the
+ * USB side of the audio rings (audio.c copies with the IRQs off), and usb_poll never runs nested, so the
+ * two never interleave (Melodee's). */
 void fm1_timer5_irq(void)
 {
     static uint32_t sub, owed;
@@ -44,12 +46,23 @@ void fm1_timer5_irq(void)
 #endif
     if (++sub == 10u)
         sub = 0;
+#if FELUCCA_UAC
+    {
+        static uint32_t last_ua;
+        uint32_t gap = t0 - last_ua;
+        if (!last_ua || gap >= 250u * FM1_TICKS_PER_US) {
+            if (last_ua && gap > ua.poll_max_ticks)
+                ua.poll_max_ticks = gap;
+            last_ua = t0;
+            ua_service();                       /* at most 4 kHz, independent of coalesced ticks */
+            gap = fm1_ticks() - t0;
+            if (gap > ua.service_max_ticks)
+                ua.service_max_ticks = gap;
+        }
+    }
+#endif
     if (felucca_dbg.in_audio) {
         felucca_dbg.nested++;
-#if FELUCCA_UAC
-        if (usb_due)
-            uac_service();
-#endif
         t5_nested_ticks += fm1_ticks() - t0;
         return;
     }
@@ -213,6 +226,11 @@ static void fm1_main(void)
         uint32_t m = fm1_ms;
         fm1_wdt_feed();
         usb_retry(fm1_ms);
+#if FELUCCA_UAC
+        if (ua_off_apply(fm1_ms))                       /* Options > USB Audio Out / In: the host re-reads (a second off
+                                                         * the bus; the setting is saved as any other, cr_settings.c) */
+            ui_message("USB RECONNECTING");
+#endif
         if (fm1_ms > BG_SETTLE_MS && bootguard.pending)  /* a crash or hang in the first 30 s counts */
             bootguard_settled(&bootguard);              /* (SAFE MODE stays for this session: cr_safe) */
         {

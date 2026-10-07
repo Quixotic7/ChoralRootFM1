@@ -55,6 +55,8 @@ static void t_defaults(void)
     ok(!d.bass_on && d.bass_mode == CR_BASS_CHORDS_ONLY, "defaults: bass off, Chords Only");
     ok(d.palette == CRS_PALETTE_MOD, "defaults: the MOD palette");
     ok(d.pick_roots == 1, "defaults: the engine picker's roots choose engines");
+    ok(d.usb_out == 1 && d.usb_in == 1 && d.usb_level == CRS_USB_MASTER,
+       "defaults: USB Audio Out and In on, USB Level Master (Melodee's, Felucca's)");
     ok(d.bpm == 120 && d.vel == 100 && d.playstyle == CR_PS_SIMPLE && !d.key_on && d.single == CR_SINGLE_FULL,
        "defaults: 120 BPM, velocity 100, Simple, Key Mode off, Full Octave");
     ok(d.chord_sound == CRS_SOUND_DEFAULT && d.fx_on && d.view == 0 && d.motion == 0, "defaults: UI fields");
@@ -206,6 +208,36 @@ static void t_version(void)
     s.pick_roots = 7;
     cr_settings_seal(&s);
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.pick_roots == 1, "pick_roots out of range: the default");
+    /* a version-3 record (written before the USB audio settings: zeros in their place, which would read as both
+     * devices off) */
+    cr_settings_defaults(&s);
+    s.bpm = 97;
+    s.pick_roots = 0;
+    s.usb_out = s.usb_in = s.usb_level = 0;
+    s.version = 3;
+    for (h = 2166136261u, i = 12; i < CRS_SIZE; i++) { h ^= ((uint8_t *)&s)[i]; h *= 16777619u; }
+    s.check = h;
+    ok(cr_settings_import(&r, &s, sizeof s) == 2 && r.bpm == 97 && r.pick_roots == 0 && r.usb_out == 1 &&
+       r.usb_in == 1 && r.usb_level == CRS_USB_MASTER && r.version == CRS_VERSION,
+       "version 3 -> 4: kept, USB Audio Out / In take their default (on), USB Level Master");
+    /* the USB settings round-trip; out of range takes the default */
+    cr_settings_defaults(&s);
+    s.usb_out = 0;
+    s.usb_in = 1;
+    s.usb_level = CRS_USB_FIXED;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && !r.usb_out && r.usb_in && r.usb_level == CRS_USB_FIXED,
+       "USB Audio Out off, In on, USB Level Fixed: kept");
+    s.usb_out = 0;
+    s.usb_in = 0;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && !r.usb_out && !r.usb_in, "both USB audio devices off: kept");
+    s.usb_out = 2;
+    s.usb_in = 9;
+    s.usb_level = 2;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.usb_out == 1 && r.usb_in == 1 && r.usb_level == CRS_USB_MASTER,
+       "USB settings out of range: their defaults");
 }
 
 static void t_flash(void)

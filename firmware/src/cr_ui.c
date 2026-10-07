@@ -350,6 +350,7 @@ static struct {
     uint8_t save_pending;                 /* slot + 1: saved once the loop stops (no flash erase while it plays) */
     uint16_t loop_used;                   /* bit k: slot k holds a loop in flash */
     uint8_t pick_roots;                   /* the engine picker: 1 the white roots choose engines, 0 they play */
+    uint8_t usb_out, usb_in, usb_fixed;   /* Options > USB Audio Out / In (on: presented to the computer), USB Level */
 } cs;
 #if CR_HAVE_SETTINGS
 static void cr_settings_load(void);       /* cr_settings.c (included after this file): the record -> the UI */
@@ -432,14 +433,30 @@ static void cu_route(void)                        /* Options > MIDI: channels an
 
 /* ------------------------------------------------------------- Options --- */
 enum { O_STYLE, O_EXTADD, O_SECRET, O_VEL, O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
-       O_CLOCK, O_VIEW, O_MOTION, O_LEDS, O_HOLD, O_VERSION, O_CALIB, O_SAFE, O_ERASE, O_N };
+       O_CLOCK, O_VIEW, O_MOTION, O_LEDS, O_HOLD, O_USB_OUT, O_USB_IN, O_USB_LEVEL, O_VERSION, O_CALIB, O_SAFE, O_ERASE,
+       O_N };
 #define O_N_NORMAL O_SAFE                 /* Safe Mode and Flash Data: listed in SAFE MODE only (core.h cr_safe) */
 static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Secret Chords", "Velocity",
     "Bass Behaviour", "Single Notes", "Split Point", "MIDI Perform", "MIDI Bass", "MIDI Raw Chord", "Raw Chord Sound",
-    "MIDI Clock", "View", "Motion", "LEDs", "Hold Time", "Version", "Calibrate", "Safe Mode", "Flash Data"};
-static const int16_t O_MAX[O_N] = {2, 1, 2, 127, 3, 1, 11, 16, 16, 16, 1, 2, V_N - 1, CR_MOTION_N - 1, 1, 3, 0, 0, 0, 0};
+    "MIDI Clock", "View", "Motion", "LEDs", "Hold Time", "USB Audio Out", "USB Audio In", "USB Level", "Version",
+    "Calibrate", "Safe Mode", "Flash Data"};
+static const int16_t O_MAX[O_N] = {2, 1, 2, 127, 3, 1, 11, 16, 16, 16, 1, 2, V_N - 1, CR_MOTION_N - 1, 1, 3, 1, 1, 1,
+                                   0, 0, 0, 0};
 static uint32_t cu_opt_n(void) { return cr_safe ? O_N : O_N_NORMAL; }
 static uint8_t cu_erase_ask;              /* Options > Flash Data: OCT+ pressed once (the second erases) */
+
+/* Options > USB Audio Out / In / USB Level (docs/USB-AUDIO.md): USB Level at once (fx.c), the devices the computer is
+ * given once the setting has rested 0.6 s (usb.c ua_off_set / ua_off_apply: the FM-1 leaves the bus for a second and
+ * the computer reads the new configuration). Both off: the serial console instead (usb.c usb_cdc_on). The emulator
+ * has no USB: the settings are kept and saved only */
+static void cu_usb_apply(void)
+{
+    fx_usb_fixed = cs.usb_fixed;
+#if FELUCCA_UAC
+    ua_off_set(UA_OFF_OUT, cs.usb_out, fm1_ms);
+    ua_off_set(UA_OFF_IN, cs.usb_in, fm1_ms);
+#endif
+}
 
 static int32_t opt_get(uint32_t o)
 {
@@ -458,6 +475,9 @@ static int32_t opt_get(uint32_t o)
     case O_MOTION: return cr_motion;
     case O_LEDS: return cs.leds;
     case O_HOLD: return settings_hold % 4u;
+    case O_USB_OUT: return cs.usb_out;
+    case O_USB_IN: return cs.usb_in;
+    case O_USB_LEVEL: return cs.usb_fixed;
     default: return 0;
     }
 }
@@ -479,6 +499,9 @@ static void opt_set(uint32_t o, int32_t v)
     case O_MOTION: cr_motion = (uint8_t)v; break;
     case O_LEDS: cs.leds = (uint8_t)v; break;
     case O_HOLD: settings_hold = (uint8_t)v; break;
+    case O_USB_OUT: cs.usb_out = (uint8_t)v; cu_usb_apply(); break;
+    case O_USB_IN: cs.usb_in = (uint8_t)v; cu_usb_apply(); break;
+    case O_USB_LEVEL: cs.usb_fixed = (uint8_t)v; cu_usb_apply(); break;
     default: break;
     }
 }
@@ -511,6 +534,8 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
     case O_MOTION: cu_cpy(d, MOTION[v % 3], n); break;
     case O_LEDS: cu_cpy(d, LEDS[v & 1], n); break;
     case O_HOLD: cu_int(d, HOLD_MS[v & 3], 0, n); cu_cat(d, " ms", n); break;
+    case O_USB_OUT: case O_USB_IN: cu_cpy(d, ONOFF[v & 1], n); break;
+    case O_USB_LEVEL: cu_cpy(d, v ? "Fixed" : "Master", n); break;
     case O_VERSION: cu_cpy(d, CR_VERSION, n); break;
     case O_CALIB: cu_cpy(d, "OCT+ starts", n); break;
     case O_SAFE: cu_cpy(d, "flash data skipped", n); break;
@@ -2857,6 +2882,12 @@ static void cu_options_screen(cr_screen_t *s)
         cu_cpy(s->label, "OCT-+OCT+ 5 s: update mode", sizeof s->label);
     else if (cu.opt_sel == O_ERASE)                /* "Flash data: erase and reboot", OCT+ twice */
         cu_cpy(s->label, cu_erase_ask ? "sounds, loops, settings go" : "OCT+ twice: erase, reboot", sizeof s->label);
+    else if (cu.opt_sel == O_USB_OUT)              /* what each USB entry does, under its value */
+        cu_cpy(s->label, "the computer plays through", sizeof s->label);
+    else if (cu.opt_sel == O_USB_IN)
+        cu_cpy(s->label, "master, chord, bass to it", sizeof s->label);
+    else if (cu.opt_sel == O_USB_LEVEL)
+        cu_cpy(s->label, cs.usb_fixed ? "USB full, MASTER: speaker" : "USB follows MASTER", sizeof s->label);
 }
 
 /* the sound editor (design/choralroot-fm1-sound-editor-mockups.json): cr_edit.c */
@@ -3434,6 +3465,7 @@ static void cr_ui_init(void)
     cs.loop_level = 100;
     cs.metro_vol = 70;
     cs.pick_roots = 1;
+    cs.usb_out = cs.usb_in = 1;                   /* (the record's, cr_settings_load; usb.c got them at boot) */
     cu_route();
     cu_set_tempo(cr.bpm ? cr.bpm : 120);
 #if CR_HAVE_SETTINGS

@@ -82,6 +82,8 @@ void cr_settings_defaults(cr_settings_t *s)
     s->loop_count_in = 1;
     s->metro_vol = 70;
     s->pick_roots = 1;                             /* the engine picker: the roots choose engines */
+    s->usb_out = s->usb_in = 1;                    /* both USB audio devices presented (Melodee's) */
+    s->usb_level = CRS_USB_MASTER;
     for (i = 0; i < 3u; i++) {
         s->midi_en[i] = i != CR_STREAM_RAW;        /* RAW stream off (Orchid) */
         s->midi_ch[i] = (uint8_t)i;                /* channels 1 / 2 / 3 */
@@ -160,6 +162,9 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(metro_vol, 0, 100);
     CRS_FIX(loop_slot, 0, 9);
     CRS_FIX(pick_roots, 0, 1);
+    CRS_FIX(usb_out, 0, 1);
+    CRS_FIX(usb_in, 0, 1);
+    CRS_FIX(usb_level, 0, CRS_USB_FIXED);
     /* palette, chord_sound, bass_sound: checked against the lists by the UI glue (the lists are the UI's) */
 }
 
@@ -209,6 +214,13 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
             cr_settings_t d;
             cr_settings_defaults(&d);
             s->pick_roots = d.pick_roots;
+        }
+        if (in.version < 4u) {                     /* version 4: USB audio (zeros there would switch both off) */
+            cr_settings_t d;
+            cr_settings_defaults(&d);
+            s->usb_out = d.usb_out;
+            s->usb_in = d.usb_in;
+            s->usb_level = d.usb_level;
         }
     }
     crs_sanitize(s);
@@ -304,6 +316,16 @@ static uint32_t crs_change_ms, crs_retry_ms;
 static int crs_last_rc;                            /* the last import: 1 current, 2 migrated, 0 defaults */
 static uint32_t crs_saves;                         /* flash writes done (diagnostics, the emulator) */
 
+/* the USB settings to usb.c (which devices the host is given; ua_off at boot, usb_start builds the configuration)
+ * and fx.c (USB Level) */
+static void crs_usb_apply(const cr_settings_t *s)
+{
+    fx_usb_fixed = s->usb_level == CRS_USB_FIXED;
+#if FELUCCA_UAC
+    ua_off = ua_off_want = (uint8_t)((s->usb_out ? 0u : UA_OFF_OUT) | (s->usb_in ? 0u : UA_OFF_IN));
+#endif
+}
+
 static void cr_settings_boot(void)                 /* persist_boot (flash_ok known), before settings_init / panel_init */
 {
     int n = -1;
@@ -318,6 +340,7 @@ static void cr_settings_boot(void)                 /* persist_boot (flash_ok kno
         settings_export(&crs_rec);
     }
     crs_last_rc = cr_settings_import(&crs_rec.cr, &crs_rec.cr, sizeof crs_rec.cr);
+    crs_usb_apply(&crs_rec.cr);                    /* (before usb_start: the configuration the host first reads) */
 }
 
 static uint16_t crs_pos(uint16_t v, uint32_t n, uint16_t def) { return v < n ? v : def; }
@@ -371,6 +394,9 @@ static void crs_capture(cr_settings_t *s)
     s->metro_vol = cs.metro_vol;
     s->loop_slot = cs.loop_slot;
     s->pick_roots = cs.pick_roots;
+    s->usb_out = cs.usb_out;
+    s->usb_in = cs.usb_in;
+    s->usb_level = cs.usb_fixed;
     s->split_pc = cs.split;
     s->view = cs.view;
     s->motion = cr_motion;
@@ -422,6 +448,10 @@ static void cr_settings_load(void)
     cs.metro_vol = s->metro_vol;
     cs.loop_slot = s->loop_slot;
     cs.pick_roots = s->pick_roots;
+    cs.usb_out = s->usb_out;
+    cs.usb_in = s->usb_in;
+    cs.usb_fixed = s->usb_level;
+    fx_usb_fixed = cs.usb_fixed;                   /* (USB Audio Out / In: crs_usb_apply at boot, before usb_start) */
     cs.split = s->split_pc;
     cs.view = s->view;
     cr_motion = s->motion;

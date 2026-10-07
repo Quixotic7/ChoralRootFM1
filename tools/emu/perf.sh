@@ -10,6 +10,10 @@
 #   (e) (c) while KNOB 1..4 turn on an EDIT page every 30 ms
 #   (f) a 6-note VA chord (ENSEMBLE STR) + the VA bass (PUNCH BASS), a chord change (docs/VA.md)
 #   (g) a 6-note CZ-1 chord (CZ STRINGS 2) + the CZ-1 bass (CZ BASS), a chord change (docs/CZ1.md)
+#   (u) USB audio streaming both ways (docs/USB-AUDIO.md): the emulator has no USB, so not a scenario but what
+#       ChoralRoot In / Out add to a half on top of (a)..(g): tests/cr_usbaudio_test.c --bench counts the host
+#       instructions of the capture staging, the master tap, the ring copy and the playback mix-in (the audio ISR)
+#       and of the packets (TIMER5), with emu.c's device ratio; the SIE register accesses are not in it
 set -u
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$ROOT"
@@ -28,3 +32,5 @@ for s in a b c d e f g; do
     grep 'voices: given up\|erases with' "$OUT/$n.log" | tail -2 | sed 's/^ */   /'
     python3 tools/emu/wavclicks.py "$OUT/$n.wav" --from 0.4 | tail -1 | sed 's/^/   /'
 done
+echo "== (u) USB audio streaming both ways (estimate: the emulator has no USB)"
+cc -std=gnu11 -O2 -w -o build/host/cr_usbaudio_test tests/cr_usbaudio_test.c && build/host/cr_usbaudio_test --bench | sed 's/^/   /'

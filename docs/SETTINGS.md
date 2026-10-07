@@ -28,7 +28,7 @@ LEDs in `zoom`.
 The block has its own header:
 
 - `magic` `CRS1`
-- `version` (`CRS_VERSION`, currently 3)
+- `version` (`CRS_VERSION`, currently 4)
 - `size` (the writer's `CRS_SIZE`)
 - `check`: FNV-1a over bytes 12..size
 
@@ -56,7 +56,9 @@ The block has its own header:
 | bass_sound | the ALGORITHM position BASS tap brings (1..), 0 = the UI's default | SUB BASS |
 | metro_on, metro_sig, metro_vol, loop_slot (v2) | the click, 4/4 3/4 6/8, 0..100, 0..9 | off, 4/4, 70, 0 |
 | pick_roots (v3) | the engine picker's white roots: 1 choose engines, 0 play (KNOB 4 in the picker) | **1** (engines) |
-| rsv[23] | reserve for new fields | 0 |
+| usb_out, usb_in (v4) | Options > USB Audio Out / In: the device is presented to the computer (docs/USB-AUDIO.md) | **1, 1** (both on, Melodee's); a v1..v3 record takes these (its zeros would mean off) |
+| usb_level (v4) | Options > USB Level: `CRS_USB_MASTER` (USB follows MASTER) / `CRS_USB_FIXED` (USB at the full level, MASTER after) | Master |
+| rsv[20] | reserve for new fields | 0 |
 
 ### Import rules (`cr_settings_import`)
 
@@ -89,7 +91,7 @@ Never reorder or remove a field. A retired field stays in place, unused.
 
 | call | where | does |
 | --- | --- | --- |
-| `cr_settings_boot()` | `persist_boot` (cr_shim.c), the emulator's `emu_fw_init` | the flash object → Felucca's fields (panel table, palette, HOLD, LEDs) + the block |
+| `cr_settings_boot()` | `persist_boot` (cr_shim.c), the emulator's `emu_fw_init` | the flash object → Felucca's fields (panel table, palette, HOLD, LEDs) + the block; the USB settings to `usb.c` (`ua_off`) and `fx.c` (`fx_usb_fixed`) through `crs_usb_apply`, before `usb_start` builds the configuration the computer first reads |
 | `cr_settings_load()` | the end of `cr_ui_init` (**patch below**); the emulator calls it after `cr_ui_init` until then | the block → engine (IRQ off), `cr_route`, the UI mirror `cs`, motion, palette, the sounds, tempo |
 | `cr_settings_poll()` | every frame (`main.c` `settings_poll` → cr_shim.c; the emulator's `emu_fw_frame`) | captures the state; a change is written once nothing changed for 1.5 s and nothing has sounded for 1 s (no voice of the parts, no chord held or latched, no scheduled note, the master output under -60 dBFS: a flash erase stops the audio for ~45 ms, docs/INTEGRATION.md Performance), never while a loop plays (`CR_SETTINGS_BUSY()`), retried 1 s after a flash error, and skipped when the bytes are unchanged |
 | `cr_settings_save()` | `settings_save` (cr_shim.c): the power-on calibration, Options | save now |

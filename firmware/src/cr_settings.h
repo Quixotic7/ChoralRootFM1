@@ -13,7 +13,7 @@
 #include <stdint.h>
 
 #define CRS_MAGIC 0x31535243u           /* "CRS1" */
-#define CRS_VERSION 3u
+#define CRS_VERSION 4u
 #define CRS_SIZE 192u                   /* bytes, header included; never changes (fields come out of rsv) */
 #define CRS_NPM 5                       /* perform modes (cr_engine.h CR_PM_COUNT) */
 #define CRS_NPAR 11                     /* parameters per mode (CR_P_COUNT) */
@@ -21,6 +21,7 @@
 #define CRS_PALETTE_MOD 0xFFu           /* palette: MOD, ChoralRoot's (gfx.c: the last palette) */
 enum { CRS_CLOCK_OFF, CRS_CLOCK_OUT, CRS_CLOCK_IN };
 enum { CRS_NONE = 0xFF };               /* out part: no part */
+enum { CRS_USB_MASTER, CRS_USB_FIXED };  /* usb_level: USB audio follows MASTER / takes the full level (docs/USB-AUDIO.md) */
 
 typedef struct {
     /* header (12 bytes) */
@@ -48,7 +49,9 @@ typedef struct {
     uint8_t metro_on, metro_sig, metro_vol, loop_slot;   /* the click, 4/4 3/4 6/8, its level 0..100, slot 0..9 */
     /* version 3 */
     uint8_t pick_roots;                              /* the engine picker's white roots: 1 engines, 0 they play */
-    uint8_t rsv[23];                                 /* new fields come out of here */
+    /* version 4 */
+    uint8_t usb_out, usb_in, usb_level;              /* Options > USB Audio Out / In (on), USB Level (CRS_USB_*) */
+    uint8_t rsv[20];                                 /* new fields come out of here */
 } cr_settings_t;
 
 /* what cr_out.c's routing takes (cr_route_t, written field by field by the unit's glue) */

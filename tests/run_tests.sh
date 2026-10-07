@@ -47,8 +47,8 @@
 #                   contacts: a press within 2 scans (<= 2.3 ms), one note per bouncy press, no early or hanging
 #                   release, stray samples ignored, fast repeats, the encoders' detents; the LED scan: lit LEDs every
 #                   frame, dim ones a short pulse (the second line write) every frame, each only on its own column.
-# USB audio (tests/uac_test.c): the UAC1 descriptors as a host parses them (with and without CDC), the
-#                   ring and packetiser: 44.1 frames per packet, every frame in order, underrun / overrun, restart.
+# USB audio (tests/cr_usbaudio_test.c, also in run_cr_tests.sh): Melodee's two UAC1 functions as ChoralRoot builds
+#                   them: the descriptors in each presentation, routing, packing, the rings against clock drift.
 # web (web/test_web.mjs): the editor protocol against its mock device, whose tables must equal the
 #                   firmware's (tests/descdump.c -> build/host/desc.json), the package builder, the updater.
 # PHYS (tests/phys_test.c): stability over the whole parameter and pitch range, the worst-case cost against
@@ -92,11 +92,8 @@ run "keys and buttons: fast press, long release, bouncy contacts (one note each)
 $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
 run "TRS MIDI parser" "$OUT/midi_uart_test"
 
-HALF=$(sed -n 's/^#define HALF_FRAMES \([0-9]*\).*/\1/p' firmware/src/core.h)
-$CC -DT_CDC=1 -DHALF_FRAMES=$HALF -o "$OUT/uac_test" tests/uac_test.c
-run "USB audio input: descriptors (with CDC), ring and packets" "$OUT/uac_test"
-$CC -DT_CDC=0 -DHALF_FRAMES=$HALF -o "$OUT/uac_test_nocdc" tests/uac_test.c
-run "USB audio input: descriptors (without CDC), ring and packets" "$OUT/uac_test_nocdc"
+$CC -std=gnu11 -o "$OUT/cr_usbaudio_test" tests/cr_usbaudio_test.c
+run "USB audio: descriptors, routing, packing, clock drift and recovery" "$OUT/cr_usbaudio_test"
 
 [ -f build/choralroot.fwsc ] || { echo "run ./build.sh first"; exit 1; }
 
@@ -115,7 +112,7 @@ if [ -f build/gen/felucca_tables.h ]; then
     $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/chord_test" tests/chord_test.c -lm
     run "chord keys: diatonic and fixed chords, voicings, MONO root, releases, recording, ARP, MIDI IN, kits" "$OUT/chord_test"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/speaker_test" tests/speaker_test.c -lm
-    run "SPEAKER BASS+: harmonics of the bass, the sub cut, no offset after" "$OUT/speaker_test"
+    run "SPEAKER EQ: the three modes' response (BASS+ no longer cancels 440 Hz, #42), BASS+ harmonics, the sub cut" "$OUT/speaker_test"
     run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
     mkdir -p build/tracks_demo
     run "TRACKS: 4-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"

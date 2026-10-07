@@ -29,13 +29,12 @@
 #define FELUCCA_OTA_DRYRUN 0
 #endif
 #ifndef FELUCCA_CDC
-#define FELUCCA_CDC 1            /* USB CDC-ACM serial console */
+#define FELUCCA_CDC 1            /* USB CDC-ACM serial console (with FELUCCA_UAC: presented while both USB audio devices
+                                  * are off, and in SAFE MODE; usb.c usb_cdc_on) */
 #endif
 #ifndef FELUCCA_UAC
-#define FELUCCA_UAC 1            /* USB audio input: the master output */
-#endif
-#ifndef FELUCCA_UAC_TONE
-#define FELUCCA_UAC_TONE 0
+#define FELUCCA_UAC 1            /* USB audio (Melodee's, docs/USB-AUDIO.md): "ChoralRoot Out" plays the computer through
+                                  * the FM-1, "ChoralRoot In" records the master, CHORD and BASS (six channels) */
 #endif
 #ifndef FELUCCA_UART
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 / PH8 */
@@ -82,7 +81,7 @@
 #define FELUCCA_ID "FM-1_920"    /* package identity (build.py: the .fwsc marker string) */
 #endif
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "ChoralRoot 0.12"   /* the dev build reads as the next tag; --release X.Y sets it */
+#define FELUCCA_VERSION "ChoralRoot 0.14"   /* the dev build reads as the next tag; --release X.Y sets it */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
 #error "FELUCCA_OTA needs FELUCCA_FLASH"
@@ -144,7 +143,19 @@
 static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the engine first, then the mix */
 {
     cr_audio_block(n);
+#if FELUCCA_UAC
+    ua_stage_on = ua.cap_alt && !USB_CDC_ON;     /* the computer records: fx.c stages the block's capture frames */
+#endif
     fx_mix_block(out, n);
+#if FELUCCA_UAC
+    if (ua_stage_on) {   /* USB audio: ChoralRoot In's master pair (fx.c ua_stage), before the click and the playback */
+        uint32_t i;
+        for (i = 0; i < n; i++) {
+            ua_stage[i * UA_CAP_CHANNELS] = ua_sat(out[2u * i]);
+            ua_stage[i * UA_CAP_CHANNELS + 1u] = ua_sat(out[2u * i + 1u]);
+        }
+    }
+#endif
     cr_click_mix(out, n);        /* the metronome / count-in click */
 }
 #include "audio.c"

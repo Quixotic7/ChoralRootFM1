@@ -3,7 +3,7 @@
 FM6 is ChoralRoot's six-operator FM engine (engine 12). Since 0.13 it is **Melodee's** FM6 (Kerem Kilic's fork of
 Felucca, <https://github.com/keremimo/melodee>, GPL-3.0): it renders DX7 voices sample for sample as Dexed renders
 them, imports and exports DX7 SysEx, keeps a 32-voice bank, and plays up to 16 voices (ChoralRoot: 8, below). This
-is phase 1 of 3 of the Melodee platform work (phase 2 brings the CZ-1 engine, phase 3 USB audio).
+is phase 1 of 3 of the Melodee platform work (phase 2 brings the CZ-1 engine, docs/CZ1.md; phase 3 USB audio, docs/USB-AUDIO.md).
 
 | file | what | from |
 | --- | --- | --- |

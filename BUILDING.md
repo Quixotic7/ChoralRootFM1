@@ -94,8 +94,8 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/choralroot.c`;
 | --- | --- | --- |
 | `FELUCCA_FLASH` | 1 | settings, presets and projects in flash |
 | `FELUCCA_OTA` | 1 | update entry (needs `FELUCCA_FLASH`) |
-| `FELUCCA_CDC` | 1 | USB serial console |
-| `FELUCCA_UAC` | 1 | USB audio input (the master output, 44.1 kHz stereo) |
+| `FELUCCA_CDC` | 1 | USB serial console (with `FELUCCA_UAC`: presented while both USB audio devices are off, and in SAFE MODE) |
+| `FELUCCA_UAC` | 1 | USB audio (Melodee's, docs/USB-AUDIO.md): "ChoralRoot Out" (stereo playback) and "ChoralRoot In" (master, CHORD, BASS: 6 channels), 44.1 kHz; 0: MIDI and the console only |
 | `FELUCCA_UART` | 1 | TRS MIDI IN |
 | `FELUCCA_SLICE` | 0 | the SLICE engine (ChoralRoot: off) |
 | `FELUCCA_SLICER` | 0 | the SLICER insert and its 32 KB POOL buffer (ChoralRoot: off; Felucca and the emulator: 1) |

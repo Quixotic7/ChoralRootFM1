@@ -83,6 +83,19 @@ static int32_t lim_env = LIM_T;
  * loudness; the peaks the slower gain lets through (to ~25000) go into the soft clipper's near-linear part */
 static uint8_t fx_smooth;
 static int32_t lim_g = 32768;
+/* Options > USB Level = Fixed (Felucca 1.0.5's MENU > USB LEVEL FIXED, #42: record over USB with the speaker turned
+ * down): the mix goes to master_out at the full MASTER level, USB audio's master pair takes that (choralroot.c's
+ * mix_block shim, usb_audio_stream.c), and only then does MASTER scale what the DAC gets (usb_fixed_dac, audio.c).
+ * 0 (Master, the default): MASTER before master_out, as always (USB follows the knob) */
+static volatile uint8_t fx_usb_fixed;
+#define MASTER_FULL 4096                /* main.c: the MASTER knob's top, Q12 */
+static __attribute__((noinline)) void usb_fixed_dac(int32_t *out, uint32_t n)   /* audio ISR, after the USB tap */
+{
+    uint32_t i;
+    int32_t m = (int32_t)song.master_q12;
+    for (i = 0; i < 2u * n; i++)
+        out[i] = (out[i] * m) >> 12;                /* (|out| <= 32767 after the soft clip: fits) */
+}
 static volatile uint8_t fx_lowcut;     /* settings: 1 LOWCUT 12 dB/oct ~110 Hz, 2 BASS+ (the small speaker):
                                         * 12 dB/oct ~220 Hz plus the harmonics of the bass (spk_bass) */
 static int32_t lc_l1, lc_l2, lc_r1, lc_r2, dc_l, dc_r, dce_l, dce_r;
@@ -110,19 +123,23 @@ static inline int32_t lowcut1(int32_t x, int32_t *lc, int32_t *err, uint32_t sh)
 }
 
 /* BASS+: what the speaker cannot play, heard through its harmonics. The bass below ~150 Hz is clipped at its
- * own envelope (a level-following trapezoid: odd harmonics), then band-passed ~220 Hz..1 kHz and added. */
-static int32_t sb_lp1, sb_lp2, sb_env, sb_h1, sb_h2, sb_hl;
+ * own envelope (a level-following trapezoid: odd harmonics), then band-passed ~220 Hz..1 kHz and added.
+ * The low-pass has 4 poles (Felucca 1.0.5, #42: with 2, the trapezoid rebuilt the 300 .. 600 Hz of the mix itself,
+ * late, and cancelled up to 6 dB of it; now under 0.5 dB) */
+static int32_t sb_lp1, sb_lp2, sb_lp3, sb_lp4, sb_env, sb_h1, sb_h2, sb_hl;
 static inline int32_t spk_bass(int32_t m)
 {
     int32_t a, t, u;
     sb_lp1 += ((m - sb_lp1) * 692) >> 15;
     sb_lp2 += ((sb_lp1 - sb_lp2) * 692) >> 15;
-    a = sb_lp2 < 0 ? -sb_lp2 : sb_lp2;
+    sb_lp3 += ((sb_lp2 - sb_lp3) * 692) >> 15;
+    sb_lp4 += ((sb_lp3 - sb_lp4) * 692) >> 15;
+    a = sb_lp4 < 0 ? -sb_lp4 : sb_lp4;
     if (a > sb_env)
         sb_env += (a - sb_env) >> 2;
     else if (sb_env > 0)
         sb_env -= (sb_env >> 11) + 1;
-    t = clamp(sb_lp2 * 8, -sb_env, sb_env);
+    t = clamp(sb_lp4 * 8, -sb_env, sb_env);
     sb_h1 += (t - sb_h1) >> 5;
     u = t - sb_h1;
     sb_h2 += (u - sb_h2) >> 5;
@@ -359,6 +376,19 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
  * -> dist -> SLICER -> level / pan / sends -> buses -> master; out: stereo Q15 */
 static void events_block(uint32_t n);                    /* seq.c */
 static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_r[CTL];
+#if FELUCCA_UAC
+/* USB audio's "ChoralRoot In" (usb_audio_stream.c ua_audio), one block's frames of six channels: 0-1 the master
+ * (choralroot.c's mix_block shim: before the click and the host's playback), 2-3 the CHORD part, 4-5 the BASS part,
+ * each part's dry stereo as it goes into the mix (after DIST, LEVEL, pan and the stereo side, before the sends, the
+ * FX buses and MASTER), at half level (-6 dB: a loud chord there is ~2x the limiter's threshold) and saturated to
+ * 16 bits. Filled only while the computer records (ua_stage_on: the shim sets it for the block from ChoralRoot In's
+ * alternate setting); else the ISR does none of this */
+#define UA_CAP_CHANNELS 6u
+#define UA_PART_CAPTURED 2u                             /* parts 0 (CHORD) and 1 (BASS) */
+static int16_t ua_stage[CTL * UA_CAP_CHANNELS];
+static uint8_t ua_stage_on;
+static inline int16_t ua_sat(int32_t x) { return (int16_t)(x > 32767 ? 32767 : x < -32768 ? -32768 : x); }
+#endif
 
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
@@ -366,6 +396,9 @@ static void mix_part(track_t *t, uint32_t n)
 {
     int32_t *b = part_buf, *sd;
     uint32_t i;
+#if FELUCCA_UAC
+    int16_t *pc = ua_stage_on && (uint32_t)(t - trk) < UA_PART_CAPTURED ? ua_stage + 2u + 2u * (uint32_t)(t - trk) : 0;
+#endif
     mod_begin(t);                                       /* the matrix's per-block values into t->p (mod.c) */
     if (track_render(t, b, n))
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
@@ -412,8 +445,17 @@ static void mix_part(track_t *t, uint32_t n)
                     send_d[i] += mulq15(xs, d);
                 if (r)
                     send_r[i] += mulq15(xs, r);
-                mix_l[i] += ((x - y) * gl) >> 12;
-                mix_r[i] += ((x + y) * gr) >> 12;
+                {
+                    int32_t l = ((x - y) * gl) >> 12, rr = ((x + y) * gr) >> 12;
+                    mix_l[i] += l;
+                    mix_r[i] += rr;
+#if FELUCCA_UAC
+                    if (pc) {
+                        pc[i * UA_CAP_CHANNELS] = ua_sat(l >> 1);
+                        pc[i * UA_CAP_CHANNELS + 1u] = ua_sat(rr >> 1);
+                    }
+#endif
+                }
             }
             t->peak = pk;
             if (mod.on)
@@ -433,8 +475,17 @@ static void mix_part(track_t *t, uint32_t n)
                 send_d[i] += mulq15(xs, d);
             if (r)
                 send_r[i] += mulq15(xs, r);
-            mix_l[i] += (x * gl) >> 12;
-            mix_r[i] += (x * gr) >> 12;
+            {
+                int32_t l = (x * gl) >> 12, rr = (x * gr) >> 12;
+                mix_l[i] += l;
+                mix_r[i] += rr;
+#if FELUCCA_UAC
+                if (pc) {
+                    pc[i * UA_CAP_CHANNELS] = ua_sat(l >> 1);
+                    pc[i * UA_CAP_CHANNELS + 1u] = ua_sat(rr >> 1);
+                }
+#endif
+            }
         }
         t->peak = pk;
     }
@@ -446,9 +497,10 @@ static void mix_part(track_t *t, uint32_t n)
 static __attribute__((noinline)) void perf_master(int32_t *out, uint32_t n)
 {
     uint32_t i;
+    int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (USB Level Fixed: MASTER after) */
     for (i = 0; i < n; i++) {
-        mix_l[i] = (((mix_l[i] + wet[i]) >> 2) * (int32_t)song.master_q12) >> 10;
-        mix_r[i] = (((mix_r[i] + wet[i]) >> 2) * (int32_t)song.master_q12) >> 10;
+        mix_l[i] = (((mix_l[i] + wet[i]) >> 2) * mg) >> 10;
+        mix_r[i] = (((mix_r[i] + wet[i]) >> 2) * mg) >> 10;
     }
     perf_block(mix_l, mix_r, n);
     for (i = 0; i < n; i++) {
@@ -463,6 +515,12 @@ static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
     int perf;
+    int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (USB Level Fixed: MASTER after) */
+#if FELUCCA_UAC
+    if (ua_stage_on)
+        for (i = 0; i < n * UA_CAP_CHANNELS; i++)
+            ua_stage[i] = 0;                            /* (a silent part: mix_part leaves its channels) */
+#endif
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     events_block(n);
@@ -477,8 +535,8 @@ static void mix_block(int32_t *out, uint32_t n)
         return;
     }
     for (i = 0; i < n; i++) {
-        int32_t l = (((mix_l[i] + wet[i]) >> 2) * (int32_t)song.master_q12) >> 10;
-        int32_t r = (((mix_r[i] + wet[i]) >> 2) * (int32_t)song.master_q12) >> 10;
+        int32_t l = (((mix_l[i] + wet[i]) >> 2) * mg) >> 10;
+        int32_t r = (((mix_r[i] + wet[i]) >> 2) * mg) >> 10;
         master_out(&l, &r);
         out[2u * i] = l;
         out[2u * i + 1u] = r;

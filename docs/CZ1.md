@@ -4,7 +4,7 @@ CZ-1 is ChoralRoot's Casio CZ-1 engine (**engine 14**, `ENGI_CZ`). It is **Melod
 Felucca, <https://github.com/keremimo/melodee>, GPL-3.0): native Casio tones (the 144-byte CZ-1 tone kept verbatim),
 two lines with eight-step pitch / timbre (DCW) / volume (DCA) envelopes, the uPD933 phase functions and logarithmic
 amplitude, Casio's 64 preset tones, eight 16-tone banks and Casio's tone SysEx over USB-MIDI. This is phase 2 of 3 of
-the Melodee platform work (phase 1: FM6, docs/FM6.md; phase 3: USB audio).
+the Melodee platform work (phase 1: FM6, docs/FM6.md; phase 3: USB audio, docs/USB-AUDIO.md).
 
 | file | what | from |
 | --- | --- | --- |

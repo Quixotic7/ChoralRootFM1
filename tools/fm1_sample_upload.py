@@ -42,8 +42,8 @@ class Link:
         except ImportError:
             sys.exit("needs mido: pip install mido python-rtmidi")
         self.mido = mido
-        outs = [n for n in mido.get_output_names() if "Felucca" in n]
-        ins = [n for n in mido.get_input_names() if "Felucca" in n]
+        outs = [n for n in mido.get_output_names() if "Felucca" in n or "ChoralRoot" in n]
+        ins = [n for n in mido.get_input_names() if "Felucca" in n or "ChoralRoot" in n]
         if not outs or not ins:
             sys.exit("no MIDI port named Felucca: connect the FM-1 (running Felucca) by USB")
         self.o = mido.open_output(outs[0])

@@ -168,22 +168,24 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
 #endif
 
 #if FELUCCA_UAC
-static void con_uac(void)                              /* USB audio input: stream state and glitches */
+static void con_uac(void)                              /* USB audio (usb_audio_stream.c): the streams and their glitches
+                                                        * (the console is presented only with both devices off: the
+                                                        * counters of the last streams, since the boot) */
 {
-    uint32_t p = uac.pkts;
-    con_kv("uac_alt", uac.alt);
-    con_kv("uac_starts", (int32_t)uac.starts);
-    con_kv("uac_pkts", (int32_t)p);
-    con_kv("uac_rate_hz", p ? 44000 + (int32_t)(uac.frames - 44u * p) * 1000 / (int32_t)p : 0);   /* < 5 h */
-    con_kv("uac_underruns", (int32_t)uac.underruns);
-    con_kv("uac_overruns", (int32_t)uac.overruns);
-    con_kv("uac_missed", (int32_t)uac.missed);
-    con_kv("uac_stalls", (int32_t)uac.stalls);
-    con_kv("uac_adj_up", (int32_t)uac.adj_up);
-    con_kv("uac_adj_down", (int32_t)uac.adj_down);
-    con_kv("uac_fill", (int32_t)uac.fill_min);
-    con_kv("uac_fill_lo", uac.fill_lo == 0xFFFFFFFFu ? -1 : (int32_t)uac.fill_lo);
-    con_kv("uac_fill_hi", (int32_t)uac.fill_hi);
+    con_kv("ua_off", ua_off);
+    con_kv("ua_play_alt", ua.play_alt);
+    con_kv("ua_cap_alt", ua.cap_alt);
+    con_kv("ua_rx_pkts", (int32_t)ua.rx_packets);
+    con_kv("ua_tx_pkts", (int32_t)ua.tx_packets);
+    con_kv("ua_play_underruns", (int32_t)ua.play_underruns);
+    con_kv("ua_play_overruns", (int32_t)ua.play_overruns);
+    con_kv("ua_cap_underruns", (int32_t)ua.cap_underruns);
+    con_kv("ua_cap_overruns", (int32_t)ua.cap_overruns);
+    con_kv("ua_bad_pkts", (int32_t)ua.bad_packets);
+    con_kv("ua_missed_frames", (int32_t)ua.missed_frames);
+    con_kv("ua_feedback", (int32_t)ua_feedback());
+    con_kv("ua_poll_max_us", (int32_t)(ua.poll_max_ticks / FM1_TICKS_PER_US));
+    con_kv("ua_service_max_us", (int32_t)(ua.service_max_ticks / FM1_TICKS_PER_US));
 }
 #endif
 
