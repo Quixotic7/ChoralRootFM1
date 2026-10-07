@@ -109,3 +109,23 @@ user data (user sounds U01 SHIMMER, U02 TINE EP, settings) is backed up on the M
   RAM record cleared too early), and test the power-loss resume on hardware.
 - INSTALL-COMPAT.md's "If an FM-1 is dark" checklist: add this case (no USB device at all after an interrupted
   loader write), and that a power-on clears the reworked boot guard, so quick restarts do nothing there.
+
+---
+
+## Preparation done on the Mac (2026-10-07, before the parts arrived)
+
+- **Transporter firmware built**: `../FM-1-transporter/build/fm1_transporter.uf2` (219 648 B; pico-sdk 2.2.0 at
+  `~/pico-sdk`, Arm GCC 9.2.1, CMake 3.27; the wl82loader.bin from `../jl-uboot-tool` at adb3f18, sha256 d41da612...,
+  embedded: `build/generated/wl82loader.h`). picotool is not installed: flash the XIAO by holding its BOOT button while
+  plugging it in and copying the .uf2 onto the `RPI-RP2` disk. pyserial 3.5 is installed for `tools/fm1t.py`.
+- **The review gate**: `fm1t.py write` imports `fm1_ota.require_reviewed` and `fm1fw.Firmware` from fm-1-research-lab,
+  which is not public. Our stand-in is `tools/transporter/` (README there; `FM1_RESEARCH=$PWD/tools/transporter`):
+  it accepts the official V15 (identity FM-1_015, the Unbricker's region hash) and ChoralRoot packages (FM-1_920 with
+  the Felucca loader marker; the head compared with a V15 package when `FM1_V15` names one). The flash image is the
+  package's type-0 entry at the offset the ciphered UFW entry list gives (0x400 in our packages; `ota.c ota_ufw`).
+  Test: `python3 tests/transporter_shim_test.py`.
+- **Still needed**: the official V15 `FM-1.fwsc` from https://www.m-vave.com/download (not on this Mac; check it with
+  `python3 ../MvaveFM1Unbricker/fm1_unbrick.py extract FM-1.fwsc app_v15.bin --verify-v15`), and the parts.
+- Docs updated: `docs/INSTALL-COMPAT.md` ("Before an install", checklist item 0), README ("Before any install").
+- The loader analysis stands as written above; `fm1_updata_parm_clear` (hal/fm1_sys.h) zeroes the RAM record only,
+  so the flash record at 0xE4F00 should have survived: the dump decides whether the SPL honours it.
