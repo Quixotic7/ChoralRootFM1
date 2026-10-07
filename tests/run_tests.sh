@@ -227,8 +227,13 @@ run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/inst
 if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol + samples, package builder, update protocol" node web/test_web.mjs
     run "web backup: capture, validation before writes, restore order" node web/test_backup.mjs
+    if [ -f web/test_installer.mjs ]; then
+        run "web installer: the page against a simulated FM-1 (node, no browser)" node web/test_installer.mjs
+    fi
 else
     echo "== skip web tests (no node)"
 fi
+
+run "site: make_site.py into build/site, every internal link resolves" python3 tests/site_test.py
 
 [ $fail -eq 0 ] && echo "ALL HOST TESTS PASSED" || { echo "HOST TESTS FAILED"; exit 1; }

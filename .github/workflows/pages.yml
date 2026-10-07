@@ -1,0 +1,131 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Publish the GitHub Pages site (the landing page, the web installer and the package) for a release.
+#   workflow_dispatch (version, ref)  -> download choralroot-VERSION.fwsc from the release vVERSION,
+#                                        web/make_site.py, deploy to Pages
+#   release published                 -> starts the dispatch above from the default branch (the github-pages
+#                                        environment only accepts deployments from it), the site built from the tag
+# release.yml starts the dispatch itself after it made the release. Settings -> Pages -> Source must be
+# "GitHub Actions" (BUILDING.md, "Releasing").
+name: pages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, e.g. 0.1 (the release v0.1 must carry choralroot-0.1.fwsc)"
+        required: true
+        type: string
+      ref:
+        description: "Branch, tag or commit the site is built from (blank: the default branch)"
+        required: false
+        default: ""
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  redispatch:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Start the site build from the default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          if [[ "$TAG" != v* || ! "$version" =~ ^[0-9]\.[0-9](\.[0-9])?$ ]]; then
+            echo "::notice::release $TAG is not a vX.Y (or vX.Y.Z) tag: the site stays as it is (run pages.yml by hand to publish it)"
+            exit 0
+          fi
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" \
+              -f version="$version" -f ref="$TAG"
+          echo "::notice::pages.yml started for $version"
+
+  site:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Check the version
+        run: |
+          set -euo pipefail
+          if [[ ! "$VERSION" =~ ^[0-9]\.[0-9](\.[0-9])?(-[A-Za-z0-9]+)?$ ]]; then
+            echo "::error::version '$VERSION' is not X.Y, X.Y.Z or X.Y-suffix (e.g. 0.1, without the v)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.event.repository.default_branch }}
+
+      - name: Download the package from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pkg="choralroot-$VERSION.fwsc"
+          mkdir -p build
+          if ! gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "$pkg" --dir build --clobber; then
+            echo "::error title=No package for v$VERSION::The release v$VERSION does not exist or has no asset $pkg. Push the tag v$VERSION so release.yml builds and attaches it, or build locally (./build.sh --release $VERSION), upload build/release-$VERSION/* to the release v$VERSION by hand, then run pages.yml again with version $VERSION."
+            exit 1
+          fi
+          # the release's SHA256SUMS, when it has one, must agree with the package
+          if gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir build --clobber 2>/dev/null; then
+            (cd build && sha256sum -c --ignore-missing SHA256SUMS)
+          else
+            echo "::warning::release v$VERSION has no SHA256SUMS; the package is not checked against it"
+          fi
+          ls -l "build/$pkg"
+
+      - name: Make the site (web/make_site.py)
+        run: |
+          set -euo pipefail
+          # make_site.py refuses a package without the identity FM-1_9xx or without Felucca's loader
+          python3 web/make_site.py "build/choralroot-$VERSION.fwsc" "$VERSION" build/site
+          for f in index.html webapp/installer/index.html "firmware/choralroot-$VERSION.fwsc" firmware/LICENSE; do
+            if [ ! -s "build/site/$f" ]; then
+              echo "::error::build/site/$f is missing"
+              exit 1
+            fi
+          done
+          find build/site -type f | sort
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/site
+
+  deploy:
+    needs: site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -141,9 +141,8 @@ Or install your own build from the web installer (Chrome or Edge): make a local 
 `localhost` (Web MIDI needs a secure context):
 
 ```
-python3 web/make_site.py build/choralroot.fwsc dev /tmp/choralroot-site
-cd /tmp/choralroot-site && python3 -m http.server 8000
-# open http://localhost:8000/webapp/installer/
+python3 web/make_site.py build/choralroot.fwsc dev build/site && python3 -m http.server 8000 --directory build/site
+# open http://localhost:8000/ (the landing page) or http://localhost:8000/webapp/installer/ (the installer)
 ```
 
 `make_site.py` reads the identity from the package (`FM-1_9xx`; ChoralRoot's `FM-1_920`) and refuses a package
@@ -152,3 +151,31 @@ installs Felucca, not ChoralRoot.
 
 Installing firmware is at your own risk. If an install fails and the FM-1 no longer
 starts, recovery needs [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
+
+## Releasing
+
+A release is a tag `vX.Y`; GitHub Actions builds it and publishes the site.
+
+1. Check the release build locally: `./build.sh --release X.Y` (it makes `build/release-X.Y/`).
+2. Tag the commit and push the tag:
+
+   ```
+   git tag vX.Y && git push origin vX.Y
+   ```
+
+   `.github/workflows/release.yml` builds the package on ubuntu (the JieLi toolchain runs natively there; it is
+   fetched with `tools/get_toolchain.sh`, and the three SDK files with a sparse clone of the AC79 SDK; both are
+   cached), creates the GitHub release `vX.Y` (a pre-release for 0.x and for `X.Y-suffix`) and attaches
+   `choralroot-X.Y.fwsc`, `choralroot-X.Y-app.bin`, `SHA256SUMS`, `LICENSE`, `LICENSING.md`, `ATTRIBUTION.txt`
+   and `LICENSES.zip`. Run from the Actions tab (Run workflow, with a version) it only builds, and the package is
+   a workflow artifact.
+3. Then it starts `.github/workflows/pages.yml`, which downloads `choralroot-X.Y.fwsc` from the release, runs
+   `web/make_site.py` and deploys the site to <https://quixotic7.github.io/ChoralRootFM1/>. A release published by
+   hand starts it too. Versions with a suffix (`1.1-rc1`) leave the site as it is.
+
+Once, before the first release: Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+
+When CI cannot fetch the toolchain (pkgman.jieliapp.com) or the SDK (gitee.com): build locally with
+`./build.sh --release X.Y`, create the release `vX.Y` on GitHub by hand and upload every file of
+`build/release-X.Y/` (zip `LICENSES/` as `LICENSES.zip`), publish it, and the site follows; or run pages.yml from
+the Actions tab (Run workflow, version `X.Y`).

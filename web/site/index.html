@@ -1,0 +1,283 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- The landing page and manual of ChoralRoot FM-1. web/make_site.py copies it to the site's root and fills
+     {{VERSION}} {{PKG}} {{PKG_URL}} {{PRODUCT}}; no other templating. The keybed SVGs are plain markup. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChoralRoot FM-1</title>
+<meta name="description" content="ChoralRoot FM-1: a chord instrument firmware for the M-VAVE FM-1, after the Telepathic Orchid. One hand plays roots, the other shapes chords. Version {{VERSION}}, GPL-3.0.">
+<meta name="theme-color" content="#080808">
+<link rel="preload" href="InterTight.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="title">
+  <div class="wrap">
+    <h1><span>ChoralRoot</span> <span>FM-1</span></h1>
+    <p class="lede">A chord instrument for the M-VAVE FM-1, after the Telepathic Orchid.</p>
+    <p class="ver">Version {{VERSION}}, a first public beta. GPL-3.0.</p>
+  </div>
+  <div class="stripes" aria-hidden="true"><i class="s-red"></i><i class="s-orange"></i><i class="s-cream"></i></div>
+</header>
+
+<main>
+
+<section class="shots" aria-labelledby="h-screen">
+  <div class="wrap">
+    <h2 id="h-screen">One big thing per screen</h2>
+    <p class="intro">One hand plays roots, the other shapes chords. The screen shows one thing at a time, big.</p>
+    <figure class="shot">
+      <img src="img/screen-idle.png" width="240" height="240" alt="the idle screen: the name over three stripes">
+      <figcaption><b>Idle.</b> The name over three stripes, red, orange and cream. They slide at the tempo; the first chord sweeps them off.</figcaption>
+    </figure>
+    <figure class="shot">
+      <img src="img/screen-chord.png" width="240" height="240" alt="D major 7 held: the chord name, the notes D4 F#4 A4 C#5">
+      <figcaption><b>A chord.</b> MAJ and M7 held, D4 pressed. The name fills the screen, the voiced notes under it, the 7th in <span class="c-orange">orange</span>.</figcaption>
+    </figure>
+    <figure class="shot">
+      <img src="img/screen-editor.png" width="240" height="240" alt="the sound editor: the four oscillators of WARM PAD">
+      <figcaption><b>The sound editor.</b> The four oscillators of WARM PAD. The active lane is in the colours of KNOB 1–4.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="get" aria-labelledby="h-get">
+  <div class="wrap">
+    <h2 id="h-get">Get it</h2>
+    <div class="buttons">
+      <div class="cell">
+        <a class="btn b-red" href="webapp/installer/">Install</a>
+        <p class="note">From Chrome or Edge, with the FM-1 connected by USB. Nothing to install on the computer.</p>
+      </div>
+      <div class="cell">
+        <a class="btn b-cream" href="{{PKG_URL}}" download>Download <span class="pkg">{{PKG}}</span></a>
+        <p class="note">For the command-line installer:<br><code class="cmd">python3 tools/fm1_install.py <span class="nw">{{PKG}}</span></code></p>
+      </div>
+      <div class="cell">
+        <a class="btn b-blue" href="https://github.com/Quixotic7/ChoralRootFM1">Source</a>
+        <p class="note">On GitHub, GPL-3.0. Built on Felucca by Hügelton Instruments.</p>
+      </div>
+      <div class="cell">
+        <a class="btn b-yellow" href="#playing">Manual</a>
+        <p class="note">This page, from Playing on.</p>
+      </div>
+    </div>
+    <p>The installer talks to the FM-1 over Web MIDI. The firmware it runs now (stock, Felucca or ChoralRoot) stages the update loader, the loader writes the whole image, then the FM-1 restarts and reports {{PRODUCT}}. Do not unplug it while it writes. An interrupted install resumes when you press Install again: the FM-1 stays in update mode.</p>
+    <p>On the command line, from the source: <code class="cmd">pip3 install mido python-rtmidi</code>, then <code class="cmd">python3 tools/fm1_install.py <span class="nw">{{PKG}}</span></code>. <code>--info</code> prints the connected FM-1's identity.</p>
+    <nav class="toc" aria-label="Sections">
+      <a href="#playing">Playing</a>
+      <a href="#editor">The sound editor</a>
+      <a href="#sounds">Sounds</a>
+      <a href="#midi">MIDI</a>
+      <a href="#recovery">Recovery</a>
+      <a href="#credits">Credits and licence</a>
+    </nav>
+  </div>
+</section>
+
+<section class="playing" aria-labelledby="playing">
+  <div class="wrap">
+    <h2 id="playing">Playing</h2>
+    <p class="intro">The left of the keybed is the chord block, the Orchid's two rows of four. The right is the roots.</p>
+
+<!--KEYBED-->
+<figure class="keybed">
+<svg class="kb-wide" viewBox="0 0 960 300" role="img" aria-label="The keybed, F3 to G5: the chord block on the left (black keys DIM, MIN, MAJ, SUS; white keys 6, m7, M7, LOCK on B3, 9), the roots D4 to G5 on the right" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="40" width="296" height="6" fill="#F6F2EE"/><text x="2" y="28" class="kh" font-size="17">CHORD BLOCK</text><rect x="302" y="40" width="656" height="6" fill="#6A696A"/><text x="302" y="28" class="kh" font-size="17">ROOTS  D4 … G5</text><text x="958" y="28" class="kn" font-size="15" text-anchor="end">OCT− / OCT+ shift them by octaves, −2 … +2</text><rect x="2" y="64" width="56" height="224" fill="#F6F2EE"/><text x="30" y="268" class="kw" font-size="28">6</text><rect x="62" y="64" width="56" height="224" fill="#F6F2EE"/><text x="90" y="268" class="kw" font-size="28">m7</text><rect x="122" y="64" width="56" height="224" fill="#F6F2EE"/><text x="150" y="268" class="kw" font-size="28">M7</text><rect x="182" y="64" width="56" height="224" fill="#F6F2EE"/><text x="210" y="268" class="kw" font-size="16">LOCK</text><rect x="242" y="64" width="56" height="224" fill="#F6F2EE"/><text x="270" y="268" class="kw" font-size="28">9</text><rect x="302" y="64" width="56" height="224" fill="#F6F2EE"/><text x="330" y="268" class="kr" font-size="20">D4</text><rect x="362" y="64" width="56" height="224" fill="#F6F2EE"/><rect x="422" y="64" width="56" height="224" fill="#F6F2EE"/><rect x="482" y="64" width="56" height="224" fill="#F6F2EE"/><rect x="542" y="64" width="56" height="224" fill="#F6F2EE"/><rect x="602" y="64" width="56" height="224" fill="#F6F2EE"/><rect x="662" y="64" width="56" height="224" fill="#F6F2EE"/><rect x="722" y="64" width="56" height="224" fill="#F6F2EE"/><rect x="782" y="64" width="56" height="224" fill="#F6F2EE"/><rect x="842" y="64" width="56" height="224" fill="#F6F2EE"/><rect x="902" y="64" width="56" height="224" fill="#F6F2EE"/><text x="930" y="268" class="kr" font-size="20">G5</text><rect x="42" y="64" width="36" height="140" fill="#080808" class="kb"/><text x="60" y="190" class="kbt" font-size="15">DIM</text><rect x="102" y="64" width="36" height="140" fill="#080808" class="kb"/><text x="120" y="190" class="kbt" font-size="15">MIN</text><rect x="162" y="64" width="36" height="140" fill="#080808" class="kb"/><text x="180" y="190" class="kbt" font-size="15">MAJ</text><rect x="282" y="64" width="36" height="140" fill="#080808" class="kb"/><text x="300" y="190" class="kbt" font-size="15">SUS</text><rect x="342" y="64" width="36" height="140" fill="#080808" class="kb"/><rect x="462" y="64" width="36" height="140" fill="#080808" class="kb"/><rect x="522" y="64" width="36" height="140" fill="#080808" class="kb"/><rect x="582" y="64" width="36" height="140" fill="#080808" class="kb"/><rect x="702" y="64" width="36" height="140" fill="#080808" class="kb"/><rect x="762" y="64" width="36" height="140" fill="#080808" class="kb"/><rect x="882" y="64" width="36" height="140" fill="#080808" class="kb"/></svg>
+<div class="kb-phone">
+<p class="kb-cap">The chord block, F3 … C4</p>
+<svg class="kb-chord" viewBox="0 0 330 246" role="img" aria-label="The chord block, F3 to C4: black keys DIM, MIN, MAJ, SUS; white keys 6, m7, M7, LOCK, 9" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="8" width="56" height="230" fill="#F6F2EE"/><text x="30" y="218" class="kw" font-size="28">6</text><rect x="62" y="8" width="56" height="230" fill="#F6F2EE"/><text x="90" y="218" class="kw" font-size="28">m7</text><rect x="122" y="8" width="56" height="230" fill="#F6F2EE"/><text x="150" y="218" class="kw" font-size="28">M7</text><rect x="182" y="8" width="56" height="230" fill="#F6F2EE"/><text x="210" y="218" class="kw" font-size="16">LOCK</text><rect x="242" y="8" width="56" height="230" fill="#F6F2EE"/><text x="270" y="218" class="kw" font-size="28">9</text><rect x="302" y="8" width="56" height="230" fill="#313031"/><rect x="42" y="8" width="36" height="144" fill="#080808" class="kb"/><text x="60" y="138" class="kbt" font-size="15">DIM</text><rect x="102" y="8" width="36" height="144" fill="#080808" class="kb"/><text x="120" y="138" class="kbt" font-size="15">MIN</text><rect x="162" y="8" width="36" height="144" fill="#080808" class="kb"/><text x="180" y="138" class="kbt" font-size="15">MAJ</text><rect x="282" y="8" width="36" height="144" fill="#080808" class="kb"/><text x="300" y="138" class="kbt" font-size="15">SUS</text><rect x="342" y="8" width="36" height="144" fill="#080808" class="kb"/></svg>
+<p class="kb-cap">The roots, D4 … G5. OCT− / OCT+ shift them by octaves, −2 … +2.</p>
+<svg class="kb-roots" viewBox="0 0 660 246" role="img" aria-label="The roots, D4 to G5: 18 keys" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="8" width="56" height="230" fill="#F6F2EE"/><text x="30" y="216" class="kr" font-size="28">D4</text><rect x="62" y="8" width="56" height="230" fill="#F6F2EE"/><rect x="122" y="8" width="56" height="230" fill="#F6F2EE"/><rect x="182" y="8" width="56" height="230" fill="#F6F2EE"/><rect x="242" y="8" width="56" height="230" fill="#F6F2EE"/><rect x="302" y="8" width="56" height="230" fill="#F6F2EE"/><rect x="362" y="8" width="56" height="230" fill="#F6F2EE"/><rect x="422" y="8" width="56" height="230" fill="#F6F2EE"/><rect x="482" y="8" width="56" height="230" fill="#F6F2EE"/><rect x="542" y="8" width="56" height="230" fill="#F6F2EE"/><rect x="602" y="8" width="56" height="230" fill="#F6F2EE"/><text x="630" y="216" class="kr" font-size="28">G5</text><rect x="-18" y="8" width="36" height="144" fill="#080808" class="kb"/><rect x="42" y="8" width="36" height="144" fill="#080808" class="kb"/><rect x="162" y="8" width="36" height="144" fill="#080808" class="kb"/><rect x="222" y="8" width="36" height="144" fill="#080808" class="kb"/><rect x="282" y="8" width="36" height="144" fill="#080808" class="kb"/><rect x="402" y="8" width="36" height="144" fill="#080808" class="kb"/><rect x="462" y="8" width="36" height="144" fill="#080808" class="kb"/><rect x="582" y="8" width="36" height="144" fill="#080808" class="kb"/></svg>
+</div>
+</figure>
+<!--/KEYBED-->
+
+    <div class="cols">
+      <p><b>Chord types</b> on the black keys F#3 G#3 A#3 C#4: DIM, MIN, MAJ, SUS. <b>Extensions</b> on the white keys F3 G3 A3 C4: 6, m7, M7, 9. Both are momentary; extensions stack.</p>
+      <p><b>Roots</b> on D4 … G5, 18 keys: alone a single note, with a type held (or latched) the chord. OCT− and OCT+ shift them by octaves, −2 … +2.</p>
+    </div>
+
+    <h3>LOCK</h3>
+    <p>B3 is LOCK. Tap it on (B3 lit, <code>lock</code> top right on the screen), tap it again off. With LOCK on, the chord keys held are latched when released, so one hand plays roots. Once nothing is held, a type key resets the latch to that type alone, and an extension key toggles its extension in the latched set.</p>
+    <p class="example">Hold MIN, release: minor. 6: m6. 9: m6/9. 9 again: m6. MAJ: major, extensions cleared.</p>
+    <p>Two types held together make a <b>Secret Chord</b> (Options &gt; Secret Chords): DIM+SUS a power chord, MAJ+SUS augmented, MIN+SUS [0 3 5].</p>
+
+    <h3>Buttons</h3>
+    <p class="rule">Tap = use, hold = open, OCT− or HOME = close.</p>
+    <p>A tap is the button's on/off action, always. A hold past 300 ms opens its layer, and the layer stays open after release (the button blinks); holding another layer button switches layer. In a layer the roots and KNOB 1–4 belong to the layer; the chord keys keep their job.</p>
+    <table class="grid">
+      <thead><tr><th>Printed</th><th>ChoralRoot</th><th>Tap</th><th>Hold</th></tr></thead>
+      <tbody>
+        <tr><td data-l="Printed">SEL</td><td data-l="ChoralRoot"><span class="c-yellow">KEY</span></td><td data-l="Tap">Key Mode on/off</td><td data-l="Hold">the key layer: roots = the tonic (MIN held too = a minor key); KNOB 1–4 = TONIC / SCALE / TRANSPOSE / SINGLE NOTES</td></tr>
+        <tr><td data-l="Printed">ARP</td><td data-l="ChoralRoot">PERF</td><td data-l="Tap">performance on/off</td><td data-l="Hold">the perform layer: white roots D4–C5 = STRUM, STRUM 2, SLOP, ARP, ARP 2, PATTERN, HARP; KNOB 1–4 = the mode's parameters</td></tr>
+        <tr><td data-l="Printed">FX</td><td data-l="ChoralRoot"><span class="c-green">FX</span></td><td data-l="Tap">the sound's main effect on/off</td><td data-l="Hold">the fx layer: white roots pick the effect KNOB 4 rides; KNOB 1–3 its parameters, KNOB 4 the amount</td></tr>
+        <tr><td data-l="Printed">ENV</td><td data-l="ChoralRoot"><span class="c-orange">BASS</span></td><td data-l="Tap">bass on/off</td><td data-l="Hold">the bass layer: KNOB 1–4 = BEHAVIOUR (Chords Only / Unison / Single Notes / Solo) / REGISTER / SOUND / LEVEL; roots preview the bass. BASS held + EDIT = the bass sound's editor</td></tr>
+        <tr><td data-l="Printed">LFO</td><td data-l="ChoralRoot">LATCH</td><td data-l="Tap">sticky keys / arp hold on/off</td><td data-l="Hold">—</td></tr>
+        <tr><td data-l="Printed">GLO</td><td data-l="ChoralRoot">OPT</td><td data-l="Tap">the Options menu open/close</td><td data-l="Hold">held + a knob = the knob's second function: KNOB 1 split point, SELECT metronome level, ALGORITHM bass volume. In the editor: SHIFT</td></tr>
+        <tr><td data-l="Printed">HOME</td><td data-l="ChoralRoot">HOME</td><td data-l="Tap">back to the view from anywhere; tapped again on the view: the next View (CHORD / KEYBOARD / NOTES / GEEK OUT / SCOPE)</td><td data-l="Hold">—</td></tr>
+        <tr><td data-l="Printed">SAVE</td><td data-l="ChoralRoot">SAVE</td><td data-l="Tap">save the sound to one of 32 user slots, named with the keys</td><td data-l="Hold">save / load / delete loops</td></tr>
+        <tr><td data-l="Printed">SEQ</td><td data-l="ChoralRoot">METRO</td><td data-l="Tap">metronome on/off</td><td data-l="Hold">the beat layer: beat and time signature</td></tr>
+        <tr><td data-l="Printed">PLAY</td><td data-l="ChoralRoot"><span class="c-red">LOOP</span></td><td data-l="Tap">play / stop the loop (green LED = playing)</td><td data-l="Hold">the loop layer: white roots = slots 1–10, D#4 = CLEAR (hold 1 s), F#4 = UNDO; KNOB 1–4 = SYNC / QUANTIZE / COUNT-IN / LEVEL; while playing: the Overdub / Pause / Undo / Clear picker</td></tr>
+        <tr><td data-l="Printed">REC</td><td data-l="ChoralRoot"><span class="c-red">REC</span></td><td data-l="Tap">record (count-in, then the sync length) / overdub arm; the red LED blinks while recording</td><td data-l="Hold">undo the last layer</td></tr>
+        <tr><td data-l="Printed">EDIT</td><td data-l="ChoralRoot">EDIT</td><td data-l="Tap">the sound editor on the chord sound</td><td data-l="Hold">the engine picker</td></tr>
+        <tr><td data-l="Printed">OCT− / OCT+</td><td data-l="ChoralRoot">OCTAVE</td><td data-l="Tap">the octave of the roots; in layers, menus and dialogs: back (closes) / OK</td><td data-l="Hold">both together: PANIC (all notes off on every stream, CC 123 on the three channels, octave reset, LOCK latch cleared)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Rotaries</h3>
+    <p>No push switches. A knob turn shows its value big for a second.</p>
+    <table class="grid">
+      <thead><tr><th>Printed</th><th>ChoralRoot</th><th>Turn</th><th>OPT held</th></tr></thead>
+      <tbody>
+        <tr><td data-l="Printed">MASTER</td><td data-l="ChoralRoot">VOLUME</td><td data-l="Turn">the volume (the pot)</td><td data-l="OPT held">—</td></tr>
+        <tr><td data-l="Printed">SELECT</td><td data-l="ChoralRoot">BPM</td><td data-l="Turn">the tempo, 20–300; in menus and pickers: scroll</td><td data-l="OPT held">metronome volume</td></tr>
+        <tr><td data-l="Printed">PRESETS</td><td data-l="ChoralRoot">SOUND</td><td data-l="Turn">browse the chord sound; it loads at once</td><td data-l="OPT held">—</td></tr>
+        <tr><td data-l="Printed">ALGORITHM</td><td data-l="ChoralRoot"><span class="c-orange">BASS SOUND</span></td><td data-l="Turn">browse the bass sound</td><td data-l="OPT held">bass volume</td></tr>
+        <tr><td data-l="Printed">KNOB 1</td><td data-l="ChoralRoot"><span class="k-blue">VOICING</span></td><td data-l="Turn">the Orchid's chord voicing: the lowest note up an octave, or the highest down; one click = one note. Never reassigned outside layers and the editor</td><td data-l="OPT held">single-note split point</td></tr>
+        <tr><td data-l="Printed">KNOB 2</td><td data-l="ChoralRoot"><span class="c-orange">BASS VOICE</span></td><td data-l="Turn">the bass register, in octaves</td><td data-l="OPT held">—</td></tr>
+        <tr><td data-l="Printed">KNOB 3</td><td data-l="ChoralRoot">PERFORM</td><td data-l="Turn">the selected mode's main parameter: strum speed, slop amount, arp rate, pattern number, harp speed</td><td data-l="OPT held">—</td></tr>
+        <tr><td data-l="Printed">KNOB 4</td><td data-l="ChoralRoot"><span class="c-green">FX</span></td><td data-l="Turn">the amount of the selected effect</td><td data-l="OPT held">—</td></tr>
+      </tbody>
+    </table>
+
+    <div class="cols">
+      <div>
+        <h3>Options</h3>
+        <p>OPT tap opens them, one setting per screen. SELECT scrolls, KNOB 1 sets, OCT+ enters, OCT− goes back, HOME or OPT leaves. Play Style (Simple / Advanced / Free), Extension Addition, Secret Chords, Velocity, Bass Behaviour, Single Notes, Split Point, the MIDI Perform / Bass / Raw Chord channels, Raw Chord Sound, MIDI Clock, View, Motion, LEDs, Hold Time, Version, Calibrate.</p>
+      </div>
+      <div>
+        <h3>Screen</h3>
+        <p>The chord name fills the screen (the Orchid's naming, squeezed to fit), the voiced notes under it, extensions in <span class="c-orange">orange</span>; <span class="c-yellow">Key: C</span> top left in Key Mode. HOME on the view steps the Views: CHORD, KEYBOARD, NOTES, GEEK OUT, SCOPE. Pickers instead of lists, meters of bold stripes, the loop as a dotted <span class="c-red">red</span> ring. Panic turns the screen red.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="editor" aria-labelledby="editor">
+  <div class="wrap">
+    <h2 id="editor">The sound editor</h2>
+    <p class="intro">EDIT tap opens it on the chord sound, BASS held + EDIT on the bass sound; inside, SHIFT + EDIT switches between them. EDIT tap or HOME leaves. Every group remembers its screen and lane.</p>
+
+    <div class="cols cols-fig">
+      <div>
+        <h3>Groups</h3>
+        <p>The buttons become seven groups. The top row is the signal flow, the bottom row the output stage. A group's button opens the group; tapped again, its next screen.</p>
+        <div class="groups" role="img" aria-label="The seven group buttons: top row OSC on FX, FILT on SEL, ENV, LFO; bottom row MOD on SEQ, FX on PLAY, MIX on REC">
+          <div><b>OSC</b><span>FX</span></div>
+          <div><b>FILT</b><span>SEL</span></div>
+          <div><b>ENV</b><span>ENV</span></div>
+          <div><b>LFO</b><span>LFO</span></div>
+          <div><b>MOD</b><span>SEQ</span></div>
+          <div><b>FX</b><span>PLAY</span></div>
+          <div><b>MIX</b><span>REC</span></div>
+        </div>
+        <h3>Lanes</h3>
+        <p>SELECT runs through the lanes. A lane is the four values on KNOB 1–4, always in the same four colours.</p>
+        <div class="knobs" role="img" aria-label="KNOB 1 blue, KNOB 2 orange, KNOB 3 white, KNOB 4 green">
+          <div class="k1">KNOB 1</div><div class="k2">KNOB 2</div><div class="k3">KNOB 3</div><div class="k4">KNOB 4</div>
+        </div>
+        <p>A detent is 5 % of the range, an enumeration one step. SHIFT (GLO: a tap latches it, a hold is momentary) makes it one unit a detent.</p>
+      </div>
+      <figure class="shot shot-side">
+        <img src="img/screen-filter.png" width="240" height="240" alt="the filter screen of WARM PAD: the low-pass curve over cutoff, resonance, filter type and envelope amount">
+        <figcaption><b>edit8.</b> Two rows of four cells under a wide shape: here the filter curve. <b>stack</b> screens show the instances as rows: the four oscillators, the four LFOs, the eight matrix slots.</figcaption>
+      </figure>
+    </div>
+
+    <h3>The engine picker</h3>
+    <p>EDIT held, or PRESETS turned in the editor, opens it as a preview. The white roots are the engines: ANALOG, FM6, VA, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, PHYS; NOISE is on SELECT. KNOB 1 steps the engine's factory presets, KNOB 2 inits the sound. OCT+ or EDIT keeps it; OCT− or HOME cancels, and the sound comes back.</p>
+    <h3>Quick mapping</h3>
+    <p>For an engine with a matrix (the VA): ENV held + a knob turned, and the envelope last shown modulates that knob's parameter, the amount on the knob. LFO held + a knob does the same with the LFO. OCT− held + a knob clears the parameter's modulation. A modulated cell carries a small mark in the source's colour.</p>
+    <h3>SAVE</h3>
+    <p>SAVE opens the save dialog. KNOB 1 picks the user slot, U01–U32; the white roots type the name, D#4 is a space, F#4 deletes. SAVE again or OCT+ saves, OCT− cancels. SAVE held 1 s on a used slot deletes it. User chord sounds list after the factory bank on PRESETS, user bass sounds on ALGORITHM.</p>
+  </div>
+</section>
+
+<section class="sounds" aria-labelledby="sounds">
+  <div class="wrap">
+    <h2 id="sounds">Sounds</h2>
+    <p class="intro">PRESETS browses the chord sounds, ALGORITHM the bass sounds. Eight voices are shared: a six-note chord plus the bass.</p>
+    <div class="cols cols-banks">
+      <div>
+        <h3>Chord bank <span class="sub">PRESETS 1–43</span></h3>
+        <ol class="bank">
+          <li>TINE EP</li><li>FM BELL</li><li>PIANO</li><li>FM PAD</li><li>SOFT PAD</li><li>STRINGS</li><li>PWM STRINGS</li><li>CZ STRINGS</li><li>FULL ORGAN</li><li>GOSPEL ORGAN</li><li>JAZZ ORGAN</li><li>FM ORGAN</li><li>CZ ORGAN</li><li>CHOIR</li><li>CLOUD PAD</li><li>SHIMMER</li><li>SYNTH BRASS</li><li>CZ BRASS</li><li>MARIMBA</li><li>HARP</li><li>KALIMBA</li><li>PLUCK</li><li>FM PLUCK</li><li>SINE KEYS</li>
+          <li class="va">LUSH PAD</li><li class="va">WARM PAD</li><li class="va">GLASS PAD</li><li class="va">SLOW STRINGS</li><li class="va">ENSEMBLE STR</li><li class="va">VA BRASS</li><li class="va">SOFT BRASS</li><li class="va">POLY KEYS</li><li class="va">PWM KEYS</li><li class="va">CLAV</li><li class="va">SOFT LEAD</li><li class="va">HOLLOW</li><li class="va">BELLS</li><li class="va">SWEEP PAD</li><li class="va">SOFT AAH</li><li class="va">ORGANISH</li><li class="va">MORPH PAD</li><li class="va">VINYL KEYS</li><li class="va">WIDE STRINGS</li>
+        </ol>
+        <p class="small">25–43 are the VA's.</p>
+      </div>
+      <div>
+        <h3>Bass bank <span class="sub c-orange">ALGORITHM 1–12</span></h3>
+        <ol class="bank bank-bass">
+          <li>SUB BASS</li><li>SQUARE BASS</li><li>FM BASS</li><li>FAT BASS</li><li>ACID BASS</li><li>WAVE BASS</li><li>WOW BASS</li><li>PLUCK BASS</li><li>DEEP SUB</li><li>PUNCH BASS</li><li>RUBBER BASS</li><li>SYNC BASS</li>
+        </ol>
+        <p class="small">0 = off.</p>
+        <p>After the banks come 32 user slots, saved with SAVE, then every engine's own factory presets through the engine picker.</p>
+      </div>
+    </div>
+    <h3>Engines</h3>
+    <p>Felucca's ANALOG, FM6 (six-operator FM, msfa), PHASE (phase distortion), LOFI, SAMPLE (CC0 instruments), VOICE (formant), TRIO, WHEEL (tonewheel organ), GRAIN, PHYS (modal and string physical models) and NOISE; and ChoralRoot's VA.</p>
+    <h3>The VA</h3>
+    <p>ChoralRoot's own four-oscillator virtual analog, written for this project in fixed point: four oscillators (basic waves, a morphing wave from sine to pulse, or white / brown / vinyl noise), a state-variable filter that morphs LP → BP → HP → notch with spread and drive, four AHDSR envelopes, four LFOs (free or synced to the tempo) and an eight-slot modulation matrix, in stereo. Every parameter is on the editor's screens, and a patch saves with the sound.</p>
+  </div>
+</section>
+
+<section class="midi" aria-labelledby="midi">
+  <div class="wrap">
+    <h2 id="midi">MIDI</h2>
+    <p class="intro">USB MIDI in and out, TRS MIDI in.</p>
+    <div class="cols">
+      <div>
+        <h3>Out</h3>
+        <p>Three streams, each on its own channel and each on or off in Options: performance (the chord as played or performed) on channel 1, bass on channel 2, the raw chord on channel 3 (off by default, as on the Orchid). 24 PPQN clock out (Options &gt; MIDI Clock: Out), with start when the loop starts.</p>
+      </div>
+      <div>
+        <h3>In</h3>
+        <p>Notes on the chord channel play the chord sound directly, with no chord generation, as on the Orchid; notes on the bass channel play the bass sound. CC 7 is the level, CC 91 / 93 / 94 the reverb / chorus / delay sends; program change picks the sound. Clock in syncs the tempo (MIDI Clock: In). SysEx is used for firmware updates.</p>
+      </div>
+    </div>
+    <p>No Bluetooth: ChoralRoot never turns the radio on.</p>
+  </div>
+</section>
+
+<section class="recovery" aria-labelledby="recovery">
+  <div class="wrap">
+    <h2 id="recovery">Recovery</h2>
+    <p class="intro">The installer's <b>Return to official V15</b> puts M-VAVE's firmware back.</p>
+    <p>Download the official FM-1 V15 firmware (<code>FM-1.fwsc</code>) yourself from <a href="https://www.m-vave.com/download">M-VAVE's downloads page</a> and select it in the installer. The browser checks its size and SHA-256 locally (the file is never uploaded) and installs it the same way. On the command line: <code class="cmd">python3 tools/fm1_install.py <span class="nw">FM-1.fwsc</span></code>.</p>
+    <p class="warn">ChoralRoot has no backup protocol. User sounds, loops and settings stored on the FM-1 are not saved, and a return to stock erases them.</p>
+    <p>If an install fails and the FM-1 no longer starts, recovery needs <a href="https://github.com/kurogedelic/FM-1-transporter">FM-1-transporter</a>.</p>
+  </div>
+</section>
+
+<section class="credits" aria-labelledby="credits">
+  <div class="wrap">
+    <h2 id="credits">Credits and licence</h2>
+    <p class="intro">ChoralRoot FM-1 is free software under the GNU General Public License, version 3 only: <a href="firmware/LICENSE">LICENSE</a>. The package and this site carry <a href="firmware/LICENSING.md">LICENSING.md</a> and the licence texts in <a href="firmware/LICENSES/">LICENSES</a>.</p>
+    <ul class="credit-list">
+      <li><b>Felucca</b> by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com">Hügelton Instruments</a>: the platform, the engines, the installer, the update loader; with its CrispyZebra waveforms, drum voices and Fukiai icons (MIT). <a href="https://github.com/hugelton/Felucca">github.com/hugelton/Felucca</a></li>
+      <li><b>The chord logic</b> after the <a href="https://telepathicinstruments.com">Telepathic Instruments</a> Orchid and the author's monome grid <a href="https://github.com/Quixotic7/choralroot">choralroot</a>.</li>
+      <li><b>Inter Tight</b> by The Inter Project Authors (SIL OFL 1.1, <a href="OFL.txt">OFL.txt</a>): the UI font, and this page's.</li>
+      <li><b>Samples</b>: Versilian Studios VSCO-2 Community Edition and VCSL (CC0 1.0).</li>
+      <li><b>DaisySP</b> (Electrosmith, Emilie Gillet) and <b>Rings</b> (Emilie Gillet), MIT: the PHYS engine.</li>
+      <li><b>msfa</b> from Dexed (Google, Pascal Gauthier), Apache-2.0: the FM6 engine.</li>
+      <li><b>JieLi AC79 SDK</b>: the package holds three of its files (uboot.boot, cfg_tool.bin, eq_cfg_hw.bin; JieLi Technology, Apache-2.0). No M-VAVE material.</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="stripes stripes-thin" aria-hidden="true"><i class="s-red"></i><i class="s-orange"></i><i class="s-cream"></i></div>
+  <div class="wrap">
+    <p>ChoralRoot FM-1 is independent of and not affiliated with Telepathic Instruments, M-VAVE or Cuvave. Orchid, M-VAVE and FM-1 are trademarks of their owners.</p>
+    <p><b>Installing firmware is at your own risk.</b></p>
+  </div>
+</footer>
+
+</body>
+</html>
