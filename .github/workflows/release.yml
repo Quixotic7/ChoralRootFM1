@@ -154,6 +154,11 @@ jobs:
           if [ -f release/ATTRIBUTION.txt ]; then cp release/ATTRIBUTION.txt assets/; fi
           ls -l assets
 
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: docs/releases
+          sparse-checkout-cone-mode: false
+
       - name: Release notes (docs/releases/<version>.md, then the install text)
         env:
           VERSION: ${{ needs.build.outputs.version }}
