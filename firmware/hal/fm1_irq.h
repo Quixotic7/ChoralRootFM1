@@ -5,7 +5,8 @@
  *   fm1_irq_init()        first thing in cstart: all ICFG off, pendings and
  *                         exception causes cleared, all 128 vectors -> fatal
  *                         stubs (fm1_vec.S), vector 1 (CPU
- *                         exception) enabled at prio 7, div0 trap + ETM on.
+ *                         exception) enabled at prio 7, ETM on, div0 trap
+ *                         off (see below).
  *   fm1_irq_attach(n, h, prio)   h = asm wrapper (fm1_isr.S), prio 0..7
  *   fm1_irq_enable_all()  icfg bit 8 + sti, after every source is set up
  *
@@ -65,7 +66,11 @@ static void fm1_irq_init(void)
     for (i = 0; i < 128u; i++)
         FM1_VEC[i] = (uint32_t)(uintptr_t)(fm1_fatal_stubs + 6u * i);
     FM1_ICFG(1) = (FM1_ICFG(1) & ~0xF0u) | 0xF0u;           /* exception: enable, prio 7 */
-    FM1_EMU_CON |= 1u << 2;                                 /* div0 traps */
+    /* div0 trap off (cleared, in case a reset kept it from a build that armed it): this compiler treats a
+     * divide as harmless and runs a loop-invariant one ahead of the test that guards it (#61: fm4_convert at boot, after PR #111 by spinkham),
+     * and the build has some 300 divides by a register. Off, such a divide gives a value nobody uses; the cost:
+     * a real divide by 0 gives a wrong value instead of a crash report (the host tests trap on one) */
+    FM1_EMU_CON &= ~(1u << 2);
     FM1_ETM_CON |= 1u;                                      /* branch trace for the report */
 }
 

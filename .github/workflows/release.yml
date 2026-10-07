@@ -154,6 +154,22 @@ jobs:
           if [ -f release/ATTRIBUTION.txt ]; then cp release/ATTRIBUTION.txt assets/; fi
           ls -l assets
 
+      - name: Release notes (docs/releases/<version>.md, then the install text)
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          {
+            if [ -f "docs/releases/$VERSION.md" ]; then cat "docs/releases/$VERSION.md"; echo; echo "---"; echo; fi
+            sed "s/@VERSION@/$VERSION/g" <<'EOT'
+          ChoralRoot @VERSION@ for the M-VAVE FM-1 (identity FM-1_920).
+
+          Install from the browser at https://quixotic7.github.io/ChoralRootFM1/ (Chrome or Edge, the FM-1 connected by USB), or with the command-line installer: `python3 tools/fm1_install.py choralroot-@VERSION@.fwsc`.
+
+          `SHA256SUMS` lists the package and the app. The package holds three JieLi AC79 SDK files (Apache-2.0); `LICENSE`, `LICENSING.md` and `LICENSES.zip` carry every licence. Installing firmware is at your own risk.
+          EOT
+          } > release-body.md
+
       - name: Create or update the release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
@@ -163,12 +179,7 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: assets/*
-          body: |
-            ChoralRoot ${{ needs.build.outputs.version }} for the M-VAVE FM-1 (identity FM-1_920).
-
-            Install from the browser at https://quixotic7.github.io/ChoralRootFM1/ (Chrome or Edge, the FM-1 connected by USB), or with the command-line installer: `python3 tools/fm1_install.py choralroot-${{ needs.build.outputs.version }}.fwsc`.
-
-            `SHA256SUMS` lists the package and the app. The package holds three JieLi AC79 SDK files (Apache-2.0); `LICENSE`, `LICENSING.md` and `LICENSES.zip` carry every licence. Installing firmware is at your own risk.
+          body_path: release-body.md
 
       - name: Publish the site (pages.yml)
         if: ${{ !contains(env.VERSION, '-') }}

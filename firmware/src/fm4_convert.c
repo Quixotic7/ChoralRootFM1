@@ -216,6 +216,13 @@ static uint32_t fm4_convert(int16_t *p, uint8_t *v)
     int32_t idx = clamp(p[P_E4], 0, 127), fenv = clamp(p[P_ED_FLT], -64, 63), sus = clamp(p[P_SUS], 0, 127);
     int32_t ipk = clamp(idx + fenv, 0, 127), isus = clamp(idx / 4 + fenv * sus / 127, 0, 127), fb = FM4_MUTE;
     int32_t t_att = fm4_samples(p[P_ATK]), t_mod = fm4_samples(p[P_E5]);
+    /* the loop's two divides, here, with divisors that are never 0 and no test around them (#61): the JieLi compiler
+     * moves a divide the loop does not change ahead of the test that guards it (and folds a guard's `? x : 1` back
+     * to x), and a divide by 0 trapped (firmware/hal/fm1_irq.h, up to 1.0.3). INDEX + FLT ENV == 0 (0.9's ORGAN: INDEX 0) then faulted in
+     * persist_boot, before the LCD, on every start: UBOOT after three. Same values as the guarded forms
+     * (tests/fm4_div0_test.c) */
+    uint32_t isus_q = (uint32_t)isus * 32767u / (ipk > 0 ? (uint32_t)ipk : 1u);       /* read only when ipk > 0 */
+    int32_t t_env = t_att * (fenv > 0 ? fenv : 0) / (idx + fenv > 0 ? idx + fenv : 1);   /* 0 unless fenv > 0 */
     const char *name = 0;
     memset(v, 0, FP_SIZE + 1u);
     for (k = 0; k < 6u; k++) {                         /* every operator silent, as a start */
@@ -273,7 +280,7 @@ static uint32_t fm4_convert(int16_t *p, uint8_t *v)
             }
         } else {                                       /* a modulator: INDEX through MODDEC x the op's envelope */
             uint32_t a = (uint32_t)ipk * lvl / 127u / share;
-            uint32_t m = ipk ? ((uint32_t)isus * 32767u / (uint32_t)ipk * osus) >> 15 : 0u;
+            uint32_t m = ipk ? (isus_q * osus) >> 15 : 0u;
             int32_t ms_a = fm4_ms(a);
             ms_s = fm4_ms(m);
             if (k == 3u && p[P_E6] && a) {             /* op 4's feedback (FM6: its deviation is the op's output x
@@ -294,7 +301,7 @@ static uint32_t fm4_convert(int16_t *p, uint8_t *v)
             }
             o[FP_OL] = (uint8_t)fm4_outlevel(ms_a);
             o[FP_KVS] = a ? 1 : 0;
-            ta = fenv > 0 ? t_att * fenv / (idx + fenv) : 0;
+            ta = t_env;
             if (!flat && e[0] && fm4_samples(e[0]) > ta)
                 ta = fm4_samples(e[0]);
             td = ms_s < 0 ? (isus < ipk ? t_mod : 0) : 0;
