@@ -57,7 +57,8 @@ static void motion_unguard(uint32_t f)
  * midi_event(status, part, d1, d2), as it handed them to midi_control.c before; what of that ChoralRoot uses:
  *   note on / off       trk_note_on / trk_note_off on the part (a repeated note-on restarts it; velocity 0: off)
  *   CC 64 sustain       a released note is held while the pedal is down, released with it
- *   pitch bend          voice.c's midi_bend_target, +-2 semitones (RPN 0 sets 0..24 semitones, 0..99 cents)
+ *   pitch bend          voice.c's midi_bend_target, +-2 semitones (RPN 0 sets 0..24 semitones, 0..99 cents); FM6 bends by its
+ *                       own BEND range (track_t.bend_raw, docs/FM6.md)
  *   CC 1 / 11, pressure mod.c's MODW / EXPR / AT sources (mod_midi)
  *   CC 120              all sound off: the part's voices cut (a short fade), the pedal ignored
  *   CC 121              reset controllers: bend, wheel, pressure, expression, the pedal up (the bend range kept)
@@ -89,6 +90,7 @@ static void cr_mbend(uint32_t p)                 /* the channel's bend -> the pa
     const cr_mch_t *c = cr_mchan(p);
     int32_t range = ((int32_t)c->semis * 100 + c->cents) * 256 / 100;
     midi_bend_target[p] = (int32_t)c->bend * range / (c->bend < 0 ? 8192 : 8191);
+    trk[p].bend_raw = c->bend;                   /* (FM6 bends by its own BEND range: its patch's, docs/FM6.md) */
 }
 static void cr_mrelease(uint32_t p, uint32_t note)
 {
@@ -114,6 +116,7 @@ static void cr_mforget(uint32_t p)               /* a panic: the part's MIDI not
         cr_mheld[p] = 0;
     }
     midi_bend_q8[p] = midi_bend_target[p] = 0;
+    trk[p].bend_raw = 0;
 }
 static void cr_mcontrol(uint32_t p, uint32_t cc, uint32_t v)
 {

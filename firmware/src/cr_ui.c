@@ -2198,12 +2198,14 @@ static void cu_calib_screen(cr_screen_t *s)
     }
 }
 
+static void fm6_service(void);                     /* fm6_store.c (after this file): DX7 SysEx */
 static void cr_ui_input(void)
 {
     uint32_t pe = fm1_input_edges(0), ne = fm1_input_note_edges(), bm = fm1_in.buttons, km = fm1_in.notes;
     uint32_t cur = 0, edg = 0, b, k, now = cu_now();
     int32_t s;
     fm6_poll();                                    /* FM6: a sound's PTCH -> its patch (as ui_input.c) */
+    fm6_service();                                 /* FM6: a DX7 SysEx frame from USB-MIDI (fm6_store.c) */
     if (cc.req) {                                  /* OCT- + OCT+ held at power-on (main.c panel_setup) */
         cc.req = 0;
         cu_calib_start();

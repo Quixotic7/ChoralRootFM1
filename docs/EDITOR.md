@@ -96,14 +96,19 @@ The screens are built from the engine's deep pages (`eng_deep_t`, docs/VA.md): i
 LFO MOD) and the page titles, never the column names, so a column or a page the engine adds shows up by itself:
 
 - a page titled with an instance number (`OSC 2`, `OSC 2+`, `ENV 3`, `LFO 1`) belongs to that instance; pages whose
-  titles differ only in the number are one **kind** (`OSC n`, `OSC n+`);
+  titles differ only in the number are one **kind** (`OSC n`, `OSC n+`; FM6's `OP n` and `SCALE n` are two kinds);
+- a stack has a row per instance, up to eight (FM6's six operators); a page with no number and its `+` page (`LFO` /
+  `LFO+`, FM6's `FUNC` / `FUNC+`) are one `edit8` screen of two lanes;
 - OSC and LFO: one **stack** screen per kind (lane n = instance n); a page with no number whose labels end in a
   digit (`LFO SYN`: SYNC1..SYNC4) is a stack whose lane n is its column n; any other page with no number (`VOICE`)
   is a one-lane screen of its own. A column some lanes lack reads `–`. The headings are the columns' long labels
   (two kinds in one column: `Sync/Ring`);
-- OSC then has the **mixer** (when the oscillator pages have a LEVEL column);
-- FILT and ENV: an `edit8` screen per instance, its pages as lanes A and B (two a screen) under the wide band;
-- MOD: a stack of the slots, eight a screen.
+- OSC then has the **mixer** (when the oscillator pages have a LEVEL column and there are at most four of them);
+- FILT and ENV: an `edit8` screen per instance, its pages as lanes A and B (two a screen) under the wide band: the
+  filter curve when the FILTER pages have a CUT column (else no band, the page's title on the right: FM6's ALGO), the
+  AHDSR, or the **dx** band when the ENV page's columns are R1..R4 (FM6);
+- MOD: a stack of the slots, eight a screen, when its pages are matrix slots (SRC DST AMT); else (FM6's function
+  pages) `edit8` screens as FILT's.
 - a cell's label, value names and range come from `deep->desc(t, page, col)` when the engine gives one (the VA's
   mode-dependent WAVE / SHAPE: MORPH, NOISE, COLOR, DENS), else from the page's column; the stack's heading over a
   WAVE column stays `Wave` whatever the modes.
@@ -143,8 +148,26 @@ A one-screen, one-lane group's tap and SELECT do nothing.
 ### Engines with their own envelopes (`engine_t.ownenv`)
 
 - **VA**: its own ENV 1–4 (above); ENV 1 is the amplitude.
-- **FM6** (ownenv, no deep pages): the operator envelopes are in the patch, so there is no platform ENV page. The
-  ENV button shows the message **`FM6: own envelopes`** and the editor stays in its current group.
+- **FM6**: its operator envelopes and pitch EG are its deep ENV pages (below), under the dx band.
+
+### FM6 (docs/FM6.md)
+
+| Group | Screen | Kind | Lanes | KNOB 1–4 | Top-right text |
+| --- | --- | --- | --- | --- | --- |
+| OSC | 1 | `stack`, 6 rows | OP 1–6 | Level · Coarse · Fine · Detune (`OP n`) | `OP 2 · A` |
+| OSC | 2 | `stack`, 6 rows | OP 1–6 | Mode · Vel sens · AM sens · Rate scl (`OP n+`) | `OP 2 · B` |
+| OSC | 3 | `stack`, 6 rows | OP 1–6 | Break pt · L depth · R depth · Curve (L/R in one, `-L/+E`) (`SCALE n`) | `SCALE 2 · C` |
+| FILT | 1 | `edit8`, no band, one row | ALGO | Algo · Feedback · Transp · Osc sync | `ALGO` |
+| ENV | 1–6 | `edit8`, wide **dx** envelope | A, B | A: Rate 1–4 (`ENV n`); B: Level 1–4 (`ENV n+`) | `ENV 1` |
+| ENV | 7 | `edit8`, wide dx envelope (a centre line at 50) | A, B | the pitch EG's rates / levels | `PITCH EG` |
+| LFO | 1 | `edit8`, two rows | A, B | A: Speed · Delay · PM depth · AM depth; B: Wave · Sync · PM sens | `LFO` |
+| MOD | 1 | `edit8`, two rows | A, B | A: Bend · Porta · Engine; B: Step · Porta md · Gliss · DX vel (the function settings) | `FUNC` |
+| MOD | 2 | `edit8`, two rows | A, B | A: Wheel · W.dst · Foot · F.dst; B: Breath · B.dst · Aftertch · A.dst | `CTRL` |
+
+The **dx** band (`CR_W_DX`, cr_draw.c): from L4 to L1 at R1, to L2 at R2, to L3 at R3, held at L3, to L4 at R4; a
+segment's width grows with its distance and the slowness of its rate; the segment the turned cell ends (R k / L k: k)
+thick in its knob's colour, digits 1–4 under the segments. COARSE of a FIXED operator reads as its decade (1Hz ..
+1kHz). FM6 has no matrix: the quick mapping says `not modulatable`. Tests: `tools/emu/scripts/cr_fm6.txt`.
 
 ENGINE, the factory presets and INIT are **not groups**: they are the engine picker (§7).
 
@@ -200,7 +223,8 @@ The same dialog as outside: KNOB 1 picks the user slot (U01–U32; a used one sh
 name (phone style), D#4 a space, **F#4 deletes** the last letter, KNOB 2 the last letter. **SAVE again or OCT+ saves**;
 **OCT− or HOME cancels**. SAVE held 1 s on a used slot asks "delete?" (OCT+ yes, OCT− no). EDIT keeps blinking; the
 dialog returns to the editor view. On the bass part it saves the bass sound (listed on ALGORITHM); on the chord part
-the chord sound (listed after the factory bank on PRESETS). A VA sound saves its patch with it (`va_store.c`).
+the chord sound (listed after the factory bank on PRESETS). A VA sound saves its patch with it (`va_store.c`), an FM6
+sound its voice and function settings (`fm6_ustore.c`, docs/FM6.md).
 
 ## 9. Screens
 
@@ -247,6 +271,7 @@ Two rows of four cells (row A, row B), one of them active; an optional **wide** 
   LP (1,0,0) at 0, BP (0,1,0) at 32, HP (0,0,1) at 64, NOTCH (1,0,1) at 96 and back to LP (the SVF's outputs mixed,
   as the VA mixes them; g² = Q / 0.6 keeps BP at 0 dB at its peak), in 32-bit integer log2 maths at the same seven
   quarter-octave points (≤ 12 segments); top left the position's name (`LP`, `LP>BP`, `BP`, .. `NT>LP`);
+- the **dx** envelope (FM6): the DX7's four rates and levels as a 4-segment line (FM6 above);
 - (FORMAT.md also has a **wave** band: two cycles across the screen, blue; not used by the drawn sections).
 
 Layout: **with a wide shape** — title 0–24, the shape 24–120, row A 124–180, row B 184–240 (label 10 px, glyph 22

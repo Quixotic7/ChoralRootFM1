@@ -305,7 +305,8 @@ if (existsSync(built920)) ok(productOf(readFileSync(built920)) === META.product,
   await settle();
   p.$["skip-backup"].checked = true;
   await p.$.go.fire("click");
-  ok(dev.bkFrames === 0 && !p.downloads.length && !p.confirms.length && p.$.status.textContent === en.done, "Skip backup: installed with no backup request, no question");
+  ok(dev.bkFrames === 1 && !p.downloads.length && !p.confirms.length && p.$.status.textContent === en.done,
+    "Skip backup: installed with no backup taken (only INFO, to identify the firmware), no question");
 }
 // no backup possible, declined: nothing written
 {
@@ -371,6 +372,50 @@ if (existsSync(built920)) ok(productOf(readFileSync(built920)) === META.product,
   await settle();
   await p.$.go.fire("click");
   ok(p.$.status.textContent === en.done && dev.bad === 0 && dev.identity === "FM-1_920", "resume: loader -> FM-1_920, status Done");
+  ok(dev.bkFrames === 0 && !p.confirms.length && p.$["force-box"].hidden !== false, "resume: no firmware check, no question (the loader only writes)");
+}
+
+/* ------------------------- the firmware check before an install (docs/INSTALL-COMPAT.md) --- */
+ok(html.includes('id="force-box" hidden') && html.includes('id="force-risk"'), "guard: the override box is in the page, hidden");
+ok(/<details id="dark">/.test(html) && html.includes('href="https://github.com/Quixotic7/MvaveFM1Unbricker"') &&
+   html.includes('href="https://github.com/kurogedelic/FM-1-transporter"') && en.darkTitle === "Device not found?" &&
+   /WL82 UBOOT1\.00/.test(en.darkText) && /black/.test(en.darkText), "help: \"Device not found?\": the symptom, the recovery repo, the Transporter");
+{
+  const refusal = (name) => new Function(`${lib}\nreturn refusalText(${JSON.stringify(name)});`)();
+  const over = async (identity, version, { force = false, answer = true, skip = false } = {}) => {
+    const side = version ? backupSide(version, BACKUP_IDS, feluccaData()) : null, cr = backupSide("ChoralRoot 0.1", CR_BACKUP_IDS);
+    const dev = new FakeFM1(image, { identity, bk: (id) => (id === identity ? side : id === "FM-1_920" ? cr : null) });
+    const p = runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw), confirm: () => answer });
+    await settle();
+    p.$["skip-backup"].checked = skip;
+    await p.$.go.fire("click");
+    if (force) { p.$["force-risk"].checked = true; await p.$.go.fire("click"); }
+    return { p, dev };
+  };
+  let { p, dev } = await over("FM-1_900", "FELUCCA SLOOP 2.2");
+  const text = refusal("Sloop");
+  ok(p.$.status.textContent === text && text.startsWith("Installing over Sloop is not supported: ") &&
+     text.includes("Return to the official V15 firmware with the installer you used for Sloop first, then install ChoralRoot.") &&
+     text.includes("https://github.com/Quixotic7/MvaveFM1Unbricker"), "guard: over Sloop -> refused with the message and the recovery link");
+  ok(dev.upgrades === 0 && !p.downloads.length && !p.confirms.length && p.$["force-box"].hidden === false && !p.$.go.disabled,
+    "guard: ... nothing written, no backup, no question; the override box appears");
+  ({ p, dev } = await over("FM-1_900", "FELUCCA SLOOP 2.2", { force: true, answer: false }));
+  ok(p.confirms.length === 1 && p.confirms[0] === en.forceConfirm.replace("{name}", "Sloop") && dev.upgrades === 0 &&
+     p.$.status.textContent === en.cancelled, "guard: override ticked, the second confirm declined -> nothing written");
+  ({ p, dev } = await over("FM-1_900", "FELUCCA SLOOP 2.2", { force: true }));
+  ok(p.confirms[0] === en.forceConfirm.replace("{name}", "Sloop") && dev.identity === "FM-1_920" && dev.bad === 0 &&
+     p.$.log.textContent.includes("override: installing over Sloop"), "guard: override ticked and confirmed -> installed over Sloop");
+  for (const [identity, version, name] of [["FM-1_909", "FELUCCA 0.9-BETA", "a Felucca beta or a firmware based on one (FELUCCA 0.9-BETA)"],
+    ["FM-1_922", "FELUCCA 2.2 BETA", "a Felucca beta or a firmware based on one (FELUCCA 2.2 BETA)"],
+    ["FM-1_000", null, "Sloop's rescue mode (FM-1_000)"], ["FM-1_900", null, "an unknown Felucca-based firmware (FM-1_900)"]]) {
+    ({ p, dev } = await over(identity, version));
+    ok(p.$.status.textContent === refusal(name) && dev.upgrades === 0, `guard: over ${identity} ${version || "(no INFO)"} -> refused`);
+  }
+  for (const [identity, version] of [["FM-1_910", "FELUCCA v1.0.1"], ["FM-1_90111", "MELODEE v0.11.1"], ["FM-1_920", "ChoralRoot 0.12"], ["FM-1_015", null]]) {
+    ({ p, dev } = await over(identity, version, { skip: true }));
+    ok(dev.identity === "FM-1_920" && p.$.status.textContent === en.done && p.$["force-box"].hidden !== false,
+      `guard: over ${version || "the stock " + identity} -> installed, no override shown`);
+  }
 }
 
 // errors map to their texts

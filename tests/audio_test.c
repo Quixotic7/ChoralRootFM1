@@ -49,6 +49,14 @@ static voice_t *held(track_t *t, uint32_t note)
         if (t->v[i].active && t->v[i].note == note) return &t->v[i];
     return 0;
 }
+static uint32_t sounding(void)                  /* voices of all parts (voices_busy counts budget units) */
+{
+    uint32_t p, i, n = 0;
+    for (p = 0; p < NPART; p++)
+        for (i = 0; i < NVOICE; i++)
+            n += trk[p].v[i].active && trk[p].v[i].stage != 4u;
+    return n;
+}
 static void overload(void)
 {
     voice_t *lead, *bass, *extra;
@@ -65,7 +73,7 @@ static void overload(void)
     check("overload keeps each part's MONO lead and lowest POLY note",
           lead && bass && extra && lead->gate && bass->gate && extra->stage == 4u && shed_count == 1u);
     mix_block(out, CTL);
-    check("overload frees its victim within one control block", extra && !extra->active && voices_busy() == 2u);
+    check("overload frees its victim within one control block", extra && !extra->active && sounding() == 2u);
     shed_voice();
     check("a lead alone on each part stays protected", lead->gate && bass->gate && shed_count == 1u);
 
@@ -75,21 +83,21 @@ static void overload(void)
     lead = held(&trk[0], 36); extra = held(&trk[0], 38);
     shed_voice(); mix_block(out, CTL);
     check("overload frees a held one-shot drum without waiting for its decay",
-          lead && extra && lead->active && !extra->active && voices_busy() == 1u);
+          lead && extra && lead->active && !extra->active && sounding() == 1u);
 
     fresh();
     trk[0].p[P_VOICE] = V_UNISON;
     trk_note_on(&trk[0], 55, 100);
     shed_voice(); mix_block(out, CTL);
-    check("UNISON loses an extra voice and retains its lead", trk[0].v[0].active && trk[0].v[0].gate && voices_busy() == NVOICE - 1u);
+    check("UNISON loses an extra voice and retains its lead", trk[0].v[0].active && trk[0].v[0].gate && sounding() == NPOLY - 1u);
 
     for (mode = V_MONO; mode <= V_LEGATO; mode++) {
         fresh(); trk[0].p[P_VOICE] = V_POLY;
-        for (i = 0; i < NVOICE; i++) trk_note_on(&trk[0], 48u + 2u * i, 100);
+        for (i = 0; i < NPOLY; i++) trk_note_on(&trk[0], 48u + 2u * i, 100);
         trk[0].p[P_VOICE] = (int16_t)mode;
         shed_voice(); mix_block(out, CTL);
         check("overload can reclaim stale POLY voices after a MONO / LEGATO change",
-              shed_count == 1u && trk[0].v[0].gate && voices_busy() == NVOICE - 1u);
+              shed_count == 1u && trk[0].v[0].gate && sounding() == NPOLY - 1u);
     }
 
     fresh();

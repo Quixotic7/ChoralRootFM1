@@ -1,0 +1,22 @@
+# test_persist.sh, FM6 run 2 (the same flash file): the power-on sound is U01: the trace "fm6: load slot 1 patch crc
+# XXXX" (the patch and function settings as saved); EDIT, SELECT +1: OP 2's LEVEL reads 0 (KNOB 1 +1: "LEVEL 0 -> 5");
+# a chord on it sounds
+wait 500
+btn EDIT
+wait 400
+knob SELECT +1
+wait 250
+knob KNOB1 +1
+wait 300
+btn EDIT
+wait 300
+key F3 down
+wait 40
+key A down
+wait 600
+expect sound
+key A up
+key F3 up
+wait 300
+dump
+quit

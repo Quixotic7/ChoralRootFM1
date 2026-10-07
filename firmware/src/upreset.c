@@ -207,7 +207,8 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
 #ifndef UP_HOST
 #if FELUCCA_VA
 #include "va_store.c"                          /* ChoralRoot: the VA patches, one per slot (the hooks below) */
-static uint8_t up_va_keep;                     /* up_rename: the slot's stored VA patch stays */
+#include "fm6_ustore.c"                        /* ChoralRoot: the FM6 patches (voice + functions), one per slot */
+static uint8_t up_va_keep;                     /* up_rename: the slot's stored VA / FM6 patch stays */
 #endif
 static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for its engine */
 {
@@ -215,6 +216,7 @@ static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for
     uint32_t i;
 #if FELUCCA_VA
     va_store_loading(r);                       /* a VA record: its slot's patch on the load (va_track_loaded) */
+    fm6u_loading(r);                           /* an FM6 record: its slot's blob on the load (fm6_track_loaded) */
 #endif
     for (i = 0; i < P_COUNT; i++)
         def[i] = param_desc_of(r->engine, i)->def;
@@ -237,6 +239,7 @@ static void up_boot(void)                      /* persist_boot: the banks from f
     fm6_bank_boot();
 #if FELUCCA_VA
     va_store_boot();
+    fm6u_boot();
 #endif
 #ifdef FELUCCA_FAVORITES
     for (uint32_t k = 0; k < UP_SLOTS; k++)
@@ -294,8 +297,11 @@ static int up_put(uint32_t k, const up_rec_t *r)
     }
     up_gen++;
 #if FELUCCA_VA
-    if (!up_va_keep)                                   /* the VA patch of the sound saved (va_store.c), or none */
+    if (!up_va_keep) {                                 /* the VA / FM6 patch of the sound saved (va_store.c,
+                                                        * fm6_ustore.c), or none */
         va_store_saved(k, r);
+        fm6u_saved(k, r);
+    }
 #endif
 #if FELUCCA_FLASH
     if (flash_ok)

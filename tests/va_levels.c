@@ -5,13 +5,21 @@
  * the bank's SUB BASS (ANALOG, MONO, D2) on part 1 at 92; ChoralRoot's mix (fx_smooth, voice_fade_steal, MASTER as at
  * power-on: 2047); the share of 0.3..5.9 s under the limiter's gain (lim_g < 1), the post-master peak and RMS. The
  * basses: one note held, with TINE EP's chord. Not a pass / fail suite: run it after changing a preset's levels.
- *   cc -O2 -w -Ibuild/gen -Ifirmware/src -o build/host/va_levels tests/va_levels.c -lm && build/host/va_levels */
+ *   cc -O2 -w -Ibuild/gen -Ifirmware/src -o build/host/va_levels tests/va_levels.c -lm && build/host/va_levels
+ * With "fm6": the bank's eight FM6 rows (cr_bank.c, by preset name; docs/FM6.md Levels; FM6_POLY 8 as choralroot.c;
+ * PIANO, a preset of ChoralRoot's unit only (FELUCCA_SAMPLE 0), as TINE EP with PIANO's macros and sends):
+ *   build/host/va_levels fm6 */
 #define FELUCCA_VA 1
+#ifndef FM6_POLY
+#define FM6_POLY 8               /* as choralroot.c */
+#endif
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
 #include <libproc.h>
 #include <sys/resource.h>
+static const int8_t *ovr_e;                      /* "fm6": PIANO's macros and sends over TINE EP's (preset_t's) */
+static const uint8_t *ovr_fx;
 static uint64_t instr_now(void)
 {
     struct rusage_info_v4 ri;
@@ -32,6 +40,12 @@ static void measure_in(uint32_t chord_e, uint32_t chord_p, int with_bass, uint32
     song.master_q12 = 2047;
     song.g[G_BPM] = 120;
     host_preset(&trk[0], chord_e, chord_p);
+    if (ovr_e)
+        for (i = 0; i < 8u; i++)
+            trk[0].p[P_E0 + i] = ovr_e[i];
+    if (ovr_fx)
+        for (i = 0; i < 4u; i++)
+            trk[0].p[P_DIST + i] = (int16_t)(ovr_fx[i] - 1);
     trk[0].p[P_VOICE] = V_POLY;
     trk[0].p[P_LEVEL] = 92;
     for (i = 1; i < NPART; i++)
@@ -98,10 +112,51 @@ static void measure(uint32_t chord_e, uint32_t chord_p, int with_bass, uint32_t 
     cpu_ips = r[3];
 }
 
-int main(void)
+static uint32_t preset_named(uint32_t eng, const char *name)
+{
+    const engine_t *e = ENGINES[eng];
+    uint32_t k;
+    for (k = 0; k < e->npresets; k++)
+        if (!strcmp(e->presets[k].name, name))
+            return k;
+    return 0;
+}
+
+int main(int argc, char **argv)
 {
     uint32_t k;
     const engine_t *e = ENGINES[ENGI_VA];
+    if (argc > 1 && !strcmp(argv[1], "fm6")) {   /* the bank's FM6 rows: name (display), preset */
+        static const char *const ROW[8][2] = {{"TINE EP", "TINE EP"}, {"FM BELL", "BELL"}, {"PIANO", "PIANO"},
+                                              {"FM PAD", "PAD"}, {"FM ORGAN", "ORGAN"}, {"MARIMBA", "MARIMBA"},
+                                              {"FM PLUCK", "PLUCK"}, {"FM BASS", "FM BASS"}};
+        printf("%-13s %26s | %26s | %s\n", "FM6 bank row", "chord alone: lim  pk  rms", "with SUB BASS: lim  pk  rms",
+               "CPU with the bass: host instr / sample, device estimate (1.7 % per 100)");
+        for (k = 0; k < 8u; k++) {
+            double l0, p0, r0, l1, p1, r1;
+            static const int8_t PIANO_E[8] = {0, 1, 10, 1, -16, 2, 12, 0};   /* eng_fm6.c's PIANO */
+            static const uint8_t PIANO_FX[4] = {1, 36, 16, 46};
+            uint32_t pr = preset_named(ENGI_FM6, ROW[k][1]);
+            ovr_e = 0;
+            ovr_fx = 0;
+            if (strcmp(ENGINES[ENGI_FM6]->presets[pr].name, ROW[k][1])) {   /* (PIANO: not in this unit) */
+                ovr_e = PIANO_E;
+                ovr_fx = PIANO_FX;
+                pr = 0;
+            }
+            if (k == 7u) {                       /* the bass: TINE EP's chord with it */
+                measure(ENGI_FM6, 0, 1, ENGI_FM6, pr, &l1, &p1, &r1);
+                printf("%-13s %26s | %7.1f %% %6.1f %6.1f dB | %5.0f  %4.1f %%  (with TINE EP's chord)\n", ROW[k][0], "",
+                       l1, p1, r1, cpu_ips, cpu_ips * 0.017);
+                continue;
+            }
+            measure(ENGI_FM6, pr, 0, 0, 0, &l0, &p0, &r0);
+            measure(ENGI_FM6, pr, 1, 0, 7, &l1, &p1, &r1);   /* ANALOG SUB BASS */
+            printf("%-13s %7.1f %% %6.1f %6.1f dB | %7.1f %% %6.1f %6.1f dB | %5.0f  %4.1f %%\n", ROW[k][0], l0, p0, r0,
+                   l1, p1, r1, cpu_ips, cpu_ips * 0.017);
+        }
+        return 0;
+    }
     printf("%-13s %26s | %26s | %s\n", "VA preset", "chord alone: lim  pk  rms", "with SUB BASS: lim  pk  rms",
            "CPU with the bass: host instr / sample, device estimate (1.7 % per 100)");
     for (k = 0; k < e->npresets; k++) {

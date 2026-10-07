@@ -515,6 +515,40 @@ has 'part 0: FM6 / PIANO' "$AL" && has 'part 0: VA / CLOUD PAD' "$AL" && has 'pa
 [ "$(grep -c '^expect .*: ok' "$AL")" = 5 ] && ok "all-synth: each sounds, SHIMMER's long tail, then silence: $OUT/cr_allsynth_piano.ppm" ||
     bad "all-synth: $(grep -c '^expect .*: ok' "$AL") of 5 expectations"
 
+echo "FM6: Melodee's engine, the deep pages, the dx band"
+run cr_fm6 --wav "$OUT/cr_fm6.wav"
+FL="$OUT/cr_fm6.log"
+has 'part 0: FM6 / TINE EP' "$FL" && ok "the power-on chord sound: FM6 / TINE EP" || bad "not TINE EP: $(grep -m1 'part 0:' "$FL")"
+has '^deep: part 0 page 1 OP 2 col 0 LEVEL [0-9]* -> 99 ' "$FL" && ok "OSC stack, OP 2 (SELECT +1), KNOB 1: $(grep -m1 '^deep: part 0 page 1 OP 2' "$FL")" ||
+    bad "no OP 2 LEVEL edit: $(grep -m1 '^deep:' "$FL")"
+[ "$(grep -c '^expect sound .*: ok' "$FL")" = 2 ] && ok "the chord sounds before and after the edit" || bad "FM6 chord: $(grep -c '^expect sound .*: ok' "$FL") of 2"
+br=$(python3 - "$OUT/cr_fm6.wav" <<'PY'
+import sys, wave, struct
+w = wave.open(sys.argv[1]); fs = w.getframerate(); ch = w.getnchannels()
+x = struct.unpack("<%dh" % (w.getnframes() * ch), w.readframes(w.getnframes()))
+m = [x[i] for i in range(0, len(x), ch)]
+def bright(t0, t1):          # high-frequency share: the first difference's energy over the signal's
+    s = m[int(t0 * fs):int(t1 * fs)]
+    e = sum(v * v for v in s) or 1
+    d = sum((s[i] - s[i - 1]) ** 2 for i in range(1, len(s)))
+    return d / e
+b0, b1 = bright(1.16, 2.36), bright(7.07, 8.27)   # (the notes at 1.06 s and 6.97 s: the same 1.2 s after each)
+print("%.4f %.4f %d" % (b0, b1, b1 > 1.25 * b0))
+PY
+)
+set -- $br
+[ "${3:-0}" = 1 ] && ok "OP 2 LEVEL 99 changes the sound: brightness (HF share) $1 -> $2 (the modulator up)" || bad "the sound did not change: $br"
+white=$(od -An -tu1 -v -j $((15 + 30 * 240 * 3)) -N$((240 * 70 * 3)) "$OUT/cr_fm6_env.ppm" | tr -s ' \n' '\n\n' | grep -v '^$' |
+    awk '{ v[n++] = $1 } END { c = 0; for (i = 0; i + 2 < n; i += 3) if (v[i] > 200 && v[i+1] > 200 && v[i+2] > 200) c++; print c }')
+orange() { od -An -tu1 -v -j $((15 + 30 * 240 * 3)) -N$((240 * 70 * 3)) "$1" | tr -s ' \n' '\n\n' | grep -v '^$' |
+    awk '{ v[n++] = $1 } END { c = 0; for (i = 0; i + 2 < n; i += 3) if (v[i] > 200 && v[i+1] > 80 && v[i+1] < 170 && v[i+2] < 90) c++; print c }'; }
+o0=$(orange "$OUT/cr_fm6_env.ppm"); o1=$(orange "$OUT/cr_fm6_env_hot.ppm")
+[ "${white:-0}" -gt 300 ] && ok "ENV 1: the dx band drawn ($white white pixels in the band): $OUT/cr_fm6_env.ppm" || bad "no dx band: $white"
+[ "${o1:-0}" -gt $((${o0:-0} + 100)) ] && ok "KNOB 2 (R2): its segment lit orange ($o0 -> $o1 pixels): $OUT/cr_fm6_env_hot.ppm" || bad "no lit segment: $o0 -> $o1"
+has '^deep: part 0 page 19 ENV 1 col 1 R2 ' "$FL" && has '^edit: group ENV screen 2 ' "$FL" && has '^edit: group FILT screen 1 ' "$FL" &&
+    has '^edit: group LFO screen 1 ' "$FL" && has '^edit: group MOD screen 1 ' "$FL" && has '^edit: group OSC screen 3 ' "$FL" &&
+    ok "FM6's groups: ENV 1 / ENV 2, FILT (ALGO), LFO, MOD (FUNC), OSC screens 1..3 (OP n, OP n+, SCALE n)" || bad "FM6 groups: $(grep -c '^edit: group' "$FL")"
+
 echo "determinism"
 mkdir -p "$OUT/cr_again"
 cp "$OUT/cr_dmaj.ppm" "$OUT/cr_again/first.ppm"

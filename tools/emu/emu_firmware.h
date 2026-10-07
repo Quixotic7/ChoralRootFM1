@@ -34,6 +34,9 @@
 #define FELUCCA_SLICER 1                              /* (as felucca.c; the device unit has it off) */
 #endif
 #define mix_block fx_mix_block                        /* fx.c's mix; audio.c gets ChoralRoot's below */
+#ifndef FM6_POLY
+#define FM6_POLY 8                                    /* as choralroot.c: FM6 capped at 8 voices (docs/FM6.md) */
+#endif
 #include "../../tests/hostsim.c"
 #undef mix_block
 #undef main
@@ -80,5 +83,6 @@ static void mix_block(int32_t *out, uint32_t n)        /* the audio ISR's block:
 #define CR_HAVE_SETTINGS 1                            /* cr_ui_init loads the settings record */
 #include "../../firmware/src/cr_ui.c"
 #include "../../firmware/src/cr_settings.c"           /* the settings record (after cr_ui.c and storage.c) */
+#include "../../firmware/src/fm6_store.c"             /* FM6: DX7 SysEx (Melodee's; after cr_ui.c: the editor's part) */
 #include "../../firmware/src/cr_backup.c"             /* backup / restore SysEx (the handler: no transport here;
                                                          * tests/cr_backup_test.c drives it) */

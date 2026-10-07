@@ -16,7 +16,7 @@ import sys
 
 FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_render_custom", "phase_render", "lofi_render", "sample_render", "formant_render",
          "trio_render", "trio_pass", "wheel_render", "wheel_block",
-         "grain_render", "grain_block", "phys_render", "drum_render", "noise_render", "fm6_render", "fm6_op_run", "fm6_op_fb", "px_modal_block", "px_modal_run", "px_memb_block",
+         "grain_render", "grain_block", "phys_render", "drum_render", "noise_render", "fm6_render", "px_modal_block", "px_modal_run", "px_memb_block",
          "px_string_excite", "px_string_run", "px_symp_run",
          "dv_metal_run", "dv_kick_run", "dv_snare_run", "dv_clap_run", "dv_hat_run", "dv_tom_run",   # drum_voice.c
          "dv_rim_run", "dv_bell_run", "dv_cym_run", "dv_out",

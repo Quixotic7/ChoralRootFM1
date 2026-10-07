@@ -590,6 +590,9 @@ stall:
 static void sysex_byte(uint8_t b)
 {
     static const uint8_t UBOOT_KEY[6] = {0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7};
+#ifdef FM6_RX
+    fm6_sx_byte(b);                                    /* DX7 voices, banks, parameter changes (eng_fm6.c; Melodee's) */
+#endif
     if (b >= 0xF8u)
         return;                                        /* realtime may occur anywhere in SysEx */
     if ((b & 0x80u) && b != 0xF0u && b != 0xF7u) {
@@ -640,13 +643,20 @@ static void sysex_byte(uint8_t b)
     }
 }
 
-static void midi_in_event(uint32_t pkt)                 /* one USB-MIDI event packet */
+/* one USB-MIDI event packet. SysEx comes as CIN 4..7, but a host may also send a byte of it as CIN 0xF (single
+ * byte): macOS does so inside a long dump, where its packet lists split, and a DX7 bank then lost that byte.
+ * Real-time bytes stay with the parser below (Melodee's) */
+static void midi_in_event(uint32_t pkt)
 {
     uint32_t cin = pkt & 15u, st = (pkt >> 8) & 0xFFu;
     if (cin >= 4u && cin <= 7u) {
         uint32_t k, nb = cin == 4u || cin == 7u ? 3u : cin == 6u ? 2u : 1u;
         for (k = 0; k < nb; k++)
             sysex_byte((uint8_t)(pkt >> (8u * (k + 1u))));
+        return;
+    }
+    if (cin == 0xFu && st < 0xF8u && (usb.sx_on || st == 0xF0u)) {
+        sysex_byte((uint8_t)st);
         return;
     }
     if (st >= 0x80u && st < 0xF8u) {

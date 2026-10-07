@@ -41,6 +41,7 @@ static void midi_expression(track_t *t, const midi_channel_t *c)
     if (drum_track(t))
         return;
     midi_bend_target[trk_index(t)] = (int32_t)c->bend * range / (c->bend < 0 ? 8192 : 8191);
+    t->bend_raw = c->bend;                        /* (FM6 bends by its own range: its function settings; Melodee's) */
 }
 
 static void midi_expression_channel(uint32_t ch)
@@ -177,6 +178,7 @@ static void __attribute__((noinline)) midi_forget_track(uint32_t track)
     midi_owners[track] = 0;
     mchord_forget(track);
     midi_bend_q8[track] = midi_bend_target[track] = 0;
+    trk[track].bend_raw = 0;
 }
 
 static void midi_silence_track(uint32_t track)

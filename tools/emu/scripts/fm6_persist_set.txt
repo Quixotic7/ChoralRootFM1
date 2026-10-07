@@ -1,0 +1,22 @@
+# test_persist.sh, FM6 run 1: the power-on sound TINE EP (FM6); EDIT: the editor's OSC stack, SELECT +1: OP 2, KNOB 1
+# -20: its LEVEL to 0; MOD (SEQ): FUNC, KNOB 1 +4: BEND (a function setting, in the blob too); HOME; SAVE, OCT+ (U01):
+# the trace "fm6: save slot 1 part 0 patch crc XXXX"; the settings record saved past the quiet time; quit
+wait 500
+btn EDIT
+wait 400
+knob SELECT +1
+wait 250
+knob KNOB1 -20
+wait 300
+btn SEQ
+wait 400
+knob KNOB1 +4
+wait 400
+btn HOME
+wait 400
+btn SAVE
+wait 400
+btn OCT+
+wait 3500
+dump
+quit

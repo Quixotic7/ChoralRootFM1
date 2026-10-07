@@ -2,13 +2,17 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* FELUCCA core types: tracks, voices, engines, parameters.
  * Four tracks, each a synth part: its own engine, preset, parameters, voices and 64-step
- * pattern. The parts share one budget of NVOICE sounding voices (voice.c). Drums are the DRUM
+ * pattern. The parts share one budget of VBUDGET units of sounding voices (voice.c; the voice model of Melodee,
+ * Kerem Kilic's: an FM6 voice is one unit, any other engine's two, so the others keep their shared eight). Drums are the DRUM
  * engine or the SAMPLE engine's PERC set (General MIDI map) on any part.
  * Sections: sizes, parameters, voices and engines, tracks and the song, system. */
 #include <stdint.h>
 
 /* ------------------------------------------------------------ sizes --- */
-#define NVOICE 8                 /* voices per part, and the budget shared by all parts */
+#define NVOICE 16                /* voice slots per part (FM6 plays Dexed's 16; Melodee's voice model) */
+#define NPOLY 8                  /* the voices of an engine without its own cap (its per-voice state: engines.c eng_state) */
+#define VBUDGET 16               /* the sounding voices of all parts, in units: a voice of an engine capped above NPOLY
+                                  * (FM6) takes one, any other two, so the others keep their shared eight */
 #define NPART 4                  /* synth parts: tracks 1..4 */
 #define NTRK NPART               /* tracks (the formats and the protocol count these): every track is a part */
 #define NSTEP 64
@@ -49,7 +53,9 @@
 /* ------------------------------------------------------- parameters --- */
 enum {
     F_INT, F_PCT, F_BIPCT, F_TIME, F_LFOHZ, F_CUTOFF, F_DB, F_SEMI, F_ENUM, F_BPM, F_NOTE,
-    F_ONOFF, F_OCT, F_STEPS
+    F_ONOFF, F_OCT, F_STEPS,
+    F_OFS, F_FMNOTE, F_FMFRQ    /* FM6's pages: 0 at the middle of the range, the DX7 break point, an operator's frequency
+                                 * (params.c param_format; F_FMFRQ: Melodee's operator pages, here a plain number) */
 };
 
 typedef struct {
@@ -159,6 +165,8 @@ typedef struct {                 /* per-voice control-rate modulation, computed 
     int32_t shape;               /* 0..127 << 8 */
     int32_t envq15;              /* env value (for engines that use it as a mod source) */
     int32_t fine;                /* the residual below 1/16 semitone in inc: unison detune, TUNE, bend (1/4096) */
+    int32_t plog;                /* the voice's own pitch offset without TUNE and bend (glide, LFO and ENV pitch, the
+                                  * matrix's, unison detune), Q24 octaves: for engines that figure their pitch (FM6) */
 } vmod_t;
 
 typedef struct {
@@ -212,7 +220,7 @@ typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c 
     const preset_t *presets;
     uint8_t npresets;
     uint8_t knob[4];             /* HOME: the four parameters on KNOB 1..4 */
-    uint8_t poly;                /* voice cap for POLY and UNISON, 0 = NVOICE */
+    uint8_t poly;                /* voice cap for POLY and UNISON (up to NVOICE), 0 = NPOLY */
     uint8_t sampled;             /* 1 = plays recorded material (a position, not a phase): voice.c keeps
                                   * no phases over a retrigger, spreads none for UNISON, renders at SUS 0 */
     uint8_t keep;                /* bit k: s[k] is kept when a sounding voice is retriggered (filters) */
@@ -241,7 +249,23 @@ typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c 
      * fx.c mix_part plays the part as L = mid - side, R = mid + side (then LEVEL and the pan law as for a mono
      * part). Nothing added to side: the part is mono, bit for bit as render() */
     int (*render2)(struct track *t, voice_t *v, int32_t *out, int32_t *side, uint32_t n, const vmod_t *m);
+    /* Melodee's voice model (voice.c), all optional: */
+    /* the POLY voice (0..cap-1) for a new note, the engine's own choice (FM6: Dexed's) */
+    uint32_t (*alloc)(struct track *t, uint32_t note);
+    /* MONO / LEGATO / UNISON moved a sounding voice to a new note without a new attack */
+    void (*legato)(struct track *t, voice_t *v);
+    /* a key went down in MONO / LEGATO / UNISON, whether or not it takes the voice */
+    void (*mono_key)(struct track *t, uint32_t note);
+    /* the part's block after its voices (FM6: Dexed's DC filter); nr: voices rendered */
+    void (*post)(struct track *t, int32_t *out, uint32_t n, uint32_t nr);
+    /* the voice cap of the part now, instead of poly */
+    uint32_t (*cap)(const struct track *t);
+    /* the voice budget units one of its voices takes now (default: 1 above NPOLY voices, else 2) */
+    uint32_t (*units)(const struct track *t);
 } engine_t;
+/* voice_start: what the voice it starts did just before (0 free, 1 released, 2 its key down: a steal or a move);
+ * engine_t.note_on may read it */
+static uint8_t voice_was;
 
 /* ------------------------------------------------- tracks, the song --- */
 enum { ST_NOTE, ST_TIE, ST_REST };
@@ -320,7 +344,7 @@ typedef struct track {
     uint8_t rh_last;             /* the last of them; rh_bak: what it held (an early release puts it back) */
     step_t rh_bak;
     /* mono */
-    uint8_t mono_stack[8];
+    uint8_t mono_stack[NVOICE];  /* keys held, in press order (as many as Dexed keeps voices for) */
     uint8_t nmono;
     uint8_t mono_note;           /* note the MONO / LEGATO / UNISON voice(s) play, 0 = none */
     uint8_t rr;                  /* POLY ROTATE: next voice to try */
@@ -339,6 +363,8 @@ typedef struct track {
     uint8_t m_vel, m_key, m_vi;  /* the latest note-on: velocity, note, voice index (per-block destinations) */
     int16_t m_rnd;               /* .. its RAND */
     int32_t m_env;               /* the amp envelope of voice m_vi, last block (Q15) */
+    uint8_t foot, breath, porta; /* CC4 foot, CC2 breath, CC65 portamento on: FM6's DX7 controllers (mod.c) */
+    int16_t bend_raw;            /* the pitch bend as sent (signed 14-bit): FM6 bends by its own range (its patch's) */
 } track_t;
 
 typedef struct {

@@ -12,8 +12,10 @@
  *
  * Objects (Felucca's ids where Felucca has them; 9 and 40..49 are ChoralRoot's):
  *   1 settings (persist_t PER5: Felucca's fields + cr_settings_t; a PUT takes PER1..PER5, settings_persist.c migrates)
- *   6, 7 user sound banks (upreset.c, 2 x 16 records), 8 the FM6 patch bank (fm6_bank.c), 9 the VA patch store
- *   (va_store.c), 40..49 loop slots 1..10 (cr_ui.c's flash records, docs/LOOPER.md). No sample objects: ChoralRoot has
+ *   6, 7 user sound banks (upreset.c, 2 x 16 records), 8 the FM6 patch bank (fm6_bank.c: Melodee's 32-voice layout;
+ *   Felucca 1.0's 27 and Melodee's earlier bank restore too, converted at the next boot as at power-on), 9 the VA patch
+ *   store (va_store.c), 10, 11 the FM6 patch store (fm6_ustore.c: user slots 1..16, 17..32), 40..49 loop slots 1..10
+ *   (cr_ui.c's flash records, docs/LOOPER.md). No sample objects: ChoralRoot has
  *   no SAMPLE engine (FELUCCA_SAMPLE 0); Felucca's 32..34 and SMP_BEGIN .. SMP_ERASE (11..14) are not answered, so the
  *   installer page reports a Felucca archive's samples (and a ChoralRoot 0.1 archive's 32 / 33) skipped. The flash of
  *   user sample slots 1 and 2 stays reserved (storage.c's map); slot 3's holds the loops.
@@ -41,11 +43,12 @@
 enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72 };
 #define CRB_LOOP0 40u                                /* loop slot k: id 40 + k */
 #define CRB_VA 9u
-static const uint8_t CRB_IDS[] = {1, 6, 7, 8, CRB_VA, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+#define CRB_FM6S 10u                                 /* 10, 11: the FM6 patch store's halves */
+static const uint8_t CRB_IDS[] = {1, 6, 7, 8, CRB_VA, CRB_FM6S, CRB_FM6S + 1u, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
 #define CRB_N ((uint32_t)sizeof CRB_IDS)
 _Static_assert(CRL_SLOTS == 10u, "backup ids: 10 loop slots");
 _Static_assert(sizeof(persist_t) <= CRL_REC_MAX && sizeof(up_bank_t) <= CRL_REC_MAX && sizeof(fm6_bank_t) <= CRL_REC_MAX &&
-               sizeof(va_store_t) <= CRL_REC_MAX, "backup: every object stages in cu_loop_buf");
+               sizeof(va_store_t) <= CRL_REC_MAX && sizeof(fm6u_t) <= CRL_REC_MAX, "backup: every object stages in cu_loop_buf");
 _Static_assert(ST_PAYLOAD_MAX >= 2048u + 256u, "backup: the reply and the data share st_buf");
 
 #ifndef CRB_SEND
@@ -130,10 +133,19 @@ static int crb_index(uint32_t id)
     return -1;
 }
 static int crb_is_loop(uint32_t id) { return id >= CRB_LOOP0 && id < CRB_LOOP0 + CRL_SLOTS; }
-static uint32_t crb_obj(uint32_t id)                 /* storage.c's object of ids 1, 6..9 */
+static uint32_t crb_obj(uint32_t id)                 /* storage.c's object of ids 1, 6..11 */
 {
     return id == 1u ? (uint32_t)OBJ_SETTINGS : id == 8u ? (uint32_t)OBJ_FM6BANK : id == CRB_VA ? (uint32_t)OBJ_VASTORE
-                                                                                   : (uint32_t)OBJ_UPRESET0 + id - 6u;
+         : id >= CRB_FM6S ? (uint32_t)OBJ_FM6STORE0 + id - CRB_FM6S : (uint32_t)OBJ_UPRESET0 + id - 6u;
+}
+/* an FM6 bank of earlier firmware, as fm6_bank.c fm6_bank_import takes it at boot: Felucca 1.0's (27 records, version
+ * 1) or Melodee's before its version 2 (32 packed voices) */
+#define CRB_FM6_FEL (16u + 27u * 128u)
+#define CRB_FM6_MEL (4u + FM6_BANK_N * FM6_BANK_PK)
+static int crb_fm6_old(const uint8_t *raw, uint32_t len)
+{
+    uint32_t magic = raw[0] | (uint32_t)raw[1] << 8 | (uint32_t)raw[2] << 16 | (uint32_t)raw[3] << 24;
+    return magic == FM6_BANK_MAGIC && (len == CRB_FM6_MEL || (len == CRB_FM6_FEL && raw[4] == 1u && raw[6] == 27u));
 }
 /* an A/B object (storage.c's or a loop slot's: the same commit record, another type and place) */
 static uint32_t crb_sector(uint32_t id, uint32_t copy)
@@ -252,7 +264,9 @@ static int crb_size_ok(uint32_t id, uint32_t len)   /* a begin's size for this i
     if (id == 6u || id == 7u)
         return !len || len == sizeof(up_bank_t);
     if (id == 8u)
-        return !len || len == sizeof(fm6_bank_t);
+        return !len || len == sizeof(fm6_bank_t) || len == CRB_FM6_FEL || len == CRB_FM6_MEL;
+    if (id == CRB_FM6S || id == CRB_FM6S + 1u)
+        return !len || len == sizeof(fm6u_t);
     if (id == CRB_VA)                                /* version 3 / 2, or version 1's 104-byte blobs */
         return !len || len == sizeof(va_store_t) || len == 16u + UP_SLOTS * VA_BLOB1;
     if (crb_is_loop(id))
@@ -287,7 +301,10 @@ static uint32_t crb_commit(void)
         if (len && (b->magic != UP_BANK_MAGIC || b->rsize != sizeof(up_rec_t) || b->nslot != UP_PER_BANK))
             return 2;
     } else if (id == 8u) {
-        if (len && !fm6_bank_valid((const fm6_bank_t *)raw))
+        if (len && !(len == sizeof(fm6_bank_t) ? fm6_bank_valid((const fm6_bank_t *)raw) : crb_fm6_old(raw, len)))
+            return 2;                                /* (an older layout: imported by fm6_bank_boot, as at power-on) */
+    } else if (id == CRB_FM6S || id == CRB_FM6S + 1u) {
+        if (len && !fm6u_valid((const fm6u_t *)raw, id - CRB_FM6S))
             return 2;
     } else if (id == CRB_VA) {
         const va_store_t *s = (const va_store_t *)raw;
@@ -317,10 +334,10 @@ static uint32_t crb_commit(void)
         uint32_t t;
         fm6_bank_boot();
         for (t = 0; t < NTRK; t++)
-            if (fm6_slot[t] >= FM6_NFACTORY)
+            if (fm6_slot[t] >= FM6_NFAC)
                 fm6_slot[t] = 0xFFu;
     } else {
-        up_boot();                                   /* both banks, the FM6 bank, the VA store (converted) from flash */
+        up_boot();                                   /* both banks, the FM6 bank, the VA and FM6 stores from flash */
         up_gen++;
     }
     ui.force = 1;

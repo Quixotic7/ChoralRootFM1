@@ -261,7 +261,7 @@ typedef struct {
     uint8_t stage[4];                            /* 0 off, 1 attack, 2 hold, 3 decay / sustain, 4 release */
     uint8_t live;
 } va_voice_t;
-static va_voice_t va_vs[VA_NPART][NVOICE] __attribute__((section(".pool")));
+static va_voice_t va_vs[VA_NPART][VA_POLY] __attribute__((section(".pool")));   /* (its cap: VA_POLY voices) */
 
 static const uint8_t VA_MACRO[8] = {VA_CUT, VA_RES, VA_FENV, VA_DRIVE, VA_OMIX, VA_DETUNE, VA_ENV(0, VE_ATK),
                                     VA_ENV(0, VE_REL)};
@@ -717,7 +717,7 @@ static void va_block(track_t *t)
 static va_voice_t *va_voice(track_t *t, voice_t *v)
 {
     uint32_t tr = va_tr(t), i = (uint32_t)(v - t->v);
-    return tr < VA_NPART && i < NVOICE ? &va_vs[tr][i] : 0;
+    return tr < VA_NPART && i < VA_POLY ? &va_vs[tr][i] : 0;
 }
 
 static void va_note_on(track_t *t, voice_t *v)
@@ -1161,7 +1161,7 @@ static int va_render(track_t *t, voice_t *v, int32_t *out, int32_t *side, uint32
     fpos = ((uint32_t)p[VA_FTYPE] << 8) + (uint32_t)clamp(dfm >> 6, -32767, 32767);
     fpos &= 32767u;
     if (side && t->p[P_VOICE] == V_UNISON && p[VA_USPREAD]) {     /* USPREAD: voice i of 8 at (2i - 7) / 7 */
-        int32_t kk = 2 * (int32_t)(v - t->v) - (NVOICE - 1);
+        int32_t kk = 2 * (int32_t)(v - t->v) - (NPOLY - 1);
         up = clamp(kk * p[VA_USPREAD] * 37, -32767, 32767) >> 4;   /* Q11 */
     }
     /* the amplitude: ENV 1 by velocity, the matrix's AMP, the voice's (fades, LFO -> AMP); UNISON as FM6 */

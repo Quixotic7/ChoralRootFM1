@@ -65,6 +65,40 @@ function parseIdentity(pkt) {
   return m ? { text: txt, model: m[1], version: parseInt(m[2], 10) } : null;
 }
 
+// ---- which firmware runs: may ChoralRoot be installed over it? (docs/INSTALL-COMPAT.md; tools/fm1_install.py
+// classify_firmware is the same table). identity: the handshake text ("FM-1_015", "FM-1_910"); info: the version the
+// backup protocol's INFO answers ("FELUCCA v1.0", "MELODEE v0.11.1", "ChoralRoot 0.12"), null when it does not answer.
+// -> { verdict: "allow" | "refuse" | "loader", kind, name }. The 9xx identities are shared by every Felucca-based
+// firmware (FM-1_9XY from the release number: Felucca 0.9-beta FM-1_909, Felucca 1.0 FM-1_910, Sloop 2.0 FM-1_920 =
+// ChoralRoot's), so they are told apart by the INFO text only.
+export const RECOVERY_URL = "https://github.com/Quixotic7/MvaveFM1Unbricker";
+export function classifyFirmware(identity, info) {
+  const m = /^(ota-)?([^_]+)_(\d+)$/i.exec(identity || "");
+  const v = (info || "").trim();
+  if (!m) return { verdict: "refuse", kind: "unknown", name: `an unknown firmware (${identity || "no identity"})` };
+  if (m[1]) return { verdict: "loader", kind: "loader", name: identity };            // update mode: resume
+  const num = parseInt(m[3], 10);
+  if (m[2] !== "FM-1") return { verdict: "refuse", kind: "unknown", name: identity };
+  if (num >= 1 && num < 100) return { verdict: "allow", kind: "stock", name: `the official M-VAVE firmware (${identity})` };
+  if (num === 0) return { verdict: "refuse", kind: "sloop", name: "Sloop's rescue mode (FM-1_000)" };
+  if (num < 900) return { verdict: "refuse", kind: "unknown", name: `an unknown firmware (${identity})` };
+  if (/^choralroot\b/i.test(v)) return { verdict: "allow", kind: "choralroot", name: v };
+  if (/^melodee\b/i.test(v)) return { verdict: "allow", kind: "melodee", name: `Melodee (${v.slice(8)})` };
+  if (/sloop/i.test(v)) return { verdict: "refuse", kind: "sloop", name: "Sloop" };
+  const f = /^felucca\s+(v)?(\d+)\.(\d+)(\S*)$/i.exec(v);
+  // Felucca 1.0 and later: "v1.0", "v1.0.1", "v1.1-rc1" (build.py "v" + release); the 0.x betas: "0.9-BETA", "0.5 BETA"
+  if (f && parseInt(f[2], 10) >= 1 && !/beta/i.test(v) && (f[1] || !f[4]))
+    return { verdict: "allow", kind: "felucca", name: `Felucca ${f[1] || "v"}${f[2]}.${f[3]}${f[4]}` };
+  if (/^felucca\b/i.test(v)) return { verdict: "refuse", kind: "felucca-beta", name: `a Felucca beta or a firmware based on one (${v})` };
+  return { verdict: "refuse", kind: "unknown", name: v ? `an unknown firmware (${identity}, ${v})` : `an unknown Felucca-based firmware (${identity})` };
+}
+export function refusalText(name) {
+  return `Installing over ${name} is not supported: ${REFUSE_REASON} ` +
+    `Return to the official V15 firmware with the installer you used for ${name} first, then install ChoralRoot. ` +
+    `If an FM-1 is already dark (black screen, a "WL82 UBOOT1.00" USB disk): ${RECOVERY_URL}`;
+}
+export const REFUSE_REASON = "An install over it has left an FM-1 that no longer starts, and the data it leaves in the flash is not known to be safe for ChoralRoot.";
+
 // one MIDI in/out pair with a SysEx queue
 class Link {
   constructor(input, output) {

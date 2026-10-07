@@ -56,7 +56,7 @@ typedef struct {
 
 static const slc_src_t SLC_BREAK = SLC_BREAK_INIT;
 static slc_src_t slc_usr[SMP_USER_SLOTS];
-static int16_t slc_rbuf[NPART][NVOICE][SLC_RB];       /* reverse windows, one per part voice */
+static int16_t slc_rbuf[NPART][NPOLY][SLC_RB];        /* reverse windows, one per part voice (its cap: NPOLY) */
 static const char *const N_SLC_SRC[] = {"BREAK", "USR1", "USR2", "USR3"};
 static const char *const N_SLC_DIV[] = {"4", "8", "16", "32", "AUTO", "MAN"};
 static const char *const N_SLC_MODE[] = {"ONE", "GATE", "LOOP"};
@@ -414,7 +414,7 @@ static int slc_man_restore(uint32_t k, uint32_t n, uint32_t end, const uint32_t 
 static int16_t *slc_rb(track_t *t, voice_t *v)
 {
     uint32_t p = (uint32_t)(t - trk), i = (uint32_t)(v - t->v);
-    return p < NPART && i < NVOICE ? slc_rbuf[p][i] : 0;
+    return p < NPART && i < NPOLY ? slc_rbuf[p][i] : 0;
 }
 
 static void slice_note_on(track_t *t, voice_t *v)

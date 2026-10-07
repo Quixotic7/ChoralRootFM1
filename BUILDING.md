@@ -179,8 +179,17 @@ python3 web/make_site.py build/choralroot.fwsc dev build/site && python3 -m http
 without Felucca's own loader. Felucca's released installer (<https://hugelton.github.io/Felucca/webapp/installer/>)
 installs Felucca, not ChoralRoot.
 
-Installing firmware is at your own risk. If an install fails and the FM-1 no longer
-starts, recovery needs [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
+**Which firmware it installs over** (`docs/INSTALL-COMPAT.md`). After the handshake both installers ask the running
+firmware for its version (the backup protocol's INFO) and classify it (`web/fm1ota.js` `classifyFirmware`,
+`tools/fm1_install.py` `classify_firmware`, one table): the official M-VAVE firmware (`FM-1_0NN`), Felucca 1.0 or
+later (`FELUCCA v1.x`), Melodee and ChoralRoot are installed over; Sloop, the Felucca 0.x betas (`FELUCCA 0.9-BETA`),
+Sloop's rescue mode (`FM-1_000`) and any 9xx firmware that does not say what it is are refused (exit 8; the page
+says why and shows an "I understand the risk" box, then asks once more). `--force` / that box install anyway. The
+return to the official V15 is never refused. `--info` prints the version and the verdict.
+
+Installing firmware is at your own risk. If an install fails and the FM-1 no longer starts (black screen, a USB disk
+"WL82 UBOOT1.00"), see [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker); if it does not even show up
+as that disk, [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
 
 ## Releasing
 

@@ -64,6 +64,11 @@
 #ifndef FELUCCA_VA
 #define FELUCCA_VA 1             /* the VA engine (eng_va.c, engine 13) and its patch store (va_store.c) */
 #endif
+#ifndef FM6_POLY
+#define FM6_POLY 8               /* FM6's voices per part (eng_fm6.c; Melodee plays Dexed's 16): ChoralRoot's chords use <= 7,
+                                  * and at 16 the release tails of perf.sh (c) / (e) cost up to 59 / 62 % of a block
+                                  * (8: 40 / 43 %; docs/FM6.md, Polyphony). Still one budget unit a voice */
+#endif
 #ifndef FELUCCA_ICONS
 #define FELUCCA_ICONS 0          /* no Felucca icon atlas (icons.c, ui_icons.h): cr_draw.c draws its header glyphs */
 #endif
@@ -166,6 +171,7 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 #if CR_HAVE_SETTINGS
 #include "cr_settings.c"         /* the settings record (after cr_ui.c and storage.c) */
 #endif
+#include "fm6_store.c"           /* FM6: DX7 SysEx in / out, bulk dumps to the bank (Melodee's; after cr_ui.c) */
 #include "cr_backup.c"           /* backup / restore over SysEx (after usb.c, the stores, cr_ui.c, cr_settings.c) */
 #include "cr_shim.c"             /* what main.c and the kept files call of Felucca's dropped UI */
 

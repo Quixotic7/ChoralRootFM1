@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import vm from "node:vm";
 import { logicalImage, productOf } from "./fm1pkg.js";
-import { Updater, pack7, unpack7 } from "./fm1ota.js";
+import { Updater, pack7, unpack7, classifyFirmware, refusalText, RECOVERY_URL } from "./fm1ota.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(64)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
@@ -1226,6 +1226,30 @@ async function updater() {
   ok(e2 && e2.code === "notfound", "fm1ota.js: no device -> error code 'notfound'");
 }
 
+/* which firmware ChoralRoot is installed over (docs/INSTALL-COMPAT.md; tests/install_test.py GUARD_CASES, the same) */
+function firmwareGuard() {
+  const cases = [
+    ["FM-1_015", null, "allow", "stock"], ["FM-1_014", null, "allow", "stock"],
+    ["FM-1_920", "ChoralRoot 0.12", "allow", "choralroot"], ["FM-1_920", "ChoralRoot 1.0-rc1", "allow", "choralroot"],
+    ["FM-1_910", "FELUCCA v1.0", "allow", "felucca"], ["FM-1_910", "FELUCCA v1.0.1", "allow", "felucca"],
+    ["FM-1_910", "FELUCCA 1.0", "allow", "felucca"], ["FM-1_911", "FELUCCA v1.1-rc1", "allow", "felucca"],
+    ["FM-1_90111", "MELODEE v0.11.1", "allow", "melodee"], ["FM-1_910", "MELODEE v1.0", "allow", "melodee"],
+    ["FM-1_909", "FELUCCA 0.9-BETA", "refuse", "felucca-beta"], ["FM-1_905", "FELUCCA 0.5 BETA", "refuse", "felucca-beta"],
+    ["FM-1_900", "FELUCCA SLOOP 2.2", "refuse", "sloop"], ["FM-1_922", "FELUCCA 2.2 BETA", "refuse", "felucca-beta"],
+    ["FM-1_920", "FELUCCA 2.0 BETA", "refuse", "felucca-beta"], ["FM-1_000", null, "refuse", "sloop"],
+    ["FM-1_900", null, "refuse", "unknown"], ["FM-1_920", null, "refuse", "unknown"], ["FM-1_500", null, "refuse", "unknown"],
+    ["FM-1_910", "SOMETHING 3.0", "refuse", "unknown"], ["ota-FM-1_920", null, "loader", "loader"],
+  ];
+  const wrong = cases.filter(([i, v, verdict, kind]) => { const r = classifyFirmware(i, v); return r.verdict !== verdict || r.kind !== kind; });
+  ok(!wrong.length, `fm1ota.js classifyFirmware: ${cases.length} identity / version cases${wrong.length ? " wrong: " + JSON.stringify(wrong) : ""}`);
+  ok(classifyFirmware("FM-1_900", "FELUCCA SLOOP 2.2").name === "Sloop" && classifyFirmware("FM-1_910", "FELUCCA v1.0.1").name === "Felucca v1.0.1" &&
+     classifyFirmware("FM-1_90111", "MELODEE v0.11.1").name === "Melodee (v0.11.1)", "fm1ota.js classifyFirmware: names (Sloop, Felucca v1.0.1, Melodee)");
+  const t = refusalText("Sloop");
+  ok(t.startsWith("Installing over Sloop is not supported: ") && t.includes("with the installer you used for Sloop first, then install ChoralRoot.") &&
+     t.endsWith(RECOVERY_URL) && RECOVERY_URL === "https://github.com/Quixotic7/MvaveFM1Unbricker", "fm1ota.js refusalText: the message and the recovery link");
+}
+
+firmwareGuard();
 await editorMock();
 await editorSamplePresets();
 mockTables();

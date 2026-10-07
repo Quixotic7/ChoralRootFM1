@@ -1,0 +1,66 @@
+# FM6 (docs/FM6.md): the power-on chord sound TINE EP (FM6, Melodee's engine; F1). MAJ + D4 held 1.5 s from 1000 ms
+# (the "before" window of tools/emu/test_cr.sh: 1.2..2.4 s), released. EDIT: the editor's OSC group, screen 1: the
+# six operators (the "OP n" pages as a stack); SELECT +1: OP 2 (OP 1's modulator in algorithm 5), KNOB 1 +20: its
+# LEVEL up to 99 ("deep: part 0 page 1 OP 2 col 0 LEVEL 58 -> 99"); the same chord again from 6970 ms (the "after"
+# window, 7.07..8.27 s): it sounds, brighter (a modulation index many times OP 1's before). ENV: ENV 1 under the "dx" band (shot), KNOB 2 +1 (R2:
+# the segment to L2 lit in KNOB 2's orange, shot); ENV again: ENV 2; FILT (SEL): ALGO; LFO; MOD (SEQ): FUNC; OSC tap:
+# screen 2 (OP n+), tap: screen 3 (SCALE n); EDIT leaves
+wait 500
+dump
+wait 500
+key F3 down
+wait 60
+key A down
+wait 1500
+expect sound
+key A up
+key F3 up
+wait 2000
+btn EDIT
+wait 400
+shot build/emu/test/cr_fm6_osc.ppm
+knob SELECT +1
+wait 250
+knob KNOB1 +20
+wait 300
+shot build/emu/test/cr_fm6_op2.ppm
+wait 1300
+key F3 down
+wait 60
+key A down
+wait 1500
+expect sound
+key A up
+key F3 up
+wait 1000
+btn ENV
+wait 400
+shot build/emu/test/cr_fm6_env.ppm
+knob KNOB2 +1
+wait 100
+shot build/emu/test/cr_fm6_env_hot.ppm
+wait 900
+btn ENV
+wait 400
+shot build/emu/test/cr_fm6_env2.ppm
+btn SEL
+wait 400
+shot build/emu/test/cr_fm6_algo.ppm
+btn LFO
+wait 400
+shot build/emu/test/cr_fm6_lfo.ppm
+btn SEQ
+wait 400
+shot build/emu/test/cr_fm6_func.ppm
+btn FX
+wait 300
+btn FX
+wait 400
+shot build/emu/test/cr_fm6_osc_b.ppm
+btn FX
+wait 400
+shot build/emu/test/cr_fm6_scale.ppm
+btn EDIT
+wait 400
+dump
+quit

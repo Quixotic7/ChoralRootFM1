@@ -5,13 +5,14 @@
  * side, the ChoralRoot UI, storage.c on emu_hal_fw.h's RAM NOR), requests fed to crb_handle as the main loop would,
  * the replies taken at CRB_SEND.
  *   sh tests/run_cr_tests.sh
- * Checks: INFO; LIST of every object (settings, banks, FM6, VA, 10 loops; no sample slots) with sizes and CRCs; GET of
+ * Checks: INFO; LIST of every object (settings, banks, FM6 bank, VA, FM6 patches, 10 loops; no sample slots) with sizes
+ * and CRCs; GET of
  * all of them in 256-byte pieces; a restore of everything onto an erased flash (PUT) gives a LIST and bytes
  * identical to the backup and reloads the mirrors; a CRC error, a short object, a malformed record are refused
  * with nothing written; a playing loop answers busy (3) and the commit goes through once it stops; stale sessions
  * (the UI's buffer, a USB reset, 15 s); Felucca's objects: a PER4 settings record becomes PER5 with ChoralRoot's
- * defaults, the banks and the FM6 bank as they are, ids 0 / 2..5 / 32..34 refused, the SMP_* commands unanswered;
- * RESTART. */
+ * defaults, the banks and the FM6 bank as they are (Felucca 1.0's 27-slot FM6 bank too, imported at the next boot),
+ * ids 0 / 2..5 / 32..34 refused, the SMP_* commands unanswered; RESTART. */
 #include <os/lock.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -239,7 +240,7 @@ int main(void)
     CHECK(!t_send(&n), "an editor command (GET 2) gets no reply");
 
     /* ---- an empty device: every object listed, sizes 0 but the settings ---- */
-    CHECK(t_list() == 0 && nman == 15, "LIST on a fresh flash: 15 objects");
+    CHECK(t_list() == 0 && nman == 17, "LIST on a fresh flash: 17 objects");
     for (i = 0, k = 0; i < nman; i++) k += man[i].size != 0;
     CHECK(k <= 1, "fresh flash: nothing stored (the settings at most)");
 
@@ -251,7 +252,8 @@ int main(void)
         static up_bank_t b;
         static fm6_bank_t f;
         static va_store_t v;
-        uint8_t blob[VA_BLOB];
+        static fm6u_t fu[2];
+        uint8_t blob[VA_BLOB], fb[FM6_BLOB], rec[FM6_PACKED];
         for (k = 0; k < 2; k++) {
             memset(&b, 0, sizeof b);
             b.magic = UP_BANK_MAGIC;
@@ -266,9 +268,24 @@ int main(void)
             CHECK(st_save(OBJ_UPRESET0 + k, &b, sizeof b) == 0, "setup: bank %u", (unsigned)k);
         }
         memset(&f, 0, sizeof f);
-        f.magic = FM6_BANK_MAGIC; f.ver = 1; f.nslot = FM6_BANK_N; f.used = 5;
-        for (i = 0; i < FM6_PACKED; i++) { f.v[0][i] = (uint8_t)(i & 127u); f.v[2][i] = (uint8_t)((i * 3u) & 127u); }
+        f.magic = FM6_BANK_MAGIC; f.ver = FM6_BANK_VER; f.nslot = FM6_BANK_N; f.used = 5;
+        memcpy(f.fn, FM6_FNDEF, FM6_NFN);
+        for (i = 0; i < FM6_PACKED; i++) rec[i] = (uint8_t)(i & 127u);
+        fm6_pack7(f.pk[0], rec, FM6_PACKED);
+        for (i = 0; i < FM6_PACKED; i++) rec[i] = (uint8_t)((i * 3u) & 127u);
+        fm6_pack7(f.pk[2], rec, FM6_PACKED);
         CHECK(fm6_bank_valid(&f) && st_save(OBJ_FM6BANK, &f, sizeof f) == 0, "setup: FM6 bank");
+        trk[1].eng_req = ENGI_FM6;
+        fm6_load_slot(1, 14);                        /* (F15: STRINGS) */
+        fm6_blob_get(&trk[1], fb);
+        CHECK(fm6_blob_ok(fb), "setup: an FM6 blob");
+        for (k = 0; k < 2; k++) {
+            memset(&fu[k], 0, sizeof fu[k]);
+            fu[k].magic = FM6U_MAGIC; fu[k].ver = FM6U_VER; fu[k].nslot = FM6U_HALF; fu[k].first = (uint16_t)(k * FM6U_HALF);
+            fu[k].blob = FM6_BLOB; fu[k].used = 1u << 3;
+            memcpy(fu[k].b[3], fb, FM6_BLOB);
+            CHECK(fm6u_valid(&fu[k], k) && st_save(OBJ_FM6STORE0 + k, &fu[k], sizeof fu[k]) == 0, "setup: FM6 store %u", (unsigned)k);
+        }
         memset(&v, 0, sizeof v);
         v.magic = VA_STORE_MAGIC; v.ver = 3; v.nslot = UP_SLOTS; v.blob = VA_BLOB;
         trk[0].eng_req = ENGI_VA;
@@ -288,15 +305,16 @@ int main(void)
     /* ---- backup: LIST, GET everything, CRCs ---- */
     CHECK(t_capture() == 0, "backup: LIST + GET of every object, each CRC as listed");
     {
-        static const uint8_t ids[15] = {1, 6, 7, 8, 9, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
-        int same = nman == 15;
-        for (i = 0; same && i < 15; i++) same = man[i].id == ids[i];
-        CHECK(same, "LIST: ids 1 6 7 8 9 40..49 in order (no sample slots)");
+        static const uint8_t ids[17] = {1, 6, 7, 8, 9, 10, 11, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+        int same = nman == 17;
+        for (i = 0; same && i < 17; i++) same = man[i].id == ids[i];
+        CHECK(same, "LIST: ids 1 6 7 8 9 10 11 40..49 in order (no sample slots)");
     }
     CHECK(find(man, nman, 1)->size == sizeof(persist_t) && find(man, nman, 6)->size == sizeof(up_bank_t) &&
           find(man, nman, 8)->size == sizeof(fm6_bank_t) && find(man, nman, 9)->size == sizeof(va_store_t) &&
+          find(man, nman, 10)->size == sizeof(fm6u_t) && find(man, nman, 11)->size == sizeof(fm6u_t) &&
           find(man, nman, 40)->size > 16 && find(man, nman, 41)->size == 0 && find(man, nman, 49)->size == CRL_REC_HDR + 2u + 7u * CRL_MAX_EV,
-          "LIST: the sizes (settings PER5, banks, FM6, VA, loops; empty slots 0)");
+          "LIST: the sizes (settings PER5, banks, FM6, VA, FM6 patches, loops; empty slots 0)");
     {
         const persist_t *p = (const persist_t *)find(man, nman, 1)->bytes;
         CHECK(p->magic == PERSIST_MAGIC && p->cr.bpm == 133 && p->cr.tonic == 5, "backup: the settings carry the last change");
@@ -334,8 +352,8 @@ int main(void)
         CHECK(rc == 0 && cr_restore_lock && CR_SETTINGS_BUSY(), "restore: settings committed, the settings saves held until the restart");
     }
     CHECK(up_used(3) && up_used(16 + 4) && cs.loop_used == (1u | 1u << 4 | 1u << 9) &&
-          fm6_bank.used == 5u && va_store.used == (1u << 3 | 1u << 19),
-          "restore: the mirrors reloaded (user sounds, loops, FM6, VA)");
+          fm6_bank.used == 5u && va_store.used == (1u << 3 | 1u << 19) && fm6u[0].used == 1u << 3 && fm6u[1].used == 1u << 3,
+          "restore: the mirrors reloaded (user sounds, loops, FM6, VA, FM6 patches)");
     CHECK(t_capture() == 0 && nman == nref, "restore: LIST + GET again");
     {
         int same = 1;
@@ -367,8 +385,12 @@ int main(void)
         CHECK(t_put(40, bad, o->size) == 2, "a loop record of another version: rc 2");
         o = find(ref, nref, 8);
         memcpy(bad, o->bytes, o->size);
-        bad[100] = 200;                              /* an FM6 byte above 127 */
-        CHECK(t_put(8, bad, o->size) == 2, "an FM6 bank with an 8-bit byte: rc 2");
+        bad[12] = 200;                               /* a function setting out of its range */
+        CHECK(t_put(8, bad, o->size) == 2, "an FM6 bank with a bad function setting: rc 2");
+        o = find(ref, nref, 10);
+        memcpy(bad, o->bytes, o->size);
+        bad[16 + 3 * FM6_BLOB + 112] = 0;            /* slot 4's blob: its magic */
+        CHECK(t_put(10, bad, o->size) == 2, "an FM6 patch store with a bad blob: rc 2");
         CHECK(t_put_data(6, 0, bad, 16) == 5 && t_put_op(2, 6) == 5, "data / commit without a begin: rc 5");
         o = find(ref, nref, 6);
         CHECK(t_put_begin(6, o->size, o->crc) == 0 && t_put_data(6, 256, o->bytes, 256) == 1, "data out of order: rc 1");
@@ -425,7 +447,20 @@ int main(void)
               "Felucca: ids 32..34 (sample slots) refused (rc 1)");
         CHECK(t_smp(11, 0) == -1 && t_smp(14, 0) == -1 && t_smp(11, 2) == -1, "SMP_BEGIN / SMP_ERASE: no reply (no SAMPLE engine)");
         CHECK(t_put(6, find(ref, nref, 6)->bytes, sizeof(up_bank_t)) == 0 && t_put(8, find(ref, nref, 8)->bytes, sizeof(fm6_bank_t)) == 0,
-              "Felucca: user preset banks and the FM6 bank (the same layout) restore");
+              "Felucca: user preset banks and the FM6 bank restore");
+        {   /* Felucca 1.0's FM6 bank (27 unpacked records, version 1): taken, imported at the next boot */
+            static uint8_t fel[16 + 27 * 128];
+            uint8_t v1[FP_SIZE + 1u], rec[FM6_PACKED];
+            memset(fel, 0, sizeof fel);
+            fel[0] = 0x46; fel[1] = 0x4D; fel[2] = 0x36; fel[3] = 0x42;   /* "FM6B" */
+            fel[4] = 1; fel[6] = 27; fel[8] = 1u << 1;                   /* slot 2 used */
+            fm6_unpack(FM6_FACTORY[3], v1);
+            fm6_pack(v1, fel + 16 + 128);
+            CHECK(t_put(8, fel, sizeof fel) == 0, "Felucca 1.0: its 27-slot FM6 bank restores");
+            fm6_bank_boot();
+            CHECK(fm6_bank.used == 1u << 1 && fm6_bank_get(1, rec) == 0 && !memcmp(rec, FM6_FACTORY[3], FM6_PACKED),
+                  "Felucca 1.0: its FM6 bank imported (B2 = the record)");
+        }
         CHECK(t_put(6, 0, 0) == 0 && !up_used(3), "a bank of size 0: emptied");
     }
 
@@ -434,9 +469,9 @@ int main(void)
     a = t_send(&n);
     CHECK(a && n == 1 && a[0] == 0 && crb.reboot, "RESTART: rc 0, the restart scheduled");
 
-    printf("objects: settings %u (PER4 %u), bank %u, FM6 %u, VA %u, loop <= %u bytes\n", (unsigned)sizeof(persist_t),
-           (unsigned)(sizeof(persist_t) - sizeof(cr_settings_t)), (unsigned)sizeof(up_bank_t), (unsigned)sizeof(fm6_bank_t),
-           (unsigned)sizeof(va_store_t), (unsigned)CRL_REC_MAX);
+    printf("objects: settings %u (PER4 %u), bank %u, FM6 %u, VA %u, FM6 patches 2 x %u, loop <= %u bytes\n",
+           (unsigned)sizeof(persist_t), (unsigned)(sizeof(persist_t) - sizeof(cr_settings_t)), (unsigned)sizeof(up_bank_t),
+           (unsigned)sizeof(fm6_bank_t), (unsigned)sizeof(va_store_t), (unsigned)sizeof(fm6u_t), (unsigned)CRL_REC_MAX);
     printf("%s: %d checks, %d failed\n", fails ? "CR BACKUP TESTS FAILED" : "cr backup tests passed", checks, fails);
     return fails ? 1 : 0;
 }

@@ -35,16 +35,25 @@ V15 firmware, `FM-1.fwsc`, which you download yourself from M-VAVE's
 [downloads page](https://www.m-vave.com/download) (or `python3 tools/fm1_install.py FM-1.fwsc --backup .`). It
 saves a backup first: the stock firmware cannot use ChoralRoot's user sounds, loops or settings; reinstall ChoralRoot
 and press Restore to bring them back. Backups move between firmwares too: a Felucca backup restores its settings,
-user sounds and FM6 patches on ChoralRoot (its samples stay in the file: ChoralRoot is all-synth), and back (BUILDING.md, "Backup and restore"). If an install fails
-and the FM-1 no longer starts, recovery needs
-[FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
+user sounds and FM6 patches on ChoralRoot (its samples stay in the file: ChoralRoot is all-synth), and back (BUILDING.md, "Backup and restore").
+
+**Over which firmware:** the stock firmware, Felucca 1.0 or later, Melodee and ChoralRoot. The installers refuse
+Sloop, the Felucca 0.x betas and firmwares they cannot identify: an FM-1 has been bricked by an install over Sloop,
+and Felucca 0.9-beta to 1.0 bricked several (the loader wrote correctly both times; the cause is still open;
+[docs/INSTALL-COMPAT.md](docs/INSTALL-COMPAT.md)). Return to the official V15 with that firmware's installer first.
+
+**If the FM-1 no longer starts** (black screen, the computer shows a USB disk "WL82 UBOOT1.00"):
+[MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker). If it does not show up as that disk either, the
+hardware route is [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
 
 Installing firmware is at your own risk.
 
 ## Status
 
 A first public beta (0.1). The instrument plays: the chord block, Key Mode, the performance modes,
-the bass, the views; the sound editor, the looper, MIDI (USB and TRS) and the VA engine are in. Open: the
+the bass, the views; the sound editor, the looper, MIDI (USB and TRS) and the VA engine are in. The engines: ANALOG,
+FM6 (Melodee's: DX7 voices rendered as Dexed renders them, DX7 SysEx import, [docs/FM6.md](docs/FM6.md)), VA, PHASE,
+LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE. Open: the
 Orchid parity passes (M8: the secret-chord map, chromatic Key Mode quantization, Key Mode sevenths and the
 factory patterns, which ship as labelled fallbacks until they are captured from an Orchid).
 [PLAN.md](PLAN.md) is the plan and the interface specification; [design/](design/) holds the screen and
@@ -73,7 +82,8 @@ Python 3 with Pillow and fontTools, and SDL2; the device build needs Docker and 
 
 ## Licence
 
-GPL-3.0-only ([LICENSE](LICENSE)). Built on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments;
+GPL-3.0-only ([LICENSE](LICENSE)). Built on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments, and its FM6
+from [Melodee](https://github.com/keremimo/melodee) by Kerem Kilic (Ellic Studio);
 the chord logic after the Telepathic Instruments Orchid. The firmware is all-synth (no samples in it: Felucca's
 SAMPLE engine and its CC0 instruments by Versilian Studios stay in the tree for Felucca builds); the package carries three JieLi AC79 SDK files under Apache-2.0. The bundled font, icons,
 ported DSP and SDK files keep their own licences ([LICENSES/](LICENSES/)); [LICENSING.md](LICENSING.md) has

@@ -112,13 +112,39 @@ static const char *ce_suf(const char *t)
             ;
     return t;
 }
-/* pages p and q are of one kind: both numbered with the same suffix ("OSC 1" / "OSC 3"; "OSC 1+" / "OSC 4+") */
+/* pages p and q are of one kind: both numbered, with the same name and suffix ("OSC 1" / "OSC 3"; "OSC 1+" /
+ * "OSC 4+"; FM6's "OP 2" and "SCALE 2" are two kinds) */
 static int ce_kind_eq(const eng_deep_t *d, uint32_t p, uint32_t q)
 {
     const char *a = d->pages[p].title, *b = d->pages[q].title;
     if (!ce_inst(a) || !ce_inst(b))
         return p == q;
+    while (*a && *a != ' ' && cp_up(*a) == cp_up(*b))
+        a++, b++;
+    if (*a != ' ' || *b != ' ')
+        return 0;
     return cp_eq(ce_suf(a), ce_suf(b));
+}
+/* page q (no instance) is page p's "+" page ("LFO" / "LFO+", FM6's "FUNC" / "FUNC+"): one screen of two lanes */
+static int ce_plus_of(const eng_deep_t *d, uint32_t p, uint32_t q)
+{
+    const char *a = d->pages[p].title, *b = d->pages[q].title;
+    if (ce_inst(a) || ce_inst(b) || q != p + 1u)
+        return 0;
+    while (*a && cp_up(*a) == cp_up(*b))
+        a++, b++;
+    return !*a && b[0] == '+' && !b[1];
+}
+/* the section's pages are matrix slots (SRC DST AMT: the VA's MOD 1..8), else plain pages (FM6's FUNC, CTRL) */
+static int ce_is_matrix(const eng_deep_t *d, uint32_t pg)
+{
+    return cp_dcol(&d->pages[pg], "SRC") >= 0 && cp_dcol(&d->pages[pg], "DST") >= 0 &&
+           cp_dcol(&d->pages[pg], "AMT") >= 0;
+}
+/* the screen's pages are a DX envelope: rates R1..R4 (FM6's ENV n, PITCH EG; the "dx" wide band) */
+static int ce_is_dx(const eng_deep_t *d, uint32_t pg)
+{
+    return cp_dcol(&d->pages[pg], "R1") == 0 && cp_dcol(&d->pages[pg], "R4") == 3;
 }
 
 /* a page of no instance whose columns are the instances' ("SYNC1" .. "SYNC4": a label ending in a digit) */
@@ -147,16 +173,21 @@ static uint32_t ce_scr(const track_t *t, uint32_t g, uint32_t k, ce_scr_t *o)
     ce_range(d, g, &a, &b);
     if (g == CE_OSC || g == CE_LFO) {             /* stacks: a screen per kind of page */
         for (p = a; p < b; p++) {
-            for (q = a; q < p && !ce_kind_eq(d, p, q); q++)
+            for (q = a; q < p && !ce_kind_eq(d, p, q) && !ce_plus_of(d, q, p); q++)
                 ;
-            if (q < p)                            /* (a kind seen already) */
+            if (q < p)                            /* (a kind seen already; a "+" page: its page's screen) */
                 continue;
             if (n == k) {
-                if (ce_inst(d->pages[p].title)) {
+                if (ce_inst(d->pages[p].title)) {    /* up to eight instances (FM6: its six operators) */
                     o->type = CE_S_STACK;
-                    for (q = p; q < b && o->n < 4u; q++)
+                    for (q = p; q < b && o->n < CR_ED_ROWS; q++)
                         if (ce_kind_eq(d, p, q))
                             o->pg[o->n++] = (uint8_t)q;
+                } else if (p + 1u < b && ce_plus_of(d, p, p + 1u)) {   /* "LFO" and "LFO+": edit8, two lanes */
+                    o->type = CE_S_EDIT;
+                    o->pg[0] = (uint8_t)p;
+                    o->pg[1] = (uint8_t)(p + 1u);
+                    o->n = 2;
                 } else if (ce_percol(&d->pages[p])) {   /* one page across the instances: lane i = column i */
                     o->type = CE_S_TRANS;
                     o->pg[0] = (uint8_t)p;
@@ -171,7 +202,10 @@ static uint32_t ce_scr(const track_t *t, uint32_t g, uint32_t k, ce_scr_t *o)
             }
             n++;
         }
-        if (g == CE_OSC && ce_inst(d->pages[a].title) && cp_dcol(&d->pages[a], "LEVEL") >= 0) {   /* the mixer */
+        for (q = a, e = 0; q < b; q++)
+            e += (uint32_t)ce_kind_eq(d, a, q);
+        if (g == CE_OSC && ce_inst(d->pages[a].title) && cp_dcol(&d->pages[a], "LEVEL") >= 0 && e <= 4u) {
+            /* the mixer (four tall bars: the oscillators' LEVEL; more than four (FM6's six): the stack has them) */
             if (n == k) {
                 o->type = CE_S_MIXER;
                 for (q = a; q < b && o->n < 4u; q++)
@@ -182,7 +216,7 @@ static uint32_t ce_scr(const track_t *t, uint32_t g, uint32_t k, ce_scr_t *o)
         }
         return n ? n : 1u;
     }
-    if (g == CE_MOD) {                            /* the matrix: eight slots a screen */
+    if (g == CE_MOD && ce_is_matrix(d, a)) {      /* the matrix: eight slots a screen */
         for (p = a; p < b; p += CR_ED_ROWS, n++)
             if (n == k) {
                 o->type = CE_S_STACK;
@@ -191,7 +225,8 @@ static uint32_t ce_scr(const track_t *t, uint32_t g, uint32_t k, ce_scr_t *o)
             }
         return n ? n : 1u;
     }
-    for (p = a; p < b; p = e) {                   /* FILT, ENV: the pages of one instance, two lanes a screen */
+    for (p = a; p < b; p = e) {                   /* FILT, ENV (and MOD's plain pages): the pages of one instance,
+                                                   * two lanes a screen */
         for (e = p; e < b && ce_inst(d->pages[e].title) == ce_inst(d->pages[p].title); e++)
             ;
         for (q = p; q < e; q += 2u, n++)
@@ -331,7 +366,10 @@ static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
         }
         for (c = 0; c < 4u; c++)
             ce_head(t, d, v, c, v->head[c], sizeof v->head[c]);
-        cu_cpy(v->right, CE_SEC_NAME[g], sizeof v->right);
+        cu_cpy(v->right, d->pages[sc.pg[0]].title, sizeof v->right);   /* the pages' name: "OSC", FM6's "OP", "SCALE" */
+        for (c = 0; v->right[c] && v->right[c] != ' '; c++)
+            ;
+        v->right[c] = 0;
         cu_cat(v->right, " ", sizeof v->right);
         ce_cat_num(v->right, ln + 1u, sizeof v->right);
         cu_cat(v->right, k ? " \267 B" : " \267 A", sizeof v->right);
@@ -369,7 +407,18 @@ static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
         for (i = 0; i < sc.n; i++)
             for (c = 0; c < 4u; c++)
                 v->ref[i][c] = d->pages[sc.pg[i]].col[c].label ? ce_r(CE_R_DEEP, sc.pg[i], c) : ce_r(CE_R_NONE, 0, 0);
-        if (g == CE_ENV) {
+        if (g == CE_ENV && ce_is_dx(d, sc.pg[0])) {   /* FM6: R1..R4 / L1..L4 under the "dx" band */
+            uint32_t n = ce_inst(d->pages[sc.pg[0]].title);
+            v->wide = CR_W_DX;
+            v->dp0 = sc.pg[0];
+            v->np = sc.n;
+            if (n) {
+                cu_cpy(v->right, "ENV ", sizeof v->right);
+                ce_cat_num(v->right, n, sizeof v->right);
+            } else {
+                cu_cpy(v->right, d->pages[sc.pg[0]].title, sizeof v->right);   /* "PITCH EG" */
+            }
+        } else if (g == CE_ENV) {
             uint32_t n = ce_inst(d->pages[sc.pg[0]].title);
             v->wide = CR_W_ENV;
             v->dp0 = sc.pg[0];
@@ -380,6 +429,9 @@ static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
                 cu_cat(v->right, " \267 ", sizeof v->right);
                 cu_cat(v->right, ROLE[n - 1u], sizeof v->right);
             }
+        } else if (g != CE_FILT || cp_dcol(&d->pages[sc.pg[0]], "CUT") < 0) {   /* no filter (FM6's ALGO, LFO,
+                                                                              * FUNC): no band, the page's title */
+            cu_cpy(v->right, d->pages[sc.pg[0]].title, sizeof v->right);
         } else {
             uint32_t a, b;
             ce_range(d, CE_FILT, &a, &b);
@@ -1048,9 +1100,15 @@ static void ce_band(const track_t *t, const ce_view_t *vw, uint8_t *o)
     const eng_deep_t *d = cp_deep(t);
     uint32_t i;
     int32_t k, pg;
-    for (i = 0; i < 5u; i++)
+    for (i = 0; i < 10u; i++)
         o[i] = 0;
-    if (vw->wide == CR_W_ENV && d && ce_deep(t) && vw->np) {
+    if (vw->wide == CR_W_DX && d && vw->np) {               /* FM6: R1..R4 on the first page, L1..L4 on the second */
+        for (i = 0; i < 4u; i++) {
+            o[i] = (uint8_t)clamp(d->get(t, vw->dp0, i), 0, 99);
+            o[4u + i] = vw->np > 1u ? (uint8_t)clamp(d->get(t, vw->dp0 + 1u, i), 0, 99) : 99u;
+        }
+        o[9] = !ce_inst(d->pages[vw->dp0].title);           /* (no instance: the pitch EG) */
+    } else if (vw->wide == CR_W_ENV && d && ce_deep(t) && vw->np) {
         for (i = 0; i < 5u; i++)
             for (pg = vw->dp0; pg < vw->dp0 + vw->np; pg++)
                 if ((k = cp_dcol(&d->pages[pg], EL[i])) >= 0)
@@ -1092,6 +1150,9 @@ static uint32_t ce_seg(const track_t *t, ce_ref_t r)
     uint32_t i;
     if (!(d = ce_param(t, r, &v)))
         return 0;
+    if (r.k == CE_R_DEEP && (d->label[0] == 'R' || d->label[0] == 'L') && d->label[1] >= '1' && d->label[1] <= '4' &&
+        !d->label[2])                                          /* FM6's R1..R4 / L1..L4: the segment they end */
+        return (uint32_t)(d->label[1] - '0');
     for (i = 0; i < 5u; i++)
         if (r.k == CE_R_TRK ? r.a == ID[i] : cp_eq(d->label, EL[i]))
             return i + 1u;
@@ -1130,7 +1191,7 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     track_t *t = ce_trk();
     uint32_t p = ce.part & 1u, r, c, g;
     ce_view_t vw;
-    uint8_t band[5], mc[CE_NDST];
+    uint8_t band[10], mc[CE_NDST];
     ce_view(t, p, &vw);
     g = cx.grp[p] % CE_NSEC;
     s->kind = vw.kind;
@@ -1186,9 +1247,11 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     }
     if (vw.wide) {                                /* the band: its values as they are (no tween: the knob leads) */
         ce_band(t, &vw, band);
-        for (c = 0; c < (vw.wide == CR_W_ENV ? 5u : 4u); c++)
+        for (c = 0; c < (vw.wide == CR_W_DX ? 10u : vw.wide == CR_W_ENV ? 5u : 4u); c++)
             s->wv[c] = band[c];
         if (vw.wide == CR_W_ENV && s->hot_r)
             s->wv[5] = (uint8_t)ce_seg(t, vw.ref[(s->hot_r - 1u) % CR_ED_ROWS][s->hot_c & 3u]);
+        if (vw.wide == CR_W_DX && s->hot_r)       /* the segment the cell turned ends (R k, L k: k) */
+            s->wv[8] = (uint8_t)ce_seg(t, vw.ref[(s->hot_r - 1u) % CR_ED_ROWS][s->hot_c & 3u]);
     }
 }

@@ -272,7 +272,23 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         fmt_int(val, v);
         *unit = "STEP";
         break;
-    default:
+    case F_OFS: {                                     /* FM6: 0 at the middle of the range (DTN -7..7, TRNS +-24) */
+        int32_t o = v - (d->min + d->max) / 2;
+        if (o > 0) {
+            val[0] = '+';
+            fmt_int(val + 1, o);
+        } else {
+            fmt_int(val, o);
+        }
+        if (d->unit)
+            *unit = d->unit;
+        break;
+    }
+    case F_FMNOTE:                                    /* the DX7 break point: 0 = A-1, 39 = C3 (MIDI 60) */
+        str_cpy(val, N_NOTE[(v + 21) % 12], 6);
+        fmt_int(val + str_len(val), (v + 21) / 12 - 1);
+        break;
+    default:                                          /* (F_FMFRQ: Melodee's operator pages; here its number) */
         if (d->names) {                               /* F_INT with a 0-terminated name list: the range */
             uint32_t k = 0;                           /* split evenly over the names (engine desc hooks) */
             while (d->names[k])

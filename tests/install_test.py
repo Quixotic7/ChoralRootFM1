@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import fm1_install as I  # noqa: E402
 
-I.DELAY.update(open=0, start=0.01, reply=0, loader=0.01, reboot=0.01, retry=0.02, poll=0.05, hs=0.1,
+I.DELAY.update(open=0, start=0.01, reply=0, loader=0.01, reboot=0.01, retry=0.02, poll=0.05, hs=0.1, info=0.2,
                idle_check=0.4, idle_write=0.4, wait_loader=2, wait_reboot=2)
 failed = 0
 
@@ -235,6 +235,87 @@ def cli(args, dev, answer=True):
 
 # ------------------------------------------------------------------- tests ---
 
+# which firmware ChoralRoot is installed over (docs/INSTALL-COMPAT.md): identity + INFO version -> verdict.
+# The same cases run through web/fm1ota.js classifyFirmware below (against_js_guard) and in web/test_installer.mjs.
+GUARD_CASES = [
+    ("FM-1_015", None, "allow", "stock"),                       # the official V15
+    ("FM-1_014", None, "allow", "stock"),                       # an older official firmware
+    ("FM-1_920", "ChoralRoot 0.12", "allow", "choralroot"),
+    ("FM-1_920", "ChoralRoot 1.0-rc1", "allow", "choralroot"),
+    ("FM-1_910", "FELUCCA v1.0", "allow", "felucca"),            # Felucca 1.0 (felucca.c FELUCCA_VERSION)
+    ("FM-1_910", "FELUCCA v1.0.1", "allow", "felucca"),
+    ("FM-1_910", "FELUCCA 1.0", "allow", "felucca"),
+    ("FM-1_911", "FELUCCA v1.1-rc1", "allow", "felucca"),
+    ("FM-1_90111", "MELODEE v0.11.1", "allow", "melodee"),        # Melodee (a Felucca 1.0 fork)
+    ("FM-1_910", "MELODEE v1.0", "allow", "melodee"),
+    ("FM-1_909", "FELUCCA 0.9-BETA", "refuse", "felucca-beta"),  # Felucca 0.9-beta (build.py --release 0.9-beta)
+    ("FM-1_905", "FELUCCA 0.5 BETA", "refuse", "felucca-beta"),
+    ("FM-1_900", "FELUCCA SLOOP 2.2", "refuse", "sloop"),        # Sloop's dev build (ui.c FELUCCA_VERSION)
+    ("FM-1_922", "FELUCCA 2.2 BETA", "refuse", "felucca-beta"),  # Sloop --release 2.2 (0.9-era build.py)
+    ("FM-1_920", "FELUCCA 2.0 BETA", "refuse", "felucca-beta"),  # Sloop 2.0: ChoralRoot's identity, told apart by INFO
+    ("FM-1_000", None, "refuse", "sloop"),                      # Sloop's rescue mode
+    ("FM-1_900", None, "refuse", "unknown"),                    # a 9xx firmware without the backup protocol
+    ("FM-1_920", None, "refuse", "unknown"),
+    ("FM-1_500", None, "refuse", "unknown"),
+    ("FM-1_910", "SOMETHING 3.0", "refuse", "unknown"),
+    ("ota-FM-1_920", None, "loader", "loader"),                 # update mode: the resume path
+]
+
+
+def guard():
+    bad = [(i, v, I.classify_firmware(i, v)[:2]) for i, v, verdict, kind in GUARD_CASES
+           if I.classify_firmware(i, v)[:2] != (verdict, kind)]
+    ok(not bad, f"classify_firmware: {len(GUARD_CASES)} identity / version cases{'; wrong: ' + repr(bad) if bad else ''}")
+    raw = package("FM-1_920")
+    image = I.logical_image(raw)
+    p = pkgfile("cr_guard.fwsc", raw)
+
+    def over(identity, version, *extra, answer=True):
+        side = BackupSide(version, I.FELUCCA_IDS) if version else None
+        dev = FakeFM1(image, identity=identity, after_write="FM-1_920", bk=lambda i: side if i == identity else None)
+        return (*cli([p, "--yes", *extra], dev, answer), dev)
+
+    rc, out, err, dev = over("FM-1_900", "FELUCCA SLOOP 2.2")
+    ok(rc == 8 and dev.upgrades == 0 and "Installing over Sloop is not supported" in err and I.RECOVERY_URL in err
+       and "official V15" in err and "--force" in err, "over Sloop: refused (exit 8), nothing written, recovery link")
+    rc, out, err, dev = over("FM-1_900", "FELUCCA SLOOP 2.2", "--force")
+    ok(rc == 0 and dev.identity == "FM-1_920" and dev.bad == 0 and "--force: installing over Sloop anyway" in out,
+       "over Sloop with --force: installed, the override said")
+    rc, out, err, dev = over("FM-1_909", "FELUCCA 0.9-BETA")
+    ok(rc == 8 and dev.upgrades == 0 and "Felucca beta" in err and "0.9-BETA" in err, "over Felucca 0.9-beta: refused (exit 8)")
+    rc, out, err, dev = over("FM-1_000", None)
+    ok(rc == 8 and dev.upgrades == 0 and "rescue mode" in err, "over Sloop's rescue mode (FM-1_000): refused")
+    rc, out, err, dev = over("FM-1_900", None)
+    ok(rc == 8 and dev.upgrades == 0 and "unknown" in err, "over a 9xx firmware that does not answer INFO: refused")
+    for ident, ver in (("FM-1_910", "FELUCCA v1.0.1"), ("FM-1_90111", "MELODEE v0.11.1"), ("FM-1_920", "ChoralRoot 0.12"),
+                       ("FM-1_015", None)):
+        rc, out, err, dev = over(ident, ver)
+        ok(rc == 0 and dev.identity == "FM-1_920" and dev.bad == 0 and (not ver or ver in out),
+           f"over {ver or 'the stock ' + ident}: installed")
+    side = BackupSide("FELUCCA SLOOP 2.2", I.FELUCCA_IDS)
+    rc, out, err = cli(["--info"], FakeFM1(image, identity="FM-1_900", bk=lambda _i: side))
+    ok(rc == 0 and "FELUCCA SLOOP 2.2" in out and "not installed over Sloop" in out, "--info: version and the verdict")
+
+
+def against_js_guard():
+    if not shutil.which("node"):
+        print("classify_firmware vs fm1ota.js: skipped (needs node)")
+        return
+    import json
+    js = ("import { classifyFirmware } from %r; const c = JSON.parse(process.argv[1]);"
+          "process.stdout.write(JSON.stringify(c.map(([i, v]) => { const r = classifyFirmware(i, v);"
+          " return [r.verdict, r.kind, r.name]; })));") % str(ROOT / "web/fm1ota.js")
+    r = subprocess.run(["node", "--input-type=module", "-e", js, json.dumps([[i, v] for i, v, _, _ in GUARD_CASES])],
+                       capture_output=True, check=True)
+    got = [tuple(x) for x in json.loads(r.stdout)]
+    want = [I.classify_firmware(i, v) for i, v, _, _ in GUARD_CASES]
+    ok(got == want, "classify_firmware == fm1ota.js classifyFirmware (verdict, kind, name)")
+    r = subprocess.run(["node", "--input-type=module", "-e",
+                        "import { refusalText } from %r; process.stdout.write(refusalText('Sloop'));" % str(ROOT / "web/fm1ota.js")],
+                       capture_output=True, check=True)
+    ok(r.stdout.decode() == I.refusal_text("Sloop"), "refusal_text == fm1ota.js refusalText")
+
+
 def wire():
     data = bytes(range(256)) * 3
     ok(I.unpack7(I.pack7(data))[:len(data)] == data, "pack7 / unpack7 round trip")
@@ -418,6 +499,8 @@ backups()
 installs()
 errors()
 against_js()
+guard()
+against_js_guard()
 official()
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"INSTALL TESTS FAILED ({failed})" if failed else "install tests passed")

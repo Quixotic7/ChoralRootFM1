@@ -23,8 +23,27 @@
 #include "eng_drum.c"           /* DRUM: the 8-lane kit (drum_voice.c) */
 #endif
 #include "eng_noise.c"
-#include "eng_fm6.c"            /* FM6: 6-operator FM, msfa ported (fm6_core.c, Apache-2.0) */
+#include "eng_fm6.c"            /* FM6: 6-operator FM rendered as Dexed renders it (fm6_core.c; Melodee's, Kerem Kilic) */
 #include "fm4_convert.c"        /* DIGITAL's tables, and its sounds -> FM6 */
+
+/* the engines' runtime state of a part (Melodee's voice model). A part renders one engine at a time (an engine switch
+ * fades the old one out first, voice.c engine_block), so their states share one block per part, cleared at every
+ * switch: an engine finds its state as at power-on (the pool section is zeroed at boot). PHYS's voice slots, WHEEL's
+ * part and voices, FM6's 16 voices and controllers. The patch of a part (FM6's, the VA's) is not in here; nor are the
+ * states of the engines ChoralRoot does not build (DRUM, GRAIN, SLICE keep their own: Felucca's unit) */
+static union {
+    phys_slot_t phys[PHYS_POLY];
+    drw_part_t wheel;
+    fm6_part_t fm6;
+} eng_state[NPART] __attribute__((section(".pool")));
+static phys_slot_t *phys_slots(uint32_t part) { return eng_state[part % NPART].phys; }
+static drw_part_t *drw_of(const track_t *t) { return &eng_state[(uint32_t)(t - trk) % NPART].wheel; }
+static fm6_part_t *fm6_part(uint32_t part) { return &eng_state[part % NPART].fm6; }
+static void eng_state_clear(uint32_t part)
+{
+    if (part < NPART)
+        memset(&eng_state[part], 0, sizeof eng_state[part]);
+}
 
 /* a retired engine's slot (FELUCCA_SAMPLE / GRAIN / DRUM 0, ChoralRoot): no DSP, no presets, silent, never offered
  * (eng_ok: PRESETS, the EDIT layer, the pickers skip it); its number stays reserved (the stores hold numbers) */

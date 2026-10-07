@@ -26,7 +26,8 @@ install finishes the write. Needs mido with python-rtmidi.
 Exit codes: 0 done, 1 cancelled or other error, 2 bad arguments or package,
 3 FM-1 not found, 4 connection lost or the device stopped, 5 timeout (no
 loader / no restart), 6 wrong model, or another identity after the install,
-7 the backup or restore failed (or the firmware has no backup protocol).
+7 the backup or restore failed (or the firmware has no backup protocol), 8 the running firmware is one ChoralRoot
+is not installed over (Sloop, the Felucca 0.x betas, unknown ones: docs/INSTALL-COMPAT.md; --force overrides).
 """
 import argparse
 import hashlib
@@ -48,11 +49,11 @@ PORT_RE = re.compile(r"fm-1|felucca|ota|composite|sinco|usb-midi", re.I)   # nev
 
 # seconds; the tests shorten them
 DELAY = {"open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0, "retry": 1.0,
-         "poll": 1.0, "hs": 1.0, "idle_check": 8.0, "idle_write": 180.0,
+         "poll": 1.0, "hs": 1.0, "info": 1.5, "idle_check": 8.0, "idle_write": 180.0,
          "wait_loader": 30.0, "wait_reboot": 40.0}
 
 EXIT = {"usage": 2, "badpkg": 2, "badbackup": 2, "notfound": 3, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
-        "nobackup": 7, "backup": 7,
+        "nobackup": 7, "backup": 7, "unsupported": 8,
         "noloader": 5, "noreturn": 5, "mismatch": 6}
 
 
@@ -147,6 +148,54 @@ def logical_image(raw):
 
 def model_of(text):
     return text.split("_")[0].removeprefix("ota-")
+
+
+# which firmware runs: may ChoralRoot be installed over it? The same table as web/fm1ota.js classifyFirmware
+# (docs/INSTALL-COMPAT.md). identity: the handshake text; info: the backup protocol's INFO version, None when the
+# firmware does not answer. The 9xx identities are shared by every Felucca-based firmware (Felucca 0.9-beta FM-1_909,
+# Felucca 1.0 FM-1_910, Sloop 2.0 FM-1_920 = ChoralRoot's), so they are told apart by the INFO text only.
+RECOVERY_URL = "https://github.com/Quixotic7/MvaveFM1Unbricker"
+REFUSE_REASON = "An install over it has left an FM-1 that no longer starts, and the data it leaves in the flash is not known to be safe for ChoralRoot."
+
+
+def classify_firmware(identity, info):
+    """-> (verdict "allow" | "refuse" | "loader", kind, name)"""
+    m = re.fullmatch(r"(ota-)?([^_]+)_(\d+)", identity or "", re.I)
+    v = (info or "").strip()
+    if not m:
+        return "refuse", "unknown", f"an unknown firmware ({identity or 'no identity'})"
+    if m[1]:
+        return "loader", "loader", identity
+    num = int(m[3])
+    if m[2] != "FM-1":
+        return "refuse", "unknown", identity
+    if 1 <= num < 100:
+        return "allow", "stock", f"the official M-VAVE firmware ({identity})"
+    if num == 0:
+        return "refuse", "sloop", "Sloop's rescue mode (FM-1_000)"
+    if num < 900:
+        return "refuse", "unknown", f"an unknown firmware ({identity})"
+    if re.match(r"choralroot\b", v, re.I):
+        return "allow", "choralroot", v
+    if re.match(r"melodee\b", v, re.I):
+        return "allow", "melodee", f"Melodee ({v[8:]})"
+    if re.search(r"sloop", v, re.I):
+        return "refuse", "sloop", "Sloop"
+    f = re.fullmatch(r"felucca\s+(v)?(\d+)\.(\d+)(\S*)", v, re.I)
+    # Felucca 1.0 and later: "v1.0", "v1.0.1", "v1.1-rc1" (build.py "v" + release); the 0.x betas: "0.9-BETA", "0.5 BETA"
+    if f and int(f[2]) >= 1 and not re.search(r"beta", v, re.I) and (f[1] or not f[4]):
+        return "allow", "felucca", f"Felucca {f[1] or 'v'}{f[2]}.{f[3]}{f[4]}"
+    if re.match(r"felucca\b", v, re.I):
+        return "refuse", "felucca-beta", f"a Felucca beta or a firmware based on one ({v})"
+    if v:
+        return "refuse", "unknown", f"an unknown firmware ({identity}, {v})"
+    return "refuse", "unknown", f"an unknown Felucca-based firmware ({identity})"
+
+
+def refusal_text(name):
+    return (f"Installing over {name} is not supported: {REFUSE_REASON} "
+            f"Return to the official V15 firmware with the installer you used for {name} first, then install ChoralRoot. "
+            f'If an FM-1 is already dark (black screen, a "WL82 UBOOT1.00" USB disk): {RECOVERY_URL}')
 
 
 # ------------------------------------------------------------------ MIDI ---
@@ -515,7 +564,7 @@ def bk_manifest(a):
 def device_info(bl):
     """INFO -> (version, family), or None when the firmware does not answer"""
     try:
-        a = bl.request(BK_INFO, [], 1.5)
+        a = bl.request(BK_INFO, [], DELAY["info"])
     except BackupError:
         return None
     v = bytes(a[:a.index(0)] if 0 in a else a).decode("latin-1")
@@ -754,7 +803,7 @@ def load_package(path, force):
         raise InstallError("badpkg", f"{path}: no Felucca update loader in this package; only Felucca's own "
                                      "packages and the unmodified official V15 (FM-1.fwsc) are installed "
                                      "(--force overrides)")
-    return product, logical_image(raw)
+    return product, logical_image(raw), official
 
 
 def not_found(up):
@@ -795,21 +844,37 @@ def run(a, backend, out, ask):
         dev = up.find()
         if not dev:
             raise not_found(up)
+        info = None if dev.id.loader else device_info(BackupLink(dev.link))
         dev.link.close()
         mode = "update loader (update not finished)" if dev.id.loader else "running"
-        print(f"{dev.id.text}  [{mode}]  port: {dev.name}", file=out)
+        print(f"{dev.id.text}  [{mode}]  port: {dev.name}" + (f"  version: {info[0]}" if info else ""), file=out)
+        if not dev.id.loader:
+            verdict, _kind, name = classify_firmware(dev.id.text, info and info[0])
+            print(f"ChoralRoot can be installed over {name}" if verdict == "allow" else
+                  f"ChoralRoot is not installed over {name} (docs/INSTALL-COMPAT.md)", file=out)
         return 0
     if not a.package:                             # backup and / or restore only
         if a.backup:
             run_backup(up, a.backup, out)
         return run_restore(up, a.restore, out, ask, a.yes) if a.restore else 0
-    product, image = load_package(a.package, a.force)
+    product, image, official = load_package(a.package, a.force)
     print(f"package: {product}  ({a.package})", file=out)
     dev = up.find()
     if not dev:
         raise not_found(up)
-    print(f"device:  {dev.id.text}  ({dev.name})" + ("  in update mode: the write will be finished" if dev.id.loader else ""),
-          file=out)
+    version = None
+    if not dev.id.loader and not official and model_of(dev.id.text) == model_of(product):
+        info = device_info(BackupLink(dev.link))     # the version text tells the Felucca-based firmwares apart
+        version = info and info[0]
+    print(f"device:  {dev.id.text}  ({dev.name})" + (f"  {version}" if version else "") +
+          ("  in update mode: the write will be finished" if dev.id.loader else ""), file=out)
+    if not dev.id.loader and not official and model_of(dev.id.text) == model_of(product):
+        verdict, _kind, name = classify_firmware(dev.id.text, version)   # (the return to V15 is always allowed)
+        if verdict == "refuse" and not a.force:
+            dev.link.close()
+            raise InstallError("unsupported", refusal_text(name) + "\n  (--force installs anyway, at your own risk)")
+        if verdict == "refuse":
+            print(f"--force: installing over {name} anyway, although it is not supported", file=out)
     if not a.yes and not ask("Install? Do not unplug the FM-1 while writing. [y/N] "):
         dev.link.close()
         print("cancelled", file=out)
@@ -850,7 +915,8 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     ap.add_argument("--info", action="store_true", help="print the identity of the connected FM-1")
     ap.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
     ap.add_argument("--yes", action="store_true", help="do not ask for confirmation")
-    ap.add_argument("--force", action="store_true", help="install a package without the Felucca loader marker")
+    ap.add_argument("--force", action="store_true", help="install a package without the Felucca loader marker, or over a "
+                                                         "firmware ChoralRoot does not support installing over (at your own risk)")
     ap.add_argument("--backup", metavar="FILE", help="save a backup of the FM-1 to FILE (a directory: a dated name) "
                                                      "before the install, or alone")
     ap.add_argument("--restore", metavar="FILE", help="restore a backup FILE onto the FM-1 (after the install, or alone)")

@@ -65,10 +65,10 @@
 #                   (src/fm4_convert.c): routes and carriers per algorithm, the presets' PTCH, and the sound (pitch,
 #                   centroid, RMS envelope) of its presets and algorithms; demos in build/fm4_demo/. tests/digital_test.c
 #                   (FELUCCA_FM4=1 too): DIGITAL's operator envelopes. Default builds have no DIGITAL (engine 1 reserved).
-# FM6 (tests/fm6_test.c): the 6-operator FM engine (src/eng_fm6.c, src/fm6_core.c): the 32 algorithms' carriers, the
-#                   operator envelopes (stages, rates, the voice ending), bit-stable notes, a click-free retrigger, no DC /
-#                   clipping over the factory patches, the macros' directions, PTCH, pack / unpack and the SysEx
-#                   layouts, the 6-voice cap, the cost per voice; demos in build/fm6_demo/.
+# FM6 (tests/fm6_test.c, Melodee's): the engine (src/eng_fm6.c, src/fm6_core.c, Melodee's: Dexed's rendering): DX7
+#                   SysEx framing, the 32 algorithms against the DX7 diagrams, the 24 factory patches through pack /
+#                   unpack and the bank / voice SysEx, pitch, levels, envelopes, modulation, no DC / clipping, the
+#                   macros, Dexed's 16 voices, the cost per voice; demos in build/fm6_demo/.
 # Change baseline entries only for reviewed, intentional differences in sound or cost;
 # retain every unaffected golden / CPU / target entry. VERBOSE=1: every render.
 set -e
@@ -202,7 +202,7 @@ if [ -f build/gen/felucca_tables.h ]; then
     run "NOISE: colour slopes, key-tracked filter and clock, META period, DC, clipping, retrigger, cost, demos" "$OUT/noise_test" build/noise_demo
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm
     mkdir -p build/fm6_demo
-    run "FM6: algorithms, envelopes, retrigger, DC, clipping, macros, patch formats, voices, cost, demos" "$OUT/fm6_test" build/fm6_demo
+    run "FM6 (Melodee's test): SysEx, algorithms, patches, pitch, levels, envelopes, modulation, DC, macros, voices, cost, demos" "$OUT/fm6_test" build/fm6_demo
     # SLICE is in the standard build (firmware/src/core.h): its test always runs (after #22 by andreahaku)
     if grep -q '^#define SLC_BREAK_BPM ' build/gen/felucca_samples.h; then
         mkdir -p build/slice_demo

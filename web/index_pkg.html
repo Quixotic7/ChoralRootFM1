@@ -72,14 +72,22 @@
   <p class="small" data-t="direct"></p>
   <p class="small" data-t="over"></p>
   <p class="small" data-t="beta"></p>
-  <p class="small"><span data-t="brick"></span>
-    <a href="https://github.com/kurogedelic/FM-1-transporter" target="_blank" rel="noopener">github.com/kurogedelic/FM-1-transporter</a></p>
+  <p class="small" data-t="brick"></p>
   <p class="small" data-t="backupFirst"></p>
   <button id="go" disabled data-t="install"></button>
   <label class="check"><input id="skip-backup" type="checkbox"><span data-t="skipBackup"></span></label>
+  <label class="check" id="force-box" hidden><input id="force-risk" type="checkbox"><span data-t="forceRisk"></span></label>
   <progress id="bar" max="100" value="0"></progress>
   <p id="status"></p>
   <pre id="log"></pre>
+  <details id="dark">
+    <summary data-t="darkTitle"></summary>
+    <p class="small" data-t="darkCable"></p>
+    <p class="small" data-t="darkText"></p>
+    <p class="small"><a href="https://github.com/Quixotic7/MvaveFM1Unbricker" target="_blank" rel="noopener">github.com/Quixotic7/MvaveFM1Unbricker</a></p>
+    <p class="small" data-t="darkTransporter"></p>
+    <p class="small"><a href="https://github.com/kurogedelic/FM-1-transporter" target="_blank" rel="noopener">github.com/kurogedelic/FM-1-transporter</a></p>
+  </details>
   <section class="bk">
     <h2 data-t="bkTitle"></h2>
     <p class="small" data-t="bkText"></p>
@@ -119,7 +127,7 @@ const TEXT = {
     warn: "Do not unplug the USB cable while writing.",
     install: "Install",
     direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
-    over: "Installing over the stock firmware or Felucca replaces it; the FM-1 reports FM-1_920 afterwards. An interrupted install is resumed by pressing Install again.",
+    over: "Installing over the stock firmware, Felucca 1.0 or later, Melodee or ChoralRoot replaces it; the FM-1 reports FM-1_920 afterwards. Over Sloop, the Felucca 0.x betas and other firmwares the installer stops: return to the official V15 first. An interrupted install is resumed by pressing Install again.",
     backupFirst: "Install first saves a backup of what is stored on the FM-1 (user sounds, loops, settings, FM6 patches) to a file on this computer. Felucca and ChoralRoot can be backed up; the stock firmware cannot.",
     skipBackup: "Skip the backup (I already saved one, or the FM-1 runs the stock firmware)",
     bkTitle: "Back up and restore",
@@ -134,7 +142,13 @@ const TEXT = {
     restoring: "Restoring ", restoreBusy: "Stop the loop on the FM-1 to continue the restore",
     restored: "Restored: ", restoreSkipped: " (not used by this firmware, kept in the file: ", badBackup: "Not a usable backup file: ",
     cancelled: "Cancelled. Nothing was written.",
-    brick: "If an install fails and the FM-1 no longer starts, recovering it needs FM-1-transporter:",
+    brick: "If an install fails and the FM-1 no longer starts, see \"Device not found?\" below.",
+    forceRisk: "I understand the risk: install over this firmware anyway",
+    forceConfirm: "Install ChoralRoot over {name} anyway? This is not supported, and an install like it has left an FM-1 that no longer starts (recovery: github.com/Quixotic7/MvaveFM1Unbricker). Continue only if you can recover the FM-1 yourself.",
+    darkTitle: "Device not found?",
+    darkCable: "Check the USB cable (a data cable, directly on the computer, not through a hub), close other apps that use MIDI, switch the FM-1 on and press Install again.",
+    darkText: "If the FM-1's screen stays black and the computer shows a USB disk named \"WL82 UBOOT1.00\" (USB ID 4C4A:8057) instead of the FM-1, the FM-1 is in the chip's ROM boot mode: the firmware on it does not start, and this page cannot reach it. Do not format that disk. Recovery tools and a guide that put the official V15 back over the same USB cable:",
+    darkTransporter: "If it does not show up as WL82 UBOOT1.00 either, the hardware route is the FM-1 Transporter (an RP2040 board on the USB lines):",
     beta: "ChoralRoot {version} is a first public beta; please report problems on GitHub. Installing firmware is at your own risk: the authors accept no responsibility if your FM-1 is damaged or misbehaves.",
     back: "Get the official FM-1 V15 firmware from M-VAVE and select the unmodified FM-1.fwsc. The browser checks the file locally; it is not sent to a server.",
     stockTitle: "Return to official V15", stockFile: "Official FM-1.fwsc", stockGo: "Back up and return to official V15",
@@ -179,7 +193,7 @@ let writing = false, stock = null, stockFileEpoch = 0, restoreArc = null, restor
 const midiOk = !!navigator.requestMIDIAccess;
 const lockInstaller = (on) => {
   writing = on; $("go").disabled = on || !image; $("stock-go").disabled = on || !stock; $("stock-file").disabled = on;
-  $("stock-recovery").disabled = on; $("skip-backup").disabled = on; $("backup-go").disabled = on || !midiOk;
+  $("stock-recovery").disabled = on; $("skip-backup").disabled = on; $("force-risk").disabled = on; $("backup-go").disabled = on || !midiOk;
   $("restore-go").disabled = on || !midiOk || !restoreArc; $("restore-file").disabled = on;
 };
 window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
@@ -224,6 +238,18 @@ async function restoreArchive(up, archive) {
     log(`restored ${r.restored.join(" ")}; skipped ${r.skipped.join(" ") || "none"}`);
   } finally { link.close(); }
 }
+// the running firmware (handshake identity + INFO version) -> fm1ota.js classifyFirmware, or null (no FM-1 or another
+// model: Updater.install says why)
+async function identify(up) {
+  const dev = await up.find((id) => !/^ota-/i.test(id.model));
+  if (!dev) return null;
+  const input = dev.link.input, output = dev.link.output, id = dev.id; dev.link.close();
+  if (id.model !== meta.product.split("_")[0]) return null;
+  const link = new BackupConnection(input, output);
+  let info = null;
+  try { info = await deviceInfo((r, o) => link.request(r, o)); } finally { link.close(); }
+  return { ...classifyFirmware(id.text, info && info.version), identity: id.text, version: info && info.version };
+}
 const failSay = (e) => {
   if (e && e.code && TEXT[lang][e.code]) sayK(e.code, e.code === "noBackup" ? "" : e.detail || "");
   else sayK("error", e && e.message);
@@ -267,6 +293,17 @@ $("go").addEventListener("click", async () => {
       ota.link.close();
       sayK((await up.resume(image, step, meta.product)) ? "done" : "stopped");
     } else {
+      const fw = await identify(up);              // which firmware runs: Sloop, the 0.x betas, unknown ones are refused
+      if (fw) {
+        log(`running: ${fw.identity}${fw.version ? " " + fw.version : ""} -> ${fw.verdict} (${fw.kind})`);
+        if (fw.verdict === "refuse") {
+          if (!$("force-risk").checked) {         // the override shows only after a refusal
+            $("force-box").hidden = false; say(refusalText(fw.name)); lockInstaller(false); return;
+          }
+          if (!confirm(t("forceConfirm").replace("{name}", fw.name))) { sayK("cancelled"); lockInstaller(false); return; }
+          log(`override: installing over ${fw.name} (not supported)`);
+        }
+      }
       let saved = null;
       if (!$("skip-backup").checked) {          // back up first, as Felucca before the return to stock
         try { saved = await takeBackup(up); }

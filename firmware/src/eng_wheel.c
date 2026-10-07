@@ -113,10 +113,9 @@ typedef struct {                 /* per voice */
     uint8_t gate, init;
 } drw_vc_t;
 
-static drw_trk_t drw_t[NPART];
-static drw_vc_t drw_v[NPART][NVOICE];
+typedef struct { drw_trk_t t; drw_vc_t v[NPOLY]; } drw_part_t;   /* the part's (engines.c eng_state) */
+static drw_part_t *drw_of(const track_t *t);
 
-static uint32_t drw_part(const track_t *t) { return (uint32_t)(t - trk) % NPART; }
 
 /* the bar level 0..8 of partial k: the registration plus SUB / BODY / TOP */
 static int32_t drw_level(const int16_t *p, uint32_t k)
@@ -129,7 +128,7 @@ static int32_t drw_level(const int16_t *p, uint32_t k)
 /* once per block, before the voices: bar gains, percussion, click, drive, the rotors */
 static void wheel_block(track_t *t)
 {
-    drw_trk_t *T = &drw_t[drw_part(t)];
+    drw_trk_t *T = &drw_of(t)->t;
     const int16_t *p = t->p;
     uint32_t k, perc = (uint32_t)p[P_E4] % 7u, rot = (uint32_t)p[P_E7] % 3u;
     int32_t s = 0, lv[DRW_NP];
@@ -176,8 +175,8 @@ static void wheel_block(track_t *t)
 
 static void wheel_note_on(track_t *t, voice_t *v)
 {
-    uint32_t vi = (uint32_t)(v - t->v) % NVOICE, k, held = 0;
-    drw_vc_t *V = &drw_v[drw_part(t)][vi];
+    uint32_t vi = (uint32_t)(v - t->v) % NPOLY, k, held = 0;
+    drw_vc_t *V = &drw_of(t)->v[vi];
     for (k = 0; k < NVOICE; k++)                        /* single trigger: another key of the part held? */
         if (&t->v[k] != v && t->v[k].active && t->v[k].gate && t->v[k].stage != 4u)
             held = 1;
@@ -195,8 +194,8 @@ static void wheel_note_on(track_t *t, voice_t *v)
 
 static void wheel_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
-    const drw_trk_t *T = &drw_t[drw_part(t)];
-    drw_vc_t *V = &drw_v[drw_part(t)][(uint32_t)(v - t->v) % NVOICE];
+    const drw_trk_t *T = &drw_of(t)->t;
+    drw_vc_t *V = &drw_of(t)->v[(uint32_t)(v - t->v) % NPOLY];
     int32_t acc[CTL], perc1, clk0, clk1;
     uint32_t i, k;
     if (n > CTL)

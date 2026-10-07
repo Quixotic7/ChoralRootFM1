@@ -421,7 +421,9 @@ static void mix_part(track_t *t, uint32_t n)
             return;
         }
         for (i = 0; i < n; i++) {
-            int32_t x = ((b[i] >> 2) * lvl) >> 10, a = x < 0 ? -x : x;   /* pre-shift: 8 loud voices */
+            /* pre-shift: 8 loud voices; saturate where the level (+7.5 dB) or the pan would overflow (FM6's 16
+             * voices keep Dexed's headroom; Melodee's) */
+            int32_t x = clamp(((clamp(b[i], -884000, 884000) >> 2) * lvl) >> 10, -524287, 524287), a = x < 0 ? -x : x;
             int32_t xs = clamp(x, -xmax, xmax);         /* sends: mulq15 would overflow */
             if (a > pk)
                 pk = a;

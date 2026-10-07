@@ -81,6 +81,12 @@ static const struct { const char *s, *l; } CP_DLABEL[] = {
     {"ATK", "Attack"}, {"DEC", "Decay"}, {"SUS", "Sustain"}, {"REL", "Release"}, {"CUT", "Cutoff"},
     {"RES", "Reso"}, {"KTRK", "Key trk"}, {"FENV", "Env amt"}, {"VEL", "Velocity"}, {"SRC", "Source"},
     {"DST", "Dest"}, {"AMT", "Amount"},
+    /* FM6 (eng_fm6.c's pages) */
+    {"VSENS", "Vel sens"}, {"AMS", "AM sens"}, {"RSCL", "Rate scl"}, {"BREAK", "Break pt"}, {"LDEPTH", "L depth"},
+    {"RDEPTH", "R depth"}, {"ALG", "Algo"}, {"FB", "Feedback"}, {"TRNSP", "Transp"}, {"OSYNC", "Osc sync"},
+    {"R1", "Rate 1"}, {"R2", "Rate 2"}, {"R3", "Rate 3"}, {"R4", "Rate 4"}, {"L1", "Level 1"}, {"L2", "Level 2"},
+    {"L3", "Level 3"}, {"L4", "Level 4"}, {"PMD", "PM depth"}, {"AMD", "AM depth"}, {"PMS", "PM sens"},
+    {"PMODE", "Porta md"}, {"DXVEL", "DX vel"}, {"BRTH", "Breath"}, {"AFTER", "Aftertch"},
 };
 static int cp_up(int ch) { return ch >= 'a' && ch <= 'z' ? ch - 32 : ch; }
 static int cp_eq(const char *a, const char *b)

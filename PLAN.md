@@ -317,8 +317,9 @@ and its tests (each behind its flag, default 1 there).
 - **Sound**: two Felucca *parts* — CHORD (POLY, the chord / performance notes) and BASS (MONO) — each
   with its own engine + preset; the raw-chord stream is MIDI-only by default (Orchid defaults it off).
   ChoralRoot ships its own preset bank (`cr_bank.c`) and keeps Felucca's engines and user slots.
-- **Polyphony**: Felucca's budget is 8 voices shared (FM6 caps a part at 6, the VA's `poly` is 8). A 6-note chord
-  + bass fits; chord changes steal the old chord's releasing voices, now with a one-block fade (§9).
+- **Polyphony**: Melodee's voice model: 16 budget units shared, an FM6 voice one (FM6, Melodee's Dexed-exact engine:
+  8 a part here, `FM6_POLY`), any other two (the VA's `poly` is 8); docs/FM6.md. A 6-note chord + bass fits; chord
+  changes steal the old chord's releasing voices, now with a one-block fade (§9).
 - **MIDI**: USB + TRS; channels 1 performance / 2 bass / 3 chord (each on/off, Options); 24-PPQN clock
   out; MIDI in plays the parts (Orchid's behaviour) and can clock the tempo (`cr_midi.c`).
 - **Persistence**: settings in Felucca's settings record (`cr_settings.c`, saved only when quiet); loops in ten
@@ -403,7 +404,8 @@ Every milestone is played on the emulator before it is flashed.
 6. **Memory**: since the all-synth cut (2026-10-07: the sequencer, SAMPLE with its sets, GRAIN and DRUM out of the
    image) RAM is at **74.5 %** of 98304 B (was 92.4 %), POOL 85.7 % (was 95.9 %), XIP 47.0 % (was 84.8 %): about
    23 KB of RAM, 48 KB of POOL and 280 KB of flash free. The loop cap (the grid's 64 events) is set from the headroom
-   of before (docs/LOOPER.md) and could grow now.
+   of before (docs/LOOPER.md) and could grow now. Melodee's FM6 (2026-10-07) took RAM to 78.8 %, POOL to 88.1 %, XIP to
+   54.3 % (docs/FM6.md, Memory).
 7. **Still unknown Orchid behaviour** (not blocking, same as the grid): secret-chord combo → type map,
    full chromatic Key Mode quantization, Key Mode sevenths, factory pattern data. Shipped as the grid's
    labelled fallbacks until captured (M8).

@@ -44,6 +44,23 @@ Felucca's own unit (`felucca.c`) and its host suites (`tests/hostsim.c`, `regres
 own renders); `voice.c`, `fx.c`, `audio.c`, `usb.c`, `main.c`, `params.c`, `mod.c` and `upreset.c` are unedited. The emulator (`tools/emu/emu_firmware.h`), `tests/cr_trans_test.c` and
 `tests/cr_draw_test.c` set ChoralRoot's flags as `choralroot.c` does.
 
+**Melodee's FM6 and voice model (2026-10-07, docs/FM6.md).** FM6 is Melodee's (Kerem Kilic's fork of Felucca): Dexed's
+rendering, DX7 SysEx, the 32-voice bank (`eng_fm6.c`, `fm6_core.c`, `eng_fm6_rom.h`, `fm6_bank.c`, `fm6_store.c`, the FM6
+tables of `tools/gen_tables.py`), with the platform it needs merged into the kept files: `core.h` (`NVOICE` 16 slots a
+part, `NPOLY` 8, `VBUDGET` 16 units: an FM6 voice one, any other two, so the others keep their eight; the `engine_t`
+hooks `alloc legato mono_key post cap units`, `vmod_t.plog`, `voice_was`, `track_t`'s `foot breath porta bend_raw`, the
+`F_OFS F_FMNOTE F_FMFRQ` kinds), `voice.c` (the budget in units, the hooks; ChoralRoot's fade-and-defer steal, `render2`
+and `part_side` kept, an engine with `alloc` steals in place as Dexed does), `engines.c` (`eng_state[NPART]`: PHYS's,
+WHEEL's and FM6's runtime state in one pool union a part, cleared at an engine switch), `fx.c` (Melodee's saturation of
+a loud part; the limiter, trim, PAN and stereo lines kept), `mod.c` (CC 2 / 4 / 5 / 65), `params.c` (the new kinds),
+`usb.c` (DX7 frames to `fm6_sx_byte`, SysEx bytes sent as single-byte packets), `midi_control.c` / `cr_out.c`
+(`bend_raw`). The other engines render bit for bit as before. `FM6_POLY` 8 in this unit (Melodee: 16). ChoralRoot's
+additions: FM6's deep pages and patch blob, the FM6 patch store `fm6_ustore.c` (one blob per user slot, storage objects
+`OBJ_PROJECT0 + 1, + 2`, backup ids 10 and 11), included by `upreset.c` as `va_store.c` is; `fm6_store.c` after
+`cr_ui.c`. Felucca's own unit (`felucca.c`) is no longer kept building against this platform (its web editor's FM6
+protocol, `editor_fm6.c`, and its backup of the FM6 bank expect Felucca's layouts); `tests/run_tests.sh` reports
+which of its suites break (docs/FM6.md).
+
 Build flags stay Felucca's; `FELUCCA_SLICE=0`, `FELUCCA_SLICER=0`, `FELUCCA_FM4=0`, `FELUCCA_UAC=1`, `FELUCCA_UART=1`,
 and the all-synth set `FELUCCA_SEQ=0`, `FELUCCA_SAMPLE=0`, `FELUCCA_GRAIN=0`, `FELUCCA_DRUM=0`, `FELUCCA_ICONS=0`,
 `FELUCCA_KEYCAPS=0` (BUILDING.md).
@@ -51,7 +68,8 @@ The package identity becomes `FM-1_920` and the version string `ChoralRoot 0.1`.
 
 ## 2. Parts and streams (`cr_out.c`)
 
-Felucca has four `track_t` parts sharing 8 voices. ChoralRoot uses two:
+Felucca has four `track_t` parts sharing a budget of 8 voices (since Melodee's voice model, 16 units: an FM6 voice
+takes one, any other two; FM6 plays up to 8 voices a part here, the other engines their 8 shared). ChoralRoot uses two:
 
 | part | engine role | fed by |
 | --- | --- | --- |
@@ -244,6 +262,14 @@ leaves part 0 alone.
 
 ### Wired
 
+- **Install guard (2026-10-07, docs/INSTALL-COMPAT.md)**: both installers classify the running firmware (identity + INFO) and refuse Sloop, the Felucca 0.x betas and unknown ones (`--force` / an "I understand the risk" box); the loader is not the cause; the cause is still open (the emulator boots fine on Sloop and 0.9 data).
+
+- **FM6 (2026-10-07, docs/FM6.md)**: Melodee's engine and voice model; the deep pages (OP n, OP n+, SCALE n, ALGO,
+  ENV n, PITCH EG, LFO, FUNC, CTRL) in the editor with the dx envelope band; the patch and its function settings in a
+  user slot (`fm6_ustore.c`); DX7 SysEx in / out, bank dumps to B1..B32; the bank's FM6 rows on F1..F8 (levels as
+  before, trims 0); `FM6_POLY` 8 (perf.sh (c) 30 / 39-42 %, at 16: 46 / 59 %). Tests: `tests/cr_fm6_test.c`,
+  `tools/emu/scripts/cr_fm6.txt`, `fm6_persist_*.txt`, the FM6 goldens re-made.
+
 - **The unit** (`choralroot.c`): Felucca's order and build options, `FELUCCA_ID "FM-1_920"`, `FELUCCA_VERSION
   "ChoralRoot 0.1"`, `FELUCCA_SLICE=0`. It passes `cc -fsyntax-only -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal
   firmware/src/choralroot.c` (on macOS `__attribute__` is defined away: Mach-O has no `.noinit` / `.pool`), and with
@@ -412,7 +438,8 @@ Felucca's tests). Total: flash 493280 -> 273488 B of the XIP slot (84.8 -> 47.0 
 the bass, the loop, the arp) are identical to b32e83f's.
 
 The bank keeps its rows: PRESETS 03 PIANO (was SAMPLE's) is FM6's PIANO, TINE EP's patch through the macros (MRAT +1,
-MLVL +10, MEG -16, VMOD +2, FB +1, DTUN 12: an EP-piano hybrid; no new factory patch, so PTCH's F / B numbers stay);
+MLVL +10, MEG -16, VMOD +2, FB +1, DTUN 12: an EP-piano hybrid; no new factory patch; since Melodee's FM6, PTCH's F1..F24
+come before B1..B32, docs/FM6.md);
 15 CLOUD PAD and 16 SHIMMER (were GRAIN's) are VA presets 23 / 24 (docs/VA.md). Levels with `tests/va_levels.c`
 (chord alone / with SUB BASS, the share under the limiter): PIANO 0 / 0 %, CLOUD PAD 0 / 1.4 %, SHIMMER 0 / 0 %;
 trims 0. The emulator's `cr_allsynth.txt` plays the three. A user sound on a retired engine loads as INIT on ANALOG

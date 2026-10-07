@@ -25,6 +25,10 @@
  *    pays): about 2 % at most (device estimate: 1.7 % per 100 instructions per sample).
  * Demos (WAV) into DEMO_DIR; with a second directory, the harmonizer's (a melody with OCT UP, OCT DN, and
  * OCT UP with the shimmer) into it. */
+#ifndef FM6_POLY
+#define FM6_POLY 8               /* as choralroot.c: the song's FM6 pad at 8 voices (at Dexed's 16 its release tails make
+                                  * the cost differences below depend on the voices' timing) */
+#endif
 #define main hostsim_main
 #include "hostsim.c"
 #undef main

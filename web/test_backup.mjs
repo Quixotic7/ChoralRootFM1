@@ -94,17 +94,20 @@ ok(await athrows(() => restoreBackup(failing.request, file)) && failing.log.incl
 const per = (size, magic, seed) => { const b = rnd(size, seed); new DataView(b.buffer).setUint32(0, magic, true); return b; };
 const PER4 = 0x50455234, PER5 = 0x50455235, S4 = 572, S5 = S4 + 192;
 const crOpt = { ids: CR_BACKUP_IDS, version: "ChoralRoot 0.1", sizes: { 1: undefined } };
-const crObjs = [[1, per(S5, PER5, 7)], [6, rnd(3080, 8)], [8, rnd(3472, 9)], [9, rnd(3536, 10)], [40, rnd(46, 11)], [44, rnd(2118, 12)], [49, rnd(3602, 13)]];
+const crObjs = [[1, per(S5, PER5, 7)], [6, rnd(3080, 8)], [8, rnd(3612, 9)], [9, rnd(3536, 10)], [10, rnd(2064, 14)], [11, rnd(2064, 15)],
+                [40, rnd(46, 11)], [44, rnd(2118, 12)], [49, rnd(3602, 13)]];
 {
   const cr = device(crObjs, crOpt);
   const info = await deviceInfo(cr.request);
   ok(info && info.version === "ChoralRoot 0.1" && info.family === "choralroot", "choralroot: INFO -> version, family");
   const crFile = await captureBackup(cr.request, info.version);
   ok(crFile.objects.map((o) => o.id).join() === CR_BACKUP_IDS.join() && crFile.objects.find((o) => o.id === 9).size === 3536 &&
-     crFile.objects.find((o) => o.id === 49).size === 3602 && crFile.objects.find((o) => o.id === 41).size === 0,
-     "choralroot: capture lists settings, banks, FM6, VA (9), loops 40..49 (no samples)");
-  ok(readBackup(JSON.stringify(crFile)).objects.length === 15, "choralroot: the archive reads back (15 objects)");
-  ok(objectName(9) === "VA patches" && objectName(44) === "loop slot 5" && objectName(33) === "sample slot 2", "choralroot: object names");
+     crFile.objects.find((o) => o.id === 49).size === 3602 && crFile.objects.find((o) => o.id === 41).size === 0 &&
+     crFile.objects.find((o) => o.id === 10).size === 2064 && crFile.objects.find((o) => o.id === 11).size === 2064,
+     "choralroot: capture lists settings, banks, FM6, VA (9), FM6 patches (10, 11), loops 40..49 (no samples)");
+  ok(readBackup(JSON.stringify(crFile)).objects.length === 17, "choralroot: the archive reads back (17 objects)");
+  ok(objectName(9) === "VA patches" && objectName(10) === "FM6 patches 1-16" && objectName(11) === "FM6 patches 17-32" &&
+     objectName(44) === "loop slot 5" && objectName(33) === "sample slot 2", "choralroot: object names");
   ok(backupFileName(info.version, new Date("2026-10-06T12:00:00Z")) === "choralroot-backup-20261006.json" &&
      backupFileName("FELUCCA 1.0", new Date("2026-10-06T12:00:00Z")) === "felucca-backup-20261006.json", "choralroot: file names");
 
@@ -115,7 +118,8 @@ const crObjs = [[1, per(S5, PER5, 7)], [6, rnd(3080, 8)], [8, rnd(3472, 9)], [9,
   const order = blank.log.filter((x) => typeof x === "number");
   ok(crObjs.every(([id, v]) => blank.objs.get(id) && blank.objs.get(id).every((b, i) => b === v[i])) && !r.skipped.length,
      "choralroot: round trip: every object restored byte for byte, none skipped");
-  ok(order.at(-1) === 1 && order.includes(9) && order.includes(49), "choralroot: the settings last, the VA patches and loops before");
+  ok(order.at(-1) === 1 && order.includes(9) && order.includes(10) && order.includes(11) && order.includes(49),
+     "choralroot: the settings last, the VA and FM6 patches and loops before");
   ok(busies === 1 && blank.log[0] === "busy 6", "choralroot: a busy answer (a loop plays) is retried after a second");
   await restartDevice(blank.request);
   ok(blank.restarts === 1, "choralroot: RESTART");
@@ -145,8 +149,9 @@ const crObjs = [[1, per(S5, PER5, 7)], [6, rnd(3080, 8)], [8, rnd(3472, 9)], [9,
   const s = onFel.objs.get(1);
   ok(s.length === S4 && new DataView(s.buffer).getUint32(0, true) === PER4 && s.subarray(4).every((b, i) => b === crObjs[0][1][4 + i]),
      "choralroot -> felucca: the settings record becomes PER4 (Felucca's fields, the ChoralRoot block dropped)");
-  ok(onFel.objs.get(6).length === 3080 && onFel.objs.get(8).length === 3472 && [9, 40, 49].every((id) => r3.skipped.includes(id)) && !onFel.objs.has(9),
-     "choralroot -> felucca: banks and FM6 restored, VA patches and loops skipped");
+  ok(onFel.objs.get(6).length === 3080 && onFel.objs.get(8).length === 3612 && [9, 10, 11, 40, 49].every((id) => r3.skipped.includes(id)) &&
+     !onFel.objs.has(9) && !onFel.objs.has(10),
+     "choralroot -> felucca: banks and FM6 bank sent (the device's own check takes or refuses its layout), VA / FM6 patches and loops skipped");
   ok(backupFamily("ChoralRoot 0.1") === "choralroot" && backupFamily("MELODEE 1") === "other", "families");
 }
 

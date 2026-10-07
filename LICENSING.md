@@ -16,9 +16,10 @@ Every file in this tree that carries an `SPDX-License-Identifier: GPL-3.0-only` 
 - the web pages (installer, editor) and their tests: `web/` (not the Fukiai font, below)
 - the host tests: `tests/`
 
-Three source files are ports and keep the licence of their originals:
-`firmware/src/phys_dsp.c` (DaisySP, MIT), `firmware/src/phys_symp.c` (Rings, MIT) and
-`firmware/src/fm6_core.c` (msfa, Apache-2.0). The firmware built with them is GPL-3.0-only as
+Two source files are ports and keep the licence of their originals:
+`firmware/src/phys_dsp.c` (DaisySP, MIT) and `firmware/src/phys_symp.c` (Rings, MIT). The FM6 engine
+(`firmware/src/fm6_core.c`, `firmware/src/eng_fm6.c` and its patches, the bank and the SysEx: Melodee's, below) restates
+MSFA (Apache-2.0) and Dexed (GPL-3.0-or-later) in fixed-point C. The firmware built with them is GPL-3.0-only as
 a whole.
 
 You may use, study, change and share Felucca under the GPL. If you distribute Felucca, or
@@ -46,7 +47,8 @@ All by Hügelton Instruments (Leo Kuroshita), in this tree:
 | Instrument samples (Versilian Studios VSCO-2 Community Edition, VCSL) | CC0 1.0 | `assets/samples-cc0/`, provenance in `ATTRIBUTION.txt` there |
 | DaisySP by Electrosmith, Corp and Emilie Gillet (<https://github.com/electro-smith/DaisySP>): the PHYS engine's modal and string models and the resonator, ported to fixed point | MIT | `firmware/src/phys_dsp.c`, `LICENSES/MIT-DaisySP.txt` |
 | Rings by Emilie Gillet (<https://github.com/pichenettes/eurorack>): the PHYS engine's sympathetic strings, ported to fixed point | MIT | `firmware/src/phys_symp.c`, `LICENSES/MIT-Rings.txt` |
-| msfa by Google Inc. and Pascal Gauthier, from Dexed (<https://github.com/asb2m10/dexed>): the FM6 engine's synthesis, ported to integer C (Dexed itself is GPL-3.0; only msfa is used; the FM6 factory patches are Felucca's own) | Apache-2.0 | `firmware/src/fm6_core.c`, `LICENSES/Apache-2.0-msfa.txt` |
+| Melodee by Kerem Kilic (Ellic Studio), a fork of Felucca (<https://github.com/keremimo/melodee>): ChoralRoot's FM6 engine (Dexed's rendering, 16 voices, DX7 SysEx import / export, the 32-voice bank, Melodee's factory voices F9..F24), the voice model it needs (voice slots, the budget in units, the engine hooks; `core.h`, `voice.c`, `engines.c`'s engine state), the FM6 tables of `tools/gen_tables.py` and its FM6 test; `eng_fm6.c`, `fm6_core.c`, `fm6_bank.c`, `fm6_store.c` and `tests/fm6_test.c` carry "Modifications Copyright (C) 2026 Kerem Kilic (Ellic Studio)" (kept as they are) | GPL-3.0-only | `firmware/src/eng_fm6.c`, `firmware/src/fm6_core.c`, `firmware/src/eng_fm6_rom.h`, `firmware/src/fm6_bank.c`, `firmware/src/fm6_store.c`, `tests/fm6_test.c` |
+| MSFA (Music Synthesizer for Android, Copyright 2012 Google Inc.) and Dexed (Copyright 2013-2025 Pascal Gauthier, <https://github.com/asb2m10/dexed>; portamento rates by Jean Pierre Cimalando), through Melodee: the FM6 engine restates their synthesis in fixed-point C so that it renders the samples Dexed renders (MSFA's envelopes, pitch envelope, LFO, operator kernels and Dx7Note, Apache-2.0; Dexed's MARK I and OPL engines and its voice handling, GPL-3.0-or-later); their DX7 measurement tables and the tables Dexed computes at start are used as data. The FM6 factory patches are Felucca's own (F1..F8) and Melodee's own (F9..F24) | Apache-2.0, GPL-3.0-or-later | `firmware/src/fm6_core.c`, `firmware/src/eng_fm6.c`, `tools/gen_tables.py`, `LICENSES/Apache-2.0-msfa.txt` |
 | klattsch by Tony Gies (<https://github.com/tgies/klattsch>): design reference for the VOICE engine; no code copied. Formant data from Klatt (1980) / Hillenbrand et al. (1995) | MIT (klattsch) | credit only |
 | JieLi AC79 SDK by JieLi Technology: three of its files go into every `.fwsc` package (below); they are vendored in `tools/sdk/` with the SDK's licence | Apache-2.0 | `tools/sdk/LICENSE`, `LICENSES/Apache-2.0.txt` |
 

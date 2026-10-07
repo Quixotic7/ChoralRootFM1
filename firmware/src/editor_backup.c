@@ -136,7 +136,7 @@ static uint32_t ed_bk_commit(void)
         if (ed_bk_len) memcpy(&fm6_bank, raw, ed_bk_len);
         fm6_bank_check((int)ed_bk_len);
         for (uint32_t t = 0; t < NTRK; t++)                /* tracks on PTCH B..: the restored patches (fm6_bank_put); */
-            if (fm6_slot[t] >= FM6_NFACTORY) fm6_slot[t] = 0xFFu;   /* a factory patch, or the track's own, stays */
+            if (fm6_slot[t] >= FM6_NFAC) fm6_slot[t] = 0xFFu;   /* a factory patch, or the track's own, stays */
     } else {
         uint32_t b = ed_bk_id - 6u;
         memset(&up_bank[b], 0, sizeof up_bank[b]);

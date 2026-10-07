@@ -1683,7 +1683,7 @@ function makeMockDevice(opt = {}) {
         P("ARCADE", [2, 0, 127, 0, 127, 112, 0, 84], [0, 80, 0, 50], 0, 3), P("METAL", [3, 0, 100, 40, 100, 32, 0, 0], [0, 75, 40, 60], 0, 7)] },
     { name: "FM6", titles: ["OPS", "PATCH"], edit: [D("ALG", F.INT, 0, 32, 0), D("FB", F.INT, -7, 7, 0), D("MLVL", F.BIPCT, -64, 63, 0),
         D("MRAT", F.INT, -16, 16, 0), D("MEG", F.BIPCT, -64, 63, 0), D("VMOD", F.INT, -7, 7, 0), D("DTUN", F.PCT, 0, 127, 0),
-        D("PTCH", F.INT, 0, FM6.FACTORY_PK.length + 27 - 1, 0)],
+        D("PTCH", F.INT, 0, FM6.FACTORY_PK.length + 32 - 1, 0)],
       presets: [P("TINE EP", [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 127, 0], 0, 6), P("BELL", [0, 0, 0, 0, 0, 0, 0, 1], [0, 0, 127, 0], 0, 7),
         P("FM BASS", [0, 0, 0, 0, 0, 0, 0, 2], [0, 0, 127, 0], 1, 2), P("BRASS", [0, 0, 0, 0, 0, 0, 0, 3], [0, 0, 127, 0], 0, 4),
         P("PAD", [0, 0, 0, 0, 0, 0, 30, 4], [0, 0, 127, 0], 0, 5), P("MARIMBA", [0, 0, 0, 0, 0, 0, 0, 5], [0, 0, 127, 0], 0, 3),
@@ -1693,7 +1693,7 @@ function makeMockDevice(opt = {}) {
         E("MODE", ["ONE", "GATE", "LOOP"], 0), E("REV", ["OFF", "ON"], 0), D("DCAY", F.TIME, 0, 127, 127), D("TONE", F.INT, 0, 127, 127)],
       presets: [P("CHOP", [0, 2, 0, 0, 0, 0, 127, 127], [0, 127, 127, 30], 0, 9), P("STUTTER", [0, 1, 0, 0, 1, 0, 90, 110], [0, 127, 127, 12], 0, 10)] },
   ];
-  const FM6_E = ENG.findIndex((e) => e.name === "FM6"), FM6_BANK = 27;
+  const FM6_E = ENG.findIndex((e) => e.name === "FM6"), FM6_BANK = 32;
   /* factory PATTERNS[] (engines.c; the device loads them from SEQ > PATTERNS, presets only suggest one): absolute
      notes, 0 rest; flags 1 accent, 2 slide, 4 tie (holds the previous note) */
   const T_ = 4;
@@ -2361,14 +2361,14 @@ function setLabel(e, txt) { e.replaceChildren(...(e.dataset.ic ? [icon(e.dataset
 
 const TEXT = {
   ja: {
-    tabFm6: "6-OP FM", fm6Help: "FM6 エンジンの音色（6 オペレーター）をまるごと編集します。本体のノブはこの音色の上にかかるマクロです。トラックへ送るとすぐ鳴り、プロジェクトに保存されます。バンク（B1〜B27）に保存すると PTCH で呼び出せます。",
+    tabFm6: "6-OP FM", fm6Help: "FM6 エンジンの音色（6 オペレーター）をまるごと編集します。本体のノブはこの音色の上にかかるマクロです。トラックへ送るとすぐ鳴り、プロジェクトに保存されます。バンク（B1〜B32）に保存すると PTCH で呼び出せます。",
     fm6Source: "音色の出し入れ", fm6ReadBtn: "トラックから読む", fm6SendBtn: "トラックへ送る", fm6Live: "編集しながら送る",
     fm6StoreBtn: "バンクに保存", fm6Import: "SysEx を読み込む", fm6Export: "SysEx に書き出し", fm6BankExport: "バンクを SysEx に書き出し",
     fm6Init: "初期音色", fm6Voice: "ボイス", fm6Ops: "オペレーター", fm6Carriers: "キャリア", fm6Feedback: "フィードバック",
     fm6PitchEg: "ピッチ EG", fm6Freq: "周波数",
     fm6Legend: "R1〜R4 / L1〜L4: EG のレートとレベル、BP LD RD LC RC: キーボードレベルスケーリング、RS: レートスケーリング、AMS: LFO 音量変調、KVS: ベロシティ、OL: 出力レベル、MODE: 比率 / 固定、FC FF: 周波数（粗・細）、DET: デチューン（7 が中央）。● はキャリア。",
     fm6Pick: "読み込んだファイルの音色（押すと編集へ）:", fm6Picked: "編集中:", fm6Sent: "トラックへ送りました:", fm6Read: "トラックから読みました",
-    fm6Loaded: "読み込みました", fm6Factory: "F1〜F8 はファクトリー音色です。B1〜B27 を選んでください。", fm6BadSum: "チェックサム不一致あり",
+    fm6Loaded: "読み込みました", fm6Factory: "F1〜F8 はファクトリー音色です。B1〜B32 を選んでください。", fm6BadSum: "チェックサム不一致あり",
     fm6Exported: "バンクを書き出しました",
     motion: "モーション", motionOn: "再生", motionClear: "モーションを消去", motionConfirm: "選択トラックのモーションを消しますか？", chance: "確率 %", motionStep: "ステップ", motionParam: "パラメーター", motionValue: "値",
     backupTitle: "全体バックアップ", backupExport: "バックアップ保存", backupImport: "バックアップ復元", backupHelp: "現在の曲・A〜D・音色バンク・ユーザーサンプル・設定を、このパソコンへ保存。", backupOld: "全体バックアップには対応版への更新が必要です。", backupConfirm: "全体バックアップを復元しますか？ 現在の曲、保存データとサンプルを置き換えます。USBを抜かないでください。", backupWorking: "バックアップ処理中 ", backupDone: "バックアップを保存しました", backupRestored: "全体バックアップを復元しました",
@@ -2455,14 +2455,14 @@ const TEXT = {
     smpSlots: "サンプルスロット", userBank: "ユーザープリセット", none: "なし",
   },
   en: {
-    tabFm6: "6-OP FM", fm6Help: "Edit the whole patch of the FM6 engine (six operators). The device's knobs are macros on top of it. Sending it to a track plays it at once and a project keeps it; stored in the bank (B1..B27) it is a PTCH value.",
+    tabFm6: "6-OP FM", fm6Help: "Edit the whole patch of the FM6 engine (six operators). The device's knobs are macros on top of it. Sending it to a track plays it at once and a project keeps it; stored in the bank (B1..B32) it is a PTCH value.",
     fm6Source: "Patches in and out", fm6ReadBtn: "Read from track", fm6SendBtn: "Send to track", fm6Live: "Send while editing",
     fm6StoreBtn: "Store in bank", fm6Import: "Import SysEx", fm6Export: "Export SysEx", fm6BankExport: "Export bank as SysEx",
     fm6Init: "Init voice", fm6Voice: "Voice", fm6Ops: "Operators", fm6Carriers: "carriers", fm6Feedback: "feedback",
     fm6PitchEg: "Pitch EG", fm6Freq: "Frequency",
     fm6Legend: "R1..R4 / L1..L4: EG rates and levels; BP LD RD LC RC: keyboard level scaling; RS: rate scaling; AMS: LFO amplitude modulation; KVS: velocity; OL: output level; MODE: ratio / fixed; FC FF: coarse / fine frequency; DET: detune (7 = centre). ● = carrier.",
     fm6Pick: "Voices of the imported file (click to edit):", fm6Picked: "Editing:", fm6Sent: "Sent to track", fm6Read: "Read from track",
-    fm6Loaded: "Loaded", fm6Factory: "F1..F8 are the factory patches: pick B1..B27.", fm6BadSum: "a checksum did not match",
+    fm6Loaded: "Loaded", fm6Factory: "F1..F8 are the factory patches: pick B1..B32.", fm6BadSum: "a checksum did not match",
     fm6Exported: "Bank exported",
     motion: "Motion", motionOn: "Play motion", motionClear: "Clear motion", motionConfirm: "Clear this track's motion?", chance: "Chance %", motionStep: "Step", motionParam: "Parameter", motionValue: "Value",
     backupTitle: "Complete backup", backupExport: "Save backup", backupImport: "Restore backup", backupHelp: "Save the current music, A–D, sound banks, user samples and settings to this computer.", backupOld: "Complete backups need firmware with archive support.", backupConfirm: "Restore this complete backup? Current music, saved data and samples will be replaced. Keep USB connected.", backupWorking: "Backing up / restoring ", backupDone: "Backup saved", backupRestored: "Complete backup restored",
@@ -4732,7 +4732,7 @@ $("bkexport").addEventListener("click", () => libOp(async (d, rqf) => {
 /* ------------------------------------------------------------------ FM6 --- */
 /* The 6-OP FM tab (firmware with FM6: INFO's fm6 tag): the whole patch of an FM6 track, which the device
    only reaches through its macros. Read a track's patch or a slot, edit it, send it to a track (live while
-   editing), store it in the bank (B1..B27), import the generic 155-byte single-voice and 4096-byte 32-voice
+   editing), store it in the bank (B1..B32), import the generic 155-byte single-voice and 4096-byte 32-voice
    SysEx files, export them. */
 let fm6v = FM6.init();                 /* the patch being edited (155 bytes) */
 let fm6Imported = [];                  /* voices of the last imported file: [{name, v}] */

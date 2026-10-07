@@ -26,6 +26,9 @@
 #ifndef FELUCCA_VA
 #define FELUCCA_VA 1             /* ChoralRoot's VA engine: its presets get renders and costs too */
 #endif
+#ifndef FM6_POLY
+#define FM6_POLY 8               /* as choralroot.c: FM6 at ChoralRoot's 8 voices (eng_fm6.c; Melodee: 16) */
+#endif
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -686,7 +689,7 @@ static int chk_mode_release(char *msg, uint32_t n)
                     trk[0].p[P_VOICE] = (int16_t)to;
                     trk_note_off(&trk[0], order ? 60u : 64u);
                     trk_note_off(&trk[0], order ? 64u : 60u);
-                    bad += mode_release_gates() != 0 || trk[0].nmono != 0 || voices_busy() > NVOICE;
+                    bad += mode_release_gates() != 0 || trk[0].nmono != 0 || voices_busy() > VBUDGET;
                     for (i = 0; i < FS / CTL && !parts_free(); i++) blk();
                     bad += !parts_free();
                     cases++;
@@ -705,7 +708,7 @@ static int chk_mode_release(char *msg, uint32_t n)
         cases++;
         for (priority = 0; priority < 3u; priority++) {
             uint32_t lead = priority == 1u ? 72u : 80u, other = priority == 1u ? 80u : 72u;
-            uint32_t want = mode == V_UNISON ? NVOICE : 1u;
+            uint32_t want = mode == V_UNISON ? trk_nvoice(&trk[0]) : 1u;   /* (Melodee's voice model) */
             mode_release_reset(0, V_POLY);
             trk_note_on(&trk[0], 48, 100);
             trk_note_on(&trk[0], 64, 100);
@@ -721,7 +724,7 @@ static int chk_mode_release(char *msg, uint32_t n)
             trk_note_off(&trk[0], lead);
             bad += mode_release_gates() != want || trk[0].v[0].note != 76u || trk[0].mono_note != 76u;
             trk_note_off(&trk[0], 76);
-            bad += mode_release_gates() != 0 || trk[0].nmono != 0 || voices_busy() > NVOICE;
+            bad += mode_release_gates() != 0 || trk[0].nmono != 0 || voices_busy() > VBUDGET;
             cases++;
         }
     }
@@ -900,6 +903,13 @@ static int chk_hang(char *msg, uint32_t n)
         host_tracks_init();
         for (k = 0; k < NPART; k++) {
             host_preset(&trk[k], rnd(NENGINES), rnd(4));
+            /* DX7 L4 may deliberately sustain after key-up (legacy DIGITAL conversions too). This routing test
+             * needs terminating envelopes; the sound tests keep L4 (Melodee's test, as its FM6 is) */
+            if (trk[k].eng_req == ENGI_FM6) {
+                for (uint32_t op = 0; op < 6u; op++)
+                    fm6_patch[k][op * FP_OP + FP_L1 + 3] = 0;
+                fm6_pgen[k]++;
+            }
             trk[k].p[P_VOICE] = (int16_t)rnd(4);
             trk[k].p[P_AMODE] = rnd(3) == 0 ? (int16_t)(1 + rnd(4)) : 0;
             trk[k].p[P_AHOLD] = 0;

@@ -791,6 +791,57 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
             if (xs[i + 1] - xs[i] >= 16 || (int32_t)i == seg)
                 cr_text((xs[i] + xs[i + 1]) * 8, P8(24 + 95), LET[i], 9, 1, CR_C, 4096, (int32_t)i == seg ? segcol : T_DIM,
                         T_BG, 0);
+    } else if (s->wide == CR_W_DX) {
+        /* FM6's DX7 envelope (wv: R1..R4, L1..L4 0..99, the lit segment, the pitch EG flag): from L4 to L1 at R1, L2
+         * at R2, L3 at R3, held at L3 (the key down), to L4 at R4; a segment's width grows with its distance and the
+         * slowness of its rate (a sketch of the times, not to scale); the pitch EG's levels round a centre line (50) */
+        static const char *const LET[4] = {"1", "2", "3", "4"};
+        int32_t yT = y0 + 8 * 16, yB = y0 + 84 * 16, lv[5], u[5], xs[6], py[6], sum = 0, d;
+        int32_t seg = (int32_t)s->wv[8] - 1, a0, a1;
+        uint32_t vi[6], sg[4] = {0, 1, 2, 4};
+        lv[0] = s->wv[7] > 99 ? 99 : s->wv[7];
+        for (i = 0; i < 4u; i++)
+            lv[i + 1] = s->wv[4 + i] > 99 ? 99 : s->wv[4 + i];
+        for (i = 0; i < 4u; i++) {                /* R1 R2 R3 (segments 0..2), R4 (segment 4); 3 is the hold */
+            uint32_t j = sg[i];
+            int32_t r = s->wv[i] > 99 ? 99 : s->wv[i];
+            d = i < 3u ? lv[i + 1] - lv[i] : lv[0] - lv[3];
+            d = d < 0 ? -d : d;
+            u[j] = 6 + (99 - r) * (6 + d) / 24;
+        }
+        u[3] = 36;
+        for (i = 0; i < 5u; i++) sum += u[i];
+        xs[0] = L;
+        for (i = 0; i < 5u; i++) xs[i + 1] = xs[i] + u[i] * W / sum;
+        for (i = 0; i < 4u; i++) py[i] = yB - (yB - yT) * lv[i] / 99;
+        py[4] = py[3];
+        py[5] = py[0];
+        cr_frect(L, yB + 16, W, 16, T_LINE);
+        if (s->wv[9])                             /* the pitch EG: its centre (no pitch change) */
+            cr_frect(L, yB - (yB - yT) * 50 / 99, W, 16, T_LINE);
+        for (i = 0; i < 6u; i++) {               /* steep runs in pieces <= 26 px tall: small boxes for cr_poly */
+            if (i) {
+                int32_t dy = py[i] - py[i - 1], m = (dy < 0 ? -dy : dy) / (26 * 16) + 1, k2;
+                for (k2 = 1; k2 < m; k2++)
+                    CR_PT(xs[i - 1] + (xs[i] - xs[i - 1]) * k2 / m, py[i - 1] + dy * k2 / m);
+            }
+            vi[i] = np;
+            CR_PT(xs[i], py[i]);
+        }
+        cr_poly(p, np, 48, 0, 0, T_TEXT);
+        if (seg >= 0 && seg <= 3) {               /* segment k (R k / L k turned): the one ending at L k */
+            a0 = (int32_t)sg[seg];
+            a1 = a0 + 1;
+            cr_poly(p + 2 * vi[a0], vi[a1] - vi[a0] + 1u, 64, 0, 0, segcol);
+            cr_disc(xs[a0], py[a0], 56, segcol);
+            cr_disc(xs[a1], py[a1], 56, segcol);
+        }
+        for (i = 0; i < 4u; i++) {
+            uint32_t j = sg[i];
+            if (xs[j + 1] - xs[j] >= 16 || (int32_t)i == seg)
+                cr_text((xs[j] + xs[j + 1]) * 8, P8(24 + 95), LET[i], 9, 1, CR_C, 4096, (int32_t)i == seg ? segcol : T_DIM,
+                        T_BG, 0);
+        }
     } else if (s->wide == CR_W_FILTER) {
         /* FTYPE: the weights of LP BP HP NOTCH (= LP + HP) at its position, crossfaded round the cycle */
         static const uint8_t TW[4][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {1, 0, 1}};
@@ -910,7 +961,8 @@ static void cr_p_edit8(const cr_screen_t *s)
         return;
     }
     if (wide && cr_in_strip(22, 124)) {
-        uint16_t sc = s->hot_r ? cr_ccol(s->hot_c, 1) : CR_NAMED[CR_KC[(s->wv[5] ? s->wv[5] - 1u : 0u) % 4u]];
+        uint32_t lit = s->wide == CR_W_DX ? s->wv[8] : s->wv[5];
+        uint16_t sc = s->hot_r ? cr_ccol(s->hot_c, 1) : CR_NAMED[CR_KC[(lit ? lit - 1u : 0u) % 4u]];
         cr_wide(s, sc);
     }
     for (ri = 0; ri < (int32_t)s->n_rows && ri < 2; ri++) {

@@ -56,7 +56,7 @@ typedef struct {
     } u;
 } phys_slot_t;
 
-static phys_slot_t phys_slot[NPART][PHYS_POLY] __attribute__((section(".pool")));
+static phys_slot_t *phys_slots(uint32_t part);    /* engines.c eng_state: the part's PHYS_POLY slots */
 
 static const char *const N_PHYS_MODEL[] = {"MODAL", "STRNG", "MEMB", "SYMP"};
 static const char *const N_PHYS_CHORD[] = {"OCT", "5TH", "4TH", "MAJ", "MIN", "SUS", "7TH", "ROOT", 0};
@@ -98,7 +98,7 @@ static phys_slot_t *phys_slot_of(track_t *t, voice_t *v)
     if (t < &trk[0] || t >= &trk[NPART])
         return 0;
     i = (uint32_t)(v - t->v);
-    return i < PHYS_POLY ? &phys_slot[t - trk][i] : 0;
+    return i < PHYS_POLY ? &phys_slots((uint32_t)(t - trk))[i] : 0;
 }
 
 /* a clean state for model md */

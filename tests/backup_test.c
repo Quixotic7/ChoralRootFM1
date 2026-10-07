@@ -288,20 +288,22 @@ int main(void)
                  clamp(3, param_desc_of(trk[0].engine, P_E0)->min, param_desc_of(trk[0].engine, P_E0)->max));
     {   /* the FM6 patch bank (id 8): restored to flash and RAM, a damaged one refused, listed with its length */
         static fm6_bank_t bk, got;
-        memset(&bk, 0, sizeof bk);
-        bk.magic = FM6_BANK_MAGIC; bk.ver = 1; bk.nslot = FM6_BANK_N; bk.used = 1u << 2;
-        memcpy(bk.v[2], FM6_FACTORY[5], FM6_PACKED);
-        fm6_slot[0] = 3; fm6_slot[1] = FM6_NFACTORY + 2u; fm6_slot[2] = 0xFFu; fm6_slot[3] = FM6_NFACTORY + 9u;
+        uint8_t rec[FM6_PACKED];
+        memset(&bk, 0, sizeof bk);                       /* (Melodee's layout: 7-bit packed slots, the functions) */
+        bk.magic = FM6_BANK_MAGIC; bk.ver = FM6_BANK_VER; bk.nslot = FM6_BANK_N; bk.used = 1u << 2;
+        memcpy(bk.fn, FM6_FNDEF, FM6_NFN);
+        fm6_pack7(bk.pk[2], FM6_FACTORY[5], FM6_PACKED);
+        fm6_slot[0] = 3; fm6_slot[1] = FM6_NFAC + 2u; fm6_slot[2] = 0xFFu; fm6_slot[3] = FM6_NFAC + 9u;
         bad += check("the FM6 bank (id 8) restores into flash and RAM",
                      put_all(8, &bk, sizeof bk, st_crc32(&bk, sizeof bk)) == 0 && fm6_bank_used(2) && !fm6_bank_used(3) &&
-                     !memcmp(fm6_bank.v[2], FM6_FACTORY[5], FM6_PACKED) &&
+                     !fm6_bank_get(2, rec) && !memcmp(rec, FM6_FACTORY[5], FM6_PACKED) &&
                      st_load(OBJ_FM6BANK, &got, sizeof got) == (int)sizeof got && !memcmp(&got, &bk, sizeof bk));
         bad += check("an FM6 bank restore reloads only the tracks on a bank slot (a factory patch stays)",
                      fm6_slot[0] == 3u && fm6_slot[1] == 0xFFu && fm6_slot[2] == 0xFFu && fm6_slot[3] == 0xFFu);
         bad += check("the FM6 bank lists as id 8 with its length", list(8, &len, &crc) == 0 && len == sizeof bk &&
                      crc == st_crc32(&bk, sizeof bk));
-        bk.v[3][0] = 200;
-        bad += check("an FM6 bank with a byte above 127 is refused (2), the bank kept",
+        bk.fn[0] = 200;
+        bad += check("an FM6 bank with a function setting out of range is refused (2), the bank kept",
                      put_all(8, &bk, sizeof bk, st_crc32(&bk, sizeof bk)) == 2u && fm6_bank_used(2));
     }
     memcpy(&st, &proj_slot[2], sizeof st);
