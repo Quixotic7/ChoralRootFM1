@@ -18,7 +18,7 @@ wait 1400
 shot build/emu/test/cr_loop_dial.ppm   # the chord view while the loop plays: the corner dial, no ring
 btn PLAY down
 wait 500
-shot build/emu/test/cr_loop_layer_ring.ppm   # LOOP held while it plays: the loop layer keeps the ring
+shot build/emu/test/cr_loop_layer_dial.ppm   # LOOP held while it plays: the loop layer, the dial, no ring
 btn PLAY up
 btn OCT-                      # the layer stays open after a hold: OCT- closes it
 wait 1000

@@ -45,9 +45,9 @@ of `CR_MAX_LOOPV` (8) loop voices, bypassing the chord-key state machine; voicin
 | gesture | stopped | playing |
 | --- | --- | --- |
 | LOOP tap | play (a take: commit) | stop |
-| LOOP held | the **loop length** picker (Free 1 2 4 8 16 bars, red, mock-up 8) in the ring | the Overdub / Pause / Undo / Clear picker |
+| LOOP held | a knob row (layers sheet state 6, no ring): the **loop length** picker (Free 1 2 4 8 16 bars, red, "loop length") over Sync / Quantize / Count-in / Level | the Overdub / Pause / Undo / Clear picker ("loop N"), Sync dim; the corner dial in the top line |
 | LOOP held + KNOB 1 (SYNC) or SELECT | moves the length picker (its slide; no meter) | moves the action picker |
-| LOOP held + KNOB 2 / 3 / 4 | quantize / count-in / loop level meters | the same |
+| LOOP held + KNOB 2 / 3 / 4 | quantize / count-in / loop level: the cell hot 800 ms, no popup | the same |
 | LOOP held + OCT+ | — | does the picked action |
 | LOOP held + white root / D#4 held 1 s / F#4 | slot load / clear / undo | slot at the end of the cycle / clear / undo |
 | REC tap | arm (Free) or count-in (synced) | overdub arm / end |
@@ -57,12 +57,13 @@ The count-in takes the whole panel: the beats to go (4 3 2 1 from the time signa
 in, "count-in" under it, the top line `Rec`, the red ring drawing itself in over the bar. It is above popups and
 layers, below PANIC.
 
-Where the loop is the subject — the count-in, the undo screen, recording and overdubbing (REC blinks), the LOOP and
-SAVE layers — Orchid's red ring runs round the edge. While the loop **merely plays** (or plays with an overdub
+Where the loop is the subject — the count-in, the undo screen, recording and overdubbing (REC blinks) — Orchid's red
+ring runs round the edge (calibration uses it too, as its progress). The LOOP and SAVE layers have no ring (the layers
+sheet's state 6, 2026-10-07): a playing loop shows there as the dial like everywhere else. While the loop **merely plays** (or plays with an overdub
 armed) the screen shows a small **corner dial** in the top line instead (`design/choralroot-fm1-loop-screens.png`):
 a 16 px dial at the right end, the dotted track grey, the loop's progress red from 12 o'clock, its arc drawn thick
 for ~100 ms on each downbeat (not with Options > Motion Off); the top line's right text ("Oct +1", "Arp") moves left
-of it. It shows on the views, the layers (KEY, PERF, FX, BASS, METRO, the engine picker), the SAVE naming dialog
+of it. It shows on the views, the layers (KEY, PERF, FX, BASS, LOOP, SAVE, METRO, the engine picker), the SAVE naming dialog
 and the knob popups; not in the sound editor (no top line) nor on the Options pages, where the LOOP button's green
 LED carries it.
 

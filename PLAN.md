@@ -72,16 +72,16 @@ layer or out, is always the button's on/off action.
 
 | Printed | ChoralRoot | Tap | Hold (opens and stays; OCT− / HOME closes) |
 | --- | --- | --- | --- |
-| SEL | **KEY** | Key Mode on/off (LED lit when on) | key layer: root keys = tonic (MIN held too = minor key), KNOB 1–4 = TONIC / SCALE / TRANSPOSE / SINGLE NOTES |
+| SEL | **KEY** | Key Mode on/off (LED lit when on) | key layer, a **knob row** whose band is the keyboard (the tonic lit yellow): root keys = tonic (MIN held too = minor key), KNOB 1–4 = TONIC / SCALE / TRANSPOSE (shift glyph) / SINGLE NOTES as cells, no popups, the turned cell hot |
 | ARP | **PERF** | performance on/off | perform layer: white root keys D4–C5 = STRUM, STRUM 2, SLOP, ARP, ARP 2, PATTERN, HARP (press = selected and on); KNOB 1–4 = the mode's parameters, a **knob row** (the mode on top, its four parameters as cells: rate / division echoes, direction arrow, range, gate, slop amount bar; no popup, the turned cell hot) |
 | FX | **FX** | the sound's main effect on/off | fx layer, a **knob row**: white root keys pick the effect (the picker on top), KNOB 1–3 its parameters, KNOB 4 the amount, all four shown as cells with their glyphs under it (no popup; the turned cell hot) |
 | ENV | **BASS** | bass on/off | bass layer, a **knob row**: KNOB 1–4 = BEHAVIOUR (Chords Only / Unison / Single Notes / Solo; text) / REGISTER (shift glyph) / SOUND (text) / LEVEL (bar), no popups, the turned cell hot; root keys preview the bass; **BASS held + EDIT** = the bass sound's editor |
 | LFO | **LATCH** | Sticky keys / arp hold on/off | — |
 | GLO | **OPT** | Options menu open/close | held + a knob = that knob's second function (Orchid's press+turn): KNOB 1 split point, SELECT metronome level, ALGORITHM bass volume. In the editor: SHIFT |
 | HOME | **HOME** | back to the view from any page, menu, layer or the editor; tapped again on the view: next View (CHORD / KEYBOARD / NOTES / GEEK OUT / SCOPE) | — |
-| SAVE | **SAVE** | save the sound to one of 32 user slots, named with the keys (Orchid's Sound long press); the same dialog in the editor | save / load / delete loops (Orchid's Loop long press) |
-| SEQ | **METRO** | metronome / beat on-off (Orchid's BPM press) | beat layer: beat and time signature |
-| PLAY | **LOOP** | play / stop the loop (green LED = playing) | loop layer: white root keys = slots 1–10, D#4 = CLEAR (hold 1 s), F#4 = UNDO; KNOB 1–4 = SYNC / QUANTIZE / COUNT-IN / LEVEL; while playing, the Overdub / Pause / Undo / Clear picker (OCT+ does it) |
+| SAVE | **SAVE** | save the sound to one of 32 user slots, named with the keys (Orchid's Sound long press); the same dialog in the editor | save / load / delete loops (Orchid's Loop long press; a plain picker, no ring) |
+| SEQ | **METRO** | metronome / beat on-off (Orchid's BPM press) | metronome layer, a **knob row**: the time signature (4/4 3/4 6/8) over CLICK (KNOB 1, bar) and three empty cells; no popup |
+| PLAY | **LOOP** | play / stop the loop (green LED = playing) | loop layer, a **knob row** with no ring: white root keys = slots 1–10, D#4 = CLEAR (hold 1 s), F#4 = UNDO; the length picker over SYNC (range) / QUANTIZE (echoes) / COUNT-IN (gate) / LEVEL (bar), KNOB 1 = the picker, no popups; while playing, the Overdub / Pause / Undo / Clear picker (OCT+ does it), SYNC dim, the corner dial in the top line |
 | REC | **REC** | record (count-in, then the sync length) / overdub arm; red LED blinks while recording | undo the last layer |
 | EDIT | **EDIT** | the **sound editor** on the chord sound (EDIT blinks; EDIT tap or HOME leaves; [`docs/EDITOR.md`](docs/EDITOR.md)) | the engine picker (locked open like a layer) |
 | OCT− / OCT+ | octave of the root keys | in layers, menus and dialogs: **back (closes the layer) / OK** (Felucca's convention; OCT+ blinks when it would do something) | **both together: PANIC** (all notes off on every stream, CC 123 on the three channels, octave reset, LOCK latch cleared) |
@@ -116,7 +116,7 @@ is displayed permanently for the knobs. In a layer KNOB 1–4 are the layer's; i
   gesture any more (no HOME + hold, no OPT + FX / PERF, no OPT + KNOB 3).
 - **Layers** (sloop's idiom, made to stay): the root keys and KNOB 1–4 are the layer's, the screen shows the layer's
   picker or meter, the footer shows keycap hints (`a root: the mode · OCT-: back · HOME: home`); the chord keys keep
-  their job. **The knob row** (the layer grammar, 2026-10-07; FX, PERF and BASS done, KEY / LOOP / METRO next): the picker in the
+  their job. **The knob row** (the layer grammar, 2026-10-07; all layers: FX, PERF, BASS, KEY, LOOP, METRO): the picker in the
   upper part of the panel and under it one row of four cells, one per knob, in the knob colours (blue, orange, white,
   green) with a glyph that pictures the value; a turned knob makes its cell hot for 800 ms instead of a popup.
 - **The engine picker locks the same way**: EDIT held = the white root keys are the engines in the firmware's order
@@ -190,7 +190,10 @@ orange, white, green (KNOB 1–4) whatever they edit.
   just turned sits on a hot block (no popup). The glyphs are pictures of the parameter that change with it: a room
   (reverb size: the far wall recedes), a moon (damping / tone), echoes (delay time and feedback), an LFO wave (chorus
   rate and depth), a clipped sine (drive), a coil (spring reverb), dry / wet squares (the amount); gate, range, arrow
-  and shift are ready for the other layers. Used by the FX, PERF and BASS layers; KEY, LOOP and METRO to follow.
+  and shift picture the other layers' values. Used by every layer: FX, PERF, BASS; KEY (the band is the keyboard with
+  the tonic lit yellow, over Tonic / Scale / Transpose / Single); LOOP (stopped: the length picker, playing: Overdub /
+  Pause / Undo / Clear, over Sync (dim while playing) / Quantize / Count-in / Level; no ring); METRO (the time
+  signature over Click and three empty cells). SAVE held (save / load / delete a loop) stays a plain picker, no ring.
 - **Pickers** replace every list: one choice at a time, huge, its neighbours peeking small and faded
   above and below (left and right inside the ring), square position marks, the value under it. SELECT
   or the root keys move it with a split-flap flip; OCT+ confirms, OCT− backs out. Used for Perform,
@@ -200,10 +203,10 @@ orange, white, green (KNOB 1–4) whatever they edit.
   fill one by one (`03 SUB / bass`, `13 EP / sound`, `05 / reverb`; SELECT's `120 / bpm` the same way).
 - **Perform in motion**: the chord's notes as text on a line; the sounding one sits on a colour block
   and hops along in time, a dotted arc to the next.
-- **Select key**: KEY held slides up the keyboard with the tonic lit yellow.
+- **Select key**: KEY held shows the keyboard with the tonic lit yellow as the knob row's band.
 - **The ring**: Orchid's progress ring as a dotted circle round the edge — red, where the loop is the subject
-  (recording, overdubbing, the count-in, undo, the LOOP and SAVE layers); the loop pickers sit inside it. While a
-  loop merely plays, a 16 px corner dial in the top line shows it instead (`docs/LOOPER.md`).
+  (recording, overdubbing, the count-in, undo; calibration's progress in yellow). Everywhere else a playing loop is
+  the 16 px corner dial in the top line, the LOOP and SAVE layers included (`docs/LOOPER.md`).
 - **The sound editor** ([`docs/EDITOR.md`](docs/EDITOR.md)) is the one dense place, and it takes the whole screen:
   **no header bar and no footer**. Its top line is the sound's name (`*` once edited, ` · BASS` in orange for the
   bass part) and, at the right, the section and what is on the knobs (`OSC 2 · A`, `ENV 2 · filter`, `MOD 3`). Two

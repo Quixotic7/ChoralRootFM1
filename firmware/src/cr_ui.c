@@ -407,7 +407,8 @@ static void cu_hot_row(cr_screen_t *s, uint32_t l)   /* the row's hot cell, if l
 {
     uint32_t k = (cu_hot.knob - 1u) & 3u;
     s->n_rows = 1;
-    if (cu_hot.knob && cu_hot.layer == l && (int32_t)(cu_hot.until - fm1_ms) > 0 && (s->cell[0][k].flags & CR_CF_ON)) {
+    if (cu_hot.knob && cu_hot.layer == l && (int32_t)(cu_hot.until - fm1_ms) > 0 && (s->cell[0][k].flags & CR_CF_ON) &&
+        !(s->cell[0][k].flags & CR_CF_DIM)) {
         s->hot_r = 1;
         s->hot_c = (uint8_t)k;
     }
@@ -1738,21 +1739,22 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cs.tonic = (uint8_t)((cs.tonic + 12 + s % 12) % 12);
             cs.key_on = 1;
             cu_post_key();
-            cu_popup(CU_NOTE[cs.tonic], cs.scale ? "minor" : "major", "tonic", CR_COL_YELLOW, cs.tonic, 0, 11, 12);
+            cu_trace("key: knob 1 tonic %s\n", CU_NOTE[cs.tonic]);
         } else if (knob == 1) {                    /* SCALE */
             cs.scale = s > 0 ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
             cu_post_key();
-            cu_popup(CU_NOTE[cs.tonic], cs.scale ? "minor" : "major", "scale", CR_COL_YELLOW, cs.scale, 0, 1, 2);
+            cu_trace("key: knob 2 scale %s\n", cs.scale ? "minor" : "major");
         } else if (knob == 2) {                    /* TRANSPOSE */
             v = cs.transpose + s;
             cs.transpose = (int8_t)(v < -24 ? -24 : v > 24 ? 24 : v);
             cr_post(CRE_TRANSPOSE, 0, 0, cs.transpose);
-            cu_popup_num(cs.transpose, 1, "semitones", "transpose", CR_COL_YELLOW, -24, 24, 12);
+            cu_trace("key: knob 3 transpose %d\n", (int)cs.transpose);
         } else {                                   /* SINGLE NOTES: Full Octave / Split */
             cs.single = s > 0;
             cu_post_single();
-            cu_popup_num(cs.single, 0, cs.single ? "split" : "full", "single notes", CR_COL_YELLOW, 0, 1, 2);
+            cu_trace("key: knob 4 single %s\n", cs.single ? "split" : "full");
         }
+        cu_hot_set(L_KEY, knob);                  /* (no popup: the knob row is the readout, its cell turns hot) */
         break;
     case L_PERF:
         cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][knob], s, 0);
@@ -1820,18 +1822,18 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             v = cs.loop_quant + (s > 0 ? 1 : -1);
             cs.loop_quant = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CRL_NQUANT ? CRL_NQUANT - 1u : (uint32_t)v);
             cr_post(CRE_LOOP, LP_CONF, LC_QUANT, cs.loop_quant);
-            cu_popup_num(cs.loop_quant, 0, CU_QUANT[cs.loop_quant], "quantize", CR_COL_RED, 0,
-                         CRL_NQUANT - 1u, CRL_NQUANT);
+            cu_trace("loop: knob 2 quantize %s\n", CU_QUANT[cs.loop_quant]);
         } else if (knob == 2) {
             cs.loop_count_in = s > 0;
             cr_post(CRE_LOOP, LP_CONF, LC_COUNTIN, cs.loop_count_in);
-            cu_popup_num(cs.loop_count_in, 0, cs.loop_count_in ? "on" : "off", "count-in", CR_COL_RED, 0, 1, 2);
+            cu_trace("loop: knob 3 count-in %s\n", cs.loop_count_in ? "on" : "off");
         } else {
             v = cs.loop_level + s * 5;
             cs.loop_level = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
             cr_post(CRE_LOOP, LP_CONF, LC_LEVEL, cs.loop_level);
-            cu_popup_num(cs.loop_level, 0, "%", "loop level", CR_COL_RED, 0, 100, 10);
+            cu_trace("loop: knob 4 level %u\n", (unsigned)cs.loop_level);
         }
+        cu_hot_set(L_LOOP, knob);                 /* (no popup: the cell turns hot; Sync while playing: dim, not hot) */
         break;
     case L_SAVE:
         if (knob == 0)
@@ -1842,7 +1844,8 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             v = cs.metro_vol + s * 5;
             cs.metro_vol = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
             cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
-            cu_popup_num(cs.metro_vol, 0, "%", "click level", CR_COL_WHITE, 0, 100, 10);
+            cu_trace("metro: knob 1 click %u\n", (unsigned)cs.metro_vol);
+            cu_hot_set(L_METRO, 0);               /* (no popup: the cell turns hot) */
         }
         break;
     default:
@@ -2104,6 +2107,8 @@ static void cu_knob(uint32_t role, int32_t s)
             cu_popup(CU_NOTE[cs.split], cs.single ? "split" : "split off", "split point", CR_COL_BLUE, cs.split, 0, 11, 12);
         } else {                                   /* SELECT: the metronome level */
             cu_layer_knob(L_METRO, 0, s);
+            if (cu_layer() != L_METRO)             /* (outside the layer: the popup is the readout) */
+                cu_popup_num(cs.metro_vol, 0, "%", "click level", CR_COL_WHITE, 0, 100, 10);
         }
         return;
     }
@@ -3049,6 +3054,51 @@ static void cu_bass_cells(cr_screen_t *s)
     cu_hot_row(s, L_BASS);
 }
 
+/* KEY's knob row (layers sheet 1): Tonic (text), Scale (text), Transpose (shift: -24..24, centre 0), Single (text) */
+static void cu_key_cells(cr_screen_t *s)
+{
+    static const char *const LB[4] = {"Tonic", "Scale", "Transpose", "Single"};
+    uint32_t k;
+    for (k = 0; k < 4u; k++) {
+        s->cell[0][k].flags = CR_CF_ON;
+        cu_cpy(s->cell[0][k].label, LB[k], sizeof s->cell[0][k].label);
+    }
+    cu_cpy(s->cell[0][0].value, cs.key_on ? CU_NOTE[cs.tonic % 12u] : "-", sizeof s->cell[0][0].value);
+    cu_cpy(s->cell[0][1].value, cs.scale ? "Minor" : "Major", sizeof s->cell[0][1].value);
+    cu_int(s->cell[0][2].value, cs.transpose, 1, sizeof s->cell[0][2].value);
+    s->cell[0][2].glyph = CR_G_SHIFT;
+    s->cell[0][2].pct = (uint8_t)((uint32_t)(cs.transpose + 24) * 255u / 48u);
+    cu_cpy(s->cell[0][3].value, cs.single ? "Split" : "Full", sizeof s->cell[0][3].value);
+    cu_hot_row(s, L_KEY);
+}
+/* LOOP's knob row (layers sheet 6): Sync (range: the length; dim while playing: it cannot change then), Quantize
+ * (echoes), Count-in (gate: full on, narrow off), Level (bar) */
+static void cu_loop_cells(cr_screen_t *s)
+{
+    static const char *const LB[4] = {"Sync", "Quantize", "Count-in", "Level"};
+    uint32_t k, len = cs.loop_len % CRL_NSYNC, q = cs.loop_quant % CRL_NQUANT;
+    for (k = 0; k < 4u; k++) {
+        s->cell[0][k].flags = CR_CF_ON;
+        cu_cpy(s->cell[0][k].label, LB[k], sizeof s->cell[0][k].label);
+    }
+    if (cu_playing())
+        s->cell[0][0].flags |= CR_CF_DIM;
+    cu_cpy(s->cell[0][0].value, CU_LOOPLEN[len], sizeof s->cell[0][0].value);
+    s->cell[0][0].glyph = CR_G_RANGE;
+    s->cell[0][0].pct = (uint8_t)(len * 255u / (CRL_NSYNC - 1u));
+    cu_cpy(s->cell[0][1].value, CU_QUANT[q], sizeof s->cell[0][1].value);
+    s->cell[0][1].glyph = CR_G_ECHOES;
+    s->cell[0][1].pct = (uint8_t)(q * 255u / (CRL_NQUANT - 1u));
+    s->cell[0][1].pct2 = 255;
+    cu_cpy(s->cell[0][2].value, cs.loop_count_in ? "On" : "Off", sizeof s->cell[0][2].value);
+    s->cell[0][2].glyph = CR_G_GATE;
+    s->cell[0][2].pct = cs.loop_count_in ? 255 : 26;
+    cu_int(s->cell[0][3].value, cs.loop_level, 0, sizeof s->cell[0][3].value);
+    s->cell[0][3].glyph = CR_G_BAR;
+    s->cell[0][3].pct = (uint8_t)(cs.loop_level * 255u / 100u);
+    cu_hot_row(s, L_LOOP);
+}
+
 static void cu_layer_screen(cr_screen_t *s, uint32_t l)
 {
     static const char *const PERF_ITEMS[7] = {"Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves",
@@ -3059,11 +3109,14 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     const char *eng[NENGINES];
     uint32_t k, n;
     switch (l) {
-    case L_KEY:
-        s->kind = CR_K_KEYBOARD;
-        cu_cpy(s->title, "select key", sizeof s->title);
-        s->title_px = 26;
+    case L_KEY: {                                  /* the knob row with the keyboard as its band (layers sheet 1) */
+        static char seen[48];
+        s->kind = CR_K_KNOBROW;
+        s->kr_band = 1;
+        s->orient = 1;
         s->col = CR_COL_YELLOW;
+        s->title_col = CR_COL_WHITE;
+        cu_cpy(s->label, "key", sizeof s->label);
         cu_cpy(s->footer, "MIN: minor \267 OCT-: back \267 HOME: home", sizeof s->footer);
         for (k = CU_ROOT0; cs.key_on && k < CU_NKEY; k++)
             if ((53u + k) % 12u == cs.tonic) {
@@ -3071,7 +3124,10 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
                 s->lit_col[k] = CR_COL_YELLOW;
                 cu_cpy(s->key_label[k], CU_NOTE[cs.tonic], sizeof s->key_label[k]);
             }
+        cu_key_cells(s);
+        cu_row_trace(s, "key", seen, sizeof seen);
         break;
+    }
     case L_PERF: {
         static char seen[48];
         cu_picker(s, PERF_ITEMS, 7, cs.perf_sel, CR_COL_WHITE, "perform",
@@ -3112,43 +3168,49 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         if (psnd[ce.part].edited)
             cu_cat(s->value, "*", sizeof s->value);
         break;
-    case L_LOOP:                                   /* mock-ups 8 (stopped: the length) and 10 (playing) */
+    case L_LOOP: {                                 /* layers sheet 6: the knob row, no ring (playing: the dial) */
+        static char seen[48];
         if (cu_playing()) {
-            cu_picker(s, CU_LOOP_ACT, 4, cs.loop_act, CR_COL_RED, SLOTS[cs.loop_slot % 10u],
-                      "");                       /* (the ring owns the footer band) */
+            cu_picker(s, CU_LOOP_ACT, 4, cs.loop_act, CR_COL_RED, SLOTS[cs.loop_slot % 10u], "");
             cu_cpy(s->label, "loop ", sizeof s->label);
             cu_cat(s->label, SLOTS[cs.loop_slot % 10u] + 5, sizeof s->label);
         } else {
-            cu_picker(s, CU_LOOPLEN, CRL_NSYNC, cs.loop_len, CR_COL_RED, "loop length",
-                      "");   /* (mock-up 8: no value line) */
+            cu_picker(s, CU_LOOPLEN, CRL_NSYNC, cs.loop_len, CR_COL_RED, "loop length", "");
         }
-        s->ring_on = 1;
-        s->ring_col = CR_COL_RED;
-        s->ring = cr_snap.lring;
+        s->kind = CR_K_KNOBROW;
+        s->orient = 1;
+        cu_loop_cells(s);
+        cu_row_trace(s, "loop", seen, sizeof seen);
         if (cr_snap.lstate != CRL_PLAYING) {
             cu_cpy(s->mid, "Loop ", sizeof s->mid);
             cu_cat(s->mid, SLOTS[cs.loop_slot % 10u] + 5, sizeof s->mid);
         }
         s->mid_col = CR_COL_RED;
         break;
+    }
     case L_SAVE:                                   /* loops: save / load / delete on the root-chosen slot */
         cu_picker(s, CU_SAVE_ACT, 3, cs.save_act, CR_COL_RED,
                   (cs.loop_used >> cs.loop_target) & 1u ? "holds a loop" : "empty",
-                  "");                       /* (the ring's band) */
+                  "");                       /* (a plain picker: no ring; a loop playing: the dial) */
         s->orient = 1;
         cu_cpy(s->value, SLOTS[cs.loop_target % 10u], sizeof s->value);
-        s->ring_on = 1;
-        s->ring_col = CR_COL_RED;
         cu_cpy(s->mid, "Loops", sizeof s->mid);
         s->mid_col = CR_COL_RED;
         break;
-    case L_METRO:                                  /* the time signature; KNOB 1 the click level */
-        cu_picker(s, CU_SIG, CRL_NSIG, cs.metro_sig, CR_COL_WHITE, "time signature",
-                  "KNOB 1: level \267 OCT-: back \267 HOME: home");
+    case L_METRO: {                                /* layers sheet 7: the time signature over Click (KNOB 1) */
+        static char seen[48];
+        cu_picker(s, CU_SIG, CRL_NSIG, cs.metro_sig, CR_COL_WHITE, "metronome", "OCT-: back \267 HOME: home");
+        s->kind = CR_K_KNOBROW;
         s->orient = 1;
-        cu_cpy(s->value, cs.metro ? "click on " : "click off ", sizeof s->value);
-        cu_int(s->value + (cs.metro ? 9 : 10), cs.metro_vol, 0, 4);
+        s->cell[0][0].flags = CR_CF_ON;
+        cu_cpy(s->cell[0][0].label, "Click", sizeof s->cell[0][0].label);
+        cu_int(s->cell[0][0].value, cs.metro_vol, 0, sizeof s->cell[0][0].value);
+        s->cell[0][0].glyph = CR_G_BAR;
+        s->cell[0][0].pct = (uint8_t)(cs.metro_vol * 255u / 100u);
+        cu_hot_row(s, L_METRO);
+        cu_row_trace(s, "metro", seen, sizeof seen);
         break;
+    }
     default:
         break;
     }

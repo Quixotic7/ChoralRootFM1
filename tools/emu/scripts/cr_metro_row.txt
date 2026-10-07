@@ -1,0 +1,22 @@
+# ChoralRoot: the metronome layer is a knob row (CR_K_KNOBROW): METRO (SEQ) held and released locks it open (the
+# time signature over Click and three empty cells); KNOB 1 -2: the click level, its cell hot, no popup; 900 ms later
+# cool; SELECT +1: 3/4; OCT- closes it.
+wait 300
+btn SEQ down
+wait 500
+btn SEQ up
+wait 300
+shot build/emu/test/cr_metro_row.ppm
+knob KNOB1 -2
+wait 100
+shot build/emu/test/cr_metro_row_hot.ppm
+wait 900
+shot build/emu/test/cr_metro_row_cool.ppm
+knob SELECT +1
+wait 400
+shot build/emu/test/cr_metro_row_34.ppm
+knob SELECT -1
+wait 400
+btn OCT-
+wait 300
+dump

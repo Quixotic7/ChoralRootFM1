@@ -80,7 +80,8 @@ and the partial draws with full draws). Host instructions a UI frame with a loop
 (0.58 M with no ring at all); before, 12.8 M with the arp (`tools/emu/perf.sh` c: now 2.4 M, 1.2 M with no ring).
 
 **The corner dial** (`cr_dial`, from `cr_header`): the ring is drawn only where the loop is the subject (the
-count-in, the undo screen, recording and overdubbing, the LOOP and SAVE layers, set by `cr_ui.c`); while a loop
+count-in, the undo screen, recording and overdubbing, set by `cr_ui.c`; calibration uses it as its progress); the
+LOOP and SAVE layers have no ring since the layers sheet's state 6 (2026-10-07); while a loop
 merely plays (`lstate` PLAYING, `lcap` NONE or OD_ARMED) the producer sets `dial_on` instead, on every screen with
 a top line but the Options pages (the sound editor has none). The dial is Orchid's ring shrunk into the top line:
 centre (229, 12), r 8, 3 px — the track as 10 dots of T_LINE (`cr_disc`, about 2 on 3 off; no dashed `cr_arc`, whose
@@ -183,8 +184,11 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
   their strips (`cr_ed_strips`); a cutoff detent: <= 4 M host instructions, measured by tools/emu/test_cr.sh
   (`cr_editor_lag.txt`, `EMU_UI_LOG=0`). The old params page (`CR_K_PARAMS`) is retired.
 - **`CR_K_KNOBROW`: a layer screen** (FORMAT.md `knobrow`; design/choralroot-fm1-fx-mockups.json, the user-approved
-  sheet design/choralroot-fm1-fx-screens.png; `cr_ui.c` fills it for the FX, PERF and BASS layers: `cu_fx_cells`, `cu_perf_cells`, `cu_bass_cells`, the hot
-  cell `cu_hot_row`). The panel's lowest 72 px are one
+  sheet design/choralroot-fm1-fx-screens.png; `cr_ui.c` fills it for every layer: `cu_fx_cells`, `cu_perf_cells`, `cu_bass_cells`, `cu_key_cells`,
+  `cu_loop_cells`, METRO's Click inline, the hot cell `cu_hot_row`; design/choralroot-fm1-layers-mockups.json states
+  1, 3, 6, 7 for KEY, LOOP and METRO). `kr_band` 1 (KEY): the band is `cr_keyboard`'s strip (224 px, <= 56 px tall,
+  centred under `label`; `lit` / `lit_col` / `key_label` as `CR_K_KEYBOARD`) instead of the picker. `CR_CF_DIM`: the
+  cell all in the grey (LOOP's Sync while playing: it cannot change), never hot. The panel's lowest 72 px are one
   row of four knob cells (`cell[0][0..3]`; y 126–198 with a footer, 168–240 without), the rest a horizontal picker
   band drawn by the picker's own pieces (`cr_pick_item` with its slide, `cr_pick_sides`, `cr_pick_marks`): the item
   34 px bold in `col` squeezed to 170 px, its neighbours 13 px dim, the marks under it, `label` 11 px dim top left,
@@ -214,5 +218,6 @@ state settled (anim cleared, `anim_ms` 0) and mid-animation (80 ms), writes `bui
 device | mid-animation per state). Lint (gfx.c `GFX_HOOK_TEXT`, boxes in screen rows, de-duplicated across strips):
 no text off the screen, no two texts overlapping, no text on the ring's band. Checks: glyphs fit the buffer, the CRX
 charset, the cache (0 / 1 / 6 strips), animations pure and settling. States 45–53 are design/choralroot-fm1-fx-mockups.json's 2 3 4 5 5b (knob rows), 6 7 (the
-glyph studies, edit8) and 10 11 (the perform and bass layers); state 16 is the main sheet's fx layer, a knob row. The pictograms and the knob row's hot
+glyph studies, edit8) and 10 11 (the perform and bass layers); states 54–57 the layers sheet's 1 3 (KEY, the keyboard band), 6 (LOOP, no
+ring), 7 (METRO); state 16 is the main sheet's fx layer, a knob row. The pictograms and the knob row's hot
 block and strips are checked too. Report: `build/cr_screens/report.txt`.

@@ -231,6 +231,50 @@ differ cr_bass_row_reg cr_bass_row_sound "KNOB 3: the sound cell changed: $OUT/c
 has '^bass: behaviour Unison Bass' "$L" && has '^bass: behaviour Bass Single Notes' "$L" &&
     ok "KNOB 1 and F4: the behaviour (Unison, Single): $OUT/cr_bass_row_unison.ppm" || bad "behaviour: $(grep '^bass: behaviour' "$L" | tr '\n' ' ')"
 
+echo "KEY / LOOP / METRO held: knob rows (KEY: the keyboard as the band; LOOP: no ring)"
+export EMU_UI_LOG=0
+run cr_key_row
+L="$OUT/cr_key_row.log"
+has '^key: cells Tonic Scale Transpose Single' "$L" && ok "KEY held: the keyboard over Tonic / Scale / Transpose / Single: $OUT/cr_key_row.ppm" || bad "no key cells"
+y=0; for row in 70 80 90; do y=$((y + $(yellow_in "$OUT/cr_key_row_e.ppm" $row 0 240))); done
+[ "$y" -gt 5 ] && ok "E4: the tonic lit yellow in the keyboard band ($y px): $OUT/cr_key_row_e.ppm" || bad "no yellow key in the band ($y)"
+has '^key: knob 3 transpose 5' "$L" && has '^key: knob 2 scale minor' "$L" && has '^key: knob 4 single split' "$L" &&
+    ok "KNOB 3 +5, KNOB 2 minor, KNOB 4 split" || bad "key knobs: $(grep '^key: knob' "$L" | tr '\n' ' ')"
+mt=$(grep -c '^ui: frame.*device): meter ' "$L"); kr=$(grep -c '^ui: frame.*device): knobrow ' "$L")
+[ "$mt" = 0 ] && [ "$kr" -gt 50 ] && ok "no popup in the key layer ($kr knobrow frames)" || bad "a popup in the key layer ($mt meters, $kr knobrow)"
+grep -q '^ui: frame.*device): knobrow .*hot 1\.2$' "$L" && ok "KNOB 3: the Transpose cell hot" || bad "no hot Transpose"
+differ cr_key_row_hot cr_key_row_cool "the hot block gone 900 ms later: $OUT/cr_key_row_hot.ppm"
+differ cr_key_row_minor cr_key_row_e "E4: the lit key moved: $OUT/cr_key_row_e.ppm"
+run cr_loop_row
+L="$OUT/cr_loop_row.log"
+has '^loop: cells Sync Quantize Count-in Level' "$L" && ok "LOOP held, stopped: the length over Sync / Quantize / Count-in / Level: $OUT/cr_loop_row.ppm" || bad "no loop cells"
+has '^loop: knob 2 quantize' "$L" && has '^loop: knob 3 count-in' "$L" && has '^loop: knob 4 level' "$L" &&
+    ok "KNOB 2..4: quantize, count-in, level" || bad "loop knobs: $(grep '^loop: knob' "$L" | tr '\n' ' ')"
+grep -q '^ui: frame.*device): knobrow .*hot 1\.1$' "$L" && grep -q '^ui: frame.*device): knobrow .*hot 1\.2$' "$L" &&
+    grep -q '^ui: frame.*device): knobrow .*hot 1\.3$' "$L" && ok "the turned cells hot (1, 2, 3)" || bad "loop: no hot cells"
+mt=$(grep -c '^ui: frame.*device): meter ' "$L")
+[ "$mt" = 0 ] && ok "no popup in the loop layer" || bad "a popup in the loop layer ($mt meters)"
+differ cr_loop_row cr_loop_row_quant "KNOB 2: the quantize cell: $OUT/cr_loop_row_quant.ppm"
+differ cr_loop_row_quant cr_loop_row_countin "KNOB 3: the count-in cell: $OUT/cr_loop_row_countin.ppm"
+differ cr_loop_row_countin cr_loop_row_level "KNOB 4: the level cell: $OUT/cr_loop_row_level.ppm"
+for f in cr_loop_row cr_loop_row_playing; do
+    re=$(px_count "$OUT/$f.ppm" 104 2 136 10 ink); rd=$(px_count "$OUT/$f.ppm" 218 0 240 26 red)
+    case $f in
+    *playing) [ "$re" = 0 ] && [ "$rd" -gt 20 ] && ok "playing: no ring, the dial ($rd red): $OUT/$f.ppm" || bad "$f: ring band $re, dial $rd";;
+    *) [ "$re" = 0 ] && [ "$rd" = 0 ] && ok "stopped: no ring, no dial: $OUT/$f.ppm" || bad "$f: ring band $re, dial $rd";;
+    esac
+done
+grep -q '^loop: cells' "$L" && differ cr_loop_row_playing cr_loop_row_playing_level "playing, KNOB 4: the level cell hot: $OUT/cr_loop_row_playing_level.ppm"
+run cr_metro_row
+L="$OUT/cr_metro_row.log"
+has '^metro: cells Click - - -' "$L" && ok "METRO held: the time signature over Click: $OUT/cr_metro_row.ppm" || bad "no metro cells"
+has '^metro: knob 1 click' "$L" && grep -q '^ui: frame.*device): knobrow .*hot 1\.0$' "$L" && ok "KNOB 1: the click level, its cell hot" || bad "metro knob"
+mt=$(grep -c '^ui: frame.*device): meter ' "$L")
+[ "$mt" = 0 ] && ok "no popup in the metro layer" || bad "a popup in the metro layer ($mt meters)"
+differ cr_metro_row_hot cr_metro_row_cool "the hot block gone: $OUT/cr_metro_row_cool.ppm"
+differ cr_metro_row_cool cr_metro_row_34 "SELECT: 3/4: $OUT/cr_metro_row_34.ppm"
+unset EMU_UI_LOG
+
 echo "EDIT: the sound editor (cr_edit.c): groups, screens, lanes, knobs, memory"
 export EMU_UI_LOG=5
 run cr_editor --wav "$OUT/cr_editor.wav"
@@ -451,9 +495,9 @@ de=$(px_count "$OUT/cr_loop_dial.ppm" 2 60 14 180 ink)
 [ "$dr" -gt 10 ] && [ "$cr" = 0 ] && [ "$de" = 0 ] &&
     ok "the chord view while the loop plays: the corner dial ($dr red px top-right), no ring, no red in the panel: $OUT/cr_loop_dial.ppm" \
     || bad "the corner dial: $dr red in its box, $cr red in the panel, $de ink in the ring's left band"
-re=$(px_count "$OUT/cr_loop_layer_ring.ppm" 2 60 14 180 ink); rd=$(px_count "$OUT/cr_loop_layer_ring.ppm" 218 0 240 26 red)
-[ "$re" -gt 20 ] && ok "LOOP held while it plays: the loop layer keeps the ring ($re px in its left band): $OUT/cr_loop_layer_ring.ppm" \
-    || bad "the loop layer has no ring ($re px in its left band, $rd red in the dial's box)"
+re=$(px_count "$OUT/cr_loop_layer_dial.ppm" 2 60 14 180 ink); rd=$(px_count "$OUT/cr_loop_layer_dial.ppm" 218 0 240 26 red)
+[ "$re" = 0 ] && [ "$rd" -gt 20 ] && ok "LOOP held while it plays: no ring in the loop layer, the dial in the top line ($rd red): $OUT/cr_loop_layer_dial.ppm" \
+    || bad "the loop layer: $re px in the ring's left band, $rd red in the dial's box"
 silent_end cr_loop_load
 "$EMU" --headless --script "$S/cr_loop_free.txt" --wav "$OUT/cr_again/cr_loop_free.wav" >/dev/null 2>&1
 cmp -s "$OUT/cr_loop_free.wav" "$OUT/cr_again/cr_loop_free.wav" && ok "the looper is deterministic (the same audio twice)" || bad "looper audio differs"

@@ -1,0 +1,31 @@
+# ChoralRoot: the key layer is a knob row with the keyboard as its band (CR_K_KNOBROW, kr_band 1): KEY (SEL) held
+# and released locks it open (Tonic / Scale / Transpose / Single); KNOB 3 +5: Transpose hot, no popup; 900 ms later
+# cool; KNOB 2: minor; KNOB 4: split; E4: the tonic by a root (the keyboard's lit key moves); OCT- closes it.
+wait 300
+btn SEL down
+wait 500
+btn SEL up
+wait 300
+shot build/emu/test/cr_key_row.ppm
+knob KNOB3 +5
+wait 100
+shot build/emu/test/cr_key_row_hot.ppm
+wait 900
+shot build/emu/test/cr_key_row_cool.ppm
+knob KNOB2 +1
+wait 900
+knob KNOB4 +1
+wait 900
+shot build/emu/test/cr_key_row_minor.ppm
+btn E4
+wait 300
+shot build/emu/test/cr_key_row_e.ppm
+knob KNOB3 -5
+wait 900
+knob KNOB2 -1
+wait 900
+knob KNOB4 -1
+wait 900
+btn OCT-
+wait 300
+dump

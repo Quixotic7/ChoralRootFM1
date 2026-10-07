@@ -62,6 +62,7 @@ enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_DX, CR_W_CZ };   /* CR_W_DX: a DX7
 #define CR_CF_ON 1u                 /* a cell: shown (an empty cell draws nothing) */
 #define CR_CF_PCT 2u                /* .. pct is shown (a text cell: a small bar) */
 #define CR_CF_BIP 4u                /* .. pct is centre-zero (128 = 0) */
+#define CR_CF_DIM 8u                /* .. dim: drawn in the grey (knobrow: a value that cannot change now) */
 #define CR_CF_MARK(c) ((uint8_t)((c) << 4))   /* .. a modulation mark, a 4 px square at its top right in colour c
                                      * (a named CR_COL_*, 0 none): the matrix modulates its parameter */
 #define CR_CF_MARKCOL(f) ((uint32_t)(f) >> 4)
@@ -160,7 +161,9 @@ typedef struct {
     /* panel: edit8, stack (the sound editor, full screen: header 0; its title line is `title` in `title_col`,
      * `page` right-aligned). No motion: a change is drawn at once (docs/EDITOR.md "Responsiveness").
      * knobrow (a layer): the picker's fields (items, sel, col, label, value; the slide) for the band, cell[0][0..3]
-     * the knobs' cells (CR_CF_ON off: a dim dash), hot_r 1 / hot_c the cell just turned, hot_col its block */
+     * the knobs' cells (CR_CF_ON off: a dim dash), hot_r 1 / hot_c the cell just turned, hot_col its block;
+     * kr_band 1: the band is the keyboard instead of the picker (KEY: lit / lit_col / key_label, `label` top left) */
+    uint8_t kr_band;                /* knobrow: 0 the picker, 1 the keyboard */
     char page[16];                  /* edit8 / stack: the title line's right text ("OSC 2 \267 A") */
     cr_cell_t cell[CR_ED_ROWS][4];  /* rows of four cells (edit8: 1..2 rows) */
     char head[4][10];               /* stack: the column headings */

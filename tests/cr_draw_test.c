@@ -504,6 +504,42 @@ int main(int argc, char **argv)
         check("knob row: a knob row state is in the table", found);
     }
 
+    {   /* the knob row's keyboard band (KEY): the lit tonic yellow in the band, the cells under it; a dim cell grey */
+        cr_screen_t s;
+        uint32_t x, y, yb = 0, ink = 0, grey = 0, grey0 = 0, ry, k;
+        uint16_t yel = swap16(CR_NAMED[CR_COL_YELLOW]), gr = swap16(CR_NAMED[CR_COL_GREY]), bg;
+        cr_screen_clear(&s);
+        s.kind = CR_K_KNOBROW;
+        s.kr_band = 1;
+        s.header = 1;
+        s.col = CR_COL_YELLOW;
+        snprintf(s.label, sizeof s.label, "key");
+        snprintf(s.footer, sizeof s.footer, "MIN: minor");
+        s.lit = 1u << 7;                              /* C4 */
+        s.lit_col[7] = CR_COL_YELLOW;
+        for (k = 0; k < 4u; k++) {
+            s.cell[0][k].flags = CR_CF_ON;
+            snprintf(s.cell[0][k].label, sizeof s.cell[0][k].label, "K%u", k + 1u);
+            snprintf(s.cell[0][k].value, sizeof s.cell[0][k].value, "C");
+        }
+        s.n_rows = 1;
+        ry = (uint32_t)cr_kr_rowy(&s);
+        render(&s, 0);
+        bg = host_screen[(ry - 4u) * 240u + 2u];
+        for (y = 30; y < ry; y++) for (x = 0; x < 240u; x++) yb += host_screen[y * 240u + x] == yel;
+        for (y = ry; y < 240u && y < ry + 72u; y++) for (x = 0; x < 240u; x++) ink += host_screen[y * 240u + x] != bg;
+        write_ppm(dir, "knobrow_keyboard");
+        snprintf(name, sizeof name, "knob row, keyboard band: the tonic yellow in the band (%u px), the row under it (%u ink)", yb, ink);
+        check(name, yb > 200u && ink > 200u);
+        for (y = ry; y < ry + 72u && y < 240u; y++) for (x = 0; x < 60u; x++) grey0 += host_screen[y * 240u + x] == gr;
+        s.cell[0][0].flags |= CR_CF_DIM;
+        render(&s, 0);
+        for (y = ry; y < ry + 72u && y < 240u; y++) for (x = 0; x < 60u; x++) grey += host_screen[y * 240u + x] == gr;
+        write_ppm(dir, "knobrow_dim");
+        snprintf(name, sizeof name, "knob row: a dim cell is drawn grey (%u grey px, %u not dim)", grey, grey0);
+        check(name, grey > grey0 + 30u);
+    }
+
     {   /* animations: pure and settling */
         int pure = 1, settle = 1, moving = 1;
         for (i = 0; i < CR_NSCREENS; i++) {

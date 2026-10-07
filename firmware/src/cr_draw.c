@@ -1335,7 +1335,8 @@ static void cr_p_stack(const cr_screen_t *s)
  * (the item 34 px bold in col squeezed to 170 px, its neighbours 13 px dim at the edges, the square marks under it,
  * `label` 11 px dim top left, `value` 13 px bold under the marks); the 72 px are one row of four knob cells,
  * edit8's look made taller: the label 10 px (+11), a 48 x 36 glyph box (+15), the value 13 px bold (+66), the 2 px
- * knob-colour bar (+70). A cell with pct and no glyph draws the bar glyph; a cell not CR_CF_ON a dim dash. The band
+ * knob-colour bar (+70). A cell with pct and no glyph draws the bar glyph; a cell not CR_CF_ON a dim dash, a
+ * CR_CF_DIM cell all in the grey. kr_band 1: the band is cr_keyboard's strip (KEY) under `label`. The band
  * slides (CR_A_SLIDE) as a picker's; the row has no motion (the hot cell: the value on a block of its colour). */
 #define CR_KR_ROW 72
 static int32_t cr_kr_rowy(const cr_screen_t *s) { return CR_PY0 + cr_ph(s) - CR_KR_ROW; }
@@ -1349,20 +1350,23 @@ static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
     uint16_t col = cr_rgb(s->col, T_TEXT);
     if (cr_in_strip(CR_PY0, ry)) {                   /* the band */
         if (s->label[0]) cr_text_fit(P8(8), P8(CR_PY0 + 12), s->label, 11, 0, CR_L, T_DIM, T_BG, P8(224));
-        if (n > 0) {
+        if (s->kr_band == 1u) {                      /* the keyboard (KEY): the 224 px strip, <= 56 px tall, centred */
+            int32_t avail = ry - CR_PY0 - 18 - 6, kh = avail < 56 ? avail : 56;
+            cr_keyboard(s, CR_PY0 + 18 + (avail - kh) / 2, kh);
+        } else if (n > 0) {
             int32_t bw = cr_tw(cr_item(s, sel), (uint32_t)size, 1);
             if (bw > P8(170)) bw = P8(170);
             cr_pick_sides(s, n, sel, base, 6, 234, (P8(228) - bw) / 2 - P8(10));
             cr_pick_item(s, fr, sel, size, 170, 1, base, top, top + bigh, col);
             cr_pick_marks(n, sel, marks, col);
         }
-        if (s->value[0]) cr_text_fit(P8(120), P8(marks + 19), s->value, 13, 1, CR_C, col, T_BG, P8(224));
+        if (s->value[0] && s->kr_band != 1u) cr_text_fit(P8(120), P8(marks + 19), s->value, 13, 1, CR_C, col, T_BG, P8(224));
     }
     if (!cr_in_strip(ry - 2, ry + CR_KR_ROW + 2)) return;
     for (ci = 0; ci < 4; ci++) {                     /* the knobs' cells */
         cr_cell_t c = s->cell[0][ci];
         int32_t x = ci * 60, cx = P8(x + 30);
-        uint16_t kc = cr_ccol((uint32_t)ci, 1);
+        uint16_t kc = (c.flags & CR_CF_DIM) ? cr_rgb(CR_COL_GREY, T_DIM) : cr_ccol((uint32_t)ci, 1);   /* dim: grey */
         int hot = s->hot_r == 1u && s->hot_c == ci;
         if (!(c.flags & CR_CF_ON)) {                 /* no parameter: a dim dash where the value would be */
             cr_frect((x + 26) * 16 + 8, (ry + 61) * 16, 7 * 16, 32, T_DIM);
@@ -1455,7 +1459,8 @@ static void cr_p_scope(const cr_screen_t *s, int32_t ph)
 
 /* ------------------------------------------------------------ ring --- */
 /* Orchid's ring: a dotted circle round the edge (cr_arc width 5, dash 2 of 6 at R 113, T_LINE) and the progress
- * over it (the same band solid, clockwise from 12 o'clock). Only its colour and fraction change, so the coverage
+ * over it (the same band solid, clockwise from 12 o'clock). cr_ui.c sets it only for the count-in, the undo screen,
+ * the capture states (armed, recording, overdubbing) and calibration; a loop merely playing is the corner dial. Only its colour and fraction change, so the coverage
  * of every pixel of the band is computed once (cr_arc_px, the first time a ring is drawn) into the POOL: per row up
  * to two runs of pixels, a byte a pixel (the solid band's and the dotted circle's sample counts, d <= s, as one
  * index of the 153 pairs). A frame blends the runs of its rows from the table; the progress is decided per run

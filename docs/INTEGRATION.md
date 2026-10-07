@@ -162,7 +162,7 @@ a button pressed during another's hold is that hold's combo (its release does no
 
 | printed | role | tap | hold (locked open unless noted) |
 | --- | --- | --- | --- |
-| SEL | KEY | Key Mode on/off | key layer: roots = tonic (MIN held: minor); KNOB 1–4 TONIC SCALE TRANSPOSE SINGLE NOTES |
+| SEL | KEY | Key Mode on/off | the knob row with the keyboard as its band: roots = tonic (MIN held: minor); KNOB 1–4 Tonic Scale Transpose Single as cells, the turned cell hot |
 | ARP | PERF | performance on/off | the knob row: white roots = mode; KNOB 1–4 = the mode's params as cells; no popups, the turned cell hot 800 ms |
 | FX | FX | main effect on/off | the knob row: white roots = effect; KNOB 1–3 params, KNOB 4 amount (on: FX on); no popups, the turned cell hot 800 ms |
 | ENV | BASS | bass on/off | the knob row: KNOB 1–4 BEHAVIOUR REGISTER SOUND LEVEL as cells (no popups, the turned cell hot); BASS held + EDIT = the bass sound's editor, + SAVE its saving |
@@ -170,9 +170,9 @@ a button pressed during another's hold is that hold's combo (its release does no
 | GLO | OPT | Options (picker pages) | shift (momentary): OPT + KNOB 1 split point, + SELECT metronome level, + ALGORITHM bass level; the other knobs keep their job |
 | EDIT | EDIT | the sound editor (again: leave; in the engine picker: keep its sound, close it) | the engine picker (a preview: OCT− cancels, OCT+ keeps) on the white roots, KNOB 1 its presets, KNOB 2 init, KNOB 4 roots engines / play |
 | HOME | HOME | close the layer / page / menu; on the view: next View | — |
-| SAVE | SAVE | save sound (naming; in it: save, as OCT+) | save / load / delete loops (momentary, while held; OCT+ does it) |
-| SEQ | METRO | metronome on/off | time-signature picker, KNOB 1 click level |
-| PLAY | LOOP | play / stop | slots on white roots, D#4 CLEAR (hold), F#4 UNDO; KNOB 1–4 SYNC QUANT COUNT LEVEL; playing: the action picker, OCT+ does it |
+| SAVE | SAVE | save sound (naming; in it: save, as OCT+) | save / load / delete loops (momentary, while held; OCT+ does it; a plain picker, no ring) |
+| SEQ | METRO | metronome on/off | the knob row: the time signature over Click (KNOB 1, hot; no popup) and three empty cells |
+| PLAY | LOOP | play / stop | the knob row, no ring: slots on white roots, D#4 CLEAR (hold), F#4 UNDO; KNOB 1 the length picker, 2–4 Quantize Count-in Level cells (hot, no popups); playing: the action picker, OCT+ does it, Sync dim, the dial |
 | REC | REC | record / overdub arm | undo the last layer (not a layer) |
 | OCT−/OCT+ | | octave −2..+2; in a layer or picker: back / OK | **both: PANIC** (the LOCK latch cleared) |
 
@@ -196,7 +196,12 @@ pct2 1.0), arrow (direction), range, gate, bar (slop amount, pattern), else text
 Behaviour (text: Chords / Unison / Single / Solo), Register (shift, -2..4 from `cr_snap.bass_voicing`), Sound (the
 popup's number and name, "off"), Level (bar). Traces `perf: cells ...`, `perf: knob Arp division 8`, `bass: cells
 ...`, `bass: knob 4 level 84`; traces `fx: effect Delay`, `fx: cells Time Feedback Colour Amount`,
-`fx: knob 2 Reverb damp 64`.
+`fx: knob 2 Reverb damp 64`. KEY (`cu_key_cells`, `kr_band` 1: the keyboard strip as the band, the tonic lit yellow):
+Tonic (text), Scale (Major / Minor), Transpose (shift, (v + 24) / 48, "+5"), Single (Full / Split). LOOP
+(`cu_loop_cells`): Sync (range, index / 5, the length; `CR_CF_DIM` while playing), Quantize (echoes, index / 6, pct2
+1.0), Count-in (gate 1.0 / 0.1), Level (bar). METRO: Click (bar, level / 100). Traces `key: cells ...`, `key: knob 3
+transpose 5`, `loop: cells ...`, `loop: knob 2 quantize 1/4`, `metro: knob 1 click 60`. OPT + SELECT outside the
+METRO layer still shows the click-level popup.
 
 Pickers (`cr_picker_t { items, n, sel, on_change }`): SELECT or a root key moves `sel` (the white
 roots index into the list), OCT+ confirms (`on_change` is already live for settings, so OCT+ only
@@ -224,9 +229,9 @@ Priority, top down, first match wins:
 
 1. a message (panic, "SAVED", errors) → `big` block / `message`
 2. a knob popup (within 900 ms of a turn) → `meter` in the knob's colour (`PLAN.md` §5)
-3. an open layer → its screen: KEY `keyboard` select-key; FX the `knobrow` (no popup over it: its knob turns never set one); PERF / BASS / LOOP / engine pickers; EDIT the `params` page
+3. an open layer → its screen: KEY, PERF, FX, BASS, LOOP, METRO the `knobrow` (no popup over it: their knob turns never set one; KEY's band the keyboard); SAVE (loops) and the engine picker pickers; EDIT the `params` page
 4. Options → the settings picker
-5. the View: CHORD (`chord` with squeeze + notes line, `Key:` in the top line, `Rec`/loop status in the top line; the ring while the loop records / overdubs, the corner dial (`dial_on`) while it merely plays — on every screen with a top line but Options), KEYBOARD, NOTES, GEEK OUT, SCOPE (Felucca's scope buffer)
+5. the View: CHORD (`chord` with squeeze + notes line, `Key:` in the top line, `Rec`/loop status in the top line; the ring only for the count-in, the undo screen, recording / overdubbing and calibration; the corner dial (`dial_on`) while the loop merely plays — on every screen with a top line but Options, the LOOP and SAVE layers included), KEYBOARD, NOTES, GEEK OUT, SCOPE (Felucca's scope buffer)
 6. idle (no chord sounding, no loop, 3 s after the last note) → `stripes`
 
 ## 6. LEDs (`cr_leds()`)

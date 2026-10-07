@@ -1,0 +1,51 @@
+# ChoralRoot: the loop layer is a knob row with no ring (CR_K_KNOBROW): LOOP (PLAY) held and released locks it open,
+# stopped: the length picker over Sync / Quantize / Count-in / Level; KNOB 2, 3, 4: each cell hot, no popup; OCT-.
+# Then a 1-bar loop is recorded (REC, D, REC) and plays; LOOP held: the action picker, the dial in the top line, no
+# ring, Sync dim; KNOB 4: Level hot; OCT- closes it.
+wait 300
+btn PLAY down
+wait 500
+btn PLAY up
+wait 300
+shot build/emu/test/cr_loop_row.ppm
+knob KNOB2 +1
+wait 100
+shot build/emu/test/cr_loop_row_quant.ppm
+wait 900
+knob KNOB3 -1
+wait 100
+shot build/emu/test/cr_loop_row_countin.ppm
+wait 900
+knob KNOB4 -2
+wait 100
+shot build/emu/test/cr_loop_row_level.ppm
+wait 900
+knob KNOB2 -1
+wait 900
+knob KNOB4 +2
+wait 900
+btn OCT-
+wait 300
+btn REC
+wait 300
+btn A#3 down
+btn D4 down
+wait 500
+btn D4 up
+btn A#3 up
+wait 1200
+btn REC
+wait 1000
+dump
+btn PLAY down
+wait 500
+btn PLAY up
+wait 300
+shot build/emu/test/cr_loop_row_playing.ppm
+knob KNOB4 -2
+wait 100
+shot build/emu/test/cr_loop_row_playing_level.ppm
+wait 900
+btn OCT-
+wait 300
+dump
