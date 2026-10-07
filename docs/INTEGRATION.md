@@ -15,15 +15,38 @@ How the three independent parts become one instrument on Felucca's platform:
 
 `firmware/src/choralroot.c` replaces `felucca.c` as the single compilation unit, in Felucca's
 include order, keeping: the HAL, `libc.c`, `lcd.c`, `gfx.c`, `core.h`, `engines.c`, `params.c`,
-`mod.c`, `voice.c`, `slicer.c`, `fx.c`, `usb.c`, `midi_uart.c`, `audio.c`, `panel.c`, `icons.c`,
-`storage*`, `upreset.c`, `ota*`, `console.c`, `main.c`; dropping Felucca's instrument: `seq.c`,
-`song_chain.c`, `motion.c`, `perform.c`, `chord.c`, `ui*.c`, `project.c`, `editor*.c`, `favorites.c`,
-`ui_name.c` (naming is re-done small in `cr_ui.c`; of `editor*.c`'s SysEx, `cr_backup.c` answers the backup subset). Where a kept file references a dropped one
-(`voice.c` → `seq.c`'s `trk_note_on`, `audio.c` → `seq_block`, `usb.c` → `midi_event`, `main.c` →
-`ui_input/ui_leds/ui_draw`), `cr_out.c` / `cr_ui.c` provide functions of the same names, so kept
-files are not edited (a `#define` shim header `cr_shim.h` where a signature must differ).
+`mod.c`, `voice.c`, `slicer.c`, `fx.c` (with `perform.c`), `usb.c`, `midi_uart.c`, `audio.c`, `panel.c`,
+`storage*`, `upreset.c`, `ota*`, `console.c`, `main.c`; dropping Felucca's instrument: `seq.c` with
+`song_chain.c`, `motion.c`, `chord.c`, `midi_control.c`, `midi_clock.c` (`FELUCCA_SEQ 0`), `ui*.c`, `icons.c`
+(`FELUCCA_ICONS 0`), `project.c`, `editor*.c`, `favorites.c`, `ui_name.c` (naming is re-done small in `cr_ui.c`; of
+`editor*.c`'s SysEx, `cr_backup.c` answers the backup subset), and the sample-based engines SAMPLE, GRAIN and DRUM
+(`FELUCCA_SAMPLE`, `FELUCCA_GRAIN`, `FELUCCA_DRUM` 0: ChoralRoot is all-synth). Where a kept file references a
+dropped one, `cr_out.c` / `cr_shim.c` / `cr_ui.c` / `engines.c` provide names of the same meaning, so kept files are
+not edited:
+- `fx.c` → `seq.c`'s `events_block` (every block): `cr_out.c`'s runs `voice.c`'s `engine_block` per part (the engine
+  switches) and the releases a sound load asks for (`panic_req`, bit per part), and recovers from a MIDI in overflow;
+- `cr_out.c`'s own MIDI in → `midi_control.c`'s `midi_event`: `cr_out.c`'s (section 2);
+- `upreset.c` → `transport_req` (0), `trk_index`, `drum_track`, `motion_base_value` / `motion_guard` /
+  `motion_unguard` (no motion lanes: the sounding value is the saved one), `step_lanes` / `step_accents` (DRUM's,
+  `engines.c`: no grid); `cr_bank.c` → `chain_busy` (0 without the song chain);
+- `main.c` → `chain_defaults(&chain_config)` (a macro that drops its argument), `panic_req`, `ui_input/ui_leds/ui_draw`
+  (`cr_shim.c`); `audio.c` → `kb_out_tick` (its key-latency stamp: written, nothing reads it);
+- `voice.c` → DRUM's `drum_reuse` (a stub: no part plays engine 10) and `ENG_DRUM` (the retired slot), `params.c` →
+  SAMPLE's alias table (`SMP_ALL_NAMES`, `SMP_SET_ORIG`, `SMP_NSETS` 0: no alias).
+A retired engine keeps its number (the stores and the protocol hold numbers: `ENGINES[]` is append-only): its slot is
+`engines.c`'s `ENG_GONE` (no DSP, no presets, `eng_ok` false: the pickers and PRESETS never offer it). A user sound
+saved on engine 4, 8 or 10 (a Felucca slot, a restored bank) loads as the INIT sound on ANALOG under its name, with
+the message "engine retired: init sound" (and the trace line `load: slot N engine E retired -> INIT on ANALOG`).
+Felucca's own unit (`felucca.c`) and its host suites (`tests/hostsim.c`, `regress.c`) keep every flag at its default
+(1): nothing of Felucca changes. Felucca files touched only for the flags: `core.h` (the defaults, `NENG_SHOWN`),
+`engines.c` (the includes, `ENGINES[]`, `ENGINE_ORDER`, `eng_ok`, `TRK_DEF`, the retired slot and the shims above),
+`gfx.c` (the keycaps behind `FELUCCA_KEYCAPS`), `tests/hostsim.c` (`FELUCCA_SEQ 0`: the sound side only, without its
+own renders); `voice.c`, `fx.c`, `audio.c`, `usb.c`, `main.c`, `params.c`, `mod.c` and `upreset.c` are unedited. The emulator (`tools/emu/emu_firmware.h`), `tests/cr_trans_test.c` and
+`tests/cr_draw_test.c` set ChoralRoot's flags as `choralroot.c` does.
 
-Build flags stay Felucca's; `FELUCCA_SLICE=0`, `FELUCCA_FM4=0`, `FELUCCA_UAC=1`, `FELUCCA_UART=1`.
+Build flags stay Felucca's; `FELUCCA_SLICE=0`, `FELUCCA_SLICER=0`, `FELUCCA_FM4=0`, `FELUCCA_UAC=1`, `FELUCCA_UART=1`,
+and the all-synth set `FELUCCA_SEQ=0`, `FELUCCA_SAMPLE=0`, `FELUCCA_GRAIN=0`, `FELUCCA_DRUM=0`, `FELUCCA_ICONS=0`,
+`FELUCCA_KEYCAPS=0` (BUILDING.md).
 The package identity becomes `FM-1_920` and the version string `ChoralRoot 0.1`.
 
 ## 2. Parts and streams (`cr_out.c`)
@@ -47,17 +70,22 @@ note_off(s, note):      trk_note_off(...); midi 0x08 ...
 all_off(s):             every voice of the part released (voice.c's release-all), CC 123 on ch[s]
 ```
 
-MIDI out goes through Felucca's `midi_out_q` (USB) exactly as `seq.c` lines 408–424 do today.
+MIDI out goes through Felucca's `midi_out_q` (USB) exactly as Felucca's `seq.c` key_on / key_off did.
 Channels default 1 / 2 / 3 (Orchid); each stream has `enabled` and `channel` in settings.
-Clock out: 24 PPQN from the engine's tempo on the audio clock (`midi_clock.c` already parses clock
-*in*; add the *out* pulse in `cr_out.c` from the same sample counter the loop uses).
+Clock out: 24 PPQN from the engine's tempo on the audio clock (`cr_out.c`, the same sample counter the loop uses);
+clock in: `cr_midi.c`'s follower (Felucca's `midi_clock.c` is not in the unit).
 
-MIDI in (`cr_out.c` `cr_midi_in`, pure parts in `cr_midi.c`): the audio ISR drains usb.c's `midi_in_q` (USB and TRS)
-at the top of each block, before `seq.c`'s `events_block`, which then finds it empty (its overflow recovery stays).
-Only the CHORD and BASS channels of Options (MIDI Perform / MIDI Bass; Off: ignored) are heard:
-- notes, pedal, bend, pressure and the other CCs go to Felucca's `midi_event` as channel 1 (part 0) or 2 (part 1),
-  so they play exactly as channels 1 / 2 did before, now on the configured channels (`seq.c` is not edited); CC 123 is
-  `midi_control.c`'s all notes off on that part.
+MIDI in is ChoralRoot's own (`cr_out.c` `cr_midi_in`, pure parts in `cr_midi.c`): the audio ISR drains usb.c's
+`midi_in_q` (USB and TRS) at the top of each block, before `fx.c` calls `events_block` (`cr_out.c`'s: on an overflow
+it drops the queue and releases every part). Only the CHORD and BASS channels of Options (MIDI Perform / MIDI Bass;
+Off: ignored) are heard:
+- notes, pedal, bend, pressure and the other CCs go to `cr_out.c`'s `midi_event(status, part, d1, d2)`, what
+  ChoralRoot kept of Felucca's `midi_control.c`: note on / off → `trk_note_on` / `trk_note_off` on the part (a
+  repeated note-on restarts it), CC 64 sustain (a released note held until the pedal is up), pitch bend → `voice.c`'s
+  `midi_bend_target` (±2 semitones; RPN 0 sets 0..24 semitones and cents), CC 1 / CC 11 / channel pressure →
+  `mod.c`'s MODW / EXPR / AT sources (`mod_midi`), CC 120 all sound off, CC 121 reset controllers (the bend range
+  kept), CC 123 all notes off (the pedal honoured). Felucca's chords (CHRD), arpeggiator and live recording were the
+  sequencer's and are gone; a MIDI note and the engine's stream share the part's voices as before.
 - CC 7 → the part's LEVEL, CC 91 / 93 / 94 → its reverb / chorus / delay send (part 0's are the FX amounts), program
   change → the chord sound (PRESETS list position: factory bank, then user slots) or the bass sound (ALGORITHM list
   position, 0 = off); out of range ignored. The ISR posts these to a small ring (`cr_min_q`) and the UI frame
@@ -293,10 +321,6 @@ leaves part 0 alone.
 
 ### Different from the design above (for now)
 
-- `seq.c` (with `song_chain.c`, `chord.c`, `motion.c`, `midi_control.c`, `midi_clock.c`) is **kept, inert**
-  (`song.grid = 2`: its keyboard is silent; its transport never starts): its `events_block` still does the engine
-  switches, the releases of a sound load (`panic_req`) and plays the MIDI notes `cr_out.c` forwards to it (section 2). Replacing it
-  with `cr_out.c`'s own `events_block` saves its flash and RAM: do it with the device build's measurements.
 - LEVEL and PAN on the MIX page are the part's (Felucca's `param_kept`): saved with a user sound, not loaded by it.
   An FM6 sound's ENV page edits values its own envelopes ignore (the page says so).
 - Defaults: the RAW stream off (Orchid), MIDI clock out off, FX on, the bass OFF (ALGORITHM at 0; BASS tap: SUB
@@ -351,9 +375,10 @@ leaves part 0 alone.
   (OCT+ keeps), `cr_save_del.txt`, `va_persist_*.txt` (U01 at power-on), `persist_roots_*.txt` (new).
 
 - **Backup and restore** (2026-10-06, `cr_backup.c`; web/EDITOR_PROTOCOL.md "ChoralRoot: backup and restore"):
-  Felucca's backup SysEx (INFO 1, SMP 11-14, LIST / GET / PUT 65-67) plus RESTART 72, answered from `ed_service`
+  Felucca's backup SysEx (INFO 1, LIST / GET / PUT 65-67) plus RESTART 72, answered from `ed_service`
   (`cr_shim.c` keeps a stub only without it) on ChoralRoot's objects: settings 1, user sound banks 6 / 7, FM6 bank 8,
-  VA store 9, samples 32 / 33, loop slots 40..49. Reads from flash (the current A/B copy) in 256-byte windows, also
+  VA store 9, loop slots 40..49 (2026-10-07: no sample slots 32 / 33 and no SMP 11-14 any more, backup tag `43 01
+  02`: a Felucca archive's samples, and a ChoralRoot 0.1 archive's, are reported skipped). Reads from flash (the current A/B copy) in 256-byte windows, also
   while a loop plays; writes staged in `cu_loop_buf` (`cu_loop_gen`: the UI's use ends a session), validated, then
   `st_save` / `crl_fl_save`; busy (rc 3) while a loop plays or records; a restored settings record sets
   `cr_restore_lock` (`CR_SETTINGS_BUSY`: no settings save until the restart). RAM: the session state only (~120 B),
@@ -361,6 +386,37 @@ leaves part 0 alone.
   Back up / Restore, the restore offered after installing over another firmware) and `tools/fm1_install.py --backup /
   --restore`. Host test `tests/cr_backup_test.c` (the emulator's build: it has no SysEx transport, so no emulator
   script); not yet on hardware.
+
+### All-synth (2026-10-07: the dead weight out)
+
+ChoralRoot's unit drops Felucca's sequencer and the sample-based engines (section 1 has the names the kept files
+still get): `FELUCCA_SEQ 0` (seq.c with song_chain.c, chord.c, motion.c, midi_control.c, midi_clock.c),
+`FELUCCA_SAMPLE 0` (eng_sample.c and its ADPCM sets), `FELUCCA_GRAIN 0`, `FELUCCA_DRUM 0` (eng_drum.c, drum_voice.c),
+`FELUCCA_ICONS 0` (icons.c) and `FELUCCA_KEYCAPS 0` (gfx.c's keycaps); Felucca's unit and its tests keep them all
+(1). Measured with `./build.sh`, each step on top of the one before (the first row: HEAD before the change; the
+second: this change with every flag at 1):
+
+| build | .text | .bss (RAM) | POOL |
+| --- | --- | --- | --- |
+| before (b32e83f) | 490104 B | 90512 B (92.4 %) | 330116 B (95.9 %) |
+| every flag 1 (the new presets, the backup without samples) | 489540 | 90528 (92.4 %) | 330116 (95.9 %) |
+| seq.c and its satellites off | 480812 (-8728) | 74336 (-16192: 75.9 %) | 330116 |
+| + SAMPLE and GRAIN off (GRAIN needs SAMPLE's sets) | 278672 (-202140) | 72976 (-1360: 74.5 %) | 302036 (-28080: 87.8 %) |
+| + DRUM off | 270312 (-8360) | 72976 | 294740 (-7296: 85.7 %) |
+| + icons and keycaps off (the default) | 270312 (0) | 72976 | 294740 |
+
+The icon atlas and the keycaps cost nothing: no ChoralRoot screen called them, so the compiler had left them out of
+the image already (`ui_icons.h` / `ui_keycaps.h` are no longer included; the generate step still writes them for
+Felucca's tests). Total: flash 493280 -> 273488 B of the XIP slot (84.8 -> 47.0 %), RAM 92.4 -> 74.5 %, POOL 95.9 ->
+85.7 %. The audio of what remains is bit for bit the same: `tools/emu/perf.sh`'s six WAVs (FM6, VA, ANALOG sounds,
+the bass, the loop, the arp) are identical to b32e83f's.
+
+The bank keeps its rows: PRESETS 03 PIANO (was SAMPLE's) is FM6's PIANO, TINE EP's patch through the macros (MRAT +1,
+MLVL +10, MEG -16, VMOD +2, FB +1, DTUN 12: an EP-piano hybrid; no new factory patch, so PTCH's F / B numbers stay);
+15 CLOUD PAD and 16 SHIMMER (were GRAIN's) are VA presets 23 / 24 (docs/VA.md). Levels with `tests/va_levels.c`
+(chord alone / with SUB BASS, the share under the limiter): PIANO 0 / 0 %, CLOUD PAD 0 / 1.4 %, SHIMMER 0 / 0 %;
+trims 0. The emulator's `cr_allsynth.txt` plays the three. A user sound on a retired engine loads as INIT on ANALOG
+(section 1). The flash of user sample slots 1-2 (0xA0000..0xC7FFF) stays reserved and unused; slot 3's holds the loops.
 
 ### Stubbed (screens and gestures only; TODO in the code)
 
@@ -386,8 +442,8 @@ editing over SysEx: `web/editor.html` does not work with ChoralRoot).
    **The SLICER is dropped** (`FELUCCA_SLICER 0` in `choralroot.c`; 1 in `felucca.c` and the emulator): with it the
    POOL overflowed by 4104 B (its `sl_buf` is 32 KiB). `slicer.c` keeps its names as no-op stubs, and `perform.c`'s
    buffer effects (which borrow `sl_buf`) are off: `perf_press` returns at once (nothing in ChoralRoot sets
-   `kb_mask` anyway). **`seq.c` stays**: `cr_out.c` has no `events_block` of its own yet, and `seq.c` holds nothing
-   in the POOL. CPU: see Performance below (`tests/target_budget.txt` now holds ChoralRoot's ISR).
+   `kb_mask` anyway). CPU: see Performance below (`tests/target_budget.txt` now holds ChoralRoot's ISR).
+5. **All-synth, the dead weight out** (2026-10-07): see "All-synth" below.
 
 ## Performance (2026-10-06: pops and glitches)
 
@@ -474,7 +530,8 @@ Felucca's 5.4 %); nothing there is worth moving to the UI frame. The host says t
    (`vsq`, 0.7-1.5 ms later; a note-off meanwhile drops it; a voice not rendered yet is still reused at once). The
    envelope after a change is 0.2-1.7 dB closer to a render with no stealing at all; a sampled engine (PIANO)
    retriggering a sounding note fades it the same way instead of restarting its sample at full level (its click at
-   the Dmaj -> Dmaj7 re-press is gone). Felucca's behaviour (flag 0) is unchanged.
+   the Dmaj -> Dmaj7 re-press is gone; since the all-synth cut no ChoralRoot engine is sampled, the path stays for
+   Felucca's). Felucca's behaviour (flag 0) is unchanged.
 4. **The delay's read tap jumped on a tempo change** (`fx.c` `DLY_XF`, under `fx_smooth`: Felucca's buses stay bit-exact): every SELECT detent (and every MIDI-clock tempo
    update) clicked while the delay rang. A new delay time now crossfades over 11.6 ms.
 

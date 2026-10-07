@@ -338,7 +338,13 @@ static const char *const N_FM6_PATCH[] = {"F1", "F2", "F3", "F4", "F5", "F6", "F
                                           "B26", "B27", 0};
 _Static_assert(NELEM(N_FM6_PATCH) == FM6_NSLOT + 1u, "a PTCH name per slot");
 
-/* {ALG, FB, MLVL, MRAT, MEG, VMOD, DTUN, PTCH}: the factory patch F1..F8 as it is, DTUN on the pad */
+/* {ALG, FB, MLVL, MRAT, MEG, VMOD, DTUN, PTCH}: the factory patch F1..F8 as it is, DTUN on the pad. PIANO
+ * (ChoralRoot's all-synth bank, cr_bank.c: SAMPLE's PIANO retired): TINE EP's patch (F1) as a piano hybrid, through the
+ * macros only (no new factory patch: PTCH's F / B numbering stays): the modulators an octave up (MRAT +1: the even
+ * partials of a struck string instead of the tine's), brighter (MLVL +10), their envelopes faster (MEG -16: a hammer
+ * transient that mellows), more velocity on the brightness (VMOD +2), a little feedback grit (FB +1) and the carriers
+ * slightly apart (DTUN 12: unison strings beating). Only without the SAMPLE engine (FELUCCA_SAMPLE 0): Felucca's FM6
+ * presets, its editor's tables and its golden renders stay as they are */
 static const preset_t FM6_PRESETS[] = {
     {"TINE EP", {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 127, 0}, 0, 0, FX(0, 45, 25, 35), PAT(6)},
     {"BELL", {0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 127, 0}, 0, 0, FX(0, 10, 30, 70), PAT(7)},
@@ -348,6 +354,9 @@ static const preset_t FM6_PRESETS[] = {
     {"MARIMBA", {0, 0, 0, 0, 0, 0, 0, 5}, {0, 0, 127, 0}, 0, 0, FX(0, 0, 25, 40), PAT(3)},
     {"ORGAN", {0, 0, 0, 0, 0, 0, 0, 6}, {0, 0, 127, 0}, 0, 0, FX(10, 40, 0, 30), PAT(6)},
     {"PLUCK", {0, 0, 0, 0, 0, 0, 0, 7}, {0, 0, 127, 0}, 0, 0, FX(0, 20, 35, 30), PAT(13)},
+#if !FELUCCA_SAMPLE
+    {"PIANO", {0, 1, 10, 1, -16, 2, 12, 0}, {0, 0, 127, 0}, 0, 0, FX(0, 35, 15, 45), PAT(6)},
+#endif
 };
 
 static const engine_t ENG_FM6 = {

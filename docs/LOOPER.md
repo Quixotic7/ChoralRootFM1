@@ -78,8 +78,8 @@ flash erase while a loop plays (Felucca's rule): a save then waits for the stop.
 (record v2) and comes back at power-on.
 
 Flash: storage.c's commit record and A/B copies (its hooks, header and CRC; `storage.c` unedited), on user
-sample slot 3's 80 KiB (0xC8000..0xDBFFF; nothing in ChoralRoot 0.1 writes it, `eng_sample.c` ignores non-sample
-data): slot k copy c at `0xC8000 + (2k + c) * 4 KiB`, header type `0x4C30 + k`. Payload (little-endian):
+sample slot 3's 80 KiB (0xC8000..0xDBFFF; ChoralRoot has no SAMPLE engine (`FELUCCA_SAMPLE 0`) and its backup no
+sample objects, so nothing else writes it; a Felucca build's `eng_sample.c` ignores non-sample data): slot k copy c at `0xC8000 + (2k + c) * 4 KiB`, header type `0x4C30 + k`. Payload (little-endian):
 
 ```
 0  u32 "CRL1"   4 u8 version 1   5 u8 sig   6 u8 nlayers   7 u8 0

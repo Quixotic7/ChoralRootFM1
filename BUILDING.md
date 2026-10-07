@@ -81,13 +81,14 @@ on the way into `/bin/sh`); calling `python3 tools/build.py` directly needs it e
 `./build.sh --release 1.0` makes a release build: the identity stays `FM-1_920`, the version string becomes
 `ChoralRoot 1.0`; the package is `build/choralroot-1.0.fwsc`, and
 `build/release-1.0/` holds what a release ships: the package, the app
-(`choralroot-1.0-app.bin`), `SHA256SUMS`, the sample attribution, `LICENSE`, `LICENSING.md` and
+(`choralroot-1.0-app.bin`), `SHA256SUMS`, `LICENSE`, `LICENSING.md` and
 `LICENSES/` (the package contains Apache-2.0 SDK files, so the licence texts travel with it).
 
 `FELUCCA_SIZE=0` builds everything at `-Os` (by default the main-loop files listed in `tools/size_fns.py`, the UI,
 screens and stores, are built for size).
 
-Build options (environment, `0` or `1`; defaults in `firmware/src/choralroot.c`, `core.h` and `icons.c`):
+Build options (environment, `0` or `1`; defaults in `firmware/src/choralroot.c`; Felucca's in `core.h`, `gfx.c` and
+`icons.c`, all 1, so Felucca's unit and its host tests are unchanged):
 
 | Flag | Default | |
 | --- | --- | --- |
@@ -98,15 +99,26 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/choralroot.c`,
 | `FELUCCA_UART` | 1 | TRS MIDI IN |
 | `FELUCCA_SLICE` | 0 | the SLICE engine (ChoralRoot: off) |
 | `FELUCCA_SLICER` | 0 | the SLICER insert and its 32 KB POOL buffer (ChoralRoot: off; Felucca and the emulator: 1) |
-| `FELUCCA_ICONS` | 1 | parameter icons on the knob cards |
+| `FELUCCA_ICONS` | 0 | Felucca's icon atlas (`icons.c`, `build/gen/ui_icons.h`): parameter icons on Felucca's knob cards (ChoralRoot: off; its header glyphs are drawn by `cr_draw.c`) |
+| `FELUCCA_KEYCAPS` | 0 | Felucca's keycaps and key hints (`gfx.c`, `build/gen/ui_keycaps.h`; ChoralRoot: off, no screen draws one) |
 | `FELUCCA_FM4` | 0 | the retired DIGITAL engine (4-operator FM) instead of its FM6 conversion |
+| `FELUCCA_SEQ` | 0 | Felucca's sequencer (`seq.c`, `song_chain.c`, `chord.c`, `motion.c`, `midi_control.c`, `midi_clock.c`); ChoralRoot: off, `cr_out.c` has the `events_block` and MIDI in (docs/INTEGRATION.md section 1) |
+| `FELUCCA_SAMPLE` | 0 | the SAMPLE engine and its ADPCM sets (about 190 KB of flash); ChoralRoot: off, engine 4 a retired slot |
+| `FELUCCA_GRAIN` | 0 | the GRAIN engine (needs `FELUCCA_SAMPLE`; 27 KB of POOL); ChoralRoot: off, engine 8 retired |
+| `FELUCCA_DRUM` | 0 | the DRUM engine (its kit: 7 KB of POOL); ChoralRoot: off, engine 10 retired |
+
+ChoralRoot is all-synth: with the defaults the image has no samples and no Felucca sequencer (measured 2026-10-07:
+`.text` 490104 -> 270312 B, `.bss` 90512 -> 72976 B (RAM 92.4 -> 74.5 %), POOL 330116 -> 294740 B (95.9 -> 85.7 %);
+docs/INTEGRATION.md "All-synth"). A user sound saved on a retired engine (4, 8, 10) loads as the INIT sound on ANALOG.
 
 ## Samples
 
-The CC0 instrument samples that the SAMPLE engine uses are in `assets/samples-cc0/`
-(Versilian Studios, see `ATTRIBUTION.txt` there). `tools/fetch_cc0.py` downloads them
-again from the source repositories. Without that folder the build still works and the
-SAMPLE engine has only the generated drum kit.
+ChoralRoot does not use them: its image has no SAMPLE engine (`FELUCCA_SAMPLE=0`), and a release carries no sample
+attribution. They stay in the tree for Felucca builds and the host tests (`tools/build.py`'s generate step still writes
+`build/gen/felucca_samples.h`, which `tests/hostsim.c` and Felucca's unit include). The CC0 instrument samples that
+Felucca's SAMPLE engine uses are in `assets/samples-cc0/` (Versilian Studios, see `ATTRIBUTION.txt` there).
+`tools/fetch_cc0.py` downloads them again from the source repositories. Without that folder the build still works and
+the SAMPLE engine has only the generated drum kit.
 
 ## Tests
 
@@ -143,14 +155,14 @@ python3 tools/fm1_install.py --restore FILE  # write a backup back (ChoralRoot r
 
 **Backup and restore.** A backup is one JSON file (`choralroot-backup-YYYYMMDD.json`, Felucca's format
 `felucca-backup` version 1) with everything stored on the FM-1: the settings, the 32 user sounds and their VA patches,
-the 10 loops, the FM6 patch bank and user samples 1-2. Felucca and ChoralRoot answer the same SysEx
+the 10 loops and the FM6 patch bank (no samples: ChoralRoot has none). Felucca and ChoralRoot answer the same SysEx
 (`web/EDITOR_PROTOCOL.md`, "ChoralRoot: backup and restore"; `firmware/src/cr_backup.c`); the stock firmware does
 not. The web installer backs up before it installs (a "Skip the backup" box for an FM-1 that cannot be, or when one is
 saved already), offers the backup back after installing ChoralRoot over another firmware, and has Back up / Restore
 buttons; the return to the stock V15 backs up first too. `PACKAGE --backup F --restore F` does the same from the
 command line. A restore writes what the connected firmware uses: a Felucca backup restores its settings, user preset
-banks, FM6 patches and samples 1-2 on ChoralRoot (its songs stay in the file), a ChoralRoot backup restores the same on
-Felucca (the VA patches and loops stay in the file). Each part is checked before anything is written and committed
+banks and FM6 patches on ChoralRoot (its songs and samples stay in the file, reported skipped), a ChoralRoot backup
+restores the same on Felucca (the VA patches and loops stay in the file). Each part is checked before anything is written and committed
 torn-write safe; stop a playing loop first (the FM-1 answers busy and the restore waits); each flash write holds the
 sound for about 45 ms. Tests: `tests/cr_backup_test.c` (in `tests/run_cr_tests.sh`), `web/test_backup.mjs`,
 `web/test_installer.mjs`, `tests/install_test.py`.

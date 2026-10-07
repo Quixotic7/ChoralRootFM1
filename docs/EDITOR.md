@@ -127,7 +127,7 @@ With Sync on, an LFO's Rate reads as a division of the BPM (`1/8`). The VA's EDI
 the deep values are the truth and a deep edit writes the macro back. Unused matrix slots read `–` (the active one
 shows its source, to turn).
 
-### Engines without deep pages (ANALOG, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, PHYS, NOISE)
+### Engines without deep pages (ANALOG, PHASE, LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE)
 
 | Group | Screen | Lanes | KNOB 1–4 | Top-right text |
 | --- | --- | --- | --- | --- |
@@ -174,8 +174,8 @@ While the editor is open the edit wins over OPT's outside knob functions (split 
 On opening, the picker **snapshots** the part's sound: every parameter, the engine, the deep patch (`deep->blob_get`,
 the VA's), the `edited` flag and the user slot link. Then, as before:
 
-- the white root keys are the engines in the firmware's order (ANALOG, FM6, VA, PHASE, LOFI, SAMPLE, VOICE, TRIO,
-  WHEEL, GRAIN, PHYS; NOISE on SELECT). A root switches the sound's engine, keeping its envelope and sends;
+- the white root keys are the engines in the firmware's order (ANALOG, FM6, VA, PHASE, LOFI, VOICE, TRIO, WHEEL,
+  PHYS, NOISE: D4..F5; SAMPLE, GRAIN and DRUM are not in the all-synth firmware). A root switches the sound's engine, keeping its envelope and sends;
 - KNOB 1 (and PRESETS) steps the engine's factory presets, loaded for preview. The preset meter's bar **jumps** to the
   value (no fill animation, that popup only);
 - KNOB 2 inits the sound;

@@ -11,8 +11,214 @@
  * CTL-sample block, before fx.c renders it (the mix_block shim in choralroot.c / emu_firmware.h), drains the
  * events the UI posted (cr_post: a lock-free single-producer ring), ticks the engine with the sample clock and
  * emits the MIDI clock. The engine's callbacks below end in voice.c's trk_note_on / trk_note_off and usb.c's
- * midi_out_event, exactly as seq.c's key_on / key_off do. The UI never calls a note path of the engine.
- * Included after voice.c, usb.c (and seq.c on the emulator, which stays inert: song.grid = 2) and cr_engine.c. */
+ * midi_out_event, exactly as Felucca's seq.c key_on / key_off did. The UI never calls a note path of the engine.
+ * Included after voice.c, fx.c, usb.c and cr_engine.c.
+ *
+ * FELUCCA_SEQ 0 (choralroot.c, the emulator, tests/cr_trans_test.c): Felucca's sequencer (seq.c with song_chain.c,
+ * chord.c, motion.c, midi_control.c, midi_clock.c) is not in the unit. What the kept files called of it is here, under
+ * the same names (docs/INTEGRATION.md section 1): events_block (fx.c, every block: the engine switches, the releases
+ * a sound load asks for with panic_req), midi_event (the parts' MIDI in, below), and the few names upreset.c, main.c
+ * and audio.c still use (transport_req, trk_index, drum_track, motion_guard / motion_base_value, chain_defaults). */
+
+#if !FELUCCA_SEQ
+/* ---------------------------------------------- what seq.c provided --- */
+static volatile uint8_t panic_req;               /* bit per part: its notes released (a sound load, M-UPGRADE) */
+static const uint8_t transport_req = 0;          /* (upreset.c, cr_bank.c: Felucca's transport never runs) */
+#define chain_defaults(c) ((void)0)              /* (main.c felucca_init: no song chain) */
+#ifdef FM1_INPUT_LAT
+static uint32_t kb_out_tick;                     /* (audio.c: seq.c's key latency stamp; nothing reads it here) */
+#endif
+static uint32_t trk_index(const track_t *t) { return (uint32_t)(t - trk); }
+static int drum_track(const track_t *t) { return ENGINES[eng_idx(t->eng_req)] == &ENG_DRUM; }
+/* motion.c's: no motion lanes, so a part's sounding value is its saved one; the guard keeps the audio IRQ out while
+ * a part's parameters are copied (cr_bank.c fm4_apply), as motion.c's did */
+static int16_t motion_base_value(const track_t *t, uint32_t id) { return t->p[id]; }
+static uint32_t motion_guard(void)
+{
+#if defined(FM1_IRQ_TARGET)
+    uint32_t f = fm1_icfg();
+    fm1_irq_off();
+    return f;
+#else
+    return 0;
+#endif
+}
+static void motion_unguard(uint32_t f)
+{
+#if defined(FM1_IRQ_TARGET)
+    fm1_icfg_set(f);
+#else
+    (void)f;
+#endif
+}
+
+/* ------------------------------------------------- the parts' MIDI in --- */
+/* cr_midi_in (below) forwards a CHORD / BASS channel's notes, pedal, bend, pressure and the other CCs here as
+ * midi_event(status, part, d1, d2), as it handed them to midi_control.c before; what of that ChoralRoot uses:
+ *   note on / off       trk_note_on / trk_note_off on the part (a repeated note-on restarts it; velocity 0: off)
+ *   CC 64 sustain       a released note is held while the pedal is down, released with it
+ *   pitch bend          voice.c's midi_bend_target, +-2 semitones (RPN 0 sets 0..24 semitones, 0..99 cents)
+ *   CC 1 / 11, pressure mod.c's MODW / EXPR / AT sources (mod_midi)
+ *   CC 120              all sound off: the part's voices cut (a short fade), the pedal ignored
+ *   CC 121              reset controllers: bend, wheel, pressure, expression, the pedal up (the bend range kept)
+ *   CC 123              all notes off: the part's MIDI notes released (the pedal honoured), the part's voices too
+ *                       when no MIDI note is held then
+ * Felucca's chords (CHRD), its arpeggiator and live recording were the sequencer's: gone. A part's MIDI notes and the
+ * engine's stream share its voices exactly as before (a MIDI note-off ends that note, whoever started it). */
+#define CR_MPED 0x80u                            /* cr_mnote: the key is up, the pedal holds the note */
+typedef struct {
+    int16_t bend;                                /* signed 14-bit, 0 = centre */
+    uint8_t pedal, semis, cents, rpn_msb, rpn_lsb, ready;
+} cr_mch_t;
+static cr_mch_t cr_mch[2];                       /* parts 0 / 1 (CHORD / BASS) */
+static uint8_t cr_mnote[2][128];                 /* 1: a MIDI note-on holds it; | CR_MPED: the pedal does */
+static uint8_t cr_mheld[2];                      /* notes cr_mnote holds per part (CC 123's check), at most 128 */
+
+static cr_mch_t *cr_mchan(uint32_t p)
+{
+    cr_mch_t *c = &cr_mch[p];
+    if (!c->ready) {
+        c->semis = 2;
+        c->rpn_msb = c->rpn_lsb = 127;
+        c->ready = 1;
+    }
+    return c;
+}
+static void cr_mbend(uint32_t p)                 /* the channel's bend -> the part's (voice.c glides to it) */
+{
+    const cr_mch_t *c = cr_mchan(p);
+    int32_t range = ((int32_t)c->semis * 100 + c->cents) * 256 / 100;
+    midi_bend_target[p] = (int32_t)c->bend * range / (c->bend < 0 ? 8192 : 8191);
+}
+static void cr_mrelease(uint32_t p, uint32_t note)
+{
+    if (cr_mnote[p][note]) {
+        cr_mnote[p][note] = 0;
+        if (cr_mheld[p])
+            cr_mheld[p]--;
+        trk_note_off(&trk[p], note);
+    }
+}
+static void cr_mpedal_up(uint32_t p)
+{
+    uint32_t n;
+    cr_mchan(p)->pedal = 0;
+    for (n = 0; n < 128u; n++)
+        if (cr_mnote[p][n] & CR_MPED)
+            cr_mrelease(p, n);
+}
+static void cr_mforget(uint32_t p)               /* a panic: the part's MIDI notes forgotten (their offs end nothing) */
+{
+    if (p < 2u) {
+        memset(cr_mnote[p], 0, sizeof cr_mnote[p]);
+        cr_mheld[p] = 0;
+    }
+    midi_bend_q8[p] = midi_bend_target[p] = 0;
+}
+static void cr_mcontrol(uint32_t p, uint32_t cc, uint32_t v)
+{
+    cr_mch_t *c = cr_mchan(p);
+    track_t *t = &trk[p];
+    uint32_t n;
+    switch (cc) {
+    case 64:
+        if (v >= 64u)
+            c->pedal = 1;
+        else
+            cr_mpedal_up(p);
+        break;
+    case 120:                                    /* all sound off: ignores the pedal */
+        trk_all_off(t);
+        for (n = 0; n < NVOICE; n++)
+            if (t->v[n].active)
+                voice_kill(&t->v[n]);
+        cr_mforget(p);
+        break;
+    case 121:                                    /* reset all controllers (mod_midi: wheel, pressure, expression) */
+        c->bend = 0;
+        c->rpn_msb = c->rpn_lsb = 127;
+        cr_mbend(p);
+        cr_mpedal_up(p);
+        break;
+    case 123:                                    /* all notes off: normal releases, the pedal honoured */
+        for (n = 0; n < 128u; n++)
+            if (cr_mnote[p][n] && !(cr_mnote[p][n] & CR_MPED)) {
+                if (c->pedal)
+                    cr_mnote[p][n] |= CR_MPED;
+                else
+                    cr_mrelease(p, n);
+            }
+        if (!cr_mheld[p])
+            trk_all_off(t);
+        break;
+    case 101: c->rpn_msb = (uint8_t)v; break;
+    case 100: c->rpn_lsb = (uint8_t)v; break;
+    case 99: case 98: c->rpn_msb = c->rpn_lsb = 127; break;   /* NRPN selected: no RPN data entry */
+    case 6: case 38:
+        if (!c->rpn_msb && !c->rpn_lsb) {        /* RPN 0, pitch bend sensitivity */
+            if (cc == 6u)
+                c->semis = (uint8_t)(v > 24u ? 24u : v);
+            else
+                c->cents = (uint8_t)(v > 99u ? 99u : v);
+            cr_mbend(p);
+        }
+        break;
+    default: break;
+    }
+}
+/* st: the status' high nibble (0x80..0xE0); p: the part 0 / 1 (cr_midi.c crm_map) */
+static void __attribute__((noinline)) midi_event(uint32_t st, uint32_t p, uint32_t d1, uint32_t d2)
+{
+    if (p >= 2u)
+        return;
+    if (st == 0x90u && d2) {
+        if (cr_mnote[p][d1])                     /* a repeated note replaces the previous press (a pedal-held one too) */
+            cr_mrelease(p, d1);
+        cr_mbend(p);
+        trk_note_on(&trk[p], d1, d2);
+        cr_mnote[p][d1] = 1;
+        if (cr_mheld[p] < 128u)
+            cr_mheld[p]++;
+    } else if (st == 0x80u || st == 0x90u) {
+        if (cr_mnote[p][d1] && cr_mchan(p)->pedal)
+            cr_mnote[p][d1] |= CR_MPED;
+        else
+            cr_mrelease(p, d1);
+    } else if (st == 0xE0u) {
+        cr_mchan(p)->bend = (int16_t)((int32_t)(d1 | d2 << 7) - 8192);
+        cr_mbend(p);
+    } else if (st == 0xB0u) {
+        mod_midi(&trk[p], st, d1, d2);
+        cr_mcontrol(p, d1, d2);
+    } else if (st == 0xD0u) {
+        mod_midi(&trk[p], st, d1, d2);
+    }
+}
+
+/* fx.c's, between two rendered blocks (after cr_audio_block): the releases asked for, the engine switches. A MIDI in
+ * queue that overflowed (a lost note-off) is dropped and every part released: no stuck note */
+static void events_block(uint32_t n)
+{
+    uint32_t i, pr = panic_req;
+    (void)n;
+    panic_req = 0;
+    if (midi_in_overflow) {
+        mi_r = mi_w;
+        pr |= (1u << NTRK) - 1u;
+        RING_PUBLISH();
+        midi_in_overflow = 0;
+    }
+    for (i = 0; i < NTRK; i++) {
+        if ((pr >> i) & 1u) {
+            if (i < 2u)
+                cr_mchan(i)->pedal = 0;
+            cr_mforget(i);
+            trk_all_off(&trk[i]);
+        }
+        engine_block(&trk[i]);                   /* engine switch: fade, then switch (voice.c) */
+    }
+}
+#endif /* !FELUCCA_SEQ */
 
 /* --------------------------------------------------------------- routing --- */
 #define CR_PART_CHORD 0u
@@ -253,14 +459,13 @@ static void cr_apply(const cr_ev_in_t *e)
 }
 
 /* ------------------------------------------------------------- MIDI in --- */
-/* usb.c's midi_in_q (USB and TRS) is drained here, in the audio ISR, before fx.c's events_block (seq.c) runs in the
- * same block, so seq.c's own MIDI-in loop finds it empty (its overflow recovery stays: the queue is left to it).
+/* usb.c's midi_in_q (USB and TRS) is drained here, in the audio ISR, before fx.c's events_block runs in the same block
+ * (its overflow recovery stays there: on an overflow the queue is left to it).
  *   0xF8 / FA / FB / FC   Options > MIDI Clock = In: the tempo (cr_midi.c's follower -> cr_set_tempo) and the loop's
  *                         transport (the LP_PLAY path); otherwise ignored
  *   the CHORD / BASS channels (Options' channels; Off: ignored): CC 7 / 91 / 93 / 94 and program changes go to the UI
  *                         (cr_min_q: it applies them as a knob would, with the meter); notes, pedal, bend, pressure and
- *                         the other CCs (123: all notes off) go to Felucca's midi_event as channel 1 (part 0) or 2
- *                         (part 1), exactly as MIDI in on channels 1 / 2 played the parts before
+ *                         the other CCs (123: all notes off) go to midi_event (above) for part 0 or 1
  *   other channels        ignored */
 #include "cr_midi.c"
 static crm_clock_t cr_cin;
@@ -311,7 +516,7 @@ static void cr_midi_in(void)
         cr_cin_mode = cr_route.clock_in;
         crm_clock_reset(&cr_cin);
     }
-    if (midi_in_overflow)                        /* seq.c's recovery: the queue dropped, every part released */
+    if (midi_in_overflow)                        /* events_block's recovery: the queue dropped, every part released */
         return;
     en[0] = cr_route.midi_en[CR_STREAM_MAIN];
     en[1] = cr_route.midi_en[CR_STREAM_BASS];

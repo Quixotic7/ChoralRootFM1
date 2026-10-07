@@ -32,7 +32,11 @@ FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_re
 OPTIONAL = {"digital_render": 12, "digital_render_legacy": 333, "digital_render_custom": 558,
             # ChoralRoot builds without the SLICE engine and the SLICER insert (choralroot.c FELUCCA_SLICE 0,
             # FELUCCA_SLICER 0): absent from build/choralroot.dis, checked when built (felucca.c)
-            "slicer_track": 632, "slice_render": 453, "slc_rev": 120}
+            "slicer_track": 632, "slice_render": 453, "slc_rev": 120,
+            # .. and without SAMPLE, GRAIN, DRUM (choralroot.c FELUCCA_SAMPLE / GRAIN / DRUM 0: all-synth)
+            "sample_render": 126, "grain_render": 1731, "grain_block": 139, "drum_render": 86, "dv_metal_run": 26,
+            "dv_kick_run": 153, "dv_snare_run": 158, "dv_clap_run": 74, "dv_hat_run": 61, "dv_tom_run": 75,
+            "dv_rim_run": 61, "dv_bell_run": 52, "dv_cym_run": 67, "dv_out": 35}
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not
 DIV_W = 8                       # a divide weighs 1 + 8 instructions
 NEST = 4                        # an instruction in a loop inside a loop weighs 4, two deep 16, ...

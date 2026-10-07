@@ -2,15 +2,16 @@
  * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
 /* Host test of the backup / restore SysEx handler (firmware/src/cr_backup.c, web/EDITOR_PROTOCOL.md "ChoralRoot:
  * backup and restore"): the firmware as the emulator builds it (tools/emu/emu_firmware.h: tests/hostsim.c's sound
- * side, the ChoralRoot UI, storage.c on emu_hal_fw.h's RAM NOR), the user sample slots in that NOR too, requests
- * fed to crb_handle as the main loop would, the replies taken at CRB_SEND.
+ * side, the ChoralRoot UI, storage.c on emu_hal_fw.h's RAM NOR), requests fed to crb_handle as the main loop would,
+ * the replies taken at CRB_SEND.
  *   sh tests/run_cr_tests.sh
- * Checks: INFO; LIST of every object (settings, banks, FM6, VA, samples 1-2, 10 loops) with sizes and CRCs; GET of
- * all of them in 256-byte pieces; a restore of everything onto an erased flash (PUT, SMP_*) gives a LIST and bytes
+ * Checks: INFO; LIST of every object (settings, banks, FM6, VA, 10 loops; no sample slots) with sizes and CRCs; GET of
+ * all of them in 256-byte pieces; a restore of everything onto an erased flash (PUT) gives a LIST and bytes
  * identical to the backup and reloads the mirrors; a CRC error, a short object, a malformed record are refused
  * with nothing written; a playing loop answers busy (3) and the commit goes through once it stops; stale sessions
  * (the UI's buffer, a USB reset, 15 s); Felucca's objects: a PER4 settings record becomes PER5 with ChoralRoot's
- * defaults, the banks and the FM6 bank as they are, ids 0 / 2..5 / sample slot 3 refused; RESTART. */
+ * defaults, the banks and the FM6 bank as they are, ids 0 / 2..5 / 32..34 refused, the SMP_* commands unanswered;
+ * RESTART. */
 #include <os/lock.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -28,10 +29,6 @@ const int8_t emu_keymap[6][EMU_NCOL] = {
     { 0,  1, 15, 14, 17, 16, 19, 18, 20, 21, 22},
     {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
 };
-
-/* the user sample slots in the NOR image (emu_hal_fw.h defines it again: one object) */
-static uint8_t emu_flash[0x100000u];
-#define SMP_USER_XIP(k) ((const uint8_t *)emu_flash + 0xA0000u + (k) * 0x14000u)
 
 /* the replies */
 static uint8_t rx[4096];
@@ -183,69 +180,21 @@ static int t_put(uint32_t id, const uint8_t *p, uint32_t size)   /* begin, data,
         rc = t_put_data(id, off, p + off, size - off < 256 ? size - off : 256);
     return rc ? rc : t_put_op(2, id);
 }
-static int t_smp(uint32_t cmd, uint32_t slot)        /* SMP_BEGIN / SMP_ERASE -> rc */
+static int t_smp(uint32_t cmd, uint32_t slot)        /* SMP_BEGIN / SMP_ERASE: answered? (-1: no reply) */
 {
     uint32_t n;
     const uint8_t *a;
     t_begin(cmd); t_b(slot);
     a = t_send(&n);
-    return a && n == 2 && a[0] == slot ? a[1] : -1;
-}
-static int t_smp_put(uint32_t slot, const uint8_t *p, uint32_t size)   /* the page's sample restore */
-{
-    uint32_t n, off;
-    const uint8_t *a;
-    int rc = t_smp(11, slot);
-    if (rc) printf("  SMP_BEGIN slot %u: rc %d\n", (unsigned)slot, rc);
-    for (off = 512; !rc && off < size; off += 256) {
-        uint32_t k = size - off < 256 ? size - off : 256;
-        t_begin(12); t_b(slot); t_b(off); t_b(off >> 7); t_b(off >> 14); t_pack(p + off, k);
-        a = t_send(&n);
-        rc = a && n == 5 && a[0] == slot ? a[4] : -1;
-        if (rc) printf("  SMP_WRITE slot %u off %u: rc %d (n %u)\n", (unsigned)slot, (unsigned)off, rc, (unsigned)n);
-    }
-    if (rc) return rc;
-    t_begin(13); t_b(slot); t_pack(p, 480);
-    a = t_send(&n);
-    if (!a || n != 2 || a[0] != slot || a[1]) printf("  SMP_END slot %u: n %u a0 %d a1 %d\n", (unsigned)slot, (unsigned)n, a ? a[0] : -1, a ? a[1] : -1);
-    return a && n == 2 && a[0] == slot ? a[1] : -1;
+    return a ? (int)n : -1;
 }
 
 /* ------------------------------------------------------------------ the content --- */
 static void power_on(void)                           /* persist_boot + the UI, on the flash as it is */
 {
-    uint32_t k;
-    for (k = 0; k < SMP_USER_SLOTS; k++)
-        smp_user_scan(k);
     up_boot();
     cr_settings_boot();
     cu_loop_scan();
-}
-static void make_sample(uint32_t k, uint32_t len, uint32_t seed)
-{
-    uint8_t *base = emu_flash + 0xA0000u + k * 0x14000u;
-    smp_user_hdr_t h;
-    uint32_t i;
-    memset(&h, 0, sizeof h);
-    for (i = 0; i < len; i++)
-        base[512 + i] = (uint8_t)(i * 7u + seed);
-    h.magic = SMP_USER_MAGIC;
-    h.version = 1;
-    h.nz = 1;
-    memcpy(h.name, "TESTSMP", 7);
-    h.data_len = len;
-    h.crc = st_crc32(base + 512, len);
-    h.zone[0].off = 0;
-    h.zone[0].n = len * 2u;
-    h.zone[0].ls = 0;
-    h.zone[0].le = len * 2u - 1u;
-    h.zone[0].rate = 1u << 16;
-    h.zone[0].root16 = 60 * 16;
-    h.zone[0].idx = 0;
-    h.zone[0].lo = 0;
-    h.zone[0].hi = 127;
-    memcpy(base, &h, sizeof h);
-    smp_user_scan(k);
 }
 static uint32_t make_loop(uint32_t k, uint32_t nev)   /* slot k: nev events; -> the record's length */
 {
@@ -284,17 +233,17 @@ int main(void)
     /* ---- INFO ---- */
     t_begin(1);
     a = t_send(&n);
-    CHECK(a && n > 12 && !memcmp(a, "EMU", 4) && a[n - 6] == 0x42 && a[n - 4] == 3 && a[n - 3] == 0x43,
-          "INFO: version, no engines, tags 42 01 03 and 43 01 01");
+    CHECK(a && n > 12 && !memcmp(a, "EMU", 4) && a[n - 6] == 0x42 && a[n - 4] == 3 && a[n - 3] == 0x43 && a[n - 1] == 2,
+          "INFO: version, no engines, tags 42 01 03 and 43 01 02");
     t_begin(2); t_b(0); t_b(0);
     CHECK(!t_send(&n), "an editor command (GET 2) gets no reply");
 
     /* ---- an empty device: every object listed, sizes 0 but the settings ---- */
-    CHECK(t_list() == 0 && nman == 17, "LIST on a fresh flash: 17 objects");
+    CHECK(t_list() == 0 && nman == 15, "LIST on a fresh flash: 15 objects");
     for (i = 0, k = 0; i < nman; i++) k += man[i].size != 0;
     CHECK(k <= 1, "fresh flash: nothing stored (the settings at most)");
 
-    /* ---- content: settings, both banks, FM6, VA, two samples, three loops ---- */
+    /* ---- content: settings, both banks, FM6, VA, three loops ---- */
     cs.bpm = 133;
     cs.tonic = 5;
     cr_settings_save();
@@ -330,9 +279,6 @@ int main(void)
         v.used = 1u << 3 | 1u << 19;
         CHECK(va_store_valid(&v) && st_save(OBJ_VASTORE, &v, sizeof v) == 0, "setup: VA store");
     }
-    make_sample(0, 5000, 1);
-    make_sample(1, 70000, 2);
-    CHECK(usr_nz[0] == 1 && usr_nz[1] == 1, "setup: two sample slots");
     make_loop(0, 4);
     make_loop(4, 300);
     make_loop(9, CRL_MAX_EV);
@@ -342,16 +288,15 @@ int main(void)
     /* ---- backup: LIST, GET everything, CRCs ---- */
     CHECK(t_capture() == 0, "backup: LIST + GET of every object, each CRC as listed");
     {
-        static const uint8_t ids[17] = {1, 6, 7, 8, 9, 32, 33, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
-        int same = nman == 17;
-        for (i = 0; same && i < 17; i++) same = man[i].id == ids[i];
-        CHECK(same, "LIST: ids 1 6 7 8 9 32 33 40..49 in order");
+        static const uint8_t ids[15] = {1, 6, 7, 8, 9, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+        int same = nman == 15;
+        for (i = 0; same && i < 15; i++) same = man[i].id == ids[i];
+        CHECK(same, "LIST: ids 1 6 7 8 9 40..49 in order (no sample slots)");
     }
     CHECK(find(man, nman, 1)->size == sizeof(persist_t) && find(man, nman, 6)->size == sizeof(up_bank_t) &&
           find(man, nman, 8)->size == sizeof(fm6_bank_t) && find(man, nman, 9)->size == sizeof(va_store_t) &&
-          find(man, nman, 32)->size == 512 + 5000 && find(man, nman, 33)->size == 512 + 70000 &&
           find(man, nman, 40)->size > 16 && find(man, nman, 41)->size == 0 && find(man, nman, 49)->size == CRL_REC_HDR + 2u + 7u * CRL_MAX_EV,
-          "LIST: the sizes (settings PER5, banks, FM6, VA, samples, loops; empty slots 0)");
+          "LIST: the sizes (settings PER5, banks, FM6, VA, loops; empty slots 0)");
     {
         const persist_t *p = (const persist_t *)find(man, nman, 1)->bytes;
         CHECK(p->magic == PERSIST_MAGIC && p->cr.bpm == 133 && p->cr.tonic == 5, "backup: the settings carry the last change");
@@ -374,24 +319,23 @@ int main(void)
     /* ---- restore everything onto an erased flash ---- */
     memset(emu_flash, 0xFF, sizeof emu_flash);
     power_on();
-    CHECK(t_list() == 0 && find(man, nman, 6)->size == 0 && find(man, nman, 32)->size == 0, "erased: banks and samples empty");
+    CHECK(t_list() == 0 && find(man, nman, 6)->size == 0 && !find(man, nman, 32), "erased: banks empty (no sample object)");
     {
         int rc = 0;
         for (i = 0; i < nref && !rc; i++) {
             const obj_t *o = &ref[i];
             if (o->id == 1) continue;                /* the settings last, as the page does */
-            if (o->id >= 32 && o->id <= 34) rc = o->size ? t_smp_put(o->id - 32, o->bytes, o->size) : t_smp(14, o->id - 32);
-            else rc = t_put(o->id, o->bytes, o->size);
+            rc = t_put(o->id, o->bytes, o->size);
             if (rc) printf("  restore id %u: rc %d\n", o->id, rc);
         }
-        CHECK(!rc, "restore: every object accepted (PUT, SMP_BEGIN / WRITE / END, SMP_ERASE)");
+        CHECK(!rc, "restore: every object accepted (PUT)");
         CHECK(!cr_restore_lock, "restore: no settings lock before the settings");
         rc = t_put(1, find(ref, nref, 1)->bytes, find(ref, nref, 1)->size);
         CHECK(rc == 0 && cr_restore_lock && CR_SETTINGS_BUSY(), "restore: settings committed, the settings saves held until the restart");
     }
-    CHECK(usr_nz[0] == 1 && usr_nz[1] == 1 && up_used(3) && up_used(16 + 4) && cs.loop_used == (1u | 1u << 4 | 1u << 9) &&
+    CHECK(up_used(3) && up_used(16 + 4) && cs.loop_used == (1u | 1u << 4 | 1u << 9) &&
           fm6_bank.used == 5u && va_store.used == (1u << 3 | 1u << 19),
-          "restore: the mirrors reloaded (samples, user sounds, loops, FM6, VA)");
+          "restore: the mirrors reloaded (user sounds, loops, FM6, VA)");
     CHECK(t_capture() == 0 && nman == nref, "restore: LIST + GET again");
     {
         int same = 1;
@@ -452,7 +396,6 @@ int main(void)
         uint32_t erases = emu_stalls;
         cr_snap.lstate = CRL_PLAYING;
         CHECK(t_put_begin(41, l->size, l->crc) == 3, "busy: a begin while a loop plays: rc 3");
-        CHECK(t_smp(11, 0) == 3 && usr_nz[0] == 1, "busy: SMP_BEGIN while a loop plays: rc 3, the slot kept");
         cr_snap.lstate = CRL_STOPPED;
         CHECK(t_put_begin(41, l->size, l->crc) == 0, "busy: the begin once it stopped");
         for (i = 0; i < l->size; i += 256) t_put_data(41, i, l->bytes + i, l->size - i < 256 ? l->size - i : 256);
@@ -478,7 +421,9 @@ int main(void)
               "Felucca: stored as PER5, Felucca's fields kept, ChoralRoot's block the defaults");
         CHECK(t_put_begin(0, 3584, 0) == 1 && t_put_begin(2, 3584, 0) == 1 && t_put_begin(5, 0, 0) == 1,
               "Felucca: ids 0 (the music) and 2..5 (projects) refused (rc 1)");
-        CHECK(t_smp(11, 2) == 1 && t_smp(14, 2) == 1, "Felucca: sample slot 3 (the loops' flash) refused (rc 1)");
+        CHECK(t_put_begin(32, 4096, 0) == 1 && t_put_begin(33, 0, 0) == 1 && t_put_begin(34, 0, 0) == 1,
+              "Felucca: ids 32..34 (sample slots) refused (rc 1)");
+        CHECK(t_smp(11, 0) == -1 && t_smp(14, 0) == -1 && t_smp(11, 2) == -1, "SMP_BEGIN / SMP_ERASE: no reply (no SAMPLE engine)");
         CHECK(t_put(6, find(ref, nref, 6)->bytes, sizeof(up_bank_t)) == 0 && t_put(8, find(ref, nref, 8)->bytes, sizeof(fm6_bank_t)) == 0,
               "Felucca: user preset banks and the FM6 bank (the same layout) restore");
         CHECK(t_put(6, 0, 0) == 0 && !up_used(3), "a bank of size 0: emptied");

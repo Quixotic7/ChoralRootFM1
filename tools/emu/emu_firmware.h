@@ -1,25 +1,34 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The firmware the emulator runs: the ONE include list (included once, by emu_fw.c).
- * As tests/ui_test.c: the sound side through tests/hostsim.c (engines, voices, FX, usb.c MIDI queues,
- * seq.c), then the emulator's HAL (emu_hal_fw.h), the audio ISR (audio.c), then the instrument's UI.
+ * The sound side through tests/hostsim.c (engines, voices, FX, usb.c MIDI queues; FELUCCA_SEQ 0: without
+ * Felucca's sequencer and hostsim's own renders), then the emulator's HAL (emu_hal_fw.h), the audio ISR (audio.c),
+ * then the instrument's UI.
  * The instrument is ChoralRoot (docs/INTEGRATION.md): its engine (cr_engine.c) ticks in the audio ISR through
  * the mix_block shim below (cr_out.c cr_audio_block, then fx.c's mix), its UI (cr_ui.c) draws cr_draw.c's
- * screens. seq.c stays compiled (hostsim.c includes it) but inert: cr_ui_init sets song.grid = 2, so its
- * keyboard never plays, and nothing starts its transport. The hook bodies are in emu_fw.c. */
+ * screens. As choralroot.c: no seq.c (cr_out.c's events_block and midi_event), no SAMPLE / GRAIN / DRUM engines, no
+ * Felucca icons or keycaps. The hook bodies are in emu_fw.c. */
 
 /* ------------------------------------------------ sound, MIDI, sequencer --- */
 #include <stddef.h>
 #include <stdint.h>
-static uint32_t host_slots[3u * 0x14000u / 4u];          /* USR1..3 (zero: empty), as the flash at 0xA0000 */
-#ifndef SMP_USER_XIP                                 /* (tests/cr_backup_test.c: the slots in the flash image) */
-#define SMP_USER_XIP(k) ((const uint8_t *)host_slots + (k) * SMP_USER_SIZE)
-#endif
 #define main hostsim_main
+#ifndef FELUCCA_SEQ
+#define FELUCCA_SEQ 0                                 /* as choralroot.c: no Felucca sequencer */
+#endif
 #ifndef FELUCCA_SLICE
 #define FELUCCA_SLICE 0                               /* as choralroot.c: no SLICE engine, so engine numbers match the device */
 #endif
 #ifndef FELUCCA_VA
 #define FELUCCA_VA 1                                  /* as choralroot.c: the VA engine, its patch store */
+#endif
+#ifndef FELUCCA_SAMPLE
+#define FELUCCA_SAMPLE 0                              /* as choralroot.c: SAMPLE, GRAIN, DRUM retired */
+#endif
+#ifndef FELUCCA_GRAIN
+#define FELUCCA_GRAIN 0
+#endif
+#ifndef FELUCCA_DRUM
+#define FELUCCA_DRUM 0
 #endif
 #ifndef FELUCCA_SLICER
 #define FELUCCA_SLICER 1                              /* (as felucca.c; the device unit has it off) */
@@ -52,6 +61,9 @@ static void mix_block(int32_t *out, uint32_t n)        /* the audio ISR's block:
 /* --------------------------------------------------------------------- UI --- */
 #define FELUCCA_FLASH 1                               /* the file-backed NOR (emu_hal_fw.h, README): settings,
                                                          * user sounds, loops persist (--flash) */
+#ifndef FELUCCA_KEYCAPS
+#define FELUCCA_KEYCAPS 0                             /* as choralroot.c: no Felucca keycaps (gfx.c) */
+#endif
 #ifndef FELUCCA_VERSION
 #define FELUCCA_VERSION "EMU"
 #endif

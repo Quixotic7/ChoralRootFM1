@@ -255,8 +255,10 @@ def osc_stack(title, rows, active, hot=None, title_col=None):
 
 # the engine picker (EDIT held): the melodic engines in engines.c ENGINE_ORDER; the white root keys take the
 # first eleven, SELECT reaches all twelve (NOISE)
-ENGINES = ["Analog", "FM6", "VA", "Phase", "LoFi", "Sample", "Voice", "Trio", "Wheel", "Grain", "Phys", "Noise"]
-ENGINE_KEYS = ["ANLG", "FM6", "VA", "PHASE", "LOFI", "SMPL", "VOICE", "TRIO", "WHEEL", "GRAIN", "PHYS"]
+# the firmware's ENGINE_ORDER without the retired slots (2026-10-07, all-synth: no SAMPLE, GRAIN, DRUM): ten engines on
+# the white roots D4..F5, G5 free
+ENGINES = ["Analog", "FM6", "VA", "Phase", "LoFi", "Voice", "Trio", "Wheel", "Phys", "Noise"]
+ENGINE_KEYS = ["ANLG", "FM6", "VA", "PHASE", "LOFI", "VOICE", "TRIO", "WHEEL", "PHYS", "NOISE"]
 
 
 def engine_picker_state(name_, notes, sel, preset, part="chord", buttons=None, button_labels=None):
@@ -265,7 +267,7 @@ def engine_picker_state(name_, notes, sel, preset, part="chord", buttons=None, b
         name_, notes,
         keys=[OFF] * 27, lit=[name(ROOT_WHITE[sel])], buttons={"EDIT": BLINK} | (buttons or {}),
         key_labels={ROOT_WHITE[i]: n for i, n in enumerate(ENGINE_KEYS)},
-        key_notes={ROOT_WHITE[0]: "white root keys D4 .. G5: the engines (NOISE: SELECT)"},
+        key_notes={ROOT_WHITE[0]: "white root keys D4 .. F5: the engines (G5 free)"},
         button_notes={"EDIT": "blinks: the picker is open; EDIT tap, OCT- or HOME closes it"},
         button_labels=button_labels,
         encoders={"SELECT": ("ENGINE", ENGINES[sel]), "KNOB1": ("PRESET", preset), "KNOB2": ("INIT", ""), "KNOB3": "", "KNOB4": ""},
@@ -611,8 +613,8 @@ S.append(state(
 # 22 ------------------------------------------------------------------------------ engine picker
 S.append(engine_picker_state(
     "22 · EDIT held: the engine picker",
-    "Hold EDIT: the white root keys are the engines in the firmware's order (ANALOG, FM6, VA, PHASE, LOFI, SAMPLE, VOICE, "
-    "TRIO, WHEEL, GRAIN, PHYS; NOISE on SELECT); press one and the sound switches engine, keeping its envelope and sends. "
+    "Hold EDIT: the white root keys are the engines in the firmware's order (ANALOG, FM6, VA, PHASE, LOFI, VOICE, "
+    "TRIO, WHEEL, PHYS, NOISE; G5 free; SELECT steps them too); press one and the sound switches engine, keeping its envelope and sends. "
     "KNOB 1 steps through the engine's factory presets, KNOB 2 inits the sound. The picker stays open after release "
     "like a layer (EDIT blinks); OCT- or HOME closes it. EDIT held inside the editor opens the same picker (it closes back to the editor view it came from).",
     1, "13 EP",

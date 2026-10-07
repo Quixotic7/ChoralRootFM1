@@ -101,7 +101,7 @@
     <p><span data-t="license"></span> <a href="https://github.com/Quixotic7/ChoralRootFM1" target="_blank" rel="noopener">github.com/Quixotic7/ChoralRootFM1</a></p>
     <p>Built on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>:
       <a href="https://github.com/hugelton/Felucca" target="_blank" rel="noopener">github.com/hugelton/Felucca</a>.</p>
-    <p>Font: Inter Tight (The Inter Project Authors, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and VCSL (CC0 1.0).
+    <p>Font: Inter Tight (The Inter Project Authors, SIL OFL 1.1).
       FM6 engine: msfa from Dexed (Google, Pascal Gauthier, Apache-2.0). PHYS engine: DaisySP (Electrosmith, Emilie Gillet) and Rings (Emilie Gillet), MIT.
       The package also holds three JieLi AC79 SDK files, uboot.boot, cfg_tool.bin and eq_cfg_hw.bin (JieLi Technology, Apache-2.0).</p>
     <p><a href="../../firmware/LICENSING.md">Licences</a>: <a href="../../firmware/LICENSE">GPL-3.0</a>,
@@ -120,16 +120,16 @@ const TEXT = {
     install: "Install",
     direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
     over: "Installing over the stock firmware or Felucca replaces it; the FM-1 reports FM-1_920 afterwards. An interrupted install is resumed by pressing Install again.",
-    backupFirst: "Install first saves a backup of what is stored on the FM-1 (user sounds, loops, settings, samples, FM6 patches) to a file on this computer. Felucca and ChoralRoot can be backed up; the stock firmware cannot.",
+    backupFirst: "Install first saves a backup of what is stored on the FM-1 (user sounds, loops, settings, FM6 patches) to a file on this computer. Felucca and ChoralRoot can be backed up; the stock firmware cannot.",
     skipBackup: "Skip the backup (I already saved one, or the FM-1 runs the stock firmware)",
     bkTitle: "Back up and restore",
-    bkText: "A backup is one .json file holding everything stored on the FM-1: the settings, the 32 user sounds with their VA patches, the 10 loops, the FM6 patch bank and the user samples. Restore writes it back; each part is checked before anything is written, and the FM-1 restarts at the end. Stop any loop first. Each flash write holds the sound for about 45 ms.",
-    bkAcross: "Across firmwares: a Felucca backup restores its settings, user sounds, FM6 patches and samples 1-2 on ChoralRoot; a ChoralRoot backup restores the same on Felucca. What the other firmware cannot use (Felucca's songs and sample 3, ChoralRoot's VA patches and loops) stays in the file.",
+    bkText: "A backup is one .json file holding everything stored on the FM-1: the settings, the 32 user sounds with their VA patches, the 10 loops and the FM6 patch bank. Restore writes it back; each part is checked before anything is written, and the FM-1 restarts at the end. Stop any loop first. Each flash write holds the sound for about 45 ms.",
+    bkAcross: "Across firmwares: a Felucca backup restores its settings, user sounds and FM6 patches on ChoralRoot; a ChoralRoot backup restores the same on Felucca. What the other firmware cannot use (Felucca's songs and samples, ChoralRoot's VA patches and loops) stays in the file.",
     backupGo: "Back up", restoreFile: "Backup file (.json)", restoreGo: "Restore",
     backup: "Saving a backup ", backupSaved: "Backup saved: ",
     noBackup: "The FM-1 cannot be backed up from this page (the stock firmware, or an older Felucca).",
     noBackupConfirm: "The FM-1 could not be backed up. Install anyway, without a backup? Its user sounds, loops and settings may be lost.",
-    restoreOffer: "ChoralRoot is installed. Restore the backup just saved onto it now (settings, user sounds, FM6 patches, samples)?",
+    restoreOffer: "ChoralRoot is installed. Restore the backup just saved onto it now (settings, user sounds, FM6 patches)?",
     restoreConfirm: "Restore this backup onto the FM-1? What it holds replaces what is stored on the FM-1, and the FM-1 restarts afterwards.",
     restoring: "Restoring ", restoreBusy: "Stop the loop on the FM-1 to continue the restore",
     restored: "Restored: ", restoreSkipped: " (not used by this firmware, kept in the file: ", badBackup: "Not a usable backup file: ",

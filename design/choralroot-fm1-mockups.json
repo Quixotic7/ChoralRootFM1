@@ -3024,7 +3024,7 @@
   },
   {
    "name": "22 \u00b7 EDIT held: the engine picker",
-   "notes": "Hold EDIT: the white root keys are the engines in the firmware's order (ANALOG, FM6, VA, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, PHYS; NOISE on SELECT); press one and the sound switches engine, keeping its envelope and sends. KNOB 1 steps through the engine's factory presets, KNOB 2 inits the sound. The picker stays open after release like a layer (EDIT blinks); OCT- or HOME closes it. EDIT held inside the editor opens the same picker (it closes back to the editor view it came from).",
+   "notes": "Hold EDIT: the white root keys are the engines in the firmware's order (ANALOG, FM6, VA, PHASE, LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE; G5 free; SELECT steps them too); press one and the sound switches engine, keeping its envelope and sends. KNOB 1 steps through the engine's factory presets, KNOB 2 inits the sound. The picker stays open after release like a layer (EDIT blinks); OCT- or HOME closes it. EDIT held inside the editor opens the same picker (it closes back to the editor view it came from).",
    "export": true,
    "keys": [
     0,
@@ -3061,15 +3061,14 @@
     "12": "VA",
     "14": "PHASE",
     "16": "LOFI",
-    "18": "SMPL",
-    "19": "VOICE",
-    "21": "TRIO",
-    "23": "WHEEL",
-    "24": "GRAIN",
-    "26": "PHYS"
+    "18": "VOICE",
+    "19": "TRIO",
+    "21": "WHEEL",
+    "23": "PHYS",
+    "24": "NOISE"
    },
    "keyNotes": {
-    "9": "white root keys D4 .. G5: the engines (NOISE: SELECT)"
+    "9": "white root keys D4 .. F5: the engines (G5 free)"
    },
    "buttons": {
     "FX": 1,
@@ -3144,11 +3143,9 @@
       "VA",
       "Phase",
       "LoFi",
-      "Sample",
       "Voice",
       "Trio",
       "Wheel",
-      "Grain",
       "Phys",
       "Noise"
      ],

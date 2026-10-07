@@ -18,7 +18,8 @@
 #define ST_PAYLOAD_MAX (ST_SECTOR - ST_PAYLOAD_OFF)
 
 /* flash map (FL_DATA 0x97000..0xDFFFF, FL_GLOB 0xFC000..): settings 0xFC000, projects 0x97000..0x9EFFF,
- * user sample slots 0xA0000..0xDBFFF (eng_sample.c), user preset banks 0xDC000..0xDFFFF (upreset.c), the FM6
+ * user sample slots 0xA0000..0xDBFFF (eng_sample.c; ChoralRoot, FELUCCA_SAMPLE 0: slots 1-2, 0xA0000..0xC7FFF, stay
+ * reserved and unused, slot 3's 0xC8000..0xDBFFF holds the loops, cr_ui.c CRL_FL_BASE), user preset banks 0xDC000..0xDFFFF (upreset.c), the FM6
  * patch bank (fm6_bank.c): copy A 0x9F000, copy B 0xFE000 (the two free sectors) */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_FM6BANK = OBJ_UPRESET0 + 2, OBJ_COUNT };
 

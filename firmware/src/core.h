@@ -24,10 +24,25 @@
 #define FELUCCA_VA 0             /* ChoralRoot's VA engine (eng_va.c, docs/VA.md): engine 13 + FELUCCA_SLICE; Felucca builds
                                   * without it (choralroot.c, the emulator and tests/regress.c set 1) */
 #endif
+#ifndef FELUCCA_SEQ
+#define FELUCCA_SEQ 1            /* Felucca's keyboard, arpeggiator, sequencer and song chain (seq.c and its satellites);
+                                  * ChoralRoot's units set 0: cr_out.c provides what the kept files call of them */
+#endif
+#ifndef FELUCCA_SAMPLE
+#define FELUCCA_SAMPLE 1         /* the SAMPLE engine (eng_sample.c) and its ADPCM sets (build/gen/felucca_samples.h), the
+                                  * user sample slots; ChoralRoot sets 0: engine 4 a retired slot (engines.c ENG_GONE) */
+#endif
+#ifndef FELUCCA_GRAIN
+#define FELUCCA_GRAIN 1          /* the GRAIN engine (eng_grain.c, needs SAMPLE's sets); ChoralRoot: 0, engine 8 retired */
+#endif
+#ifndef FELUCCA_DRUM
+#define FELUCCA_DRUM 1           /* the DRUM engine (eng_drum.c, drum_voice.c); ChoralRoot: 0, engine 10 retired */
+#endif
 #define NENGINES (13 + FELUCCA_SLICE + FELUCCA_VA)   /* SLICE (13) and VA come last: the other engines keep their numbers */
 #define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
-#define NENG_SHOWN (NENGINES - !FELUCCA_FM4)   /* the engines one can pick: PRESETS, the EDIT layer, the editor,
-                                                * in the display order of engines.c ENGINE_ORDER */
+#define NENG_SHOWN (NENGINES - !FELUCCA_FM4 - !FELUCCA_SAMPLE - !FELUCCA_GRAIN - !FELUCCA_DRUM)
+                                 /* the engines one can pick: PRESETS, the EDIT layer, the editor, in the display order
+                                  * of engines.c ENGINE_ORDER (the retired slots are not among them) */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 #define NELEM(a) (sizeof(a) / sizeof((a)[0]))
 

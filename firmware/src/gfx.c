@@ -24,7 +24,12 @@ typedef struct { const char *name; uint16_t bg, surf, text, theme, accent; } ui_
 typedef struct { uint16_t off; uint8_t w; const char *label; } kc_t;
 #include "ui_fonts.h"                   /* AF_S 12 px / 400, AF_M 15 px / 500, AF_L 28 px / 600 */
 #include "ui_palettes.h"
+#ifndef FELUCCA_KEYCAPS
+#define FELUCCA_KEYCAPS 1               /* Felucca's keycaps (ui*.c's key hints); ChoralRoot's units set 0: none drawn */
+#endif
+#if FELUCCA_KEYCAPS
 #include "ui_keycaps.h"                 /* KC_*: the keycaps / badges (tools/gen_aa_keycaps.py), KNOB_* arcs */
+#endif
 #define ELLIPSIS '\x85'                 /* the ellipsis glyph of AF_S and AF_M */
 
 /* host tests hook in here (layout lint, draw cost); nothing in the firmware */
@@ -588,6 +593,7 @@ static int32_t cv_free_text(int32_t x, int32_t y, const aafont_t *f, const char 
 }
 
 /* ---------------------------------------------------------- keycaps --- */
+#if FELUCCA_KEYCAPS
 /* a pre-rendered pill (tools/gen_aa_keycaps.py): nibble 0 outside, 1..4 the edge over `under`, 5 the fill,
  * 6..15 the label over the fill; the 16 colours per (under, fill, ink) are cached like the text ramps */
 #define NKRAMP 4u
@@ -721,6 +727,7 @@ static int32_t cv_free_hint(int32_t x, int32_t y, const char *s, uint16_t fg, ui
     }
     return cv_free_text(x, y, &AF_S, s, fg, bg, maxw - (x - x0));
 }
+#endif /* FELUCCA_KEYCAPS */
 
 /* one-shot: a line of text in a box of colour bg, blitted (align: 0 left, 1 centre, 2 right) */
 static void draw_text_line(uint32_t x, uint32_t y, uint32_t w, const aafont_t *f, const char *s,

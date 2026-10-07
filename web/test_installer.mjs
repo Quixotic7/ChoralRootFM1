@@ -292,8 +292,8 @@ if (existsSync(built920)) ok(productOf(readFileSync(built920)) === META.product,
   ok(p.downloads.length === 1 && /^felucca-backup-\d{8}\.json$/.test(p.downloads[0].name) && p.downloads[0].href.startsWith("blob:"),
     `over Felucca: the backup saved first (${p.downloads[0]?.name})`);
   ok(dev.identity === "FM-1_920" && dev.bad === 0 && p.confirms.length === 1 && p.confirms[0] === en.restoreOffer, "over Felucca: installed, then the restore offered");
-  ok(cr.log.join() === "6,7,8,32,33,1" && cr.objs.get(1).length === 572 && cr.objs.get(6).every((v, i) => v === feluccaData()[3][1][i]) && cr.restarts === 1,
-    "over Felucca: its settings, banks, FM6 bank, samples restored on ChoralRoot, then RESTART");
+  ok(cr.log.join() === "6,7,8,1" && cr.objs.get(1).length === 572 && cr.objs.get(6).every((v, i) => v === feluccaData()[3][1][i]) && cr.restarts === 1,
+    "over Felucca: its settings, banks, FM6 bank restored on ChoralRoot (no samples: all-synth), then RESTART");
   ok(p.$.status.textContent.startsWith(en.restored) && p.$.status.textContent.includes("current music") && p.$.status.textContent.includes("project 1"),
     `over Felucca: the status lists what was restored and what stays in the file`);
 }

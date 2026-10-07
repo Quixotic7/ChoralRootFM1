@@ -507,6 +507,14 @@ wc=$(python3 tools/emu/wavclicks.py "$OUT/va_chord.wav" --from 0.4 | tail -1)
 echo "$wc" | grep -q ': 0 jumps > 0.5 FS, 0 silent holes mid-sound, 0 clicks' && ok "va_chord: $wc" || bad "va_chord: $wc"
 [ -s "$OUT/va_chord_held.ppm" ] && ok "screenshot: $OUT/va_chord_held.ppm" || bad "no va_chord_held.ppm"
 
+echo "all-synth: the rows that were sample-based (PIANO, CLOUD PAD, SHIMMER) are synth sounds and play"
+run cr_allsynth
+AL="$OUT/cr_allsynth.log"
+has 'part 0: FM6 / PIANO' "$AL" && has 'part 0: VA / CLOUD PAD' "$AL" && has 'part 0: VA / SHIMMER' "$AL" &&
+    ok "PRESETS 03 PIANO on FM6, 15 CLOUD PAD and 16 SHIMMER on the VA" || bad "all-synth rows: $(grep 'part 0:' "$AL" | tr '\n' ' ')"
+[ "$(grep -c '^expect .*: ok' "$AL")" = 5 ] && ok "all-synth: each sounds, SHIMMER's long tail, then silence: $OUT/cr_allsynth_piano.ppm" ||
+    bad "all-synth: $(grep -c '^expect .*: ok' "$AL") of 5 expectations"
+
 echo "determinism"
 mkdir -p "$OUT/cr_again"
 cp "$OUT/cr_dmaj.ppm" "$OUT/cr_again/first.ppm"

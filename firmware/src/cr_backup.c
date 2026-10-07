@@ -4,8 +4,7 @@
  * restore"). The subset of Felucca's protocol (editor.c / editor_backup.c, dropped with Felucca's UI) that the
  * installer page (web/fm1backup.js) and tools/fm1_install.py use, on ChoralRoot's objects:
  *
- *   1 INFO      "ChoralRoot <version>", no editor (0 engines), tags 42 01 03 (backup read + restore) and 43 01 01
- *   11..14      SMP_BEGIN / SMP_WRITE / SMP_END / SMP_ERASE: user sample slots 1, 2 (slot 3 holds the loops)
+ *   1 INFO      "ChoralRoot <version>", no editor (0 engines), tags 42 01 03 (backup read + restore) and 43 01 02
  *   65 LIST     1, rc, count, per object: id, size u32, crc u32 (CRC-32 zlib of the bytes GET returns)
  *   66 GET      id, offset u32, count (<= 256) -> id, rc, offset u32, count, pack7 data
  *   67 PUT      0 begin (id, size u32, crc u32) / 1 data (id, offset u32, pack7) / 2 commit (id) / 3 abort (id)
@@ -14,8 +13,10 @@
  * Objects (Felucca's ids where Felucca has them; 9 and 40..49 are ChoralRoot's):
  *   1 settings (persist_t PER5: Felucca's fields + cr_settings_t; a PUT takes PER1..PER5, settings_persist.c migrates)
  *   6, 7 user sound banks (upreset.c, 2 x 16 records), 8 the FM6 patch bank (fm6_bank.c), 9 the VA patch store
- *   (va_store.c), 32, 33 user sample slots 1, 2 (header + ADPCM, read as Felucca), 40..49 loop slots 1..10 (cr_ui.c's
- *   flash records, docs/LOOPER.md).
+ *   (va_store.c), 40..49 loop slots 1..10 (cr_ui.c's flash records, docs/LOOPER.md). No sample objects: ChoralRoot has
+ *   no SAMPLE engine (FELUCCA_SAMPLE 0); Felucca's 32..34 and SMP_BEGIN .. SMP_ERASE (11..14) are not answered, so the
+ *   installer page reports a Felucca archive's samples (and a ChoralRoot 0.1 archive's 32 / 33) skipped. The flash of
+ *   user sample slots 1 and 2 stays reserved (storage.c's map); slot 3's holds the loops.
  *
  * Reads come from flash (the current copy of each A/B pair, checked at LIST) in 256-byte st_read windows: no RAM
  * copy, the audio keeps running (a loop may play). LIST first saves a pending settings change (cr_settings_save,
@@ -37,14 +38,12 @@
 #define CRB_HDR0 0x7Du
 #define CRB_HDR1 0x46u
 #define CRB_HDR2 0x4Cu
-enum { CRB_INFO = 1, CRB_SMP_BEGIN = 11, CRB_SMP_WRITE, CRB_SMP_END, CRB_SMP_ERASE,
-       CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72 };
+enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72 };
 #define CRB_LOOP0 40u                                /* loop slot k: id 40 + k */
 #define CRB_VA 9u
-#define CRB_SMP_SLOTS 2u                             /* user sample slots 1, 2; slot 3's flash holds the loops */
-static const uint8_t CRB_IDS[] = {1, 6, 7, 8, CRB_VA, 32, 33, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+static const uint8_t CRB_IDS[] = {1, 6, 7, 8, CRB_VA, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
 #define CRB_N ((uint32_t)sizeof CRB_IDS)
-_Static_assert(CRL_SLOTS == 10u && SMP_USER_SLOTS == 3u, "backup ids: 10 loop slots, user sample slot 3 = the loops");
+_Static_assert(CRL_SLOTS == 10u, "backup ids: 10 loop slots");
 _Static_assert(sizeof(persist_t) <= CRL_REC_MAX && sizeof(up_bank_t) <= CRL_REC_MAX && sizeof(fm6_bank_t) <= CRL_REC_MAX &&
                sizeof(va_store_t) <= CRL_REC_MAX, "backup: every object stages in cu_loop_buf");
 _Static_assert(ST_PAYLOAD_MAX >= 2048u + 256u, "backup: the reply and the data share st_buf");
@@ -59,14 +58,14 @@ _Static_assert(ST_PAYLOAD_MAX >= 2048u + 256u, "backup: the reply and the data s
 
 static struct {
     uint8_t listed, put, id, gen;                    /* a LIST snapshot; a PUT session: its id, cu_loop_gen */
-    int8_t copy[CRB_N];                              /* the current copy at LIST (-1: none / a sample slot) */
+    int8_t copy[CRB_N];                              /* the current copy at LIST (-1: none) */
     uint32_t size[CRB_N];                            /* the object's size at LIST */
     uint32_t usb, len, crc, pos, ms, reboot;         /* usb.resets at LIST / begin; the PUT; restart at (ms | 1) */
 } crb;
 
 /* ------------------------------------------------------------------ the reply --- */
 #define CRB_OUT st_buf                               /* the reply (<= 400 bytes, written after any storage call) .. */
-#define CRB_DATA (st_buf + 2048u)                    /* .. and GET's flash data, SMP's unpacked bytes */
+#define CRB_DATA (st_buf + 2048u)                    /* .. and GET's flash data */
 static uint32_t crb_n;
 static void crb_b(uint32_t v)
 {
@@ -131,7 +130,6 @@ static int crb_index(uint32_t id)
     return -1;
 }
 static int crb_is_loop(uint32_t id) { return id >= CRB_LOOP0 && id < CRB_LOOP0 + CRL_SLOTS; }
-static int crb_is_smp(uint32_t id) { return id >= 32u && id < 32u + CRB_SMP_SLOTS; }
 static uint32_t crb_obj(uint32_t id)                 /* storage.c's object of ids 1, 6..9 */
 {
     return id == 1u ? (uint32_t)OBJ_SETTINGS : id == 8u ? (uint32_t)OBJ_FM6BANK : id == CRB_VA ? (uint32_t)OBJ_VASTORE
@@ -172,15 +170,6 @@ static int crb_current(uint32_t id, st_hdr_t *h)    /* storage.c st_current's ch
     }
     return -1;
 }
-static const uint8_t *crb_smp(uint32_t k, uint32_t *len)   /* user sample slot k as Felucca reads it */
-{
-    const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(k);
-    *len = 0;
-    if (usr_nz[k] && h->magic == SMP_USER_MAGIC && h->data_len <= SMP_USER_SIZE - SMP_USER_DATA)
-        *len = SMP_USER_DATA + h->data_len;
-    return smp_user_xip(k);
-}
-
 /* a flash erase now would cut a loop: it plays, records, or a slot load is on its way */
 static int crb_busy(void)
 {
@@ -200,10 +189,7 @@ static void crb_list(void)
         uint32_t id = CRB_IDS[i];
         crb.copy[i] = -1;
         crb.size[i] = crc[i] = 0;
-        if (crb_is_smp(id)) {
-            const uint8_t *p = crb_smp(id - 32u, &crb.size[i]);
-            crc[i] = st_crc32(p, crb.size[i]);
-        } else if (flash_ok && (crb.copy[i] = (int8_t)crb_current(id, &h)) >= 0) {
+        if (flash_ok && (crb.copy[i] = (int8_t)crb_current(id, &h)) >= 0) {
             crb.size[i] = h.len;
             crc[i] = h.crc;
         }
@@ -229,8 +215,6 @@ static void crb_get(const uint8_t *a, uint32_t n)
         rc = 5;
     else if (n != 8u || a[5] > 15u || i < 0 || !count || count > 256u || off > crb.size[i] || count > crb.size[i] - off)
         rc = 1;
-    else if (crb_is_smp(a[0]))
-        rc = 0;
     else
         rc = st_read(crb_sector(a[0], (uint32_t)crb.copy[i]) + ST_PAYLOAD_OFF + off, CRB_DATA, count) ? 4u : 0u;
     crb_b(n ? a[0] : 127u);
@@ -239,7 +223,7 @@ static void crb_get(const uint8_t *a, uint32_t n)
     crb_b(rc ? 0u : count & 127u);
     crb_b(rc ? 0u : count >> 7);
     if (!rc)
-        crb_pack(crb_is_smp(a[0]) ? smp_user_xip(a[0] - 32u) + off : CRB_DATA, count);
+        crb_pack(CRB_DATA, count);
 }
 
 /* ------------------------------------------------------------------ PUT --- */
@@ -395,96 +379,6 @@ static uint32_t crb_put(const uint8_t *a, uint32_t n)
     return 0;
 }
 
-/* --------------------------------------------- user sample slots 1, 2 (Felucca's 11..14) --- */
-static uint32_t crb_smp_base(uint32_t k) { return SMP_USER_BASE + k * SMP_USER_SIZE; }
-static int crb_smp_erase(uint32_t k, uint32_t all)  /* the header sector, or the whole slot */
-{
-    uint32_t i;
-    int rc = 0;
-    usr_nz[k] = 0;
-    for (i = 0; i < 16u; i++)
-        usr_zone[k][i].n = 0;                        /* a sounding voice ends instead of reading 0xFF */
-    for (i = 0; i < (all ? SMP_USER_SIZE / ST_SECTOR : 1u) && !rc; i++) {
-        rc = st_erase(crb_smp_base(k) + i * ST_SECTOR);
-        fm1_wdt_feed();
-    }
-    return rc;
-}
-static int crb_prog(uint32_t off, const uint8_t *p, uint32_t n)   /* page by page (st_prog never wraps a page) */
-{
-    while (n) {
-        uint32_t k = 256u - (off & 255u);
-        if (k > n)
-            k = n;
-        if (st_prog(off, p, k))
-            return -1;
-        off += k;
-        p += k;
-        n -= k;
-    }
-    return 0;
-}
-static uint32_t crb_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
-{
-    const smp_user_hdr_t *h = (const smp_user_hdr_t *)CRB_DATA;
-    if (crb_unpack(a, na, CRB_DATA, sizeof *h) != sizeof *h)
-        return 1;
-    if (h->magic != SMP_USER_MAGIC || h->version != 1 || !h->nz || h->nz > 16u || h->data_len > SMP_USER_SIZE - SMP_USER_DATA)
-        return 2;
-    if (usr_nz[k])                                   /* published: identical again is ok, else BEGIN first */
-        return memcmp(h, smp_user_xip(k), sizeof *h) ? 2u : 0u;
-    if (st_crc32(smp_user_xip(k) + SMP_USER_DATA, h->data_len) != h->crc)
-        return 3;
-    if (crb_prog(crb_smp_base(k), CRB_DATA, sizeof *h))
-        return 4;
-    smp_user_scan(k);
-    return usr_nz[k] ? 0u : 5u;
-}
-static int crb_smp_cmd(uint32_t cmd, const uint8_t *a, uint32_t n)   /* 0: no reply */
-{
-    uint32_t k = n ? a[0] : 0u, rc;
-    if (!n || k >= SMP_USER_SLOTS || !flash_ok)
-        return 0;
-    if (cmd == CRB_SMP_BEGIN || cmd == CRB_SMP_ERASE) {
-        if (n != 1u)
-            return 0;
-        rc = k >= CRB_SMP_SLOTS ? 1u : crb_busy() ? 3u : crb_smp_erase(k, cmd == CRB_SMP_ERASE) ? 1u : 0u;
-        crb_b(k);
-        crb_b(rc);
-        return 1;
-    }
-    if (cmd == CRB_SMP_WRITE) {
-        uint32_t off, len;
-        if (n < 5u)
-            return 0;
-        off = (uint32_t)a[1] | (uint32_t)a[2] << 7 | (uint32_t)a[3] << 14;
-        len = crb_unpack(a + 4, n - 4u, CRB_DATA, 256u);
-        if (k >= CRB_SMP_SLOTS || off < SMP_USER_DATA || (off & 0xFFu) || !len || off + len > SMP_USER_SIZE)
-            rc = 1;
-        else if (usr_nz[k])
-            rc = 4;                                  /* in use: SMP_BEGIN first (voices read it) */
-        else if (crb_busy())
-            rc = 3;
-        else {
-            rc = !(off & 0xFFFu) && st_erase(crb_smp_base(k) + off) ? 2u : 0u;   /* a sector's first write erases it */
-            if (!rc && crb_prog(crb_smp_base(k) + off, CRB_DATA, len))
-                rc = 3;
-        }
-        crb_b(k);
-        crb_b(off);
-        crb_b(off >> 7);
-        crb_b(off >> 14);
-        crb_b(rc);
-        return 1;
-    }
-    if (n < 2u)
-        return 0;
-    rc = k >= CRB_SMP_SLOTS ? 1u : crb_busy() ? 3u : crb_smp_end(k, a + 1, n - 1u);   /* SMP_END */
-    crb_b(k);
-    crb_b(rc);
-    return 1;
-}
-
 /* ------------------------------------------------------------------ the dispatcher --- */
 /* f: the bytes between F0 and F7 (7D 46 4C cmd args); 1 = answered */
 static int crb_handle(const uint8_t *f, uint32_t n)
@@ -512,13 +406,9 @@ static int crb_handle(const uint8_t *f, uint32_t n)
         crb_b(3);                                    /* backup read + restore */
         crb_b(0x43);
         crb_b(1);
-        crb_b(1);                                    /* ChoralRoot backup v1: ids 9, 40..49, RESTART */
+        crb_b(2);                                    /* ChoralRoot backup v2: ids 9, 40..49, RESTART; no samples */
         break;
     }
-    case CRB_SMP_BEGIN: case CRB_SMP_WRITE: case CRB_SMP_END: case CRB_SMP_ERASE:
-        if (!crb_smp_cmd(cmd, a, na))
-            return 0;
-        break;
     case CRB_LIST:
         if (na) {
             crb_b(1);

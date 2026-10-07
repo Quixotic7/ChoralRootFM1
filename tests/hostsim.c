@@ -38,6 +38,8 @@ static struct { volatile uint32_t notes, buttons; } fm1_in;
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #include "../firmware/src/usb.c"
 #include "../firmware/src/midi_uart.c"                /* TRS MIDI IN: its parser (um_byte) feeds midi_in_q */
+#if FELUCCA_SEQ                                      /* ChoralRoot's host units (FELUCCA_SEQ 0: the emulator, cr_trans_test.c)
+                                                      * take the sound side above only; cr_out.c has its events_block */
 #include "../firmware/src/song_chain.c"
 #include "../firmware/src/seq.c"
 #define inst (trk[0])                   /* the single-part renders below: part 1 */
@@ -948,3 +950,4 @@ int main(int argc, char **argv)
     fclose(w);
     return 0;
 }
+#endif /* FELUCCA_SEQ */

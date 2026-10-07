@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
 /* Host test of TRANSPOSE (firmware/src/cr_out.c: the part's P_TRANS applied where the engine's streams enter the
- * parts; docs/VA.md, docs/INTEGRATION.md): the sound side through tests/hostsim.c, the ChoralRoot engine and
+ * parts; docs/VA.md, docs/INTEGRATION.md): the sound side through tests/hostsim.c (FELUCCA_SEQ 0), the ChoralRoot engine and
  * cr_out.c as the emulator includes them; the stream callbacks driven directly.
  *   sh tests/run_cr_tests.sh
  * Checks: +12 / -24 / 0 move the part's voices, clamped to 0..127; the MIDI out is not transposed; a P_TRANS change
@@ -9,6 +9,7 @@
  * its own; a re-routed note still ends. */
 #define FELUCCA_VA 1
 #define FELUCCA_SLICE 0
+#define FELUCCA_SEQ 0                                /* as choralroot.c: cr_out.c's events_block, no seq.c */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -59,13 +60,39 @@ static uint32_t midi_last_note(void)             /* the latest note-on in the US
     return n;
 }
 
+/* (hostsim.c's host_tracks_init / host_preset are Felucca's renders: FELUCCA_SEQ 0 leaves them out) */
+static void t_tracks_init(void)                  /* the defaults, as felucca_init */
+{
+    uint32_t i, k;
+    for (i = 0; i < G_COUNT; i++)
+        song.g[i] = GP[i].def;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_E0; i++)
+            trk[k].p[i] = TP[i].def;
+    song.master_q12 = 4096;
+}
+static void t_preset(track_t *t, uint32_t e, uint32_t pi)   /* engine e's factory preset pi, switched at once */
+{
+    const preset_t *p = &ENGINES[e]->presets[pi];
+    uint32_t i;
+    t->eng_req = t->engine = (uint8_t)e;
+    t->preset = (uint8_t)pi;
+    for (i = 0; i < 8u; i++)
+        t->p[P_E0 + i] = p->e[i];
+    t->p[P_ATK] = p->env[0];
+    t->p[P_DEC] = p->env[1];
+    t->p[P_SUS] = p->env[2];
+    t->p[P_REL] = p->env[3];
+    t->p[P_ED_FLT] = p->fenv;
+}
+
 int main(void)
 {
     track_t *c = &trk[CR_PART_CHORD], *b = &trk[CR_PART_BASS];
-    host_tracks_init();
+    t_tracks_init();
     usb.config = 1;                              /* (the MIDI out queue takes events) */
-    host_preset(c, 0, 0);
-    host_preset(b, 0, 0);
+    t_preset(c, 0, 0);
+    t_preset(b, 0, 0);
     c->p[P_VOICE] = V_POLY;
     b->p[P_VOICE] = V_MONO;
     /* 0: as played */
@@ -118,6 +145,42 @@ int main(void)
     cr_cb_note_off(0, CR_STREAM_MAIN, 60);
     CHECK(!ngated(c), "re-routed: the chord part's note ended");
     cr_route.part[CR_STREAM_MAIN] = CR_PART_CHORD;
+
+    /* MIDI in on the parts (cr_out.c midi_event, FELUCCA_SEQ 0: what midi_control.c did for ChoralRoot) */
+    c->p[P_TRANS] = 0;
+    midi_event(0x90u, 0, 60, 90);
+    midi_event(0x90u, 0, 64, 90);
+    CHECK(gated(c, 60) && gated(c, 64), "MIDI in: note-ons play on the part");
+    midi_event(0x80u, 0, 60, 0);
+    midi_event(0x90u, 0, 64, 0);
+    CHECK(!ngated(c), "MIDI in: note-off and velocity 0 release");
+    midi_event(0xB0u, 0, 64, 127);                      /* the pedal down */
+    midi_event(0x90u, 0, 62, 90);
+    midi_event(0x80u, 0, 62, 0);
+    CHECK(gated(c, 62), "MIDI in: the pedal holds a released note");
+    midi_event(0xB0u, 0, 64, 0);
+    CHECK(!ngated(c), "MIDI in: the pedal up releases it");
+    midi_event(0xE0u, 1, 127, 127);                     /* bend up full: +2 semitones (Q8) */
+    CHECK(midi_bend_target[1] == 512 && !midi_bend_target[0], "MIDI in: bend on the bass part, +2 semitones (%d)",
+          (int)midi_bend_target[1]);
+    midi_event(0xB0u, 1, 101, 0); midi_event(0xB0u, 1, 100, 0); midi_event(0xB0u, 1, 6, 12);
+    CHECK(midi_bend_target[1] == 12 * 256, "MIDI in: RPN 0 sets the bend range (12 semitones)");
+    midi_event(0xB0u, 1, 121, 0);
+    CHECK(!midi_bend_target[1], "MIDI in: CC 121 centres the bend");
+    midi_event(0xB0u, 0, 1, 100);
+    midi_event(0xD0u, 0, 50, 0);
+    CHECK(c->mw == 100 && c->at == 50, "MIDI in: the mod wheel and pressure reach mod.c's sources");
+    midi_event(0x90u, 0, 48, 90);
+    midi_event(0x90u, 0, 52, 90);
+    midi_event(0xB0u, 0, 123, 0);
+    CHECK(!ngated(c), "MIDI in: CC 123 releases the part's notes");
+    midi_event(0x90u, 0, 55, 90);
+    panic_req = 1u << CR_PART_CHORD;                    /* a sound load: the part released, its MIDI notes forgotten */
+    events_block(CTL);
+    midi_event(0x90u, 0, 57, 90);
+    midi_event(0x80u, 0, 55, 0);
+    CHECK(gated(c, 57) && !gated(c, 55), "panic_req: the part released; a forgotten note's off ends nothing else");
+    midi_event(0x80u, 0, 57, 0);
     printf("cr_trans_test: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

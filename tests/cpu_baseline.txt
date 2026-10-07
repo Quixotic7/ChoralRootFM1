@@ -92,6 +92,8 @@ cpu/VA/19_SYNC_BASS 1791
 cpu/VA/20_MORPH_PAD 2661
 cpu/VA/21_VINYL_KEYS 1794
 cpu/VA/22_WIDE_STRINGS 2555
+cpu/VA/23_CLOUD_PAD 2679
+cpu/VA/24_SHIMMER 2497
 cpu/mix/idle 286
 cpu/mix/idle_drums 478
 cpu/mix/3parts_full_drums 1561

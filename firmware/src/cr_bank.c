@@ -27,7 +27,11 @@ static uint8_t sync_reload;                       /* (Felucca's editor RELOAD pu
 enum { UNDO_SOUND = 1, UNDO_PAT = 2 };
 static void load_begin(track_t *t, uint32_t what) { (void)t; (void)what; }   /* ChoralRoot keeps no undo copy */
 static void load_end(track_t *t) { (void)t; }
+#if FELUCCA_SEQ
 static int chain_busy(void) { return chain.running || chain.armed; }
+#else
+static int chain_busy(void) { return 0; }        /* (no song chain: FELUCCA_SEQ 0) */
+#endif
 static int transport_busy(void)                   /* no flash erase while Felucca's transport runs (inert here) */
 {
     int busy;
@@ -76,29 +80,36 @@ static void cr_bank_boot(void)                    /* persist_boot (after flash_o
 #define CB_ANALOG 0u
 #define CB_PHASE 2u
 #define CB_LOFI 3u
-#define CB_SAMPLE 4u
 #define CB_VOICE 5u
 #define CB_TRIO 6u
 #define CB_WHEEL 7u
-#define CB_GRAIN 8u
 #define CB_PHYS 9u
 #define CB_FM6 12u
 #define CB_VA ENGI_VA            /* the VA engine (eng_va.c, 13): its sounds after Felucca's */
+#if !FELUCCA_VA
+#error "cr_bank.c: the bank's CLOUD PAD and SHIMMER (and PRESETS 25..) are VA sounds: FELUCCA_VA 1"
+#endif
 /* trim: the sound's level after the part's LEVEL (track_t.trim, fx.c mix_part), signed 0.5 dB steps, 0 none; set
  * when the bank's sound loads (cu_list_load), 0 for a user sound, an engine preset or INIT. LEVEL stays the part's
  * (the MIX page: kept across loads); the trim evens out the bank's loud sounds so a held 6-note chord with the bass
  * at the default levels stays under the master limiter (limited <= 10 % of the hold with SUB BASS, docs/INTEGRATION.md
- * Defaults) */
+ * Defaults).
+ * All synthesis: the sample-based rows of before (PIANO on SAMPLE, CLOUD PAD and SHIMMER on GRAIN, engines retired with
+ * FELUCCA_SAMPLE / GRAIN 0) keep their places (PRESETS 03, 15, 16: the other sounds' positions, which the settings
+ * record and the user's habits hold, do not move) with synth sounds of the same character: PIANO is FM6's PIANO (TINE
+ * EP's patch through the macros: a brighter, faster-hammered EP-piano hybrid, eng_fm6.c), CLOUD PAD and SHIMMER are VA
+ * presets (eng_va.c: a slow pad whose oscillator shapes and filter spread drift on slow LFOs; detuned oscillators
+ * stacked an octave and more up with a long release). Levels measured with tests/va_levels.c as the others; trims 0 */
 typedef struct { uint8_t engine; const char *preset, *name; int8_t trim; } cb_entry_t;
 static const cb_entry_t CB_CHORD[] = {           /* PRESETS 01..24 */
     {CB_FM6, "TINE EP", "TINE EP"},       {CB_FM6, "BELL", "FM BELL"},
-    {CB_SAMPLE, "PIANO", "PIANO"},        {CB_FM6, "PAD", "FM PAD"},
+    {CB_FM6, "PIANO", "PIANO"},           {CB_FM6, "PAD", "FM PAD"},
     {CB_ANALOG, "SOFT PAD", "SOFT PAD"},  {CB_ANALOG, "STRINGS", "STRINGS", -2},
     {CB_ANALOG, "PWM STR", "PWM STRINGS"},{CB_PHASE, "STRING", "CZ STRINGS", -16},
     {CB_WHEEL, "FULL ORGAN", "FULL ORGAN"},{CB_WHEEL, "GOSPEL", "GOSPEL ORGAN"},
     {CB_WHEEL, "JAZZ PERC", "JAZZ ORGAN"},{CB_FM6, "ORGAN", "FM ORGAN"},
     {CB_PHASE, "ORGAN", "CZ ORGAN", -16},      {CB_VOICE, "CHOIR AAH", "CHOIR", -6},
-    {CB_GRAIN, "CLOUD PAD", "CLOUD PAD"}, {CB_GRAIN, "SHIMMER", "SHIMMER"},
+    {CB_VA, "CLOUD PAD", "CLOUD PAD"},    {CB_VA, "SHIMMER", "SHIMMER"},
     {CB_ANALOG, "BRASS", "SYNTH BRASS"},  {CB_PHASE, "BRASS", "CZ BRASS", -6},
     {CB_FM6, "MARIMBA", "MARIMBA"},       {CB_PHYS, "HARP", "HARP"},
     {CB_PHYS, "KALIMBA", "KALIMBA"},      {CB_ANALOG, "PLUCK", "PLUCK"},

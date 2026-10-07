@@ -9,7 +9,8 @@ The unit is firmware/src/choralroot.c (ChoralRoot's single compilation unit, a f
 Outputs in build/: choralroot.bin (app), choralroot.elf, choralroot.dis, loader/ota.bin (update loader),
 choralroot.fwsc (package, identity FM-1_920). A release build (--release X.Y) keeps the identity, sets the
 version string to "ChoralRoot X.Y" and writes choralroot-X.Y.fwsc and a folder release-X.Y/ with the package,
-the app (choralroot-X.Y-app.bin), SHA256SUMS, the sample attribution and the licence files.
+the app (choralroot-X.Y-app.bin), SHA256SUMS and the licence files (the CC0 sample attribution only for a build with
+FELUCCA_SAMPLE=1: ChoralRoot is all-synth, its image holds no samples).
 After the checks it prints the section sizes against the XIP slot and the RAM / POOL / NOINIT regions.
 See BUILDING.md for the toolchain and the SDK.
 
@@ -185,8 +186,8 @@ def build_loader():
 def build_app():
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_OTA_RAMONLY", "FELUCCA_CDC",
-                 "FELUCCA_UART", "FELUCCA_UAC", "FELUCCA_UAC_TONE", "FELUCCA_ICONS", "FELUCCA_SLICE", "FELUCCA_SLICER",
-                 "FELUCCA_FM4"):
+                 "FELUCCA_UART", "FELUCCA_UAC", "FELUCCA_UAC_TONE", "FELUCCA_ICONS", "FELUCCA_KEYCAPS", "FELUCCA_SLICE",
+                 "FELUCCA_SLICER", "FELUCCA_FM4", "FELUCCA_SAMPLE", "FELUCCA_GRAIN", "FELUCCA_DRUM", "FELUCCA_SEQ"):
         v = os.environ.get(flag)    # unset: the default in firmware/src/choralroot.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
@@ -378,7 +379,9 @@ def main():
     pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY), ota, PRODUCT)
     (OUT / name).write_bytes(pkg)
     att = SRC / "assets" / "samples-cc0" / "ATTRIBUTION.txt"
-    if att.exists():
+    att_on = att.exists() and os.environ.get("FELUCCA_SAMPLE") == "1"   # the SAMPLE sets' credit: only when built in
+    (OUT / "ATTRIBUTION.txt").unlink(missing_ok=True)
+    if att_on:
         shutil.copy(att, OUT / "ATTRIBUTION.txt")
     print(f"app      {OUT / f'{UNIT}.bin'}  {len(img)} B")
     print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
@@ -396,7 +399,7 @@ def main():
             shutil.copy(f, rel / "LICENSES" / f.name)
         for doc in ("LICENSE", "LICENSING.md"):
             shutil.copy(SRC / doc, rel / doc)
-        if att.exists():
+        if att_on:
             shutil.copy(att, rel / "ATTRIBUTION.txt")
         print(f"release  {rel}/")
     return 0

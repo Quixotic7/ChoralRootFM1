@@ -382,7 +382,7 @@ BK_HDR = bytes([0xF0, 0x7D, 0x46, 0x4C])
 BK_INFO, BK_LIST, BK_GET, BK_PUT, BK_RESTART = 1, 65, 66, 67, 72
 BK_CHUNK = 256
 FELUCCA_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34]
-CR_IDS = [1, 6, 7, 8, 9, 32, 33] + list(range(40, 50))
+CR_IDS = [1, 6, 7, 8, 9] + list(range(40, 50))   # (no samples: ChoralRoot has no SAMPLE engine)
 KNOWN_IDS = set(FELUCCA_IDS) | set(CR_IDS)
 BK_RC = {1: "invalid object, size or request", 2: "the data failed validation", 3: "busy: stop the loop on the FM-1",
          4: "flash write failed", 5: "stale session: start again"}

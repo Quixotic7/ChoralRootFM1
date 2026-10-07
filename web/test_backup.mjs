@@ -102,8 +102,8 @@ const crObjs = [[1, per(S5, PER5, 7)], [6, rnd(3080, 8)], [8, rnd(3472, 9)], [9,
   const crFile = await captureBackup(cr.request, info.version);
   ok(crFile.objects.map((o) => o.id).join() === CR_BACKUP_IDS.join() && crFile.objects.find((o) => o.id === 9).size === 3536 &&
      crFile.objects.find((o) => o.id === 49).size === 3602 && crFile.objects.find((o) => o.id === 41).size === 0,
-     "choralroot: capture lists settings, banks, FM6, VA (9), samples 1-2, loops 40..49");
-  ok(readBackup(JSON.stringify(crFile)).objects.length === 17, "choralroot: the archive reads back (17 objects)");
+     "choralroot: capture lists settings, banks, FM6, VA (9), loops 40..49 (no samples)");
+  ok(readBackup(JSON.stringify(crFile)).objects.length === 15, "choralroot: the archive reads back (15 objects)");
   ok(objectName(9) === "VA patches" && objectName(44) === "loop slot 5" && objectName(33) === "sample slot 2", "choralroot: object names");
   ok(backupFileName(info.version, new Date("2026-10-06T12:00:00Z")) === "choralroot-backup-20261006.json" &&
      backupFileName("FELUCCA 1.0", new Date("2026-10-06T12:00:00Z")) === "felucca-backup-20261006.json", "choralroot: file names");
@@ -122,14 +122,22 @@ const crObjs = [[1, per(S5, PER5, 7)], [6, rnd(3080, 8)], [8, rnd(3472, 9)], [9,
   const stubborn = device([], { ...crOpt, busy: 99 });
   ok(await athrows(() => restoreBackup(stubborn.request, crFile, () => {}, { busyTries: 0 })), "choralroot: still busy after the retries: the restore stops");
 
-  // a Felucca archive on ChoralRoot: its settings, banks, FM6 bank and samples 1-2; the music, projects and sample 3 stay in the file
+  // a Felucca archive on ChoralRoot: its settings, banks and FM6 bank; the music, projects and samples stay in the file
   const fel = await captureBackup(device([[0, rnd(3584, 20)], [1, per(S4, PER4, 21)], [3, rnd(3584, 22)], [6, rnd(3080, 23)], [8, rnd(3472, 24)]]).request, "FELUCCA 1.0");
   const onCr = device([], crOpt);
   const r2 = await restoreBackup(onCr.request, fel);
-  ok(r2.restored.join() === "6,7,8,32,33,1", "felucca -> choralroot: banks, FM6 bank, samples 1-2 (empty: erased), then the settings");
+  ok(r2.restored.join() === "6,7,8,1", "felucca -> choralroot: banks, FM6 bank, then the settings");
   ok(onCr.objs.get(1).length === S4 && new DataView(onCr.objs.get(1).buffer).getUint32(0, true) === PER4 && onCr.objs.get(6).length === 3080 &&
      onCr.objs.get(8).length === 3472 && !onCr.objs.has(0) && !onCr.objs.has(3), "felucca -> choralroot: settings (PER4 as it is), banks, FM6 bank; no music, no projects");
-  ok([0, 2, 3, 4, 5, 34].every((id) => r2.skipped.includes(id)) && !r2.skipped.includes(6), "felucca -> choralroot: the music, projects and sample slot 3 are reported skipped");
+  ok([0, 2, 3, 4, 5, 32, 33, 34].every((id) => r2.skipped.includes(id)) && !r2.skipped.includes(6), "felucca -> choralroot: the music, projects and the sample slots are reported skipped");
+
+  // an older ChoralRoot archive (0.1, with sample slots 1-2) on this firmware: everything but the samples
+  const old = JSON.parse(JSON.stringify(crFile));
+  const smp = (id) => ({ id, size: 0, crc: 0, data: "" });
+  old.objects.splice(5, 0, smp(32), smp(33));
+  const onNew = device([], crOpt);
+  const r4 = await restoreBackup(onNew.request, old);
+  ok(r4.skipped.join() === "32,33" && r4.restored.includes(9) && r4.restored.at(-1) === 1, "choralroot 0.1 archive: its sample slots reported skipped, the rest restored");
 
   // a ChoralRoot archive on Felucca: the settings record cut back to PER4, the VA patches and loops skipped
   const onFel = device([[1, per(S4, PER4, 30)]], { sizes: { 1: S4 } });

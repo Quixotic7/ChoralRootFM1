@@ -425,6 +425,21 @@ static const uint8_t VAP_WIDESTR[] = {OSC(0, SAW, 54, 0, -10), OSC(1, SAW, 54, 0
     OSC(3, SAW, 48, 0, 4), FLT(LP, 80, 8, 6), VA_FSPREAD, 110, ENV1(86, 90, 120, 94), ENV2(90, 100, 70, 94),
     VA_DETUNE, 30, LFO(0, 60, 0, 60, 0), LFO(1, 66, 1, 60, 0), M_(0, VS_LFO1, VD_PIT1, 2),
     M_(1, VS_LFO1 + 1, VD_PIT1 + 1, -2), 0xFF};
+/* ChoralRoot's all-synth bank (cr_bank.c): the GRAIN engine's CLOUD PAD and SHIMMER as VA sounds of the same
+ * character. CLOUD PAD: two MORPH oscillators whose shapes three slow LFOs (0.1..0.2 Hz, out of step) move apart, the
+ * filter's stereo SPREAD breathing with the third, a sine an octave up; slow attack, long release. SHIMMER: four
+ * oscillators an octave, a twelfth and two octaves up, detuned against each other (DETUNE, FINE, two LFOs on their
+ * pitch), bright and wide (filter SPREAD), a long release into the reverb */
+static const uint8_t VAP_CLOUD[] = {OSC(0, SAW, 60, 0, -8), MODE(0, MORPH), O_(0, SHAPE), 40,
+    OSC(1, SAW, 58, 0, 8), MODE(1, MORPH), O_(1, SHAPE), 72, OSC(2, SIN, 32, 12, 0),
+    FLT(LP, 74, 10, 6), VA_FSPREAD, 60, ENV1(96, 100, 116, 104), ENV2(100, 105, 70, 104), VA_VEL, 40,
+    LFO(0, 20, 1, 127, 0), LFO(1, 26, 0, 127, 0), LFO(2, 16, 0, 127, 0),
+    M_(0, VS_LFO1, VD_SHP1, 26), M_(1, VS_LFO1 + 1, VD_SHP1 + 1, -24), M_(2, VS_LFO1 + 2, VD_SPREAD, 30),
+    M_(3, VS_LFO1, VD_CUT, 6), 0xFF};
+static const uint8_t VAP_SHIMMER[] = {OSC(0, SAW, 50, 12, -9), OSC(1, SAW, 50, 12, 9), OSC(2, SAW, 38, 19, -4),
+    OSC(3, TRI, 44, 24, 5), FLT(LP, 100, 16, 8), VA_FKTRK, 80, VA_FSPREAD, 90, ENV1(70, 100, 110, 112),
+    ENV2(80, 100, 80, 112), VA_DETUNE, 40, VA_VEL, 50, LFO(0, 70, 0, 40, 90), LFO(1, 64, 1, 50, 0),
+    M_(0, VS_LFO1, VD_PIT1 + 2, 2), M_(1, VS_LFO1 + 1, VD_PIT1 + 3, -2), M_(2, VS_LFO1 + 1, VD_CUT, 5), 0xFF};
 
 /* {CUT, RES, FENV, DRIVE, MIX, DTN, ATK, REL}: the macros as the patch has them (cr_va_test checks) */
 static const preset_t VA_PRESETS[] = {
@@ -451,11 +466,14 @@ static const preset_t VA_PRESETS[] = {
     {"MORPH PAD", {78, 12, 8, 0, 64, 0, 84, 96}, {84, 90, 118, 96}, 0, 0, FX(0, 50, 25, 70), PAT(5)},
     {"VINYL KEYS", {72, 10, 18, 0, 64, 0, 6, 76}, {6, 92, 84, 76}, 0, 0, FX(0, 30, 20, 45), PAT(6)},
     {"WIDE STRINGS", {80, 8, 6, 0, 64, 30, 86, 94}, {86, 90, 120, 94}, 0, 0, FX(0, 55, 15, 65), PAT(5)},
+    {"CLOUD PAD", {74, 10, 6, 0, 64, 0, 96, 104}, {96, 100, 116, 104}, 0, 0, FX(0, 65, 20, 75), PAT(5)},
+    {"SHIMMER", {100, 16, 8, 0, 64, 40, 70, 112}, {70, 100, 110, 112}, 0, 0, FX(0, 70, 30, 80), PAT(5)},
 };
 static const uint8_t *const VA_PRESET_EDITS[] = {VAP_LUSH, VAP_WARM, VAP_GLASS, VAP_SLOWSTR, VAP_ENSEMBLE, VAP_BRASS,
     VAP_SOFTBRASS, VAP_POLYKEYS, VAP_PWMKEYS, VAP_CLAV, VAP_SOFTLEAD, VAP_HOLLOW, VAP_BELLS, VAP_SWEEP, VAP_AAH,
-    VAP_ORGAN, VAP_SUB, VAP_PUNCH, VAP_RUBBER, VAP_SYNCBASS, VAP_MORPHPAD, VAP_VINYLKEYS, VAP_WIDESTR};
-_Static_assert(NELEM(VA_PRESETS) == NELEM(VA_PRESET_EDITS) && NELEM(VA_PRESETS) == 23, "a patch per VA preset");
+    VAP_ORGAN, VAP_SUB, VAP_PUNCH, VAP_RUBBER, VAP_SYNCBASS, VAP_MORPHPAD, VAP_VINYLKEYS, VAP_WIDESTR, VAP_CLOUD,
+    VAP_SHIMMER};
+_Static_assert(NELEM(VA_PRESETS) == NELEM(VA_PRESET_EDITS) && NELEM(VA_PRESETS) == 25, "a patch per VA preset");
 #define VA_NPRESETS ((uint32_t)NELEM(VA_PRESETS))
 #undef O_
 #undef E_

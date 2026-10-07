@@ -151,7 +151,12 @@ static struct { char name[13]; uint8_t edited; } psnd[2];
 
 static uint32_t cu_preset_orig(const engine_t *e, uint32_t k)  /* ui.c preset_orig: a retired alias -> the original */
 {
+#if FELUCCA_SAMPLE
     return e->presets == SMP_PRESET_TABLE && k < SMP_NSETS ? SMP_SET_ORIG[k] : k;
+#else
+    (void)e;                                     /* (the aliases were SAMPLE's sets: none) */
+    return k;
+#endif
 }
 /* the EDIT engine picker: pitched engines with presets (not DRUM, not SLICE, not the retired DIGITAL slot) */
 static int cu_engine_melodic(uint32_t e)
@@ -169,7 +174,8 @@ static const char *cu_preset_name(uint32_t e, uint32_t p)
 static int cu_kept(uint32_t i) { return param_kept(i); }
 
 /* engine e's preset pi into part t, as ui.c set_engine_of + apply_preset_to: the sound only, its sends; the part's
- * notes are released (seq.c panic_req, the audio side). bass: P_VOICE MONO, else POLY (a chord on a mono preset) */
+ * notes are released (panic_req: cr_out.c events_block, the audio side). bass: P_VOICE MONO, else POLY (a chord on a
+ * mono preset) */
 static void cu_load(track_t *t, uint32_t e, uint32_t pi, int bass)
 {
     static const uint8_t FX_DEF[4] = {0, 24, 28, 36};
@@ -208,7 +214,10 @@ static void cu_load(track_t *t, uint32_t e, uint32_t pi, int bass)
 }
 
 /* user slot k into part t (upreset.c up_load without Felucca's undo / pattern): engine and every parameter but
- * the part's own (param_kept); a chord part plays it POLY when it was saved MONO, a bass part MONO */
+ * the part's own (param_kept); a chord part plays it POLY when it was saved MONO, a bass part MONO. A sound of a
+ * retired engine (SAMPLE 4, GRAIN 8, DRUM 10: a Felucca slot, a restored bank; engines.c ENG_GONE) loads as the init
+ * sound on ANALOG under the slot's name, with a message (and a trace line on the emulator) */
+static void cu_message(const char *t, uint32_t col);
 static void cu_load_user(track_t *t, uint32_t k, int bass)
 {
     const up_rec_t *r;
@@ -231,7 +240,24 @@ static void cu_load_user(track_t *t, uint32_t k, int bass)
         fm4_apply(t, p);
     } else
 #endif
-    {
+    if (!eng_ok(r->engine)) {
+        const engine_t *en = ENGINES[0];
+#if defined(CR_TRACE) && CR_TRACE
+        printf("load: slot %u engine %u retired -> INIT on ANALOG\n", (unsigned)k + 1u, (unsigned)r->engine);
+#endif
+        fm1_irq_off();
+        t->eng_req = 0;                           /* ANALOG */
+        for (i = 0; i < P_E0; i++)
+            if (!cu_kept(i))
+                t->p[i] = TP[i].def;
+        for (i = 0; i < 8u; i++)
+            t->p[P_E0 + i] = en->edit[i].def;
+        t->p[P_VOICE] = bass ? V_MONO : V_POLY;
+        t->preset = 0;
+        fm1_irq_on();
+        fm6_track_loaded(t);
+        cu_message("engine retired: init sound", CR_COL_WHITE);
+    } else {
         fm1_irq_off();
         t->eng_req = r->engine;
         for (i = 0; i < P_COUNT; i++)
@@ -3299,7 +3325,9 @@ static void cr_ui_init(void)
     if ((cs.loop_used >> cs.loop_slot) & 1u)
         cu_loop_load(cs.loop_slot);
     cu.msg.until = 0;
+#if FELUCCA_SEQ
     song.grid = 2;                                /* seq.c's keyboard never plays (keyboard_block: every key silent) */
+#endif
     cu_boot_ms = cu_now();                        /* the splash: the idle stripes' first CR_SPLASH_MS */
     cr_anim_mark(&cu_anim, cu_boot_ms);
     cr_draw_invalidate();

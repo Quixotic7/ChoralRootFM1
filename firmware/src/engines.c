@@ -2,20 +2,65 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Engine table (order = PRESETS browsing order and the engine numbers of the editor protocol), the
  * factory patterns (SEQ > PATTERNS) and the parts' sounds at power-on. */
+#if (FELUCCA_GRAIN || FELUCCA_SLICE) && !FELUCCA_SAMPLE
+#error "GRAIN and SLICE play the SAMPLE engine's sets: FELUCCA_GRAIN / FELUCCA_SLICE need FELUCCA_SAMPLE"
+#endif
 #include "dsp.c"
 #include "eng_analog.c"
 #include "eng_phase.c"
 #include "eng_lofi.c"
-#include "eng_sample.c"
+#if FELUCCA_SAMPLE
+#include "eng_sample.c"         /* SAMPLE: the ADPCM sets (build/gen/felucca_samples.h), the user sample slots */
+#endif
 #include "eng_formant.c"
 #include "eng_trio.c"
 #include "eng_wheel.c"
+#if FELUCCA_GRAIN
 #include "eng_grain.c"
+#endif
 #include "eng_phys.c"           /* PHYS: DaisySP physical models (phys_dsp.c, MIT) */
+#if FELUCCA_DRUM
 #include "eng_drum.c"           /* DRUM: the 8-lane kit (drum_voice.c) */
+#endif
 #include "eng_noise.c"
 #include "eng_fm6.c"            /* FM6: 6-operator FM, msfa ported (fm6_core.c, Apache-2.0) */
 #include "fm4_convert.c"        /* DIGITAL's tables, and its sounds -> FM6 */
+
+/* a retired engine's slot (FELUCCA_SAMPLE / GRAIN / DRUM 0, ChoralRoot): no DSP, no presets, silent, never offered
+ * (eng_ok: PRESETS, the EDIT layer, the pickers skip it); its number stays reserved (the stores hold numbers) */
+#if !FELUCCA_FM4
+#define ENG_GONE ENG_FM4_GONE    /* (fm4_convert.c: DIGITAL's empty slot is the same thing) */
+#elif !FELUCCA_SAMPLE || !FELUCCA_GRAIN || !FELUCCA_DRUM
+static void eng_gone_note_on(struct track *t, voice_t *v) { (void)t; (void)v; }
+static void eng_gone_render(struct track *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+{
+    (void)t; (void)v; (void)out; (void)n; (void)m;
+}
+static const engine_t ENG_GONE = {
+    .name = "-",
+    .page_title = {"-", "-"},
+    .edit = {{"-", F_INT, 0, 0, 0, 0, 0}, {"-", F_INT, 0, 0, 0, 0, 0}, {"-", F_INT, 0, 0, 0, 0, 0},
+             {"-", F_INT, 0, 0, 0, 0, 0}, {"-", F_INT, 0, 0, 0, 0, 0}, {"-", F_INT, 0, 0, 0, 0, 0},
+             {"-", F_INT, 0, 0, 0, 0, 0}, {"-", F_INT, 0, 0, 0, 0, 0}},
+    .note_on = eng_gone_note_on,
+    .render = eng_gone_render,
+    .knob = {P_E4, P_E5, P_E6, P_REL},
+};
+#endif
+#if !FELUCCA_SAMPLE
+/* what the kept files read of SAMPLE: params.c enum_orig's alias table (no set: never an alias) */
+#define SMP_NSETS 0
+static const char *const SMP_ALL_NAMES[1] = {"-"};
+static const uint8_t SMP_SET_ORIG[1] = {0};
+#endif
+#if !FELUCCA_DRUM
+/* what the kept files call of DRUM: voice.c (a part on engine 10 shares a lane's voice; never one here), upreset.c
+ * (a DRUM part's grid into a user slot; never one here) */
+#define ENG_DRUM ENG_GONE
+static voice_t *drum_reuse(struct track *t, uint32_t note) { (void)t; (void)note; return 0; }
+static uint32_t step_lanes(const step_t *s) { (void)s; return 0; }
+static uint32_t step_accents(const step_t *s) { (void)s; return 0; }
+#endif
 #if FELUCCA_FM4
 #include "eng_digital.c"        /* DIGITAL: four-operator FM (retired; FELUCCA_FM4=1 builds it) */
 #endif
@@ -36,13 +81,25 @@ static const engine_t *const ENGINES[NENGINES] = {
 #endif
     &ENG_PHASE,                  /* 2 */
     &ENG_LOFI,                   /* 3 */
+#if FELUCCA_SAMPLE
     &ENG_SAMPLE,                 /* 4 */
+#else
+    &ENG_GONE,                   /* 4: reserved (SAMPLE, retired: FELUCCA_SAMPLE 0) */
+#endif
     &ENG_FORMANT,                /* 5 VOICE (eng_formant.c: "voice" is a sounding note in voice.c) */
     &ENG_TRIO,                   /* 6 */
     &ENG_WHEEL,                  /* 7 */
+#if FELUCCA_GRAIN
     &ENG_GRAIN,                  /* 8 */
+#else
+    &ENG_GONE,                   /* 8: reserved (GRAIN, retired: FELUCCA_GRAIN 0) */
+#endif
     &ENG_PHYS,                   /* 9 (ENGI_PHYS) */
+#if FELUCCA_DRUM
     &ENG_DRUM,                   /* 10 (ENGI_DRUM) */
+#else
+    &ENG_GONE,                   /* 10: reserved (DRUM, retired: FELUCCA_DRUM 0) */
+#endif
     &ENG_NOISE,                  /* 11 */
     &ENG_FM6,                    /* 12 (ENGI_FM6) */
 #if FELUCCA_SLICE
@@ -68,23 +125,37 @@ static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
 #if FELUCCA_FM4
     1,                           /* DIGITAL */
 #endif
-    2, 3, 4, 5, 6, 7, 8, 9,      /* PHASE LOFI SAMPLE VOICE TRIO WHEEL GRAIN PHYS */
+    2, 3,                        /* PHASE LOFI */
+#if FELUCCA_SAMPLE
+    4,                           /* SAMPLE */
+#endif
+    5, 6, 7,                     /* VOICE TRIO WHEEL */
+#if FELUCCA_GRAIN
+    8,                           /* GRAIN */
+#endif
+    9,                           /* PHYS */
     11,                          /* NOISE */
 #if FELUCCA_SLICE
     13,                          /* SLICE */
 #endif
+#if FELUCCA_DRUM
     10,                          /* DRUM */
+#endif
 };
 
-/* the engines one can pick (engine 1 only with FELUCCA_FM4), in ENGINE_ORDER: eng_ok(e), the n-th of them
- * eng_vis(n), e's place among them eng_rank(e), the next / previous one eng_step(e, dir) (wraps) */
-static int eng_ok(uint32_t e) { return e < NENGINES && (FELUCCA_FM4 || e != ENGI_DIGITAL); }
+/* the engines one can pick (engine 1 only with FELUCCA_FM4; 4, 8, 10 only with FELUCCA_SAMPLE, GRAIN, DRUM), in
+ * ENGINE_ORDER: eng_ok(e), the n-th of them eng_vis(n), e's place among them eng_rank(e), the next / previous one
+ * eng_step(e, dir) (wraps) */
+#define ENG_RETIRED ((FELUCCA_FM4 ? 0u : 1u << ENGI_DIGITAL) | (FELUCCA_SAMPLE ? 0u : 1u << 4) | \
+                     (FELUCCA_GRAIN ? 0u : 1u << 8) | (FELUCCA_DRUM ? 0u : 1u << ENGI_DRUM))
+static int eng_ok(uint32_t e) { return e < NENGINES && !((ENG_RETIRED >> e) & 1u); }
 static uint32_t eng_vis(uint32_t n) { return ENGINE_ORDER[n % NENG_SHOWN]; }
 static uint32_t eng_rank(uint32_t e)
 {
     uint32_t n;
     if (!eng_ok(e))
-        e = ENGI_FM6;                            /* (DIGITAL without FELUCCA_FM4: its sounds play as FM6) */
+        e = ENGI_FM6;                            /* (DIGITAL without FELUCCA_FM4: its sounds play as FM6; a retired
+                                                  * engine's place: FM6's) */
     for (n = 0; n < NENG_SHOWN && ENGINE_ORDER[n] != e; n++)
         ;
     return n < NENG_SHOWN ? n : 0u;
@@ -138,6 +209,11 @@ static const struct {
 #define NPATTERNS (sizeof PATTERNS / sizeof PATTERNS[0])
 
 /* the parts at power-on (engine, preset, PATTERNS[n - 1] in the sequencer, 0 = empty: all are): bass, pad, lead, drums */
-static const uint8_t TRK_DEF[NPART][3] = {{0, 4, 0}, {ENGI_FM6, 4, 0}, {3, 0, 0}, {ENGI_DRUM, 0, 0}}; /* ANALOG ACID,
-                                                                       * FM6 PAD (was DIGITAL PAD), LOFI PULSE LD, DRUM KIT */
+static const uint8_t TRK_DEF[NPART][3] = {{0, 4, 0}, {ENGI_FM6, 4, 0}, {3, 0, 0},  /* ANALOG ACID, FM6 PAD (was DIGITAL
+                                                                                  * PAD), LOFI PULSE LD, DRUM KIT */
+#if FELUCCA_DRUM
+                                          {ENGI_DRUM, 0, 0}};
+#else
+                                          {ENGI_FM6, 0, 0}};   /* (no DRUM: FM6's first sound) */
+#endif
 static uint32_t trk_def_engine(uint32_t i) { return TRK_DEF[i % NPART][0]; }

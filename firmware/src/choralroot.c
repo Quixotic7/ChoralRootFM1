@@ -6,12 +6,13 @@
  * screens (cr_gfx.c, cr_draw.c), the motion (cr_anim.c), the UI (cr_ui.c) and the names main.c and the kept files
  * call (cr_shim.c). Of editor*.c's SysEx only the backup / restore subset stays, on ChoralRoot's objects (cr_backup.c).
  *
- * Kept as in the emulator (tools/emu/emu_firmware.h, the same order): seq.c with song_chain.c, chord.c, motion.c,
- * midi_control.c and midi_clock.c stay compiled but inert (cr_ui_init sets song.grid = 2: seq.c's keyboard never
- * plays; nothing starts its transport). Its events_block still runs every block: the engine switches
- * (voice.c engine_block), the preset loads' releases (panic_req) and MIDI in (notes on channels 1 / 2 play parts
- * 1 / 2, as INTEGRATION section 2 asks). Replacing it with cr_out.c's own events_block is a later step (it saves the
- * sequencer's flash and RAM; the device build must measure).
+ * Dropped as in the emulator (tools/emu/emu_firmware.h, the same order): Felucca's sequencer, seq.c with
+ * song_chain.c, chord.c, motion.c, midi_control.c and midi_clock.c (FELUCCA_SEQ 0). cr_out.c provides what the kept
+ * files call of it under the same names: events_block (fx.c, every block: the engine switches, voice.c engine_block,
+ * and the releases a sound load asks for, panic_req), midi_event (MIDI in on the CHORD / BASS channels plays parts
+ * 1 / 2, INTEGRATION section 2) and the few names upreset.c, main.c and audio.c still use. Dropped engines: SAMPLE,
+ * GRAIN, DRUM (retired placeholders keep the engine numbers, engines.c); Felucca's icon atlas and keycaps are not
+ * in the image (FELUCCA_ICONS, FELUCCA_KEYCAPS).
  *
  * Host check (no device toolchain): cc -fsyntax-only -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal
  * firmware/src/choralroot.c. The device build is tools/build.py with this file as the unit (see the Status section
@@ -48,14 +49,32 @@
 #ifndef FELUCCA_FM4
 #define FELUCCA_FM4 0
 #endif
+#ifndef FELUCCA_SAMPLE
+#define FELUCCA_SAMPLE 0         /* no SAMPLE engine, no sample sets in the image (engine 4: a retired slot) */
+#endif
+#ifndef FELUCCA_GRAIN
+#define FELUCCA_GRAIN 0          /* no GRAIN engine (engine 8: a retired slot; frees its 27 KB POOL) */
+#endif
+#ifndef FELUCCA_DRUM
+#define FELUCCA_DRUM 0           /* no DRUM engine (engine 10: a retired slot; frees its kit's POOL) */
+#endif
+#ifndef FELUCCA_SEQ
+#define FELUCCA_SEQ 0            /* no Felucca sequencer (seq.c and its satellites): cr_out.c's events_block, midi_event */
+#endif
 #ifndef FELUCCA_VA
 #define FELUCCA_VA 1             /* the VA engine (eng_va.c, engine 13) and its patch store (va_store.c) */
+#endif
+#ifndef FELUCCA_ICONS
+#define FELUCCA_ICONS 0          /* no Felucca icon atlas (icons.c, ui_icons.h): cr_draw.c draws its header glyphs */
+#endif
+#ifndef FELUCCA_KEYCAPS
+#define FELUCCA_KEYCAPS 0        /* no Felucca keycaps (gfx.c's key hints, ui_keycaps.h): no cr_*.c draws one */
 #endif
 #ifndef FELUCCA_ID
 #define FELUCCA_ID "FM-1_920"    /* package identity (build.py: the .fwsc marker string) */
 #endif
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "ChoralRoot 0.1"
+#define FELUCCA_VERSION "ChoralRoot 0.12"   /* the dev build reads as the next tag; --release X.Y sets it */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
 #error "FELUCCA_OTA needs FELUCCA_FLASH"
@@ -94,13 +113,15 @@
 #include "fx.c"
 #undef mix_block
 
-/* ------------------------------------------------- MIDI, sequencer --- */
+/* ------------------------------------------------------------ MIDI --- */
 #include "usb.c"
 #if FELUCCA_UART
 #include "midi_uart.c"
 #endif
+#if FELUCCA_SEQ
 #include "song_chain.c"
-#include "seq.c"                 /* inert (see above) */
+#include "seq.c"                 /* (FELUCCA_SEQ 1 only: Felucca's sequencer, inert under ChoralRoot's UI) */
+#endif
 
 /* ------------------------------------------------- the ChoralRoot engine --- */
 /* cr_engine.h's cr_param_t (a perform parameter) and cr_screen.h's (a params column) share a name: the engine's is
@@ -122,7 +143,9 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 
 /* -------------------------------------------------------------- UI --- */
 #include "panel.c"
-#include "icons.c"
+#if FELUCCA_ICONS
+#include "icons.c"               /* (1: Felucca's parameter icons; nothing of ChoralRoot's UI calls them) */
+#endif
 #include "cr_gfx.c"              /* scalable text + shapes on gfx.c (build/gen/cr_fonts.h) */
 #include "cr_draw.c"             /* the screens (cr_screen.h) */
 #include "cr_anim.c"

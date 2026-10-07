@@ -2,8 +2,9 @@
 
 The FM-1 firmware built for the Mac: the 240x240 LCD, the panel with its LEDs, the firmware's audio
 callback at 44.1 kHz and CoreMIDI ports. It runs the same sources as the device (`firmware/src`, the DSP
-through `tests/hostsim.c`), with a HAL in `emu_hal_fw.h`. The instrument is ChoralRoot (`emu_firmware.h`: `cr_engine.c`
-ticking in the audio ISR, `cr_out.c`, `cr_ui.c` on `cr_draw.c`; docs/INTEGRATION.md).
+through `tests/hostsim.c`'s sound side), with a HAL in `emu_hal_fw.h`. The instrument is ChoralRoot (`emu_firmware.h`:
+`cr_engine.c` ticking in the audio ISR, `cr_out.c`, `cr_ui.c` on `cr_draw.c`; docs/INTEGRATION.md), with the device's
+all-synth flags: no Felucca sequencer, no SAMPLE / GRAIN / DRUM, no keycaps (only the SLICER differs: on here).
 
 ```sh
 sh tools/emu/build.sh          # -> build/host/emu  (clang, SDL2 from /opt/homebrew, CoreMIDI, zlib)

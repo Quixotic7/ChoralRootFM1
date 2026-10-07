@@ -118,7 +118,7 @@ int main(void)
                l1, p1, r1, cpu_ips, cpu_ips * 0.017);
     }
     {   /* references: bank sounds */
-        static const uint8_t REF[][2] = {{0, 1}, {0, 11}, {12, 0}, {12, 4}};
+        static const uint8_t REF[][2] = {{0, 1}, {0, 11}, {12, 0}, {12, 4}, {12, 8}};   /* .. FM6 PIANO (PRESETS 03) */
         for (k = 0; k < NELEM(REF); k++) {
             double l0, p0, r0, l1, p1, r1;
             measure(REF[k][0], REF[k][1], 0, 0, 0, &l0, &p0, &r0);

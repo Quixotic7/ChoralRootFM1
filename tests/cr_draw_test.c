@@ -40,6 +40,7 @@ static void hk_text(int32_t x0, int32_t y0, int32_t x1, int32_t y1, const char *
 #define GFX_HOOK_BEGIN() ((void)0)
 #define GFX_HOOK_PIXELS(n) ((void)0)
 
+#define FELUCCA_KEYCAPS 0                        /* as choralroot.c: no Felucca keycaps */
 #include "../firmware/src/gfx.c"
 #include "../firmware/src/cr_gfx.c"
 #include "../firmware/src/cr_draw.c"

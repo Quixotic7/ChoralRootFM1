@@ -17,7 +17,7 @@ FM-1 needed).
 Edge, connect the FM-1 by USB and press Install. Nothing is installed on the computer: the page talks to the
 FM-1 over Web MIDI. Do not unplug while it writes; an interrupted install is resumed by pressing Install again.
 Afterwards the FM-1 restarts and reports the identity `FM-1_920`. Before installing, the page saves a backup of what
-is stored on the FM-1 (settings, user sounds, loops, samples, FM6 patches) to a file, and after installing over
+is stored on the FM-1 (settings, user sounds, loops, FM6 patches) to a file, and after installing over
 Felucca it offers that backup back; its Back up and Restore buttons do the same at any time.
 
 **From the command line:** download `choralroot-X.Y.fwsc` from
@@ -35,7 +35,7 @@ V15 firmware, `FM-1.fwsc`, which you download yourself from M-VAVE's
 [downloads page](https://www.m-vave.com/download) (or `python3 tools/fm1_install.py FM-1.fwsc --backup .`). It
 saves a backup first: the stock firmware cannot use ChoralRoot's user sounds, loops or settings; reinstall ChoralRoot
 and press Restore to bring them back. Backups move between firmwares too: a Felucca backup restores its settings,
-user sounds, FM6 patches and samples on ChoralRoot, and back (BUILDING.md, "Backup and restore"). If an install fails
+user sounds and FM6 patches on ChoralRoot (its samples stay in the file: ChoralRoot is all-synth), and back (BUILDING.md, "Backup and restore"). If an install fails
 and the FM-1 no longer starts, recovery needs
 [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
 
@@ -74,7 +74,7 @@ Python 3 with Pillow and fontTools, and SDL2; the device build needs Docker and 
 ## Licence
 
 GPL-3.0-only ([LICENSE](LICENSE)). Built on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments;
-the chord logic after the Telepathic Instruments Orchid. The SAMPLE engine's CC0 instruments are by
-Versilian Studios; the package carries three JieLi AC79 SDK files under Apache-2.0. The bundled font, icons,
+the chord logic after the Telepathic Instruments Orchid. The firmware is all-synth (no samples in it: Felucca's
+SAMPLE engine and its CC0 instruments by Versilian Studios stay in the tree for Felucca builds); the package carries three JieLi AC79 SDK files under Apache-2.0. The bundled font, icons,
 ported DSP and SDK files keep their own licences ([LICENSES/](LICENSES/)); [LICENSING.md](LICENSING.md) has
 the whole list. Orchid, M-VAVE and FM-1 are trademarks of their owners.

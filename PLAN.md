@@ -264,14 +264,15 @@ the platform kept, the instrument replaced. The files as they are (`docs/INTEGRA
 ```
 firmware/src/
   choralroot.c      the compilation unit (replaces felucca.c): build options (FELUCCA_SLICE 0, FELUCCA_SLICER 0,
-                    FELUCCA_VA 1, FM-1_920, "ChoralRoot 0.1"), Felucca's include order
+                    FELUCCA_VA 1; all-synth: FELUCCA_SEQ 0, FELUCCA_SAMPLE 0, FELUCCA_GRAIN 0, FELUCCA_DRUM 0,
+                    FELUCCA_ICONS 0, FELUCCA_KEYCAPS 0; FM-1_920, "ChoralRoot 0.1"), Felucca's include order
   kept from Felucca (the platform):
-    hal/, libc.c, lcd.c, gfx.c, icons.c, panel.c, usb.c, midi_uart.c, storage.c, storage_hw.c, ota.c, ota_hw.c,
+    hal/, libc.c, lcd.c, gfx.c (no keycaps), panel.c, usb.c, midi_uart.c, storage.c, storage_hw.c, ota.c, ota_hw.c,
     console.c, main.c, settings_persist.c, upreset.c (32 user sounds)
-    engines.c + eng_*.c, dsp.c, voice.c, mod.c, fx.c, params.c, audio.c, fm6_*.c       the sound
-    seq.c (+ song_chain.c, chord.c, motion.c, midi_control.c, midi_clock.c)
-                    kept INERT: its keyboard silent, its transport never started; it still does the engine switches and plays what cr_out.c forwards (to be replaced
-                    by cr_out.c's own events_block when flash / RAM are needed)
+    engines.c + eng_*.c, dsp.c, voice.c, mod.c, fx.c (+ perform.c), params.c, audio.c, fm6_*.c       the sound:
+                    ANALOG, PHASE, LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE, FM6 and the VA; the slots of DIGITAL (1),
+                    SAMPLE (4), GRAIN (8) and DRUM (10) are retired placeholders (engines.c ENG_GONE: never offered;
+                    a user sound on one loads as INIT on ANALOG)
     slicer.c        no-op stubs (SLICER off: its 32 KB POOL buffer freed; perform.c's buffer effects off with it);
                     the SLICE engine is off too
   ChoralRoot:
@@ -280,7 +281,9 @@ firmware/src/
                     bass, note ownership, panic
     cr_loop.c/.h    the semantic event looper (docs/LOOPER.md)
     cr_out.c        the three streams -> parts 0 (chord) / 1 (bass) and MIDI channels 1/2/3, clock out, the input
-                    queue; includes cr_midi.c
+                    queue; MIDI in on the parts (midi_event: notes, pedal, bend, pressure, CCs) and what the kept
+                    files call of the dropped sequencer (events_block: the engine switches, panic_req); includes
+                    cr_midi.c
     cr_midi.c       MIDI in, the pure part: the clock-in tempo follower, the channel map
     cr_ui.c/.h      the input grammar (taps, locked layers, LOCK, pickers, Options, naming), the view-model
                     (cr_build_screen), the LEDs (cr_leds)
@@ -288,7 +291,8 @@ firmware/src/
                     view-models  [being built]
     cr_pages.c      the parameter catalogue the editor draws from: the platform pages, the engines' EDIT 1/2,
                     deep pages, labels, glyphs, value text
-    cr_bank.c       the factory bank (24 chord sounds, 8 basses, trims) and the user slots (wraps upreset.c)
+    cr_bank.c       the factory bank (24 chord sounds, 8 basses, trims; all synth: PIANO on FM6, CLOUD PAD and
+                    SHIMMER on the VA) and the user slots (wraps upreset.c)
     cr_name.c       naming with the root keys (SAVE)
     cr_settings.c/.h  the settings record in Felucca's settings_persist.c (docs/SETTINGS.md)
     cr_screen.h, cr_draw.c, cr_gfx.c   the screens (CR_SCREENS.md): the view-model and its drawing, scalable text
@@ -302,8 +306,10 @@ tests/              host tests: cr_engine_test, cr_loop_test, cr_midi_test, cr_s
                     cr_draw_test (+ Felucca's), regress.c golden renders and CPU
 ```
 
-Dropped from the unit: Felucca's `ui*.c`, `editor*.c`, `project.c`, `favorites.c` (their files stay in the tree,
-unused).
+Dropped from the unit: Felucca's `ui*.c`, `editor*.c`, `project.c`, `favorites.c`, `icons.c`, the sequencer (`seq.c`,
+`song_chain.c`, `chord.c`, `motion.c`, `midi_control.c`, `midi_clock.c`) and the sample-based engines (`eng_sample.c`
+with its ADPCM sets, `eng_grain.c`, `eng_drum.c` + `drum_voice.c`); their files stay in the tree for Felucca's unit
+and its tests (each behind its flag, default 1 there).
 
 - **Timing**: Felucca runs input at 10 kHz (TIMER5) and audio in 128-frame blocks (2.9 ms). The
   ChoralRoot scheduler runs in the audio ISR (the input queue drained every 32-sample block), so strums and
@@ -394,10 +400,10 @@ Every milestone is played on the emulator before it is flashed.
    chord changes, the delay's crossfade). The voice budget stays 8: every chord change with 6-note chords steals
    the old chord's releasing voices (faded over one block). The UI frame's worst is now 14 ms (loop + arp) and
    34 ms (knobs on the editor), against a 15 ms frame: **the dense editor must be re-measured** (`perf.sh (e)`).
-6. **Memory**: RAM is at **~93 %** of 98304 B (90.2 % before the VA and the latest UI work), POOL ~92 %, XIP ~78 %.
-   The editor must add almost no `.bss` (its page memory is a few bytes per section and part). Room if needed:
-   replacing the inert `seq.c` with `cr_out.c`'s own `events_block`. The loop cap (the grid's 64 events) is set from
-   this headroom (docs/LOOPER.md).
+6. **Memory**: since the all-synth cut (2026-10-07: the sequencer, SAMPLE with its sets, GRAIN and DRUM out of the
+   image) RAM is at **74.5 %** of 98304 B (was 92.4 %), POOL 85.7 % (was 95.9 %), XIP 47.0 % (was 84.8 %): about
+   23 KB of RAM, 48 KB of POOL and 280 KB of flash free. The loop cap (the grid's 64 events) is set from the headroom
+   of before (docs/LOOPER.md) and could grow now.
 7. **Still unknown Orchid behaviour** (not blocking, same as the grid): secret-chord combo → type map,
    full chromatic Key Mode quantization, Key Mode sevenths, factory pattern data. Shipped as the grid's
    labelled fallbacks until captured (M8).

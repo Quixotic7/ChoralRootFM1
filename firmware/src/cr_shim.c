@@ -8,9 +8,9 @@
  *     (Felucca's TRK_DEF; ChoralRoot's own sounds replace them at the first frame); the step / pattern calls: none
  *   the main loop: ui_input -> cr_ui_input (the first call: cr_ui_init, the engine's power-on), ui_leds ->
  *     cr_ui_frame, ui_draw -> cr_ui_draw (the UPDATE MODE countdown of OCT- + OCT+ held: a big message)
- *   persist_boot: the flash part, the user sample sets, the user sounds and the settings record; settings_save /
- *     settings_poll: cr_settings.c; panel_setup: main.c's own (cr_panel_setup); ed_service: cr_backup.c's (backup and
- *     restore over SysEx: Felucca's protocol, a subset; editor.c is dropped) */
+ *   persist_boot: the flash part (the user sample sets with FELUCCA_SAMPLE only), the user sounds and the settings
+ *     record; settings_save / settings_poll: cr_settings.c; panel_setup: main.c's own (cr_panel_setup); ed_service:
+ *     cr_backup.c's (backup and restore over SysEx: Felucca's protocol, a subset; editor.c is dropped) */
 
 /* ---------------------------------------------------------- ui.c's state --- */
 /* (`ui`, ui_message and load_pat16: cr_bank.c / cr_ui.c, which upreset.c needs in the emulator too) */
@@ -47,9 +47,13 @@ static void persist_boot(void)         /* before settings_init / panel_init (pro
     irq_restore(f);
     if (!flash_ok)
         return;
-    fl_plain_window_init();                                /* user sample sets play from flash through XIP */
-    for (k = 0; k < SMP_USER_SLOTS; k++)
+    fl_plain_window_init();                                /* the data region reads as plaintext through XIP */
+#if FELUCCA_SAMPLE
+    for (k = 0; k < SMP_USER_SLOTS; k++)                   /* (user sample sets play from flash through XIP) */
         smp_user_scan(k);
+#else
+    (void)k;                                               /* (no SAMPLE engine: no user sample sets to scan) */
+#endif
     cr_bank_boot();                                        /* the 32 user sounds (upreset.c) and the FM6 bank */
 #if CR_HAVE_SETTINGS
     cr_settings_boot();                                    /* the settings record with ChoralRoot's block */

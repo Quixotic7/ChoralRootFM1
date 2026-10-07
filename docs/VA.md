@@ -155,7 +155,8 @@ it prints `va: save slot N part P patch crc XXXX` and `va: load slot N patch crc
 
 ## Presets
 
-19 chord sounds (bank rows `PRESETS` 25..43, after the 24 existing ones) and 4 basses (`ALGORITHM` 9..12; `mono`).
+19 chord sounds (bank rows `PRESETS` 25..43, after the 24 existing ones), 2 in the first 24 rows (CLOUD PAD and SHIMMER,
+`PRESETS` 15 and 16, since GRAIN was dropped) and 4 basses (`ALGORITHM` 9..12; `mono`).
 The bank trim column is 0 for all of them: the levels are set in the presets.
 
 LUSH PAD, WARM PAD, GLASS PAD, SLOW STRINGS, ENSEMBLE STR, SYNTH BRASS (bank name "VA BRASS": ANALOG's BRASS is
@@ -166,6 +167,12 @@ version 2's (preset indices 20..22, bank rows 41..43): MORPH PAD (two MORPH osci
 slow LFOs on SHP1 / SHP2 in opposite directions, a sine an octave down, SPREAD 40), VINYL KEYS (a triangle + a sine an
 octave up, keys-like, with OSC 4 NOISE VINYL at LEVEL 50, DENS 40: the crackle and the wow under it), WIDE STRINGS
 (ENSEMBLE STR's four saws with SPREAD 110). VINYL KEYS' crackle is clicks by design: `wavclicks.py` counts them.
+Then the all-synth bank's two (2026-10-07, preset indices 23, 24), which replace GRAIN's sounds in their bank rows
+(`PRESETS` 15, 16; `cr_bank.c`): CLOUD PAD (two MORPH oscillators at SHAPE 40 / 72, their shapes moved apart by two slow
+LFOs, 0.1-0.2 Hz, out of step, a third on the filter's SPREAD (base 60), LFO 1 a little on the cutoff, a sine an
+octave up; ATK 96, REL 104) and SHIMMER (two saws an octave up at FINE -9 / +9, a saw a twelfth up, a triangle two
+octaves up, DETUNE 40 and two LFOs on OSC 3 / 4's pitch, CUT 100, SPREAD 90; ATK 70, REL 112: its tail with the
+reverb lasts about 12 s). Bank row 3, PIANO (was SAMPLE's), is FM6's (`eng_fm6.c`).
 
 ### Levels (the limiter)
 
@@ -196,6 +203,9 @@ share, chord alone / with SUB BASS:
 | MORPH PAD | 0 / 1.5 % | -5.4 / -16.0 |
 | VINYL KEYS | 0 / 0 % | -7.8 / -17.5 |
 | WIDE STRINGS | 0 / 0.6 % | -5.7 / -16.7 |
+| CLOUD PAD | 0 / 1.4 % | -5.6 / -16.1 |
+| SHIMMER | 0 / 0 % | -6.1 / -16.4 |
+| (ref) FM6 PIANO | 0 / 0 % | -8.9 / -19.3 |
 | basses, with TINE EP's chord: DEEP SUB / PUNCH / RUBBER / SYNC | 0 % | -7.9 / -6.4 / -6.4 / -8.1 dBFS peak |
 
 ## CPU
@@ -216,8 +226,8 @@ Device estimate = host instructions / 100 x 1.7 % of the 2.9 ms half (docs/INTEG
 | POLY KEYS | 1543 | 26.2 % | basses (with TINE EP's chord) | 1440-1503 | 24.5-25.5 % |
 | PWM KEYS | 1356 | 23.1 % | ref FM6 PAD | 1594 | 27.1 % |
 | CLAV | 1537 | 26.1 % | ref ANALOG STRINGS | 1092 | 18.6 % |
-| SOFT LEAD | 1538 | 26.2 % | | | |
-| HOLLOW | 1822 | 31.0 % | | | |
+| SOFT LEAD | 1538 | 26.2 % | CLOUD PAD | 2316 | 39.4 % |
+| HOLLOW | 1822 | 31.0 % | SHIMMER | 2136 | 36.3 % |
 
   What the version-2 features cost (8 voices, `cr_va_test`-style driver, host instructions a sample): SPREAD (the second
   SVF, the side) about +440 (+55 a voice), a MORPH oscillator about +7 a voice over a BASIC saw; MORPH PAD 2278 (1847
