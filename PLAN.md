@@ -45,7 +45,7 @@ Licensing: a Felucca fork is **GPL-3.0-only**, and `ChoralRootFM1/LICENSE` is GP
 | sound | MIDI only | internal engines (Felucca) **and** MIDI out on 3 channels |
 | menus / parameters | hold-to-reveal on the grid's top row | layers that lock open on a hold (pickers and meters), Options one setting per screen, a dense sound editor |
 | display | LED levels | chord name, notes, keyboard strip, ring, Orchid's View modes |
-| loop display | column fill while Loop is held | the ring progress indicator around the screen |
+| loop display | column fill while Loop is held | the ring progress indicator around the screen while recording; a corner dial in the top line while it plays |
 | velocity | 8 rows | fixed (Options > Velocity); patterns keep their accents |
 
 ## 3. Control mapping (normative; `design/make_mockups.py` draws it)
@@ -192,8 +192,9 @@ orange, white, green (KNOB 1–4) whatever they edit.
 - **Perform in motion**: the chord's notes as text on a line; the sounding one sits on a colour block
   and hops along in time, a dotted arc to the next.
 - **Select key**: KEY held slides up the keyboard with the tonic lit yellow.
-- **The ring**: Orchid's progress ring as a dotted circle round the edge — red while recording and
-  playing (the loop's colour); the loop pickers sit inside it.
+- **The ring**: Orchid's progress ring as a dotted circle round the edge — red, where the loop is the subject
+  (recording, overdubbing, the count-in, undo, the LOOP and SAVE layers); the loop pickers sit inside it. While a
+  loop merely plays, a 16 px corner dial in the top line shows it instead (`docs/LOOPER.md`).
 - **The sound editor** ([`docs/EDITOR.md`](docs/EDITOR.md)) is the one dense place, and it takes the whole screen:
   **no header bar and no footer**. Its top line is the sound's name (`*` once edited, ` · BASS` in orange for the
   bass part) and, at the right, the section and what is on the knobs (`OSC 2 · A`, `ENV 2 · filter`, `MOD 3`). Two

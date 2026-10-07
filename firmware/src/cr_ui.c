@@ -2618,7 +2618,12 @@ static void cu_header(cr_screen_t *s)
         }
     }
 }
-static void cu_ring(cr_screen_t *s)               /* the loop's ring round the edge, red */
+/* the loop playing and nothing captured but an overdub armed: the corner dial, not the ring (cu_dial) */
+static int cu_loop_plays(void)
+{
+    return cr_snap.lstate == CRL_PLAYING && (cr_snap.lcap == CRL_CAP_NONE || cr_snap.lcap == CRL_CAP_OD_ARMED);
+}
+static void cu_ring_on(cr_screen_t *s)            /* the loop's ring round the edge, red (a loop or a capture) */
 {
     const cr_snap_t *sn = &cr_snap;
     if (sn->lcap == CRL_CAP_NONE && sn->lstate != CRL_PLAYING)
@@ -2627,6 +2632,35 @@ static void cu_ring(cr_screen_t *s)               /* the loop's ring round the e
     s->ring_col = CR_COL_RED;
     s->ring = sn->lring;
     s->ring_rec = sn->lcap == CRL_CAP_COUNTIN || sn->lcap == CRL_CAP_REC || sn->lcap == CRL_CAP_OD;
+}
+static void cu_ring(cr_screen_t *s)               /* .. under the screens: while the loop is the subject (capturing) */
+{
+    if (cr_snap.lcap != CRL_CAP_NONE && cr_snap.lcap != CRL_CAP_OD_ARMED)
+        cu_ring_on(s);                            /* (the loop merely playing: the dial, cu_dial) */
+}
+/* the downbeat (the bar's first beat begins): its time, for the dial's pulse; tracked every frame */
+static struct { uint32_t t0; uint8_t beat, bar, on; } cu_db;
+static void cu_downbeat(uint32_t now)
+{
+    uint8_t beat = (uint8_t)cr_snap.lbeat, bar = (uint8_t)cr_snap.lbar;
+    if (!cu_loop_plays()) {
+        cu_db.on = 0;
+        return;
+    }
+    if (beat == 1u && (!cu_db.on || cu_db.beat != 1u || cu_db.bar != bar))
+        cu_db.t0 = now;
+    cu_db.on = 1;
+    cu_db.beat = beat;
+    cu_db.bar = bar;
+}
+/* the corner dial (a loop merely playing): in the top line, where no ring is drawn and a header shows */
+static void cu_dial(cr_screen_t *s, uint32_t now)
+{
+    if (!cu_loop_plays() || s->ring_on || !s->header)
+        return;
+    s->dial_on = 1;
+    s->dial = cr_snap.lring;
+    s->dial_pulse = (uint8_t)(cr_motion != CR_MOTION_OFF && cu_db.on && now - cu_db.t0 < 100u);
 }
 
 static void cu_meter(cr_screen_t *s, const char *value, const char *sub, const char *label, uint32_t col, uint32_t pct,
@@ -3071,6 +3105,7 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
     uint32_t l = cu_layer();
     cr_screen_clear(s);
     cu_header(s);
+    cu_downbeat(now);
     if (cc.on) {                                  /* calibration: over everything */
         cu_calib_screen(s);
         return;
@@ -3098,7 +3133,7 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         cu_cpy(s->label, "count-in", sizeof s->label);
         s->col = CR_COL_RED;
         s->size = 104;
-        cu_ring(s);
+        cu_ring_on(s);
         return;
     }
     /* 1c. undo: the layers left, huge in red; the ring stays */
@@ -3108,7 +3143,7 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         cu_cpy(s->label, cu.msg.label, sizeof s->label);
         s->col = cu.msg.col;
         s->size = 104;
-        cu_ring(s);
+        cu_ring_on(s);
         return;
     }
     if (!cu.msg.big && (int32_t)(cu.msg.until - now) > 0) {
@@ -3140,12 +3175,16 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         } else {
             cu_meter(s, cu.pop.value, cu.pop.sub, cu.pop.label, cu.pop.col, cu.pop.pct, cu.pop.segs);
         }
+        cu_dial(s, now);
         return;
     }
+    /* the loop: the ring while it is the subject (recording, overdubbing; the LOOP and SAVE layers set their own),
+     * the corner dial while it merely plays (not in the sound editor: no top line; not on the Options pages) */
     cu_ring(s);                                   /* (under every screen below; the panic box hides it) */
     /* 3. an open layer, a page; 4. Options */
     if (l) {
         cu_layer_screen(s, l);
+        cu_dial(s, now);
         return;
     }
     if (cu.page == PG_EDIT) {
@@ -3154,6 +3193,7 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
     }
     if (cu.page == PG_SAVE) {
         cu_save_screen(s, now);
+        cu_dial(s, now);
         return;
     }
     if (cu.opt_open) {
@@ -3163,10 +3203,12 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
     /* 6. idle: nothing played yet, or nothing sounding for CR_IDLE_MS */
     if (!sn->ci.valid || (!sn->ci.sounding && now - cu.last_sound >= CR_IDLE_MS && cs.view != V_SCOPE)) {
         cu_stripes(s);
+        cu_dial(s, now);
         return;
     }
     /* 5. the View */
     cu_view_screen(s);
+    cu_dial(s, now);
 }
 
 /* the animations' clock: restarted when what animates changed (cr_anim.c, cr_draw.c CR_A_*) */
@@ -3201,6 +3243,7 @@ static void cu_animate(cr_screen_t *s, uint32_t now)
             cr_screen_clear(s);
             cu_header(s);
             cu_stripes(s);
+            cu_dial(s, now);
             s->anim = CR_A_STRIPES | CR_A_SWEEP;
             return;
         }

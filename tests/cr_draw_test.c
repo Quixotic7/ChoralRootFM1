@@ -203,6 +203,44 @@ int main(int argc, char **argv)
         check("cr_draw_invalidate: all six again", cr_dc.blits == CR_NSTRIP);
     }
 
+    {   /* the corner dial (a loop playing): red in its box in the top line, none in the panel's centre; the downbeat's
+         * frame (5 px) redder than a plain one; the right text clear of it; its fraction alone: the top strip only */
+        cr_screen_t s = CR_SCREENS[3];  /* Em in Key Mode */
+        uint32_t box0, box1, mid0, mid1, x, y, rx1 = 0, i;
+        uint16_t red = swap16(CR_RED);
+#define DIAL_RED(x0, y0, x1, y1, n) do { n = 0; for (y = (y0); y < (y1); y++) for (x = (x0); x < (x1); x++) \
+                                                n += host_screen[y * 240u + x] == red; } while (0)
+        s.anim = 0;
+        snprintf(s.right, sizeof s.right, "Dub 3.2");
+        s.dial_on = 1;
+        s.dial = 158;                   /* 62 % */
+        render(&s, 0);
+        write_ppm(dir, "loop_dial");
+        DIAL_RED(218, 0, 240, 26, box0);
+        DIAL_RED(30, 90, 210, 150, mid0);
+        for (i = 0; i < nbox; i++)
+            if (!strcmp(boxes[i].s, "Dub 3.2")) rx1 = (uint32_t)boxes[i].x1;
+        check("the corner dial: red in its box, none in the panel's centre", box0 > 20u && mid0 == 0u);
+        check("the corner dial: the right text moves left of it", rx1 && rx1 <= 219u);
+        s.dial_pulse = 1;
+        render(&s, 0);
+        write_ppm(dir, "loop_dial_pulse");
+        DIAL_RED(218, 0, 240, 26, box1);
+        DIAL_RED(30, 90, 210, 150, mid1);
+        check("the corner dial: the downbeat's frame has more red than a plain one", box1 > box0 && mid1 == 0u);
+        s.dial_pulse = 0;
+        cr_draw(&s, 0);
+        s.dial = 170;
+        cr_draw(&s, 0);
+        check("the corner dial's fraction moves: only the top strip is blitted", cr_dc.drawn == 1 && cr_dc.blits == 1);
+        s.dial_on = 0;
+        s.dial = 0;
+        render(&s, 0);
+        DIAL_RED(218, 0, 240, 26, box1);
+        check("no dial: no red in its box", box1 == 0u);
+#undef DIAL_RED
+    }
+
     {   /* the ring's table (cr_draw.c cr_ring_draw): pixel for pixel the two cr_arc calls it replaces, over a pattern,
          * at every fraction and both colours */
         static uint16_t ref[240 * 40];

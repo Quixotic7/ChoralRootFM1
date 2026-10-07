@@ -47,6 +47,12 @@ yellow_in() {    # yellow_in FILE Y X0 N: pixels of row Y from X0 that are Chora
     od -An -tu1 -v -j $((15 + ($2 * 240 + $3) * 3)) -N$(($4 * 3)) "$1" | tr -s ' \n' '\n\n' | grep -v '^$' |
         awk '{ v[n++] = $1 } END { c = 0; for (i = 0; i + 2 < n; i += 3) if (v[i] > 200 && v[i+1] > 140 && v[i+2] < 90) c++; print c }'
 }
+px_count() {     # px_count FILE X0 Y0 X1 Y1 red|ink: pixels of the box [X0,X1) x [Y0,Y1) in red / not the background
+    od -An -tu1 -v -j 15 "$1" | awk -v x0="$2" -v y0="$3" -v x1="$4" -v y1="$5" -v k="$6" '
+        { for (i = 1; i <= NF; i++) v[n++] = $i }
+        END { c = 0; for (y = y0; y < y1; y++) for (x = x0; x < x1; x++) { o = (y * 240 + x) * 3; r = v[o]; g = v[o+1]; b = v[o+2]
+              if (k == "red" ? (r > 180 && g < 100 && b < 100) : (r + g + b > 90)) c++ } print c }'
+}
 differ() { cmp -s "$OUT/$1.ppm" "$OUT/$2.ppm" && bad "$3: $1 = $2" || ok "$3"; }
 
 echo "MAJ held + D4: D major"
@@ -356,8 +362,8 @@ a=$(L cr_loop_free 2); b=$(L cr_loop_free 3); c=$(L cr_loop_free 4); d=$(L cr_lo
 [ "$(lf "$a" played)" = 1 ] && [ "$(lf "$b" played)" = 2 ] && [ "$(lf "$c" played)" = 3 ] &&
     ok "playback: D at the commit, Em 1 s later, D again at 2 s (played 1 / 2 / 3 at +0.4 / +1.1 / +2.1 s)" \
     || bad "playback times: $(lf "$a" played) $(lf "$b" played) $(lf "$c" played)"
-[ "$(lf "$a" ring)" -lt "$(lf "$b" ring)" ] && ok "the ring advances ($(lf "$a" ring) -> $(lf "$b" ring) /256)" || bad "ring"
-differ cr_loop_play_a cr_loop_play_b "the ring on screen moved: $OUT/cr_loop_play_b.ppm"
+[ "$(lf "$a" ring)" -lt "$(lf "$b" ring)" ] && ok "the loop's fraction advances ($(lf "$a" ring) -> $(lf "$b" ring) /256)" || bad "ring"
+differ cr_loop_play_a cr_loop_play_b "the corner dial on screen moved: $OUT/cr_loop_play_b.ppm"
 has 'expect led GREEN on .*: ok' "$OUT/cr_loop_free.log" && has 'expect led PLAY on .*: ok' "$OUT/cr_loop_free.log" &&
     ok "LOOP's LED lit (a loop) and its green LED (playing)" || bad "LOOP LEDs"
 [ "$(grep -c 'expect led REC on .*: ok' "$OUT/cr_loop_free.log")" = 2 ] && ok "REC lit when armed and overdub-armed" || bad "REC LED"
@@ -382,6 +388,14 @@ a=$(L cr_loop_load 1); b=$(L cr_loop_load 2); c=$(L cr_loop_load 4)
 [ "$(lf "$b" state)" = 2 ] && [ "$(lf "$b" len)" = 768 ] && [ "$(lf "$b" played)" -ge 1 ] &&
     ok "LOOP held + E4 loads slot 2, LOOP plays it: $OUT/cr_loop_loaded.ppm" || bad "load / play: $b"
 [ "$(lf "$c" state)" = 1 ] && ok "panic: the loop stops, kept" || bad "panic: $c"
+dr=$(px_count "$OUT/cr_loop_dial.ppm" 218 0 240 26 red); cr=$(px_count "$OUT/cr_loop_dial.ppm" 16 40 224 200 red)
+de=$(px_count "$OUT/cr_loop_dial.ppm" 2 60 14 180 ink)
+[ "$dr" -gt 10 ] && [ "$cr" = 0 ] && [ "$de" = 0 ] &&
+    ok "the chord view while the loop plays: the corner dial ($dr red px top-right), no ring, no red in the panel: $OUT/cr_loop_dial.ppm" \
+    || bad "the corner dial: $dr red in its box, $cr red in the panel, $de ink in the ring's left band"
+re=$(px_count "$OUT/cr_loop_layer_ring.ppm" 2 60 14 180 ink); rd=$(px_count "$OUT/cr_loop_layer_ring.ppm" 218 0 240 26 red)
+[ "$re" -gt 20 ] && ok "LOOP held while it plays: the loop layer keeps the ring ($re px in its left band): $OUT/cr_loop_layer_ring.ppm" \
+    || bad "the loop layer has no ring ($re px in its left band, $rd red in the dial's box)"
 silent_end cr_loop_load
 "$EMU" --headless --script "$S/cr_loop_free.txt" --wav "$OUT/cr_again/cr_loop_free.wav" >/dev/null 2>&1
 cmp -s "$OUT/cr_loop_free.wav" "$OUT/cr_again/cr_loop_free.wav" && ok "the looper is deterministic (the same audio twice)" || bad "looper audio differs"

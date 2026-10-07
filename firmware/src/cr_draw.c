@@ -238,6 +238,27 @@ static void cr_battery(int32_t rx, uint32_t lvl)
     if (lvl) cr_frect((rx + 2) * 16, 9 * 16, (int32_t)(12u * 16u * lvl / 4u), 6 * 16, lvl <= 1u ? CR_YELLOW : CR_RED);
 }
 
+/* the corner dial (a loop playing, no ring): Orchid's ring shrunk into the top line's right end, centre (229, 12), r 8,
+ * 3 px: the dotted track (10 dots of 2.5 px, about 2 on 3 off, T_LINE: cr_disc, cheaper than a dashed cr_arc's per-sample angles), the
+ * progress red clockwise from 12 o'clock, 5 px on the downbeat's frame. Rows 2..22: strip 0 only (cr_draw redraws
+ * that strip alone when only its fraction or pulse moved) */
+#define CR_DIAL_X (229 * 16)
+#define CR_DIAL_Y (12 * 16)
+#define CR_DIAL_R (8 * 16)
+#define CR_DIAL_SHIFT 22                 /* the header's right text moves this far left while the dial shows */
+static void cr_dial(const cr_screen_t *s)
+{
+    uint32_t sweep = s->dial >= 256u ? 65536u : (uint32_t)s->dial << 8;
+    uint32_t k;
+    if (cr_row0() > 23) return;          /* (not this strip) */
+    for (k = 0; k < 10u; k++) {
+        uint32_t a = k * 65536u / 10u;
+        cr_disc(CR_DIAL_X + ((CR_DIAL_R * cr_cos(a)) >> 14), CR_DIAL_Y + ((CR_DIAL_R * cr_sin(a)) >> 14), 20, T_LINE);
+    }
+    if (sweep)
+        cr_arc(CR_DIAL_X, CR_DIAL_Y, CR_DIAL_R, s->dial_pulse ? 5 * 16 : 3 * 16, 49152u, sweep, 0, 0, 0, CR_RED);
+}
+
 static void cr_header(const cr_screen_t *s)
 {
     int bare = s->icon == CR_ICON_NONE, px = bare ? 15 : 12;
@@ -255,6 +276,10 @@ static void cr_header(const cr_screen_t *s)
         cr_arc(14 * 16, 12 * 16, 5 * 16, 32, 3129u, 57344u - 3129u, 0, 0, 0, T_THEME);
     }
     if (!bare) x = 26;
+    if (s->dial_on) {
+        rx -= CR_DIAL_SHIFT;
+        rightw += CR_DIAL_SHIFT;
+    }
     if (s->batt != 255u) rightw += 26;
     if (s->right[0]) rightw += (cr_tw(s->right, 12, 1) >> 8) + 8;
     if (s->mid[0])
@@ -268,6 +293,8 @@ static void cr_header(const cr_screen_t *s)
     if (s->right[0])
         cr_text(P8(rx), base, s->right, (uint32_t)px, 1, CR_R, 4096, cr_rgb(s->right_col, bare ? CR_WHITE : T_MID),
                 T_BG, 0);
+    if (s->dial_on)
+        cr_dial(s);
 }
 
 /* the chord name (Orchid Standard Framework): the root, the quality on its baseline at 0.58, the extensions as a
@@ -1349,6 +1376,7 @@ static struct {
     uint32_t row[CR_ED_ROWS], wv, hot, ttl;   /* the editor's parts (cr_ed_strips): each row's cells, the band, the
                                                * hot cell, the title line */
     uint16_t ring;                       /* .. which was drawn */
+    uint32_t dl;                         /* the corner dial's fraction and pulse drawn (dial | dial_pulse << 16) */
     uint8_t valid, force;
     uint8_t blits, drawn;                /* strips blitted / composed by the last cr_draw (the host test reads them) */
     uint8_t slot;                        /* the DMA buffer the next blit uses (cr_send) */
@@ -1492,10 +1520,12 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
     cr_frame_t fr;
     uint32_t sig, base, k, strips = (1u << CR_NSTRIP) - 1u, row[CR_ED_ROWS], wv, hot;
     uint32_t ttl, ed = s->kind == CR_K_EDIT8 || s->kind == CR_K_STACK, i, j, o;
-    /* the struct's bytes but these (offset, size), hashed apart: the ring's fraction, the editor's parts (its cells,
-     * the hot cell, the band's values, its title line) */
-    uint32_t sk[6][2] = {
+    /* the struct's bytes but these (offset, size), hashed apart: the ring's fraction, the corner dial's fraction and
+     * pulse, the editor's parts (its cells, the hot cell, the band's values, its title line) */
+    uint32_t sk[8][2] = {
         {(uint32_t)__builtin_offsetof(cr_screen_t, ring), sizeof s->ring},
+        {(uint32_t)__builtin_offsetof(cr_screen_t, dial), sizeof s->dial},
+        {(uint32_t)__builtin_offsetof(cr_screen_t, dial_pulse), sizeof s->dial_pulse},
         {(uint32_t)__builtin_offsetof(cr_screen_t, cell), sizeof s->cell},
         {(uint32_t)__builtin_offsetof(cr_screen_t, hot_r), 3u},
         {(uint32_t)__builtin_offsetof(cr_screen_t, wv), sizeof s->wv},
@@ -1503,7 +1533,8 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
         {(uint32_t)__builtin_offsetof(cr_screen_t, page), sizeof s->page}};
     _Static_assert(__builtin_offsetof(cr_screen_t, hot_c) == __builtin_offsetof(cr_screen_t, hot_r) + 1 &&
                    __builtin_offsetof(cr_screen_t, hot_col) == __builtin_offsetof(cr_screen_t, hot_r) + 2, "hot_r c col");
-    for (i = 1; i < 6u; i++)                                     /* (in the struct's order) */
+    uint32_t dl = (uint32_t)s->dial | (uint32_t)s->dial_pulse << 16;
+    for (i = 1; i < 8u; i++)                                     /* (in the struct's order) */
         for (j = i; j && sk[j - 1][0] > sk[j][0]; j--) {
             uint32_t a = sk[j][0], c = sk[j][1];
             sk[j][0] = sk[j - 1][0]; sk[j][1] = sk[j - 1][1];
@@ -1511,7 +1542,7 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
         }
     cr_frame(s, anim_ms, &fr);
     base = 2166136261u ^ ux.gen;
-    for (i = 0, o = 0; i < 6u; o = sk[i][0] + sk[i][1], i++)
+    for (i = 0, o = 0; i < 8u; o = sk[i][0] + sk[i][1], i++)
         base = cr_hash(base, (const uint8_t *)s + o, sk[i][0] - o);
     base = cr_hash(base, (const uint8_t *)s + o, (uint32_t)sizeof *s - o);
     base = cr_hash(base, &fr, sizeof fr);
@@ -1522,8 +1553,8 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
         row[k] = cr_hash(2166136261u, s->cell[k], sizeof s->cell[k]);
     wv = cr_hash(2166136261u, s->wv, sizeof s->wv);
     hot = (uint32_t)s->hot_r | (uint32_t)s->hot_c << 8 | (uint32_t)s->hot_col << 16;
-    sig = cr_hash(cr_hash(cr_hash(cr_hash(cr_hash(base, &s->ring, sizeof s->ring), row, sizeof row), &wv, sizeof wv), &hot,
-                          sizeof hot), &ttl, sizeof ttl);
+    sig = cr_hash(cr_hash(cr_hash(cr_hash(cr_hash(cr_hash(base, &s->ring, sizeof s->ring), &dl, sizeof dl), row, sizeof row),
+                                  &wv, sizeof wv), &hot, sizeof hot), &ttl, sizeof ttl);
     cr_dc.blits = cr_dc.drawn = 0;
     if (cr_dc.valid && !cr_dc.force && sig == cr_dc.sig)
         return;                          /* nothing changed: nothing drawn */
@@ -1533,6 +1564,8 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
             strips = cr_ring_strips(cr_dc.ring, s->ring);   /* the ring's fraction moved: the strips its tip crossed */
         if (ttl != cr_dc.ttl)
             strips |= 1u;                                        /* the editor's title line (rows 0..24) */
+        if (dl != cr_dc.dl)
+            strips |= 1u;                                        /* the corner dial (rows 2..22) */
         if (wv != cr_dc.wv || hot != cr_dc.hot)
             strips |= cr_ed_strips(s, row, wv, hot);
         else
@@ -1564,6 +1597,7 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
     cr_dc.sig = sig;
     cr_dc.base = base;
     cr_dc.ring = s->ring;
+    cr_dc.dl = dl;
     for (k = 0; k < CR_ED_ROWS; k++)
         cr_dc.row[k] = row[k];
     cr_dc.wv = wv;

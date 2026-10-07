@@ -18,7 +18,7 @@ cr_draw(&s, ms_since_the_change);     /* every frame; cheap when nothing changed
 `cr_screen_t` mirrors the designer's `screen` object, flattened: `kind` (`CR_K_STRIPES CHORD PICKER METER KEYBOARD
 ARP GEEK TEXT BIG SCOPE EDIT8 STACK`), the top line (`header`, `icon` none/play/rec/loop, `mid`/`mid_col`, `right`/`right_col`,
 `batt`), `footer` (one line; empty = none, the panel then runs to row 240), the ring (`ring_on`, `ring` Q8,
-`ring_rec`, `ring_col`), `message`/`message_col`, and the panel fields of every kind (fixed char arrays; the chord
+`ring_rec`, `ring_col`), the corner dial (`dial_on`, `dial` Q8, `dial_pulse`), `message`/`message_col`, and the panel fields of every kind (fixed char arrays; the chord
 name as `cr_name_t {root, quality, sup, col_root, col_quality, col_sup}`; up to 8 notes `{t, col, mark}`; a picker
 window of 8 items with `n_items`, `item0`, `sel`; 4 params columns; 27 keys as a `lit` bitmask + `lit_col[]` +
 `key_label[]`). Colours are `cr_col_t`: ChoralRoot's seven + black (fixed RGB565 in `cr_draw.c`, not per palette:
@@ -65,6 +65,7 @@ message.
   only the strips holding band pixels between the old and the new tip are drawn (`cr_ring_strips`: the band's rows
   over those angles, widened by two pixels; usually one strip, two where a strip edge is crossed; the loop's restart
   clears the whole ring: all six). The other strips are neither drawn nor blitted.
+- **Only the corner dial moved** (`dial`, `dial_pulse` hashed apart like `ring`): strip 0 alone is drawn.
 - `cr_draw_invalidate()`: the next draw blits all six (after Felucca's UI drew, a palette change, power-up).
 
 **The ring** (`cr_ring_draw`): its pixels never move, only its colour and fraction change, so the coverage of the
@@ -77,6 +78,17 @@ row): a run well inside the sweep takes the band's coverage, one well outside no
 16 samples. The pixels are exactly `cr_arc`'s (`tests/cr_draw_test.c` compares both at 258 fractions over a pattern,
 and the partial draws with full draws). Host instructions a UI frame with a loop playing on the chord screen: 1.0 M
 (0.58 M with no ring at all); before, 12.8 M with the arp (`tools/emu/perf.sh` c: now 2.4 M, 1.2 M with no ring).
+
+**The corner dial** (`cr_dial`, from `cr_header`): the ring is drawn only where the loop is the subject (the
+count-in, the undo screen, recording and overdubbing, the LOOP and SAVE layers, set by `cr_ui.c`); while a loop
+merely plays (`lstate` PLAYING, `lcap` NONE or OD_ARMED) the producer sets `dial_on` instead, on every screen with
+a top line but the Options pages (the sound editor has none). The dial is Orchid's ring shrunk into the top line:
+centre (229, 12), r 8, 3 px — the track as 10 dots of T_LINE (`cr_disc`, about 2 on 3 off; no dashed `cr_arc`, whose
+per-sample angles cost more), the progress `cr_arc` red clockwise from 12 o'clock, 5 px wide for `dial_pulse` (the
+downbeat's ~100 ms, skipped with Motion Off). The header's `right` text moves 22 px left while it shows; nothing
+else moves (the panel keeps its height, pickers their marks and footers). Rows 2..22, so strip 0 only: a moving
+dial redraws one strip (`perf.sh` c, a 1-bar loop at 200 BPM under the arp: 2.70 ms a UI frame on the device
+scale, 2.95 ms with the ring it replaced).
 
 ## Type: faces, sizes, flash
 

@@ -93,6 +93,10 @@ typedef struct {
     /* the ring round the edge and the message box */
     uint8_t ring_on, ring_rec, ring_col, message_col;
     uint16_t ring;                  /* Q8 progress (0: the dotted track only) */
+    /* the corner dial: a loop merely playing (no ring), a 16 px ring at the right end of the top line (centre 229, 12,
+     * r 8, 3 px: the dotted track, the progress red from 12 o'clock); the header's right text moves 22 px left */
+    uint8_t dial_on, dial_pulse;    /* dial_pulse: the downbeat's frame (~100 ms): the arc drawn 5 px wide */
+    uint16_t dial;                  /* Q8 progress (the loop's fraction, as ring) */
     char message[24];
 
     /* panel: chord, arp, keyboard (with a root), geek */

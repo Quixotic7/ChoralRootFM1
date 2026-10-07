@@ -57,6 +57,15 @@ The count-in takes the whole panel: the beats to go (4 3 2 1 from the time signa
 in, "count-in" under it, the top line `Rec`, the red ring drawing itself in over the bar. It is above popups and
 layers, below PANIC.
 
+Where the loop is the subject — the count-in, the undo screen, recording and overdubbing (REC blinks), the LOOP and
+SAVE layers — Orchid's red ring runs round the edge. While the loop **merely plays** (or plays with an overdub
+armed) the screen shows a small **corner dial** in the top line instead (`design/choralroot-fm1-loop-screens.png`):
+a 16 px dial at the right end, the dotted track grey, the loop's progress red from 12 o'clock, its arc drawn thick
+for ~100 ms on each downbeat (not with Options > Motion Off); the top line's right text ("Oct +1", "Arp") moves left
+of it. It shows on the views, the layers (KEY, PERF, FX, BASS, METRO, the engine picker), the SAVE naming dialog
+and the knob popups; not in the sound editor (no top line) nor on the Options pages, where the LOOP button's green
+LED carries it.
+
 While the loop sounds, its notes glow **dim** on the root keys where they sit in the current octave window
 (`cr_snap_t.lnote`, a 128-bit note mask from the 8 loop voices, taken with the snapshot); the player's own notes stay
 lit, and a chord shown on screen that is the loop's lights nothing. With Options > LEDs = Glow every idle key glows

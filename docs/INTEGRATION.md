@@ -213,7 +213,7 @@ Priority, top down, first match wins:
 2. a knob popup (within 900 ms of a turn) → `meter` in the knob's colour (`PLAN.md` §5)
 3. an open layer → its screen: KEY `keyboard` select-key; PERF / FX / BASS / LOOP / engine pickers; EDIT the `params` page
 4. Options → the settings picker
-5. the View: CHORD (`chord` with squeeze + notes line, `Key:` in the top line, `Rec`/loop status + ring while the loop runs), KEYBOARD, NOTES, GEEK OUT, SCOPE (Felucca's scope buffer)
+5. the View: CHORD (`chord` with squeeze + notes line, `Key:` in the top line, `Rec`/loop status in the top line; the ring while the loop records / overdubs, the corner dial (`dial_on`) while it merely plays — on every screen with a top line but Options), KEYBOARD, NOTES, GEEK OUT, SCOPE (Felucca's scope buffer)
 6. idle (no chord sounding, no loop, 3 s after the last note) → `stripes`
 
 ## 6. LEDs (`cr_leds()`)
