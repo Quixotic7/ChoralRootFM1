@@ -35,8 +35,15 @@ KIND = {"stripes": "STRIPES", "chord": "CHORD", "picker": "PICKER", "meter": "ME
         "stack": "STACK"}
 ICON = {"none": "NONE", "play": "PLAY", "rec": "REC", "loop": "LOOP", "stop": "NONE"}
 CELL_GLYPH = {"knob": "KNOB", "bar": "BAR", "wave": "WAVE", "saw": "SAW", "square": "SQUARE", "steps": "STEPS",
-              "dots": "DOTS"}
-FTYPE = ["LP", "BP", "HP", "NOTCH"]
+              "dots": "DOTS", "morph": "MORPH", "noise": "NOISE"}
+FTYPE = {"LP": 0, "BP": 32, "HP": 64, "NOTCH": 96}      # the band's FTYPE position (0..127) of the designer's names
+
+
+def ftype_pos(v):
+    """the JSON's ftype ("LP" .. "NOTCH", or a position 0..127) -> the band's FTYPE position"""
+    if isinstance(v, (int, float)):
+        return int(v) & 127
+    return FTYPE[str(v or "LP").upper()]
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 KEY_NAMES = [NOTE_NAMES[(53 + k) % 12] + str((53 + k) // 12 - 1) for k in range(27)]   # F3 .. G5
 
@@ -254,6 +261,8 @@ def screen(sc, prev_name):
             f.append(f".size = {p['size']}")
     elif kind in ("edit8", "stack"):
         f += editor_fields(p, kind)
+        if p.get("batt") is not None:                   # the editor's title line: the battery (the MIX screens)
+            f = [x for x in f if not x.startswith(".batt =")] + [f".batt = {int(p['batt'])}"]
     elif kind == "text":
         if p.get("title"):
             f.append(f".title = {cstr(p['title'], 24)}")
@@ -300,6 +309,8 @@ def cell_init(c):
         flags.append("CR_CF_PCT")
     if c.get("bipolar"):
         flags.append("CR_CF_BIP")
+    if c.get("mark"):                                   # (device: the matrix modulates it, the source's colour)
+        flags.append(f"CR_CF_MARK(CR_COL_{c['mark'].upper()})")
     g = c.get("glyph")
     glyph = CELL_GLYPH[g] if g and g != "none" else "NONE"
     value = str(c.get("value") or "").replace("\u2013", "-")
@@ -326,6 +337,8 @@ def editor_fields(p, kind):
     if isinstance(hot, list) and len(hot) == 2:
         f.append(f".hot_r = {int(hot[0]) + 1}")
         f.append(f".hot_c = {int(hot[1])}")
+    if p.get("hotCol"):
+        f.append(f".hot_col = {col(p['hotCol'])}")
     if p.get("title"):
         f.append(f".title = {cstr(p['title'], 24)}")
     f.append(f".title_col = {col(p.get('titleCol'), 'NONE')}")
@@ -342,7 +355,7 @@ def editor_fields(p, kind):
         f.append(".wide = CR_W_ENV")
         f.append(".wv = {" + ", ".join(str(v) for v in vals) + "}")
     elif w and w.get("type") == "filter":
-        vals = [q8c(w.get("cut", 0.5)), q8c(w.get("res", 0)), FTYPE.index(str(w.get("ftype", "LP")).upper()),
+        vals = [q8c(w.get("cut", 0.5)), q8c(w.get("res", 0)), ftype_pos(w.get("ftype", "LP")),
                 q8c(w.get("drive", 0))]
         f.append(".wide = CR_W_FILTER")
         f.append(".wv = {" + ", ".join(str(v) for v in vals) + "}")
@@ -400,9 +413,114 @@ EDITOR_DEVICE = [
 ]
 
 
+# the device's FILTER pages (va3: FTYPE 0..127 merges TYPE and MORPH): row A CUT RES FTYPE FENV, row B KTRK (blank)
+# SPREAD DRIVE; the mock-ups' filter states are mapped onto that order
+def filter_rows(rows, ftype):
+    a, b = (rows + [[], []])[:2]
+    a = (a + [None] * 4)[:4]
+    b = (b + [None] * 4)[:4]
+    ty, cut, res, drive = a
+    ktrk, fenv = b[0], b[1]
+    ft = dict(ty or {}, label="F.type", value=["LP", "LP>BP", "BP", "BP>HP", "HP", "HP>NT", "NOTCH", "NT>LP"][
+        (ftype >> 5) * 2 + (1 if ftype & 31 else 0)], glyph="dots", pct=ftype / 127)
+    return [[cut, res, ft, fenv], [ktrk, None, {"label": "Spread", "value": "0%", "glyph": "bar", "pct": 0.0}, drive]]
+
+
+EDITOR_DEVICE += [
+    {"name": "Editor device · OSC modes (MORPH, NOISE)",
+     "screen": {"panel": {"kind": "stack", "title": "MORPH PAD*", "right": "OSC 1 \u00b7 A",
+                          "cols": ["Wave", "Level", "Coarse", "Fine"], "active": 0, "hot": [0, 0],
+                          "rows": [{"label": "1", "cells": [{"value": "SIN>TRI", "glyph": "morph", "pct": 12 / 127},
+                                                            {"value": "66%", "glyph": "bar", "pct": 0.52},
+                                                            {"value": "0"}, {"value": "-6"}]},
+                                   {"label": "2", "cells": [{"value": "SAW>RMP", "glyph": "morph", "pct": 60 / 127},
+                                                            {"value": "60%", "glyph": "bar", "pct": 0.47},
+                                                            {"value": "0"}, {"value": "+6"}]},
+                                   {"label": "3", "cells": [{"value": "SQR>PLS", "glyph": "morph", "pct": 112 / 127},
+                                                            {"value": "30%", "glyph": "bar", "pct": 0.24},
+                                                            {"value": "-12"}, {"value": "0"}]},
+                                   {"label": "4", "cells": [{"value": "VINYL", "glyph": "noise", "pct": 1.0},
+                                                            {"value": "50%", "glyph": "bar", "pct": 0.39},
+                                                            {"value": "0"}, {"value": "0"}]}]}}},
+    {"name": "Editor device · OSC noises (WHITE, BROWN) and TRI",
+     "screen": {"panel": {"kind": "stack", "title": "NOISE TEST", "right": "OSC 2 \u00b7 A",
+                          "cols": ["Wave", "Level", "Coarse", "Fine"], "active": 1,
+                          "rows": [{"label": "1", "cells": [{"value": "TRI", "glyph": "morph", "pct": 24 / 127},
+                                                            {"value": "80%", "glyph": "bar", "pct": 0.8},
+                                                            {"value": "0"}, {"value": "0"}]},
+                                   {"label": "2", "cells": [{"value": "WHITE", "glyph": "noise", "pct": 0.0},
+                                                            {"value": "40%", "glyph": "bar", "pct": 0.4},
+                                                            {"value": "0"}, {"value": "0"}]},
+                                   {"label": "3", "cells": [{"value": "BROWN", "glyph": "noise", "pct": 0.5},
+                                                            {"value": "40%", "glyph": "bar", "pct": 0.4},
+                                                            {"value": "0"}, {"value": "0"}]},
+                                   {"label": "4", "cells": [{"value": "RMP>SQR", "glyph": "morph", "pct": 84 / 127},
+                                                            {"value": "0%", "glyph": "bar", "pct": 0.0},
+                                                            {"value": "0"}, {"value": "0"}]}]}}},
+    {"name": "Editor device · FILTER morphing LP>BP",
+     "screen": {"panel": {"kind": "edit8", "title": "WARM PAD*", "right": "FILTER", "active": 0, "hot": [0, 2],
+                          "wide": {"type": "filter", "cut": 0.488, "res": 0.3, "ftype": 16, "drive": 0.0},
+                          "rows": filter_rows([[None, {"label": "Cutoff", "value": "643 Hz", "glyph": "bar", "pct": 0.488},
+                                                {"label": "Reso", "value": "30%", "glyph": "bar", "pct": 0.3},
+                                                {"label": "Drive", "value": "0%", "glyph": "bar", "pct": 0.0}],
+                                               [{"label": "Key trk", "value": "50%", "glyph": "bar", "pct": 0.5},
+                                                {"label": "Env amt", "value": "+32", "glyph": "bar", "pct": 0.756,
+                                                 "bipolar": True}]], 16)}}},
+]
+
+
+# the quick modulation mapping (docs/EDITOR.md): ENV held + KNOB 1 on FILTER, the hot Cutoff showing the amount with
+# its source in the source's colour; the marks (ENV yellow, LFO red, several white) on the modulated cells; the OSC
+# stack with LFO 1 on OSC 1's Level and Coarse
+EDITOR_DEVICE += [
+    {"name": "Editor device · FILTER modulated (ENV2 +12, marks)",
+     "screen": {"panel": {"kind": "edit8", "title": "LUSH PAD*", "right": "FILTER", "active": 0, "hot": [0, 0],
+                          "hotCol": "YELLOW",
+                          "wide": {"type": "filter", "cut": 0.55, "res": 0.11, "ftype": 0, "drive": 0.0},
+                          "rows": [[{"label": "Cutoff", "value": "ENV2 +12", "glyph": "bar", "pct": 0.55,
+                                     "mark": "white"},
+                                    {"label": "Reso", "value": "11%", "glyph": "bar", "pct": 0.11, "mark": "red"},
+                                    {"label": "F.type", "value": "LP", "glyph": "dots", "pct": 0.0},
+                                    {"label": "Env amt", "value": "+10", "glyph": "bar", "pct": 0.58, "bipolar": True,
+                                     "mark": "yellow"}],
+                                   [{"label": "Key trk", "value": "50%", "glyph": "bar", "pct": 0.5}, None,
+                                    {"label": "Spread", "value": "0%", "glyph": "bar", "pct": 0.0},
+                                    {"label": "Drive", "value": "0%", "glyph": "bar", "pct": 0.0, "mark": "blue"}]]}}},
+    {"name": "Editor device · OSC stack modulated (marks)",
+     "screen": {"panel": {"kind": "stack", "title": "LUSH PAD*", "right": "OSC 1 \u00b7 A",
+                          "cols": ["Wave", "Level", "Coarse", "Fine"], "active": 0, "hot": [0, 1], "hotCol": "RED",
+                          "rows": [{"label": "1", "cells": [{"value": "SAW", "glyph": "saw", "pct": 0.5},
+                                                            {"value": "LFO1 +24", "glyph": "bar", "pct": 0.49,
+                                                             "mark": "red"},
+                                                            {"value": "0", "mark": "red"}, {"value": "-7"}]},
+                                   {"label": "2", "cells": [{"value": "SAW", "glyph": "saw", "pct": 0.5},
+                                                            {"value": "49%", "glyph": "bar", "pct": 0.49},
+                                                            {"value": "0", "mark": "yellow"}, {"value": "+7"}]},
+                                   {"label": "3", "cells": [{"value": "SAW", "glyph": "saw", "pct": 0.5},
+                                                            {"value": "31%", "glyph": "bar", "pct": 0.31},
+                                                            {"value": "+12"}, {"value": "+3"}]},
+                                   {"label": "4", "cells": [{"value": "SAW", "glyph": "saw", "pct": 0.5},
+                                                            {"value": "0%", "glyph": "bar", "pct": 0.0},
+                                                            {"value": "0"}, {"value": "0"}]}]}}},
+]
+
+
 def editor_states():
     e = json.loads(EDITOR_SRC.read_text())["states"]
-    return [dict(e[k - 1], name="Editor " + e[k - 1].get("name", "")) for k in EDITOR_PICK] + EDITOR_DEVICE
+    out = []
+    for k in EDITOR_PICK:
+        st = json.loads(json.dumps(e[k - 1]))
+        st["name"] = "Editor " + st.get("name", "")
+        p = st["screen"]["panel"]
+        w = p.get("wide") or {}
+        if w.get("type") == "filter":
+            p["rows"] = filter_rows(p.get("rows") or [], ftype_pos(w.get("ftype", "LP")))
+            if p.get("hot") == [0, 1]:                  # (Cutoff turning: now KNOB 1)
+                p["hot"] = [0, 0]
+        if p.get("right") == "MIX":                     # the MIX screens: the battery in the title line
+            p["batt"] = 3
+        out.append(st)
+    return out + EDITOR_DEVICE
 
 
 def slug(name):

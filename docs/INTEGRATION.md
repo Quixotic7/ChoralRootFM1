@@ -208,7 +208,11 @@ loop_start) / loop_len`.
 ## Status (2026-10-05: steps 1-4 of section 9, on the emulator)
 
 `sh tools/emu/test_cr.sh` (headless, deterministic) passes; `sh tools/emu/test.sh` runs it too. Screens:
-`build/emu/test/cr_*.ppm` (`cr_dmaj7.ppm` matches mock-up state 2).
+`build/emu/test/cr_*.ppm` (`cr_dmaj7.ppm` matches mock-up state 2). 2026-10-06, BASS tap (`cr_bass_both.txt`): the bass
+meter popup (mock-up 14), "Bass" in orange top right while it is on ("Bass Solo" when Bass Behaviour is Solo, which
+silences the chord part by design and is stored in the settings; status order: Bass Solo, the perform mode, Bass,
+Oct, Latch, lock); both parts sound with the bass on (Chords Only), a bass sound change keeps a held chord, BASS off
+leaves part 0 alone.
 
 ### Wired
 
@@ -413,7 +417,12 @@ as the device does: 45 ms of zero blocks with the ISR not run (`tools/emu/emu_ha
 | (b) the same, FM PAD | 24 / 38 % -> 24 / 34 % | 1 -> 0 | 2 -> 0 | 1 -> 0 | 0.3 / 9 -> 0.3 / 9.0 ms |
 | (c) FM PAD + bass + loop + arp, 200 BPM | 23 / 42 % -> 24 / 42 % | 2 -> 0 | 4 -> 0 | 2 -> 0 | 49 / 221 -> 9.4 / 194 -> 3.0 / 14 ms |
 | (d) (c) on SCOPE | 22 / 41 % -> 22 / 46 % | 2 -> 0 | 4 -> 0 | 2 -> 0 | 22 / 40 -> 3.9 / 12 -> 3.9 / 11.5 ms |
-| (e) (c) + KNOB 1..4 every 30 ms on EDIT | 23 / 39 % -> 24 / 43 % | 2 -> 0 | 4 -> 0 | 2 -> 0 | 43 / 138 -> 11.8 / 115 -> 6.7 / 34 ms |
+| (e) (c) + KNOB 1..4 every 30 ms on EDIT | 23 / 39 % -> 24 / 43 % | 2 -> 0 | 4 -> 0 | 2 -> 0 | 43 / 138 -> 11.8 / 115 -> 6.7 / 34 -> 1.8 / 14.1 ms |
+
+2026-10-06, the editor without motion (docs/EDITOR.md §10 "Responsiveness"): no tweens or slides, only the strips of
+the editor's changed parts composed, `cr_poly` testing a pixel's centre first, and the blits sent as the box of the
+changed 60 x 8 tiles from a second buffer while the next strip is drawn: (e) 6.7 / 34 -> 1.8 / 14.1 ms; a cutoff
+detent on the FILTER screen 6.5 M host instructions a frame for 10 frames -> 3.3-3.5 M once (1 frame of lag).
 
 Per sound (6-note chord held, FX on / off, device estimate of the ISR): 12-20 % average, 23-46 % worst block, the FX
 buses +1 % (no buffer of theirs saturates). ChoralRoot's own ISR work (`cr_audio_block`: the queue, MIDI in, the

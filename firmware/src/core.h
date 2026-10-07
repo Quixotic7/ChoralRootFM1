@@ -184,7 +184,12 @@ typedef struct {
     /* optional (0 = none): a mode-dependent descriptor of a column (the label and the value names to show; the
      * stored value and set() are the same), 0 = pages[page].col[col] (VA: WAVE / SHAPE in MORPH and NOISE mode) */
     const param_desc_t *(*desc)(const struct track *t, uint32_t page, uint32_t col);
+    /* optional (0 = none): the modulation matrix's destination of a column, as the MOD pages' DST column numbers it
+     * (its value), -1 = not a destination; page ENG_MOD_TRK: a track parameter, col = its P_ id (the editor's quick
+     * mapping, docs/EDITOR.md) */
+    int32_t (*mod_dst)(const struct track *t, uint32_t page, uint32_t col);
 } eng_deep_t;
+#define ENG_MOD_TRK 0xFFu
 typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c files) */
     const char *name;            /* "ANALOG" (PRESETS, the editor) */
     const char *page_title[2];   /* EDIT 1 and EDIT 2 */

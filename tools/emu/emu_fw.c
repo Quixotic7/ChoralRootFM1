@@ -274,12 +274,13 @@ void emu_fw_ui_info(char *buf, uint32_t n)
                                     "text", "big", "scope", "edit8", "stack"};
     const cr_screen_t *s = &cu_scr;
     snprintf(buf, n, "%s view %u name '%s|%s|%s' from '%s|%s|%s' item '%s' value '%s' title '%s' size %u squeeze %u "
-             "anim %02X %u ms ring %u/%u msg '%s' blits %u",
+             "anim %02X %u ms ring %u/%u msg '%s' blits %u/%u bytes %u wv %u,%u,%u,%u,%u hot %u.%u",
              s->kind < CR_K_N && s->kind < sizeof K / sizeof K[0] ? K[s->kind] : "?", (unsigned)cs.view, s->name.root, s->name.quality, s->name.sup,
              s->from.root, s->from.quality, s->from.sup, s->kind == CR_K_PICKER ? cr_item(s, s->sel) : "",
              s->value, s->title, (unsigned)s->size, (unsigned)s->squeeze, (unsigned)s->anim,
              (unsigned)cr_anim_ms(&cu_anim, cu_now()), (unsigned)s->ring_on, (unsigned)s->ring, s->message,
-             (unsigned)cr_dc.blits);
+             (unsigned)cr_dc.blits, (unsigned)cr_dc.drawn, (unsigned)cr_dc.bytes, (unsigned)s->wv[0], (unsigned)s->wv[1], (unsigned)s->wv[2], (unsigned)s->wv[3],
+             (unsigned)s->wv[4], (unsigned)s->hot_r, (unsigned)s->hot_c);
 }
 void emu_fw_stats(uint32_t *shed, uint32_t *cpu_pct)
 {

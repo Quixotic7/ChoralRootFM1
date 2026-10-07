@@ -1,7 +1,7 @@
 # ChoralRoot: the sound editor (firmware/src/cr_edit.c, docs/EDITOR.md) on LUSH PAD (PRESETS +24: the VA). Groups ->
 # screens -> lanes. EDIT tap: OSC screen 1 (the four oscillators, OSC 1 on the knobs); SELECT +1: OSC 2, KNOB 3 -2: its
 # COARSE two detents (hot); OSC (printed FX) tap: screen 2 (the "+" stack, OSC 2 kept); tap: screen 3, the mixer
-# (KNOB 2 -1: OSC 2's LEVEL); FILT (SEL): KNOB 2 +1 the cutoff, SELECT +1: row B; ENV: KNOB 2 +1 (DEC), SELECT runs
+# (KNOB 2 -1: OSC 2's LEVEL); FILT (SEL): KNOB 1 +1 the cutoff (CUT RES FTYPE FENV), SELECT +1: row B; ENV: KNOB 2 +1 (DEC), SELECT runs
 # ENV 1 B -> ENV 2 A -> ENV 2 B, SELECT -3 back to ENV 1 A (across the screens); LFO, tap: screen 2 (sync); MOD (SEQ),
 # SELECT +2: slot 3; FX (PLAY): the sends; MIX (REC), SELECT +1: row B, KNOB 2 +1 a detent; SHIFT (GLO) held + KNOB 2:
 # one step; GLO tap: SHIFT latched (its LED, "fine"), KNOB 2 +1 one step, GLO tap: off; the root keys audition;
@@ -34,7 +34,7 @@ btn SEL
 wait 300
 expect led SEL on
 expect led FX dim
-knob KNOB2 +1
+knob KNOB1 +1
 wait 60
 shot build/emu/test/cr_editor_filt_turn.ppm
 wait 400

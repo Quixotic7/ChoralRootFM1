@@ -150,19 +150,26 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
   designer's JSON): the scope sounding and silent, three calibration steps (`CR_K_BIG` 40 px, the ring as progress).
 - **`CR_K_EDIT8`, `CR_K_STACK`: the sound editor** (`cr_edit.c` fills them; FORMAT.md "Sound editor panels",
   design/choralroot-fm1-sound-editor-mockups.json; states 30-38 of `tests/gen_cr_screens.py` are that file's states
-  1 3 4 6 8 9 11 15 16). Full screen (`header` 0): the title line (`title` in `title_col`, `page` right), then edit8:
+  1 3 4 6 8 9 11 15 16, the FILTER state mapped onto the device's column order CUT RES FTYPE FENV / KTRK - SPREAD
+  DRIVE and the MIX ones given the battery; 39-42 device-only: the mixer, the OSC modes (MORPH / NOISE / TRI glyphs)
+  and the FILTER morphing at FTYPE 16). Full screen (`header` 0): the title line (`title` in `title_col`, `page` right), then edit8:
   an optional wide band (`wide` `CR_W_ENV`: `wv` a h d s r + the lit segment, the AHDSR as one 3 px polyline, its
   steep runs cut into pieces <= 26 px tall so cr_poly's boxes stay small, the lit segment 4 px in the hot cell's
-  colour, A H D S R under it; `CR_W_FILTER`: `wv` cut res type drive, the 2nd-order response sampled at 7
-  quarter-octave offsets from the cutoff in 32-bit log2 arithmetic, the edges extrapolated, clamped to the band
+  colour, A H D S R under it; `CR_W_FILTER`: `wv` cut res ftype (0..127) drive, the 2nd-order response of
+  the LP / BP / HP mix crossfaded at the FTYPE position (0 LP, 32 BP, 64 HP, 96 NOTCH = LP + HP, back to LP;
+  the type word its name, `cr_ftype_name`) sampled at 7 quarter-octave offsets from the cutoff in 32-bit log2 arithmetic, the edges extrapolated, clamped to the band
   with the crossings: <= 12 segments, over a dashed 0 dB line) over two rows of four `cell`s (each `cr_cell_t` carries its label, value, `CR_CF_*` flags, glyph, pct); stack: `head` column headings at y 36 over
   `n_rows` rows sharing 41..239 with `rlabel`s (N >= 7: text only). The `active` row in the knob colours (blue
   orange white green) with 2 px bars, the others DIM; `hot_r` (row + 1) / `hot_c`: the value on a block of its
   colour. Glyphs (`CR_G_KNOB BAR WAVE SAW SQUARE STEPS DOTS`, a bipolar BAR centre-zero) are the designer's
-  drawGlyph scaled by h / 64. Motion is the producer's: `bar_dy` (the bars sliding from the previous row), `ed_dx`
-  (the cells sliding in: a bank swap, another section; flag 32 for the lint), the band's values tweened. A value
-  too wide loses its space first ("790ms"), then ellipsises. Cost: <= 9 M host instructions a frame (the ENV band
-  the dearest), measured by `EMU_UI_LOG=5` in tools/emu/test_cr.sh. The old params page (`CR_K_PARAMS`) is retired.
+  drawGlyph scaled by h / 64; `CR_G_MORPH` (pct = the VA's morph position) two cycles of the crossfaded wave,
+  <= 23 segments; `CR_G_NOISE` (pct thirds: WHITE BROWN VINYL) jitter / a wandering line / spikes on a faint line.
+  `batt` (not 255): the header's battery at the title line's right end (the MIX screens). No motion (docs/EDITOR.md §10): `hot_r` / `hot_c` and `hot_col` (the block's colour while
+  mapping: the modulation source's), a cell's mark (`CR_CF_MARK(colour)` in its flags: a 4 px square at its top
+  right). A value too wide loses its space first ("790ms"), then 2 px of size at a time (to 9 px), then ellipsises.
+  The cache hashes the editor's parts apart (each row's cells, `wv`, the hot cell, the title line) and composes only
+  their strips (`cr_ed_strips`); a cutoff detent: <= 4 M host instructions, measured by tools/emu/test_cr.sh
+  (`cr_editor_lag.txt`, `EMU_UI_LOG=0`). The old params page (`CR_K_PARAMS`) is retired.
 - Not implemented (not on the device): the designer kinds `tiles list scope dial roundel splash loop notes`, `big`
   with `pct` (the inverted fill), knob cards, keycap footers, `bubbleStyle: "disc"`, the chord panel's `key`/`trans`.
 

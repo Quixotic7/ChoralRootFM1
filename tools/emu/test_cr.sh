@@ -98,6 +98,55 @@ has 'bass 1 (sound 1)' "$OUT/cr_bass.log" && ok "ALGORITHM +1: bass on (sound 01
 has 'part 1: .* voices 1' "$OUT/cr_bass.log" && ok "a bass note on part 1" || bad "no bass note on part 1"
 silent_end cr_bass
 
+echo "BASS tap: both parts sound (the chord part is not silenced), the status, Solo"
+run cr_bass_both --wav "$OUT/cr_bass_both.wav"
+L=$OUT/cr_bass_both.log
+# the WAV: the chord's F#4 (370 Hz, Goertzel over 0.4 s of each held chord) with the bass on vs the reference without
+# it, in Solo, and back in Chords Only
+wv=$(python3 - "$OUT/cr_bass_both.wav" <<'PY'
+import sys, wave, struct, math
+w = wave.open(sys.argv[1]); sr = w.getframerate(); ch = w.getnchannels()
+raw = w.readframes(w.getnframes()); x = struct.unpack('<%dh' % (len(raw) // 2), raw)
+def band(t0, t1, f=369.99):
+    a, b = int(t0 * sr), int(t1 * sr); k = 2 * math.cos(2 * math.pi * f / sr); s1 = s2 = 0.0
+    for i in range(a, b):
+        s = (x[i * ch] + x[i * ch + ch - 1]) / 2 + k * s1 - s2; s2 = s1; s1 = s
+    return math.sqrt(max(s1 * s1 + s2 * s2 - k * s1 * s2, 0)) / (b - a)
+r = band(0.4, 0.8)
+print(*('%d' % (100 * band(t, t + 0.4) / r) for t in (3.76, 12.78, 16.65)))
+PY
+)
+set -- $wv
+[ "${1:-0}" -ge 50 ] && [ "${3:-0}" -ge 50 ] && [ "${2:-100}" -lt 10 ] &&
+    ok "the WAV: part 0's F#4 with the bass on ${1}% of the chord alone, back in Chords Only ${3}%, in Solo ${2}%" \
+    || bad "the WAV: part 0's F#4 with the bass on ${1:-?}%, Chords Only again ${3:-?}%, Solo ${2:-?}% (of the chord alone)"
+pv() { grep "part $1:" "$L" | sed -n "${2}p" | sed -n 's/.*voices \([0-9]*\),.*/\1/p'; }   # pv PART DUMP#: its voices
+orange_in() {    # orange_in FILE: ChoralRoot's orange pixels in the status slot (top right: rows 4..19, x 150..237)
+    for row in 4 6 8 10 12 14 16 18; do
+        od -An -tu1 -v -j $((15 + ($row * 240 + 150) * 3)) -N$((88 * 3)) "$1" | tr -s ' \n' '\n\n' | grep -v '^$'
+    done | awk '{ v[n++] = $1 } END { c = 0; for (i = 0; i + 2 < n; i += 3) if (v[i] > 200 && v[i+1] > 80 && v[i+1] < 170 && v[i+2] < 90) c++; print c }'
+}
+has '^bass: on (sound 1, Chords Only)' "$L" && has 'expect led ENV on .*: ok' "$L" &&
+    ok "BASS tapped: the bass on (SUB BASS, Chords Only), its LED lit" || bad "BASS tap: $(grep '^bass:' "$L" | head -1)"
+[ "$(pv 0 1)" = 3 ] && [ "$(pv 1 1)" = 0 ] && ok "before: MAJ + D4 on part 0 only (3 voices)" || bad "before: part 0 $(pv 0 1) part 1 $(pv 1 1)"
+[ "$(pv 0 2)" = 3 ] && [ "$(pv 1 2)" = 1 ] && ok "bass on: MAJ + D4 sounds on part 0 (3 voices) AND part 1 (the bass note)" \
+    || bad "bass on: part 0 $(pv 0 2) part 1 $(pv 1 2) voices (the chord part must keep sounding)"
+[ "$(pv 0 3)" = 3 ] && has 'part 1: ANALOG / SQR BASS' "$L" && ok "ALGORITHM +1 with the chord held: another bass sound, part 0 still 3 voices" \
+    || bad "a bass sound change with the chord held: part 0 $(pv 0 3)"
+has '^bass: off' "$L" && has 'expect led ENV dim .*: ok' "$L" && [ "$(pv 0 4)" = 3 ] && [ "$(pv 1 4)" = 0 ] &&
+    ok "BASS tapped off: its LED back to the glow, the chord on part 0 only" || bad "bass off: part 0 $(pv 0 4) part 1 $(pv 1 4)"
+o=$(orange_in "$OUT/cr_bass_both_pop.ppm"); n=$(orange_in "$OUT/cr_bass_both_on.ppm"); f=$(orange_in "$OUT/cr_bass_both_off.ppm")
+differ cr_bass_both_pop cr_bass_both_on "BASS tap: the bass meter popup (01 SUB BASS, orange): $OUT/cr_bass_both_pop.ppm"
+[ "$n" -gt 40 ] && [ "$f" = 0 ] && ok "\"Bass\" in orange top right while the bass is on ($n px; off: $f): $OUT/cr_bass_both_on.ppm" \
+    || bad "the Bass status: on $n off $f orange px"
+has '^bass: behaviour Solo' "$L" && [ "$(pv 0 5)" = 0 ] && [ "$(pv 1 5)" = 1 ] &&
+    ok "Bass Behaviour Solo (the BASS layer, G4): the bass alone, part 0 silent by design" || bad "Solo: part 0 $(pv 0 5) part 1 $(pv 1 5)"
+s=$(orange_in "$OUT/cr_bass_both_solo.ppm")
+[ "$s" -gt "$n" ] && ok "Solo shown as \"Bass Solo\" in orange ($s px): $OUT/cr_bass_both_solo.ppm" || bad "no Bass Solo status ($s px)"
+has '^bass: behaviour Chords Only' "$L" && [ "$(pv 0 6)" = 3 ] && [ "$(pv 1 6)" = 1 ] &&
+    ok "Chords Only again (D4 in the layer): both parts sound" || bad "Chords Only: part 0 $(pv 0 6) part 1 $(pv 1 6)"
+silent_end cr_bass_both
+
 echo "Esc: PANIC; idle: the stripes"
 run cr_panic
 p=$(pixel "$OUT/cr_panic.ppm" 120 200); set -- $p
@@ -131,9 +180,10 @@ has '^edit: group OSC screen 2 lane 2' "$L" && ok "OSC (FX) tap: screen 2, the \
 differ cr_editor_osc2 cr_editor_osc_b "screen 2 drawn"
 has '^edit: group OSC screen 3 lane 1' "$L" && has '^deep: part 0 page 2 OSC 2 col [0-9] LEVEL' "$L" &&
     ok "OSC tap again: the oscillator mixer (one lane, the four LEVELs), KNOB 2: OSC 2's level: $OUT/cr_editor_osc_mix.ppm" || bad "the mixer"
-has '^edit: group FILT screen 1 lane 1' "$L" && has '^deep: part 0 page [0-9]* FILTER col 1 CUT' "$L" && has '^edit: group FILT screen 1 lane 2' "$L" &&
-    ok "FILT (SEL): the filter, KNOB 2 the cutoff, SELECT: row B: $OUT/cr_editor_filt.ppm, $OUT/cr_editor_filt_b.ppm" || bad "FILT"
-differ cr_editor_filt_turn cr_editor_filt "the filter curve tweens to the new cutoff (mid: $OUT/cr_editor_filt_turn.ppm)"
+has '^edit: group FILT screen 1 lane 1' "$L" && has '^deep: part 0 page [0-9]* FILTER col 0 CUT' "$L" && has '^edit: group FILT screen 1 lane 2' "$L" &&
+    ok "FILT (SEL): the filter (CUT RES FTYPE FENV), KNOB 1 the cutoff, SELECT: row B: $OUT/cr_editor_filt.ppm, $OUT/cr_editor_filt_b.ppm" || bad "FILT"
+cmp -s "$OUT/cr_editor_filt_turn.ppm" "$OUT/cr_editor_filt.ppm" && ok "the filter curve jumps to the new cutoff (no tween: 60 ms after the detent = 460 ms after)" \
+    || bad "the band still moving after the detent: $OUT/cr_editor_filt_turn.ppm / cr_editor_filt.ppm"
 has '^deep: part 0 page [0-9]* ENV 1 col 1 DEC 90 -> 96' "$L" && has '^edit: group ENV screen 1 lane 2' "$L" &&
     has '^edit: group ENV screen 2 lane 1' "$L" && has '^edit: group ENV screen 2 lane 2' "$L" &&
     ok "ENV: ENV 1 (KNOB 2: DEC), SELECT: ENV 1 B -> ENV 2 A -> ENV 2 B (across the screens): $OUT/cr_editor_env1.ppm $OUT/cr_editor_env2.ppm $OUT/cr_editor_env2_b.ppm" || bad "ENV"
@@ -168,6 +218,79 @@ has '^expect led FX on .*: ok' "$L" && has '^expect led SEL dim .*: ok' "$L" && 
 u=$(grep -E '^ui: frame .* M instructions .*\): (edit8|stack) ' "$L" | sed -n 's/^ui: frame .*: \([0-9.]*\) M instructions.*/\1/p' | sort -n | tail -1)
 [ "${u:-0}" = 0 ] || [ "${u%.*}" -lt 10 ] && ok "UI frames on the sound pages: max ${u:-<5} M host instructions (< 10)" || bad "a UI frame of $u M instructions"
 silent_end cr_editor
+
+echo "the editor: no slide, responsiveness (a detent drawn in the next frame), the quick modulation mapping"
+run cr_editor_noslide
+same3() {   # same3 A B C what: the three shots identical
+    cmp -s "$OUT/$1.ppm" "$OUT/$2.ppm" && cmp -s "$OUT/$1.ppm" "$OUT/$3.ppm" && ok "$4" || bad "$4: $OUT/$1.ppm $2 $3 differ"
+}
+same3 cr_noslide_grp_a cr_noslide_grp_b cr_noslide_grp_c "FILT tapped: the first two frames are the settled screen (no slide): $OUT/cr_noslide_grp_a.ppm"
+same3 cr_noslide_sel_a cr_noslide_sel_b cr_noslide_sel_c "SELECT (row B): the bars at once (no slide)"
+cmp -s "$OUT/cr_noslide_scr_a.ppm" "$OUT/cr_noslide_scr_c.ppm" && ok "OSC tapped: the stack at once" || bad "OSC: $OUT/cr_noslide_scr_a.ppm / scr_c"
+same3 cr_noslide_scr2_a cr_noslide_scr2_b cr_noslide_scr2_c "OSC again (screen 2): at once"
+differ cr_noslide_grp_c cr_noslide_sel_c "SELECT drew row B active"
+export EMU_UI_LOG=0
+run cr_editor_lag
+unset EMU_UI_LOG
+L="$OUT/cr_editor_lag.log"
+lag=$(awk '   # per CUT / LEVEL detent: the last frame (1 = the next) before the next detent that drew (blits B/D, D > 0)
+    /^deep: .* (CUT|LEVEL) / { if (p) out(); p = 1; nf = 0; lc = 0; b1 = 0; cut = ($0 ~ / CUT /); next }
+    /^ui: frame/ {
+        split($0, a, " "); mi = a[7] + 0; d = $0; sub(/.* blits /, "", d); split(d, bd, /[\/ ]/)
+        if (p) { nf++; if (bd[2] + 0 > 0) lc = nf; if (nf == 1) b1 = bd[1] + 0
+                 if (nf == 1 && cut && mi > cmax) cmax = mi; if (nf == 1 && !cut && mi > smax) smax = mi }
+        next }
+    /^edit: group OSC/ { if (p) out() }
+    function out() { n++; if (lc > lmax) lmax = lc; if (lc == 1 && b1 > 0) one++; p = 0 }
+    END { if (p) out(); printf "%d %d %d %.1f %.1f\n", n, one, lmax, cmax, smax }' "$L")
+set -- $lag
+[ "${1:-0}" = 30 ] && [ "$2" = 30 ] && ok "a detent is drawn in the next frame and stays: $2 of $1 detents (20 cutoff, 10 OSC level) changed the band / cell in the frame after it, none later (lag max $3 frame)" \
+    || bad "lag: $2 of $1 detents drawn in the next frame, max $3 frames (EMU_UI_LOG=0: $L)"
+awk -v c="$4" -v s="$5" 'BEGIN { exit !(c <= 4.0 && s <= 4.0) }' && ok "UI frame of a detent: cutoff on FILTER max $4 M host instructions, OSC level on the stack max $5 M (<= 4 M, ~15 ms device)" \
+    || bad "a detent's UI frame: cutoff $4 M, OSC level $5 M (> 4 M)"
+run cr_editor_map
+L="$OUT/cr_editor_map.log"
+has '^mod: ENV2 -> CUT +12 slot 1$' "$L" && ok "ENV held + KNOB 1 +2 on FILTER: mod: ENV2 -> CUT +12 slot 1 (ENV 2 by default): $OUT/cr_map_hot.ppm" || bad "ENV mapping: $(grep -m1 '^mod:' "$L")"
+yel() { set -- "$(pixel "$OUT/$1.ppm" $2 $3)" "$4"; set -- "$(echo $1)" "$2"; [ "$1" = "$2" ]; }   # yel SHOT X Y "R G B"
+yel cr_map_mark 55 126 "247 182 0" && ok "the Cutoff cell's mark: a yellow square (ENV): $OUT/cr_map_mark.ppm" || bad "no yellow mark on Cutoff: $(pixel "$OUT/cr_map_mark.ppm" 55 126)"
+yel cr_map_filt 55 126 "8 8 8" && ok "no mark before the mapping" || bad "a mark before: $(pixel "$OUT/cr_map_filt.ppm" 55 126)"
+has '^mod: LFO1 -> RES +6 slot 2$' "$L" && yel cr_map_mark2 115 126 "231 56 41" && ok "LFO held + KNOB 2: LFO1 -> RES slot 2, a red mark on Reso: $OUT/cr_map_mark2.ppm" || bad "LFO mapping: $(grep '^mod: LFO1 -> RES' "$L") $(pixel "$OUT/cr_map_mark2.ppm" 115 126)"
+has '^mod: LFO1 -> CUT -6 slot 3$' "$L" && yel cr_map_white 55 126 "247 243 239" && ok "LFO1 -> CUT too: two sources, a white mark: $OUT/cr_map_white.ppm" || bad "white mark: $(pixel "$OUT/cr_map_white.ppm" 55 126)"
+differ cr_map_hot cr_map_mark "the hot cell showed \"ENV2 +12\" in yellow ($OUT/cr_map_hot.ppm), then the cutoff again"
+has '^mod: clear CUT, 2 slots$' "$L" && has '^expect led OCT- dim .*: ok' "$L" && ! yel cr_map_after 55 126 "247 243 239" && ! yel cr_map_after 55 126 "247 182 0" &&
+    ok "OCT- held + KNOB 1: CUT's slots cleared (\"cleared\": $OUT/cr_map_cleared.ppm), the mark gone, no octave step" || bad "clear: $(grep '^mod: clear' "$L")"
+[ "$(grep -c '^edit: group FILT' "$L")" = 5 ] && [ "$(grep -c '^edit: group ENV' "$L")" = 1 ] &&
+    ok "ENV / LFO released after a turn, or held 600 ms with none: no tap (FILT stays); ENV tapped: the ENV group" || bad "taps: $(grep -c '^edit: group' "$L") group lines"
+has '^mod: LFO1 -> LVL1 +6 slot 1$' "$L" && ok "on the OSC stack: LFO held + KNOB 2 (Level): LFO1 -> LVL1, its mark: $OUT/cr_map_stack.ppm" || bad "stack mapping"
+has '^mod: ENV1 -> CUT +6 slot 3$' "$L" && has '^mod: ENV1 -> DRIVE +6 slot 8$' "$L" && ok "ENV 1 shown last: ENV held maps ENV1 (CUT .. DRIVE, slots 3..8)" || bad "ENV1 mapping"
+has '^mod: LFO1 -> CUT matrix full$' "$L" && ok "the ninth: \"matrix full\": $OUT/cr_map_full.ppm" || bad "matrix full"
+has '^mod: not modulatable$' "$L" && ok "a platform engine (ANALOG): \"not modulatable\"" || bad "not modulatable"
+export EMU_UI_LOG=5
+run cr_editor_modes --wav "$OUT/cr_editor_modes.wav"
+unset EMU_UI_LOG
+L="$OUT/cr_editor_modes.log"
+region_differs() {   # region_differs A B X0 Y0 X1 Y1: the two shots differ inside the box
+    python3 - "$OUT/$1.ppm" "$OUT/$2.ppm" "$3" "$4" "$5" "$6" <<'PY'
+import sys
+from PIL import Image
+a, b = (Image.open(f).convert("RGB").crop(tuple(int(v) for v in sys.argv[3:7])) for f in sys.argv[1:3])
+sys.exit(0 if a.tobytes() != b.tobytes() else 1)
+PY
+}
+has '^deep: part 0 page 0 OSC 1 col 0 MORPH ' "$L" && region_differs cr_modes_morph_a cr_modes_morph_b 20 42 80 74 &&
+    ok "MORPH: KNOB 1 moves OSC 1's position, its Wave cell's morphed wave changes ($(grep -m1 '^deep: part 0 page 0 OSC 1 col 0 MORPH' "$L" | sed 's/.*MORPH //')): $OUT/cr_modes_morph_a.ppm -> $OUT/cr_modes_morph_b.ppm" \
+    || bad "MORPH glyph: $OUT/cr_modes_morph_a.ppm / cr_modes_morph_b.ppm"
+region_differs cr_modes_morph_b cr_modes_morph_c 20 42 80 74 && ok "MORPH: one more detent, the glyph follows frame by frame: $OUT/cr_modes_morph_c.ppm" || bad "MORPH glyph: one detent"
+has '^deep: part 0 page [0-9]* FILTER col 2 FTYPE 0 -> ' "$L" && region_differs cr_modes_ftype_a cr_modes_ftype_b 8 44 232 118 &&
+    ok "FTYPE from LP toward BP ($(grep -m1 'FILTER col 2 FTYPE' "$L" | sed 's/.*FTYPE //')): the band's curve morphs: $OUT/cr_modes_ftype_a.ppm -> $OUT/cr_modes_ftype_b.ppm" \
+    || bad "FTYPE band: $(grep -m1 'FTYPE' "$L")"
+differ cr_modes_ftype_a cr_modes_mix "MIX: the battery in the title line: $OUT/cr_modes_mix.ppm"
+[ "$(pixel "$OUT/cr_modes_mix.ppm" 230 12)" != "$(pixel "$OUT/cr_modes_ftype_a.ppm" 230 12)" ] &&
+    ok "MIX: the battery's nub at the title line's right end" || bad "MIX: no battery in the title line"
+has '^edit: group OSC screen 1 lane 1 part 0' "$L" && ok "VINYL KEYS: OSC 4's NOISE VINYL glyph: $OUT/cr_modes_noise.ppm" || bad "VINYL KEYS OSC"
+u=$(grep -E '^ui: frame .* M instructions .*\): (edit8|stack) ' "$L" | sed -n 's/^ui: frame .*: \([0-9.]*\) M instructions.*/\1/p' | sort -n | tail -1)
+[ "${u:-0}" = 0 ] || [ "${u%.*}" -lt 10 ] && ok "UI frames with the morph / noise glyphs and the FTYPE band: max ${u:-<5} M host instructions (< 10)" || bad "a UI frame of $u M instructions"
+silent_end cr_editor_modes
 run cr_editor_steps --wav "$OUT/cr_editor_steps.wav"
 run cr_editor_ref --wav "$OUT/cr_editor_ref.wav"
 L="$OUT/cr_editor_steps.log"

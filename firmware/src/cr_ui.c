@@ -497,6 +497,7 @@ static struct {
     uint8_t lock;                         /* the open layer (locked since its button's hold), L_NONE: none */
     uint32_t swallow;                     /* buttons pressed during another's hold: their release does nothing */
     uint8_t oct_chord;                    /* OCT- and OCT+ were down together (panic): no tap */
+    uint8_t oct_mod;                      /* OCT- held was a modifier (the editor: + a knob clears its modulation): no tap */
     uint32_t clear_t0;                    /* D#4 down in the loop layer (| 1): CLEAR after 1 s held */
     uint8_t clock;                        /* B3 LOCK: the chord block latches (off at power-on, not saved) */
     uint8_t mlatch, mkill;                /* bit cr_mod_t: latched by LOCK; toggled off by this press (its release
@@ -582,17 +583,19 @@ static void cu_popup_num(int32_t v, int plus, const char *sub, const char *label
 /* PRESETS / ALGORITHM's meter: the bank number (a user sound: its slot number) and the name */
 static void cu_sound_popup(int bass)
 {
-    char b[8], nm[13];
+    char b[8], nm[13], lb[24];
     uint32_t pos = bass ? (cs.bass_sound ? cs.bass_sound - 1u : 0u) : cs.sound, k = cb_slot_at(bass, pos);
     uint32_t n = cb_count(bass);
-    if (bass && !cs.bass_sound) {
+    if (bass && (!cs.bass_sound || !cs.bass_on)) {   /* (BASS tapped off: its sound kept for the next tap) */
         cu_popup("00", "off", "bass", CR_COL_ORANGE, 0, 0, (int32_t)n, 12);
         return;
     }
     cu_2d(b, k < UP_SLOTS ? k + 1u : pos + 1u, sizeof b);
     cb_name(bass, pos, nm);
-    cu_popup(b, nm, k < UP_SLOTS ? (bass ? "user bass" : "user sound") : bass ? "bass" : "sound",
-             bass ? CR_COL_ORANGE : CR_COL_WHITE, (int32_t)pos, 0, (int32_t)n - 1, bass ? 12 : 16);
+    cu_cpy(lb, k < UP_SLOTS ? (bass ? "user bass" : "user sound") : bass ? "bass" : "sound", sizeof lb);
+    if (bass && cs.bass_mode == CR_BASS_SOLO)     /* Bass Behaviour Solo: the chord part is silent while it is on */
+        cu_cat(lb, " \267 solo", sizeof lb);
+    cu_popup(b, nm, lb, bass ? CR_COL_ORANGE : CR_COL_WHITE, (int32_t)pos, 0, (int32_t)n - 1, bass ? 12 : 16);
 }
 /* upreset.c's messages (cr_bank.c declares them) */
 static void ui_say(const char *a, const char *b)
@@ -965,6 +968,9 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
             cs.bass_on ^= 1u;
             cr_post(CRE_BASS, 0, 0, cs.bass_on);
         }
+        cu_sound_popup(1);                        /* the bass meter (mock-up 14), "00 off" when it went off */
+        cu_trace("bass: %s (sound %u, %s)\n", cs.bass_on ? "on" : "off", (unsigned)cs.bass_sound,
+                 CU_BASSMODE[cs.bass_mode & 3u]);
         break;
     case BT_LATCH:
         cs.sticky ^= 1u;
@@ -1436,6 +1442,7 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
         if (i < 4) {
             cs.bass_mode = (uint8_t)i;
             cr_post(CRE_BASS_MODE, 0, 0, i);
+            cu_trace("bass: behaviour %s\n", CU_BASSMODE[i]);
         }
         break;
     case L_EDIT:
@@ -1801,6 +1808,8 @@ static void cu_btn_press(uint32_t b)
     uint32_t octs = CU_BIT(B_OCTDN) | CU_BIT(B_OCTUP);
     cu.bheld |= CU_BIT(b);
     if (b == B_OCTDN || b == B_OCTUP) {
+        if (b == B_OCTDN)
+            cu.oct_mod = 0;
         if ((cu.bheld & octs) == octs && !cu.oct_chord) {
             cu.oct_chord = 1;
             cu_panic();
@@ -1845,8 +1854,10 @@ static void cu_btn_release(uint32_t b)
     uint32_t octs = CU_BIT(B_OCTDN) | CU_BIT(B_OCTUP);
     cu.bheld &= ~CU_BIT(b);
     if (b == B_OCTDN || b == B_OCTUP) {
-        if (!cu.oct_chord)
+        if (!cu.oct_chord && !(b == B_OCTDN && cu.oct_mod))
             cu_oct_tap(b);
+        if (b == B_OCTDN)
+            cu.oct_mod = 0;
         if (!(cu.bheld & octs))
             cu.oct_chord = 0;
         return;
@@ -2461,9 +2472,17 @@ static void cu_header(cr_screen_t *s)
             cu_cat(s->mid, " minor", sizeof s->mid);
         s->mid_col = CR_COL_YELLOW;
     }
-    if (sn->perform_on)
+    /* the status (top right), one of: "Bass Solo" (Bass Behaviour Solo with the bass on: the chord part is silent),
+     * the perform mode ("Arp"), "Bass" (the bass on), "Oct +1", "Latch", "lock" */
+    if (sn->bass_on && cs.bass_mode == CR_BASS_SOLO) {
+        cu_cpy(s->right, "Bass Solo", sizeof s->right);
+        s->right_col = CR_COL_ORANGE;
+    } else if (sn->perform_on)
         cu_cpy(s->right, CU_PERF[cs.perf_sel].short_name, sizeof s->right);
-    else if (cu.octave) {
+    else if (sn->bass_on) {
+        cu_cpy(s->right, "Bass", sizeof s->right);
+        s->right_col = CR_COL_ORANGE;
+    } else if (cu.octave) {
         cu_cpy(s->right, "Oct ", sizeof s->right);
         cu_int(s->right + 4, cu.octave, 1, sizeof s->right - 4u);
     } else if (cs.sticky)

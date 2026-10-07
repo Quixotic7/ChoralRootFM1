@@ -1,0 +1,39 @@
+# ChoralRoot: the sound editor's mode-aware glyphs (cr_edit.c ce_cell / ce_band, cr_draw.c CR_G_MORPH CR_G_NOISE, the
+# filter band's FTYPE morph) on MORPH PAD (PRESETS +40: OSC 1 and 2 MORPH). EDIT tap: OSC screen 1, OSC 1 on the
+# knobs; KNOB 1 +3: OSC 1's morph position three detents (the Wave cell's morphed wave changes; shots once the hot block
+# is gone); FILT (SEL): KNOB 3 +2: FTYPE from LP toward BP (the band's curve morphs); MIX (REC): the battery in the
+# title line; PRESETS +1 (VINYL KEYS: OSC 4 NOISE VINYL), OSC: the noise glyph; EDIT leaves.
+wait 300
+knob PRESETS +40
+wait 1500
+btn EDIT
+wait 1000
+shot build/emu/test/cr_modes_morph_a.ppm
+knob KNOB1 +3
+wait 1000
+shot build/emu/test/cr_modes_morph_b.ppm
+knob KNOB1 +1
+wait 60
+shot build/emu/test/cr_modes_morph_c.ppm
+wait 900
+btn SEL
+wait 1000
+shot build/emu/test/cr_modes_ftype_a.ppm
+knob KNOB3 +2
+wait 1000
+shot build/emu/test/cr_modes_ftype_b.ppm
+btn REC
+wait 600
+shot build/emu/test/cr_modes_mix.ppm
+btn EDIT
+wait 300
+knob PRESETS +1
+wait 1500
+btn EDIT
+wait 200
+btn FX
+wait 1000
+shot build/emu/test/cr_modes_noise.ppm
+btn EDIT
+wait 2500
+dump

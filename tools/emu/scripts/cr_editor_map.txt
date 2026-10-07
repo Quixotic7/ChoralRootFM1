@@ -1,0 +1,112 @@
+# ChoralRoot: the editor's quick modulation mapping (docs/EDITOR.md "Quick modulation mapping") on an INIT VA sound
+# (LUSH PAD, EDIT held: the picker, KNOB 2: init, OCT+: kept; its matrix empty). FILT (SEL): ENV held + KNOB 1 +2:
+# "mod: ENV2 -> CUT +12 slot 1" (ENV 2: none shown yet), the hot cell "ENV2 +12" in yellow, the release no tap (FILT
+# stays); the Cutoff's mark (yellow). LFO held + KNOB 2 +1: LFO1 -> RES slot 2 (a red mark on Reso); LFO held + KNOB 1
+# -1: LFO1 -> CUT slot 3 (Cutoff: two sources, a white mark). OCT- held + KNOB 1: CUT's two slots cleared ("cleared",
+# no octave step). ENV held 600 ms, nothing turned: nothing (FILT stays). ENV tap: the ENV group (a tap is still a
+# tap): ENV 1 shown, so ENV held on FILT now maps ENV1. The matrix filled (ENV1 to CUT RES FTYPE FENV SPRD
+# DRIVE) after LFO1 -> LVL1 on the OSC stack (LFO held + KNOB 2, the Level's mark): 8 slots; LFO1 -> CUT: "matrix
+# full". Then ANALOG (the picker, D4): "not modulatable".
+wait 300
+knob PRESETS +24
+wait 1500
+btn EDIT
+wait 400
+btn EDIT 600
+wait 300
+knob KNOB2 +1
+wait 300
+btn OCT+
+wait 2500
+btn SEL
+wait 400
+shot build/emu/test/cr_map_filt.ppm
+btn ENV down
+wait 400
+knob KNOB1 +2
+wait 100
+shot build/emu/test/cr_map_hot.ppm
+btn ENV up
+wait 1000
+shot build/emu/test/cr_map_mark.ppm
+btn LFO down
+wait 400
+knob KNOB2 +1
+wait 100
+btn LFO up
+wait 1000
+shot build/emu/test/cr_map_mark2.ppm
+btn LFO down
+wait 400
+knob KNOB1 -1
+wait 100
+shot build/emu/test/cr_map_hot_lfo.ppm
+btn LFO up
+wait 1000
+shot build/emu/test/cr_map_white.ppm
+btn OCT- down
+wait 300
+knob KNOB1 +1
+wait 100
+shot build/emu/test/cr_map_cleared.ppm
+btn OCT- up
+wait 300
+expect led OCT- dim
+wait 1500
+shot build/emu/test/cr_map_after.ppm
+btn ENV 600
+wait 400
+btn FX
+wait 400
+btn LFO down
+wait 400
+knob KNOB2 +1
+wait 100
+btn LFO up
+wait 1000
+shot build/emu/test/cr_map_stack.ppm
+btn ENV
+wait 400
+btn SEL
+wait 400
+btn ENV down
+wait 400
+knob KNOB1 +1
+knob KNOB2 +1
+knob KNOB3 +1
+knob KNOB4 +1
+wait 100
+btn ENV up
+wait 300
+knob SELECT +1
+wait 300
+btn ENV down
+wait 400
+knob KNOB3 +1
+knob KNOB4 +1
+wait 100
+btn ENV up
+wait 300
+knob SELECT -1
+wait 300
+btn LFO down
+wait 400
+knob KNOB1 +1
+wait 100
+shot build/emu/test/cr_map_full.ppm
+btn LFO up
+wait 1500
+btn EDIT 600
+wait 300
+btn D4
+wait 300
+btn OCT+
+wait 1500
+btn SEL
+wait 400
+btn LFO down
+wait 400
+knob KNOB1 +1
+wait 100
+btn LFO up
+wait 1000

@@ -34,7 +34,11 @@ enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOA
 enum { CR_ICON_NONE, CR_ICON_PLAY, CR_ICON_REC, CR_ICON_LOOP };
 
 /* an editor cell's glyph (the designer's params glyphs, drawn small); CR_G_NONE: a text cell */
-enum { CR_G_NONE, CR_G_KNOB, CR_G_BAR, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_STEPS, CR_G_DOTS };
+enum { CR_G_NONE, CR_G_KNOB, CR_G_BAR, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_STEPS, CR_G_DOTS,
+       CR_G_MORPH,                  /* the VA's MORPH wave at pct = the position (Q8 of 255 = 0..127: sine 0, triangle 24,
+                                     * saw 48, ramp 72, square 96, a pulse narrowing to ~5 % at 127), crossfaded */
+       CR_G_NOISE };                /* a noise: pct 0..84 WHITE (dense jitter), 85..169 BROWN (a wandering line),
+                                     * 170..255 VINYL (sparse spikes on a faint line) */
 
 /* the editor's wide band (CR_K_EDIT8) */
 enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER };
@@ -42,6 +46,9 @@ enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER };
 #define CR_CF_ON 1u                 /* a cell: shown (an empty cell draws nothing) */
 #define CR_CF_PCT 2u                /* .. pct is shown (a text cell: a small bar) */
 #define CR_CF_BIP 4u                /* .. pct is centre-zero (128 = 0) */
+#define CR_CF_MARK(c) ((uint8_t)((c) << 4))   /* .. a modulation mark, a 4 px square at its top right in colour c
+                                     * (a named CR_COL_*, 0 none): the matrix modulates its parameter */
+#define CR_CF_MARKCOL(f) ((uint32_t)(f) >> 4)
 
 /* animations in progress (cr_screen_t.anim); each is a pure function of the fields and cr_draw's anim_ms, the time
  * since the change that started it (cr_draw.c CR_*_MS: the durations) */
@@ -62,7 +69,7 @@ typedef struct { char root[4], quality[6], sup[8]; uint8_t col_root, col_quality
 typedef struct { char t[6]; uint8_t col, mark; } cr_note_t;                    /* "C#5", its colour, a block under it */
 typedef struct {                                                                /* an editor cell (KNOB 1..4) */
     char label[10], value[9];       /* label: edit8 only (a stack's columns have headings) */
-    uint8_t flags;                  /* CR_CF_* */
+    uint8_t flags;                  /* CR_CF_*, the mark's colour in the high nibble */
     uint8_t glyph;                  /* CR_G_* */
     uint8_t pct;                    /* Q8 of 255: the glyph's / bar's fill (square: the duty) */
 } cr_cell_t;
@@ -130,20 +137,22 @@ typedef struct {
     char key_label[CR_KEYS][3];     /* text printed on key k */
 
     /* panel: edit8, stack (the sound editor, full screen: header 0; its title line is `title` in `title_col`,
-     * `page` right-aligned). Motion is the producer's (cr_edit.c): the fields below move, the renderer is pure */
+     * `page` right-aligned). No motion: a change is drawn at once (docs/EDITOR.md "Responsiveness") */
     char page[16];                  /* edit8 / stack: the title line's right text ("OSC 2 \267 A") */
     cr_cell_t cell[CR_ED_ROWS][4];  /* rows of four cells (edit8: 1..2 rows) */
     char head[4][10];               /* stack: the column headings */
     char rlabel[CR_ED_ROWS][3];     /* stack: the row labels */
     uint8_t n_rows, active;         /* rows shown; the row on KNOB 1..4 (knob colours, bars) */
     uint8_t hot_r, hot_c;           /* the cell just turned (a filled block behind its value): row + 1 (0: none), column */
+    uint8_t hot_col;                /* .. the block's colour (NONE: the knob's; a modulation source's while mapping) */
     uint8_t wide;                   /* edit8: CR_W_* */
     uint8_t tall;                   /* edit8: one row of tall level bars over the whole panel (the oscillator mixer) */
-    uint8_t fine;                   /* edit8 / stack: SHIFT on (fine steps): "fine" small in the title line */
+    uint8_t fine;                   /* edit8 / stack: SHIFT on (fine steps): "fine" small in the title line;
+                                     * `batt` (0..4, 4 = charging; 255 = none): edit8 / stack draw the header's battery
+                                     * at the title line's right end (the MIX screens) */
     uint8_t wv[6];                  /* env: a h d s r (Q8 of 255), the lit segment + 1 (1 A .. 5 R, 0 none);
-                                     * filter: cut res (Q8 of 255), type (0 LP, 1 BP, 2 HP, 3 NOTCH), drive */
-    int16_t bar_dy;                 /* the active row's bars, px from their place (sliding from the row before) */
-    int16_t ed_dx;                  /* the cells and headings, px from their place (a bank swap / a section sliding in) */
+                                     * filter: cut res (Q8 of 255), ftype (0..127: 0 LP, 32 BP, 64 HP, 96 NOTCH,
+                                     * crossfaded between, 127 back toward LP), drive */
     char foot[48];                  /* stripes: the bottom line */
 
     /* panel: text, geek (lines: geek's status lines are lines[0..1].t) */
@@ -154,6 +163,15 @@ typedef struct {
      * moving trace redraws and a still one costs nothing) */
     int8_t wave[CR_WAVE_N];
 } cr_screen_t;
+
+/* the filter's FTYPE position's name (eng_va.c's names): "LP" "BP" "HP" "NOTCH" at 0 32 64 96, "LP>BP" .. "NT>LP"
+ * between */
+static inline const char *cr_ftype_name(uint32_t v)
+{
+    static const char *const N[8] = {"LP", "LP>BP", "BP", "BP>HP", "HP", "HP>NT", "NOTCH", "NT>LP"};
+    v &= 127u;
+    return N[(v >> 5) * 2u + ((v & 31u) ? 1u : 0u)];
+}
 
 static inline void cr_screen_clear(cr_screen_t *s)
 {

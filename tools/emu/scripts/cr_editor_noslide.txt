@@ -1,0 +1,34 @@
+# ChoralRoot: no slide in the editor (docs/EDITOR.md "Motion"): the first frames after a group tap (FILT), a SELECT
+# (row B) and a screen tap (OSC, OSC again) equal the settled screen 600 ms later. LUSH PAD (the VA), no knob turned
+# (no hot cell).
+wait 300
+knob PRESETS +24
+wait 1500
+btn EDIT
+wait 400
+btn SEL
+wait 16
+shot build/emu/test/cr_noslide_grp_a.ppm
+wait 15
+shot build/emu/test/cr_noslide_grp_b.ppm
+wait 600
+shot build/emu/test/cr_noslide_grp_c.ppm
+knob SELECT +1
+wait 16
+shot build/emu/test/cr_noslide_sel_a.ppm
+wait 15
+shot build/emu/test/cr_noslide_sel_b.ppm
+wait 600
+shot build/emu/test/cr_noslide_sel_c.ppm
+btn FX
+wait 16
+shot build/emu/test/cr_noslide_scr_a.ppm
+wait 600
+shot build/emu/test/cr_noslide_scr_c.ppm
+btn FX
+wait 16
+shot build/emu/test/cr_noslide_scr2_a.ppm
+wait 15
+shot build/emu/test/cr_noslide_scr2_b.ppm
+wait 600
+shot build/emu/test/cr_noslide_scr2_c.ppm

@@ -68,8 +68,8 @@ stage (MOD FX MIX).
 | --- | --- | --- | --- | --- |
 | FX | FX | **OSC** | the group; again: the next screen | — (reserved) |
 | SEL | KEY | **FILT** | as OSC | — |
-| ENV | BASS | **ENV** | as OSC (the next envelope) | — |
-| LFO | LATCH | **LFO** | as OSC | — |
+| ENV | BASS | **ENV** | as OSC (the next envelope) | — ; **held + KNOB 1–4: the quick mapping** (§13) |
+| LFO | LATCH | **LFO** | as OSC | — ; **held + KNOB 1–4: the quick mapping** (§13) |
 | SEQ | METRO | **MOD** | as OSC | — |
 | PLAY | LOOP | **FX** | the group (one screen) | — |
 | REC | REC | **MIX** | the group (one screen) | — |
@@ -78,7 +78,7 @@ stage (MOD FX MIX).
 | HOME | HOME | **HOME** | leave the editor (group, screen and lane remembered); in a layer: back to the editor | — |
 | SAVE | SAVE | **SAVE** | the save dialog (§8) | the loop slots, as outside |
 | ARP | PERF | **PERF** | performance on / off | the perform layer (closes back to the editor) |
-| OCT− / OCT+ | octave | octave (audition) | — | both: panic |
+| OCT− / OCT+ | octave | octave (audition) | — | both: panic; **OCT− held + KNOB 1–4: that parameter's modulation cleared** (§13) |
 
 ### The rotaries
 
@@ -105,7 +105,8 @@ LFO MOD) and the page titles, never the column names, so a column or a page the 
 - FILT and ENV: an `edit8` screen per instance, its pages as lanes A and B (two a screen) under the wide band;
 - MOD: a stack of the slots, eight a screen.
 - a cell's label, value names and range come from `deep->desc(t, page, col)` when the engine gives one (the VA's
-  mode-dependent WAVE / SHAPE: MORPH, NTYPE, COLOR, DENS), else from the page's column.
+  mode-dependent WAVE / SHAPE: MORPH, NOISE, COLOR, DENS), else from the page's column; the stack's heading over a
+  WAVE column stays `Wave` whatever the modes.
 
 ### VA
 
@@ -114,7 +115,7 @@ LFO MOD) and the page titles, never the column names, so a column or a page the 
 | OSC | 1 | `stack`, 4 rows | OSC 1–4 | Wave · Level · Coarse · Fine (pages `OSC n`) | `OSC 2 · A` |
 | OSC | 2 | `stack`, 4 rows | OSC 1–4 | whatever the `OSC n+` pages publish (Mode · Shape · Key trk · Sync/Ring today; `–` where an oscillator has none) | `OSC 2 · B` |
 | OSC | 3 | `edit8` `tall`, one row | the mixer (one lane) | the LEVEL of OSC 1 · 2 · 3 · 4, four tall bars | `OSC · MIX` |
-| FILT | 1 | `edit8`, wide filter curve | A, B | A: Type · Cutoff · Reso · Drive (`FILTER`); B: the `FILTER+` page (Key trk · Env amt · and what the engine adds) | `FILTER` |
+| FILT | 1 | `edit8`, wide filter curve | A, B | A: Cutoff · Reso · Ftype · Env amt (`FILTER`: CUT RES FTYPE FENV); B: the `FILTER+` page (Key trk · (blank) · Spread · Drive) | `FILTER` |
 | ENV | 1–4 | `edit8`, wide AHDSR of that envelope | A, B | A: Attack · Decay · Sustain · Release (`ENV n`); B: Hold (· Velocity on ENV 1) (`ENV n+`) | `ENV 1 · amp`, `ENV 2 · filter`, `ENV 3 · free` |
 | LFO | 1 | `stack`, 4 rows | LFO 1–4 | Rate · Wave · Depth · Fade | `LFO 1 · A` |
 | LFO | 2 | `stack`, 4 rows | LFO 1–4 | Sync (`LFO SYN`, column n) | `LFO 1 · B` |
@@ -209,16 +210,30 @@ Left: the sound's name in 13 px bold, white; a trailing **`*`** once edited (dee
 ` · BASS` and the whole title in **orange** (`PUNCH BASS · BASS`). Right, 11 px grey, right-aligned: the group and
 what is on the knobs — `OSC 1 · A` (screen A, lane OSC 1), `OSC 2 · B`, `OSC · MIX`, `FILTER`, `ENV 1 · amp`,
 `ENV 2 · filter`, `LFO 2 · B`, `MOD 3`, `FX`, `MIX`. With SHIFT on (latched or held), the word **`fine`** (9 px,
-white) left of it.
+white) left of it. On the MIX screens (the "global menu") the **battery** sits at the right end, left of nothing:
+the header's 16 x 10 case and nub, 0–3 quarters filled, full on USB power (`cr_screen_t.batt`, 255 = none; the
+right text moves left of it).
 
 ### A cell
 
 Up to four cells a row, 60 px wide at x = 60·c, one per knob. A cell is a label, a value and an optional glyph
-(`knob bar env wave saw square filter steps dots`, or an oscillator `wave` SAW SQR TRI SIN PWM NOIS drawn with its
-shape); a text cell draws its value with a small bar for its fill; `bipolar` cells (Env amt, Pan, Transpose, the
-matrix Amount) draw a centre-zero bar. The **active** row is in the knob colours (blue, orange, white, green) with a
+(`knob bar env wave saw square filter steps dots morph noise`, or an oscillator `wave` SAW SQR TRI SIN PWM NOIS
+drawn with its shape). The VA's WAVE column follows the oscillator's MODE live (the label `desc` gives):
+**WAVE** (BASIC) the named wave (TRI a triangle); **MORPH** the morphed wave itself, `CR_G_MORPH` at the 0..127
+position: two cycles, 12 knots a cycle (the eighths, both sides of the jump at 1/2 and of the pulse's edge, ≤ 23
+segments), each knot the linear crossfade of the two neighbouring shapes of docs/VA.md (sine 0, triangle 24, saw 48,
+ramp 72, square 96, then the pulse narrowing from 50 % to ~5 % at 127), aligned as eng_va.c's `va_morph` and drawn
+full height, so turning KNOB 1 morphs the glyph detent by detent; the value is the position's name (`SAW>RMP`, 9 px
+when 11 px does not fit); **NOISE** `CR_G_NOISE`: WHITE dense jitter (20 segments), BROWN a smooth wandering line
+(10), VINYL four sparse spikes on a faint line; a text cell draws its value with a small bar for its fill; `bipolar` cells (Env amt, Pan, Transpose, the
+matrix Amount) draw a centre-zero bar. A cell whose parameter the matrix modulates (a slot with that destination, a
+source and a non-zero amount) has a **mark**: a 4 px square at its top right in the source's colour (ENV yellow, LFO
+red, VEL KEY RAND MODW blue; several sources: white); `cr_cell_t.flags` carries it (`CR_CF_MARK(colour)`), the
+edit8 label then fits in 46 px. The **active** row is in the knob colours (blue, orange, white, green) with a
 2 px bar in that colour under each cell; every other row is the palette's grey with no bar. The cell just turned is
-**hot**: a filled block in its colour behind its value (the value in the ground colour).
+**hot**: a filled block in its colour behind its value (the value in the ground colour); after a quick mapping the
+block is the source's colour and the value the slot's amount with the source (`ENV2 +12`, `LFO1 +24`: `hot_col`). A
+value too wide loses its space, then 2 px of size at a time (down to 9 px), then ellipsises.
 
 ### `edit8` — up to eight parameters
 
@@ -226,8 +241,12 @@ Two rows of four cells (row A, row B), one of them active; an optional **wide** 
 
 - the **envelope**: one AHDSR line, 3 px white, over a faint baseline, the sustain a flat run, the segment being
   turned thicker in its knob's colour, letters A (H) D S R under the baseline;
-- the **filter**: the response curve, 3 px orange (KNOB 2 = cutoff), its resonance peak over a dashed 0 dB pass
-  level, cutoff on a 9-octave log axis, the type (`LP BP HP NOTCH`) top left, `DRIVE n` top right when driven;
+- the **filter**: the response curve, 3 px orange (KNOB 1 = cutoff), its resonance peak over a dashed 0 dB pass
+  level, cutoff on a 9-octave log axis, `DRIVE n` top right when driven. FTYPE (0..127, KNOB 3) morphs it: the curve
+  is |lp − hp·w² + j·bp·g·w/Q|² / |1 − w² + j·w/Q|² with the weights (lp, bp, hp) crossfaded linearly between
+  LP (1,0,0) at 0, BP (0,1,0) at 32, HP (0,0,1) at 64, NOTCH (1,0,1) at 96 and back to LP (the SVF's outputs mixed,
+  as the VA mixes them; g² = Q / 0.6 keeps BP at 0 dB at its peak), in 32-bit integer log2 maths at the same seven
+  quarter-octave points (≤ 12 segments); top left the position's name (`LP`, `LP>BP`, `BP`, .. `NT>LP`);
 - (FORMAT.md also has a **wave** band: two cycles across the screen, blue; not used by the drawn sections).
 
 Layout: **with a wide shape** — title 0–24, the shape 24–120, row A 124–180, row B 184–240 (label 10 px, glyph 22
@@ -253,15 +272,47 @@ A row label column at the left (11 px bold; white when active, else grey; as wid
 
 Used for: OSC (VA), LFO (VA), MOD.
 
-## 10. Motion
+## 10. Motion: none in the editor (2026-10-06, the user's feedback from the device)
 
-All short (100–250 ms), never delaying sound or input; `cr_anim.c`, Options > Motion (full / calm / off):
+The editor draws every change **at once**, in the UI frame after the detent or the tap: no slide-in of the cells
+on a new screen or group, no sliding bars between lanes, no tween of a cell's glyph or of the wide band. The band
+(the envelope, the filter curve) redraws with the value, the turned segment thick in the knob's colour; the hot
+cell (the one just turned) stays CE_HOT_MS (800 ms). Options > Motion (full / calm / off) applies to the rest of the
+instrument (the chord squeeze, the pickers, the meters, the stripes) and changes nothing in the editor.
+`cr_screen_t` has no motion fields for the editor any more (`ed_dx`, `bar_dy` are gone).
 
-- **SELECT** within a screen: the active bar **slides** to the new lane;
-- a new **screen** or **group**: the cells **slide in sideways** (from the right going forward, from the left going
-  back);
-- a **knob turn**: the cell goes hot, its glyph eases to the value (`cr_tween`, ~220 ms); the wide envelope or filter
-  curve **redraws** live, the turned segment thick in the knob's colour.
+### Responsiveness ("changing the cutoff has a large delay until it visually changes")
+
+Measured with `tools/emu/scripts/cr_editor_lag.txt` (LUSH PAD, FILT, KNOB 1 20 detents in 1 s, then the OSC stack's
+KNOB 2 10 detents) under `EMU_UI_LOG=0` (every UI frame: its host instructions, the strips drawn / blitted, the
+bytes sent, the band's values); tools/emu/test_cr.sh checks it. Device time = host instructions / 258 µs; the LCD's
+SPI runs at 12 MHz (lcd.c `LCD_BAUD` 4): 0.67 µs a byte, 12.8 ms a 240 × 40 strip.
+
+| | before | after |
+| --- | --- | --- |
+| detents per frame | every detent taken at once (`fm1_enc_take`: the whole accumulated count; `cp_dstep` steps `s` × the step; the main loop scans the input between frames too): no change needed | the same |
+| frames from a cutoff detent to the curve at its value | 10 (the 160 ms band tween; the next detent restarts it) | **1** (no tween) |
+| a cutoff detent's frame | 6.5 M host instructions (~25 ms), all 6 strips composed, 2–3 blitted (38–58 KB, 26–38 ms of SPI), **every frame of the tween** | **3.3–3.5 M (~13 ms)**, 5 strips composed (the band 0–2, row A 3–4), 18–28 KB sent (12–19 ms of SPI, overlapping the next strip's drawing), once |
+| an OSC stack detent (Level) | 2.5 M, 3 strips composed, 19 KB | **1.4 M**, 2 strips, 3–8 KB |
+| frames between the detent and the screen settled (device) | ~10 frames of ~50–60 ms each | 1 frame of ~20 ms |
+
+What made it fast:
+1. **No tween** (cr_edit.c): the band's values and the cells are the parameter's, every frame.
+2. **Only the strips of what changed are composed** (cr_draw.c `cr_ed_strips`): the editor's parts are hashed apart
+   from the rest of the screen: each row's cells, the band's values (`wv`), the hot cell, the title line. A change
+   of the band alone composes strips 0–2, a cell its row's strips (row A 3–4, row B 4–5, a stack row its 1–2), the
+   title line strip 0; anything else (a new screen, a message) all six.
+3. **cr_poly** (cr_gfx.c) tests a pixel's centre against each segment first: farther than the stroke's half width
+   plus a sample's reach (8.5 Q4) it skips the 16 samples, well inside the stroke (not dashed) it fills the pixel at
+   once; a row visits only the columns its segments' boxes reach. Exact: the mock-up renders are identical bit for
+   bit. The filter band's frame: 6.5 -> 4.2 M before the other steps. A strip also skips the title line, the band and
+   the rows it does not cross (`cr_in_strip`: not even measured).
+4. **The blit** (cr_draw.c `cr_send`): each strip is hashed as 4 × 5 tiles of 60 × 8 px and only the box of the tiles
+   that changed is sent; it is copied into one of two DMA buffers (cv_px's rows 40–119, unused by the 40-row strip
+   canvas), so the next strip is composed while the SPI sends this one. Before, gfx.c `cv_begin` waited for the last
+   strip's DMA (`lcd_sync`) before drawing the next: every blitted strip cost its 12.8 ms of SPI on top of the drawing.
+   lcd.c itself (Felucca's) is unchanged: it already leaves a transfer running; raising its SPI clock (`LCD_BAUD` 2 =
+   20 MHz) would cut the SPI time further but needs a check on the device.
 
 ## 11. LEDs
 
@@ -290,3 +341,30 @@ All short (100–250 ms), never delaying sound or input; `cr_anim.c`, Options > 
 7. **Page memory across power-off**: RAM only for now; it could join the settings record if wanted.
 8. **FX lane B**: none (the platform exposes no per-effect parameters on its pages); the fx layer (PLAN.md §3) keeps
    the effect parameters.
+
+## 13. Quick modulation mapping (2026-10-06)
+
+For an engine whose deep pages map their columns to the matrix (`eng_deep_t.mod_dst`: the VA):
+
+| Gesture (in the editor) | Result |
+| --- | --- |
+| **ENV held + KNOB 1–4 turned** | the **ENV n last shown** (the ENV group's screen when it was last open; before that **ENV 2**) modulates the parameter under that knob: the matrix slot with that source and that destination, else the **first free slot** (SRC or DST `OFF`) gets them, and the turn steps its **AMT** (−64..63, the coarse / fine steps of §3: 6 a detent, SHIFT one). The hot cell shows `ENV2 +12` on a block in the source's colour. Trace: `mod: ENV2 -> CUT +12 slot 1` |
+| **LFO held + KNOB 1–4 turned** | the same with the **LFO n last shown** (its lane on the LFO stacks; before that **LFO 1**): `mod: LFO1 -> RES +6 slot 2` |
+| no free slot | the message **`matrix full`** (red), nothing changes; trace `mod: LFO1 -> CUT matrix full` |
+| a parameter that is no destination (a wave, an envelope time, a matrix column), or an engine without `mod_dst` | **`not modulatable`**; trace `mod: not modulatable` |
+| **OCT− held + KNOB 1–4 turned** | every slot whose destination is that parameter is cleared (SRC, DST `OFF`, AMT 0): **`cleared`** (`no modulation` when there was none); trace `mod: clear CUT, 2 slots`. OCT−'s release then shifts no octave |
+| ENV / LFO **tapped** | as before: the group, the next screen |
+| ENV / LFO **held** with no knob turned | nothing (reserved), as before |
+
+The turn may come at any time while the button is down (a turn makes the press a combo: its release is no tap).
+The destination of a cell: `mod_dst(t, page, col)` for a deep column, `mod_dst(t, ENG_MOD_TRK, P_id)` for a
+platform one (the VA: Level -> AMP, Pan -> PAN, Transpose / Detune -> PITCH on the MIX screens); its value is the MOD
+pages' DST value, so the editor reads and writes the slots through the deep pages' `get` / `set` (MOD 1..8: SRC DST
+AMT) and a source by its name in the SRC column (`ENV2`, `LFO1`). The slots stay visible and editable on the MOD
+screens. Every cell whose parameter is modulated carries the mark of §9. The VA's destinations for this
+(appended, docs/VA.md): DRIVE, SPRD (SPREAD), FENV, DEP1..DEP4 (the LFOs' DEPTH).
+
+Tests: `tools/emu/scripts/cr_editor_map.txt` (tools/emu/test_cr.sh: the traces above, the marks' pixels yellow / red /
+white, `cleared` with no octave step, the taps kept, the matrix filled to `matrix full`, ANALOG `not modulatable`;
+shots `build/emu/test/cr_map_*.ppm`), tests/gen_cr_screens.py's two modulated states (`43_filter_modulated_*`,
+`44_osc_stack_modulated_*` in build/cr_screens/).

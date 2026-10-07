@@ -4,9 +4,10 @@
  * in one storage.c object (OBJ_VASTORE = OBJ_PROJECT0: A/B at 0x97000 / 0x98000, sectors ChoralRoot's projects
  * never use), mirrored in the pool so loading a sound never reads flash. The commit protocol is storage.c's. The
  * payload (16 + 32 x 110 = 3536 bytes) ends 3792 bytes into its sector: the tail stays erased, as fm6_bank.c's.
- * Store version 2 holds version-2 blobs (VA_BLOB 110); a version-1 store (104-byte blobs, 3344 bytes) is converted
- * in the mirror at boot (va_store_v1: every patch kept, the new values at their init) and written as version 2 by
- * the next save.
+ * Store version 3 holds version-3 blobs (VA_BLOB 110: FTYPE in one value); a version-2 store (the same size, version-2
+ * blobs: TYPE and MORPH) is converted in place at boot (va_store_v2: FTYPE = TYPE x 32 + MORPH, the sound as it was),
+ * a version-1 store (104-byte blobs, 3344 bytes) too (va_store_v1: every patch kept, the new values at their init);
+ * either is written as version 3 by the next save.
  *
  * upreset.c calls it: up_put saving a VA sound stores the patch of the part it came from (va_store_saved), erasing
  * a slot (up_put(k, 0)) or saving another engine's sound over it clears patch k; up_values loading a VA record marks
@@ -19,7 +20,7 @@
 #define VA_STORE_MAGIC 0x31534156u               /* "VAS1" */
 typedef struct {
     uint32_t magic;
-    uint16_t ver, nslot;                         /* 2, UP_SLOTS */
+    uint16_t ver, nslot;                         /* 3, UP_SLOTS */
     uint32_t used;                               /* bit k: slot k holds a patch */
     uint16_t blob, rsv;                          /* VA_BLOB */
     uint8_t p[UP_SLOTS][VA_BLOB];
@@ -31,7 +32,7 @@ static va_store_t va_store __attribute__((section(".pool")));
 static int va_store_valid(const va_store_t *s)
 {
     uint32_t k;
-    if (s->magic != VA_STORE_MAGIC || s->ver != 2u || s->nslot != UP_SLOTS || s->blob != VA_BLOB)
+    if (s->magic != VA_STORE_MAGIC || s->ver != 3u || s->nslot != UP_SLOTS || s->blob != VA_BLOB)
         return 0;
     for (k = 0; k < UP_SLOTS; k++)
         if (((s->used >> k) & 1u) && !va_blob_ok(s->p[k]))
@@ -58,7 +59,7 @@ static int va_store_get(uint32_t k, uint8_t *b)
     return 0;
 }
 
-/* a version-1 store just loaded into the mirror (n bytes): converted in place to version 2, the last slot first (a
+/* a version-1 store just loaded into the mirror (n bytes): converted in place to version 3, the last slot first (a
  * slot's version-2 place starts at or after its version-1 one, so no slot is overwritten before it is read); a slot
  * whose blob is not valid is dropped. 1 = it was one */
 static int va_store_v1(int n)
@@ -78,10 +79,35 @@ static int va_store_v1(int n)
             memset(va_store.p[k], 0, VA_BLOB);
         }
     }
-    va_store.ver = 2;
+    va_store.ver = 3;
     va_store.blob = VA_BLOB;
 #if defined(CR_TRACE) && CR_TRACE
     printf("va: store version 1 imported (%u patches)\n", (unsigned)__builtin_popcount(va_store.used));
+#endif
+    return 1;
+}
+
+/* a version-2 store just loaded into the mirror (n bytes, the same layout): each patch converted in place to a
+ * version-3 blob (eng_va.c va_unpack: FTYPE = TYPE x 32 + MORPH); a slot whose blob is not valid is dropped.
+ * 1 = it was one */
+static int va_store_v2(int n)
+{
+    int8_t p[VA_NP];
+    uint32_t k;
+    if (n != (int)sizeof va_store || va_store.magic != VA_STORE_MAGIC || va_store.ver != 2u ||
+        va_store.nslot != UP_SLOTS || va_store.blob != VA_BLOB)
+        return 0;
+    for (k = 0; k < UP_SLOTS; k++) {
+        if (((va_store.used >> k) & 1u) && va_unpack(va_store.p[k], p))
+            va_pack(p, va_store.p[k]);
+        else {
+            va_store.used &= ~(1u << k);
+            memset(va_store.p[k], 0, VA_BLOB);
+        }
+    }
+    va_store.ver = 3;
+#if defined(CR_TRACE) && CR_TRACE
+    printf("va: store version 2 imported (%u patches)\n", (unsigned)__builtin_popcount(va_store.used));
 #endif
     return 1;
 }
@@ -94,6 +120,8 @@ static void va_store_boot(void)                  /* persist_boot (upreset.c up_b
 #endif
     if (n > 0 && n != (int)sizeof va_store && va_store_v1(n))
         n = (int)sizeof va_store;
+    else if (n == (int)sizeof va_store)
+        va_store_v2(n);
     if (n != (int)sizeof va_store || !va_store_valid(&va_store))
         memset(&va_store, 0, sizeof va_store);
     va_store_read = va_store_get;
@@ -115,7 +143,7 @@ static int va_store_put(uint32_t k, const uint8_t *b)
         return 0;
     memcpy(old, va_store.p[k], VA_BLOB);
     va_store.magic = VA_STORE_MAGIC;
-    va_store.ver = 2;
+    va_store.ver = 3;
     va_store.nslot = UP_SLOTS;
     va_store.blob = VA_BLOB;
     if (b) {

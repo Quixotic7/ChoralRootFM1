@@ -29,17 +29,20 @@
  *   platform MOD page as a stack of 4 slots (source and destination fixed, the amount on KNOB 3);
  *   every engine: FX = the sends (one lane), MIX = level pan voice glide | transpose detune priority glide mode.
  *
- * Motion (Options > Motion; cr_tween: OFF = none): the active lane's bars slide between rows, a new screen or group
- * slides the cells in from the side, the wide band's values tween as a knob turns or the envelope changes, the hot
- * cell (the one just turned) lasts CE_HOT_MS. */
+ * No motion (the user's feedback, 2026-10-06: responsiveness first; Options > Motion does not apply here): a screen,
+ * a lane, a value and the wide band are drawn as they are, in the frame after the detent; only the hot cell (the one
+ * just turned) lasts CE_HOT_MS. cr_draw composes only the strips of what changed (the band, a row).
+ *
+ * Quick modulation mapping (an engine whose eng_deep_t has mod_dst, the VA): ENV or LFO held + a knob turned = the
+ * last ENV n / LFO n shown (ENV 2 / LFO 1 before) modulates the parameter under that knob: its matrix slot (that
+ * source and destination, else the first free one; none: "matrix full") gets the turn on its AMT, the hot cell
+ * showing "LFO1 +24" in the source's colour; OCT- held + a knob = every slot to that parameter cleared. A cell whose
+ * parameter the matrix modulates carries a mark in the source's colour (white: several). */
 
 enum { CE_OSC, CE_FILT, CE_ENV, CE_LFO, CE_MOD, CE_FX, CE_MIX, CE_NSEC };   /* (OSC..MOD: eng_deep_t.section 0..4) */
 static const char *const CE_SEC_NAME[CE_NSEC] = {"OSC", "FILT", "ENV", "LFO", "MOD", "FX", "MIX"};
 static const uint8_t CE_SEC_BTN[CE_NSEC] = {B_FX, B_SCL, B_ENV, B_LFO, B_SEQ, B_PLAY, B_REC};   /* printed ids */
 #define CE_HOT_MS 800u                    /* the cell just turned stays hot */
-#define CE_SLIDE_MS 180u                  /* the bars' and the cells' slides */
-#define CE_BAND_MS 160u                   /* the wide band's tween */
-#define CE_DX 48                          /* px the cells slide in from */
 
 /* a cell's parameter: a deep page's column, a track parameter, a fixed text, a dash (an empty column) */
 enum { CE_R_NONE, CE_R_DEEP, CE_R_TRK, CE_R_TXT, CE_R_DASH };
@@ -68,13 +71,9 @@ static struct {
     uint8_t grp[2], scr[2][CE_NSEC], lane[2][CE_NSEC];   /* per part: the group; per group its screen and lane */
     uint8_t shift;                        /* SHIFT latched (fine steps) */
     uint8_t hot_r, hot_c;                 /* the cell last turned (row + 1, 0 none), its column */
+    uint8_t hot_slot, hot_src;            /* .. by a quick mapping: its matrix page + 1 (0: an edit), the source */
     uint32_t hot_t0;
-    uint32_t key;                         /* what the view shows (part, group, screen): a change slides */
-    uint8_t row;                          /* the active row last drawn */
-    int16_t bar_from, dx_from;            /* the slides' start offsets (px) */
-    uint32_t bar_t0, dx_t0;
-    uint8_t band, wv_from[5], wv_to[5], wv_shown[5];      /* the wide band's tween */
-    uint32_t wv_t0;
+    uint8_t msrc[2][2];                   /* per part: the ENV n / LFO n last shown (0: none yet, ENV 2 / LFO 1) */
 } cx __attribute__((section(".pool")));   /* (zero-initialised: OSC, screen 1, lane 1 for both parts) */
 
 static track_t *ce_trk(void) { return &trk[ce.part ? CR_PART_BASS : CR_PART_CHORD]; }
@@ -271,6 +270,8 @@ static void ce_head(const track_t *t, const eng_deep_t *d, const ce_view_t *v, u
         int32_t val;
         if (r.k != CE_R_DEEP || !(pd = ce_param(t, r, &val)))
             continue;
+        if (cp_eq(d->pages[r.a].col[r.b & 3u].label, "WAVE"))
+            pd = &d->pages[r.a].col[r.b & 3u];   /* (the oscillators' modes: "Wave" over WAVE / MORPH / NOISE) */
         ce_label(t, r, pd, x, sizeof x);
         for (l = str_len(x); l > 1u && x[l - 1u] >= '0' && x[l - 1u] <= '9'; l--)
             x[l - 1u] = 0;
@@ -576,20 +577,47 @@ static void ce_cell(const track_t *t, const ce_view_t *vw, ce_ref_t r, cr_cell_t
         ce_label(t, r, d, c->label, sizeof c->label);
     ce_text(t, r, d, v, c->value, sizeof c->value);
     c->pct = ce_pct(d, v);
-    if (d->fmt == F_ENUM && cp_has(d->label, "WAVE")) {          /* the selected waveform */
+    if (r.k == CE_R_DEEP && cp_eq(cp_deep(t)->pages[r.a].col[r.b & 3u].label, "WAVE") && cp_eq(d->label, "MORPH")) {
+        const eng_deep_t *dd = cp_deep(t);                       /* the VA's MORPH: the morphed wave at its position */
+        int32_t m = d->max > d->min ? (v - d->min) * 127 / (d->max - d->min) : 0, k;
+        if (d->fmt == F_ENUM && r.a + 1u < dd->npages && (k = cp_dcol(&dd->pages[r.a + 1u], "SHAPE")) >= 0)
+            m = dd->get(t, r.a + 1u, (uint32_t)k);              /* (an older table: the position is OSC n+'s SHAPE) */
+        c->glyph = CR_G_MORPH;
+        c->pct = (uint8_t)(clamp(m, 0, 127) * 255 / 127);
+        if (d->fmt == F_INT && d->names && d->max > d->min) {   /* the position's name, whole ("SAW>RMP"; params.c's
+                                                                 * F_INT list: n names over the range) */
+            uint32_t n = 0;
+            while (d->names[n])
+                n++;
+            if (n)
+                cu_cpy(c->value, d->names[(uint32_t)(clamp(v, d->min, d->max) - d->min) * n / (uint32_t)(d->max - d->min + 1)],
+                       sizeof c->value);
+        }
+    } else if (r.k == CE_R_DEEP && cp_eq(cp_deep(t)->pages[r.a].col[r.b & 3u].label, "WAVE")
+               && (cp_eq(d->label, "NOISE") || cp_eq(d->label, "NTYPE"))) {
+        c->glyph = CR_G_NOISE;                                    /* NOISE: WHITE BROWN VINYL */
+        c->pct = (uint8_t)(cp_has(c->value, "BRO") ? 128u : cp_has(c->value, "VIN") ? 255u : 0u);
+    } else if (d->fmt == F_ENUM && cp_has(d->label, "WAVE")) {   /* the selected waveform */
         const char *w = c->value;
         c->pct = 128;
         c->glyph = cp_has(w, "SAW") || cp_has(w, "RMP") ? CR_G_SAW
                  : cp_has(w, "SQ") || cp_has(w, "PUL") || cp_has(w, "PW") ? CR_G_SQUARE
                  : cp_has(w, "NOI") || cp_has(w, "NZ") ? CR_G_DOTS
                  : cp_has(w, "S&H") || cp_has(w, "RND") || cp_has(w, "STEP") ? CR_G_STEPS
+                 : cp_has(w, "TRI") ? CR_G_MORPH          /* (the triangle: the morph glyph at 24) */
                  : CR_G_WAVE;
+        if (c->glyph == CR_G_MORPH)
+            c->pct = 24 * 255 / 127;
         if (cp_has(w, "PW") && r.k == CE_R_DEEP) {               /* PWM: the width is the oscillator's SHAPE */
             const eng_deep_t *dd = cp_deep(t);
             int32_t k = r.a + 1u < dd->npages ? cp_dcol(&dd->pages[r.a + 1u], "SHAPE") : -1;
             if (k >= 0)
                 c->pct = ce_pct(&dd->pages[r.a + 1u].col[k], dd->get(t, r.a + 1u, (uint32_t)k));
         }
+    } else if (cp_eq(d->label, "FTYPE")) {                      /* the filter's position: its name, a cycle of dots */
+        c->glyph = CR_G_DOTS;
+        c->flags |= CR_CF_PCT;
+        cu_cpy(c->value, cr_ftype_name((uint32_t)v), sizeof c->value);
     } else if (d->fmt == F_ENUM && cp_eq(d->label, "TYPE")) {
         c->glyph = CR_G_DOTS;
         c->flags |= CR_CF_PCT;
@@ -607,8 +635,28 @@ static void ce_cell(const track_t *t, const ce_view_t *vw, ce_ref_t r, cr_cell_t
 }
 
 /* ------------------------------------------------------------- the state --- */
+/* the ENV n / LFO n the current group shows (its lane's instance), remembered for the quick mapping */
+static void ce_msrc_note(void)
+{
+    track_t *t = ce_trk();
+    const eng_deep_t *d = ce_deep(t);
+    uint32_t p = ce.part & 1u, g = cx.grp[p] % CE_NSEC, n = 0, ln = cx.lane[p][g];
+    ce_scr_t sc;
+    if (!d || (g != CE_ENV && g != CE_LFO))
+        return;
+    ce_scr(t, g, cx.scr[p][g], &sc);
+    if (sc.type == CE_S_EDIT || sc.type == CE_S_PAGE)
+        n = ce_inst(d->pages[sc.pg[0]].title);
+    else if (sc.type == CE_S_STACK)
+        n = ce_inst(d->pages[sc.pg[ln < sc.n ? ln : 0u]].title);
+    else if (sc.type == CE_S_TRANS)
+        n = ln + 1u;
+    if (n >= 1u && n <= 9u)
+        cx.msrc[p][g == CE_LFO] = (uint8_t)n;
+}
 static void ce_trace_nav(void)
 {
+    ce_msrc_note();
     uint32_t p = ce.part & 1u, g = cx.grp[p] % CE_NSEC;
     cu_trace("edit: group %s screen %u lane %u part %u\n", CE_SEC_NAME[g], (unsigned)cx.scr[p][g] + 1u,
              (unsigned)cx.lane[p][g] + 1u, (unsigned)p);
@@ -625,8 +673,6 @@ static void ce_open(uint32_t part)
     cu.page = PG_EDIT;
     cx.hot_r = 0;
     cx.shift = 0;
-    cx.key = 0xFFFFFFFFu;                         /* (the cells slide in) */
-    cx.band = 0;
     ce_fix(ce_trk(), ce.part, &sc);
     cu_trace("edit: open part %u\n", (unsigned)ce.part);
     ce_trace_nav();
@@ -746,6 +792,177 @@ static void ce_select(int32_t s)
     ce_trace_nav();
 }
 
+/* ------------------------------------------------- the quick mapping --- */
+/* the matrix: the MOD section's pages with SRC DST AMT columns (eng_deep_t; their values are the engine's numbers) */
+typedef struct { uint8_t pg; int8_t cs, cd, ca; } ce_slot_t;
+static int ce_slot(const eng_deep_t *d, uint32_t pg, ce_slot_t *o)
+{
+    o->pg = (uint8_t)pg;
+    o->cs = (int8_t)cp_dcol(&d->pages[pg], "SRC");
+    o->cd = (int8_t)cp_dcol(&d->pages[pg], "DST");
+    o->ca = (int8_t)cp_dcol(&d->pages[pg], "AMT");
+    return o->cs >= 0 && o->cd >= 0 && o->ca >= 0;
+}
+/* the matrix's destination of a cell's parameter, -1 none */
+static int32_t ce_dst(const track_t *t, ce_ref_t r)
+{
+    const eng_deep_t *d = ce_deep(t);
+    if (!d || !d->mod_dst)
+        return -1;
+    if (r.k == CE_R_DEEP)
+        return d->mod_dst(t, r.a, r.b & 3u);
+    return r.k == CE_R_TRK ? d->mod_dst(t, ENG_MOD_TRK, r.a) : -1;
+}
+/* a source's name in the SRC column ("ENV2", "LFO1"), its value, -1 none */
+static int32_t ce_src_of(const eng_deep_t *d, const ce_slot_t *sl, const char *name)
+{
+    const param_desc_t *c = &d->pages[sl->pg].col[(uint32_t)sl->cs];
+    int32_t v;
+    for (v = c->min; c->names && v <= c->max; v++)
+        if (c->names[v] && cp_eq(c->names[v], name))
+            return v;
+    return -1;
+}
+static const char *ce_name_of(const eng_deep_t *d, uint32_t pg, uint32_t col, int32_t v)
+{
+    const param_desc_t *c = &d->pages[pg].col[col & 3u];
+    return c->names && v >= c->min && v <= c->max && c->names[v] ? c->names[v] : "?";
+}
+/* a destination's name ("CUT") */
+static const char *ce_dst_name(const eng_deep_t *d, int32_t dst)
+{
+    uint32_t a, b, pg;
+    ce_slot_t sl;
+    ce_range(d, CE_MOD, &a, &b);
+    for (pg = a; pg < b; pg++)
+        if (ce_slot(d, pg, &sl))
+            return ce_name_of(d, pg, (uint32_t)sl.cd, dst);
+    return "?";
+}
+/* a source's colour (its name: ENV yellow, LFO red, the player's VEL KEY RAND MODW blue) */
+static uint32_t ce_src_col(const char *n)
+{
+    return cp_has(n, "ENV") ? CR_COL_YELLOW : cp_has(n, "LFO") ? CR_COL_RED : CR_COL_BLUE;
+}
+/* "ENV2 -> CUT +12 slot 1" (the trace, the hot cell's "ENV2 +12") */
+static void ce_amt_text(char *o, const char *src, int32_t v, uint32_t n)
+{
+    char b[8];
+    cu_cpy(o, src, n);
+    cu_cat(o, " ", n);
+    cu_int(b, v, 1, sizeof b);
+    cu_cat(o, b, n);
+}
+
+/* ENV (env 1) or LFO (env 0) held + KNOB k turned s: the last ENV n / LFO n shown modulates the parameter under k */
+static void ce_map(uint32_t knob, int32_t s, uint32_t fine, uint32_t env)
+{
+    track_t *t = ce_trk();
+    const eng_deep_t *d = ce_deep(t);
+    uint32_t p = ce.part & 1u, a, b, pg, n;
+    int32_t dst, src = -1, amt0, amt;
+    ce_view_t vw;
+    ce_slot_t sl, use;
+    char nm[8], tx[12];
+    ce_view(t, p, &vw);
+    dst = ce_dst(t, vw.ref[vw.active][knob & 3u]);
+    use.pg = 0xFF;
+    if (dst <= 0 || !d) {
+        cu_message("not modulatable", CR_COL_WHITE);
+        cu_trace("mod: not modulatable\n");
+        return;
+    }
+    n = cx.msrc[p][!env] ? cx.msrc[p][!env] : env ? 2u : 1u;
+    cu_cpy(nm, env ? "ENV" : "LFO", sizeof nm);
+    ce_cat_num(nm, n, sizeof nm);
+    ce_range(d, CE_MOD, &a, &b);
+    for (pg = a; pg < b; pg++) {                  /* that source to that destination, else the first free slot */
+        if (!ce_slot(d, pg, &sl))
+            continue;
+        if (src < 0)
+            src = ce_src_of(d, &sl, nm);
+        if (d->get(t, pg, (uint32_t)sl.cd) == dst && d->get(t, pg, (uint32_t)sl.cs) == src) {
+            use = sl;
+            break;
+        }
+        if (use.pg == 0xFF && (!d->get(t, pg, (uint32_t)sl.cs) || !d->get(t, pg, (uint32_t)sl.cd)))
+            use = sl;
+    }
+    if (src <= 0) {
+        cu_message("not modulatable", CR_COL_WHITE);
+        cu_trace("mod: not modulatable\n");
+        return;
+    }
+    if (use.pg == 0xFF) {
+        cu_message("matrix full", CR_COL_RED);
+        cu_trace("mod: %s -> %s matrix full\n", nm, ce_dst_name(d, dst));
+        return;
+    }
+    if (d->get(t, use.pg, (uint32_t)use.cs) != src || d->get(t, use.pg, (uint32_t)use.cd) != dst) {   /* a free slot */
+        d->set(t, use.pg, (uint32_t)use.ca, 0);
+        d->set(t, use.pg, (uint32_t)use.cs, src);
+        d->set(t, use.pg, (uint32_t)use.cd, dst);
+    }
+    amt0 = d->get(t, use.pg, (uint32_t)use.ca);
+    amt = cp_dstep(&d->pages[use.pg].col[(uint32_t)use.ca], amt0, s, fine || cx.shift);
+    if (amt != amt0)
+        d->set(t, use.pg, (uint32_t)use.ca, amt);
+    amt = d->get(t, use.pg, (uint32_t)use.ca);
+    cu_edited(ce.part);
+    cx.hot_r = (uint8_t)(vw.active + 1u);
+    cx.hot_c = (uint8_t)(knob & 3u);
+    cx.hot_t0 = cu_now();
+    cx.hot_slot = (uint8_t)(use.pg + 1u);
+    cx.hot_src = (uint8_t)src;
+    ce_amt_text(tx, nm, amt, sizeof tx);
+    cu_trace("mod: %s -> %s %s slot %u\n", nm, ce_name_of(d, use.pg, (uint32_t)use.cd, dst), tx + str_len(nm) + 1u,
+             (unsigned)(use.pg - a + 1u));
+    (void)tx;
+}
+
+/* OCT- held + KNOB k turned: every matrix slot to the parameter under k cleared */
+static void ce_unmap(uint32_t knob)
+{
+    track_t *t = ce_trk();
+    const eng_deep_t *d = ce_deep(t);
+    uint32_t a, b, pg, n = 0;
+    int32_t dst;
+    ce_view_t vw;
+    ce_slot_t sl;
+    ce_view(t, ce.part & 1u, &vw);
+    dst = ce_dst(t, vw.ref[vw.active][knob & 3u]);
+    if (dst <= 0 || !d) {
+        cu_message("not modulatable", CR_COL_WHITE);
+        cu_trace("mod: not modulatable\n");
+        return;
+    }
+    ce_range(d, CE_MOD, &a, &b);
+    for (pg = a; pg < b; pg++)
+        if (ce_slot(d, pg, &sl) && d->get(t, pg, (uint32_t)sl.cd) == dst) {
+            d->set(t, pg, (uint32_t)sl.ca, 0);
+            d->set(t, pg, (uint32_t)sl.cs, 0);
+            d->set(t, pg, (uint32_t)sl.cd, 0);
+            n++;
+        }
+    if (n)
+        cu_edited(ce.part);
+    cx.hot_r = 0;
+    cu_message(n ? "cleared" : "no modulation", CR_COL_WHITE);
+    cu_trace("mod: clear %s, %u slots\n", ce_dst_name(d, dst), (unsigned)n);
+}
+
+/* the editor's modifiers on the knobs: ENV / LFO held (the quick mapping), OCT- held (clear); 0 none */
+static uint32_t ce_kmod(void)
+{
+    if ((cu.bheld >> B_OCTDN) & 1u)
+        return 3u;
+    if (cu.armed == B_ENV && ((cu.bheld >> B_ENV) & 1u))
+        return 1u;
+    if (cu.armed == B_LFO && ((cu.bheld >> B_LFO) & 1u))
+        return 2u;
+    return 0;
+}
+
 /* KNOB 1..4 on the active lane's cell (fine: SHIFT latched or held, one step) */
 static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
 {
@@ -754,13 +971,23 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
     ce_ref_t r;
     const param_desc_t *d;
     int32_t v0 = 0, v;
-    uint32_t i;
+    uint32_t i, m = ce_kmod();
     char b[12];
+    if (m == 3u) {                                 /* OCT- held: clear the parameter's modulation */
+        cu.oct_mod = 1;                            /* (its release: no octave step) */
+        ce_unmap(knob);
+        return;
+    }
+    if (m) {                                       /* ENV / LFO held: map */
+        ce_map(knob, s, fine, m == 1u);
+        return;
+    }
     ce_view(t, ce.part & 1u, &vw);
     r = vw.ref[vw.active][knob & 3u];
     if (!(d = ce_param(t, r, &v0)))
         return;
     v = cp_dstep(d, v0, s, fine || cx.shift);
+    cx.hot_slot = 0;
     cx.hot_r = (uint8_t)(vw.active + 1u);
     cx.hot_c = (uint8_t)(knob & 3u);
     cx.hot_t0 = cu_now();
@@ -833,13 +1060,26 @@ static void ce_band(const track_t *t, const ce_view_t *vw, uint8_t *o)
         for (i = 0; i < 5u; i++)
             if (ID[i] != 0xFFu)
                 o[i] = ce_pct(cp_desc(t, ID[i]), t->p[ID[i]]);
-    } else if (vw->wide == CR_W_FILTER && d) {
-        static const char *const FL[4] = {"CUT", "RES", "TYPE", "DRIVE"};
-        for (i = 0; i < 4u; i++)
-            if ((k = cp_dcol(&d->pages[vw->dp0], FL[i])) >= 0) {
-                int32_t v = d->get(t, vw->dp0, (uint32_t)k);
-                o[i] = i == 2u ? (uint8_t)clamp(v, 0, 3) : ce_pct(&d->pages[vw->dp0].col[k], v);
-            }
+    } else if (vw->wide == CR_W_FILTER && d) {               /* cut res ftype drive, from the FILTER section's pages */
+        static const char *const FL[6] = {"CUT", "RES", "FTYPE", "DRIVE", "TYPE", "MORPH"};
+        int32_t typ = -1, mor = 0;
+        uint32_t a, b;
+        ce_range(d, CE_FILT, &a, &b);
+        for (pg = (int32_t)a; pg < (int32_t)b; pg++)
+            for (i = 0; i < 6u; i++)
+                if ((k = cp_dcol(&d->pages[pg], FL[i])) >= 0) {
+                    int32_t v = d->get(t, (uint32_t)pg, (uint32_t)k);
+                    if (i == 2u)
+                        o[2] = (uint8_t)(v & 127);
+                    else if (i == 4u)
+                        typ = clamp(v, 0, 3);
+                    else if (i == 5u)
+                        mor = v;
+                    else
+                        o[i] = ce_pct(&d->pages[pg].col[k], v);
+                }
+        if (typ >= 0)                                         /* (an older table: TYPE, MORPH on from it) */
+            o[2] = (uint8_t)((typ * 32 + mor) & 127);
     }
 }
 /* the envelope segment (1 A, 2 H, 3 D, 4 S, 5 R; 0 none) of the cell just turned */
@@ -858,13 +1098,44 @@ static uint32_t ce_seg(const track_t *t, ce_ref_t r)
     return 0;
 }
 
+/* the battery as Felucca's header showed it (ui_draw.c batt_shown): 4 on USB power, else 0..3 by the smoothed ADC
+ * (thresholds 531 / 561 / 591) */
+static uint32_t ce_batt(void)
+{
+    if (usb.config && !usb.suspended)
+        return 4u;
+    return song.batt_raw >= 591 ? 3u : song.batt_raw >= 561 ? 2u : song.batt_raw >= 531 ? 1u : 0u;
+}
+
+/* the matrix's marks: per destination the colour of its source (white: several), 0 none */
+#define CE_NDST 48u
+static void ce_marks(const track_t *t, uint8_t *mc)
+{
+    const eng_deep_t *d = ce_deep(t);
+    uint32_t a, b, pg, i;
+    uint8_t seen[CE_NDST];
+    ce_slot_t sl;
+    for (i = 0; i < CE_NDST; i++)
+        mc[i] = seen[i] = 0;
+    if (!d || !d->mod_dst)
+        return;
+    ce_range(d, CE_MOD, &a, &b);
+    for (pg = a; pg < b; pg++) {
+        int32_t sr, ds;
+        if (!ce_slot(d, pg, &sl) || !(sr = d->get(t, pg, (uint32_t)sl.cs)) || (ds = d->get(t, pg, (uint32_t)sl.cd)) <= 0 ||
+            ds >= (int32_t)CE_NDST || !d->get(t, pg, (uint32_t)sl.ca))
+            continue;
+        mc[ds] = (uint8_t)(seen[ds] && seen[ds] != sr ? CR_COL_WHITE : ce_src_col(ce_name_of(d, pg, (uint32_t)sl.cs, sr)));
+        seen[ds] = (uint8_t)sr;
+    }
+}
+
 static void ce_screen(cr_screen_t *s, uint32_t now)
 {
     track_t *t = ce_trk();
-    uint32_t p = ce.part & 1u, r, c, key, n, g;
+    uint32_t p = ce.part & 1u, r, c, g;
     ce_view_t vw;
-    uint8_t band[5];
-    int32_t pitch;
+    uint8_t band[5], mc[CE_NDST];
     ce_view(t, p, &vw);
     g = cx.grp[p] % CE_NSEC;
     s->kind = vw.kind;
@@ -878,17 +1149,24 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     s->title_col = p ? CR_COL_ORANGE : CR_COL_NONE;
     cu_cpy(s->page, vw.right, sizeof s->page);
     s->fine = (uint8_t)(cx.shift || cu_shift());
+    if (g == CE_MIX)                              /* the "global menu": the battery at the title line's right end */
+        s->batt = (uint8_t)ce_batt();
     s->n_rows = vw.n;
     s->active = vw.active;
     s->wide = vw.wide;
     s->tall = vw.tall;
     for (c = 0; c < 4u; c++)
         cu_cpy(s->head[c], vw.head[c], sizeof s->head[c]);
+    ce_marks(t, mc);
     for (r = 0; r < vw.n; r++) {
         if (vw.kind == CR_K_STACK)
             ce_cat_num(s->rlabel[r], vw.row0 + r + 1u, sizeof s->rlabel[r]);
-        for (c = 0; c < 4u; c++)
+        for (c = 0; c < 4u; c++) {
+            int32_t ds;
             ce_cell(t, &vw, vw.ref[r][c], &s->cell[r][c]);
+            if ((s->cell[r][c].flags & CR_CF_ON) && (ds = ce_dst(t, vw.ref[r][c])) > 0 && ds < (int32_t)CE_NDST && mc[ds])
+                s->cell[r][c].flags |= CR_CF_MARK(mc[ds]);
+        }
     }
     if (vw.tall)                                  /* the mixer: "OSC n" over each level's bar */
         for (c = 0; c < 4u; c++)
@@ -901,61 +1179,22 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     if (cx.hot_r && now - cx.hot_t0 < CE_HOT_MS && cx.hot_r == vw.active + 1u) {
         s->hot_r = cx.hot_r;
         s->hot_c = cx.hot_c;
-    }
-    /* motion: a new view (part, group, screen) slides in; the active lane's bars slide from the lane before */
-    key = p | g << 1 | (uint32_t)cx.scr[p][g] << 4 | (uint32_t)vw.kind << 12;
-    n = vw.n ? vw.n : 1u;
-    pitch = vw.kind == CR_K_STACK ? 198 / (int32_t)n : vw.wide ? 60 : 104;
-    if (key != cx.key) {
-        uint32_t was = cx.key >> 1 & 0x7FFu, is = key >> 1 & 0x7FFu;   /* (group, screen): forward slides from the right */
-        int32_t dir = cx.key == 0xFFFFFFFFu || (cx.key & 1u) != p || (was & 7u) < g || ((was & 7u) == g && was <= is) ? 1 : -1;
-        cx.dx_from = (int16_t)(dir * CE_DX);
-        cx.dx_t0 = now;
-        cx.bar_from = 0;
-        cx.key = key;
-        cx.row = vw.active;
-        if (cx.band != vw.wide)
-            cx.band = 0;                          /* (another band: no tween from the old one) */
-    } else if (cx.row != vw.active) {
-        int32_t from = ((int32_t)cx.row - (int32_t)vw.active) * pitch;
-        cx.bar_from = (int16_t)(cr_tween(cx.bar_from, 0, cx.bar_t0, CE_SLIDE_MS, now) + from);
-        cx.bar_t0 = now;
-        cx.row = vw.active;
-    }
-    s->ed_dx = (int16_t)cr_tween(cx.dx_from, 0, cx.dx_t0, CE_SLIDE_MS, now);
-    s->bar_dy = (int16_t)cr_tween(cx.bar_from, 0, cx.bar_t0, CE_SLIDE_MS, now);
-    if (vw.wide) {                                /* the band: tweened to its new values */
-        ce_band(t, &vw, band);
-        if (!cx.band) {
-            for (c = 0; c < 5u; c++)
-                cx.wv_from[c] = cx.wv_to[c] = cx.wv_shown[c] = band[c];
-            cx.band = vw.wide;
-        }
-        for (c = 0; c < 5u; c++)
-            if (band[c] != cx.wv_to[c])
-                break;
-        if (c < 5u) {
-            for (c = 0; c < 5u; c++) {
-                cx.wv_from[c] = cx.wv_shown[c];
-                cx.wv_to[c] = band[c];
+        if (cx.hot_slot) {                        /* a quick mapping: "LFO1 +24" in the source's colour */
+            const eng_deep_t *d = ce_deep(t);
+            ce_slot_t sl;
+            cr_cell_t *hc = &s->cell[(cx.hot_r - 1u) % CR_ED_ROWS][cx.hot_c & 3u];
+            if (d && cx.hot_slot - 1u < d->npages && ce_slot(d, cx.hot_slot - 1u, &sl)) {
+                const char *nm = ce_name_of(d, sl.pg, (uint32_t)sl.cs, cx.hot_src);
+                ce_amt_text(hc->value, nm, d->get(t, sl.pg, (uint32_t)sl.ca), sizeof hc->value);
+                s->hot_col = (uint8_t)ce_src_col(nm);
             }
-            cx.wv_t0 = now;
         }
-        for (c = 0; c < 5u; c++) {
-            int32_t x = vw.wide == CR_W_FILTER && c == 2u ? cx.wv_to[c]
-                      : cr_tween(cx.wv_from[c], cx.wv_to[c], cx.wv_t0, CE_BAND_MS, now);
-            cx.wv_shown[c] = (uint8_t)x;
-        }
-        if (vw.wide == CR_W_ENV) {
-            for (c = 0; c < 5u; c++)
-                s->wv[c] = cx.wv_shown[c];
-            if (s->hot_r)
-                s->wv[5] = (uint8_t)ce_seg(t, vw.ref[(s->hot_r - 1u) % CR_ED_ROWS][s->hot_c & 3u]);
-        } else {
-            for (c = 0; c < 4u; c++)
-                s->wv[c] = cx.wv_shown[c];
-        }
-    } else {
-        cx.band = 0;
+    }
+    if (vw.wide) {                                /* the band: its values as they are (no tween: the knob leads) */
+        ce_band(t, &vw, band);
+        for (c = 0; c < (vw.wide == CR_W_ENV ? 5u : 4u); c++)
+            s->wv[c] = band[c];
+        if (vw.wide == CR_W_ENV && s->hot_r)
+            s->wv[5] = (uint8_t)ce_seg(t, vw.ref[(s->hot_r - 1u) % CR_ED_ROWS][s->hot_c & 3u]);
     }
 }

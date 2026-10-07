@@ -1,0 +1,72 @@
+# ChoralRoot: the editor's responsiveness (docs/EDITOR.md "Responsiveness"). LUSH PAD (the VA), EDIT, FILT (SEL):
+# KNOB 1 (the cutoff) turned 20 detents in 1 s (one every 50 ms), then the OSC stack's KNOB 2 (a level) 10 detents.
+# Run with EMU_UI_LOG=0 for every frame's cost and the band's values (tools/emu/test_cr.sh: the lag in frames).
+wait 300
+knob PRESETS +24
+wait 1500
+btn EDIT
+wait 400
+btn SEL
+wait 400
+knob KNOB1 +1
+wait 50
+knob KNOB1 +1
+wait 50
+knob KNOB1 +1
+wait 50
+knob KNOB1 +1
+wait 50
+knob KNOB1 +1
+wait 50
+knob KNOB1 +1
+wait 50
+knob KNOB1 +1
+wait 50
+knob KNOB1 +1
+wait 50
+knob KNOB1 +1
+wait 50
+knob KNOB1 +1
+wait 50
+knob KNOB1 -1
+wait 50
+knob KNOB1 -1
+wait 50
+knob KNOB1 -1
+wait 50
+knob KNOB1 -1
+wait 50
+knob KNOB1 -1
+wait 50
+knob KNOB1 -1
+wait 50
+knob KNOB1 -1
+wait 50
+knob KNOB1 -1
+wait 50
+knob KNOB1 -1
+wait 50
+knob KNOB1 -1
+wait 400
+btn FX
+wait 400
+knob KNOB2 -1
+wait 50
+knob KNOB2 -1
+wait 50
+knob KNOB2 -1
+wait 50
+knob KNOB2 -1
+wait 50
+knob KNOB2 -1
+wait 50
+knob KNOB2 +1
+wait 50
+knob KNOB2 +1
+wait 50
+knob KNOB2 +1
+wait 50
+knob KNOB2 +1
+wait 50
+knob KNOB2 +1
+wait 400

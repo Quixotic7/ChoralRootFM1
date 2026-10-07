@@ -9,8 +9,10 @@
  * end; the LFO SYNC divisions; 1 s of a 6-note chord on every preset: no int32 wrap, peak < 0.9 FS at the chord
  * part's default level. Version 2: a version-1 blob and a version-1 store (va_store.c va_store_v1) import with every
  * old value; MORPH at each shape's position against the BASIC wave and its continuity; the noise types' spectra;
- * FILTER MORPH at its segment ends = the discrete types; SPREAD 0 (render2) = the mono render bit for bit; the
- * mode-dependent columns (desc) and set()'s NOISE rules. */
+ * FTYPE at 0 32 64 96 = the discrete types; SPREAD 0 (render2) = the mono render bit for bit; the mode-dependent
+ * columns (desc: OSC n's WAVE column follows MODE, an alias of SHAPE in MORPH) and set()'s NOISE rules. Version 3:
+ * FTYPE (TYPE and MORPH in one value): a version-2 blob and store import as FTYPE = TYPE x 32 + MORPH; the page
+ * layout (FILTER: CUT RES FTYPE FENV, FILTER+: KTRK - SPREAD DRIVE). */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +35,17 @@ typedef struct { uint8_t used, ver, engine, np; } up_rec_t;
 static struct { up_rec_t r[UP_PER_BANK]; } up_bank[UP_SLOTS / UP_PER_BANK];
 static int16_t up_value(const up_rec_t *r, uint32_t i) { (void)r; (void)i; return 0; }
 #include "../firmware/src/va_store.c"
+static const char *const N_VA_FTYPE[] = {"LP", "BP", "HP", "NOTCH"};
+/* version 2's morph position names (eng_va.c va_morph_name, before the 128-name list): the reference */
+static const char *const OLD_MPV[11] = {"SIN", "SIN>TRI", "TRI", "TRI>SAW", "SAW", "SAW>RMP", "RAMP", "RMP>SQR", "SQR",
+                                        "SQR>PLS", "PULSE"};
+static uint32_t old_morph_name(int32_t sh)
+{
+    int32_t seg = sh / 24, f = sh % 24;
+    if (sh >= 96)
+        return sh < 100 ? 8u : sh < 124 ? 9u : 10u;
+    return (uint32_t)(f < 4 ? 2 * seg : f > 20 ? 2 * seg + 2 : 2 * seg + 1);
+}
 
 static int fails, checks;
 #define CHECK(c, ...)                                   \
@@ -171,11 +184,30 @@ static void t_pages(void)
     CHECK(VA_DEEP.npages == 32u, "pages %u", VA_DEEP.npages);
     CHECK(VA_DEEP.section[0] == 0 && VA_DEEP.section[1] == 8 && VA_DEEP.section[2] == 10 && VA_DEEP.section[3] == 18 &&
               VA_DEEP.section[4] == 24 && VA_DEEP.section[5] == 0xFF, "sections");
-    for (pg = 0; pg < 4u; pg++)                   /* OSC n+: MODE first; FILTER+: MORPH, SPREAD; VOICE: USPREAD */
+    for (pg = 0; pg < 4u; pg++)                   /* OSC n+: MODE first; VOICE: USPREAD */
         CHECK(VA_MAP[2 * pg + 1][0] == VA_OMODE0 + pg && VA_MAP[2 * pg + 1][1] == VA_OSC(pg, VO_SHAPE) &&
                   VA_MAP[2 * pg + 1][2] == VA_OSC(pg, VO_KTRK), "OSC %u+ columns", pg + 1);
     CHECK(VA_MAP[3][3] == VA_SYNC2 && VA_MAP[7][3] == VA_RING4, "SYNC / RING columns");
-    CHECK(VA_MAP[9][2] == VA_FMORPH && VA_MAP[9][3] == VA_FSPREAD && !strcmp(VA_PAGES[9].title, "FILTER+"), "FILTER+");
+    /* FILTER: CUT RES FTYPE FENV; FILTER+: KTRK, an empty column, SPREAD, DRIVE */
+    CHECK(VA_MAP[8][0] == VA_CUT && VA_MAP[8][1] == VA_RES && VA_MAP[8][2] == VA_FTYPE && VA_MAP[8][3] == VA_FENV &&
+              !strcmp(VA_PAGES[8].title, "FILTER"), "FILTER");
+    CHECK(!strcmp(VA_PAGES[8].col[0].label, "CUT") && !strcmp(VA_PAGES[8].col[1].label, "RES") &&
+              !strcmp(VA_PAGES[8].col[2].label, "FTYPE") && !strcmp(VA_PAGES[8].col[3].label, "FENV"), "FILTER labels");
+    CHECK(VA_MAP[9][0] == VA_FKTRK && VA_MAP[9][1] == VA_X && VA_MAP[9][2] == VA_FSPREAD && VA_MAP[9][3] == VA_DRIVE &&
+              !strcmp(VA_PAGES[9].title, "FILTER+"), "FILTER+");
+    CHECK(!strcmp(VA_PAGES[9].col[0].label, "KTRK") && !VA_PAGES[9].col[1].label &&
+              !strcmp(VA_PAGES[9].col[2].label, "SPREAD") && !strcmp(VA_PAGES[9].col[3].label, "DRIVE"), "FILTER+ labels");
+    {   /* FTYPE: F_INT 0..127, a name per value (params.c's F_INT name list) */
+        const param_desc_t *d = &VA_PAGES[8].col[2];
+        uint32_t v;
+        for (v = 0; v < 128u && d->names[v]; v++)
+            ;
+        CHECK(d->fmt == F_INT && d->min == 0 && d->max == 127 && d->def == 0 && v == 128u && !d->names[128], "FTYPE desc");
+        CHECK(!strcmp(d->names[0], "LP") && !strcmp(d->names[32], "BP") && !strcmp(d->names[64], "HP") &&
+                  !strcmp(d->names[96], "NOTCH") && !strcmp(d->names[1], "LP>BP") && !strcmp(d->names[63], "BP>HP") &&
+                  !strcmp(d->names[80], "HP>NT") && !strcmp(d->names[127], "NT>LP"), "FTYPE names");
+        CHECK(!strcmp(N_VA_DST[VD_FTYPE], "FTYPE"), "the matrix's FTYPE");
+    }
     CHECK(VA_MAP[23][0] == VA_USPREAD && !strcmp(VA_PAGES[23].title, "VOICE") && !strcmp(VA_PAGES[24].title, "MOD 1"),
           "VOICE page");
     for (pg = 0; pg < VA_NPAGES; pg++) {
@@ -195,7 +227,8 @@ static void t_pages(void)
         }
     }
     for (i = 0; i < VA_NP; i++)
-        CHECK(used[i] == (i == VA_OMIX || i == VA_DETUNE ? 0u : 1u), "patch value %u on %u page columns", i, used[i]);
+        CHECK(used[i] == (i == VA_OMIX || i == VA_DETUNE || i == VA_FRSV ? 0u : 1u), "patch value %u on %u page columns",
+              i, used[i]);
 }
 
 static void t_set_macros(void)
@@ -205,10 +238,17 @@ static void t_set_macros(void)
     va_init_patch(init);
     memset(t, 0, sizeof *t);
     va_blob_set(t, 0);
-    va_set(t, 8, 1, 500);                         /* FILTER CUT: clamped */
-    CHECK(va_get(t, 8, 1) == 127 && t->p[P_E0] == 127, "set CUT 500: %d, P_E0 %d", va_get(t, 8, 1), t->p[P_E0]);
-    va_set(t, 9, 1, -300);                        /* FENV */
-    CHECK(va_get(t, 9, 1) == -64 && t->p[P_E2] == -64, "set FENV -300: %d", va_get(t, 9, 1));
+    va_set(t, 8, 0, 500);                         /* FILTER CUT: clamped */
+    CHECK(va_get(t, 8, 0) == 127 && t->p[P_E0] == 127, "set CUT 500: %d, P_E0 %d", va_get(t, 8, 0), t->p[P_E0]);
+    va_set(t, 8, 3, -300);                        /* FENV */
+    CHECK(va_get(t, 8, 3) == -64 && t->p[P_E2] == -64, "set FENV -300: %d", va_get(t, 8, 3));
+    va_set(t, 9, 3, 90);                          /* FILTER+ DRIVE */
+    CHECK(va_get(t, 9, 3) == 90 && t->p[P_E3] == 90, "set DRIVE 90: %d, P_E3 %d", va_get(t, 9, 3), t->p[P_E3]);
+    va_set(t, 8, 2, 200);                         /* FTYPE: clamped */
+    CHECK(va_get(t, 8, 2) == 127 && va_patch[0][VA_FTYPE] == 127, "set FTYPE 200: %d", va_get(t, 8, 2));
+    va_set(t, 8, 2, 0);
+    va_set(t, 9, 1, 5);                           /* FILTER+'s empty column */
+    CHECK(va_get(t, 9, 1) == 0 && va_patch[0][VA_FRSV] == 0, "FILTER+ empty column");
     va_set(t, 0, 0, 9);                           /* OSC 1 WAVE */
     CHECK(va_get(t, 0, 0) == VW_N - 1, "set WAVE 9: %d", va_get(t, 0, 0));
     va_set(t, 24, 2, 100);                        /* MOD 1 AMT */
@@ -222,7 +262,7 @@ static void t_set_macros(void)
     va_block(t);
     CHECK(va_patch[0][VA_RES] == 77 && va_patch[0][VA_ENV(0, VE_ATK)] == 12, "macros -> patch: RES %d ATK %d",
           va_patch[0][VA_RES], va_patch[0][VA_ENV(0, VE_ATK)]);
-    va_set(t, 8, 2, 20);                          /* the deep page writes the macro back: va_block sees no change */
+    va_set(t, 8, 1, 20);                          /* the deep page writes the macro back: va_block sees no change */
     va_block(t);
     CHECK(t->p[P_E1] == 20 && va_patch[0][VA_RES] == 20, "RES set: P_E1 %d patch %d", t->p[P_E1], va_patch[0][VA_RES]);
     /* va_track_loaded: a preset's macros -> its patch; INIT's -> init; anything else: init + the macros */
@@ -417,7 +457,7 @@ static void t_render(void)
                         p[VA_OSC(s, VO_COARSE)] = (int8_t)(sgn ? 24 : -24);
                     }
                     p[VA_SYNC2] = p[VA_RING4] = 1;
-                    p[VA_FTYPE] = (int8_t)f;
+                    p[VA_FTYPE] = (int8_t)(32u * f);
                     p[VA_RES] = 127;
                     p[VA_DRIVE] = 127;
                     p[VA_FENV] = (int8_t)(sgn ? 63 : -64);
@@ -445,7 +485,9 @@ static void rnd_v1(int8_t *p, uint8_t *b)       /* a random version-1 patch and 
         va_rng_t r = va_range(i);
         int32_t mx = r.max;
         if (i >= VA_MOD0 && i < VA_OMIX && (i - VA_MOD0) % VM_N == VM_DST)
-            mx = VD_FMORPH - 1;                  /* (version 1's destinations) */
+            mx = VD_FTYPE - 1;                   /* (version 1's destinations) */
+        if (i == VA_FTYPE)
+            mx = 3;                              /* (version 1's TYPE) */
         p[i] = (int8_t)(r.min + (int32_t)(rnd() % (uint32_t)(mx - r.min + 1)));
         b[2 + i] = (uint8_t)(p[i] - r.min);
     }
@@ -462,6 +504,8 @@ static void t_v1(void)
         for (i = VA_BLOB1; i < VA_BLOB; i++)
             b1[i] = (uint8_t)rnd();              /* (past a version-1 blob: never read) */
         CHECK(va_blob_ok(b1) && va_unpack(b1, q) == 1, "v1 blob %u not taken", n);
+        CHECK(q[VA_FTYPE] == 32 * p[VA_FTYPE], "v1 blob %u: TYPE %d -> FTYPE %d", n, p[VA_FTYPE], q[VA_FTYPE]);
+        p[VA_FTYPE] = q[VA_FTYPE];
         CHECK(!memcmp(p, q, VA_NP1), "v1 blob %u: an old value changed", n);
         CHECK(!memcmp(q + VA_NP1, init + VA_NP1, VA_NP - VA_NP1), "v1 blob %u: the new values are not the init", n);
         va_pack(q, b2);
@@ -489,13 +533,14 @@ static void t_v1(void)
             va_store.used |= 1u << k;
         }
         CHECK(va_store_v1((int)(16u + UP_SLOTS * VA_BLOB1)) == 1, "store v1: not converted");
-        CHECK(va_store.ver == 2u && va_store.blob == VA_BLOB && va_store_valid(&va_store), "store v1 -> v2: not valid");
+        CHECK(va_store.ver == 3u && va_store.blob == VA_BLOB && va_store_valid(&va_store), "store v1 -> v3: not valid");
         for (k = 0; k < UP_SLOTS; k++) {
             int has = !va_store_get(k, b);
             if (k % 3u == 1u || k == 5u) {
                 CHECK(!has, "store v1 slot %u: should be empty", k);
                 continue;
             }
+            keep[k][VA_FTYPE] = (int8_t)(32 * keep[k][VA_FTYPE]);
             CHECK(has && va_unpack(b, q) && b[1] == VA_VER && !memcmp(q, keep[k], VA_NP1) &&
                       !memcmp(q + VA_NP1, init + VA_NP1, VA_NP - VA_NP1), "store v1 slot %u: patch changed", k);
         }
@@ -504,44 +549,171 @@ static void t_v1(void)
     }
 }
 
+/* a random version-2 patch (TYPE 0..3, MORPH 0..127 at VA_FRSV) and its version-2 blob */
+static void rnd_v2(int8_t *p, uint8_t *b)
+{
+    uint32_t i;
+    memset(b, 0, VA_BLOB);
+    b[0] = VA_MAGIC;
+    b[1] = 2;
+    for (i = 0; i < VA_NP; i++) {
+        va_rng_t r = va_range(i);
+        int32_t mx = i == VA_FTYPE ? 3 : i == VA_FRSV ? 127 : r.max;
+        p[i] = (int8_t)(r.min + (int32_t)(rnd() % (uint32_t)(mx - r.min + 1)));
+        b[2 + i] = (uint8_t)(p[i] - r.min);
+    }
+}
+
+static void t_v2(void)
+{
+    uint8_t b2[VA_BLOB], b3[VA_BLOB];
+    int8_t p[VA_NP], q[VA_NP], r[VA_NP];
+    uint32_t n, ty, m, k;
+    for (ty = 0; ty < 4u; ty++)                  /* every TYPE and MORPH: FTYPE = TYPE x 32 + MORPH, round the cycle */
+        for (m = 0; m < 128u; m++) {
+            rnd_v2(p, b2);
+            b2[2 + VA_FTYPE] = (uint8_t)ty;
+            b2[2 + VA_FRSV] = (uint8_t)m;
+            p[VA_FTYPE] = (int8_t)ty;
+            CHECK(va_blob_ok(b2) && va_unpack(b2, q) == 1, "v2 blob %s MORPH %u not taken", N_VA_FTYPE[ty], m);
+            CHECK(q[VA_FTYPE] == (int8_t)((ty * 32u + m) & 127u) && q[VA_FRSV] == 0, "v2 %s MORPH %u: FTYPE %d",
+                  N_VA_FTYPE[ty], m, q[VA_FTYPE]);
+            p[VA_FTYPE] = q[VA_FTYPE];
+            p[VA_FRSV] = 0;
+            CHECK(!memcmp(p, q, VA_NP), "v2 %s MORPH %u: another value changed", N_VA_FTYPE[ty], m);
+            va_pack(q, b3);
+            CHECK(b3[1] == VA_VER && va_blob_ok(b3) && va_unpack(b3, r) && !memcmp(q, r, VA_NP), "v2 -> v3 round trip");
+        }
+    rnd_v2(p, b2);
+    b2[2 + VA_FTYPE] = 4;
+    CHECK(!va_blob_ok(b2), "v2 blob with TYPE 4: taken");
+    rnd_v2(p, b2);
+    b2[1] = 3;
+    b2[2 + VA_FRSV] = 5;
+    CHECK(!va_blob_ok(b2), "v3 blob with its reserved value not 0: taken");
+    /* a version-2 store in the mirror: converted in place, every patch kept (FTYPE as above) */
+    {
+        static int8_t keep[UP_SLOTS][VA_NP];
+        uint8_t b[VA_BLOB];
+        int8_t init[VA_NP];
+        va_init_patch(init);
+        memset(&va_store, 0, sizeof va_store);
+        va_store.magic = VA_STORE_MAGIC;
+        va_store.ver = 2;
+        va_store.nslot = UP_SLOTS;
+        va_store.blob = VA_BLOB;
+        for (k = 0; k < UP_SLOTS; k++) {
+            rnd_v2(keep[k], b2);
+            keep[k][VA_FTYPE] = (int8_t)((keep[k][VA_FTYPE] * 32 + keep[k][VA_FRSV]) & 127);
+            keep[k][VA_FRSV] = 0;
+            if (k % 4u == 2u)
+                continue;                        /* an empty slot */
+            if (k == 7u)
+                b2[2 + VA_CUT] = 200;            /* a bad patch: dropped */
+            memcpy(va_store.p[k], b2, VA_BLOB);
+            va_store.used |= 1u << k;
+        }
+        CHECK(!va_store_valid(&va_store), "store v2: valid as v3");
+        CHECK(!va_store_v2(16), "store v2 of the wrong size: converted");
+        CHECK(va_store_v2((int)sizeof va_store) == 1, "store v2: not converted");
+        CHECK(va_store.ver == 3u && va_store.blob == VA_BLOB && va_store_valid(&va_store), "store v2 -> v3: not valid");
+        for (k = 0; k < UP_SLOTS; k++) {
+            int has = !va_store_get(k, b);
+            if (k % 4u == 2u || k == 7u) {
+                CHECK(!has, "store v2 slot %u: should be empty", k);
+                continue;
+            }
+            CHECK(has && b[1] == VA_VER && va_unpack(b, q) && !memcmp(q, keep[k], VA_NP), "store v2 slot %u: patch changed",
+                  k);
+        }
+        CHECK(!va_store_v2((int)sizeof va_store), "store v3 taken as v2");
+        memset(&va_store, 0, sizeof va_store);
+    }
+}
+
 static void t_modes(void)
 {
     track_t *t = &trk[0];
     const param_desc_t *d;
+    uint32_t v, k;
     memset(t, 0, sizeof *t);
     va_blob_set(t, 0);
-    CHECK(!va_desc(t, 0, 0) && !va_desc(t, 1, 1) && !va_desc(t, 8, 0) && !va_desc(t, 1, 0), "BASIC: the table's columns");
+    for (k = 0; k < 4u; k++) {                   /* BASIC: complete descriptors, the table's */
+        d = va_desc(t, 2 * k, 0);
+        CHECK(d && !strcmp(d->label, "WAVE") && d->fmt == F_ENUM && d->max == VW_N - 1 && d->names == N_VA_WAVE,
+              "OSC %u BASIC: WAVE desc", k + 1);
+        d = va_desc(t, 2 * k + 1, 1);
+        CHECK(d && !strcmp(d->label, "SHAPE") && d->fmt == F_PCT && d->max == 127, "OSC %u BASIC: SHAPE desc", k + 1);
+    }
+    CHECK(!va_desc(t, 8, 0) && !va_desc(t, 1, 0) && !va_desc(t, 0, 1), "desc: only WAVE / SHAPE are mode-dependent");
     va_set(t, 0, 0, VW_PWM);
+    CHECK(va_get(t, 0, 0) == VW_PWM && va_patch[0][VA_OSC(0, VO_WAVE)] == VW_PWM, "BASIC: WAVE is the wave");
     va_set(t, 1, 0, VOM_NOISE);                  /* OSC 1+ MODE */
     CHECK(va_get(t, 0, 0) == VN_WHITE && va_get(t, 1, 2) == 0, "-> NOISE: WAVE %d (WHITE), KTRK %d (off)",
           va_get(t, 0, 0), va_get(t, 1, 2));
     va_set(t, 0, 0, 5);
-    CHECK(va_get(t, 0, 0) == VN_VINYL, "NOISE: WAVE 5 -> %d (VINYL)", va_get(t, 0, 0));
+    CHECK(va_get(t, 0, 0) == VN_VINYL && va_patch[0][VA_OSC(0, VO_WAVE)] == VN_VINYL, "NOISE: WAVE 5 -> %d (VINYL)",
+          va_get(t, 0, 0));
     d = va_desc(t, 0, 0);
-    CHECK(d && !strcmp(d->label, "NTYPE") && d->max == VN_N - 1 && !strcmp(d->names[VN_VINYL], "VINYL"), "NTYPE desc");
+    CHECK(d && !strcmp(d->label, "NOISE") && d->fmt == F_ENUM && d->min == 0 && d->max == VN_N - 1 &&
+              !strcmp(d->names[VN_WHITE], "WHITE") && !strcmp(d->names[VN_BROWN], "BROWN") &&
+              !strcmp(d->names[VN_VINYL], "VINYL"), "NOISE desc");
+    va_patch[0][VA_OSC(0, VO_WAVE)] = VW_PWM;    /* (a stored wave above VINYL: shows WHITE, as it plays) */
+    CHECK(va_get(t, 0, 0) == VN_WHITE, "NOISE: a stored wave 4 reads %d", va_get(t, 0, 0));
+    va_set(t, 0, 0, VN_VINYL);
     d = va_desc(t, 1, 1);
     CHECK(d && !strcmp(d->label, "DENS"), "VINYL's SHAPE desc");
     va_set(t, 0, 0, VN_BROWN);
     d = va_desc(t, 1, 1);
     CHECK(d && !strcmp(d->label, "COLOR"), "BROWN's SHAPE desc");
+    va_set(t, 0, 0, VN_WHITE);
+    d = va_desc(t, 1, 1);
+    CHECK(d && !strcmp(d->label, "SHAPE"), "WHITE's SHAPE desc");
+    va_set(t, 0, 0, VN_BROWN);
     va_set(t, 1, 2, 1);                          /* KTRK on: MODE NOISE again keeps it */
     va_set(t, 1, 0, VOM_NOISE);
     CHECK(va_get(t, 1, 2) == 1, "NOISE again: KTRK %d", va_get(t, 1, 2));
+    /* MORPH: the WAVE column is the morph position, SHAPE's value (both columns), F_INT 0..127 named by position */
     va_set(t, 1, 0, VOM_MORPH);
+    d = va_desc(t, 0, 0);
+    CHECK(d && !strcmp(d->label, "MORPH") && d->fmt == F_INT && d->min == 0 && d->max == 127 && d->names,
+          "MORPH: WAVE desc");
+    for (v = 0; d && v < 128u && d->names[v]; v++)
+        CHECK(!strcmp(d->names[v], OLD_MPV[old_morph_name((int32_t)v)]), "MORPH %u: named %s, want %s", v, d->names[v],
+              OLD_MPV[old_morph_name((int32_t)v)]);
+    CHECK(v == 128u && !d->names[128], "MORPH: 128 names");
     {
         static const struct { int sh; const char *nm; } NM[] = {{0, "SIN"}, {12, "SIN>TRI"}, {24, "TRI"}, {48, "SAW"},
             {60, "SAW>RMP"}, {72, "RAMP"}, {84, "RMP>SQR"}, {96, "SQR"}, {110, "SQR>PLS"}, {127, "PULSE"}};
         uint32_t j;
         for (j = 0; j < NELEM(NM); j++) {
-            va_set(t, 1, 1, NM[j].sh);
-            d = va_desc(t, 0, 0);
-            CHECK(d && !strcmp(d->label, "MORPH") && !strcmp(d->names[va_get(t, 0, 0)], NM[j].nm),
-                  "MORPH %d: preview %s, want %s", NM[j].sh, d ? d->names[va_get(t, 0, 0)] : "-", NM[j].nm);
+            va_set(t, 1, 1, NM[j].sh);           /* SHAPE on OSC 1+: the WAVE column follows */
+            CHECK(va_get(t, 0, 0) == NM[j].sh && !strcmp(d->names[va_get(t, 0, 0)], NM[j].nm),
+                  "MORPH %d: WAVE column %d %s, want %s", NM[j].sh, va_get(t, 0, 0), d->names[va_get(t, 0, 0)], NM[j].nm);
         }
     }
+    va_set(t, 0, 0, 77);                         /* KNOB 1 on the WAVE column morphs: SHAPE, the wave kept */
+    CHECK(va_get(t, 0, 0) == 77 && va_get(t, 1, 1) == 77 && va_patch[0][VA_OSC(0, VO_SHAPE)] == 77 &&
+              va_patch[0][VA_OSC(0, VO_WAVE)] == VN_BROWN, "MORPH: set WAVE column 77: SHAPE %d, wave %d",
+          va_patch[0][VA_OSC(0, VO_SHAPE)], va_patch[0][VA_OSC(0, VO_WAVE)]);
+    va_set(t, 0, 0, 300);
+    CHECK(va_get(t, 0, 0) == 127 && va_get(t, 1, 1) == 127, "MORPH: WAVE column clamps to 127");
+    va_set(t, 0, 0, -5);
+    CHECK(va_get(t, 0, 0) == 0, "MORPH: WAVE column clamps to 0");
     d = va_desc(t, 1, 1);
-    CHECK(d && !strcmp(d->label, "MORPH"), "MORPH's SHAPE desc");
-    CHECK(!va_desc(t, 2, 0) && !va_desc(t, 3, 1), "OSC 2: still BASIC");
+    CHECK(d && !strcmp(d->label, "MORPH") && d->max == 127, "MORPH's SHAPE desc");
+    d = va_desc(t, 2, 0);
+    CHECK(d && !strcmp(d->label, "WAVE") && !strcmp(va_desc(t, 3, 1)->label, "SHAPE"), "OSC 2: still BASIC");
+    va_set(t, 1, 0, VOM_BASIC);                  /* back to BASIC: the wave as it was */
+    CHECK(va_get(t, 0, 0) == VN_BROWN && !strcmp(va_desc(t, 0, 0)->label, "WAVE"), "BASIC again: WAVE %d",
+          va_get(t, 0, 0));
+    {   /* the deep get / set through ENG_VA.deep (the editor's path) */
+        const eng_deep_t *dp = ENG_VA.deep;
+        dp->set(t, 7, 0, VOM_MORPH);             /* OSC 4+ MODE */
+        dp->set(t, 6, 0, 40);
+        CHECK(dp->get(t, 6, 0) == 40 && dp->get(t, 7, 1) == 40 && !strcmp(dp->desc(t, 6, 0)->label, "MORPH"),
+              "OSC 4 MORPH through deep");
+    }
 }
 
 /* one voice of patch p (note 48, velocity 100) for nt ticks into out (and side): the render2 results ORed */
@@ -693,19 +865,48 @@ static void t_fmorph_spread(void)
     p[VA_CUT] = 70;
     p[VA_RES] = 60;
     p[VA_DRIVE] = 20;
-    for (ty = 0; ty < 4u; ty++)                  /* MORPH 32 j from TYPE ty = the discrete type ty + j, bit for bit */
-        for (j = 1; j < 4u; j++) {
-            p[VA_FTYPE] = (int8_t)((ty + j) & 3u);
-            p[VA_FMORPH] = 0;
-            one_voice(p, 0, V_POLY, NT, o1, 0);
-            p[VA_FTYPE] = (int8_t)ty;
-            p[VA_FMORPH] = (int8_t)(32u * j);
-            one_voice(p, 0, V_POLY, NT, o2, 0);
-            CHECK(!memcmp(o1, o2, sizeof o1), "FILTER %s MORPH %u: not %s", N_VA_FTYPE[ty], 32u * j,
-                  N_VA_FTYPE[(ty + j) & 3u]);
+    /* FTYPE 0 32 64 96 = the discrete types, bit for bit: the plain loop (the type's switch) against the crossfade
+     * loop at the same position (forced by USPREAD: UNISON voice 0, its mid as without) */
+    for (ty = 0; ty < 4u; ty++) {
+        p[VA_FTYPE] = (int8_t)(32u * ty);
+        p[VA_USPREAD] = 0;
+        one_voice(p, 0, V_UNISON, NT, o1, 0);
+        p[VA_USPREAD] = 127;
+        memset(s2, 0, sizeof s2);
+        CHECK(one_voice(p, 0, V_UNISON, NT, o2, s2), "FTYPE %u: USPREAD no side", 32u * ty);
+        CHECK(!memcmp(o1, o2, sizeof o1), "FTYPE %u: not the discrete %s", 32u * ty, N_VA_FTYPE[ty]);
+        CHECK(rms(o1, NT * CTL) > 100, "FTYPE %u: silent", 32u * ty);
+    }
+    p[VA_USPREAD] = 0;
+    /* the crossfade: FTYPE 16 lies between LP and BP (it differs from both); 127 next to LP (close to it) */
+    {
+        static int32_t lp[NT * CTL], bp[NT * CTL];
+        double dl, db, dn;
+        p[VA_FTYPE] = 0;
+        one_voice(p, 0, V_POLY, NT, lp, 0);
+        p[VA_FTYPE] = 32;
+        one_voice(p, 0, V_POLY, NT, bp, 0);
+        p[VA_FTYPE] = 16;
+        one_voice(p, 0, V_POLY, NT, o1, 0);
+        for (i = 0; i < NT * CTL; i++) {
+            s1[i] = o1[i] - lp[i];
+            s2[i] = o1[i] - bp[i];
         }
-    p[VA_FTYPE] = VF_LP;
-    p[VA_FMORPH] = 0;
+        dl = rms(s1, NT * CTL);
+        db = rms(s2, NT * CTL);
+        CHECK(dl > 0 && db > 0 && dl < rms(lp, NT * CTL) + rms(bp, NT * CTL), "FTYPE 16: LP %.0f BP %.0f apart", dl, db);
+        p[VA_FTYPE] = 127;
+        one_voice(p, 0, V_POLY, NT, o1, 0);
+        p[VA_FTYPE] = 100;
+        one_voice(p, 0, V_POLY, NT, o2, 0);
+        for (i = 0; i < NT * CTL; i++) {
+            s1[i] = o1[i] - lp[i];
+            s2[i] = o2[i] - lp[i];
+        }
+        dn = rms(s1, NT * CTL);
+        CHECK(dn < rms(s2, NT * CTL), "FTYPE 127 (%.0f from LP) not nearer LP than 100 (%.0f)", dn, rms(s2, NT * CTL));
+    }
+    p[VA_FTYPE] = 0;
     /* SPREAD 0: render2 = the mono render, bit for bit, the side untouched; every preset */
     for (k = 0; k < VA_NPRESETS; k++) {
         int8_t q[VA_NP];
@@ -750,7 +951,7 @@ static void t_fmorph_spread(void)
     CHECK(i == NT * CTL, "USPREAD voice 7: not hard right at sample %u (%d, %d)", i, o1[i], s1[i]);
 }
 
-/* the matrix at its extremes with the version-2 modes: MORPH / NOISE oscillators, FILTER MORPH (and its
+/* the matrix at its extremes with the version-2 modes: MORPH / NOISE oscillators, FTYPE (and its
  * destination), SPREAD and USPREAD, through render2: no overflow, voices end */
 static void t_extremes2(void)
 {
@@ -762,7 +963,7 @@ static void t_extremes2(void)
     for (w = 0; w < 6u; w++)
         for (sgn = 0; sgn < 2u; sgn++)
             for (f = 0; f < 4u; f++) {
-                static const uint8_t D[8] = {VD_PITCH, VD_LVL1, VD_FMORPH, VD_CUT, VD_RES, VD_SHP1, VD_SHP1 + 2,
+                static const uint8_t D[8] = {VD_PITCH, VD_LVL1, VD_FTYPE, VD_CUT, VD_RES, VD_SHP1, VD_SHP1 + 2,
                                              VD_SHP1 + 3};
                 va_init_patch(p);
                 for (s = 0; s < 4u; s++) {
@@ -774,8 +975,7 @@ static void t_extremes2(void)
                     p[VA_OSC(s, VO_COARSE)] = (int8_t)(sgn ? 24 : -24);
                 }
                 p[VA_SYNC2] = p[VA_RING4] = 1;
-                p[VA_FTYPE] = (int8_t)f;
-                p[VA_FMORPH] = (int8_t)(w * 25u);
+                p[VA_FTYPE] = (int8_t)((32u * f + w * 25u) & 127u);
                 p[VA_FSPREAD] = (int8_t)(sgn ? 127 : 60);
                 p[VA_USPREAD] = 127;
                 p[VA_RES] = 127;
@@ -794,6 +994,100 @@ static void t_extremes2(void)
     drv_side = 0;
 }
 
+/* the destinations appended for the editor's quick mapping (DRIVE SPRD FENV DEP1..4) and eng_deep_t.mod_dst */
+static void t_dst2(void)
+{
+    static const uint8_t ND[8] = {VD_DRIVE, VD_SPREAD, VD_FENV, VD_DEP1, VD_DEP1 + 1, VD_DEP1 + 2, VD_DEP1 + 3, VD_FTYPE};
+    static const char *const NN[8] = {"DRIVE", "SPRD", "FENV", "DEP1", "DEP2", "DEP3", "DEP4", "FTYPE"};
+    track_t *t = &trk[0];
+    int8_t p[VA_NP];
+    uint32_t k, i, pg;
+    for (k = 0; k < 8u; k++)
+        CHECK(!strcmp(N_VA_DST[ND[k]], NN[k]), "DST %u is %s", ND[k], N_VA_DST[ND[k]]);
+    CHECK(VD_FTYPE == 22 && VD_N == 30, "the DST numbering appended (FTYPE 22, %d destinations)", VD_N);
+    /* mod_dst: a page column's destination, the MOD pages' DST numbering */
+    drv_reset(t);
+    va_init_patch(va_patch[0]);
+    CHECK(VA_DEEP.mod_dst == va_mod_dst, "VA_DEEP.mod_dst");
+    CHECK(va_mod_dst(t, 8, 0) == VD_CUT && va_mod_dst(t, 8, 1) == VD_RES && va_mod_dst(t, 8, 2) == VD_FTYPE &&
+              va_mod_dst(t, 8, 3) == VD_FENV, "mod_dst FILTER");
+    CHECK(va_mod_dst(t, 9, 0) == -1 && va_mod_dst(t, 9, 1) == -1 && va_mod_dst(t, 9, 2) == VD_SPREAD &&
+              va_mod_dst(t, 9, 3) == VD_DRIVE, "mod_dst FILTER+");
+    for (k = 0; k < 4u; k++) {
+        CHECK(va_mod_dst(t, 2 * k, 0) == -1 && va_mod_dst(t, 2 * k, 1) == (int32_t)(VD_LVL1 + k) &&
+                  va_mod_dst(t, 2 * k, 2) == (int32_t)(VD_PIT1 + k) && va_mod_dst(t, 2 * k, 3) == (int32_t)(VD_PIT1 + k),
+              "mod_dst OSC %u", k + 1u);
+        CHECK(va_mod_dst(t, 2 * k + 1, 0) == -1 && va_mod_dst(t, 2 * k + 1, 1) == (int32_t)(VD_SHP1 + k) &&
+                  va_mod_dst(t, 2 * k + 1, 2) == -1, "mod_dst OSC %u+", k + 1u);
+        CHECK(va_mod_dst(t, 18 + k, 0) == (int32_t)(VD_RATE1 + k) && va_mod_dst(t, 18 + k, 1) == -1 &&
+                  va_mod_dst(t, 18 + k, 2) == (int32_t)(VD_DEP1 + k) && va_mod_dst(t, 18 + k, 3) == -1, "mod_dst LFO %u",
+              k + 1u);
+    }
+    va_patch[0][VA_OMODE0 + 1] = VOM_MORPH;      /* MORPH: OSC 2's WAVE column is its SHAPE, the position */
+    CHECK(va_mod_dst(t, 2, 0) == VD_SHP1 + 1, "mod_dst OSC 2 MORPH");
+    for (pg = 10; pg < VA_NPAGES; pg++)
+        if (pg < 18 || pg >= 22)
+            for (k = 0; k < 4u; k++)
+                CHECK(va_mod_dst(t, pg, k) == -1, "mod_dst page %u col %u", pg, k);
+    CHECK(va_mod_dst(t, ENG_MOD_TRK, P_LEVEL) == VD_AMP && va_mod_dst(t, ENG_MOD_TRK, P_PAN) == VD_PAN &&
+              va_mod_dst(t, ENG_MOD_TRK, P_TRANS) == VD_PITCH && va_mod_dst(t, ENG_MOD_TRK, P_GLIDE) == -1,
+          "mod_dst track parameters");
+    /* each new destination moves the sound: VEL (a constant) by +63 against none */
+    for (k = 0; k < 4u; k++) {
+        double d;
+        va_init_patch(p);
+        p[VA_OSC(0, VO_LEVEL)] = 100;
+        p[VA_CUT] = 60;
+        p[VA_RES] = 40;
+        p[VA_FENV] = 20;
+        p[VA_DRIVE] = 10;
+        p[VA_FSPREAD] = 10;
+        p[VA_ENV(1, VE_SUS)] = 64;
+        p[VA_LFO(0, VL_DEPTH)] = 0;              /* DEP1: LFO 1 at depth 0 onto the pitch, the matrix opens it */
+        p[VA_LFO(0, VL_RATE)] = 110;
+        p[VA_MOD(1, VM_SRC)] = VS_LFO1;
+        p[VA_MOD(1, VM_DST)] = VD_PITCH;
+        p[VA_MOD(1, VM_AMT)] = 63;
+        one_voice(p, 0, V_POLY, NT, o1, s1);
+        p[VA_MOD(0, VM_SRC)] = VS_VEL;
+        p[VA_MOD(0, VM_DST)] = (int8_t)ND[k];
+        p[VA_MOD(0, VM_AMT)] = 63;
+        one_voice(p, 0, V_POLY, NT, o2, s2);
+        for (i = 0; i < NT * CTL; i++)
+            o2[i] -= o1[i], s2[i] -= s1[i];
+        d = rms(o2, NT * CTL) + rms(s2, NT * CTL);
+        CHECK(d > 0.01 * rms(o1, NT * CTL), "VEL -> %s: the sound unchanged (%.1f)", NN[k], d);
+        CHECK(rms(o1, NT * CTL) > 100, "VEL -> %s: silent", NN[k]);
+    }
+    /* their extremes: no overflow, voices end */
+    {
+        int32_t peak;
+        int64_t mx;
+        uint32_t left, sgn;
+        for (sgn = 0; sgn < 2u; sgn++) {
+            va_init_patch(p);
+            for (k = 0; k < 4u; k++) {
+                p[VA_OSC(k, VO_LEVEL)] = 127;
+                p[VA_LFO(k, VL_DEPTH)] = (int8_t)(sgn ? 127 : 0);
+            }
+            p[VA_RES] = 127;
+            p[VA_DRIVE] = 127;
+            p[VA_FSPREAD] = 127;
+            p[VA_FENV] = (int8_t)(sgn ? 63 : -64);
+            for (k = 0; k < 8u; k++) {
+                p[VA_MOD(k, VM_SRC)] = (int8_t)(k < 4u ? VS_LFO1 + k : VS_ENV1 + k - 4u);
+                p[VA_MOD(k, VM_DST)] = (int8_t)ND[k];
+                p[VA_MOD(k, VM_AMT)] = (int8_t)(sgn ? 63 : -64);
+            }
+            drv_side = 1;
+            chord(0, 0.5, p, &peak, &mx, &left);
+            drv_side = 0;
+            CHECK(mx < (1 << 30), "new destinations' extremes s%u: |sum| %lld", sgn, (long long)mx);
+            CHECK(!left, "new destinations' extremes s%u: voices left", sgn);
+        }
+    }
+}
+
 int main(void)
 {
     t_blob();
@@ -804,11 +1098,13 @@ int main(void)
     t_lfo_sync();
     t_render();
     t_v1();
+    t_v2();
     t_modes();
     t_morph();
     t_noise();
     t_fmorph_spread();
     t_extremes2();
+    t_dst2();
     printf("cr_va_test: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

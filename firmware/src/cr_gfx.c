@@ -292,14 +292,50 @@ static void cr_poly(const int16_t *p, uint32_t n, int32_t w, int32_t dash_on, in
     if (x1 > cr_clip.x1) x1 = cr_clip.x1;
     for (j = y0; j < y1; j++) {
         int32_t ry0 = j * 16 + CR_SS[0], ry1 = j * 16 + CR_SS[3];
+        int32_t ix0 = 99999, ix1 = -99999;
         for (k = 0, nrow = 0; k + 1u < n; k++)
-            if (by1[k] >= ry0 && by0[k] <= ry1) row[nrow++] = (uint8_t)k;
+            if (by1[k] >= ry0 && by0[k] <= ry1) {
+                row[nrow++] = (uint8_t)k;
+                if (bx0[k] < ix0) ix0 = bx0[k];
+                if (bx1[k] > ix1) ix1 = bx1[k];
+            }
         if (!nrow) continue;
-        for (i = x0; i < x1; i++) {
-            int32_t rx0 = i * 16 + CR_SS[0], rx1 = i * 16 + CR_SS[3];
-            uint32_t cnt = 0, a, b;
-            for (q = 0, nnear = 0; q < nrow; q++)
-                if (bx1[row[q]] >= rx0 && bx0[row[q]] <= rx1) near[nnear++] = row[q];
+        ix0 = (ix0 - CR_SS[3]) >> 4;                 /* (the row's boxes: the pixels whose samples they reach) */
+        ix1 = ((ix1 - CR_SS[0]) >> 4) + 1;
+        if (ix0 < x0) ix0 = x0;
+        if (ix1 > x1) ix1 = x1;
+        for (i = ix0; i < ix1; i++) {
+            int32_t rx0 = i * 16 + CR_SS[0], rx1 = i * 16 + CR_SS[3], cxp = i * 16 + 8, cyp = j * 16 + 8;
+            uint32_t cnt = 0, a, b, all = 0;
+            for (q = 0, nnear = 0; q < nrow && !all; q++) {
+                /* the pixel's centre against the segment, exact for its 16 samples (each within 8.5 Q4 of the
+                 * centre): every sample out (far: skip it), or every one in (solid: the pixel is covered) */
+                int32_t ax, ay, ux, uy, vx, vy, dot, cr, l1, m;
+                k = row[q];
+                if (bx1[k] < rx0 || bx0[k] > rx1) continue;
+                ax = p[2 * k]; ay = p[2 * k + 1];
+                ux = p[2 * k + 2] - ax; uy = p[2 * k + 3] - ay; vx = cxp - ax; vy = cyp - ay;
+                dot = vx * ux + vy * uy;
+                cr = vx * uy - vy * ux;
+                if (cr < 0) cr = -cr;
+                l1 = len[k] + 1;
+                m = 9 * l1;                                  /* (a sample's reach along / across, x the length) */
+                if (cr > (hw + 9) * l1) continue;            /* off the line by more than the width: far */
+                if (dot <= 0 && vx * vx + vy * vy > (hw + 9) * (hw + 9)) continue;
+                if (dot >= l1 * l1) {
+                    int32_t qx = cxp - p[2 * k + 2], qy = cyp - p[2 * k + 3];
+                    if (qx * qx + qy * qy > (hw + 9) * (hw + 9)) continue;
+                }
+                if (!dash_per && len[k] && dot > m && dot < len[k] * len[k] - m && cr <= hw * len[k] - m) {
+                    all = 1;                                 /* inside the stroke, away from its ends: solid */
+                    break;
+                }
+                near[nnear++] = (uint8_t)k;
+            }
+            if (all) {
+                cr_blend(i, j, c, 256u);
+                continue;
+            }
             if (!nnear) continue;
             for (b = 0; b < 4u; b++)
                 for (a = 0; a < 4u; a++) {
