@@ -157,3 +157,21 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy build/host/emu --no-midi --demo --qu
   `.` (SAVE) = naming (the white roots type, Left deletes, Right saves). User sounds are RAM only here.
 - ChoralRoot's looper and metronome are not there yet (their screens
   show; docs/INTEGRATION.md "Status").
+
+## Browser build
+
+`tools/emu/web/` builds the same firmware side (`emu_fw.c` through `emu_firmware.h`) into a standalone WebAssembly
+module played from a web page (no Emscripten JS runtime, no COOP/COEP headers: it runs on GitHub Pages):
+
+```sh
+sh tools/emu/web/build_web.sh          # -> build/emu-web/{index.html, emu.js, keymap.js, worklet.js, choralroot.wasm}
+node tools/emu/web/test_web_emu.mjs    # boots the wasm in node, plays scripts/cr_dmaj.txt, compares with build/host/emu
+```
+
+Needs `emcc` (the Emscripten SDK; `~/emsdk/emsdk_env.sh` is sourced when it is not on the PATH); `CR_VERSION=1.0`
+sets the version shown. `emu_web.c` runs the device clock exactly as the headless loop (tick, frame / idle, the audio
+blocks due, per millisecond) inside an AudioWorklet (`worklet.js`), so a script's input gives the native emulator's
+samples bit for bit (the test checks it). The CPU lock is a no-op (`web/compat/os/lock.h`: one thread); the flash
+file is the page's IndexedDB copy (loaded before power-on, saved a second after the last erase / program). The page
+(`index.html`, `emu.js`): the LCD, the panel with its LEDs (pointer, multi-touch, right-click latches, wheel / drag
+on the knobs), the key map of `keymap.c` (`web/keymap.js`), Web MIDI in and out, Reset flash, a load meter.

@@ -47,6 +47,10 @@
 <section class="get" aria-labelledby="h-get">
   <div class="wrap">
     <h2 id="h-get">Get it</h2>
+    <div class="try">
+      <a class="btn b-green" href="emu/">Try it in the browser</a>
+      <p class="note">The same firmware, run in the browser with sound. Play it from the computer keyboard or the mouse; no FM-1 needed. Chrome, Edge or Firefox; Safari plays but has no MIDI.</p>
+    </div>
     <div class="buttons">
       <div class="cell">
         <a class="btn b-red" href="webapp/installer/">Install</a>
@@ -81,7 +85,12 @@
 <section class="playing" aria-labelledby="playing">
   <div class="wrap">
     <h2 id="playing">Playing</h2>
-    <p class="intro">The left of the keybed is the chord block, the Orchid's two rows of four. The right is the roots.</p>
+    <p class="intro">The left of the keybed is the chord block, the Orchid's two rows of four. The right is the roots. All of it can be tried in the browser, in the <a href="emu/">emulator</a>.</p>
+
+    <figure class="panel">
+      <a href="img/panel-main.png"><img src="img/panel-main.png" width="1757" height="1072" loading="lazy" alt="The FM-1 panel with ChoralRoot's labels: VOLUME, BPM, SOUND, BASS SOUND on the left rotaries, VOICING, BASS VOICE, PERFORM, FX on KNOB 1–4, the buttons named KEY, PERF, FX, BASS, LATCH, OPT, HOME, SAVE, METRO, LOOP, REC, EDIT, the screen showing D major 7, and the keys DIM MIN MAJ SUS, 6 m7 M7 LOCK 9 on the chord block"></a>
+      <figcaption>The panel as ChoralRoot labels it. Dmaj7: MAJ and M7 held, D4 pressed. The names under the buttons and knobs are the roles below; the printed names are in the tables.</figcaption>
+    </figure>
 
 <!--KEYBED-->
 <figure class="keybed">
@@ -161,19 +170,15 @@
     <h2 id="editor">The sound editor</h2>
     <p class="intro">EDIT tap opens it on the chord sound, BASS held + EDIT on the bass sound; inside, SHIFT + EDIT switches between them. EDIT tap or HOME leaves. Every group remembers its screen and lane.</p>
 
+    <figure class="panel">
+      <a href="img/panel-editor-osc.png"><img src="img/panel-editor-osc.png" width="1757" height="1072" loading="lazy" alt="The FM-1 panel in the sound editor on WARM PAD: the buttons labelled OSC, FILT, ENV, LFO, EDIT, SHIFT, HOME, SAVE, PERF, MOD, FX, MIX; KNOB 1–4 labelled WAVE, LEVEL, COARSE, FINE; SELECT labelled LANE; the screen showing the four oscillators"></a>
+      <figcaption>EDIT tapped on WARM PAD, a VA sound. The buttons become OSC FILT ENV LFO / MOD FX MIX and SHIFT; KNOB 1–4 are WAVE LEVEL COARSE FINE of OSC 1; SELECT steps the lane.</figcaption>
+    </figure>
+    <h3>Groups</h3>
+    <p>The buttons become seven groups. The top row is the signal flow (OSC on the printed FX, FILT on SEL, ENV, LFO), the bottom row the output stage (MOD on SEQ, FX on PLAY, MIX on REC). A group's button opens the group; tapped again, its next screen.</p>
+
     <div class="cols cols-fig">
       <div>
-        <h3>Groups</h3>
-        <p>The buttons become seven groups. The top row is the signal flow, the bottom row the output stage. A group's button opens the group; tapped again, its next screen.</p>
-        <div class="groups" role="img" aria-label="The seven group buttons: top row OSC on FX, FILT on SEL, ENV, LFO; bottom row MOD on SEQ, FX on PLAY, MIX on REC">
-          <div><b>OSC</b><span>FX</span></div>
-          <div><b>FILT</b><span>SEL</span></div>
-          <div><b>ENV</b><span>ENV</span></div>
-          <div><b>LFO</b><span>LFO</span></div>
-          <div><b>MOD</b><span>SEQ</span></div>
-          <div><b>FX</b><span>PLAY</span></div>
-          <div><b>MIX</b><span>REC</span></div>
-        </div>
         <h3>Lanes</h3>
         <p>SELECT runs through the lanes. A lane is the four values on KNOB 1–4, always in the same four colours.</p>
         <div class="knobs" role="img" aria-label="KNOB 1 blue, KNOB 2 orange, KNOB 3 white, KNOB 4 green">
@@ -186,6 +191,10 @@
         <figcaption><b>edit8.</b> Two rows of four cells under a wide shape: here the filter curve. <b>stack</b> screens show the instances as rows: the four oscillators, the four LFOs, the eight matrix slots.</figcaption>
       </figure>
     </div>
+    <figure class="panel">
+      <a href="img/panel-editor-filter.png"><img src="img/panel-editor-filter.png" width="1757" height="1072" loading="lazy" alt="The FM-1 panel in the sound editor's FILT group: KNOB 1–4 labelled CUTOFF, RESO, F.TYPE, ENV AMT, the screen showing the filter curve of WARM PAD"></a>
+      <figcaption>FILT: CUTOFF RESO F.TYPE ENV AMT under the filter curve.</figcaption>
+    </figure>
 
     <h3>The engine picker</h3>
     <p>EDIT held, or PRESETS turned in the editor, opens it as a preview. The white roots are the engines: ANALOG, FM6, VA, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, PHYS; NOISE is on SELECT. KNOB 1 steps the engine's factory presets, KNOB 2 inits the sound. OCT+ or EDIT keeps it; OCT− or HOME cancels, and the sound comes back.</p>

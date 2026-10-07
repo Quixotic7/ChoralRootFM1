@@ -77,7 +77,7 @@ def target(page, url):
     return t, frag
 
 
-def walk():
+def walk(skip=()):
     pages = sorted(OUT.rglob("*.html"))
     ids = {}
     bad, frags, count = [], [], 0
@@ -94,6 +94,8 @@ def walk():
             count += 1
             t, frag = target(page, url)
             rel = page.relative_to(OUT).as_posix()
+            if t is not None and any(d in t.parents for d in skip):
+                continue
             if t is None or not t.is_file() or OUT.resolve() not in t.parents:
                 bad.append(f"{rel}: <{tag} {attr}=\"{url}\">")
                 continue
@@ -159,7 +161,16 @@ def main():
     else:
         ok(not editor.exists(), "webapp/editor: not written")
 
-    pages, count, bad, frags = walk()
+    emu_src = ROOT / "build" / "emu-web"
+    if (emu_src / "index.html").is_file():
+        ok((OUT / "emu" / "index.html").is_file() and (OUT / "emu" / "choralroot.wasm").is_file(),
+           "emu/: index.html and choralroot.wasm copied")
+        ok('href="emu/"' in html, "index.html: links emu/ (Try it in the browser)")
+    else:
+        print(f"skip: {emu_src.relative_to(ROOT)} missing: emu/ and the links to it not checked "
+              "(sh tools/emu/web/build_web.sh)")
+    skip = () if (emu_src / "index.html").is_file() else ((OUT / "emu").resolve(),)
+    pages, count, bad, frags = walk(skip)
     for b in bad:
         print(f"  missing: {b}")
     ok(not bad, f"links: {count} internal href / src / url() in {len(pages)} pages resolve")

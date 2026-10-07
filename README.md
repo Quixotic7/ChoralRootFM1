@@ -10,6 +10,9 @@ and M-VAVE.
 
 ## Install
 
+Try it in the browser first: <https://quixotic7.github.io/ChoralRootFM1/emu/> (the same firmware, with sound, no
+FM-1 needed).
+
 **From the browser:** open the web installer at <https://quixotic7.github.io/ChoralRootFM1/> in Chrome or
 Edge, connect the FM-1 by USB and press Install. Nothing is installed on the computer: the page talks to the
 FM-1 over Web MIDI. Do not unplug while it writes; an interrupted install is resumed by pressing Install again.
@@ -51,6 +54,7 @@ panel mock-ups (made with the [ChoralRoot FM-1 designer](../ChoralRootFM1Designe
 | `docs/INTEGRATION.md` | how the engine, the screens and Felucca's sound are wired together |
 | `firmware/` | the firmware: Felucca's `hal/`, `src/` and `loader/`, plus ChoralRoot's `src/cr_*.c` |
 | `tools/` | Felucca's build, generators, installer; `tools/emu/` the Mac emulator |
+| `tools/emu/web/` | the emulator built for the browser (Emscripten) |
 | `tests/` | host tests; `tests/cr_*` are ChoralRoot's |
 | `web/` | the landing page (`web/site/`), the web installer and `make_site.py` (the GitHub Pages site) |
 | `.github/workflows/` | `release.yml` builds the package on a tag, `pages.yml` publishes the site |

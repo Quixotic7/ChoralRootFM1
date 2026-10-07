@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Publish the GitHub Pages site (the landing page, the web installer and the package) for a release.
-#   workflow_dispatch (version, ref)  -> download choralroot-VERSION.fwsc from the release vVERSION,
-#                                        web/make_site.py, deploy to Pages
+#   workflow_dispatch (version, ref)  -> download choralroot-VERSION.fwsc from the release vVERSION, build the
+#                                        browser emulator (Emscripten, build/emu-web -> emu/), web/make_site.py,
+#                                        deploy to Pages
 #   release published                 -> starts the dispatch above from the default branch (the github-pages
 #                                        environment only accepts deployments from it), the site built from the tag
 # release.yml starts the dispatch itself after it made the release. Settings -> Pages -> Source must be
@@ -33,6 +34,14 @@ defaults:
   run:
     shell: bash
 
+env:
+  # as release.yml: the generated headers (fonts with Raqm, samples) must match the firmware's
+  PYTHON_VERSION: "3.11"
+  PILLOW_VERSION: "11.1.0"
+  FONTTOOLS_VERSION: "4.66.1"
+  EMSDK_VERSION: "6.0.11"           # the Emscripten the browser emulator was made with (emsdk tag 6.0.11)
+  NODE_VERSION: "22"
+
 jobs:
   redispatch:
     if: github.event_name == 'release'
@@ -60,7 +69,7 @@ jobs:
   site:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       contents: read
     env:
@@ -97,12 +106,45 @@ jobs:
           fi
           ls -l "build/$pkg"
 
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Python packages (Pillow with Raqm, fontTools)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends libfribidi0 libraqm0
+          python3 -m pip install --disable-pip-version-check "Pillow==$PILLOW_VERSION" "fonttools==$FONTTOOLS_VERSION"
+          python3 -c 'from PIL import features; import sys; ok = features.check("raqm"); print("raqm", features.version("raqm"), "fribidi", features.version("fribidi")); sys.exit(0 if ok else "Pillow has no Raqm layout (libfribidi missing?)")'
+
+      - uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
+        with:
+          version: ${{ env.EMSDK_VERSION }}
+          actions-cache-folder: emsdk-cache
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build the browser emulator (tools/emu/web)
+        run: |
+          set -euo pipefail
+          emcc --version | head -1
+          # the generated headers only (build_web.sh would otherwise run the whole tools/build.py, which needs the
+          # JieLi toolchain and SDK; the emulator needs neither)
+          python3 -c 'import sys; sys.path.insert(0, "tools"); import build; build.generate()'
+          CR_VERSION="$VERSION" sh tools/emu/web/build_web.sh
+          node tools/emu/web/test_web_emu.mjs
+
       - name: Make the site (web/make_site.py)
         run: |
           set -euo pipefail
-          # make_site.py refuses a package without the identity FM-1_9xx or without Felucca's loader
+          # make_site.py refuses a package without the identity FM-1_9xx or without Felucca's loader;
+          # it copies build/emu-web/ to emu/
           python3 web/make_site.py "build/choralroot-$VERSION.fwsc" "$VERSION" build/site
-          for f in index.html webapp/installer/index.html "firmware/choralroot-$VERSION.fwsc" firmware/LICENSE; do
+          for f in index.html webapp/installer/index.html "firmware/choralroot-$VERSION.fwsc" firmware/LICENSE \
+                   emu/index.html emu/choralroot.wasm; do
             if [ ! -s "build/site/$f" ]; then
               echo "::error::build/site/$f is missing"
               exit 1

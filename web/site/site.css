@@ -110,7 +110,7 @@ main > section:last-child { padding-bottom: clamp(64px, 9vw, 120px); }
 }
 
 /* ---- the four buttons: big flat colour blocks ---- */
-.buttons { display: grid; gap: 28px; margin: 8px 0 44px; }
+.buttons { display: grid; gap: 28px; margin: 0 0 44px; }
 @media (min-width: 720px) { .buttons { grid-template-columns: 1fr 1fr; gap: 36px 24px; } }
 .btn {
   display: flex; flex-direction: column; justify-content: flex-end;
@@ -128,6 +128,10 @@ main > section:last-child { padding-bottom: clamp(64px, 9vw, 120px); }
 .b-blue { background: var(--blue); color: var(--cream); }
 .b-blue:hover { color: var(--cream); }
 .b-yellow { background: var(--yellow); color: #080808; }
+.b-green { background: var(--green); color: #080808; }
+.b-green:hover { color: #080808; }
+.try { margin: 8px 0 36px; }
+.try .btn { min-height: clamp(112px, 12vw, 156px); }
 .b-yellow:hover { color: #080808; }
 .btn .pkg { display: block; font-size: clamp(16px, 1.7vw, 21px); font-weight: 700; letter-spacing: -0.01em; margin-top: 8px; overflow-wrap: anywhere; }
 .note { margin: 12px 0 0; font-size: 0.95em; }
@@ -193,13 +197,7 @@ main > section:last-child { padding-bottom: clamp(64px, 9vw, 120px); }
   .grid td:nth-child(n+3)::before { content: attr(data-l); display: inline-block; width: 6.6em; text-indent: 0; vertical-align: 0.1em; color: var(--grey); font-weight: 700; font-size: 0.8em; letter-spacing: 0.05em; text-transform: uppercase; }
 }
 
-/* ---- the editor: groups, knobs ---- */
-.groups { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: 520px; margin: 18px 0 8px; }
-.groups div { background: var(--dark); color: var(--cream); padding: 12px 10px 10px; min-height: 76px; display: flex; flex-direction: column; justify-content: space-between; border-radius: 3px; }
-.groups b { font-size: clamp(20px, 2.4vw, 28px); font-weight: 900; letter-spacing: -0.03em; line-height: 1; }
-.groups span { font-size: 13px; font-weight: 700; color: var(--grey); letter-spacing: 0.05em; }
-.groups span::before { content: "printed "; font-weight: 500; }
-@media (max-width: 420px) { .groups span::before { content: ""; } }
+/* ---- the editor: the knob colours ---- */
 .knobs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: 520px; margin: 18px 0 18px; }
 .knobs div { padding: 26px 10px 10px; font-weight: 900; font-size: clamp(15px, 1.8vw, 19px); letter-spacing: -0.01em; border-radius: 3px; }
 .knobs .k1 { background: var(--blue); color: var(--cream); }
@@ -207,7 +205,13 @@ main > section:last-child { padding-bottom: clamp(64px, 9vw, 120px); }
 .knobs .k3 { background: var(--cream); color: #080808; }
 .knobs .k4 { background: var(--green); color: #080808; }
 .shot-side { margin-top: 28px; }
-@media (min-width: 900px) { .shot-side { margin-top: 96px; } .shot-side img { width: 480px; } }
+@media (min-width: 900px) { .shot-side { margin-top: 0.4em; } .shot-side img { width: 480px; } }
+
+/* ---- the panel renders (designer, vector-like: no pixelated scaling) ---- */
+.panel { margin: clamp(28px, 4vw, 48px) 0; }
+.panel a { display: block; }
+.panel img { display: block; width: 100%; max-width: var(--max); height: auto; outline: 2px solid var(--dark); }
+.panel figcaption { font-size: clamp(16px, 1.6vw, 19px); line-height: 1.45; margin-top: 14px; max-width: 46em; }
 
 /* ---- sounds ---- */
 .bank { columns: 2; column-gap: 28px; padding: 0; margin: 8px 0 10px; list-style: none; counter-reset: n; font-weight: 700; color: var(--cream); font-size: 0.95em; }

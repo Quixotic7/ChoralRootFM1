@@ -1,0 +1,103 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChoralRoot FM-1 Emulator</title>
+<meta name="description" content="The ChoralRoot FM-1 firmware running in your browser: play chords with the mouse, a touch screen, the computer keyboard or MIDI.">
+<style>
+@font-face { font-family: "Inter Tight"; src: url("../InterTight.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+:root {
+  --ground: #080808; --cream: #F6F2EE; --red: #E63829; --orange: #F67918; --yellow: #F6B600;
+  --blue: #2950CD; --green: #29B27B; --grey: #6A696A; --dark: #313031; --text: #D9D5D1;
+  --lcd: 480px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--ground); color: var(--text); }
+body { font: 500 16px/1.45 "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--cream); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px 48px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 20px 0 12px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: clamp(26px, 4.4vw, 44px); line-height: 1; font-weight: 900; letter-spacing: -0.02em; color: var(--cream); }
+h1 span { color: var(--yellow); }
+header a { font-weight: 700; text-decoration: none; font-size: 15px; }
+header a:hover { text-decoration: underline; }
+.stripe { display: flex; height: 8px; margin-bottom: 20px; }
+.stripe i { flex: 1; }
+.stage { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.lcdbox { position: relative; background: #000; padding: 12px; border: 3px solid var(--dark); }
+#lcd { display: block; width: var(--lcd); height: var(--lcd); max-width: calc(100vw - 62px); max-height: calc(100vw - 62px);
+       image-rendering: pixelated; image-rendering: crisp-edges; background: #000; }
+#gate { display: flex; align-items: center; gap: 0; width: calc(var(--lcd) + 30px); max-width: calc(100vw - 32px); background: var(--red); }
+#gate[hidden] { display: none; }
+#gate p { margin: 0; padding: 10px 16px; color: var(--cream); font-weight: 700; font-size: 15px; line-height: 1.3; }
+button, select { font: inherit; }
+.btn { border: 0; cursor: pointer; font-weight: 800; letter-spacing: 0.02em; color: var(--ground); background: var(--cream); padding: 10px 16px; }
+.btn:hover { background: var(--yellow); }
+.btn:focus-visible, select:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+#start { flex: none; background: var(--ground); color: var(--cream); font-size: 26px; font-weight: 900; padding: 14px 36px; border: 4px solid var(--red); }
+#start:hover { color: var(--ground); }
+#start:hover { background: var(--orange); }
+.panelbox { position: relative; width: 100%; max-width: 1080px; }
+#panel { display: block; width: 100%; height: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+#mini { position: absolute; image-rendering: pixelated; pointer-events: none; }
+#panel text { font-family: "Inter Tight", system-ui, sans-serif; pointer-events: none; }
+#panel [data-c] { cursor: pointer; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; justify-content: center; width: 100%; max-width: 1080px; }
+.bar [hidden] { display: none; }
+.bar label { font-weight: 700; color: var(--cream); font-size: 14px; display: flex; gap: 6px; align-items: center; }
+select { background: var(--dark); color: var(--cream); border: 0; padding: 8px 10px; max-width: 220px; }
+.meter { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; color: var(--cream); }
+.meter b { display: block; width: 90px; height: 12px; background: var(--dark); position: relative; }
+.meter b i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--green); }
+#status { min-height: 1.4em; font-weight: 600; color: var(--grey); text-align: center; }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0; width: 100%; max-width: 1080px; margin-top: 8px; }
+.legend div { padding: 12px 14px; }
+.legend h3 { margin: 0 0 4px; font-size: 13px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ground); }
+.legend p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ground); font-weight: 600; }
+kbd { font: 800 13px/1 "Inter Tight", system-ui, sans-serif; background: rgba(8, 8, 8, 0.82); color: var(--cream); padding: 2px 5px; }
+footer { margin-top: 24px; font-size: 13px; color: var(--grey); text-align: center; }
+@media (min-width: 1500px) and (min-height: 1250px) { :root { --lcd: 720px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>ChoralRoot <span>FM-1</span> &middot; try it</h1>
+    <a href="../">&larr; back to ChoralRoot</a>
+  </header>
+  <div class="stripe"><i style="background:#E63829"></i><i style="background:#F67918"></i><i style="background:#F6B600"></i><i style="background:#29B27B"></i><i style="background:#2950CD"></i></div>
+  <main class="stage">
+    <div class="lcdbox">
+      <canvas id="lcd" width="240" height="240" aria-label="The FM-1 screen"></canvas>
+    </div>
+    <div id="gate">
+      <button id="start" class="btn">Start</button>
+      <p>The real firmware in your browser. Press Start for sound.</p>
+    </div>
+    <div class="panelbox">
+      <svg id="panel" viewBox="14 14 876 538" role="application" aria-label="FM-1 panel: keys, buttons and knobs"></svg>
+      <canvas id="mini" width="240" height="240"></canvas>
+    </div>
+    <div id="status">Loading&hellip;</div>
+    <div class="bar">
+      <div class="meter" title="the share of real time the browser spends running the device">LOAD <b><i id="load"></i></b> <span id="loadv">&ndash;</span></div>
+      <button id="midi" class="btn">Enable MIDI</button>
+      <label hidden>Out <select id="mout"><option value="">none</option></select></label>
+      <label hidden>In <select id="min"><option value="">none</option></select></label>
+      <button id="reset" class="btn" title="forget the saved settings and sounds (this browser only)">Reset flash</button>
+    </div>
+    <section class="legend" aria-label="Computer keyboard">
+      <div style="background:#F6F2EE"><h3>Chords</h3><p><kbd>F1</kbd>&ndash;<kbd>F4</kbd> DIM MIN MAJ SUS &middot; <kbd>2</kbd>&ndash;<kbd>5</kbd> 6 m7 M7 9 &middot; <kbd>1</kbd> LOCK</p></div>
+      <div style="background:#F6B600"><h3>Roots</h3><p><kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> &hellip; <kbd>;</kbd> <kbd>'</kbd> white D4&ndash;G5 &middot; <kbd>W</kbd> <kbd>E</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>I</kbd> <kbd>O</kbd> <kbd>[</kbd> black</p></div>
+      <div style="background:#F67918"><h3>Buttons</h3><p><kbd>Z</kbd> FX <kbd>X</kbd> KEY <kbd>C</kbd> BASS <kbd>V</kbd> LATCH <kbd>B</kbd> EDIT <kbd>N</kbd> OPT &middot; <kbd>,</kbd> HOME <kbd>.</kbd> SAVE <kbd>/</kbd> PERF <kbd>Shift</kbd> METRO <kbd>Enter</kbd> LOOP <kbd>&#9003;</kbd> REC</p></div>
+      <div style="background:#29B27B"><h3>Knobs &amp; more</h3><p><kbd>Q</kbd> <kbd>R</kbd> <kbd>U</kbd> <kbd>P</kbd> <kbd>6</kbd>&ndash;<kbd>9</kbd> pick a knob, <kbd>&uarr;</kbd> <kbd>&darr;</kbd> turn it (or wheel / drag) &middot; <kbd>&larr;</kbd> <kbd>&rarr;</kbd> OCT &middot; <kbd>Esc</kbd> panic &middot; right-click latches</p></div>
+    </section>
+    <footer>GPL-3.0 &middot; the FM-1 firmware and its emulator, compiled to WebAssembly. Settings and sounds you save stay in this browser.</footer>
+  </main>
+</div>
+<script src="keymap.js"></script>
+<script src="emu.js"></script>
+</body>
+</html>

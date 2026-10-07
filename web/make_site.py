@@ -8,9 +8,11 @@
   firmware/choralroot-VER.fwsc the package (+ LICENSE, LICENSING.md, LICENSES/: the package holds
                               JieLi SDK files under Apache-2.0, see LICENSING.md)
   webapp/installer/index.html index_pkg.html, self-contained (fm1pkg.js, fm1ota.js, fm1backup.js, metadata inlined)
+  emu/                        "Try it in the browser": build/emu-web/* (made by sh tools/emu/web/build_web.sh;
+                              EMU_DIR or a 4th argument overrides; missing: a warning, the site is made without it)
   src/                        not touched
 
-  web/make_site.py build/choralroot.fwsc VERSION OUT_DIR      (or build/choralroot-X.Y.fwsc X.Y)
+  web/make_site.py build/choralroot.fwsc VERSION OUT_DIR [EMU_DIR]     (or build/choralroot-X.Y.fwsc X.Y)
 
 No web editor: Felucca's editor protocol is not in ChoralRoot, so webapp/editor/ is not written (an old one in
 OUT_DIR is left as it is). The package must be one made by tools/fm1pkg_make.py (Felucca's own loader, no
@@ -18,6 +20,7 @@ vendor files). Its identity (FM-1_9xx; ChoralRoot's is FM-1_920) is read from th
 report it after the install.
 """
 import json
+import os
 import re
 import shutil
 import sys
@@ -65,8 +68,9 @@ def landing(out, index):
     return written
 
 
-def main(pkg, version, out):
+def main(pkg, version, out, emu=None):
     pkg, out = Path(pkg), Path(out)
+    emu = Path(emu or os.environ.get("EMU_DIR") or HERE.parent / "build" / "emu-web")
     raw = pkg.read_bytes()
     product = product_of(raw)
     if not re.fullmatch(r"FM-1_9\d\d", product):
@@ -105,12 +109,23 @@ def main(pkg, version, out):
     for doc in ("LICENSE", "LICENSING.md"):
         shutil.copy(HERE.parent / doc, fw / doc)
     site = landing(out, index)
+    if (emu / "index.html").is_file():
+        (out / "emu").mkdir(exist_ok=True)
+        emu_files = sorted(f.name for f in emu.iterdir() if f.is_file() and not f.name.startswith("."))
+        for n in emu_files:
+            shutil.copy(emu / n, out / "emu" / n)
+        emu_note = f"emu/ ({', '.join(emu_files)})"
+    else:
+        emu_note = "no emu/"
+        print(f"warning: {emu}/index.html missing: the site is made without the browser emulator (emu/), so the "
+              "landing page's 'Try it in the browser' link has no target; build it with sh tools/emu/web/build_web.sh",
+              file=sys.stderr)
     print(f"site: {out}: {', '.join(site)}; webapp/installer/index.html ({len(html)} B); "
           f"firmware/{name} ({len(raw)} B, {product}), firmware/LICENSE, firmware/LICENSING.md, "
-          f"firmware/LICENSES/ ({len(names)} texts + index.html)")
+          f"firmware/LICENSES/ ({len(names)} texts + index.html); {emu_note}")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
+    if len(sys.argv) not in (4, 5):
         sys.exit(__doc__)
-    main(*sys.argv[1:4])
+    main(*sys.argv[1:5])
