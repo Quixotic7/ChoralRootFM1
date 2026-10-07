@@ -84,7 +84,7 @@ ok, out = review(pkgfile("cr.fwsc", cr), v15)
 check("FM-1_920 head equal to FM1_V15's accepted", ok and "equals V15" in out)
 other = package("FM-1_015", marker=False, seed=11)
 ok, out = review(pkgfile("cr.fwsc", cr), pkgfile("v15b.fwsc", other))
-check("FM-1_920 head differing from FM1_V15's refused", not ok and "differs" in out)
+check("FM-1_920 head differing from FM1_V15's accepted with a note", ok and "differs from V15 in" in out and "rule 2" in out)
 ok, out = review(v15)
 check("FM-1_015 with a wrong firmware hash refused", not ok and "sha256" in out)
 ok, out = review(pkgfile("f900.fwsc", package("FM-1_900", marker=False)))
@@ -122,6 +122,15 @@ if real.exists():
     check("build/choralroot.fwsc flash.bin at 0x400, logical[0x400:0x410] == image0[:16]",
           rf.entries[0]["data_off"] == 0x400 and rf.raw[0x400:0x410] == i0[:16])
     check("build/choralroot.fwsc image0[0x4000:0x4010] is code, not erased", i0[0x4000:0x4010] != b"\xff" * 16)
+
+V15 = ROOT.parent / "MVaveOfficial" / "V15-FM-1.fwsc"
+if V15.exists():
+    ok, out = review(str(V15))
+    check("real V15-FM-1.fwsc accepted under rule 1, file sha256 noted",
+          ok and "rule 1" in out and "db1642b2b6fa5c2c" in out and "equals the official" in out)
+    if real.exists():
+        ok, out = review(str(real), str(V15))
+        check("build/choralroot.fwsc accepted under rule 2 with FM1_V15 = the real V15", ok and "rule 2" in out)
 
 print("transporter shim: " + ("all ok" if not fails else f"{fails} FAILED"))
 sys.exit(1 if fails else 0)

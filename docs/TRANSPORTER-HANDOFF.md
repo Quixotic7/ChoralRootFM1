@@ -134,3 +134,8 @@ user data (user sounds U01 SHIMMER, U02 TINE EP, settings) is backed up on the M
   bytes shifted by 0x400. Its V15 hash identifies the genuine file (the logical slice); the flash-region hash
   `V15_FLASH_FW_SHA256` is unpinned until `extract FM-1.fwsc out.bin --verify-v15` runs on the genuine file. Check
   u/acrawf1's `fm1_extract_app.py` for the same bug before trusting it.
+- **The official V15 is on this Mac**: `../MVaveOfficial/V15-FM-1.fwsc` (file sha256 db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a,
+  identity FM-1_015, flash.bin at 0x400, flash-region sha256 6edf3c37fb5bbbc33607c89375ee024d5477c17914d72221c8c68e58a8255686:
+  both published hashes match). The Unbricker (eca8f0b) and `tools/transporter` accept it; `tools/transporter` accepts
+  `build/choralroot.fwsc` too (its look-alike head differs from V15's in 15031 bytes, which is noted, not refused: the
+  head is never written). Step 3 of the plan is done; step 7's command: `FM1_RESEARCH=$PWD/tools/transporter FM1_V15=../MVaveOfficial/V15-FM-1.fwsc python3 ../FM-1-transporter/tools/fm1t.py write --package ../MVaveOfficial/V15-FM-1.fwsc --ref backup.bin` (dry run first, then `--write`).

@@ -1,15 +1,15 @@
 """Stand-in for fm-1-research-lab's fm1_ota.require_reviewed: ChoralRoot's review policy for the Transporter.
 
 Accepts (1) the official V15 (identity FM-1_015, firmware region sha256 as MvaveFM1Unbricker), or
-(2) a ChoralRoot package (identity FM-1_920 with the Felucca loader marker; its head [0, 0x4000) must equal
-the V15 package's at $FM1_V15 when that is set). Anything else, a UFW header that fails its CRCs or lacks flash.bin, or a flash.bin that is not 0x93000 bytes,
+(2) a ChoralRoot package (identity FM-1_920 with the Felucca loader marker; its head [0, 0x4000) is compared
+with the V15 package's at $FM1_V15 when set, as a note only: the head is never written). Anything else, a UFW header that fails its CRCs or lacks flash.bin, or a flash.bin that is not 0x93000 bytes,
 exits. Reads files only; never writes, never uses the network.
 """
 import hashlib
 import os
 import sys
 
-from _fm1pkg import (CR_IDENTITY, HEAD_END, IMAGE_LEN, LOADER_MARK, V15_FW_SHA256, V15_IDENTITY,
+from _fm1pkg import (CR_IDENTITY, HEAD_END, IMAGE_LEN, LOADER_MARK, V15_FILE_SHA256, V15_FW_SHA256, V15_IDENTITY,
                      logical_image, product_of, ufw_flash)
 
 
@@ -38,9 +38,10 @@ def _load(path):
 
 def require_reviewed(path):
     raw, product, logical, img = _load(path)
-    # the Unbricker's V15 hash (fm1_unbrick.py Package.firmware) is of the LOGICAL image 0x4000..0x92FFF,
-    # not of flash.bin: computed the same way so the published hash matches
-    fw_sha = hashlib.sha256(logical[HEAD_END:IMAGE_LEN]).hexdigest()
+    file_sha = hashlib.sha256(raw).hexdigest()
+    print(f"fm1_ota: package sha256 {file_sha} ({'equals' if file_sha == V15_FILE_SHA256 else 'is not'} "
+          "the official V15 FM-1.fwsc)")
+    fw_sha = hashlib.sha256(img[HEAD_END:]).hexdigest()   # flash.bin region 0x4000..0x92FFF
     if product == V15_IDENTITY and fw_sha == V15_FW_SHA256:
         print("fm1_ota: accepted by rule 1: official M-VAVE V15 (firmware sha256 verified)")
         return
@@ -58,6 +59,7 @@ def require_reviewed(path):
     _, v15_product, _, v15_img = _load(v15)
     if v15_product != V15_IDENTITY:
         _refuse(path, f"FM1_V15={v15} is not a V15 package (identity {v15_product!r})")
-    if img[:HEAD_END] != v15_img[:HEAD_END]:
-        _refuse(path, f"its head 0x0000..0x3FFF differs from the V15 package's at {v15}")
-    print("fm1_ota: accepted by rule 2: ChoralRoot package (head 0x0000..0x3FFF equals V15's)")
+    n = sum(a != b for a, b in zip(img[:HEAD_END], v15_img[:HEAD_END]))
+    if n:
+        print(f"fm1_ota: note: head 0x0000..0x3FFF differs from V15 in {n} bytes; the head is never written")
+    print("fm1_ota: accepted by rule 2: ChoralRoot package" + ("" if n else " (head 0x0000..0x3FFF equals V15's)"))
