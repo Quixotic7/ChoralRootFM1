@@ -10,6 +10,7 @@
 #   (e) (c) while KNOB 1..4 turn on an EDIT page every 30 ms
 #   (f) a 6-note VA chord (ENSEMBLE STR) + the VA bass (PUNCH BASS), a chord change (docs/VA.md)
 #   (g) a 6-note CZ-1 chord (CZ STRINGS 2) + the CZ-1 bass (CZ BASS), a chord change (docs/CZ1.md)
+#   (h) the FX layer's knob row: a chord held, KNOB 1..4 turned every 30 ms for 2 s (Reverb), then 1 s (Delay)
 #   (u) USB audio recording (docs/USB-AUDIO.md): the emulator has no USB, so not a scenario but what ChoralRoot In
 #       adds to a half on top of (a)..(g): tests/cr_usbaudio_test.c --bench counts the host instructions of the
 #       capture staging, the master tap and the ring copy (the audio ISR) and of the packets (TIMER5), with emu.c's
@@ -24,10 +25,10 @@ if [ "$EMU" = build/host/emu ] && { [ ! -x "$EMU" ] || [ -n "$(find tools/emu fi
     sh tools/emu/build.sh || { echo "build failed"; exit 1; }
 fi
 mkdir -p "$OUT"
-for s in a b c d e f g; do
+for s in a b c d e f g h; do
     n=perf_$s
     "$EMU" --headless --script "tools/emu/scripts/$n.txt" --wav "$OUT/$n.wav" >"$OUT/$n.log" 2>&1
-    echo "== ($s) $(sed -n '1s/^# tools\/emu\/perf.sh ([a-g]): //p' "tools/emu/scripts/$n.txt")"
+    echo "== ($s) $(sed -n '1s/^# tools\/emu\/perf.sh ([a-h]): //p' "tools/emu/scripts/$n.txt")"
     grep '^audio: [0-9]* blocks\|^cpu:\|^ui:' "$OUT/$n.log" | sed 's/^/   /'
     grep 'voices: given up\|erases with' "$OUT/$n.log" | tail -2 | sed 's/^ */   /'
     python3 tools/emu/wavclicks.py "$OUT/$n.wav" --from 0.4 | tail -1 | sed 's/^/   /'

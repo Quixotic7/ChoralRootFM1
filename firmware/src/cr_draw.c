@@ -11,7 +11,8 @@
  * Cache: a signature of the struct, the animation's frame and the palette: unchanged, nothing is drawn; else every
  * strip is drawn and only the tiles whose pixels changed are blitted (cr_draw_invalidate: all of them, once); when
  * only the ring's fraction moved, only the strips its tip crossed are drawn (the ring itself: a table, cr_ring_draw);
- * when only the editor's parts changed (a row's cells, the band, the hot cell, the title line), only their strips.
+ * when only the editor's parts changed (a row's cells, the band, the hot cell, the title line), only their strips
+ * (a knob row's cells and hot cell the same: its row's strips).
  * A blit goes out by DMA from its own buffer while the next strip is drawn (cr_send).
  * Animations are pure functions of (s, anim_ms): anim_ms is the time since the change that started the ones in
  * s->anim (the firmware's tween clock); cr_anim_busy says whether more frames are still to come.
@@ -176,7 +177,7 @@ static void cr_frame(const cr_screen_t *s, uint32_t t, cr_frame_t *fr)
             fr->sq = CR_THIN + (((4096 - CR_THIN) * cr_ease_out(t, CR_SQUEEZE_MS)) >> 12);
         }
     }
-    if (s->kind == CR_K_PICKER && (s->anim & CR_A_SLIDE) && s->slide && t < CR_SLIDE_MS) {
+    if ((s->kind == CR_K_PICKER || s->kind == CR_K_KNOBROW) && (s->anim & CR_A_SLIDE) && s->slide && t < CR_SLIDE_MS) {
         fr->busy = 1;
         fr->slide = 4096 - cr_ease_out(t, CR_SLIDE_MS);
     }
@@ -388,6 +389,55 @@ static const char *cr_item(const cr_screen_t *s, int32_t i)
     return i >= 0 && i < (int32_t)s->n_items && k >= 0 && k < (int32_t)CR_PICK_MAX ? s->item[k] : "";
 }
 
+/* the picker's square position marks: n of them centred on x 120 at row y, the selected one in col */
+static void cr_pick_marks(int32_t n, int32_t sel, int32_t y, uint16_t col)
+{
+    int32_t mw = 200 / n - 3, gap = 4, x0, i;
+    if (mw > 8) mw = 8;
+    if (mw < 1) mw = 1;
+    x0 = 120 - (n * mw + (n - 1) * gap) / 2;
+    for (i = 0; i < n; i++)
+        cr_fill(x0 + i * (mw + gap), y, mw, 4, i == sel ? col : T_LINE);
+}
+/* a horizontal picker's neighbours: 13 px dim at lx (left) and rx (right), on baseline base - 4 (Q8), cut to room */
+static void cr_pick_sides(const cr_screen_t *s, int32_t n, int32_t sel, int32_t base, int32_t lx, int32_t rx,
+                          int32_t room)
+{
+    if (sel > 0 && room > P8(24))
+        cr_text_fit(P8(lx), base - P8(4), cr_item(s, sel - 1), 13, 0, CR_L, T_DIM, T_BG, room);
+    if (sel < n - 1 && room > P8(24)) {
+        char b[48];
+        int cut = cr_fit(b, sizeof b, cr_item(s, sel + 1), 13, 0, room);
+        cr_text(P8(rx), base - P8(4), b, 13, 0, CR_R, 4096, T_DIM, T_BG, cut ? 9u : 0u);
+    }
+}
+/* the picker's item, huge, squeezed to maxw, centred on x 120 on baseline base (Q8); sliding (fr->slide): the old
+ * one out and the new one in inside the item's box (horiz: x 120 +- maxw / 2; else the rows y0 .. y1, Q8) */
+static void cr_pick_item(const cr_screen_t *s, const cr_frame_t *fr, int32_t sel, int32_t size, int32_t maxw,
+                         int horiz, int32_t base, int32_t y0, int32_t y1, uint16_t col)
+{
+    const char *big = cr_item(s, sel);
+    int32_t w = cr_tw(big, (uint32_t)size, 1), sx = w > P8(maxw) ? ((P8(maxw) << 12) / w) : 4096;
+    if (fr->slide && s->slide) {
+        const char *old = cr_item(s, sel - s->slide);
+        int32_t wo = cr_tw(old, (uint32_t)size, 1), so = wo > P8(maxw) ? ((P8(maxw) << 12) / wo) : 4096;
+        int32_t pitch = horiz ? P8(maxw / 2 + 60) : y1 - y0, d = (pitch * fr->slide) >> 12;
+        int32_t dir = s->slide > 0 ? 1 : -1;
+        if (horiz) {
+            cr_clip_set(120 - maxw / 2 - 4, 0, 120 + maxw / 2 + 4, 240);
+            cr_text(P8(120) + dir * d, base, big, (uint32_t)size, 1, CR_C, sx, col, T_BG, 32u);
+            cr_text(P8(120) + dir * (d - pitch), base, old, (uint32_t)size, 1, CR_C, so, col, T_BG, 32u);
+        } else {
+            cr_clip_set(0, y0 >> 8, 240, ((y1 + 255) >> 8) + 4);   /* (+4: descenders) */
+            cr_text(P8(120), base + dir * d, big, (uint32_t)size, 1, CR_C, sx, col, T_BG, 32u);
+            cr_text(P8(120), base + dir * (d - pitch), old, (uint32_t)size, 1, CR_C, so, col, T_BG, 32u);
+        }
+        cr_clip_all();
+    } else {
+        cr_text(P8(120), base, big, (uint32_t)size, 1, CR_C, sx, col, T_BG, 0);
+    }
+}
+
 static void cr_p_picker(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
 {
     int ringed = s->ring_on, horiz = s->orient == 1;
@@ -401,53 +451,20 @@ static void cr_p_picker(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
     const char *big = cr_item(s, sel);
     if (s->title[0]) cr_text(P8(10), P8(CR_PY0 + 16), s->title, 14, 1, CR_L, 4096, cr_rgb(s->title_col, T_MID), T_BG, 0);
     if (horiz) {
-        int32_t lx = ringed ? 36 : 6, rx = ringed ? 204 : 234, bw = cr_tw(big, (uint32_t)size, 1), room;
+        int32_t lx = ringed ? 36 : 6, rx = ringed ? 204 : 234, bw = cr_tw(big, (uint32_t)size, 1);
         if (bw > P8(maxw)) bw = P8(maxw);
-        room = (P8(rx - lx) - bw) / 2 - P8(10);
-        if (sel > 0 && room > P8(24))
-            cr_text_fit(P8(lx), base - P8(4), cr_item(s, sel - 1), 13, 0, CR_L, T_DIM, T_BG, room);
-        if (sel < n - 1 && room > P8(24)) {
-            char b[48];
-            int cut = cr_fit(b, sizeof b, cr_item(s, sel + 1), 13, 0, room);
-            cr_text(P8(rx), base - P8(4), b, 13, 0, CR_R, 4096, T_DIM, T_BG, cut ? 9u : 0u);
-        }
+        cr_pick_sides(s, n, sel, base, lx, rx, (P8(rx - lx) - bw) / 2 - P8(10));
     } else {
         if (sel > 0) cr_text_fit(P8(120), top + P8(14), cr_item(s, sel - 1), 15, 0, CR_C, T_DIM, T_BG, P8(maxw));
         if (sel < n - 1)
             cr_text_fit(P8(120), top + nbh + bigh + valh + P8(16), cr_item(s, sel + 1), 15, 0, CR_C, T_DIM, T_BG, P8(maxw));
     }
-    {   /* the item, huge, squeezed to fit; sliding: the old one out, the new one in, inside the item's box */
-        int32_t w = cr_tw(big, (uint32_t)size, 1), sx = w > P8(maxw) ? ((P8(maxw) << 12) / w) : 4096;
-        if (fr->slide && s->slide) {
-            const char *old = cr_item(s, sel - s->slide);
-            int32_t wo = cr_tw(old, (uint32_t)size, 1), so = wo > P8(maxw) ? ((P8(maxw) << 12) / wo) : 4096;
-            int32_t pitch = horiz ? P8(maxw / 2 + 60) : bigh, d = (pitch * fr->slide) >> 12;
-            int32_t dir = s->slide > 0 ? 1 : -1;
-            if (horiz) {
-                cr_clip_set(120 - maxw / 2 - 4, 0, 120 + maxw / 2 + 4, 240);
-                cr_text(P8(120) + dir * d, base, big, (uint32_t)size, 1, CR_C, sx, col, T_BG, 32u);
-                cr_text(P8(120) + dir * (d - pitch), base, old, (uint32_t)size, 1, CR_C, so, col, T_BG, 32u);
-            } else {
-                cr_clip_set(0, (top + nbh) >> 8, 240, ((top + nbh + bigh + 255) >> 8) + 4);   /* (+4: descenders) */
-                cr_text(P8(120), base + dir * d, big, (uint32_t)size, 1, CR_C, sx, col, T_BG, 32u);
-                cr_text(P8(120), base + dir * (d - pitch), old, (uint32_t)size, 1, CR_C, so, col, T_BG, 32u);
-            }
-            cr_clip_all();
-        } else {
-            cr_text(P8(120), base, big, (uint32_t)size, 1, CR_C, sx, col, T_BG, 0);
-        }
-    }
+    cr_pick_item(s, fr, sel, size, maxw, horiz, base, top + nbh, top + nbh + bigh, col);
     if (s->value[0]) cr_text(P8(120), top + nbh + bigh + P8(20), s->value, 20, 1, CR_C, 4096, col, T_BG, 0);
     if (s->label[0])
         cr_text(P8(120), P8(CR_PY0 + ph) - marksh - P8(ringed ? 34 : 8), s->label, 13, 0, CR_C, 4096, T_MID, T_BG, 0);
-    if (n > 1 && !ringed) {              /* square position marks */
-        int32_t mw = 200 / n - 3, gap = 4, x0, i;
-        if (mw > 8) mw = 8;
-        if (mw < 1) mw = 1;
-        x0 = 120 - (n * mw + (n - 1) * gap) / 2;
-        for (i = 0; i < n; i++)
-            cr_fill(x0 + i * (mw + gap), CR_PY0 + ph - 8, mw, 4, i == sel ? col : T_LINE);
-    }
+    if (n > 1 && !ringed)                /* square position marks */
+        cr_pick_marks(n, sel, CR_PY0 + ph - 8, col);
 }
 
 static void cr_p_meter(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
@@ -556,6 +573,180 @@ static int32_t cr_morph_y(int32_t m, int32_t x, int left, int32_t e)
     int32_t k = m / 24, f = m % 24;
     if (m >= 96) return cr_mshape(5, x, left, e);
     return (cr_mshape((uint32_t)k, x, left, e) * (24 - f) + cr_mshape((uint32_t)k + 1u, x, left, e) * f) / 24;
+}
+
+/* a stroked rectangle (Q4): its edges lw wide centred on the outline, as four rectangles that do not overlap */
+static void cr_srect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t lw, uint16_t col)
+{
+    cr_frect(x - lw / 2, y - lw / 2, w + lw, lw, col);
+    cr_frect(x - lw / 2, y + h - lw / 2, w + lw, lw, col);
+    cr_frect(x - lw / 2, y + lw / 2, lw, h - lw, col);
+    cr_frect(x + w - lw / 2, y + lw / 2, lw, h - lw, col);
+}
+
+/* the moon's lit part: within the circle (cx, cy, r), the right half less the ellipse (rx, r) for k >= 0 (a crescent),
+ * the right half plus it for k < 0 (gibbous); 4 x 4 samples a pixel (Q4), a pixel whose four corner samples agree
+ * taken whole (the shapes are smooth at a pixel's scale) */
+static int cr_moon_in(int32_t dx, int32_t dy, int64_t r2, int64_t rx2, int64_t e, int gib)
+{
+    int64_t el;
+    if ((int64_t)dx * dx + (int64_t)dy * dy > r2) return 0;
+    el = (int64_t)dx * dx * r2 + (int64_t)dy * dy * rx2;   /* <= e: inside the ellipse */
+    return gib ? (dx >= 0 || el <= e) : (dx >= 0 && el >= e);
+}
+static void cr_moon_fill(int32_t cx, int32_t cy, int32_t r, int32_t rx, int gib, uint16_t col)
+{
+    int32_t x0 = (cx - r) >> 4, x1 = (cx + r + 15) >> 4, y0 = (cy - r) >> 4, y1 = (cy + r + 15) >> 4, i, j;
+    int64_t r2 = (int64_t)r * r, rx2 = (int64_t)rx * rx, e = r2 * rx2;
+    if (y0 < cr_row0()) y0 = cr_row0();
+    if (y1 > cr_row1()) y1 = cr_row1();
+    for (j = y0; j < y1; j++)
+        for (i = x0; i < x1; i++) {
+            int32_t ax = i * 16 + CR_SS[0] - cx, bx = i * 16 + CR_SS[3] - cx, ay = j * 16 + CR_SS[0] - cy,
+                    by = j * 16 + CR_SS[3] - cy;
+            uint32_t n = (uint32_t)(cr_moon_in(ax, ay, r2, rx2, e, gib) + cr_moon_in(bx, ay, r2, rx2, e, gib) +
+                                    cr_moon_in(ax, by, r2, rx2, e, gib) + cr_moon_in(bx, by, r2, rx2, e, gib)), a, b;
+            if (n == 4u) n = 16u;
+            else if (n) {
+                for (n = 0, b = 0; b < 4u; b++)
+                    for (a = 0; a < 4u; a++)
+                        n += (uint32_t)cr_moon_in(i * 16 + CR_SS[a] - cx, j * 16 + CR_SS[b] - cy, r2, rx2, e, gib);
+            }
+            if (n) cr_blend(i, j, col, n * 16u);
+        }
+}
+
+/* the parameter pictograms (FORMAT.md "cell glyphs", the designer's drawPicto) in the box x, y, w, h (Q4): flat 2 px
+ * strokes in col (cr_poly, round joins; a path that retraces a segment is still one coverage), filled parts in col,
+ * 2 px inside the box; pct, pct2 Q8 (256 = 1) */
+static void cr_picto(uint32_t g, int32_t x, int32_t y, int32_t w, int32_t h, uint16_t col, int32_t pct, int32_t pct2)
+{
+    int32_t lw = 32, x0 = x + lw, x1 = x + w - lw, y0 = y + lw, y1 = y + h - lw, W = x1 - x0, H = y1 - y0;
+    int32_t cx = x + w / 2, cy = y + h / 2, mn = W < H ? W : H, k;
+    int16_t p[48 * 2];
+    uint32_t np = 0;
+#define CR_PT(px16, py16) (p[2 * np] = (int16_t)(px16), p[2 * np + 1] = (int16_t)(py16), np++)
+    switch (g) {
+    case CR_G_ROOM: {                               /* one-point perspective: the far wall 70 % .. 22 % of the box */
+        int32_t bw = H * 14 / 10 < W ? H * 14 / 10 : W, bx = cx - bw / 2, by = y0, f = 2867 - 1966 * pct / 256;
+        int32_t iw = bw * f >> 12, ih = H * f >> 12, ix = cx - iw / 2, iy = cy - ih / 2;
+        cr_srect(bx, by, bw, H, lw, col);            /* the box and the far wall: rectangles (cheap), the corner */
+        cr_srect(ix, iy, iw, ih, lw, col);           /* lines: four short polylines */
+        for (k = 0; k < 4; k++) {
+            np = 0;
+            CR_PT(k & 1 ? bx + bw : bx, k & 2 ? by + H : by);
+            CR_PT(k & 1 ? ix + iw : ix, k & 2 ? iy + ih : iy);
+            cr_poly(p, np, lw, 0, 0, col);
+        }
+        break;
+    }
+    case CR_G_MOON: {                               /* lit 8 % (a thin crescent) .. 100 % (full); the rim outlined */
+        int32_t r = mn / 2, f = 328 + 3768 * pct / 256, kk = 4096 - 2 * f, rx = r * (kk < 0 ? -kk : kk) >> 12;
+        cr_moon_fill(cx, cy, r, rx > 0 ? rx : 1, kk < 0, col);
+        cr_arc(cx, cy, r, lw, 0, 65536u, 0, 0, 0, col);
+        break;
+    }
+    case CR_G_ECHOES: {                             /* a struck bar and its repeats: spacing pct, feedback pct2 */
+        int32_t bw = 48, sp = 80 + ((W - bw) / 2 - 80) * pct / 256, d = 819 + 3072 * pct2 / 256, bh = H, bx;
+        if (sp < 64) sp = 64;
+        cr_frect(x0, y1 - H, bw, H, col);
+        for (bx = x0 + sp; bx + bw <= x1; bx += sp) {
+            bh = bh * d >> 12;
+            if (bh < 24) break;
+            cr_frect(bx, y1 - bh, bw, bh, col);
+        }
+        cr_frect(x0, y1, W, 16, col);               /* the baseline, 1 px */
+        break;
+    }
+    case CR_G_LFO: {                                /* 1 .. 5 cycles (pct), nearly flat .. full height (pct2) */
+        int32_t cyc = 4096 + 16384 * pct / 256, a = (H / 2) * (328 + 3768 * pct2 / 256) >> 12;
+        int32_t n = 8 * ((cyc + 4095) >> 12);
+        if (n < 16) n = 16;
+        if (n > 44) n = 44;
+        for (k = 0; k <= n; k++)
+            CR_PT(x0 + k * W / n, cy - ((cr_sin((uint32_t)(k * cyc * 16 / n)) * a) >> 14));
+        cr_poly(p, np, lw, 0, 0, col);
+        break;
+    }
+    case CR_G_CLIP: {                               /* one sine cycle into a clipper, gain 1 .. 10 */
+        int32_t gq = 4096 + 36864 * pct / 256, a = H / 2, v;
+        for (k = 0; k <= 32; k++) {
+            v = (cr_sin((uint32_t)(k * 65536 / 32)) * gq) >> 12;   /* Q14 */
+            v = v > 16384 ? 16384 : v < -16384 ? -16384 : v;
+            CR_PT(x0 + k * W / 32, cy - ((v * a) >> 14));
+        }
+        if (pct > 25)                               /* the clip levels, dashed 1 px (2 on, 2 off) */
+            for (k = x0; k < x1; k += 64) {
+                int32_t dw = x1 - k < 32 ? x1 - k : 32;
+                cr_frect(k, y0 - 8, dw, 16, col);
+                cr_frect(k, y1 - 8, dw, 16, col);
+            }
+        cr_poly(p, np, lw, 0, 0, col);
+        break;
+    }
+    case CR_G_SPRING: {                             /* a coil of 6.5 turns between two short ends */
+        int32_t e = W * 12 / 100, zx0 = x0 + e, zw = W - 2 * e, a = H * 36 / 100;
+        CR_PT(x0, cy); CR_PT(zx0, cy);
+        for (k = 0; k < 13; k++) CR_PT(zx0 + zw * (2 * k + 1) / 26, cy + (k & 1 ? a : -a));
+        CR_PT(zx0 + zw, cy); CR_PT(x1, cy);
+        cr_poly(p, np, lw, 0, 0, col);
+        break;
+    }
+    case CR_G_MIX: {                                /* dry (back, outlined) behind wet (front, filled to pct) */
+        int32_t s = mn * 72 / 100, off = mn - s, bx = cx - (s + off) / 2, by = cy - (s + off) / 2, fx = bx + off,
+                fy = by + off, fh = s * pct / 256;
+        cr_srect(bx, by, s, s, lw, col);
+        cr_frect(fx - lw, fy - lw, s + 2 * lw, s + 2 * lw, T_BG);   /* the front square hides the back one */
+        if (fh > 0) cr_frect(fx, fy + s - fh, s, fh, col);
+        cr_srect(fx, fy, s, s, lw, col);
+        break;
+    }
+    case CR_G_GATE: {                               /* a pulse 10 .. 100 % of the box wide */
+        int32_t pw = W * (26 + 230 * pct / 256) / 256, top = y0 + H * 12 / 100;
+        CR_PT(x0, y1); CR_PT(x0, top); CR_PT(x0 + pw, top); CR_PT(x0 + pw, y1); CR_PT(x1, y1);
+        cr_poly(p, np, lw, 0, 0, col);
+        break;
+    }
+    case CR_G_RANGE: {                              /* a span with end stops, a thick segment 10 .. 100 % from the left */
+        int32_t t = H / 4;
+        CR_PT(x0, cy - t); CR_PT(x0, cy + t); CR_PT(x0, cy); CR_PT(x1, cy); CR_PT(x1, cy - t); CR_PT(x1, cy + t);
+        cr_poly(p, np, lw, 0, 0, col);
+        cr_frect(x0, cy - 40, W * (26 + 230 * pct / 256) / 256, 80, col);
+        break;
+    }
+    case CR_G_ARROW: {                              /* up / down / up and down / random (three dots) */
+        int32_t hd = H * 32 / 100 < W * 30 / 100 ? H * 32 / 100 : W * 30 / 100, n = 0, ax[2], up[2];
+        if (pct < 64) ax[0] = cx, up[0] = 1, n = 1;
+        else if (pct < 128) ax[0] = cx, up[0] = 0, n = 1;
+        else if (pct < 192) {
+            int32_t dx = W * 22 / 100 < hd * 14 / 10 ? W * 22 / 100 : hd * 14 / 10;
+            ax[0] = cx - dx, up[0] = 1, ax[1] = cx + dx, up[1] = 0, n = 2;
+        } else {
+            int32_t d = mn * 32 / 100;
+            cr_disc(cx, cy - d, 40, col);
+            cr_disc(cx - d * 95 / 100, cy + d * 6 / 10, 40, col);
+            cr_disc(cx + d * 95 / 100, cy + d * 6 / 10, 40, col);
+        }
+        for (k = 0; k < n; k++) {
+            int32_t t = up[k] ? y0 : y1, b = up[k] ? y1 : y0, sg = up[k] ? 1 : -1;
+            np = 0;
+            CR_PT(ax[k], b); CR_PT(ax[k], t); CR_PT(ax[k] - hd, t + sg * hd); CR_PT(ax[k], t); CR_PT(ax[k] + hd, t + sg * hd);
+            cr_poly(p, np, lw, 0, 0, col);
+        }
+        break;
+    }
+    case CR_G_SHIFT: {                              /* five staff lines, a square on line round(4 pct) from the bottom */
+        int32_t sq = H / 5 > 64 ? H / 5 : 64, ly0 = y0 + sq / 2, ly1 = y1 - sq / 2, gap = (ly1 - ly0) / 4;
+        int32_t l2 = W < H * 16 / 10 ? W : H * 16 / 10, yy;
+        for (k = 0; k < 5; k++)
+            cr_frect(cx - l2 / 2 - lw / 2, ly0 + k * gap - lw / 2, l2 + lw, lw, col);
+        yy = ly1 - ((pct * 4 + 128) >> 8) * gap;
+        cr_frect(cx - sq / 2, yy - sq / 2, sq, sq, col);
+        break;
+    }
+    default: break;
+    }
+#undef CR_PT
 }
 
 /* a cell's glyph in the box x .. x + w, y .. y + h (Q4): the designer's drawGlyph scaled by h / 64 */
@@ -683,7 +874,10 @@ static void cr_cglyph(const cr_cell_t *c, int32_t x, int32_t y, int32_t w, int32
         cr_poly(p, np, 38, 0, 0, col);
         break;
     }
-    default: break;
+    default:                                         /* the pictograms: drawn at true size (2 px strokes) in the box */
+        if (c->glyph >= CR_G_ROOM && c->glyph < CR_G_N)
+            cr_picto(c->glyph, x, y, w, h, col, pct, c->pct2 >= 255 ? 256 : c->pct2);
+        break;
     }
     (void)cwg;
 #undef CR_PT
@@ -1137,6 +1331,56 @@ static void cr_p_stack(const cr_screen_t *s)
             }
 }
 
+/* CR_K_KNOBROW (FORMAT.md "knobrow"): a layer screen. The panel above the lowest 72 px is a horizontal picker band
+ * (the item 34 px bold in col squeezed to 170 px, its neighbours 13 px dim at the edges, the square marks under it,
+ * `label` 11 px dim top left, `value` 13 px bold under the marks); the 72 px are one row of four knob cells,
+ * edit8's look made taller: the label 10 px (+11), a 48 x 36 glyph box (+15), the value 13 px bold (+66), the 2 px
+ * knob-colour bar (+70). A cell with pct and no glyph draws the bar glyph; a cell not CR_CF_ON a dim dash. The band
+ * slides (CR_A_SLIDE) as a picker's; the row has no motion (the hot cell: the value on a block of its colour). */
+#define CR_KR_ROW 72
+static int32_t cr_kr_rowy(const cr_screen_t *s) { return CR_PY0 + cr_ph(s) - CR_KR_ROW; }
+
+static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
+{
+    int32_t n = s->n_items, sel = s->sel < n ? s->sel : n - 1, size = s->size ? s->size : 34, ry = cr_kr_rowy(s);
+    int32_t bandh = P8(ph - CR_KR_ROW), bigh = size * 282, labelh = s->label[0] ? P8(14) : 0;   /* Q8 */
+    int32_t stack = bigh + P8(10) + (s->value[0] ? P8(18) : 0), top = P8(CR_PY0) + labelh + (bandh - labelh - stack) / 2;
+    int32_t base = top + bigh * 4 / 5, marks = (top + bigh + P8(4) + 128) >> 8, ci;
+    uint16_t col = cr_rgb(s->col, T_TEXT);
+    if (cr_in_strip(CR_PY0, ry)) {                   /* the band */
+        if (s->label[0]) cr_text_fit(P8(8), P8(CR_PY0 + 12), s->label, 11, 0, CR_L, T_DIM, T_BG, P8(224));
+        if (n > 0) {
+            int32_t bw = cr_tw(cr_item(s, sel), (uint32_t)size, 1);
+            if (bw > P8(170)) bw = P8(170);
+            cr_pick_sides(s, n, sel, base, 6, 234, (P8(228) - bw) / 2 - P8(10));
+            cr_pick_item(s, fr, sel, size, 170, 1, base, top, top + bigh, col);
+            cr_pick_marks(n, sel, marks, col);
+        }
+        if (s->value[0]) cr_text_fit(P8(120), P8(marks + 19), s->value, 13, 1, CR_C, col, T_BG, P8(224));
+    }
+    if (!cr_in_strip(ry - 2, ry + CR_KR_ROW + 2)) return;
+    for (ci = 0; ci < 4; ci++) {                     /* the knobs' cells */
+        cr_cell_t c = s->cell[0][ci];
+        int32_t x = ci * 60, cx = P8(x + 30);
+        uint16_t kc = cr_ccol((uint32_t)ci, 1);
+        int hot = s->hot_r == 1u && s->hot_c == ci;
+        if (!(c.flags & CR_CF_ON)) {                 /* no parameter: a dim dash where the value would be */
+            cr_frect((x + 26) * 16 + 8, (ry + 61) * 16, 7 * 16, 32, T_DIM);
+            continue;
+        }
+        if (c.label[0]) {
+            char b[16];
+            int cut = cr_fit(b, sizeof b, c.label, 10, 1, CR_CF_MARKCOL(c.flags) ? P8(46) : P8(56));
+            cr_text(cx, P8(ry + 11), b, 10, 1, CR_C, 4096, kc, T_BG, cut ? 9u : 0u);
+        }
+        cr_mark(&c, x + 58, ry + 1);
+        if (c.glyph == CR_G_NONE && (c.flags & CR_CF_PCT)) c.glyph = CR_G_BAR;
+        if (c.glyph != CR_G_NONE) cr_cglyph(&c, (x + 6) * 16, (ry + 15) * 16, 48 * 16, 36 * 16, kc);
+        cr_cvalue(&c, cx, P8(ry + 66), P8(60), 13, hot ? cr_hcol(s, kc) : kc, hot, 0);
+        cr_fill(x + 4, ry + CR_KR_ROW - 2, 52, 2, kc);
+    }
+}
+
 static void cr_p_geek(const cr_screen_t *s, int32_t ph)
 {
     uint32_t i;
@@ -1341,6 +1585,7 @@ static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
     case CR_K_ARP: cr_p_arp(s, ph); break;
     case CR_K_EDIT8: cr_p_edit8(s); break;
     case CR_K_STACK: cr_p_stack(s); break;
+    case CR_K_KNOBROW: cr_p_knobrow(s, fr, ph); break;
     case CR_K_GEEK: cr_p_geek(s, ph); break;
     case CR_K_TEXT: cr_p_text(s); break;
     case CR_K_BIG: cr_p_big(s, ph); break;
@@ -1486,13 +1731,18 @@ static uint32_t cr_strips_of(int32_t y0, int32_t y1)
         if ((int32_t)((k + 1u) * CR_STRIP_H) > y0 && (int32_t)(k * CR_STRIP_H) < y1) m |= 1u << k;
     return m;
 }
-/* the editor's row r (CR_K_EDIT8 / STACK): the strips its cells, its hot block, its mark and bars are drawn in */
+/* the editor's row r (CR_K_EDIT8 / STACK; KNOBROW: row 0, its knob cells): the strips its cells, its hot block, its
+ * mark and bars are drawn in */
 static uint32_t cr_ed_row_strips(const cr_screen_t *s, uint32_t r)
 {
     if (s->kind == CR_K_STACK) {
         uint32_t n = s->n_rows ? (s->n_rows > CR_ED_ROWS ? CR_ED_ROWS : s->n_rows) : 1u;
         int32_t rh = P8(198) / (int32_t)n, y = P8(41) + (int32_t)r * rh;
         return cr_strips_of((y >> 8) - 1, ((y + rh) >> 8) + 1);   /* (its line above it: row - 1) */
+    }
+    if (s->kind == CR_K_KNOBROW) {                   /* the one row of knob cells (and the strips' edges) */
+        int32_t y = cr_kr_rowy(s);
+        return r ? 0u : cr_strips_of(y - 2, y + CR_KR_ROW + 2);
     }
     if (s->tall || r > 1u) return (1u << CR_NSTRIP) - 1u;
     if (s->wide) return cr_strips_of((r ? 184 : 124) - 2, (r ? 240 : 180) + 2);
@@ -1503,14 +1753,14 @@ static uint32_t cr_ed_row_strips(const cr_screen_t *s, uint32_t r)
 static uint32_t cr_ed_strips(const cr_screen_t *s, const uint32_t *row, uint32_t wv, uint32_t hot)
 {
     uint32_t m = 0, r, band = s->kind == CR_K_EDIT8 && s->wide && !s->tall ? cr_strips_of(20, 122) : (1u << CR_NSTRIP) - 1u;
-    if (s->kind != CR_K_EDIT8 && s->kind != CR_K_STACK) return (1u << CR_NSTRIP) - 1u;
+    if (s->kind != CR_K_EDIT8 && s->kind != CR_K_STACK && s->kind != CR_K_KNOBROW) return (1u << CR_NSTRIP) - 1u;
     for (r = 0; r < CR_ED_ROWS; r++)
         if (row[r] != cr_dc.row[r]) m |= cr_ed_row_strips(s, r);
     if (wv != cr_dc.wv) m |= band;
     if (hot != cr_dc.hot) {
         if (cr_dc.hot & 255u) m |= cr_ed_row_strips(s, (cr_dc.hot & 255u) - 1u);
         if (hot & 255u) m |= cr_ed_row_strips(s, (hot & 255u) - 1u);
-        if (s->wide) m |= band;
+        if (s->wide && s->kind == CR_K_EDIT8) m |= band;
     }
     return m;
 }

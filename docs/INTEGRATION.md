@@ -164,7 +164,7 @@ a button pressed during another's hold is that hold's combo (its release does no
 | --- | --- | --- | --- |
 | SEL | KEY | Key Mode on/off | key layer: roots = tonic (MIN held: minor); KNOB 1–4 TONIC SCALE TRANSPOSE SINGLE NOTES |
 | ARP | PERF | performance on/off | white roots = mode; KNOB 1–4 = the mode's params |
-| FX | FX | main effect on/off | white roots = effect; KNOB 1–3 params, KNOB 4 amount |
+| FX | FX | main effect on/off | the knob row: white roots = effect; KNOB 1–3 params, KNOB 4 amount (on: FX on); no popups, the turned cell hot 800 ms |
 | ENV | BASS | bass on/off | KNOB 1–4 BEHAVIOUR REGISTER SOUND LEVEL; BASS held + EDIT = the bass sound's editor, + SAVE its saving |
 | LFO | LATCH | latch on/off | — |
 | GLO | OPT | Options (picker pages) | shift (momentary): OPT + KNOB 1 split point, + SELECT metronome level, + ALGORITHM bass level; the other knobs keep their job |
@@ -183,7 +183,14 @@ KNOB 2 → `cr_bass_voicing_step`, KNOB 3 → the current perform mode's main pa
 the selected effect's amount, PRESETS → sound ±1 (loads at once, as Felucca's preset_step),
 ALGORITHM → bass sound ±1 (position 0 = OFF), SELECT → tempo ±1 (in a picker: move; on an
 EDIT page: next page). Every knob turn also sets `ui.popup = {knob, until_ms}` so the view shows
-the knob's meter/dial for 900 ms (§5).
+the knob's meter/dial for 900 ms (§5) — except in the FX layer, a **knob row** (`CR_K_KNOBROW`, `cu_fx_cells`): the
+effect's picker over KNOB 1–4's cells (labels `gname` capitalised: Size Damp Type / Rate Depth / Time Feedback Colour;
+the values as the popup showed them, enums and Hz through `param_format`: "90", "Room", "1/8", "0.80 Hz"; KNOB 4
+"Amount" = `fx_amt * 99 / 127` or "off"); glyphs room (SIZE; TYPE Room), spring (TYPE Spring), moon (DAMP inverted,
+COLOUR), echoes (TIME and FEEDBACK: the division's index, feedback / 120), lfo (RATE and DEPTH), mix (the amount;
+Drive: clip). A turn changes the value as before and marks its cell hot for 800 ms (`cu_fx_hot`, cleared when a layer
+opens or another effect is picked); traces `fx: effect Delay`, `fx: cells Time Feedback Colour Amount`,
+`fx: knob 2 Reverb damp 64`.
 
 Pickers (`cr_picker_t { items, n, sel, on_change }`): SELECT or a root key moves `sel` (the white
 roots index into the list), OCT+ confirms (`on_change` is already live for settings, so OCT+ only
@@ -211,7 +218,7 @@ Priority, top down, first match wins:
 
 1. a message (panic, "SAVED", errors) → `big` block / `message`
 2. a knob popup (within 900 ms of a turn) → `meter` in the knob's colour (`PLAN.md` §5)
-3. an open layer → its screen: KEY `keyboard` select-key; PERF / FX / BASS / LOOP / engine pickers; EDIT the `params` page
+3. an open layer → its screen: KEY `keyboard` select-key; FX the `knobrow` (no popup over it: its knob turns never set one); PERF / BASS / LOOP / engine pickers; EDIT the `params` page
 4. Options → the settings picker
 5. the View: CHORD (`chord` with squeeze + notes line, `Key:` in the top line, `Rec`/loop status in the top line; the ring while the loop records / overdubs, the corner dial (`dial_on`) while it merely plays — on every screen with a top line but Options), KEYBOARD, NOTES, GEEK OUT, SCOPE (Felucca's scope buffer)
 6. idle (no chord sounding, no loop, 3 s after the last note) → `stripes`

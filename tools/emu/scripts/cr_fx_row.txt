@@ -1,0 +1,34 @@
+# ChoralRoot: the fx layer is a knob row (cr_screen.h CR_K_KNOBROW): FX held and released locks it open on Reverb
+# (Size / Damp / Type / Amount with their glyphs); KNOB 2 turned: the Damp cell hot (its value on an orange block),
+# no popup (run with EMU_UI_LOG=0: every UI frame stays "knobrow"); 900 ms later the hot block is gone; F4 picks
+# Delay (Time / Feedback / Colour / Amount); KNOB 4: the amount cell hot; E4: Chorus (Rate / Depth / - / Amount);
+# G4: Drive (- - - Amount); FX tap: off (the amount reads "off"); OCT- closes the layer.
+wait 300
+btn FX down
+wait 500
+btn FX up
+wait 300
+shot build/emu/test/cr_fx_row.ppm
+knob KNOB2 +2
+wait 100
+shot build/emu/test/cr_fx_row_hot.ppm
+wait 900
+shot build/emu/test/cr_fx_row_cool.ppm
+btn F4
+wait 300
+shot build/emu/test/cr_fx_row_delay.ppm
+knob KNOB4 +3
+wait 100
+shot build/emu/test/cr_fx_row_amount.ppm
+wait 900
+btn E4
+wait 300
+shot build/emu/test/cr_fx_row_chorus.ppm
+btn G4
+wait 300
+btn FX
+wait 300
+shot build/emu/test/cr_fx_row_drive_off.ppm
+btn OCT-
+wait 300
+dump

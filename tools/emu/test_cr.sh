@@ -173,6 +173,27 @@ differ cr_fx_layer cr_bass_layer "FX / BASS layers differ"
 differ cr_engine_picker cr_loop_layer "EDIT / LOOP layers differ"
 silent_end cr_layers
 
+echo "the fx layer: a knob row (the effect over KNOB 1..4's cells), a turned cell hot, no popup"
+export EMU_UI_LOG=0
+run cr_fx_row
+unset EMU_UI_LOG
+L="$OUT/cr_fx_row.log"
+has '^fx: cells Size Damp Type Amount' "$L" && ok "FX held: Reverb over Size / Damp / Type / Amount: $OUT/cr_fx_row.ppm" || bad "no Reverb cells"
+has '^fx: knob 2 Reverb damp' "$L" && ok "KNOB 2: Reverb's damp ($(grep '^fx: knob 2' "$L" | head -1 | sed 's/^fx: //'))" || bad "KNOB 2: no damp change"
+fr=$(grep -c '^ui: frame' "$L"); kr=$(grep -c '^ui: frame.*device): knobrow ' "$L"); mt=$(grep -c '^ui: frame.*device): meter ' "$L")
+[ "$mt" = 0 ] && [ "$kr" -gt 100 ] && ok "no popup: every frame in the layer a knob row ($kr knobrow frames of $fr, 0 meters)" \
+    || bad "a popup in the fx layer ($mt meter frames, $kr knobrow)"
+grep -q '^ui: frame.*device): knobrow .*hot 1\.1$' "$L" && grep -q '^ui: frame.*device): knobrow .*hot 1\.3$' "$L" &&
+    ok "the turned cell hot (KNOB 2: cell 1, KNOB 4: cell 3)" || bad "no hot cell in the trace"
+h=$(px_count "$OUT/cr_fx_row_hot.ppm" 64 176 116 196 ink); c=$(px_count "$OUT/cr_fx_row_cool.ppm" 64 176 116 196 ink)
+[ "$h" -gt $((c + 300)) ] && ok "the hot block behind Damp's value ($h ink px), gone 900 ms later ($c): $OUT/cr_fx_row_hot.ppm" \
+    || bad "hot block: $h px hot, $c after"
+has '^fx: cells Time Feedback Colour Amount' "$L" && has '^fx: cells Rate Depth - Amount' "$L" && has '^fx: cells - - - Amount' "$L" &&
+    ok "a root picks the effect, the cells follow (Delay, Chorus with a dash, Drive the amount only): $OUT/cr_fx_row_delay.ppm" || bad "the cells did not follow the effect"
+differ cr_fx_row cr_fx_row_delay "Reverb / Delay rows differ"
+has '^fx: knob 4 Delay amount' "$L" && differ cr_fx_row_delay cr_fx_row_amount "KNOB 4: Delay's amount cell changed (hot): $OUT/cr_fx_row_amount.ppm"
+differ cr_fx_row_chorus cr_fx_row_drive_off "Drive with FX off (the amount reads off): $OUT/cr_fx_row_drive_off.ppm"
+
 echo "EDIT: the sound editor (cr_edit.c): groups, screens, lanes, knobs, memory"
 export EMU_UI_LOG=5
 run cr_editor --wav "$OUT/cr_editor.wav"

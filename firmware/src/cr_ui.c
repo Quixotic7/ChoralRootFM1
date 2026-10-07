@@ -392,6 +392,98 @@ static void cu_sends_to_fx(void)                  /* part 0's own sends become t
         cs.fx_amt[i] = (uint8_t)trk[CR_PART_CHORD].p[CU_FX[i].send];
     cu_fx_apply();
 }
+
+/* the fx layer's knob row (cr_screen.h CR_K_KNOBROW): the cell just turned stays hot CU_FX_HOT_MS (the editor's
+ * CE_HOT_MS); a layer opened or another effect picked clears it */
+#define CU_FX_HOT_MS 800u
+static struct { uint8_t knob; uint32_t t0; } cu_fx_hot;   /* knob + 1 (0: none) */
+static void cu_fx_hot_set(uint32_t knob) { cu_fx_hot.knob = (uint8_t)(knob + 1u); cu_fx_hot.t0 = fm1_ms; }
+/* a bus parameter's value as the knob row shows it: a name capitalised ("Room", "Spring"; a division as it is:
+ * "1/8"), a rate in Hz ("0.80 Hz"), else the number the popup showed ("90") */
+static void cu_fx_val(uint32_t g, char *out, uint32_t n)
+{
+    const param_desc_t *d = &GP[g];
+    int32_t v = song.g[g];
+    char val[12];
+    const char *unit;
+    uint32_t i;
+    if (d->fmt != F_ENUM && d->fmt != F_LFOHZ) {
+        cu_int(out, v, 0, n);
+        return;
+    }
+    param_format(d, v, val, &unit);
+    if (val[0] == '.') {                          /* ".80" -> "0.80" */
+        cu_cpy(out, "0", n);
+        cu_cat(out, val, n);
+    } else {
+        cu_cpy(out, val, n);
+    }
+    if (d->fmt == F_ENUM && out[0] >= 'A' && out[0] <= 'Z')
+        for (i = 1; out[i]; i++)
+            if (out[i] >= 'A' && out[i] <= 'Z') out[i] = (char)(out[i] - 'A' + 'a');
+    if (d->fmt == F_LFOHZ) {
+        cu_cat(out, " ", n);
+        cu_cat(out, unit, n);
+    }
+}
+/* the glyph and its values (Q8 of 255) for KNOB k of effect e (FORMAT.md "cell glyphs"; docs/INTEGRATION.md 3) */
+static void cu_fx_glyph(uint32_t e, uint32_t k, cr_cell_t *c)
+{
+    int32_t g = CU_FX[e].g[k];
+    uint32_t v = g >= 0 ? (uint32_t)(song.g[g] - GP[g].min) : 0u, r = g >= 0 ? (uint32_t)(GP[g].max - GP[g].min) : 1u;
+    uint32_t q = r ? v * 255u / r : 0u;
+    switch (g) {
+    case G_RSIZE: c->glyph = CR_G_ROOM; c->pct = (uint8_t)q; break;
+    case G_RDAMP: c->glyph = CR_G_MOON; c->pct = (uint8_t)(255u - q); break;     /* more damping, darker */
+    case G_RTYPE: c->glyph = song.g[g] ? CR_G_SPRING : CR_G_ROOM; c->pct = 128; break;
+    case G_DCOLOR: c->glyph = CR_G_MOON; c->pct = (uint8_t)q; break;
+    case G_DTIME: case G_DFDBK:                   /* the division's index, the feedback (0..120) */
+        c->glyph = CR_G_ECHOES;
+        c->pct = (uint8_t)((uint32_t)(song.g[G_DTIME] - GP[G_DTIME].min) * 255u / (uint32_t)(GP[G_DTIME].max - GP[G_DTIME].min));
+        c->pct2 = (uint8_t)((uint32_t)song.g[G_DFDBK] * 255u / 120u);
+        break;
+    case G_CRATE: case G_CDEPTH:                  /* rate, depth (0..127) */
+        c->glyph = CR_G_LFO;
+        c->pct = (uint8_t)((uint32_t)song.g[G_CRATE] * 255u / 127u);
+        c->pct2 = (uint8_t)((uint32_t)song.g[G_CDEPTH] * 255u / 127u);
+        break;
+    default: break;
+    }
+}
+/* the fx layer's cells: KNOB 1..3 the bus parameters of the effect (a missing one: no cell, a dim dash), KNOB 4 the
+ * amount (Drive: the clip glyph, the others the dry / wet squares; "off" while FX is off) */
+static void cu_fx_cells(cr_screen_t *s)
+{
+    uint32_t e = cs.fx_sel % CU_NFX, k;
+    for (k = 0; k < 3u; k++) {
+        cr_cell_t *c = &s->cell[0][k];
+        int32_t g = CU_FX[e].g[k];
+        if (g < 0)
+            continue;
+        c->flags = CR_CF_ON;
+        cu_cpy(c->label, CU_FX[e].gname[k], sizeof c->label);
+        if (c->label[0] >= 'a' && c->label[0] <= 'z') c->label[0] = (char)(c->label[0] - 'a' + 'A');
+        cu_fx_val((uint32_t)g, c->value, sizeof c->value);
+        cu_fx_glyph(e, k, c);
+    }
+    {
+        cr_cell_t *c = &s->cell[0][3];
+        c->flags = CR_CF_ON;
+        cu_cpy(c->label, "Amount", sizeof c->label);
+        c->glyph = CU_FX[e].send == P_DIST ? CR_G_CLIP : CR_G_MIX;
+        if (cs.fx_on) {
+            cu_2d(c->value, cs.fx_amt[e] * 99u / 127u, sizeof c->value);
+            c->pct = (uint8_t)(cs.fx_amt[e] * 255u / 127u);
+        } else {
+            cu_cpy(c->value, "off", sizeof c->value);
+        }
+    }
+    s->n_rows = 1;
+    if (cu_fx_hot.knob && fm1_ms - cu_fx_hot.t0 < CU_FX_HOT_MS && (s->cell[0][(cu_fx_hot.knob - 1u) & 3u].flags & CR_CF_ON)) {
+        s->hot_r = 1;
+        s->hot_c = (uint8_t)((cu_fx_hot.knob - 1u) & 3u);
+    }
+}
 static void cu_sound_go(uint32_t pos)             /* PRESETS: the bank, then the user slots */
 {
     uint32_t n = cb_count(0);
@@ -1099,6 +1191,7 @@ static void cu_opened(uint32_t b)                 /* a button held past HOLD (or
     if (was == L_EDIT && l != L_EDIT)             /* the picker left for another layer: its sound kept */
         cu_pick_end(1);
     cu.lock = (uint8_t)(cu_lockable(l) ? l : L_NONE);   /* the layer stays open after release */
+    cu_fx_hot.knob = 0;                           /* (a layer opens with no hot cell) */
     cu_trace("layer: open %u%s\n", (unsigned)l, cu.lock ? " (locked)" : "");
     if (l == L_EDIT && was != L_EDIT)             /* the engine picker: a preview of the sound as it is now */
         cu_pick_begin();
@@ -1515,8 +1608,12 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
         }
         break;
     case L_FX:
-        if (i < (int32_t)CU_NFX)
+        if (i < (int32_t)CU_NFX) {
+            if (cs.fx_sel != (uint8_t)i)
+                cu_fx_hot.knob = 0;               /* another effect: its row has no hot cell */
             cs.fx_sel = (uint8_t)i;
+            cu_trace("fx: effect %s\n", CU_FX[i].name);
+        }
         break;
     case L_BASS:
         if (i < 4) {
@@ -1648,12 +1745,15 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cs.fx_amt[cs.fx_sel] = (uint8_t)(v < 0 ? 0 : v > 127 ? 127 : v);
             cs.fx_on = 1;
             cu_fx_apply();
-            cu_popup_num(cs.fx_amt[cs.fx_sel] * 99 / 127, 0, "", "amount", CR_COL_GREEN, 0, 99, 12);
+            cu_fx_hot_set(3);                     /* (no popup: the knob row is the readout, its cell turns hot) */
+            cu_trace("fx: knob 4 %s amount %u\n", CU_FX[cs.fx_sel].name, (unsigned)cs.fx_amt[cs.fx_sel]);
         } else if (CU_FX[cs.fx_sel].g[knob] >= 0) {
             uint32_t g = (uint32_t)CU_FX[cs.fx_sel].g[knob];
             v = song.g[g] + s * (GP[g].max - GP[g].min > 20 ? 2 : 1);
             song.g[g] = (int16_t)(v < GP[g].min ? GP[g].min : v > GP[g].max ? GP[g].max : v);
-            cu_popup_num(song.g[g], 0, "", CU_FX[cs.fx_sel].gname[knob], CR_COL_GREEN, GP[g].min, GP[g].max, 12);
+            cu_fx_hot_set(knob);
+            cu_trace("fx: knob %u %s %s %d\n", (unsigned)knob + 1u, CU_FX[cs.fx_sel].name, CU_FX[cs.fx_sel].gname[knob],
+                     (int)song.g[g]);
         }
         break;
     case L_BASS:
@@ -2831,14 +2931,24 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         }
         break;
     }
-    case L_FX:
-        cu_picker(s, FX_ITEMS, CU_NFX, cs.fx_sel, CR_COL_GREEN, "fx \267 KNOB 4 amount",
-                  "a root: effect \267 OCT-: back \267 HOME: home");
-        if (cs.fx_on)
-            cu_2d(s->value, cs.fx_amt[cs.fx_sel] * 99u / 127u, sizeof s->value);
-        else
-            cu_cpy(s->value, "off", sizeof s->value);
+    case L_FX: {                                   /* the knob row: the effect over KNOB 1..4's cells */
+        static char seen[48];                      /* (the trace: the row's labels when they change) */
+        char lb[48];
+        cu_picker(s, FX_ITEMS, CU_NFX, cs.fx_sel, CR_COL_GREEN, "fx", "a root: effect \267 OCT-: back \267 HOME: home");
+        s->kind = CR_K_KNOBROW;
+        s->orient = 1;
+        cu_fx_cells(s);
+        lb[0] = 0;
+        for (k = 0; k < 4u; k++) {
+            cu_cat(lb, k ? " " : "", sizeof lb);
+            cu_cat(lb, s->cell[0][k].flags ? s->cell[0][k].label : "-", sizeof lb);
+        }
+        if (!cu_eq(lb, seen)) {
+            cu_cpy(seen, lb, sizeof seen);
+            cu_trace("fx: cells %s\n", lb);
+        }
         break;
+    }
     case L_BASS:
         cu_picker(s, CU_BASSMODE, 4, cs.bass_mode, CR_COL_ORANGE, "bass",
                   "KNOB 3: sound \267 OCT-: back \267 HOME: home");
@@ -3265,6 +3375,7 @@ static void cu_animate(cr_screen_t *s, uint32_t now)
         ca.name = s->name;
         break;
     case CR_K_PICKER:
+    case CR_K_KNOBROW:                             /* (the knob row's band slides as a picker) */
         if (kind_changed || !cu_eq(s->label, ca.label)) {
             ca.anim = 0;
             ca.slide = 0;

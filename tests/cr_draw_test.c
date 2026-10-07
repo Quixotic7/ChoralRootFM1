@@ -85,7 +85,8 @@ static void lint(const char *scr, const cr_screen_t *s)
     uint32_t i, j;
     for (i = 0; i < nbox; i++) {
         const tbox_t *b = &boxes[i];
-        if (b->x0 < 0 || b->y0 < 0 || b->x1 > 240 || b->y1 > 240) finding(scr, "off the screen", b, 0);
+        if ((b->x0 < 0 || b->y0 < 0 || b->x1 > 240 || b->y1 > 240) && !(b->flags & 32u))   /* (sliding: clipped) */
+            finding(scr, "off the screen", b, 0);
         if (b->flags & 1u) {
             nell++;
             fprintf(rep, "note %-34s ellipsised '%s'\n", scr, b->s);
@@ -325,6 +326,162 @@ int main(int argc, char **argv)
                 break;
             }
         check("scope: a sounding scope state is in the table", found);
+    }
+
+    {   /* the pictograms (FORMAT.md "cell glyphs"): ink inside their box and none outside it, and each changes with its
+         * value the way its picture says */
+        static const struct { uint8_t g; const char *name; } G[] = {
+            {CR_G_ROOM, "room"}, {CR_G_MOON, "moon"}, {CR_G_ECHOES, "echoes"}, {CR_G_LFO, "lfo"}, {CR_G_CLIP, "clip"},
+            {CR_G_SPRING, "spring"}, {CR_G_MIX, "mix"}, {CR_G_GATE, "gate"}, {CR_G_RANGE, "range"},
+            {CR_G_ARROW, "arrow"}, {CR_G_SHIFT, "shift"}};
+        enum { BX = 20, BY = 2, BW = 48, BH = 36 };
+        uint32_t gi, inside_all = 1;
+        uint16_t ink = swap16(CR_NAMED[CR_COL_GREEN]), bg = swap16(T_BG);
+#define PIC(gl_, p1, p2) do { cr_cell_t c_; memset(&c_, 0, sizeof c_); c_.flags = CR_CF_ON; c_.glyph = (gl_); \
+        c_.pct = (uint8_t)(p1); c_.pct2 = (uint8_t)(p2); cr_cv_begin(); cv_oy = 0; cr_clip_all(); \
+        cr_cglyph(&c_, BX * 16, BY * 16, BW * 16, BH * 16, CR_NAMED[CR_COL_GREEN]); } while (0)
+#define PX(x, y) cv_px[(y) * 240u + (x)]
+        for (gi = 0; gi < sizeof G / sizeof G[0]; gi++) {
+            uint32_t in = 0, out = 0, x, y;
+            PIC(G[gi].g, 128, 128);
+            for (y = 0; y < CR_STRIP_H; y++)
+                for (x = 0; x < 240u; x++) {
+                    int inb = x >= BX && x < BX + BW && y >= BY && y < BY + BH;
+                    if (PX(x, y) != bg) { if (inb) in++; else out++; }
+                }
+            if (!(in > 20u && out == 0u)) {
+                inside_all = 0;
+                fprintf(rep, "pictogram %s: %u px in its box, %u outside\n", G[gi].name, in, out);
+            }
+        }
+        check("pictograms: each draws ink inside its 48 x 36 box and none outside it", inside_all);
+        {   /* room: the far wall's width (from the centre to its left edge on the middle row) shrinks with pct */
+            int32_t w[3], k, x;
+            for (k = 0; k < 3; k++) {
+                PIC(CR_G_ROOM, k * 127, 128);
+                for (x = BX + BW / 2; x > BX && PX(x, BY + BH / 2) == bg; x--) {}
+                w[k] = BX + BW / 2 - x;
+            }
+            snprintf(name, sizeof name, "room: the far wall shrinks as SIZE grows (half widths %d %d %d px)", w[0], w[1], w[2]);
+            check(name, w[0] > w[1] && w[1] > w[2]);
+        }
+        {   /* moon: the lit (full colour) pixels grow with pct */
+            uint32_t n[3], k, x, y;
+            for (k = 0; k < 3; k++) {
+                PIC(CR_G_MOON, k * 127, 128);
+                for (n[k] = 0, y = BY; y < BY + BH; y++) for (x = BX; x < BX + BW; x++) n[k] += PX(x, y) == ink;
+            }
+            snprintf(name, sizeof name, "moon: the lit part grows with pct (%u %u %u px)", n[0], n[1], n[2]);
+            check(name, n[0] < n[1] && n[1] < n[2]);
+        }
+        {   /* echoes: the bars (ink runs along the row just above the baseline): fewer as the spacing grows */
+            uint32_t n[2], k, x, on;
+            for (k = 0; k < 2; k++) {
+                PIC(CR_G_ECHOES, k * 255, 255);
+                for (n[k] = on = 0, x = BX; x < BX + BW; x++) {
+                    int i = PX(x, BY + BH - 4) != bg;
+                    n[k] += i && !on;
+                    on = (uint32_t)i;
+                }
+            }
+            snprintf(name, sizeof name, "echoes: the repeats spread with TIME (%u bars at pct 0, %u at 1)", n[0], n[1]);
+            check(name, n[0] > n[1] && n[1] >= 2u);
+        }
+        {   /* lfo: the zero crossings (ink runs on the centre row) grow with the rate */
+            uint32_t n[2], k, x, on;
+            for (k = 0; k < 2; k++) {
+                PIC(CR_G_LFO, k * 255, 255);
+                for (n[k] = on = 0, x = BX; x < BX + BW; x++) {
+                    int i = PX(x, BY + BH / 2) != bg;
+                    n[k] += i && !on;
+                    on = (uint32_t)i;
+                }
+            }
+            snprintf(name, sizeof name, "lfo: the crossings grow with RATE (%u at pct 0, %u at 1)", n[0], n[1]);
+            check(name, n[1] > n[0] + 4u);
+        }
+        {   /* clip: the peak flattens: the top stroke's row (fully inked pixels: not the dashed clip line's half pixels)
+             * widens from a point (pct 0: a clean sine) to most of the half cycle (pct 1: nearly square) */
+            uint32_t n[2], k, x;
+            for (k = 0; k < 2; k++) {
+                PIC(CR_G_CLIP, k * 255, 128);
+                for (n[k] = 0, x = BX; x < BX + BW / 2; x++) n[k] += PX(x, BY + 2) == ink;
+            }
+            snprintf(name, sizeof name, "clip: the peak flattens with the drive (%u px wide at pct 0, %u at 1)", n[0], n[1]);
+            check(name, n[1] > 2u * n[0] + 8u);
+        }
+        {   /* mix: the wet square fills; gate / range: wider; shift: the square climbs; arrow: four pictures */
+            uint32_t n[2], k, x, y, cyy[2];
+            static uint16_t ar[4][240 * 40];
+            for (k = 0; k < 2; k++) {
+                PIC(CR_G_MIX, k * 255, 128);
+                for (n[k] = 0, y = BY; y < BY + BH; y++) for (x = BX; x < BX + BW; x++) n[k] += PX(x, y) == ink;
+            }
+            snprintf(name, sizeof name, "mix: the wet square fills with the amount (%u px at 0, %u at 1)", n[0], n[1]);
+            check(name, n[1] > n[0] + 200u);
+            for (k = 0; k < 2; k++) {
+                PIC(CR_G_GATE, k * 255, 128);
+                for (n[k] = 0, x = BX; x < BX + BW; x++) n[k] += PX(x, BY + 2 + 4) != bg;
+            }
+            snprintf(name, sizeof name, "gate: the pulse widens with pct (%u px at 0, %u at 1)", n[0], n[1]);
+            check(name, n[1] > n[0] + 20u);
+            for (k = 0; k < 2; k++) {
+                PIC(CR_G_RANGE, k * 255, 128);
+                for (n[k] = 0, y = BY; y < BY + BH; y++) for (x = BX; x < BX + BW; x++) n[k] += PX(x, y) == ink;
+            }
+            snprintf(name, sizeof name, "range: the thick segment grows with pct (%u px at 0, %u at 1)", n[0], n[1]);
+            check(name, n[1] > n[0] + 60u);
+            for (k = 0; k < 2; k++) {
+                uint32_t sy = 0, c = 0;
+                PIC(CR_G_SHIFT, k * 255, 128);
+                for (y = BY; y < BY + BH; y++) for (x = BX + BW / 2 - 1; x <= BX + BW / 2 + 1; x++) if (PX(x, y) == ink) sy += y, c++;
+                cyy[k] = c ? sy / c : 0;
+            }
+            snprintf(name, sizeof name, "shift: the square climbs the staff with pct (centre row %u at 0, %u at 1)", cyy[0], cyy[1]);
+            check(name, cyy[1] + 10u < cyy[0]);
+            for (k = 0; k < 4; k++) {
+                PIC(CR_G_ARROW, k * 64 + 20, 128);
+                memcpy(ar[k], cv_px, sizeof ar[k]);
+            }
+            check("arrow: up, down, up and down, random: four different pictures",
+                  memcmp(ar[0], ar[1], sizeof ar[0]) && memcmp(ar[1], ar[2], sizeof ar[0]) && memcmp(ar[2], ar[3], sizeof ar[0]) &&
+                  memcmp(ar[0], ar[2], sizeof ar[0]) && memcmp(ar[0], ar[3], sizeof ar[0]));
+        }
+#undef PX
+#undef PIC
+    }
+
+    {   /* the knob row: the hot cell's value on a block of its colour; a cell or the hot cell changing composes only the
+         * row's strips */
+        uint32_t k, found = 0;
+        for (k = 0; k < CR_NSCREENS && !found; k++)
+            if (CR_SCREENS[k].kind == CR_K_KNOBROW && !CR_SCREENS[k].hot_r) {
+                cr_screen_t s = CR_SCREENS[k];
+                uint32_t n0, n1, x, y, ry = (uint32_t)cr_kr_rowy(&s);
+                uint16_t orange = swap16(CR_NAMED[CR_COL_ORANGE]);
+                found = 1;
+                s.anim = 0;
+                render(&s, 0);
+                for (n0 = 0, y = ry + 50u; y < ry + 70u; y++) for (x = 64; x < 116; x++) n0 += host_screen[y * 240u + x] == orange;
+                s.hot_r = 1;
+                s.hot_c = 1;
+                cr_draw(&s, 0);
+                check("knob row: the hot cell composes only the row's strips (2)", cr_dc.drawn == 2u);
+                for (n1 = 0, y = ry + 50u; y < ry + 70u; y++) for (x = 64; x < 116; x++) n1 += host_screen[y * 240u + x] == orange;
+                write_ppm(dir, "knobrow_hot");
+                snprintf(name, sizeof name, "knob row: the hot cell's value on a filled block (%u orange px, %u not hot)", n1, n0);
+                check(name, n1 > n0 + 500u);
+                memcpy(a, host_screen, sizeof a);
+                snprintf(s.cell[0][1].value, sizeof s.cell[0][1].value, "62");
+                s.cell[0][1].pct = 140;
+                cr_draw(&s, 0);
+                check("knob row: a cell's value changes: only the row's strips composed", cr_dc.drawn == 2u);
+                memcpy(a, host_screen, sizeof a);
+                cr_draw_invalidate();
+                cr_draw(&s, 0);
+                check("knob row: the partial draw equals a full one", !memcmp(a, host_screen, sizeof a));
+            }
+        check("knob row: a knob row state is in the table", found);
     }
 
     {   /* animations: pure and settling */

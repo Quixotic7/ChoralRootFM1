@@ -32,10 +32,13 @@ NAMES = {"white": "WHITE", "cream": "WHITE", "red": "RED", "coral": "RED", "mage
          "bg": "BG", "surf": "SURF"}
 KIND = {"stripes": "STRIPES", "chord": "CHORD", "picker": "PICKER", "meter": "METER", "keyboard": "KEYBOARD",
         "arp": "ARP", "geek": "GEEK", "text": "TEXT", "big": "BIG", "scope": "SCOPE", "edit8": "EDIT8",
-        "stack": "STACK"}
+        "stack": "STACK", "knobrow": "KNOBROW"}
 ICON = {"none": "NONE", "play": "PLAY", "rec": "REC", "loop": "LOOP", "stop": "NONE"}
 CELL_GLYPH = {"knob": "KNOB", "bar": "BAR", "wave": "WAVE", "saw": "SAW", "square": "SQUARE", "steps": "STEPS",
-              "dots": "DOTS", "morph": "MORPH", "noise": "NOISE"}
+              "dots": "DOTS", "morph": "MORPH", "noise": "NOISE",
+              # the parameter pictograms (FORMAT.md "cell glyphs")
+              "room": "ROOM", "moon": "MOON", "echoes": "ECHOES", "lfo": "LFO", "clip": "CLIP", "spring": "SPRING",
+              "mix": "MIX", "gate": "GATE", "range": "RANGE", "arrow": "ARROW", "shift": "SHIFT"}
 FTYPE = {"LP": 0, "BP": 32, "HP": 64, "NOTCH": 96}      # the band's FTYPE position (0..127) of the designer's names
 
 
@@ -259,6 +262,32 @@ def screen(sc, prev_name):
         f.append(f".line_col = {col(p.get('lineCol'), 'MID')}")
         if p.get("size"):
             f.append(f".size = {p['size']}")
+    elif kind == "knobrow":
+        # a layer screen: the picker's band (horizontal) over one row of the four knobs' cells (cell[0])
+        items = [it if isinstance(it, str) else (it or {}).get("t", "") for it in (p.get("items") or [])]
+        n, sel = len(items), max(0, min(len(items) - 1, p.get("sel") or 0))
+        first = max(0, min(sel - 3, n - 8))
+        f.append(".item = {" + ", ".join(cstr(t, 24) for t in items[first:first + 8]) + "}")
+        f.append(f".n_items = {n}")
+        f.append(f".item0 = {first}")
+        f.append(f".sel = {sel}")
+        f.append(".orient = 1")
+        f.append(f".col = {col(p.get('col'), 'WHITE')}")
+        if p.get("value") not in (None, ""):
+            f.append(f".value = {cstr(p['value'], 24)}")
+        if p.get("label"):
+            f.append(f".label = {cstr(p['label'], 32)}")
+        cells = ((p.get("cells") or []) + [None] * 4)[:4]
+        f.append(".cell = {{" + ", ".join(cell_init(c) for c in cells) + "}}")
+        f.append(".n_rows = 1")
+        if p.get("hot") not in (None, ""):
+            f.append(".hot_r = 1")
+            f.append(f".hot_c = {int(p['hot'])}")
+        if p.get("hotCol"):
+            f.append(f".hot_col = {col(p['hotCol'])}")
+        if n > 1:
+            f.append(f".slide = {1 if sel > 0 else -1}")
+            anim.append("CR_A_SLIDE")
     elif kind in ("edit8", "stack"):
         f += editor_fields(p, kind)
         if p.get("batt") is not None:                   # the editor's title line: the battery (the MIX screens)
@@ -301,9 +330,9 @@ def q8c(v):
 
 
 def cell_init(c):
-    """an edit8 / stack cell -> cr_cell_t {label, value, flags, glyph, pct}"""
+    """an edit8 / stack / knobrow cell -> cr_cell_t {label, value, flags, glyph, pct, pct2}"""
     if not c:
-        return "{\"\", \"\", 0, CR_G_NONE, 0}"
+        return "{\"\", \"\", 0, CR_G_NONE, 0, 0}"
     flags = ["CR_CF_ON"]
     if c.get("pct") is not None:
         flags.append("CR_CF_PCT")
@@ -315,7 +344,8 @@ def cell_init(c):
     glyph = CELL_GLYPH[g] if g and g != "none" else "NONE"
     value = str(c.get("value") or "").replace("\u2013", "-")
     return (f"{{{cstr(c.get('label'), 10)}, {cstr(value, 9)}, {' | '.join(flags)}, CR_G_{glyph}, "
-            f"{q8c(c.get('pct') if c.get('pct') is not None else 0.5)}}}")
+            f"{q8c(c.get('pct') if c.get('pct') is not None else 0.5)}, "
+            f"{q8c(c.get('pct2') if c.get('pct2') is not None else 0.5)}}}")
 
 
 def editor_fields(p, kind):
@@ -523,6 +553,23 @@ def editor_states():
     return out + EDITOR_DEVICE
 
 
+# .. and the fx layer's (design/choralroot-fm1-fx-mockups.json, the user-approved spec of the knob row and its glyphs):
+# the knob rows (2 Reverb, 3 Delay hot, 4 Chorus, 5 Drive off, 5b Spring) and the glyph studies (6, 7: edit8)
+FX_SRC = ROOT / "design" / "choralroot-fm1-fx-mockups.json"
+FX_PICK = ["2", "3", "4", "5", "5b", "6", "7"]
+
+
+def fx_states():
+    e = json.loads(FX_SRC.read_text())["states"]
+    out = []
+    for k in FX_PICK:
+        st = next(x for x in e if str(x.get("name", "")).split(" ", 1)[0] == k)
+        st = json.loads(json.dumps(st))
+        st["name"] = "FX " + st.get("name", "")
+        out.append(st)
+    return out
+
+
 def slug(name):
     name = name.split("·", 1)[-1]
     words = re.findall(r"[a-z0-9]+", name.lower())
@@ -536,7 +583,7 @@ def slug(name):
 
 def main():
     d = json.loads(SRC.read_text())
-    d["states"] = list(d["states"]) + DEVICE_STATES + editor_states()
+    d["states"] = list(d["states"]) + DEVICE_STATES + editor_states() + fx_states()
     if d.get("palette") not in (None, "MOD"):
         print(f"gen_cr_screens: note: the design's palette is {d.get('palette')}; the device draws MOD")
     out = ["/* generated by tests/gen_cr_screens.py from design/choralroot-fm1-mockups.json: the mock-up states as",

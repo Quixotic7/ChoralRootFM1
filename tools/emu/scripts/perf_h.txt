@@ -1,0 +1,218 @@
+# tools/emu/perf.sh (h): the FX layer (FX held, locked open) with a D major chord held, KNOB 1..4 turned one detent every 30 ms
+# for 2 s (the knob row's cells and its hot cell; no popup), then Delay picked and turned the same for 1 s
+wait 300
+key F3 down
+wait 40
+key A down
+wait 300
+btn FX down
+wait 500
+btn FX up
+wait 300
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+btn F4
+wait 200
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 +1
+wait 30
+knob KNOB2 +1
+wait 30
+knob KNOB3 +1
+wait 30
+knob KNOB4 +1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 -1
+wait 30
+knob KNOB2 -1
+wait 30
+knob KNOB3 -1
+wait 30
+knob KNOB4 -1
+wait 30
+knob KNOB1 +1
+wait 30
+wait 1000
+btn OCT-
+wait 200
+key A up
+key F3 up
+wait 500
+dump

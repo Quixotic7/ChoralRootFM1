@@ -28,6 +28,7 @@ enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOA
        CR_K_GEEK, CR_K_TEXT, CR_K_BIG, CR_K_SCOPE,
        CR_K_EDIT8,                  /* the sound editor: two rows of four cells, an optional wide band over them */
        CR_K_STACK,                  /* the sound editor: N rows (1..8) of four cells under column headings */
+       CR_K_KNOBROW,                /* a layer: a horizontal picker band over one row of four knob cells (cell[0]) */
        CR_K_N };
 
 /* the top line's icon: none = the bare Orchid line (mid at the left in 15 px, right at the right) */
@@ -37,8 +38,22 @@ enum { CR_ICON_NONE, CR_ICON_PLAY, CR_ICON_REC, CR_ICON_LOOP };
 enum { CR_G_NONE, CR_G_KNOB, CR_G_BAR, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_STEPS, CR_G_DOTS,
        CR_G_MORPH,                  /* the VA's MORPH wave at pct = the position (Q8 of 255 = 0..127: sine 0, triangle 24,
                                      * saw 48, ramp 72, square 96, a pulse narrowing to ~5 % at 127), crossfaded */
-       CR_G_NOISE };                /* a noise: pct 0..84 WHITE (dense jitter), 85..169 BROWN (a wandering line),
+       CR_G_NOISE,                  /* a noise: pct 0..84 WHITE (dense jitter), 85..169 BROWN (a wandering line),
                                      * 170..255 VINYL (sparse spikes on a faint line) */
+       /* the parameter pictograms (FORMAT.md "cell glyphs"): flat 2 px strokes in the cell colour */
+       CR_G_ROOM,                   /* a room in one-point perspective: the far wall 70 % (pct 0) .. 22 % (1) of the box */
+       CR_G_MOON,                   /* a moon phase: lit 8 % (pct 0, a thin crescent) .. full (1) */
+       CR_G_ECHOES,                 /* a bar and its repeats: pct the spacing, pct2 the feedback (each 0.2 + 0.75 pct2 of
+                                     * the one before) */
+       CR_G_LFO,                    /* a sine: pct the rate (1 .. 5 cycles), pct2 the depth (nearly flat .. full) */
+       CR_G_CLIP,                   /* one sine cycle driven into a clipper (gain 1 .. 10), dashed clip lines */
+       CR_G_SPRING,                 /* a coil (6.5 zigzag turns between two short ends); pct ignored */
+       CR_G_MIX,                    /* dry / wet: an outlined square behind one filled from the bottom to pct */
+       CR_G_GATE,                   /* a pulse on a baseline, 10 .. 100 % of the box wide */
+       CR_G_RANGE,                  /* a line with end stops, a thick segment over 10 .. 100 % of it */
+       CR_G_ARROW,                  /* pct < 1/4 up, < 1/2 down, < 3/4 up and down, else three dots (random) */
+       CR_G_SHIFT,                  /* five staff lines, a square on line round(4 pct) from the bottom */
+       CR_G_N };
 
 /* the editor's wide band (CR_K_EDIT8) */
 enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_DX, CR_W_CZ };   /* CR_W_DX: a DX7 envelope (FM6), 4 rates / 4 levels;
@@ -73,6 +88,7 @@ typedef struct {                                                                
     uint8_t flags;                  /* CR_CF_*, the mark's colour in the high nibble */
     uint8_t glyph;                  /* CR_G_* */
     uint8_t pct;                    /* Q8 of 255: the glyph's / bar's fill (square: the duty) */
+    uint8_t pct2;                   /* Q8 of 255: a pictogram's second value (echoes: feedback, lfo: depth) */
 } cr_cell_t;
 typedef struct { char t[32]; uint8_t px, col, bold, center; } cr_line_t;       /* a text line (px 0 = 12) */
 
@@ -142,7 +158,9 @@ typedef struct {
     char key_label[CR_KEYS][3];     /* text printed on key k */
 
     /* panel: edit8, stack (the sound editor, full screen: header 0; its title line is `title` in `title_col`,
-     * `page` right-aligned). No motion: a change is drawn at once (docs/EDITOR.md "Responsiveness") */
+     * `page` right-aligned). No motion: a change is drawn at once (docs/EDITOR.md "Responsiveness").
+     * knobrow (a layer): the picker's fields (items, sel, col, label, value; the slide) for the band, cell[0][0..3]
+     * the knobs' cells (CR_CF_ON off: a dim dash), hot_r 1 / hot_c the cell just turned, hot_col its block */
     char page[16];                  /* edit8 / stack: the title line's right text ("OSC 2 \267 A") */
     cr_cell_t cell[CR_ED_ROWS][4];  /* rows of four cells (edit8: 1..2 rows) */
     char head[4][10];               /* stack: the column headings */

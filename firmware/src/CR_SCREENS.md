@@ -16,7 +16,7 @@ cr_draw(&s, ms_since_the_change);     /* every frame; cheap when nothing changed
 ## The view-model (`cr_screen.h`)
 
 `cr_screen_t` mirrors the designer's `screen` object, flattened: `kind` (`CR_K_STRIPES CHORD PICKER METER KEYBOARD
-ARP GEEK TEXT BIG SCOPE EDIT8 STACK`), the top line (`header`, `icon` none/play/rec/loop, `mid`/`mid_col`, `right`/`right_col`,
+ARP GEEK TEXT BIG SCOPE EDIT8 STACK KNOBROW`), the top line (`header`, `icon` none/play/rec/loop, `mid`/`mid_col`, `right`/`right_col`,
 `batt`), `footer` (one line; empty = none, the panel then runs to row 240), the ring (`ring_on`, `ring` Q8,
 `ring_rec`, `ring_col`), the corner dial (`dial_on`, `dial` Q8, `dial_pulse`), `message`/`message_col`, and the panel fields of every kind (fixed char arrays; the chord
 name as `cr_name_t {root, quality, sup, col_root, col_quality, col_sup}`; up to 8 notes `{t, col, mark}`; a picker
@@ -170,7 +170,7 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
   colour, A H D S R under it; `CR_W_FILTER`: `wv` cut res ftype (0..127) drive, the 2nd-order response of
   the LP / BP / HP mix crossfaded at the FTYPE position (0 LP, 32 BP, 64 HP, 96 NOTCH = LP + HP, back to LP;
   the type word its name, `cr_ftype_name`) sampled at 7 quarter-octave offsets from the cutoff in 32-bit log2 arithmetic, the edges extrapolated, clamped to the band
-  with the crossings: <= 12 segments, over a dashed 0 dB line) over two rows of four `cell`s (each `cr_cell_t` carries its label, value, `CR_CF_*` flags, glyph, pct); stack: `head` column headings at y 36 over
+  with the crossings: <= 12 segments, over a dashed 0 dB line) over two rows of four `cell`s (each `cr_cell_t` carries its label, value, `CR_CF_*` flags, glyph, pct, pct2: 23 bytes); stack: `head` column headings at y 36 over
   `n_rows` rows sharing 41..239 with `rlabel`s (N >= 7: text only). The `active` row in the knob colours (blue
   orange white green) with 2 px bars, the others DIM; `hot_r` (row + 1) / `hot_c`: the value on a block of its
   colour. Glyphs (`CR_G_KNOB BAR WAVE SAW SQUARE STEPS DOTS`, a bipolar BAR centre-zero) are the designer's
@@ -182,6 +182,26 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
   The cache hashes the editor's parts apart (each row's cells, `wv`, the hot cell, the title line) and composes only
   their strips (`cr_ed_strips`); a cutoff detent: <= 4 M host instructions, measured by tools/emu/test_cr.sh
   (`cr_editor_lag.txt`, `EMU_UI_LOG=0`). The old params page (`CR_K_PARAMS`) is retired.
+- **`CR_K_KNOBROW`: a layer screen** (FORMAT.md `knobrow`; design/choralroot-fm1-fx-mockups.json, the user-approved
+  sheet design/choralroot-fm1-fx-screens.png; `cr_ui.c` fills it for the FX layer). The panel's lowest 72 px are one
+  row of four knob cells (`cell[0][0..3]`; y 126–198 with a footer, 168–240 without), the rest a horizontal picker
+  band drawn by the picker's own pieces (`cr_pick_item` with its slide, `cr_pick_sides`, `cr_pick_marks`): the item
+  34 px bold in `col` squeezed to 170 px, its neighbours 13 px dim, the marks under it, `label` 11 px dim top left,
+  `value` 13 px bold under the marks. A cell is edit8's active cell made taller: the label 10 px (+11), a 48 × 36 glyph
+  box (+15), the value 13 px bold (+66), the 2 px knob-colour bar (+70); with `CR_CF_PCT` and no glyph the bar glyph;
+  not `CR_CF_ON`: a dim dash. `hot_r` 1 / `hot_c`: the value on a block of its colour (`hot_col`). The band slides
+  (`CR_A_SLIDE`) as a picker's; the row has no motion. **Cache**: the cells and the hot cell are hashed apart as the
+  editor's (`cr_ed_strips`, `cr_ed_row_strips` row 0 = the row's strips): a knob turn or the hot block coming or going
+  composes strips 3–4 only (with a footer), host ~1.0 M instructions a frame while KNOB 1–4 turn every 30 ms
+  (`tools/emu/perf.sh` h; a turn's frame <= 3.0 M, ~11.5 ms on the device); a new effect redraws all six.
+- **The pictograms** (`CR_G_ROOM MOON ECHOES LFO CLIP SPRING MIX GATE RANGE ARROW SHIFT`, FORMAT.md "cell glyphs";
+  `cr_cell_t.pct2` their second value, Q8 of 255): drawn at true size in the glyph box (2 px strokes 2 px inside it,
+  not scaled by h / 64 as the params glyphs): room the box (`cr_srect`) and its far wall shrinking 70 → 22 % with four
+  corner lines (`cr_poly`); moon a lit part (the right half less / plus an ellipse, `cr_moon_fill`: 4 corner samples a
+  pixel, 16 where they disagree) inside a 2 px rim (`cr_arc`); echoes 3 px bars decaying by 0.2 + 0.75 pct2, spaced
+  by pct, on a 1 px baseline; lfo 1–5 cycles (<= 44 segments), depth by pct2; clip one cycle at gain 1–10, dashed clip
+  lines past 0.1; spring 13 zigzags; mix an outlined square behind one filled to pct; gate, range, arrow, shift as
+  FORMAT.md. tests/cr_draw_test.c checks each one's ink stays in its box and changes with pct.
 - Not implemented (not on the device): the designer kinds `tiles list scope dial roundel splash loop notes`, `big`
   with `pct` (the inverted fill), knob cards, keycap footers, `bubbleStyle: "disc"`, the chord panel's `key`/`trans`.
 
@@ -192,4 +212,6 @@ state settled (anim cleared, `anim_ms` 0) and mid-animation (80 ms), writes `bui
 `build/cr_screens/sheet.png` (the designer's sheet layout, 2× nearest) and `build/cr_screens/compare.png` (mock-up |
 device | mid-animation per state). Lint (gfx.c `GFX_HOOK_TEXT`, boxes in screen rows, de-duplicated across strips):
 no text off the screen, no two texts overlapping, no text on the ring's band. Checks: glyphs fit the buffer, the CRX
-charset, the cache (0 / 1 / 6 strips), animations pure and settling. Report: `build/cr_screens/report.txt`.
+charset, the cache (0 / 1 / 6 strips), animations pure and settling. States 45–51 are design/choralroot-fm1-fx-mockups.json's 2 3 4 5 5b (knob rows) and 6 7 (the
+glyph studies, edit8); state 16 is the main sheet's fx layer, a knob row. The pictograms and the knob row's hot
+block and strips are checked too. Report: `build/cr_screens/report.txt`.
