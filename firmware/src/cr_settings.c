@@ -451,6 +451,10 @@ static int crs_write(void)                         /* the captured state -> flas
     persist_t p = crs_rec;
     if (!flash_ok)
         return 0;
+#ifdef ST_BLOCKED
+    if (ST_BLOCKED())
+        return 0;                                  /* SAFE MODE (core.h): kept in RAM only, the flash untouched */
+#endif
     settings_export(&p);                           /* Felucca's fields (panel table, HOLD, LEDs, palette) */
     p.cr = crs_seen;
     cr_settings_seal(&p.cr);

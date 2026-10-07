@@ -2,7 +2,11 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* ChoralRoot FM-1 (Felucca's) boot and main loop: the splash says CHORALROOT and the version; OCT- + OCT+ held at
  * power-on still runs the panel calibration (panel_setup) and saves it (settings_save). Boot order: WDT first, boot-loop guard, fatal vectors,
- * guards; then LCD, input (TIMER5 IRQ, 10 kHz), audio (ALNK0 IRQ). */
+ * guards; then LCD, input (TIMER5 IRQ, 10 kHz), audio (ALNK0 IRQ).
+ * The boot guard (cr_bootguard.h): a power-on clears it; a watchdog or soft (crash) reset within 30 s of the boot
+ * before counts; 2 in a row -> SAFE MODE (cr_safe: no flash object loaded or saved, factory sounds, no USB audio
+ * stream; the installer and OCT- + OCT+ 5 s work), 4 -> UBOOT. Every boot step leaves its number in felucca_dbg.stage
+ * (.noinit): after a crash prev_stage says where (console `boot`, the SAFE MODE screen, GEEK OUT). */
 extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end[];
 extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[];
 
@@ -144,17 +148,9 @@ static void cr_panel_setup(void) { cc.req = 1; }
 #define panel_setup cr_panel_setup
 #endif
 
-static void fm1_main(void)
+/* the diagnostics record (audio.c, .noinit): what the last run left, before this boot's breadcrumbs overwrite it */
+static void dbg_boot(void)
 {
-    int32_t knob = 512 * 16;
-    persist_boot();
-#if FELUCCA_OTA
-    if (flash_ok)
-        ota_boot_cleanup();                             /* staging area left by an update */
-#endif
-    settings_init();
-    lcd_init();
-    splash();
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;
@@ -168,34 +164,57 @@ static void fm1_main(void)
     felucca_dbg.prev_home = felucca_dbg.home;
     felucca_dbg.prev_frames = felucca_dbg.ui_frames;
     felucca_dbg.prev_rst = fm1_boot.p3_rst;
+    CR_STAGE(BS_GUARD);
+}
+
+static void fm1_main(void)
+{
+    int32_t knob = 512 * 16;
+    persist_boot();                                     /* (stages BS_FLASH .. BS_SETTINGS; SAFE MODE: no object read) */
+#if FELUCCA_OTA
+    CR_STAGE(BS_OTA_CLEANUP);
+    if (flash_ok)
+        ota_boot_cleanup();                             /* staging area left by an update (also in SAFE MODE: the
+                                                           SPL would re-enter the loader) */
+#endif
+    settings_init();
+    CR_STAGE(BS_LCD);
+    lcd_init();
+    CR_STAGE(BS_SPLASH);
+    splash();
+    CR_STAGE(BS_INPUT);
     fm1_input_init();
     fm1_adc_init();
     panel_init();
+    CR_STAGE(BS_SOUNDS);
     felucca_init();
+    CR_STAGE(BS_AUDIO);
     audio_init();
+    CR_STAGE(BS_USB);
     usb_start();
 #if FELUCCA_UART
+    CR_STAGE(BS_UART);
     uart_midi_init();
 #endif
+    CR_STAGE(BS_IRQ);
     timer5_start();
     fm1_guard_lock_top();
     fm1_irq_enable_all();
     fm1_delay_ms(30);
+    CR_STAGE(BS_CALIB);
     if ((fm1_in.buttons & 3u) == 3u) {
         panel_setup();                        /* OCT- + OCT+ held at power-on */
         settings_save();
     }
-    fm1_delay_ms(400);
+    fm1_delay_ms(cr_safe ? 2500 : 400);       /* (SAFE MODE: its screen stays readable) */
     lcd_fill(0, 0, 240, 240, T_BG);
 
     for (;;) {
         uint32_t m = fm1_ms;
         fm1_wdt_feed();
         usb_retry(fm1_ms);
-        if (fm1_ms > 30000u && bootguard.pending) {     /* a crash or hang in the first 30 s counts */
-            bootguard.pending = 0;
-            bootguard.failed = 0;
-        }
+        if (fm1_ms > BG_SETTLE_MS && bootguard.pending)  /* a crash or hang in the first 30 s counts */
+            bootguard_settled(&bootguard);              /* (SAFE MODE stays for this session: cr_safe) */
         {
             int32_t b = fm1_adc_read(FM1_ADC_BATT);     /* battery: slow IIR */
             if (b > 0)
@@ -234,7 +253,7 @@ static void fm1_main(void)
                 draw_text_box(0, 110, 240, &AF_M, "UBOOT", T_THEME, 1);
                 usb_detach();
                 fm1_delay_ms(30);
-                bootguard.pending = 0;                  /* intentional reset: not a failed boot */
+                bootguard_intentional(&bootguard);      /* intentional reset: not a failed boot */
                 fm1_enter_uboot();
             }
         }
@@ -257,7 +276,7 @@ static void fm1_main(void)
             fm1_delay_ms(20);
             usb_detach();
             fm1_delay_ms(30);
-            bootguard.pending = 0;
+            bootguard_intentional(&bootguard);
             fm1_enter_uboot();
         }
 #if FELUCCA_CDC
@@ -266,13 +285,13 @@ static void fm1_main(void)
         felucca_dbg.ui_frames++;
         felucca_dbg.page = ui.page;
         felucca_dbg.home = ui.home;
-        felucca_dbg.stage = 1;
+        felucca_dbg.stage = BS_LOOP_INPUT;            /* (the first: cr_ui_init, BS_UI_INIT ..) */
         ui_input();
         settings_poll();                              /* queued settings save: only while stopped */
-        felucca_dbg.stage = 2;
+        felucca_dbg.stage = BS_LOOP_DRAW;
         ui_leds();
         ui_draw();
-        felucca_dbg.stage = 9;
+        felucca_dbg.stage = BS_LOOP_IDLE;
         while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
             ui_input();
 #if FELUCCA_OTA
@@ -284,26 +303,18 @@ static void fm1_main(void)
 
 void fm1_cstart(void)
 {
-    uint32_t *s, *d, p3, src, wdt;
+    uint32_t *s, *d, p3, src, wdt, mode;
     fm1_time_init();
     fm1_reset_reason();
     p3 = fm1_boot.p3_rst;
     src = fm1_boot.rst_src;
     wdt = fm1_boot.wdt_con;
     fm1_wdt_arm(0x0D);
-    if (bootguard.magic != BOOTGUARD_MAGIC) {
-        bootguard.magic = BOOTGUARD_MAGIC;
-        bootguard.failed = 0;
-        bootguard.pending = 0;
-    }
-    if (bootguard.pending)
-        bootguard.failed++;
-    bootguard.pending = 1;
-    if (bootguard.failed >= 2u) {
-        bootguard.failed = 0;
-        bootguard.pending = 0;
+    /* the boot guard (cr_bootguard.h): power-on clears it, watchdog / soft resets within 30 s of a boot count;
+     * 2 -> SAFE MODE, 4 -> UBOOT (the record cleared: a power cycle leaves ROM boot to a clean guard) */
+    mode = bootguard_step(&bootguard, bootguard_reason(p3, src));
+    if (mode == BOOT_UBOOT)
         fm1_enter_uboot();
-    }
     fm1_irq_init();
     for (d = _bss_start; d < _bss_end; d++)
         *d = 0;
@@ -318,6 +329,8 @@ void fm1_cstart(void)
     fm1_boot.p3_rst = (uint8_t)p3;
     fm1_boot.rst_src = src;
     fm1_boot.wdt_con = (uint8_t)wdt;
+    cr_safe = mode == BOOT_SAFE;                /* (.bss: set after the clear above) */
+    dbg_boot();
     fm1_main();
     for (;;)
         ;

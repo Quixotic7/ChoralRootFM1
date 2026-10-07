@@ -1,0 +1,65 @@
+# CZ-1 (docs/CZ1.md): PRESETS +43 -> bank row 44, CZ BRASS 1 (Casio's A-1 on Melodee's CZ-1 engine). MAJ + D4 held
+# 1.5 s from 1000 ms (the "before" window of tools/emu/test_cr.sh: 1.2..2.4 s), released. EDIT, then ENV four times:
+# the ENV group's screen 4, DCW 1 (steps 1-4) under the "cz" band (shot); SELECT +1: its levels (L1..L4), KNOB 1 -20:
+# DCW 1's L1 down to 0 ("deep: part 0 page 11 DCW 1+ col 0 L1 .. -> 0", step 1 lit: shot); the same chord again from
+# 6970 ms (the "after" window, 7.07..8.27 s): it sounds, darker (line 1's timbre envelope closed). ENV: DCW 1 5-8, ENV:
+# DCW 1 END; FILT (SEL): DCW; LFO: VIB; MOD (SEQ): TONE; OSC: the two lines (shot); EDIT leaves
+wait 500
+knob PRESETS +43
+wait 500
+dump
+key F3 down
+wait 60
+key A down
+wait 1500
+expect sound
+key A up
+key F3 up
+wait 2000
+btn EDIT
+wait 400
+btn ENV
+wait 300
+btn ENV
+wait 300
+btn ENV
+wait 300
+btn ENV
+wait 400
+shot build/emu/test/cr_cz_env.ppm
+knob SELECT +1
+wait 250
+knob KNOB1 -20
+wait 100
+shot build/emu/test/cr_cz_env_hot.ppm
+wait 300
+key F3 down
+wait 60
+key A down
+wait 1500
+expect sound
+key A up
+key F3 up
+wait 1000
+btn ENV
+wait 400
+shot build/emu/test/cr_cz_env58.ppm
+btn ENV
+wait 400
+shot build/emu/test/cr_cz_end.ppm
+btn SEL
+wait 400
+shot build/emu/test/cr_cz_dcw.ppm
+btn LFO
+wait 400
+shot build/emu/test/cr_cz_vib.ppm
+btn SEQ
+wait 400
+shot build/emu/test/cr_cz_tone.ppm
+btn FX
+wait 400
+shot build/emu/test/cr_cz_osc.ppm
+btn EDIT
+wait 400
+dump
+quit

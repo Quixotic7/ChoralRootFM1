@@ -147,6 +147,37 @@ static int ce_is_dx(const eng_deep_t *d, uint32_t pg)
     return cp_dcol(&d->pages[pg], "R1") == 0 && cp_dcol(&d->pages[pg], "R4") == 3;
 }
 
+/* pages p and q have one name (the title up to its space or "+": "ENV 2+" / "ENV 2" "ENV"; CZ-1's "DCW 1 B" "DCW") */
+static int ce_name_eq(const eng_deep_t *d, uint32_t p, uint32_t q)
+{
+    const char *a = d->pages[p].title, *b = d->pages[q].title;
+    while (*a && *a != ' ' && *a != '+' && cp_up(*a) == cp_up(*b))
+        a++, b++;
+    return (!*a || *a == ' ' || *a == '+') && (!*b || *b == ' ' || *b == '+');
+}
+/* the run of pages of one name and instance that page pg is in: its first page, *n its length */
+static uint32_t ce_run(const eng_deep_t *d, uint32_t pg, uint32_t *n)
+{
+    uint32_t a = pg, e = pg;
+    while (a && ce_inst(d->pages[a - 1u].title) == ce_inst(d->pages[pg].title) && ce_name_eq(d, a - 1u, pg))
+        a--;
+    while (e < d->npages && ce_inst(d->pages[e].title) == ce_inst(d->pages[pg].title) && ce_name_eq(d, e, pg))
+        e++;
+    *n = e - a;
+    return a;
+}
+/* the screen's pages are a CZ-1 envelope: its run (rates and levels R1..R8 / L1..L8 on four pages, SUS and END on a
+ * fifth: "DCW 1", "DCW 1+", "DCW 1 B", "DCW 1 B+", "DCW 1 S"; the "cz" wide band): 1, *r0 / *rn the run */
+static int ce_is_cz(const eng_deep_t *d, uint32_t pg, uint32_t *r0, uint32_t *rn)
+{
+    uint32_t q;
+    *r0 = ce_run(d, pg, rn);
+    for (q = *r0; q < *r0 + *rn; q++)
+        if (cp_dcol(&d->pages[q], "SUS") >= 0 && cp_dcol(&d->pages[q], "END") >= 0 && cp_dcol(&d->pages[*r0], "R1") >= 0)
+            return 1;
+    return 0;
+}
+
 /* a page of no instance whose columns are the instances' ("SYNC1" .. "SYNC4": a label ending in a digit) */
 static int ce_percol(const eng_page_t *pg)
 {
@@ -225,9 +256,9 @@ static uint32_t ce_scr(const track_t *t, uint32_t g, uint32_t k, ce_scr_t *o)
             }
         return n ? n : 1u;
     }
-    for (p = a; p < b; p = e) {                   /* FILT, ENV (and MOD's plain pages): the pages of one instance,
-                                                   * two lanes a screen */
-        for (e = p; e < b && ce_inst(d->pages[e].title) == ce_inst(d->pages[p].title); e++)
+    for (p = a; p < b; p = e) {                   /* FILT, ENV (and MOD's plain pages): the pages of one instance
+                                                   * and name, two lanes a screen (CZ-1: "PITCH 1" and "DCW 1" apart) */
+        for (e = p; e < b && ce_inst(d->pages[e].title) == ce_inst(d->pages[p].title) && ce_name_eq(d, e, p); e++)
             ;
         for (q = p; q < e; q += 2u, n++)
             if (n == k) {
@@ -407,7 +438,14 @@ static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
         for (i = 0; i < sc.n; i++)
             for (c = 0; c < 4u; c++)
                 v->ref[i][c] = d->pages[sc.pg[i]].col[c].label ? ce_r(CE_R_DEEP, sc.pg[i], c) : ce_r(CE_R_NONE, 0, 0);
-        if (g == CE_ENV && ce_is_dx(d, sc.pg[0])) {   /* FM6: R1..R4 / L1..L4 under the "dx" band */
+        if (g == CE_ENV && ce_is_cz(d, sc.pg[0], &c, &i)) {   /* CZ-1: a step envelope under the "cz" band */
+            static const char *const PART[3] = {" \267 1-4", " \267 5-8", " \267 END"};
+            v->wide = CR_W_CZ;
+            v->dp0 = (uint8_t)c;
+            v->np = (uint8_t)i;
+            cu_cpy(v->right, d->pages[c].title, sizeof v->right);   /* "DCW 1" */
+            cu_cat(v->right, PART[(sc.pg[0] - c) / 2u > 2u ? 2u : (sc.pg[0] - c) / 2u], sizeof v->right);
+        } else if (g == CE_ENV && ce_is_dx(d, sc.pg[0])) {   /* FM6: R1..R4 / L1..L4 under the "dx" band */
             uint32_t n = ce_inst(d->pages[sc.pg[0]].title);
             v->wide = CR_W_DX;
             v->dp0 = sc.pg[0];
@@ -1100,9 +1138,25 @@ static void ce_band(const track_t *t, const ce_view_t *vw, uint8_t *o)
     const eng_deep_t *d = cp_deep(t);
     uint32_t i;
     int32_t k, pg;
-    for (i = 0; i < 10u; i++)
+    for (i = 0; i < 20u; i++)
         o[i] = 0;
-    if (vw->wide == CR_W_DX && d && vw->np) {               /* FM6: R1..R4 on the first page, L1..L4 on the second */
+    o[16] = 8;
+    if (vw->wide == CR_W_CZ && d && vw->np) {               /* CZ-1: R1..R8, L1..L8, SUS, END from the run's pages */
+        for (pg = vw->dp0; pg < vw->dp0 + vw->np; pg++)
+            for (i = 0; i < 4u; i++) {
+                const char *l = d->pages[pg].col[i].label;
+                int32_t v;
+                if (!l)
+                    continue;
+                v = d->get(t, (uint32_t)pg, i);
+                if ((l[0] == 'R' || l[0] == 'L') && l[1] >= '1' && l[1] <= '8' && !l[2])
+                    o[(l[0] == 'L' ? 8u : 0u) + (uint32_t)(l[1] - '1')] = (uint8_t)clamp(v, 0, 99);
+                else if (cp_eq(l, "SUS"))
+                    o[16] = (uint8_t)clamp(v, 0, 8);
+                else if (cp_eq(l, "END"))
+                    o[17] = (uint8_t)clamp(v, 0, 7);
+            }
+    } else if (vw->wide == CR_W_DX && d && vw->np) {               /* FM6: R1..R4 on the first page, L1..L4 on the second */
         for (i = 0; i < 4u; i++) {
             o[i] = (uint8_t)clamp(d->get(t, vw->dp0, i), 0, 99);
             o[4u + i] = vw->np > 1u ? (uint8_t)clamp(d->get(t, vw->dp0 + 1u, i), 0, 99) : 99u;
@@ -1139,6 +1193,19 @@ static void ce_band(const track_t *t, const ce_view_t *vw, uint8_t *o)
         if (typ >= 0)                                         /* (an older table: TYPE, MORPH on from it) */
             o[2] = (uint8_t)((typ * 32 + mor) & 127);
     }
+}
+/* the CZ-1 step (1..8; 0 none) of the cell just turned: R k / L k, SUS its step, END its step */
+static uint32_t ce_cz_step(const track_t *t, ce_ref_t r)
+{
+    const param_desc_t *d;
+    int32_t v;
+    if (r.k != CE_R_DEEP || !(d = ce_param(t, r, &v)))
+        return 0;
+    if ((d->label[0] == 'R' || d->label[0] == 'L') && d->label[1] >= '1' && d->label[1] <= '8' && !d->label[2])
+        return (uint32_t)(d->label[1] - '0');
+    if (cp_eq(d->label, "SUS") || cp_eq(d->label, "END"))
+        return v >= 0 && v < 8 ? (uint32_t)v + 1u : 0u;
+    return 0;
 }
 /* the envelope segment (1 A, 2 H, 3 D, 4 S, 5 R; 0 none) of the cell just turned */
 static uint32_t ce_seg(const track_t *t, ce_ref_t r)
@@ -1191,7 +1258,7 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     track_t *t = ce_trk();
     uint32_t p = ce.part & 1u, r, c, g;
     ce_view_t vw;
-    uint8_t band[10], mc[CE_NDST];
+    uint8_t band[20], mc[CE_NDST];
     ce_view(t, p, &vw);
     g = cx.grp[p] % CE_NSEC;
     s->kind = vw.kind;
@@ -1247,8 +1314,10 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     }
     if (vw.wide) {                                /* the band: its values as they are (no tween: the knob leads) */
         ce_band(t, &vw, band);
-        for (c = 0; c < (vw.wide == CR_W_DX ? 10u : vw.wide == CR_W_ENV ? 5u : 4u); c++)
+        for (c = 0; c < (vw.wide == CR_W_CZ ? 18u : vw.wide == CR_W_DX ? 10u : vw.wide == CR_W_ENV ? 5u : 4u); c++)
             s->wv[c] = band[c];
+        if (vw.wide == CR_W_CZ && s->hot_r)       /* the step the cell turned (R k, L k; SUS / END: their step) */
+            s->wv[18] = (uint8_t)ce_cz_step(t, vw.ref[(s->hot_r - 1u) % CR_ED_ROWS][s->hot_c & 3u]);
         if (vw.wide == CR_W_ENV && s->hot_r)
             s->wv[5] = (uint8_t)ce_seg(t, vw.ref[(s->hot_r - 1u) % CR_ED_ROWS][s->hot_c & 3u]);
         if (vw.wide == CR_W_DX && s->hot_r)       /* the segment the cell turned ends (R k, L k: k) */

@@ -24,6 +24,8 @@
 static int opt_front, opt_scale = 0, opt_demo, opt_midi = 1, opt_midi_log, opt_audio = 1;
 static int opt_no_flash, opt_save_on_exit;
 static const char *opt_flash;               /* the flash image file (emu_fw_options) */
+static int opt_boot_fail = -1, opt_boot_stage = -1;   /* the boot guard as the last run left it (emu_fw_boot_options) */
+static const char *opt_reset_reason;
 static double opt_bench = 0, opt_quit_after = 0;
 static const char *opt_script, *opt_wav, *opt_shot;
 static int opt_frames;
@@ -1015,6 +1017,10 @@ static void usage(void)
            "                   settings, user sounds and loops persist in it\n"
            "  --no-flash       RAM-only flash, erased at power-on\n"
            "  --save-on-exit   save the settings at exit (they also save 1.5 s after a change)\n"
+           "  --boot-fail N    the boot guard as a crashed run left it: N failed boots, pending set\n"
+           "                   (firmware/src/cr_bootguard.h; with --reset-reason wdt: 1 -> SAFE MODE, 3 -> UBOOT)\n"
+           "  --reset-reason R this power-on's reset: poweron (default), wdt, soft, other, or the reason word\n"
+           "  --boot-stage N   the breadcrumb the crashed run left (felucca_dbg.stage; default 13 with --boot-fail)\n"
            "  --scale N        LCD scale in the window (default 3, smaller if the screen is too small)\n"
            "  --front          a normal app: Dock icon, the window centred and in front. Default: a background\n"
            "                   app (SDL_HINT_MAC_BACKGROUND_APP), no Dock icon, never takes the focus, its\n"
@@ -1261,6 +1267,9 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--flash") && v) { opt_flash = v; i++; }
         else if (!strcmp(a, "--no-flash")) opt_no_flash = 1;
         else if (!strcmp(a, "--save-on-exit")) opt_save_on_exit = 1;
+        else if (!strcmp(a, "--boot-fail") && v) { opt_boot_fail = atoi(v); i++; }
+        else if (!strcmp(a, "--boot-stage") && v) { opt_boot_stage = atoi(v); i++; }
+        else if (!strcmp(a, "--reset-reason") && v) { opt_reset_reason = v; i++; }
         else if (!strcmp(a, "--script") && v) { opt_script = v; i++; }
         else if (!strcmp(a, "--quit-after") && v) { opt_quit_after = atof(v); i++; }
         else if (!strcmp(a, "--bench") && v) { opt_bench = atof(v); i++; }
@@ -1304,6 +1313,10 @@ int main(int argc, char **argv)
     if (headless && opt_bench <= 0)              /* to the end of the script, else 600 frames */
         opt_bench = sev_n ? (sev[sev_n - 1].ms + 15u) / 1000.0 : 9.0;
     emu_fw_options(opt_flash, opt_no_flash, opt_save_on_exit, headless);
+    if (!emu_fw_boot_options(opt_boot_fail, opt_reset_reason, opt_boot_stage)) {
+        printf("--reset-reason: poweron, wdt, soft, other or a number\n");
+        return 2;
+    }
     if (headless) {                               /* no window, no audio device: simulated time */
         /* nothing here opens a window or an audio device (SDL_Init(0): no subsystem); the dummy drivers
          * make sure of it should a subsystem ever be added */

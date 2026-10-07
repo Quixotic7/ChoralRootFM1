@@ -240,7 +240,7 @@ int main(void)
     CHECK(!t_send(&n), "an editor command (GET 2) gets no reply");
 
     /* ---- an empty device: every object listed, sizes 0 but the settings ---- */
-    CHECK(t_list() == 0 && nman == 17, "LIST on a fresh flash: 17 objects");
+    CHECK(t_list() == 0 && nman == 27, "LIST on a fresh flash: 27 objects");
     for (i = 0, k = 0; i < nman; i++) k += man[i].size != 0;
     CHECK(k <= 1, "fresh flash: nothing stored (the settings at most)");
 
@@ -295,6 +295,20 @@ int main(void)
         memcpy(v.p[19], blob, VA_BLOB);
         v.used = 1u << 3 | 1u << 19;
         CHECK(va_store_valid(&v) && st_save(OBJ_VASTORE, &v, sizeof v) == 0, "setup: VA store");
+        {                                            /* CZ-1: U04 / U20 hold D-1 PIANO 1, bank C saved with its name */
+            static czu_t cu2[2];
+            static cz_bank_t cb;
+            for (k = 0; k < 2; k++) {
+                memset(&cu2[k], 0, sizeof cu2[k]);
+                cu2[k].magic = CZU_MAGIC; cu2[k].ver = CZU_VER; cu2[k].nslot = CZU_HALF; cu2[k].first = (uint16_t)(k * CZU_HALF);
+                cu2[k].blob = CZ_BYTES; cu2[k].used = 1u << 3;
+                memcpy(cu2[k].b[3], CZ_FACTORY[24], CZ_BYTES);
+                CHECK(czu_valid(&cu2[k], k) && st_save(czu_obj(k), &cu2[k], sizeof cu2[k]) == 0, "setup: CZ-1 store %u", (unsigned)k);
+            }
+            cz_bank_default(&cb, 2);
+            memcpy(cb.name, "MY CZ BANK", 10);
+            CHECK(cz_bank_valid(&cb) && st_save(OBJ_CZBANK0 + 2, &cb, sizeof cb) == 0, "setup: CZ-1 bank C");
+        }
     }
     make_loop(0, 4);
     make_loop(4, 300);
@@ -305,14 +319,17 @@ int main(void)
     /* ---- backup: LIST, GET everything, CRCs ---- */
     CHECK(t_capture() == 0, "backup: LIST + GET of every object, each CRC as listed");
     {
-        static const uint8_t ids[17] = {1, 6, 7, 8, 9, 10, 11, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
-        int same = nman == 17;
-        for (i = 0; same && i < 17; i++) same = man[i].id == ids[i];
-        CHECK(same, "LIST: ids 1 6 7 8 9 10 11 40..49 in order (no sample slots)");
+        static const uint8_t ids[27] = {1, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                                        40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+        int same = nman == 27;
+        for (i = 0; same && i < 27; i++) same = man[i].id == ids[i];
+        CHECK(same, "LIST: ids 1 6..21 (12 13 the CZ-1 tones, 14..21 its banks) 40..49 in order (no sample slots)");
     }
     CHECK(find(man, nman, 1)->size == sizeof(persist_t) && find(man, nman, 6)->size == sizeof(up_bank_t) &&
           find(man, nman, 8)->size == sizeof(fm6_bank_t) && find(man, nman, 9)->size == sizeof(va_store_t) &&
           find(man, nman, 10)->size == sizeof(fm6u_t) && find(man, nman, 11)->size == sizeof(fm6u_t) &&
+          find(man, nman, 12)->size == sizeof(czu_t) && find(man, nman, 13)->size == sizeof(czu_t) &&
+          find(man, nman, 16)->size == sizeof(cz_bank_t) && find(man, nman, 14)->size == 0 &&
           find(man, nman, 40)->size > 16 && find(man, nman, 41)->size == 0 && find(man, nman, 49)->size == CRL_REC_HDR + 2u + 7u * CRL_MAX_EV,
           "LIST: the sizes (settings PER5, banks, FM6, VA, FM6 patches, loops; empty slots 0)");
     {

@@ -20,7 +20,10 @@ px_string_run 264
 px_symp_run 252
 va_render 89805
 va_block 108
-fm1_alnk0_irq 37094
+cz_native_render 528
+cz_native_wave 0
+cz_env_tick 34
+fm1_alnk0_irq 43986
 fm1_timer5_irq 32275
 mod_begin 163
 mod_voice 30

@@ -87,6 +87,11 @@ static const struct { const char *s, *l; } CP_DLABEL[] = {
     {"R1", "Rate 1"}, {"R2", "Rate 2"}, {"R3", "Rate 3"}, {"R4", "Rate 4"}, {"L1", "Level 1"}, {"L2", "Level 2"},
     {"L3", "Level 3"}, {"L4", "Level 4"}, {"PMD", "PM depth"}, {"AMD", "AM depth"}, {"PMS", "PM sens"},
     {"PMODE", "Porta md"}, {"DXVEL", "DX vel"}, {"BRTH", "Breath"}, {"AFTER", "Aftertch"},
+    /* CZ-1 (eng_cz.c's pages) */
+    {"R5", "Rate 5"}, {"R6", "Rate 6"}, {"R7", "Rate 7"}, {"R8", "Rate 8"}, {"L5", "Level 5"}, {"L6", "Level 6"},
+    {"L7", "Level 7"}, {"L8", "Level 8"}, {"W.KEY1", "DCW key 1"}, {"W.KEY2", "DCW key 2"}, {"V.WAV1", "DCW vel 1"},
+    {"V.WAV2", "DCW vel 2"}, {"A.KEY1", "DCA key 1"}, {"A.KEY2", "DCA key 2"}, {"V.AMP1", "DCA vel 1"},
+    {"V.AMP2", "DCA vel 2"}, {"V.PIT", "Pitch vel"},
 };
 static int cp_up(int ch) { return ch >= 'a' && ch <= 'z' ? ch - 32 : ch; }
 static int cp_eq(const char *a, const char *b)

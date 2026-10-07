@@ -336,6 +336,40 @@ static void con_inp(void)
     }
 }
 
+/* the boot guard (cr_bootguard.h, main.c): this boot's mode, the reset that started it, the breadcrumb the last run
+ * left, and the stage numbers' names */
+static void con_boot(void)
+{
+    uint32_t i;
+    con_puts("mode ");
+    con_puts(bootguard_mode_name(bootguard.mode));
+    con_puts(cr_safe ? " (SAFE MODE: flash data skipped; Options > Flash Data erases it)\r\n" : "\r\n");
+    con_kv("failed", (int32_t)bootguard.failed);
+    con_kv("pending", (int32_t)bootguard.pending);
+    con_puts("reset ");
+    con_puts(bootguard_class_name(bootguard.cls));
+    con_puts(bootguard.counted ? " (counted as a failed boot)\r\n" : "\r\n");
+    con_kx("reset_reason", bootguard.reason);              /* P3_RST_SRC bits 0..7, RST_SRC bit5 as bit 8 */
+    con_kx("p3_rst", fm1_boot.p3_rst);
+    con_kx("rst_src", fm1_boot.rst_src);
+    con_kx("wdt_con", fm1_boot.wdt_con);
+    con_puts("last_stage ");
+    con_dec((int32_t)felucca_dbg.prev_stage);
+    con_putc(' ');
+    con_puts(bootguard_stage_name(felucca_dbg.prev_stage));
+    con_puts("\r\n");
+    con_kv("boots", (int32_t)felucca_dbg.boots);
+    con_puts("stages:");
+    for (i = 1; i < BS_N; i++)
+        if (i < 3u || i == BS_LOOP_IDLE || i >= BS_GUARD) {
+            con_putc(' ');
+            con_dec((int32_t)i);
+            con_putc('=');
+            con_puts(bootguard_stage_name(i));
+        }
+    con_puts("\r\n");
+}
+
 static void con_crash(void)
 {
     if (fm1_crash.magic != FM1_CRASH_MAGIC) {
@@ -367,13 +401,15 @@ static void con_params(void)
 static void con_exec(const char *p)
 {
     if (con_word(&p, "help") || con_word(&p, "?"))
-        con_puts("status  cpu  dbg  inp  crash  params  memr ADDR [LEN]  flr OFF [LEN]  uboot yes\r\n");
+        con_puts("status  cpu  dbg  boot  inp  crash  params  memr ADDR [LEN]  flr OFF [LEN]  uboot yes\r\n");
     else if (con_word(&p, "cpu"))
         con_cpu();
     else if (con_word(&p, "status"))
         con_status();
     else if (con_word(&p, "dbg"))
         con_dbg();
+    else if (con_word(&p, "boot"))
+        con_boot();
     else if (con_word(&p, "crash"))
         con_crash();
     else if (con_word(&p, "inp"))

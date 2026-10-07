@@ -1,0 +1,25 @@
+# tools/emu/perf.sh (g): a 6-note CZ-1 chord (CZ STRINGS 2, Casio's A-5: both lines) + the CZ-1 bass (CZ BASS) held 3 s, a chord change, 3 s more, released (docs/CZ1.md)
+wait 500
+knob PRESETS +45
+wait 300
+knob ALGORITHM +13
+wait 300
+dump
+key F3 down
+key 2 down
+key 4 down
+key 5 down
+wait 40
+key A down
+wait 3000
+key A up
+key G down
+wait 3000
+dump
+key G up
+key F3 up
+key 2 up
+key 4 up
+key 5 up
+wait 1500
+dump

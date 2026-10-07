@@ -303,8 +303,13 @@ static void uac_ep4_reset(void)                         /* drop a queued packet;
     sie_wr(S_TXCSR2, 0x40);                             /* ISO */
 }
 
+#ifndef UAC_BLOCKED
+#define UAC_BLOCKED() 0                                 /* (core.h: SAFE MODE, the interface stays but never streams) */
+#endif
 static void uac_stream(uint32_t alt)                    /* SET_INTERFACE, configuration, bus reset */
 {
+    if (UAC_BLOCKED())
+        alt = 0;
     uac.go = 0;                                         /* the next render primes the ring again */
     uac.flowing = 0;                                    /* ... once the host has taken a packet */
     uac.queued = 0;
@@ -592,6 +597,9 @@ static void sysex_byte(uint8_t b)
     static const uint8_t UBOOT_KEY[6] = {0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7};
 #ifdef FM6_RX
     fm6_sx_byte(b);                                    /* DX7 voices, banks, parameter changes (eng_fm6.c; Melodee's) */
+#endif
+#if FELUCCA_CZ
+    cz_sx_byte(b);                                     /* Casio CZ-1 tones and requests (eng_cz.c; Melodee's) */
 #endif
     if (b >= 0xF8u)
         return;                                        /* realtime may occur anywhere in SysEx */

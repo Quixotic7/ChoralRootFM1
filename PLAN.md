@@ -270,7 +270,8 @@ firmware/src/
     hal/, libc.c, lcd.c, gfx.c (no keycaps), panel.c, usb.c, midi_uart.c, storage.c, storage_hw.c, ota.c, ota_hw.c,
     console.c, main.c, settings_persist.c, upreset.c (32 user sounds)
     engines.c + eng_*.c, dsp.c, voice.c, mod.c, fx.c (+ perform.c), params.c, audio.c, fm6_*.c       the sound:
-                    ANALOG, PHASE, LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE, FM6 and the VA; the slots of DIGITAL (1),
+                    ANALOG, PHASE, LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE, FM6, the VA and CZ-1 (14, Melodee's, docs/CZ1.md:
+                    eng_cz.c, cz_*.c, Casio's 64 tones, 8 banks, tone SysEx, cz_ustore.c); the slots of DIGITAL (1),
                     SAMPLE (4), GRAIN (8) and DRUM (10) are retired placeholders (engines.c ENG_GONE: never offered;
                     a user sound on one loads as INIT on ANALOG)
     slicer.c        no-op stubs (SLICER off: its 32 KB POOL buffer freed; perform.c's buffer effects off with it);

@@ -21,6 +21,9 @@
 #ifndef FELUCCA_VA
 #define FELUCCA_VA 1                                  /* as choralroot.c: the VA engine, its patch store */
 #endif
+#ifndef FELUCCA_CZ
+#define FELUCCA_CZ 1                                  /* as choralroot.c: the CZ-1 engine (14), its tone store and banks */
+#endif
 #ifndef FELUCCA_SAMPLE
 #define FELUCCA_SAMPLE 0                              /* as choralroot.c: SAMPLE, GRAIN, DRUM retired */
 #endif
@@ -81,8 +84,13 @@ static void mix_block(int32_t *out, uint32_t n)        /* the audio ISR's block:
 #include "../../firmware/src/cr_pages.c"
 #include "../../firmware/src/cr_name.c"
 #define CR_HAVE_SETTINGS 1                            /* cr_ui_init loads the settings record */
+/* Options > Flash Data's reboot (SAFE MODE): the emulator says so and ends (a headless script checks the flash file
+ * with a second run, tools/emu/test_cr.sh) */
+#define CR_REBOOT() do { bootguard_settled(&bootguard); printf("reboot: guard failed %u pending %u\n", (unsigned)bootguard.failed, \
+                                (unsigned)bootguard.pending); fflush(stdout); exit(0); } while (0)
 #include "../../firmware/src/cr_ui.c"
 #include "../../firmware/src/cr_settings.c"           /* the settings record (after cr_ui.c and storage.c) */
 #include "../../firmware/src/fm6_store.c"             /* FM6: DX7 SysEx (Melodee's; after cr_ui.c: the editor's part) */
+#include "../../firmware/src/cz_store.c"              /* CZ-1: Casio tone SysEx (Melodee's; after cr_ui.c) */
 #include "../../firmware/src/cr_backup.c"             /* backup / restore SysEx (the handler: no transport here;
                                                          * tests/cr_backup_test.c drives it) */

@@ -43,26 +43,39 @@ static void persist_boot(void)         /* before settings_init / panel_init (pro
 {
 #if FELUCCA_FLASH
     uint32_t f = irq_save(), k;
+    CR_STAGE(BS_FLASH);
     flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;       /* the expected 1 MiB part, else stay RAM-only */
     irq_restore(f);
     if (!flash_ok)
         return;
     fl_plain_window_init();                                /* the data region reads as plaintext through XIP */
+    /* SAFE MODE (main.c, cr_bootguard.h): flash_ok stays (the installer's update and the backup's reads need it),
+     * but no object is read: storage.c st_load / st_save and the loop slots answer "none" (core.h ST_BLOCKED), so
+     * the sounds, the stores, the FM6 bank and the settings start as on an erased flash; the flash is not touched */
 #if FELUCCA_SAMPLE
-    for (k = 0; k < SMP_USER_SLOTS; k++)                   /* (user sample sets play from flash through XIP) */
+    for (k = 0; !cr_safe && k < SMP_USER_SLOTS; k++)       /* (user sample sets play from flash through XIP) */
         smp_user_scan(k);
 #else
     (void)k;                                               /* (no SAMPLE engine: no user sample sets to scan) */
 #endif
     cr_bank_boot();                                        /* the 32 user sounds (upreset.c) and the FM6 bank */
 #if CR_HAVE_SETTINGS
+    CR_STAGE(BS_SETTINGS);
     cr_settings_boot();                                    /* the settings record with ChoralRoot's block */
 #endif
 #endif
 }
 #if CR_HAVE_SETTINGS
-static void settings_poll(void) { cr_settings_poll(); }   /* saved on change, deferred while a loop plays */
-static void settings_save(void) { cr_settings_save(); }
+static void settings_poll(void)                    /* saved on change, deferred while a loop plays (SAFE MODE: never) */
+{
+    if (!cr_safe)
+        cr_settings_poll();
+}
+static void settings_save(void)
+{
+    if (!cr_safe)
+        cr_settings_save();
+}
 #else
 static void settings_poll(void) {}
 static void settings_save(void) {}
@@ -86,6 +99,14 @@ static void cr_splash(void)
         mo = crs_rec.cr.motion;
 #endif
     palette_set(NPALETTES - 1u);                   /* MOD (cr_ui_init sets it again, then the saved one) */
+    if (cr_safe) {                                 /* SAFE MODE: its screen (cr_ui.c cu_safe_screen), no slide */
+        cr_screen_clear(&s);
+        cu_safe_screen(&s);
+        cr_draw_invalidate();
+        cr_draw(&s, CR_ANIM_SETTLED);
+        cr_draw_invalidate();
+        return;
+    }
     cr_screen_clear(&s);
     cu_stripes(&s);
     s.batt = 255;

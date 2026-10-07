@@ -1,0 +1,10 @@
+# SAFE MODE, Options > Flash Data, OCT+ twice: the data objects erased, then the reboot (the emulator ends: "reboot:")
+wait 5500
+btn GLO
+wait 150
+knob SELECT +1
+wait 150
+btn OCT+
+wait 150
+btn OCT+
+wait 3000

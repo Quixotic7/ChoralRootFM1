@@ -126,10 +126,13 @@ int main(void)
     printf("],\n\"FM6\":{\"bank\":%u,\"init\":", (unsigned)FM6_BANK_N);   /* FM6: the packed patches */
     for (i = 0; i < FM6_PACKED; i++)
         printf("%s%d", i ? "," : "[", FM6_INIT[i]);
-    printf("],\"factory\":[");
-    for (k = 0; k < FM6_NFACTORY; k++)
+    printf("],\"factory\":[");                      /* F1..F24: FM6_FACTORY, then Melodee's ROM voices (fm6_factory) */
+    for (k = 0; k < FM6_NFAC; k++) {
+        uint8_t pk[FM6_PACKED];
+        fm6_factory(k, pk);
         for (i = 0; i < FM6_PACKED; i++)
-            printf("%s%d%s", i ? "," : k ? ",[" : "[", FM6_FACTORY[k][i], i == FM6_PACKED - 1u ? "]" : "");
+            printf("%s%d%s", i ? "," : k ? ",[" : "[", pk[i], i == FM6_PACKED - 1u ? "]" : "");
+    }
     printf("]}");
     printf(",\n\"LANE_NOTE\":[");                    /* the DRUM grid: each lane's GM note, the lane of GM 35..81 */
     for (k = 0; k < NLANE; k++)

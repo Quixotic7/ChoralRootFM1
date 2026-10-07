@@ -6,7 +6,8 @@
 // own objects (BACKUP_LIST) and a restore writes the objects of the file that the connected firmware lists:
 //   Felucca     0 the music now, 1 settings, 2..5 projects, 6 7 user preset banks, 8 the FM6 bank, 32..34 samples
 //   ChoralRoot  1 settings, 6 7 user sound banks, 8 the FM6 bank, 9 the VA patches, 10 11 the FM6 patches (user sounds
-//               1-16, 17-32: voice + function settings), 40..49 loop slots (no samples: the
+//               1-16, 17-32: voice + function settings), 12 13 the CZ-1 tones (user sounds 1-16, 17-32), 14..21 the
+//               CZ-1 banks A..H, 40..49 loop slots (no samples: the
 //               all-synth firmware has no SAMPLE engine; ChoralRoot 0.1 archives with 32 33 restore without them)
 // so a Felucca archive restores its settings, banks and FM6 bank on ChoralRoot (its samples are reported skipped), and
 // a ChoralRoot archive those (its settings record cut back to Felucca's) on Felucca; the rest stays in the file.
@@ -14,8 +15,10 @@ export const BACKUP_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34];   // Felucca'
 const BACKUP_IDS_V1 = BACKUP_IDS.filter((id) => id !== 8);              // Felucca before FM6, and its archives
 const idsOf = (n) => (n === BACKUP_IDS.length ? BACKUP_IDS : n === BACKUP_IDS_V1.length ? BACKUP_IDS_V1 : null);
 export const CR_LOOP_IDS = Array.from({ length: 10 }, (_, k) => 40 + k);
-export const CR_BACKUP_IDS = [1, 6, 7, 8, 9, 10, 11, ...CR_LOOP_IDS];  // ChoralRoot's (9: the VA patches, 10 11: the FM6
-                                                                       // patches, 40..49: loops)
+export const CR_CZ_BANK_IDS = Array.from({ length: 8 }, (_, k) => 14 + k);
+export const CR_BACKUP_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13, ...CR_CZ_BANK_IDS, ...CR_LOOP_IDS];  // ChoralRoot's (9: the VA
+                                         // patches, 10 11: the FM6 patches, 12 13: the CZ-1 tones, 14..21: the CZ-1
+                                         // banks, 40..49: loops)
 const KNOWN = new Set([...BACKUP_IDS, ...CR_BACKUP_IDS]);
 export const BACKUP_CMD = { INFO: 1, LIST: 65, GET: 66, PUT: 67, RESTART: 72 };
 const BACKUP_CHUNK = 256;
@@ -29,6 +32,8 @@ export function objectName(id) {
   if (id === 8) return "FM6 patch bank";
   if (id === 9) return "VA patches";
   if (id === 10 || id === 11) return `FM6 patches ${id === 10 ? "1-16" : "17-32"}`;
+  if (id === 12 || id === 13) return `CZ-1 tones ${id === 12 ? "1-16" : "17-32"}`;
+  if (id >= 14 && id <= 21) return `CZ-1 bank ${String.fromCharCode(51 + id)}`;
   if (isSample(id)) return `sample slot ${id - 31}`;
   if (id >= 40 && id <= 49) return `loop slot ${id - 39}`;
   return `object ${id}`;

@@ -34,9 +34,59 @@ void emu_fw_options(const char *flash_path, int no_flash, int save_on_exit, int 
     else
         snprintf(emu_flash_path, sizeof emu_flash_path, "%s", flash_path ? flash_path : "build/emu/flash.bin");
 }
+/* the boot guard (cr_bootguard.h, main.c fm1_cstart): what a crashed run left in .noinit, and this reset's reason */
+static uint32_t emu_reset_reason = BG_P3_POWERON;
+int emu_fw_boot_options(int fail, const char *reason, int stage)
+{
+    if (reason) {
+        char *e;
+        if (!strcmp(reason, "poweron") || !strcmp(reason, "power-on")) emu_reset_reason = BG_P3_POWERON;
+        else if (!strcmp(reason, "wdt")) emu_reset_reason = BG_P3_WDT;
+        else if (!strcmp(reason, "soft")) emu_reset_reason = BG_P3_SOFT;
+        else if (!strcmp(reason, "other") || !strcmp(reason, "pin")) emu_reset_reason = 0x10u;   /* long press */
+        else {
+            emu_reset_reason = (uint32_t)strtoul(reason, &e, 0);
+            if (*e)
+                return 0;
+        }
+    }
+    if (fail >= 0) {
+        bootguard_clear(&bootguard);
+        bootguard.failed = (uint32_t)fail;
+        bootguard.pending = 1;                    /* the last run died within 30 s */
+        felucca_dbg.magic = DBG_MAGIC;
+        felucca_dbg.stage = (uint32_t)(stage >= 0 ? stage : BS_USER_SOUNDS);
+    } else if (stage >= 0) {
+        felucca_dbg.magic = DBG_MAGIC;
+        felucca_dbg.stage = (uint32_t)stage;
+    }
+    return 1;
+}
+static void emu_boot_guard(void)                  /* main.c fm1_cstart + dbg_boot */
+{
+    uint32_t mode = bootguard_step(&bootguard, emu_reset_reason);
+    if (mode == BOOT_UBOOT) {
+        printf("boot: UBOOT (ROM boot): reset %s, the guard cleared\n", bootguard_class_name(bootguard.cls));
+        fflush(stdout);
+        exit(3);                                  /* (the device: fm1_enter_uboot, the PC tool's mode) */
+    }
+    cr_safe = mode == BOOT_SAFE;
+    if (felucca_dbg.magic != DBG_MAGIC) {
+        memset(&felucca_dbg, 0, sizeof felucca_dbg);
+        felucca_dbg.magic = DBG_MAGIC;
+    }
+    felucca_dbg.boots++;
+    felucca_dbg.prev_stage = felucca_dbg.stage;
+    felucca_dbg.prev_rst = emu_reset_reason;
+    CR_STAGE(BS_GUARD);
+    printf("boot: %s reset %s failed %u pending %u counted %u prev_stage %u (%s)\n", bootguard_mode_name(mode),
+           bootguard_class_name(bootguard.cls), (unsigned)bootguard.failed, (unsigned)bootguard.pending,
+           (unsigned)bootguard.counted, (unsigned)felucca_dbg.prev_stage, bootguard_stage_name(felucca_dbg.prev_stage));
+}
+
 static void emu_fw_exit(void)
 {
-    if (!crs_loaded)
+    if (!crs_loaded || cr_safe)                   /* (SAFE MODE: nothing saved) */
         return;
     if (emu_save_on_exit)
         cr_settings_save();
@@ -59,8 +109,11 @@ void emu_fw_init(int demo)
         emu_sim = 1;
 
     /* power-on (choralroot.c's main.c path): the flash (persist_boot), settings, panel, the engine, the sounds */
+    emu_boot_guard();                             /* SAFE MODE: no flash object read or written (core.h ST_BLOCKED) */
     emu_flash_open();
+    CR_STAGE(BS_FLASH);
     cr_bank_boot();                               /* persist_boot: the user sounds (upreset.c) from the flash */
+    CR_STAGE(BS_SETTINGS);
     cr_settings_boot();                           /* .. and the settings record (Felucca's fields + ChoralRoot's) */
     cr_ui_init();                                 /* the engine, the sounds, the record applied (cr_settings_load) */
     atexit(emu_fw_exit);
@@ -154,7 +207,11 @@ void emu_fw_frame(void)                           /* main.c's loop body (choralr
     if (d > emu_hal.ui_lock_max_us)
         emu_hal.ui_lock_max_us = d;
     cr_ui_draw();
-    cr_settings_poll();                           /* main.c's settings_poll: a change saved once things are quiet */
+    if (!cr_safe)
+        cr_settings_poll();                       /* main.c's settings_poll: a change saved once things are quiet */
+    if (fm1_ms > BG_SETTLE_MS && bootguard.pending)
+        bootguard_settled(&bootguard);            /* main.c: 30 s up, the boot was good */
+    felucca_dbg.stage = BS_LOOP_IDLE;
 }
 
 void emu_fw_idle(void)                            /* main.c: the input scan while it waits for the next frame */
@@ -257,6 +314,9 @@ void emu_fw_dump(void)
            (unsigned)cs.loop_slot + 1u, (unsigned)crl.played, (unsigned)cr_loop_ring(&crl), (unsigned)cs.loop_used,
            (unsigned)crl.metro, (unsigned)crl.sig, cr_loop_busy(&cr, 0) + cr_loop_busy(&cr, 1) + cr_loop_busy(&cr, 2),
            (unsigned)cr.playstyle, (unsigned)cr.single, (unsigned)cr.split_pc);
+    printf("  boot: %s reset %s failed %u pending %u prev_stage %u\n", bootguard_mode_name(bootguard.mode),
+           bootguard_class_name(bootguard.cls), (unsigned)bootguard.failed, (unsigned)bootguard.pending,
+           (unsigned)felucca_dbg.prev_stage);
     printf("  flash: %s, %u writes, settings saves %u (record: %s)\n", emu_flash_path[0] ? emu_flash_path : "RAM only",
            (unsigned)emu_flash_writes, (unsigned)crs_saves, crs_last_rc == 1 ? "current" : crs_last_rc == 2 ? "migrated" : "defaults");
     printf("  voices: given up %u (budget fades + overload sheds %u), own voices taken for a new note %u\n",

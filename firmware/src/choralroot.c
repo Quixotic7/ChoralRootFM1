@@ -64,6 +64,9 @@
 #ifndef FELUCCA_VA
 #define FELUCCA_VA 1             /* the VA engine (eng_va.c, engine 13) and its patch store (va_store.c) */
 #endif
+#ifndef FELUCCA_CZ
+#define FELUCCA_CZ 1             /* Melodee's CZ-1 engine (eng_cz.c, engine 14), its tone store and banks (docs/CZ1.md) */
+#endif
 #ifndef FM6_POLY
 #define FM6_POLY 8               /* FM6's voices per part (eng_fm6.c; Melodee plays Dexed's 16): ChoralRoot's chords use <= 7,
                                   * and at 16 the release tails of perf.sh (c) / (e) cost up to 59 / 62 % of a block
@@ -172,6 +175,7 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 #include "cr_settings.c"         /* the settings record (after cr_ui.c and storage.c) */
 #endif
 #include "fm6_store.c"           /* FM6: DX7 SysEx in / out, bulk dumps to the bank (Melodee's; after cr_ui.c) */
+#include "cz_store.c"            /* CZ-1: Casio tone SysEx in / out (Melodee's; after cr_ui.c) */
 #include "cr_backup.c"           /* backup / restore over SysEx (after usb.c, the stores, cr_ui.c, cr_settings.c) */
 #include "cr_shim.c"             /* what main.c and the kept files call of Felucca's dropped UI */
 

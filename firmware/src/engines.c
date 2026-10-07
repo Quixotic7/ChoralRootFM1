@@ -25,6 +25,12 @@
 #include "eng_noise.c"
 #include "eng_fm6.c"            /* FM6: 6-operator FM rendered as Dexed renders it (fm6_core.c; Melodee's, Kerem Kilic) */
 #include "fm4_convert.c"        /* DIGITAL's tables, and its sounds -> FM6 */
+#if FELUCCA_CZ
+#if !FELUCCA_VA
+#error "FELUCCA_CZ: its tone store sits beside the VA's and FM6's (upreset.c): FELUCCA_VA 1"
+#endif
+#include "eng_cz.c"             /* CZ-1: native Casio CZ-1 tones (cz_native.c; Melodee's, Kerem Kilic) */
+#endif
 
 /* the engines' runtime state of a part (Melodee's voice model). A part renders one engine at a time (an engine switch
  * fades the old one out first, voice.c engine_block), so their states share one block per part, cleared at every
@@ -35,10 +41,16 @@ static union {
     phys_slot_t phys[PHYS_POLY];
     drw_part_t wheel;
     fm6_part_t fm6;
+#if FELUCCA_CZ
+    cz_part_t cz;                /* CZ-1's voices: six envelopes each, vibrato, noise */
+#endif
 } eng_state[NPART] __attribute__((section(".pool")));
 static phys_slot_t *phys_slots(uint32_t part) { return eng_state[part % NPART].phys; }
 static drw_part_t *drw_of(const track_t *t) { return &eng_state[(uint32_t)(t - trk) % NPART].wheel; }
 static fm6_part_t *fm6_part(uint32_t part) { return &eng_state[part % NPART].fm6; }
+#if FELUCCA_CZ
+static cz_part_t *cz_part(uint32_t part) { return &eng_state[part % NPART].cz; }
+#endif
 static void eng_state_clear(uint32_t part)
 {
     if (part < NPART)
@@ -127,6 +139,9 @@ static const engine_t *const ENGINES[NENGINES] = {
 #if FELUCCA_VA
     &ENG_VA,                     /* 13 + FELUCCA_SLICE (ENGI_VA; ChoralRoot: 13) */
 #endif
+#if FELUCCA_CZ
+    &ENG_CZ,                     /* 13 + FELUCCA_SLICE + FELUCCA_VA (ENGI_CZ; ChoralRoot: 14) */
+#endif
 };
 
 /* a track's engine number as an index (the audio paths: a compare, cheaper than % NENGINES; a bad number: 0) */
@@ -144,7 +159,11 @@ static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
 #if FELUCCA_FM4
     1,                           /* DIGITAL */
 #endif
-    2, 3,                        /* PHASE LOFI */
+    2,                           /* PHASE */
+#if FELUCCA_CZ
+    ENGI_CZ,                     /* CZ-1 (after PHASE, as Melodee shows it) */
+#endif
+    3,                           /* LOFI */
 #if FELUCCA_SAMPLE
     4,                           /* SAMPLE */
 #endif

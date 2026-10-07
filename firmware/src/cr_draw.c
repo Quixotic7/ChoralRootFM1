@@ -757,7 +757,7 @@ static int32_t cr_fdb(int32_t lp, int32_t bp, int32_t hp, int32_t q, int32_t res
 static void cr_wide(const cr_screen_t *s, uint16_t segcol)
 {
     const int32_t L = 8 * 16, R = 232 * 16, W = R - L, y0 = 24 * 16;
-    int16_t p[16 * 2];          /* (filter: <= 7 segments + 4 crossings + 1 = 13 points) */
+    int16_t p[40 * 2];          /* (filter: <= 7 segments + 4 crossings + 1 = 13 points; cz: <= 9 segments of <= 4) */
     uint32_t np = 0, i;
 #define CR_PT(px16, py16) (p[2 * np] = (int16_t)(px16), p[2 * np + 1] = (int16_t)(py16), np++)
     if (s->wide == CR_W_ENV) {
@@ -791,6 +791,62 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
             if (xs[i + 1] - xs[i] >= 16 || (int32_t)i == seg)
                 cr_text((xs[i] + xs[i + 1]) * 8, P8(24 + 95), LET[i], 9, 1, CR_C, 4096, (int32_t)i == seg ? segcol : T_DIM,
                         T_BG, 0);
+    } else if (s->wide == CR_W_CZ) {
+        /* CZ-1's eight-step envelope (wv: R1..R8, L1..L8 0..99, SUS 0..7 / 8 none, END 0..7, the lit step 1..8): from 0
+         * to L1 at R1, .. L k at R k, the step END to 0 (the CZ ignores END's level); after the SUS step's point a hold
+         * (the key down); the steps after END are not drawn. A step's width grows with its distance and the slowness
+         * of its rate (a sketch of the times, as the dx band) */
+        static const char *const LET[8] = {"1", "2", "3", "4", "5", "6", "7", "8"};
+        int32_t yT = y0 + 8 * 16, yB = y0 + 84 * 16, u[9], xs[10], py[10], sum = 0, lv = 0, d;
+        int32_t end = s->wv[17] > 7 ? 7 : s->wv[17], sus = s->wv[16] < end ? s->wv[16] : -1, hot = (int32_t)s->wv[18] - 1;
+        int32_t ns = 0, sg[8], k;
+        uint32_t vi[10];
+        py[0] = yB;
+        for (k = 0; k <= end; k++) {             /* segment ns: step k; after the SUS step a hold */
+            int32_t r = s->wv[k] > 99 ? 99 : s->wv[k], t = k == end ? 0 : (s->wv[8 + k] > 99 ? 99 : s->wv[8 + k]);
+            d = t - lv;
+            d = d < 0 ? -d : d;
+            sg[k] = ns;
+            u[ns] = 6 + (99 - r) * (6 + d) / 24;
+            py[ns + 1] = yB - (yB - yT) * t / 99;
+            ns++;
+            if (k == sus) {
+                u[ns] = 30;
+                py[ns + 1] = py[ns];
+                ns++;
+            }
+            lv = t;
+        }
+        for (k = 0; k < ns; k++) sum += u[k];
+        xs[0] = L;
+        for (k = 0; k < ns; k++) xs[k + 1] = xs[k] + u[k] * W / (sum ? sum : 1);
+        cr_frect(L, yB + 16, W, 16, T_LINE);
+        for (k = 0; k <= ns; k++) {              /* steep runs in pieces <= 26 px tall: small boxes for cr_poly */
+            if (k) {
+                int32_t dy = py[k] - py[k - 1], m = (dy < 0 ? -dy : dy) / (26 * 16) + 1, k2;
+                for (k2 = 1; k2 < m; k2++)
+                    CR_PT(xs[k - 1] + (xs[k] - xs[k - 1]) * k2 / m, py[k - 1] + dy * k2 / m);
+            }
+            vi[k] = np;
+            CR_PT(xs[k], py[k]);
+        }
+        cr_poly(p, np, 48, 0, 0, T_TEXT);
+        if (sus >= 0)                            /* the hold: dashed over its run */
+            cr_poly(p + 2 * vi[sg[sus] + 1], vi[sg[sus] + 2] - vi[sg[sus] + 1] + 1u, 48, 32, 64, T_DIM);
+        if (hot >= 0 && hot <= end) {            /* step k (R k / L k / SUS / END turned): its segment */
+            int32_t a0 = sg[hot], a1 = a0 + 1;
+            cr_poly(p + 2 * vi[a0], vi[a1] - vi[a0] + 1u, 64, 0, 0, segcol);
+            cr_disc(xs[a0], py[a0], 56, segcol);
+            cr_disc(xs[a1], py[a1], 56, segcol);
+        }
+        for (k = 0; k <= end; k++) {
+            int32_t j = sg[k];
+            if (xs[j + 1] - xs[j] >= 16 * 16 || k == hot)
+                cr_text((xs[j] + xs[j + 1]) * 8, P8(24 + 95), LET[k], 9, 1, CR_C, 4096, k == hot ? segcol : T_DIM,
+                        T_BG, 0);
+        }
+        if (sus >= 0 && xs[sg[sus] + 2] - xs[sg[sus] + 1] >= 16 * 16)
+            cr_text((xs[sg[sus] + 1] + xs[sg[sus] + 2]) * 8, P8(24 + 95), "S", 9, 1, CR_C, 4096, T_DIM, T_BG, 0);
     } else if (s->wide == CR_W_DX) {
         /* FM6's DX7 envelope (wv: R1..R4, L1..L4 0..99, the lit segment, the pitch EG flag): from L4 to L1 at R1, L2
          * at R2, L3 at R3, held at L3 (the key down), to L4 at R4; a segment's width grows with its distance and the

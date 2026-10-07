@@ -42,7 +42,13 @@
 #ifndef FELUCCA_DRUM
 #define FELUCCA_DRUM 1           /* the DRUM engine (eng_drum.c, drum_voice.c); ChoralRoot: 0, engine 10 retired */
 #endif
-#define NENGINES (13 + FELUCCA_SLICE + FELUCCA_VA)   /* SLICE (13) and VA come last: the other engines keep their numbers */
+#ifndef FELUCCA_CZ
+#define FELUCCA_CZ 0             /* Melodee's CZ-1 engine (eng_cz.c, docs/CZ1.md): engine 13 + FELUCCA_SLICE + FELUCCA_VA (14 on
+                                  * ChoralRoot); Felucca builds without it (choralroot.c, the emulator and tests/regress.c set 1) */
+#endif
+#define NENGINES (13 + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ)   /* SLICE (13), VA and CZ-1 come last: the other engines
+                                                                   * keep their numbers */
+#define ENGI_CZ (13u + FELUCCA_SLICE + FELUCCA_VA)   /* engines.c ENGINES[] (append-only): 14 on ChoralRoot (Melodee: 15) */
 #define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
 #define NENG_SHOWN (NENGINES - !FELUCCA_FM4 - !FELUCCA_SAMPLE - !FELUCCA_GRAIN - !FELUCCA_DRUM)
                                  /* the engines one can pick: PRESETS, the EDIT layer, the editor, in the display order
@@ -194,13 +200,14 @@ typedef struct {
     const char *title;           /* "OSC 1" (<= 7 chars) */
     param_desc_t col[4];         /* KNOB 1..4; label 0 = an empty column */
 } eng_page_t;
+#define ENG_BLOB_MAX 160u       /* the largest blob (CZ-1: 144; the VA's 110 and FM6's 128 keep their store records) */
 typedef struct {
     uint32_t npages;
     const eng_page_t *pages;
     uint8_t section[8];          /* first page of each section, in order; 0xFF ends the list */
     int32_t (*get)(const struct track *t, uint32_t page, uint32_t col);
     void (*set)(struct track *t, uint32_t page, uint32_t col, int32_t v);
-    uint32_t blob_size;          /* the patch, packed (<= 128 bytes) */
+    uint32_t blob_size;          /* the patch, packed (<= ENG_BLOB_MAX bytes: CZ-1's tone is 144) */
     void (*blob_get)(const struct track *t, uint8_t *out);
     void (*blob_set)(struct track *t, const uint8_t *in);          /* 0 or a bad blob = the init patch */
     void (*blob_preset)(struct track *t, uint32_t k);              /* factory preset k's patch (engine_t.presets[k]) */
@@ -404,6 +411,10 @@ static inline uint32_t swing_step_len(const track_t *t, uint32_t base, uint32_t 
 /* ----------------------------------------------------------- system --- */
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */
-/* boot-loop guard (main.c): two boots in a row that die in the first 30 s -> UBOOT */
-#define BOOTGUARD_MAGIC 0x42475244u
-struct { uint32_t magic, failed, pending; } bootguard __attribute__((section(".noinit")));
+/* boot-loop guard (main.c, cr_bootguard.h): crash-type resets within 30 s of a boot counted; 2 -> SAFE MODE (no flash
+ * object loads), 4 -> UBOOT; a power-on clears it */
+#include "cr_bootguard.h"
+struct bootguard bootguard __attribute__((section(".noinit")));
+uint8_t cr_safe;                  /* this session runs in SAFE MODE (bootguard BOOT_SAFE): stores neither read nor written */
+#define ST_BLOCKED() (cr_safe)    /* storage.c st_load / st_save, cr_ui.c's loop slots: off in SAFE MODE */
+#define UAC_BLOCKED() (cr_safe)   /* usb.c: no USB audio stream in SAFE MODE */

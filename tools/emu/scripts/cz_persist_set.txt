@@ -1,0 +1,28 @@
+# test_persist.sh, CZ-1 run 1: PRESETS +43: CZ BRASS 1 (Casio's A-1); EDIT, ENV four times: DCW 1, SELECT +1: its
+# levels, KNOB 1 -20: L1 to 0; HOME; SAVE, OCT+ (U01): the trace "cz: save slot 1 part 0 tone crc XXXX"; the settings
+# record saved past the quiet time; quit
+wait 500
+knob PRESETS +43
+wait 600
+btn EDIT
+wait 400
+btn ENV
+wait 300
+btn ENV
+wait 300
+btn ENV
+wait 300
+btn ENV
+wait 400
+knob SELECT +1
+wait 250
+knob KNOB1 -20
+wait 300
+btn HOME
+wait 400
+btn SAVE
+wait 400
+btn OCT+
+wait 3500
+dump
+quit

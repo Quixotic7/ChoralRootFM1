@@ -44,7 +44,7 @@ Keys and buttons are clickable (right-click / ctrl-click latches one down), the 
 wheel over them or a vertical drag; a click selects a knob for Up / Down. At exit it prints the audio block
 render time (avg / max us), the device callback gaps and the UI frame time.
 
-Other options: `--flash PATH` / `--no-flash` / `--save-on-exit` (the flash file: settings, user sounds, loops), `--demo` (ignored by ChoralRoot), `--quit-after S`, `--midi-log`, `--no-midi`, `--no-audio`,
+Other options: `--flash PATH` / `--no-flash` / `--save-on-exit` (the flash file: settings, user sounds, loops), `--boot-fail N` / `--reset-reason poweron|wdt|soft|other` / `--boot-stage N` (the boot guard as a crashed run left it, `firmware/src/cr_bootguard.h`: `--boot-fail 1 --reset-reason wdt` starts in SAFE MODE, `--boot-fail 3 --reset-reason wdt` exits 3 as UBOOT), `--demo` (ignored by ChoralRoot), `--quit-after S`, `--midi-log`, `--no-midi`, `--no-audio`,
 `--shot PATH` (the LCD at exit). A flash erase plays as on the device: 45 ms of silence with the audio ISR not run
 (`emu_hal_fw.h` `st_erase`; the dump's `flash erases with the audio stalled` line counts them).
 

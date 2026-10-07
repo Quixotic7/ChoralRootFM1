@@ -62,7 +62,7 @@ Host evidence (2026-10-07; Sloop f2b44c2 built from a scratch copy with this rep
 5. **What does go to ROM boot: the new firmware's boot guard.** ChoralRoot (and Felucca 1.0) `main.c` `fm1_cstart`:
    a `.noinit` boot guard counts boots that crash or hang (watchdog) within 30 s; at the second it calls
    `fm1_enter_uboot()`, i.e. "WL82 UBOOT1.00". Unlike Sloop's guard it is not cleared on power-on, so a firmware that
-   crashes on every boot lands there every time and looks bricked. The Reddit fix (erase 0x97000+0x8000 and
+   crashes on every boot lands there every time and looks bricked. (Reworked since: see "Mitigation" below.) The Reddit fix (erase 0x97000+0x8000 and
    0xFC000+0x2000, then 1.0.2 boots; later traced to 1.0.x converting 0.9 DIGITAL sounds to FM6 at boot) fits this.
 6. **The data that stays.** Neither loader touches 0x93000.. (data). Sloop's store has the same layout as Felucca's
    (settings 0xFC000, projects 0x97000.., user preset banks 0xDC000.., samples 0xA0000..) plus its own
@@ -91,13 +91,56 @@ the observed outcome, not a mechanism.
 - Device-only paths: real flash reads through the XIP window and the JEDEC probe, guard faults, USB / panel / ADC
   start, `ota_boot_cleanup`'s erases with IRQs off.
 - Which build the bricked unit was given.
-- The boot guard. ChoralRoot's (`main.c` `fm1_cstart`, inherited from Felucca 1.0) counts every reset, power-on
-  included, and enters ROM boot ("WL82 UBOOT1.00") at the third boot after two resets that each came within 30 s.
-  Sloop's clears on a power-on reset. So quick restarts alone could reach ROM boot while .noinit RAM survives, with
-  no data problem at all; an install's restarts count too. Worth fixing in `firmware/src`: clear the guard on a
-  power-on reset as Sloop does.
+- The boot guard: reworked (below). Felucca 1.0's counted every reset, power-on included, and entered ROM boot
+  ("WL82 UBOOT1.00") at the third boot after two resets that each came within 30 s, so quick restarts alone could
+  reach ROM boot while .noinit RAM survived, with no data problem at all.
 - Whether returning to V15 first changes anything. Stock's VM region is 0x93000..0xE9000;
   0xFC000..0xFEFFF lies outside it.
+
+## Mitigation: the boot guard rework (2026-10-07)
+
+`firmware/src/cr_bootguard.h` (`bootguard_step`, used by `main.c` `fm1_cstart`; host test `tests/cr_bootguard_test.c`):
+
+- **The reset reason decides.** `hal/fm1_sys.h` `fm1_reset_reason` snapshots P3_RST_SRC (bit0 power-on, 1 VDDIO low,
+  2 WDT, 3 VCM, 4 long press, 5 1.2 V, 6 soft via P33) and RST_SRC (bit5 soft via PWR_CON). WDT, or a soft reset
+  (`fm1_fault`'s reboot after a crash screen is one), counts as a failed boot when the previous boot had not run 30 s
+  and had not announced an intentional reset (UBOOT, an update's commit, a reboot asked for clear `pending` first). A
+  power-on clears the guard, as Sloop's does. Brown-outs, VCM and the long press are never counted.
+- **SAFE MODE before ROM boot.** Two failed boots in a row start the firmware without reading any flash object: no
+  settings record (defaults), no user sounds, no VA / FM6 stores, no FM6 bank, no loops, and nothing is written (the
+  stores stay as they are). The instrument plays its factory sounds; the installer (M-UPGRADE) and the backup's
+  reads work (a backup can be taken before erasing); OCT- + OCT+ held 5 s still enters update mode. The screen says
+  SAFE MODE with the boot stage the crash reached (`felucca_dbg.stage`, kept in .noinit), the top line "Safe mode",
+  and Options opens on **Safe Mode** ("flash data skipped", "OCT-+OCT+ 5 s: update mode") and **Flash Data**
+  ("erase and reboot", OCT+ twice: erases the stores, the FM6 bank, the loops, the user sounds and the settings,
+  not the firmware, then reboots normally). A power cycle instead boots normally with the loads; if they crash
+  again, the unit comes back to SAFE MODE, not ROM boot.
+- **ROM boot only when SAFE MODE fails too**: four failed boots in a row (SAFE MODE itself crashed twice).
+- **Diagnostics**: the console `boot` (the mode, the reset reason, the last stage and the stage names); GEEK OUT's
+  third line `boot <reason> stage <n>` after an unclean boot.
+
+What only a device can confirm: that a power-on sets P3_RST_SRC bit0 without bit2 / bit6 (the bits are documented in
+the HAL but nobody has dumped them across a power cycle, a watchdog and a soft reset; if bit0 stays set after a
+watchdog reset, WDT still wins; if bit2 or bit6 stayed set across a later power-on, a quick power-off within 30 s would
+count, as in 1.0, but would end in SAFE MODE, not ROM boot), and that SAFE MODE boots on a unit whose crash is in
+the flash data.
+
+### If an FM-1 is dark (a user's checklist)
+
+1. **Leave it switched on, on USB, for 2 minutes** and watch. A unit in ROM boot stays black and shows the
+   "WL82 UBOOT1.00" disk (USB 4C4A:8057) the whole time. A unit whose firmware crashes and restarts flashes its
+   backlight or LEDs every few seconds: with this firmware it then settles in SAFE MODE (the yellow screen) after the
+   second crash; Options > Flash Data erases what it trips on.
+2. **Hold OCT- and OCT+ while switching on, and keep holding for 10 s.** If the firmware runs, this starts the
+   calibration screen and, 5 s into the main loop, update mode (the countdown, then "UBOOT"): the firmware runs, the
+   install can be repeated. Nothing happening (still black, no disk change) means the firmware does not reach its
+   main loop.
+3. **Check what the computer sees.** Windows: Device Manager (View > Devices by connection), under Disk drives a
+   "WL82 UBOOT1.00" disk = ROM boot (use [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker)); under
+   Sound, video and game controllers an "FM-1" = the firmware runs (the web installer can reach it); nothing new on
+   plugging in = try another cable and port, then the hardware route
+   [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter). macOS: System Information > USB, the same
+   three cases.
 
 ## Reproducing the loader checks (manual; needs a Sloop checkout, not run in CI)
 

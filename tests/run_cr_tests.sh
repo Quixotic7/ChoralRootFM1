@@ -5,6 +5,9 @@
 set -e
 cd "$(dirname "$0")/.."
 mkdir -p build/host
+# the boot guard's decision (firmware/src/cr_bootguard.h, main.c fm1_cstart)
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_bootguard_test tests/cr_bootguard_test.c
+./build/host/cr_bootguard_test
 cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_engine_test tests/cr_engine_test.c firmware/src/cr_engine.c
 ./build/host/cr_engine_test
 cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_loop_test tests/cr_loop_test.c firmware/src/cr_loop.c firmware/src/cr_engine.c
@@ -22,5 +25,14 @@ cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_backup_
 cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_fm6_test tests/cr_fm6_test.c -lm
 ./build/host/cr_fm6_test > build/host/cr_fm6_test.log || { cat build/host/cr_fm6_test.log; exit 1; }
 tail -1 build/host/cr_fm6_test.log
+# CZ-1 (Melodee's engine, docs/CZ1.md): Casio's tones, the blob, Casio SysEx, the banks, the deep pages, the tone store
+cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_cz_test tests/cr_cz_test.c -lm
+./build/host/cr_cz_test > build/host/cr_cz_test.log || { cat build/host/cr_cz_test.log; exit 1; }
+tail -1 build/host/cr_cz_test.log
+# Felucca #61 (1.0.3.1): DIGITAL -> FM6 conversion without a divide by zero (the JieLi compiler hoists a guarded
+# divide; a 0.9 ORGAN preset trapped at boot -> UBOOT). Felucca's own test, built with the divide-by-zero sanitizer.
+cc -O1 -w -fsanitize=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o build/host/fm4_div0_test tests/fm4_div0_test.c -lm
+./build/host/fm4_div0_test > build/host/fm4_div0_test.log || { cat build/host/fm4_div0_test.log; exit 1; }
+grep -c ' ok$' build/host/fm4_div0_test.log | sed 's/^/fm4_div0_test: /; s/$/ checks ok/'
 cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_midi_test tests/cr_midi_test.c
 exec ./build/host/cr_midi_test

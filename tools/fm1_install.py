@@ -509,6 +509,12 @@ def object_name(i):
         return "FM6 patch bank"
     if i == 9:
         return "VA patches"
+    if i in (10, 11):
+        return "FM6 patches " + ("1-16" if i == 10 else "17-32")
+    if i in (12, 13):
+        return "CZ-1 tones " + ("1-16" if i == 12 else "17-32")
+    if 14 <= i <= 21:
+        return "CZ-1 bank " + chr(ord("A") + i - 14)
     if is_sample(i):
         return f"sample slot {i - 31}"
     if 40 <= i <= 49:

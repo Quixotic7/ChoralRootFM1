@@ -23,6 +23,7 @@ FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_re
          "slicer_track",
          "slice_render", "slc_rev",                          # SLICE (eng_slice.c): the render, the reverse windows
          "va_render", "va_block",                            # VA (eng_va.c, ChoralRoot): the voice, the part's LFOs
+         "cz_native_render", "cz_native_wave", "cz_env_tick",   # CZ-1 (cz_native.c, Melodee's): the voice, its wave, envelopes
          "fm1_alnk0_irq", "fm1_timer5_irq",               # the audio ISR; TIMER5: the key / LED scan (hal/fm1_input.h)
          "mod_begin", "mod_voice", "mod_end",                 # the modulation matrix (mod.c), called when active
          "perf_begin", "perf_mute", "perf_pre", "perf_block", "perf_master",   # the FX layer (perform.c), when busy

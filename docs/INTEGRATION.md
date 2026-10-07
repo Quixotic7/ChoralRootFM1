@@ -61,6 +61,18 @@ additions: FM6's deep pages and patch blob, the FM6 patch store `fm6_ustore.c` (
 protocol, `editor_fm6.c`, and its backup of the FM6 bank expect Felucca's layouts); `tests/run_tests.sh` reports
 which of its suites break (docs/FM6.md).
 
+**Melodee's CZ-1 (2026-10-07, docs/CZ1.md).** Engine 14 (`ENGI_CZ`, `FELUCCA_CZ` 1 in this unit, default 0): native
+Casio CZ-1 tones (`eng_cz.c`, `cz_native.c`, `cz_patch.h`, `cz_edit.h`, `cz_legacy.h`), Casio's 64 tones
+(`tools/gen_cz1_factory.py` -> `build/gen/melodee_cz1.h`), the eight banks (`cz_bank.c`, included by `upreset.c`), Casio
+tone SysEx (`cz_store.c` after `cr_ui.c`; `usb.c` hands the bytes to `cz_sx_byte`). Kept files touched: `core.h`
+(`FELUCCA_CZ`, `NENGINES`, `ENGI_CZ`, the blob cap `ENG_BLOB_MAX` 160), `engines.c` (the include, `eng_state.cz`,
+`ENGINES[14]`, `ENGINE_ORDER` after PHASE), `storage.c` (`OBJ_CZSTORE1`, `OBJ_CZBANK0..+7` on the user sample slot 1's
+flash 0xA0000..0xB1FFF), `upreset.c` (the store's hooks beside FM6's), `usb.c` (one line), `eng_fm6.c`
+(`fm6_track_loaded` calls `cz_track_loaded`, `fm6_init` `cz_init`). ChoralRoot's additions: the deep pages and blob,
+the tone store `cz_ustore.c` (`OBJ_PROJECT0 + 3` and `OBJ_CZSTORE1`, backup ids 12 and 13; the banks 14..21), the cz
+band (`cr_draw.c`, `cr_edit.c`), five chord rows and a bass in `cr_bank.c`. The other engines render bit for bit as
+before (`tests/regress.c`: goldens added, none changed).
+
 Build flags stay Felucca's; `FELUCCA_SLICE=0`, `FELUCCA_SLICER=0`, `FELUCCA_FM4=0`, `FELUCCA_UAC=1`, `FELUCCA_UART=1`,
 and the all-synth set `FELUCCA_SEQ=0`, `FELUCCA_SAMPLE=0`, `FELUCCA_GRAIN=0`, `FELUCCA_DRUM=0`, `FELUCCA_ICONS=0`,
 `FELUCCA_KEYCAPS=0` (BUILDING.md).
@@ -260,7 +272,20 @@ silences the chord part by design and is stored in the settings; status order: B
 Oct, Latch, lock); both parts sound with the bass on (Chords Only), a bass sound change keeps a held chord, BASS off
 leaves part 0 alone.
 
+2026-10-07, CZ-1 (docs/CZ1.md): Melodee's CZ-1 engine (14) with Casio's 64 tones, the eight banks, Casio tone SysEx,
+its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.txt`, `perf.sh (g)` and
+`tests/cr_cz_test.c` pass.
+
 ### Wired
+
+- **Boot guard and SAFE MODE (2026-10-07, `firmware/src/cr_bootguard.h`, docs/INSTALL-COMPAT.md)**: the guard reads
+  the reset reason; a power-on clears it, only watchdog / soft (crash) resets within 30 s of a boot count. Two in a
+  row: SAFE MODE (no flash object loaded or saved: factory sounds, default settings, no loops; no USB audio stream;
+  the installer, backup reads and OCT- + OCT+ 5 s still work; a yellow SAFE MODE screen with the crash's boot stage,
+  "Safe mode" on the top line, Options > Safe Mode and Flash Data: erase and reboot, OCT+ twice). SAFE MODE crashing
+  twice more: UBOOT, as before. Every boot step sets `felucca_dbg.stage` (console `boot`, GEEK OUT's third line).
+  Tests: `tests/cr_bootguard_test.c`; `tools/emu/scripts/cr_safe*.txt` (`--boot-fail`, `--reset-reason`,
+  `--boot-stage`; shots `build/emu/test/cr_safe_*.ppm`).
 
 - **Install guard (2026-10-07, docs/INSTALL-COMPAT.md)**: both installers classify the running firmware (identity + INFO) and refuse Sloop, the Felucca 0.x betas and unknown ones (`--force` / an "I understand the risk" box); the loader is not the cause; the cause is still open (the emulator boots fine on Sloop and 0.9 data).
 
@@ -443,7 +468,7 @@ come before B1..B32, docs/FM6.md);
 15 CLOUD PAD and 16 SHIMMER (were GRAIN's) are VA presets 23 / 24 (docs/VA.md). Levels with `tests/va_levels.c`
 (chord alone / with SUB BASS, the share under the limiter): PIANO 0 / 0 %, CLOUD PAD 0 / 1.4 %, SHIMMER 0 / 0 %;
 trims 0. The emulator's `cr_allsynth.txt` plays the three. A user sound on a retired engine loads as INIT on ANALOG
-(section 1). The flash of user sample slots 1-2 (0xA0000..0xC7FFF) stays reserved and unused; slot 3's holds the loops.
+(section 1). The flash of user sample slots 1-2 (0xA0000..0xC7FFF): 0xA0000..0xB1FFF holds the CZ-1 tone store's second half and the eight CZ-1 banks (docs/CZ1.md), the rest stays free; slot 3's holds the loops.
 
 ### Stubbed (screens and gestures only; TODO in the code)
 
@@ -477,7 +502,10 @@ editing over SysEx: `web/editor.html` does not work with ChoralRoot).
 ### Reading it on the device
 
 USB serial console (`FELUCCA_CDC`, the CDC-ACM port; the baud rate is ignored): `screen /dev/tty.usbmodem* 115200`
-on the Mac (or any terminal), then `cpu` (`help` lists the rest; `status` and `dbg` are Felucca's). `cpu` prints the
+on the Mac (or any terminal), then `cpu` (`help` lists the rest; `status` and `dbg` are Felucca's; `boot` prints the
+boot guard: this boot's mode (normal / safe), failed and pending, the reset that started it (power-on, wdt, soft,
+other; the raw `p3_rst`, `rst_src`, `wdt_con`), the stage the last run reached (`last_stage 13 fm6 bank`) and every
+stage's name). `cpu` prints the
 last full second of the audio ISR (`audio.c` `cpu_window`, closed by the UI frame every second) and what cuts the
 sound since power-on:
 
@@ -495,7 +523,9 @@ sound since power-on:
 | `ui_frame_max_ms`, `ui_frames` | the longest main-loop frame of the second (15 ms nominal; keys are read once a frame) | < 30 |
 
 The GEEK OUT view (Options > View) shows the third line `isr <us> · late <n>`: the last second's longest half
-(`audio_max_all_us`) and the overruns since power-on.
+(`audio_max_all_us`) and the overruns since power-on. After a boot that was not clean (a counted crash reset, or SAFE
+MODE) it shows `boot <reason> stage <n>` instead: the reset class and the boot stage the crashed run reached
+(`firmware/src/cr_bootguard.h` names them).
 
 ### Measured on the host
 

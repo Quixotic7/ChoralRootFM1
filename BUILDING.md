@@ -187,9 +187,16 @@ Sloop's rescue mode (`FM-1_000`) and any 9xx firmware that does not say what it 
 says why and shows an "I understand the risk" box, then asks once more). `--force` / that box install anyway. The
 return to the official V15 is never refused. `--info` prints the version and the verdict.
 
-Installing firmware is at your own risk. If an install fails and the FM-1 no longer starts (black screen, a USB disk
-"WL82 UBOOT1.00"), see [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker); if it does not even show up
-as that disk, [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
+Installing firmware is at your own risk. **Recovery.** The boot guard (`firmware/src/cr_bootguard.h`, `main.c`) counts
+only watchdog and soft (crash) resets that come within 30 s of a boot; a power-on clears it. Two in a row start SAFE
+MODE: no flash object is read or written (factory sounds, default settings), the installer, the backup's reads and
+OCT- + OCT+ 5 s (update mode) work, Options > Flash Data erases the data objects (not the firmware) and reboots; a
+power cycle tries the stored data again. Four in a row (SAFE MODE crashed twice) enter ROM boot. The console `boot`
+prints the guard, the reset reason and the stage the crash reached. Emulator: `build/host/emu --boot-fail 1
+--reset-reason wdt` starts in SAFE MODE (`tools/emu/test_cr.sh`). If an install fails and the FM-1 no longer starts
+(black screen, a USB disk "WL82 UBOOT1.00"), see docs/INSTALL-COMPAT.md ("If an FM-1 is dark") and
+[MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker); if it does not even show up as that disk,
+[FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
 
 ## Releasing
 

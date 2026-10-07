@@ -606,7 +606,7 @@ firmwares). Not yet run on hardware.
 | 67 BACKUP_PUT | as above | as above |
 | 72 RESTART | — | rc (0); then the device restarts (about 150 ms later, once the reply has left) |
 
-Objects (Felucca's ids where Felucca has the same object; 9 and 40..49 are ChoralRoot's):
+Objects (Felucca's ids where Felucca has the same object; 9..21 and 40..49 are ChoralRoot's):
 
 | id | object | size |
 | --- | --- | --- |
@@ -614,13 +614,16 @@ Objects (Felucca's ids where Felucca has the same object; 9 and 40..49 are Chora
 | 6, 7 | user sound banks (slots 1..16, 17..32), Felucca's layout | 3080, or 0 if empty |
 | 8 | the FM6 patch bank, Felucca's layout | 3472, or 0 if empty |
 | 9 | the VA patch store (`va_store.c`: one patch per user slot) | 3536 (version 3), or 0 |
+| 10, 11 | the FM6 patch store (`fm6_ustore.c`: user slots 1..16, 17..32) | 2064, or 0 |
+| 12, 13 | the CZ-1 tone store (`cz_ustore.c`: user slots 1..16, 17..32, docs/CZ1.md) | 2320, or 0 |
+| 14..21 | the CZ-1 banks A..H (`cz_bank.c`, Melodee's layout: name, used mask, 16 native tones) | 2332, or 0 if never saved |
 | 40..49 | loop slots 1..10 (docs/LOOPER.md, the record `CRL1`) | 16 + 2 × layers + 7 × events (at most 3664), or 0 |
 
 Reading: `LIST` first saves a settings change not yet saved (not while a loop plays), then answers every object as it
 is in flash: the current copy of each A/B pair (storage.c's choice: the newest copy whose header and payload CRC hold;
 the CRC listed is the payload's). `GET` reads that copy in 256-byte pieces.
 
-Restoring: `BACKUP_PUT` takes ids 1, 6, 7, 8, 9 and 40..49 (others: rc 1). Sizes at the begin: id 1 any record
+Restoring: `BACKUP_PUT` takes ids 1, 6..21 and 40..49 (others: rc 1; 10..13 the stores' header and every blob / tone checked, 14..21 Melodee's bank check). Sizes at the begin: id 1 any record
 `settings_persist.c` imports (PER1 .. PER5, 40 .. 764 bytes; a PER1..PER4 record from Felucca keeps Felucca's fields
 and gets ChoralRoot's defaults; it is stored as PER5); 6 / 7 the bank or 0; 8 the FM6 bank or 0; 9 a VA store of
 version 3 or 2 (3536) or version 1 (3344; converted at boot), or 0; 40..49 a loop record (16..3664) or 0 (deletes the

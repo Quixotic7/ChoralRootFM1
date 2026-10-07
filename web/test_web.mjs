@@ -852,7 +852,7 @@ async function editorFm6() {
     for (let i = 0; i < F6.SIZE; i++) inrange &&= i >= F6.NAME ? v[i] >= 32 && v[i] <= 126 : v[i] <= F6.max(i);
   }
   ok(inrange, "FM6: any 128 bytes unpack into range");
-  const voices = F6.FACTORY_PK.map((pk) => F6.unpack(pk));
+  const voices = F6.FACTORY_PK.slice(0, 8).map((pk) => F6.unpack(pk));   /* F1..F8 (then INIT VOICE) */
   const bank = F6.bankSysex(voices), one = F6.singleSysex(voices[3]);
   ok(bank.length === 4104 && bank[0] === 0xF0 && bank[3] === 9 && bank[4103] === 0xF7 && one.length === 163 && one[5] === 0x1B,
     "FM6: a 32-voice bank SysEx is 4104 bytes, a single voice 163");
@@ -873,13 +873,14 @@ async function editorFm6() {
   [...m.access.inputs.values()][0].onmidimessage = (e) => link.receive(e.data);
   const rq = (x) => link.request(x), C = E.CMD;
   const info = E.parse[C.INFO](await rq(E.req.info()));
-  ok(info.fm6 && info.fm6.factory === 8 && info.fm6.bank === 27, "FM6: INFO tag (8 factory, 27 bank slots)");
+  ok(info.fm6 && info.fm6.factory === 24 && info.fm6.bank === 32, "FM6: INFO tag (24 factory, 32 bank slots: the firmware's F1..F24, B1..B32)");
   let list = E.parse[C.FM6_LIST](await rq(E.req.fm6List()));
-  ok(list.slots.length === 35 && list.slots[0].name === "TINE EP" && !list.slots[8].used, "FM6: LIST names the factory patches, the bank empty");
+  ok(list.slots.length === 56 && list.slots[0].name === "TINE EP" && list.slots[23].name === "TUBULAR" && !list.slots[24].used,
+    "FM6: LIST names the factory patches (F24 TUBULAR), the bank empty");
   const mine = F6.setName(F6.factory(2), "my bass");
   let p = E.parse[C.FM6_PUT](await rq(E.req.fm6Put(1, 4, F6.pack(mine))));
   list = E.parse[C.FM6_LIST](await rq(E.req.fm6List()));
-  ok(!p.rc && list.slots[12].used && list.slots[12].name === "MY BASS", "FM6: PUT into bank B5, listed by name");
+  ok(!p.rc && list.slots[28].used && list.slots[28].name === "MY BASS", "FM6: PUT into bank B5, listed by name");
   let g = E.parse[C.FM6_GET](await rq(E.req.fm6Get(1, 4)));
   ok(!g.rc && eq(g.packed, F6.pack(mine)), "FM6: GET bank B5 as stored");
   g = E.parse[C.FM6_GET](await rq(E.req.fm6Get(1, 5)));
@@ -887,7 +888,7 @@ async function editorFm6() {
   /* the selected track to FM6, PTCH B5 (at the pe0 INFO gives): the track plays that patch */
   const eng = info.engines.indexOf("FM6");
   await rq(E.req.set(1, 20, eng));
-  await rq(E.req.set(0, info.pe0 + 7, 8 + 4));
+  await rq(E.req.set(0, info.pe0 + 7, 24 + 4));
   g = E.parse[C.FM6_GET](await rq(E.req.fm6Get(0, 0)));
   ok(!g.rc && F6.name(F6.unpack(g.packed)) === "MY BASS", `FM6: PTCH (P_E0 + 7 = ${info.pe0 + 7}) B5 loads the bank patch into the track`);
   const edited = F6.unpack(g.packed); edited[F6.VI.ALG] = 31;
@@ -895,7 +896,7 @@ async function editorFm6() {
   g = E.parse[C.FM6_GET](await rq(E.req.fm6Get(0, 0)));
   ok(!p.rc && F6.unpack(g.packed)[F6.VI.ALG] === 31, "FM6: PUT to the track: its own patch changed");
   const e = E.parse[C.FM6_ERASE](await rq(E.req.fm6Erase(4)));
-  ok(!e.rc && !E.parse[C.FM6_LIST](await rq(E.req.fm6List())).slots[12].used, "FM6: ERASE empties B5");
+  ok(!e.rc && !E.parse[C.FM6_LIST](await rq(E.req.fm6List())).slots[28].used, "FM6: ERASE empties B5");
   p = E.parse[C.FM6_PUT](await rq([C.FM6_PUT, [0, 9, 1, 2, 3]]));
   ok(p.rc === 1, "FM6: a short record or a fifth track: rc 1");
   link.close(); m.stop();
@@ -1036,7 +1037,7 @@ function editorTabs() {
   const TEXT = vm.runInNewContext(tb.replace("const TEXT =", "(") + ")");
   const ja = new Set(Object.keys(TEXT.ja)), en = new Set(Object.keys(TEXT.en));
   const used = new Set([...html.matchAll(/data-t="(\w+)"|\bt\("(\w+)"\)|sayK\("(\w+)"|hint = "(\w+)"/g)].map((x) => x[1] || x[2] || x[3] || x[4]));
-  for (const k of ["needDevice", "smpNone", "bankConnect", "bankNone", "selectedTrack", "selectTrack", "notesHelp", "live", "polling"]) used.add(k);
+  for (const k of ["needDevice", "smpNone", "fm6None", "bankConnect", "bankNone", "selectedTrack", "selectTrack", "notesHelp", "live", "polling"]) used.add(k);
   const miss = [...used].filter((k) => !ja.has(k) || !en.has(k));
   const odd = [...ja].filter((k) => !en.has(k)).concat([...en].filter((k) => !ja.has(k)));
   ok(!miss.length && !odd.length, `editor: every string in ja and en (${used.size} used${miss.length ? ", missing " + miss : ""}${odd.length ? ", one language only " + odd : ""})`);

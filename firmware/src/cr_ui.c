@@ -432,11 +432,14 @@ static void cu_route(void)                        /* Options > MIDI: channels an
 
 /* ------------------------------------------------------------- Options --- */
 enum { O_STYLE, O_EXTADD, O_SECRET, O_VEL, O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
-       O_CLOCK, O_VIEW, O_MOTION, O_LEDS, O_HOLD, O_VERSION, O_CALIB, O_N };
+       O_CLOCK, O_VIEW, O_MOTION, O_LEDS, O_HOLD, O_VERSION, O_CALIB, O_SAFE, O_ERASE, O_N };
+#define O_N_NORMAL O_SAFE                 /* Safe Mode and Flash Data: listed in SAFE MODE only (core.h cr_safe) */
 static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Secret Chords", "Velocity",
     "Bass Behaviour", "Single Notes", "Split Point", "MIDI Perform", "MIDI Bass", "MIDI Raw Chord", "Raw Chord Sound",
-    "MIDI Clock", "View", "Motion", "LEDs", "Hold Time", "Version", "Calibrate"};
-static const int16_t O_MAX[O_N] = {2, 1, 2, 127, 3, 1, 11, 16, 16, 16, 1, 2, V_N - 1, CR_MOTION_N - 1, 1, 3, 0, 0};
+    "MIDI Clock", "View", "Motion", "LEDs", "Hold Time", "Version", "Calibrate", "Safe Mode", "Flash Data"};
+static const int16_t O_MAX[O_N] = {2, 1, 2, 127, 3, 1, 11, 16, 16, 16, 1, 2, V_N - 1, CR_MOTION_N - 1, 1, 3, 0, 0, 0, 0};
+static uint32_t cu_opt_n(void) { return cr_safe ? O_N : O_N_NORMAL; }
+static uint8_t cu_erase_ask;              /* Options > Flash Data: OCT+ pressed once (the second erases) */
 
 static int32_t opt_get(uint32_t o)
 {
@@ -510,6 +513,8 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
     case O_HOLD: cu_int(d, HOLD_MS[v & 3], 0, n); cu_cat(d, " ms", n); break;
     case O_VERSION: cu_cpy(d, CR_VERSION, n); break;
     case O_CALIB: cu_cpy(d, "OCT+ starts", n); break;
+    case O_SAFE: cu_cpy(d, "flash data skipped", n); break;
+    case O_ERASE: cu_cpy(d, cu_erase_ask ? "OCT+ again: erase" : "erase and reboot", n); break;
     default: break;
     }
 }
@@ -560,6 +565,7 @@ static struct {
 #define cu_trace(...) ((void)0)
 #endif
 static void cu_message(const char *t, uint32_t col);
+static void cu_flash_erase(void);
 static uint32_t cu_batt(void);
 static void cu_edit_open(uint32_t part);
 #define CR_EDIT_HOOKS 1                   /* the sound editor (cr_edit.c, included below) */
@@ -745,7 +751,7 @@ static int crl_fl_current(uint32_t k, st_hdr_t *h, uint8_t *dst)  /* the newest 
 static int crl_fl_load(uint32_t k, uint8_t *dst)   /* the record's length, -1: none */
 {
     st_hdr_t h;
-    if (!flash_ok || k >= CRL_SLOTS || crl_fl_current(k, &h, dst) < 0)
+    if (!flash_ok || ST_BLOCKED() || k >= CRL_SLOTS || crl_fl_current(k, &h, dst) < 0)
         return -1;
     return (int)h.len;
 }
@@ -754,7 +760,7 @@ static int crl_fl_save(uint32_t k, const uint8_t *src, uint32_t len)   /* storag
     st_hdr_t h;
     uint32_t seq, base, off, copy;
     int cur, rc;
-    if (!flash_ok || k >= CRL_SLOTS || len > CRL_REC_MAX)
+    if (!flash_ok || ST_BLOCKED() || k >= CRL_SLOTS || len > CRL_REC_MAX)
         return -1;
     cur = crl_fl_current(k, &h, st_buf);
     seq = cur < 0 ? 0u : h.seq;
@@ -784,7 +790,7 @@ static int crl_fl_save(uint32_t k, const uint8_t *src, uint32_t len)   /* storag
 }
 static int crl_fl_delete(uint32_t k)
 {
-    if (!flash_ok || k >= CRL_SLOTS)
+    if (!flash_ok || ST_BLOCKED() || k >= CRL_SLOTS)
         return -1;
     return st_erase(crl_fl_sector(k, 0)) || st_erase(crl_fl_sector(k, 1)) ? -1 : 0;
 }
@@ -891,6 +897,10 @@ static void cu_loop_delete(uint32_t k)
 }
 static void cu_save_act(void)                      /* SAVE held + OCT+: the action on the target slot */
 {
+    if (cr_safe) {                                 /* SAFE MODE: the slots are neither read nor written */
+        cu_message("safe mode: no saving", CR_COL_RED);
+        return;
+    }
     if (cs.save_act == 0)
         cu_loop_save(cs.loop_target);
     else if (cs.save_act == 1)
@@ -1106,6 +1116,14 @@ static void cu_oct_tap(uint32_t b)
             cu_save_close();
         return;
     }
+    if (b == B_OCTUP && cu.opt_open && cu.opt_sel == O_ERASE && cr_safe && !cu.lock && !cu.page) {
+        if (!cu_erase_ask) {
+            cu_erase_ask = 1;                     /* the first OCT+: "OCT+ again" */
+            return;
+        }
+        cu_flash_erase();                         /* the second: erase the data objects, reboot (no return) */
+        return;
+    }
     if (b == B_OCTUP && cu.opt_open && cu.opt_sel == O_CALIB && !cu.lock && !cu.page) {
         cu_close_all();
         cu_calib_start();                         /* Options > Calibrate, OCT+: Felucca's HARDWARE CALIBRATION */
@@ -1250,14 +1268,14 @@ static struct {
     uint8_t on, part, eng, preset, user, trim, edited, changed, fx_on, fx_amt[CU_NFX], has_blob;
     int16_t p[P_COUNT];
     char name[13];
-    uint8_t blob[128];
+    uint8_t blob[ENG_BLOB_MAX];
 } cpk __attribute__((section(".pool")));
 
 /* the part's sound as a checksum (the traces: the sound before and after a preview) */
 static uint32_t cu_snd_crc(const track_t *t)
 {
     const eng_deep_t *d = cp_deep(t);
-    uint8_t b[128];
+    uint8_t b[ENG_BLOB_MAX];
     uint32_t h = 2166136261u, i;
     h = (h ^ t->eng_req) * 16777619u;
     for (i = 0; i < P_COUNT; i++) {
@@ -1350,6 +1368,10 @@ static void cu_edit_open(uint32_t part) { ce_open(part); }
 
 static void cu_save_open(uint32_t part)
 {
+    if (cr_safe) {                                 /* SAFE MODE: the user sounds are neither read nor written */
+        cu_message("safe mode: no saving", CR_COL_RED);
+        return;
+    }
     track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
     uint32_t k;
     ce.save_part = (uint8_t)part;
@@ -1812,7 +1834,7 @@ static void cu_key_press(uint32_t k)
     }
     if (cu.opt_open) {                             /* Options: the white roots index the settings */
         int32_t wi = cu_white_idx(k);
-        if (wi >= 0 && wi < O_N)
+        if (wi >= 0 && wi < (int32_t)cu_opt_n())
             cu.opt_sel = (uint8_t)wi;
         cu.key_note[k] = 0xFFu;
         return;
@@ -1967,7 +1989,7 @@ static void cu_knob(uint32_t role, int32_t s)
     if (cu.opt_open && (role == EN_SELECT || role == EN_K1)) {
         if (role == EN_SELECT) {
             v = cu.opt_sel + s;
-            cu.opt_sel = (uint8_t)(v < 0 ? 0 : v >= O_N ? O_N - 1 : v);
+            cu.opt_sel = (uint8_t)(v < 0 ? 0 : v >= (int32_t)cu_opt_n() ? (int32_t)cu_opt_n() - 1 : v);
         } else {
             opt_set(cu.opt_sel, opt_get(cu.opt_sel) + s * (cu.opt_sel == O_VEL ? 4 : 1));
         }
@@ -2199,6 +2221,9 @@ static void cu_calib_screen(cr_screen_t *s)
 }
 
 static void fm6_service(void);                     /* fm6_store.c (after this file): DX7 SysEx */
+#if FELUCCA_CZ
+static void cz_service(void);                      /* cz_store.c (after this file): Casio CZ-1 SysEx */
+#endif
 static void cr_ui_input(void)
 {
     uint32_t pe = fm1_input_edges(0), ne = fm1_input_note_edges(), bm = fm1_in.buttons, km = fm1_in.notes;
@@ -2206,6 +2231,10 @@ static void cr_ui_input(void)
     int32_t s;
     fm6_poll();                                    /* FM6: a sound's PTCH -> its patch (as ui_input.c) */
     fm6_service();                                 /* FM6: a DX7 SysEx frame from USB-MIDI (fm6_store.c) */
+#if FELUCCA_CZ
+    cz_bank_poll();                                /* CZ-1: a sound's BANK / PTCH -> its tone (cz_bank.c) */
+    cz_service();                                  /* CZ-1: a Casio SysEx frame from USB-MIDI (cz_store.c) */
+#endif
     if (cc.req) {                                  /* OCT- + OCT+ held at power-on (main.c panel_setup) */
         cc.req = 0;
         cu_calib_start();
@@ -2403,7 +2432,7 @@ static void cr_leds(void)
     } else if (cu.opt_open) {
         for (k = CU_ROOT0; k < CU_NKEY; k++) {
             int32_t wi = cu_white_idx(k);
-            if (wi >= 0 && wi < O_N)
+            if (wi >= 0 && wi < (int32_t)cu_opt_n())
                 cu_led(wi == cu.opt_sel ? own : nd, 14u + k, 1);
         }
     } else {
@@ -2517,6 +2546,9 @@ static void cu_header(cr_screen_t *s)
         if (cs.scale == CR_SCALE_MINOR)
             cu_cat(s->mid, " minor", sizeof s->mid);
         s->mid_col = CR_COL_YELLOW;
+    } else if (cr_safe) {                         /* SAFE MODE: on the top line all session (Options > Safe Mode) */
+        cu_cpy(s->mid, "Safe mode", sizeof s->mid);
+        s->mid_col = CR_COL_RED;
     }
     /* the status (top right), one of: "Bass Solo" (Bass Behaviour Solo with the bass on: the chord part is silent),
      * the perform mode ("Arp"), "Bass" (the bass on), "Oct +1", "Latch", "lock" */
@@ -2615,6 +2647,73 @@ static void cu_picker(cr_screen_t *s, const char *const *items, uint32_t n, uint
 #define CR_SPLASH_MS 1500u
 static uint32_t cu_boot_ms;
 static uint8_t cu_intro_played;
+
+/* SAFE MODE (main.c, cr_bootguard.h: two boots in a row crashed within 30 s): main.c's splash (cr_shim.c cr_splash)
+ * and the UI's first CR_SAFE_MS (or until a button or key is held) show this; the top line says "Safe mode" all
+ * session, Options opens on Safe Mode and Flash Data. prev_stage: the breadcrumb the last crash left */
+#define CR_SAFE_MS 5000u
+static void cu_safe_screen(cr_screen_t *s)
+{
+    char b[8];
+    s->kind = CR_K_BIG;
+    cu_cpy(s->value, "SAFE MODE", sizeof s->value);
+    s->size = 52;
+    s->block = CR_COL_YELLOW;
+    s->col = CR_COL_WHITE;
+    cu_cpy(s->sub, "stage ", sizeof s->sub);
+    cu_int(b, (int32_t)felucca_dbg.prev_stage, 0, sizeof b);
+    cu_cat(s->sub, b, sizeof s->sub);
+    cu_cpy(s->label, "flash data skipped", sizeof s->label);
+    cu_cpy(s->footer, "crashed at: ", sizeof s->footer);
+    cu_cat(s->footer, bootguard_stage_name(felucca_dbg.prev_stage), sizeof s->footer);
+    cu_cat(s->footer, " \267 Options: erase", sizeof s->footer);
+}
+
+/* Options > Flash Data (SAFE MODE, OCT+ twice): erase every data object ChoralRoot keeps (not the firmware, not the
+ * update area, not the free sample sectors 0xB2000..0xC7FFF) and reboot; the boot after it loads nothing (an
+ * erased flash: factory sounds, default settings, calibration from RAM or the default). The regions: the stores and
+ * FM6 bank copy A 0x97000..0x9FFFF (storage.c st_sector: VA store, FM6 stores, the project slots, 0x9F000), the loop
+ * slots 0xC8000..0xDBFFF (CRL_FL_BASE), the user sound banks 0xDC000..0xDFFFF, the settings A / B and FM6 bank
+ * copy B 0xFC000..0xFEFFF; FELUCCA_CZ: the CZ-1 tone store's second half and the eight CZ-1 banks 0xA0000..0xB1FFF */
+#ifndef CR_REBOOT
+#define CR_REBOOT() do { bootguard_settled(&bootguard); usb_detach(); fm1_delay_ms(30); fm1_reboot(); } while (0)
+#endif
+static void cu_flash_erase(void)
+{
+    static const uint32_t R[][2] = {{0x97000u, 9u}, {CRL_FL_BASE, 2u * CRL_SLOTS}, {0xDC000u, 4u}, {0xFC000u, 3u},
+#if FELUCCA_CZ
+                                    {0xA0000u, 18u},   /* (storage.c: OBJ_CZSTORE1, OBJ_CZBANK0..+7) */
+#endif
+    };
+    static cr_screen_t es;                         /* (static: off the stack) */
+    uint32_t r, k, n = 0, total = 0, bad = 0;
+    for (r = 0; r < NELEM(R); r++)
+        total += R[r][1];
+    for (r = 0; r < NELEM(R); r++)
+        for (k = 0; k < R[r][1]; k++) {
+            if (!(n % 4u)) {                       /* the progress, every 4 sectors (~180 ms) */
+                cr_screen_clear(&es);
+                es.kind = CR_K_BIG;
+                cu_cpy(es.value, "ERASING", sizeof es.value);
+                es.size = 52;
+                es.block = CR_COL_RED;
+                cu_int(es.sub, (int32_t)(n * 100u / total), 0, sizeof es.sub);
+                cu_cat(es.sub, " %", sizeof es.sub);
+                cu_cpy(es.label, "flash data: do not switch off", sizeof es.label);
+                cr_draw_invalidate();
+                cr_draw(&es, CR_ANIM_SETTLED);
+            }
+            fm1_wdt_feed();
+#if FELUCCA_FLASH
+            if (flash_ok && st_erase(R[r][0] + k * ST_SECTOR))
+                bad++;
+#endif
+            n++;
+        }
+    cu_trace("safe: flash data erased, %u sectors, %u failed: reboot\n", (unsigned)n, (unsigned)bad);
+    (void)bad;
+    CR_REBOOT();
+}
 
 static void cu_stripes(cr_screen_t *s)
 {
@@ -2750,8 +2849,14 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
 static void cu_options_screen(cr_screen_t *s)
 {
     s->batt = (uint8_t)cu_batt();                  /* the one page with the battery level */
-    cu_picker(s, O_NAME, O_N, cu.opt_sel, CR_COL_WHITE, "options \267 KNOB 1 sets", "");
+    if (cu.opt_sel != O_ERASE)
+        cu_erase_ask = 0;                          /* (left the entry: the confirmation starts again) */
+    cu_picker(s, O_NAME, cu_opt_n(), cu.opt_sel, CR_COL_WHITE, "options \267 KNOB 1 sets", "");
     opt_text(cu.opt_sel, s->value, sizeof s->value);
+    if (cu.opt_sel == O_SAFE)                      /* "Safe mode: flash data skipped \267 OCT-+OCT+ 5 s: update mode" */
+        cu_cpy(s->label, "OCT-+OCT+ 5 s: update mode", sizeof s->label);
+    else if (cu.opt_sel == O_ERASE)                /* "Flash data: erase and reboot", OCT+ twice */
+        cu_cpy(s->label, cu_erase_ask ? "sounds, loops, settings go" : "OCT+ twice: erase, reboot", sizeof s->label);
 }
 
 /* the sound editor (design/choralroot-fm1-sound-editor-mockups.json): cr_edit.c */
@@ -2899,7 +3004,14 @@ static void cu_view_screen(cr_screen_t *s)
             cu_cat(s->lines[1].t, b, sizeof s->lines[1].t);
         }
         cu_cat(s->lines[1].t, " bpm", sizeof s->lines[1].t);
-        {   /* the audio ISR, the last second (audio.c cpu_window): its longest half in us of 2902, halves late */
+        if (bootguard_unclean(&bootguard)) {     /* the last boot crashed (or SAFE MODE): "boot wdt stage 13" */
+            char b[12];
+            cu_cpy(s->lines[2].t, "boot ", sizeof s->lines[2].t);
+            cu_cat(s->lines[2].t, bootguard_class_name(bootguard.cls), sizeof s->lines[2].t);
+            cu_cat(s->lines[2].t, " stage ", sizeof s->lines[2].t);
+            cu_int(b, (int32_t)felucca_dbg.prev_stage, 0, sizeof b);
+            cu_cat(s->lines[2].t, b, sizeof s->lines[2].t);
+        } else {   /* the audio ISR, the last second (audio.c cpu_window): its longest half in us of 2902, halves late */
             char b[12];
             cu_cpy(s->lines[2].t, "isr ", sizeof s->lines[2].t);
             cu_int(b, (int32_t)cpu_last.max_all_us, 0, sizeof b);
@@ -2938,6 +3050,10 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
     }
     if (sn->ci.sounding || (cu.kheld >> CU_ROOT0))
         cu.last_sound = now;
+    if (cr_safe && now - cu_boot_ms < CR_SAFE_MS && !cu.bheld && !cu.kheld) {   /* 0. SAFE MODE, after the boot */
+        cu_safe_screen(s);
+        return;
+    }
     /* 1. a message: PANIC (the whole panel red), else a box over whatever is below */
     if (cu.msg.big == 1u && (int32_t)(cu.msg.until - now) > 0) {
         s->kind = CR_K_BIG;
@@ -3252,6 +3368,7 @@ static void cr_ui_draw(void)
 static void cr_ui_init(void)
 {
     uint32_t m, p, k;
+    CR_STAGE(BS_UI_INIT);
     settings_init();                              /* (panel.c: the palette, LOWCUT, HOLD) */
     panel_init();
     if (!cr_ring.state)
@@ -3320,16 +3437,20 @@ static void cr_ui_init(void)
     cu_route();
     cu_set_tempo(cr.bpm ? cr.bpm : 120);
 #if CR_HAVE_SETTINGS
+    CR_STAGE(BS_UI_SETTINGS);
     cr_settings_load();                           /* the stored settings, at power-on on both builds */
 #endif
+    CR_STAGE(BS_LOOPS);
     cu_loop_conf();
-    cu_loop_scan();                               /* the slots in flash; the last one used back in RAM (stopped) */
+    cu_loop_scan();                               /* (SAFE MODE: no slot read, core.h ST_BLOCKED) */                               /* the slots in flash; the last one used back in RAM (stopped) */
     if ((cs.loop_used >> cs.loop_slot) & 1u)
         cu_loop_load(cs.loop_slot);
     cu.msg.until = 0;
 #if FELUCCA_SEQ
     song.grid = 2;                                /* seq.c's keyboard never plays (keyboard_block: every key silent) */
 #endif
+    if (cr_safe)
+        cu.opt_sel = O_SAFE;                      /* Options opens on Safe Mode (then Flash Data) */
     cu_boot_ms = cu_now();                        /* the splash: the idle stripes' first CR_SPLASH_MS */
     cr_anim_mark(&cu_anim, cu_boot_ms);
     cr_draw_invalidate();

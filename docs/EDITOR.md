@@ -106,7 +106,9 @@ LFO MOD) and the page titles, never the column names, so a column or a page the 
 - OSC then has the **mixer** (when the oscillator pages have a LEVEL column and there are at most four of them);
 - FILT and ENV: an `edit8` screen per instance, its pages as lanes A and B (two a screen) under the wide band: the
   filter curve when the FILTER pages have a CUT column (else no band, the page's title on the right: FM6's ALGO), the
-  AHDSR, or the **dx** band when the ENV page's columns are R1..R4 (FM6);
+  AHDSR, the **dx** band when the ENV page's columns are R1..R4 (FM6), or the **cz** band when the run of pages
+  (one name and instance: `DCW 1`, `DCW 1+`, `DCW 1 B`, ..) has R1.. and SUS / END (CZ-1); FILT and ENV pages run by
+  instance and name (`PITCH 1` and `DCW 1` are two runs);
 - MOD: a stack of the slots, eight a screen, when its pages are matrix slots (SRC DST AMT); else (FM6's function
   pages) `edit8` screens as FILT's.
 - a cell's label, value names and range come from `deep->desc(t, page, col)` when the engine gives one (the VA's
@@ -169,6 +171,23 @@ segment's width grows with its distance and the slowness of its rate; the segmen
 thick in its knob's colour, digits 1–4 under the segments. COARSE of a FIXED operator reads as its decade (1Hz ..
 1kHz). FM6 has no matrix: the quick mapping says `not modulatable`. Tests: `tools/emu/scripts/cr_fm6.txt`.
 
+### CZ-1 (docs/CZ1.md)
+
+| Group | Screen | Kind | Lanes | KNOB 1–4 | Top-right text |
+| --- | --- | --- | --- | --- | --- |
+| OSC | 1 | `stack`, 2 rows | LINE 1, 2 | Wave · Wave · Window · Level (`LINE n`) | `LINE 1 · A` |
+| OSC | 2 | `edit8`, one row | DETUNE | Sign · Oct · Note · Fine (line 2's detune) | `DETUNE` |
+| OSC | 3 | the mixer | the two lines' LEVEL | | `OSC · MIX` |
+| FILT | 1 | `edit8`, no band, two rows | A, B | A: DCW key 1 · DCW key 2 · DCW vel 1 · DCW vel 2; B: DCA key 1 · 2 · DCA vel 1 · 2 | `DCW` |
+| ENV | 1–18 | `edit8`, wide **cz** envelope | A, B | per envelope (PITCH 1, DCW 1, DCA 1, PITCH 2, DCW 2, DCA 2) three screens: Rate 1–4 / Level 1–4; Rate 5–8 / Level 5–8; Sustain · End (PITCH: · Pitch vel) | `DCW 1 · 1-4`, `· 5-8`, `· END` |
+| LFO | 1 | `edit8`, one row | VIB | Wave · Delay · Rate · Depth | `VIB` |
+| MOD | 1 | `edit8`, one row | TONE | Line · Mod (OFF RING NOISE) · Oct | `TONE` |
+
+The **cz** band (`CR_W_CZ`, cr_draw.c): the eight steps from 0 to L1 at R1 .. L k at R k, the END step to 0, a dashed
+hold after the SUS step, nothing after END; the step of the turned cell (R k / L k; SUS / END: their step) thick in its
+knob's colour, digits 1–8 (and S) under the steps. No matrix (`not modulatable`). Melodee's CZ TOOLS page (NAME, 1 > 2,
+2 > 1, COMPARE) is not ported. Tests: `tools/emu/scripts/cr_cz.txt`.
+
 ENGINE, the factory presets and INIT are **not groups**: they are the engine picker (§7).
 
 ## 5. Memory
@@ -197,8 +216,8 @@ While the editor is open the edit wins over OPT's outside knob functions (split 
 On opening, the picker **snapshots** the part's sound: every parameter, the engine, the deep patch (`deep->blob_get`,
 the VA's), the `edited` flag and the user slot link. Then, as before:
 
-- the white root keys are the engines in the firmware's order (ANALOG, FM6, VA, PHASE, LOFI, VOICE, TRIO, WHEEL,
-  PHYS, NOISE: D4..F5; SAMPLE, GRAIN and DRUM are not in the all-synth firmware). A root switches the sound's engine, keeping its envelope and sends;
+- the white root keys are the engines in the firmware's order (ANALOG, FM6, VA, PHASE, CZ-1, LOFI, VOICE, TRIO,
+  WHEEL, PHYS, NOISE: D4..G5; SAMPLE, GRAIN and DRUM are not in the all-synth firmware). A root switches the sound's engine, keeping its envelope and sends;
 - KNOB 1 (and PRESETS) steps the engine's factory presets, loaded for preview. The preset meter's bar **jumps** to the
   value (no fill animation, that popup only);
 - KNOB 2 inits the sound;
@@ -224,7 +243,7 @@ name (phone style), D#4 a space, **F#4 deletes** the last letter, KNOB 2 the las
 **OCT− or HOME cancels**. SAVE held 1 s on a used slot asks "delete?" (OCT+ yes, OCT− no). EDIT keeps blinking; the
 dialog returns to the editor view. On the bass part it saves the bass sound (listed on ALGORITHM); on the chord part
 the chord sound (listed after the factory bank on PRESETS). A VA sound saves its patch with it (`va_store.c`), an FM6
-sound its voice and function settings (`fm6_ustore.c`, docs/FM6.md).
+sound its voice and function settings (`fm6_ustore.c`, docs/FM6.md), a CZ-1 sound its tone (`cz_ustore.c`, docs/CZ1.md).
 
 ## 9. Screens
 
@@ -272,6 +291,7 @@ Two rows of four cells (row A, row B), one of them active; an optional **wide** 
   as the VA mixes them; g² = Q / 0.6 keeps BP at 0 dB at its peak), in 32-bit integer log2 maths at the same seven
   quarter-octave points (≤ 12 segments); top left the position's name (`LP`, `LP>BP`, `BP`, .. `NT>LP`);
 - the **dx** envelope (FM6): the DX7's four rates and levels as a 4-segment line (FM6 above);
+- the **cz** envelope (CZ-1): eight rates and levels, SUS and END as a step line (CZ-1 above);
 - (FORMAT.md also has a **wave** band: two cycles across the screen, blue; not used by the drawn sections).
 
 Layout: **with a wide shape** — title 0–24, the shape 24–120, row A 124–180, row B 184–240 (label 10 px, glyph 22

@@ -86,6 +86,9 @@ static void cr_bank_boot(void)                    /* persist_boot (after flash_o
 #define CB_PHYS 9u
 #define CB_FM6 12u
 #define CB_VA ENGI_VA            /* the VA engine (eng_va.c, 13): its sounds after Felucca's */
+#if FELUCCA_CZ
+#define CB_CZ ENGI_CZ            /* the CZ-1 engine (eng_cz.c, 14): Casio's tones, after the VA's (docs/CZ1.md) */
+#endif
 #if !FELUCCA_VA
 #error "cr_bank.c: the bank's CLOUD PAD and SHIMMER (and PRESETS 25..) are VA sounds: FELUCCA_VA 1"
 #endif
@@ -126,6 +129,11 @@ static const cb_entry_t CB_CHORD[] = {           /* PRESETS 01..24 */
     {CB_VA, "MORPH PAD", "MORPH PAD"},    {CB_VA, "VINYL KEYS", "VINYL KEYS"},   /* 41..43: MORPH, NOISE, SPREAD */
     {CB_VA, "WIDE STRINGS", "WIDE STRINGS"},
 #endif
+#if FELUCCA_CZ                                   /* PRESETS 44..48: Casio's CZ-1 tones (A-1, D-1, A-5, E-3, F-2) */
+    {CB_CZ, "BRASS 1", "CZ BRASS 1", -10}, {CB_CZ, "PIANO 1", "CZ PIANO"},   /* (trims: tests/va_levels.c cz) */
+    {CB_CZ, "STRINGS 2", "CZ STRINGS 2", -6}, {CB_CZ, "PIPE ORGAN 1", "CZ PIPE", -12},
+    {CB_CZ, "VIBRAPHONE", "CZ VIBES"},
+#endif
 };
 static const cb_entry_t CB_BASS[] = {            /* ALGORITHM 1..8 (0 = OFF) */
     {CB_ANALOG, "SUB BASS", "SUB BASS"},  {CB_ANALOG, "SQR BASS", "SQUARE BASS"},
@@ -135,6 +143,9 @@ static const cb_entry_t CB_BASS[] = {            /* ALGORITHM 1..8 (0 = OFF) */
 #if FELUCCA_VA                                   /* ALGORITHM 9..12: the VA's basses */
     {CB_VA, "DEEP SUB", "DEEP SUB"},      {CB_VA, "PUNCH BASS", "PUNCH BASS"},
     {CB_VA, "RUBBER BASS", "RUBBER BASS"},{CB_VA, "SYNC BASS", "SYNC BASS"},
+#endif
+#if FELUCCA_CZ                                   /* ALGORITHM 13: CZ-1's B-5 SYNTH.BASS */
+    {CB_CZ, "SYNTH.BASS", "CZ BASS"},
 #endif
 };
 #define CB_NCHORD ((uint32_t)NELEM(CB_CHORD))

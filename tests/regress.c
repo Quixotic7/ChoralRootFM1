@@ -26,6 +26,9 @@
 #ifndef FELUCCA_VA
 #define FELUCCA_VA 1             /* ChoralRoot's VA engine: its presets get renders and costs too */
 #endif
+#ifndef FELUCCA_CZ
+#define FELUCCA_CZ 1             /* ChoralRoot's CZ-1 engine (Melodee's): its presets get renders and costs too */
+#endif
 #ifndef FM6_POLY
 #define FM6_POLY 8               /* as choralroot.c: FM6 at ChoralRoot's 8 voices (eng_fm6.c; Melodee: 16) */
 #endif
@@ -119,9 +122,10 @@ static uint32_t at(double s) { return (uint32_t)(s * FS) / CTL * CTL; }
 static void run_to(uint32_t f) { while (fpos < f) blk(); }
 
 /* after the last note-off (rel_at): until the voices are free, then the FX tail */
+static uint32_t free_cap_s = FREE_CAP_S;        /* (job_preset: CZ-1's ringing tones get longer) */
 static void finish(void)
 {
-    uint32_t cap = rel_at + FREE_CAP_S * FS;
+    uint32_t cap = rel_at + free_cap_s * FS;
     dc_end = dc_end ? dc_end : fpos;
     while (!parts_free() && fpos < cap)
         blk();
@@ -181,6 +185,14 @@ static void job_preset(const job_t *j)
     track_t *t = &trk[0];
     host_tracks_init();
     host_preset(t, j->e, j->pi);
+#if FELUCCA_CZ
+    /* Casio's tones with no DCA sustain point play their whole envelope regardless of the key (as the CZ-1 does:
+     * docs/CZ1.md): BELLS, SITAR and JET ROAR ring on long after the note-off */
+    if (j->e == ENGI_CZ && (!strcmp(ENGINES[j->e]->presets[j->pi].name, "BELLS") ||
+                            !strcmp(ENGINES[j->e]->presets[j->pi].name, "SITAR") ||
+                            !strcmp(ENGINES[j->e]->presets[j->pi].name, "JET ROAR")))
+        free_cap_s = 90;
+#endif
     phrase(t, 60);
 }
 

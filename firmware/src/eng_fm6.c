@@ -285,6 +285,10 @@ static int fm6_blob_apply(uint32_t tr, const uint8_t *b);
 #if FELUCCA_VA
 static void va_track_loaded(const track_t *t);   /* eng_va.c: VA's patch on the same load paths */
 #endif
+#if FELUCCA_CZ
+static void cz_track_loaded(track_t *t);         /* eng_cz.c: CZ-1's tone on the same load paths */
+static void cz_init(void);
+#endif
 
 /* a sound load put a PTCH value in (a preset, a user preset, undo, an engine change): its patch. ChoralRoot: a user
  * slot's own patch and function settings (its blob), else the PTCH slot's with Dexed's function settings; a user slot
@@ -296,6 +300,9 @@ static void fm6_track_loaded(const track_t *ct)
     uint8_t b[128];
 #if FELUCCA_VA
     va_track_loaded(t);
+#endif
+#if FELUCCA_CZ
+    cz_track_loaded(t);
 #endif
     fm6_user_pending = 0;
     if (tr >= NTRK || t->eng_req != ENGI_FM6)
@@ -317,6 +324,9 @@ static void fm6_init(void)
     uint8_t v[FP_SIZE + 1u];
     uint32_t tr;
     fm6_fn_reset();
+#if FELUCCA_CZ
+    cz_init();                                   /* (CZ-1: every part the init tone) */
+#endif
     fm6_unpack(FM6_INIT, v);
     for (tr = 0; tr < NTRK; tr++) {
         fm6_put_patch(tr, v, 1);

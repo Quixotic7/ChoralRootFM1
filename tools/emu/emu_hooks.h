@@ -56,6 +56,9 @@ extern const int8_t emu_keymap[6][EMU_NCOL];
 /* the flash file (before emu_fw_init): flash_path NULL = the default (build/emu/flash.bin; headless: none, a fresh
  * flash each run), no_flash = RAM only, save_on_exit = the settings saved at exit */
 void emu_fw_options(const char *flash_path, int no_flash, int save_on_exit, int headless);
+/* the boot guard before the power-on (firmware/src/cr_bootguard.h): fail < 0 none (a clean record), reason NULL a
+ * power-on, stage < 0 the default; 0 = a bad reason */
+int emu_fw_boot_options(int fail, const char *reason, int stage);
 void emu_fw_init(int demo);                 /* power-on (main.c felucca_init); demo: 4 patterns, PLAY */
 void emu_fw_tick(uint32_t ms);              /* 1 ms timer: fm1_ms, input edges, MIDI in/out queues */
 void emu_fw_frame(void);                    /* one UI frame: ui_input + ui_leds + ui_draw */

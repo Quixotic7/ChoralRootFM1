@@ -549,6 +549,84 @@ has '^deep: part 0 page 19 ENV 1 col 1 R2 ' "$FL" && has '^edit: group ENV scree
     has '^edit: group LFO screen 1 ' "$FL" && has '^edit: group MOD screen 1 ' "$FL" && has '^edit: group OSC screen 3 ' "$FL" &&
     ok "FM6's groups: ENV 1 / ENV 2, FILT (ALGO), LFO, MOD (FUNC), OSC screens 1..3 (OP n, OP n+, SCALE n)" || bad "FM6 groups: $(grep -c '^edit: group' "$FL")"
 
+echo "CZ-1: Melodee's engine, Casio's tones, the deep pages, the cz band"
+run cr_cz --wav "$OUT/cr_cz.wav"
+ZL="$OUT/cr_cz.log"
+has 'part 0: CZ-1 / BRASS 1' "$ZL" && ok "PRESETS +43: CZ BRASS 1 (Casio's A-1) on the CZ-1" || bad "not CZ-1 BRASS 1: $(grep -m1 'part 0:' "$ZL")"
+has '^deep: part 0 page 11 DCW 1+ col 0 L1 [0-9]* -> 0 ' "$ZL" && ok "ENV screen 4 (DCW 1), SELECT +1, KNOB 1: $(grep -m1 '^deep: part 0 page 11' "$ZL")" ||
+    bad "no DCW 1 L1 edit: $(grep -m1 '^deep:' "$ZL")"
+[ "$(grep -c '^expect sound .*: ok' "$ZL")" = 2 ] && ok "the chord sounds before and after the edit" || bad "CZ-1 chord: $(grep -c '^expect sound .*: ok' "$ZL") of 2"
+br=$(python3 - "$OUT/cr_cz.wav" <<'PY'
+import sys, wave, struct
+w = wave.open(sys.argv[1]); fs = w.getframerate(); ch = w.getnchannels()
+x = struct.unpack("<%dh" % (w.getnframes() * ch), w.readframes(w.getnframes()))
+m = [x[i] for i in range(0, len(x), ch)]
+def bright(t0, t1):          # high-frequency share: the first difference's energy over the signal's
+    s = m[int(t0 * fs):int(t1 * fs)]
+    e = sum(v * v for v in s) or 1
+    d = sum((s[i] - s[i - 1]) ** 2 for i in range(1, len(s)))
+    return d / e
+b0, b1 = bright(1.16, 2.36), bright(7.07, 8.27)
+print("%.4f %.4f %d" % (b0, b1, b1 < 0.8 * b0))
+PY
+)
+set -- $br
+[ "${3:-0}" = 1 ] && ok "DCW 1 L1 0 changes the sound: brightness (HF share) $1 -> $2 (the timbre envelope closed)" || bad "the sound did not change: $br"
+white=$(od -An -tu1 -v -j $((15 + 30 * 240 * 3)) -N$((240 * 70 * 3)) "$OUT/cr_cz_env.ppm" | tr -s ' \n' '\n\n' | grep -v '^$' |
+    awk '{ v[n++] = $1 } END { c = 0; for (i = 0; i + 2 < n; i += 3) if (v[i] > 200 && v[i+1] > 200 && v[i+2] > 200) c++; print c }')
+blue() { od -An -tu1 -v -j $((15 + 30 * 240 * 3)) -N$((240 * 90 * 3)) "$1" | tr -s ' \n' '\n\n' | grep -v '^$' |
+    awk '{ v[n++] = $1 } END { c = 0; for (i = 0; i + 2 < n; i += 3) if (v[i] < 110 && v[i+1] < 160 && v[i+2] > 200) c++; print c }'; }
+z0=$(blue "$OUT/cr_cz_env.ppm"); z1=$(blue "$OUT/cr_cz_env_hot.ppm")
+[ "${white:-0}" -gt 300 ] && ok "DCW 1: the cz band drawn ($white white pixels in the band): $OUT/cr_cz_env.ppm" || bad "no cz band: $white"
+[ "${z1:-0}" -gt $((${z0:-0} + 20)) ] && ok "KNOB 1 (L1): step 1 lit blue ($z0 -> $z1 pixels): $OUT/cr_cz_env_hot.ppm" || bad "no lit step: $z0 -> $z1"
+has '^edit: group ENV screen 6 ' "$ZL" && has '^edit: group FILT screen 1 ' "$ZL" && has '^edit: group LFO screen 1 ' "$ZL" &&
+    has '^edit: group MOD screen 1 ' "$ZL" && ok "CZ-1's groups: ENV DCW 1 (1-4, 5-8, END), FILT (DCW), LFO (VIB), MOD (TONE)" ||
+    bad "CZ-1 groups: $(grep -c '^edit: group' "$ZL")"
+
+echo "SAFE MODE: the boot guard (firmware/src/cr_bootguard.h)"
+SF="$OUT/cr_safe_flash.bin"
+rm -f "$SF"
+"$EMU" --headless --flash "$SF" --script "$S/persist_set.txt" >"$OUT/cr_safe_data.log" 2>&1   # data: 137 BPM, Advanced
+grep -q 'settings saves 1 ' "$OUT/cr_safe_data.log" && ok "a flash with data (persist_set: 137 BPM saved)" || bad "no data saved"
+cp "$SF" "$OUT/cr_safe_flash_before.bin"
+run cr_safe --flash "$SF" --boot-fail 1 --reset-reason wdt --boot-stage 13 --wav "$OUT/cr_safe.wav"
+L="$OUT/cr_safe.log"
+has '^boot: safe reset wdt failed 2 pending 1 counted 1 prev_stage 13 (fm6 bank)' "$L" &&
+    ok "a crash-type reset with one failed boot before: SAFE MODE, breadcrumb 13 (fm6 bank)" || bad "not SAFE: $(grep -m1 '^boot:' "$L")"
+has 'record: defaults' "$L" && has 'bpm 120 ' "$L" && ! has 'bpm 137' "$L" &&
+    ok "the settings record not loaded (defaults: 120 BPM, not the saved 137)" || bad "safe mode loaded the record"
+has 'part 0: FM6 / TINE EP, voices 3' "$L" && has '^expect sound .*: ok' "$L" &&
+    ok "plays in SAFE MODE: D major on the factory TINE EP" || bad "no sound in safe mode"
+cmp -s "$SF" "$OUT/cr_safe_flash_before.bin" && ok "the flash untouched by a safe session (no save)" || bad "safe mode wrote the flash"
+has 'boot: safe reset wdt failed 0 pending 0' "$L" && ok "30 s up: failed and pending cleared, the session stays safe" || bad "no 30 s clear"
+for n in cr_safe_splash cr_safe_play cr_safe_options cr_safe_erase_entry cr_safe_erase_ask; do
+    [ -s "$OUT/$n.ppm" ] || bad "no $n.ppm"
+done
+y=$(yellow_in "$OUT/cr_safe_splash.ppm" 120 0 240)
+[ "${y:-0}" -gt 100 ] && ok "the SAFE MODE screen (yellow panel, $y px in row 120): $OUT/cr_safe_splash.ppm" || bad "no SAFE MODE screen: $y"
+differ cr_safe_options cr_safe_erase_entry "Options opens on Safe Mode; SELECT +1: Flash Data: $OUT/cr_safe_erase_entry.ppm"
+differ cr_safe_erase_entry cr_safe_erase_ask "OCT+ once: the confirmation (OCT+ again): $OUT/cr_safe_erase_ask.ppm"
+"$EMU" --headless --flash "$SF" --script "$S/cr_safe_erase.txt" --boot-fail 1 --reset-reason wdt >"$OUT/cr_safe_erase.log" 2>&1
+st=$?
+[ $st = 0 ] && has '^safe: flash data erased, 54 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
+    has '^reboot: guard failed 0 pending 0' "$OUT/cr_safe_erase.log" &&
+    ok "OCT+ twice: 54 data sectors erased (36 + the CZ-1's 18), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
+ff=$(python3 -c "
+import sys; d = open(sys.argv[1], 'rb').read()
+r = [(0x97000, 9), (0xC8000, 20), (0xDC000, 4), (0xFC000, 3)]
+print(int(all(d[a:a + n * 4096] == b'\xff' * (n * 4096) for a, n in r) and d[:0x93000] == open(sys.argv[2], 'rb').read()[:0x93000]))" "$SF" "$OUT/cr_safe_flash_before.bin")
+[ "$ff" = 1 ] && ok "the data regions read erased, the firmware area as before" || bad "flash after the erase"
+"$EMU" --headless --flash "$SF" --script "$S/persist_check.txt" >"$OUT/cr_safe_after.log" 2>&1
+has '^boot: normal reset power-on failed 0' "$OUT/cr_safe_after.log" && has 'bpm 120 ' "$OUT/cr_safe_after.log" &&
+    ok "the next power-on: NORMAL on the erased flash (120 BPM)" || bad "after the erase: $(grep -m1 '^boot:' "$OUT/cr_safe_after.log")"
+"$EMU" --headless --script "$S/cr_safe.txt" --boot-fail 1 --reset-reason poweron >"$OUT/cr_safe_pwr.log" 2>&1
+has '^boot: normal reset power-on failed 0 pending 1 counted 0' "$OUT/cr_safe_pwr.log" &&
+    ok "a power-on after failed boots: NORMAL, the guard clear" || bad "power-on: $(grep -m1 '^boot:' "$OUT/cr_safe_pwr.log")"
+"$EMU" --headless --script "$S/cr_safe.txt" --boot-fail 3 --reset-reason wdt >"$OUT/cr_safe_uboot.log" 2>&1
+st=$?
+[ $st = 3 ] && has '^boot: UBOOT (ROM boot): reset wdt' "$OUT/cr_safe_uboot.log" &&
+    ok "SAFE MODE crashed twice more (failed 4): UBOOT" || bad "uboot: exit $st"
+
 echo "determinism"
 mkdir -p "$OUT/cr_again"
 cp "$OUT/cr_dmaj.ppm" "$OUT/cr_again/first.ppm"

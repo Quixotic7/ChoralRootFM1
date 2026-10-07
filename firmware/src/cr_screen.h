@@ -41,7 +41,8 @@ enum { CR_G_NONE, CR_G_KNOB, CR_G_BAR, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_ST
                                      * 170..255 VINYL (sparse spikes on a faint line) */
 
 /* the editor's wide band (CR_K_EDIT8) */
-enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_DX };   /* CR_W_DX: a DX7 envelope (FM6), 4 rates / 4 levels */
+enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_DX, CR_W_CZ };   /* CR_W_DX: a DX7 envelope (FM6), 4 rates / 4 levels;
+                                                                * CR_W_CZ: a CZ-1 envelope, 8 steps, SUS, END */
 #define CR_ED_ROWS 8u               /* a stack's rows at most (the mod matrix) */
 #define CR_CF_ON 1u                 /* a cell: shown (an empty cell draws nothing) */
 #define CR_CF_PCT 2u                /* .. pct is shown (a text cell: a small bar) */
@@ -150,11 +151,13 @@ typedef struct {
     uint8_t fine;                   /* edit8 / stack: SHIFT on (fine steps): "fine" small in the title line;
                                      * `batt` (0..4, 4 = charging; 255 = none): edit8 / stack draw the header's battery
                                      * at the title line's right end (the MIX screens) */
-    uint8_t wv[10];                 /* env: a h d s r (Q8 of 255), the lit segment + 1 (1 A .. 5 R, 0 none);
+    uint8_t wv[20];                 /* env: a h d s r (Q8 of 255), the lit segment + 1 (1 A .. 5 R, 0 none);
                                      * filter: cut res (Q8 of 255), ftype (0..127: 0 LP, 32 BP, 64 HP, 96 NOTCH,
                                      * crossfaded between, 127 back toward LP), drive;
                                      * dx: R1..R4, L1..L4 (0..99, the DX7's), the lit segment (1..4, 0 none), 1 = a
-                                     * pitch EG (levels round 50: a centre line) */
+                                     * pitch EG (levels round 50: a centre line);
+                                     * cz: R1..R8 (0..7), L1..L8 (8..15) (0..99, the CZ-1's panel values), SUS (16: the
+                                     * step 0..7, 8 none), END (17: 0..7), the lit step (18: 1..8, 0 none) */
     char foot[48];                  /* stripes: the bottom line */
 
     /* panel: text, geek (lines: geek's status lines are lines[0..1].t) */

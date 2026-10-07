@@ -42,7 +42,16 @@ Sloop, the Felucca 0.x betas and firmwares they cannot identify: an FM-1 has bee
 and Felucca 0.9-beta to 1.0 bricked several (the loader wrote correctly both times; the cause is still open;
 [docs/INSTALL-COMPAT.md](docs/INSTALL-COMPAT.md)). Return to the official V15 with that firmware's installer first.
 
-**If the FM-1 no longer starts** (black screen, the computer shows a USB disk "WL82 UBOOT1.00"):
+**SAFE MODE.** If ChoralRoot crashes twice in a row within 30 s of starting (switching it off and on does not count),
+it starts in SAFE MODE (a yellow screen, "Safe mode" on the top line): it plays its factory sounds and ignores what is
+stored in the flash (settings, user sounds, FM6 bank, loops), which stays untouched. Options > Flash Data (OCT+ twice)
+erases that data and restarts; switching off and on tries the stored data again. Installing and Backup still work in
+SAFE MODE, so you can save a backup first. Only if SAFE MODE itself crashes twice does the unit go to update mode
+(ROM boot).
+
+**If the FM-1 no longer starts** (black screen, the computer shows a USB disk "WL82 UBOOT1.00"): leave it on for 2
+minutes to see whether it restarts by itself, try holding OCT- and OCT+ while switching on (10 s), and check what the
+computer sees (docs/INSTALL-COMPAT.md, "If an FM-1 is dark"); then
 [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker). If it does not show up as that disk either, the
 hardware route is [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
 

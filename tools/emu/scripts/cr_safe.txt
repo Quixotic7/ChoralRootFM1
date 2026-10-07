@@ -1,0 +1,31 @@
+# SAFE MODE (firmware/src/cr_bootguard.h; tools/emu/test_cr.sh runs it with --boot-fail 1 --reset-reason wdt
+# --boot-stage 13: the second crash in a row): the SAFE MODE screen with the breadcrumb, then "Safe mode" on the top
+# line; a chord plays on the factory sound (TINE EP); Options opens on Safe Mode, SELECT +1: Flash Data, OCT+ once:
+# "OCT+ again: erase" (the second OCT+ is cr_safe_erase.txt). Nothing is saved (no flash write).
+wait 300
+shot build/emu/test/cr_safe_splash.ppm
+dump
+wait 5000
+key F3 down
+wait 60
+key A down
+wait 700
+expect sound
+shot build/emu/test/cr_safe_play.ppm
+dump
+key A up
+key F3 up
+wait 2000
+dump
+btn GLO
+wait 150
+shot build/emu/test/cr_safe_options.ppm
+knob SELECT +1
+wait 150
+shot build/emu/test/cr_safe_erase_entry.ppm
+btn OCT+
+wait 150
+shot build/emu/test/cr_safe_erase_ask.ppm
+btn GLO
+wait 31000
+dump

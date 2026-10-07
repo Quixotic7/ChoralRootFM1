@@ -208,6 +208,9 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
 #if FELUCCA_VA
 #include "va_store.c"                          /* ChoralRoot: the VA patches, one per slot (the hooks below) */
 #include "fm6_ustore.c"                        /* ChoralRoot: the FM6 patches (voice + functions), one per slot */
+#if FELUCCA_CZ
+#include "cz_ustore.c"                         /* ChoralRoot: the CZ-1 tones, one per slot */
+#endif
 static uint8_t up_va_keep;                     /* up_rename: the slot's stored VA / FM6 patch stays */
 #endif
 static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for its engine */
@@ -217,6 +220,9 @@ static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for
 #if FELUCCA_VA
     va_store_loading(r);                       /* a VA record: its slot's patch on the load (va_track_loaded) */
     fm6u_loading(r);                           /* an FM6 record: its slot's blob on the load (fm6_track_loaded) */
+#if FELUCCA_CZ
+    czu_loading(r);                            /* a CZ-1 record: its slot's tone on the load (cz_track_loaded) */
+#endif
 #endif
     for (i = 0; i < P_COUNT; i++)
         def[i] = param_desc_of(r->engine, i)->def;
@@ -228,18 +234,32 @@ static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for
 }
 
 #include "fm6_bank.c"                          /* the FM6 patch bank: the same kind of store */
+#if FELUCCA_CZ
+#include "cz_bank.c"                           /* the eight CZ-1 banks (Melodee's) */
+#endif
 
+#ifndef CR_STAGE
+#define CR_STAGE(n) ((void)0)                  /* (audio.c: the boot breadcrumb, felucca_dbg.stage) */
+#endif
 static void up_boot(void)                      /* persist_boot: the banks from flash */
 {
 #if FELUCCA_FLASH
     uint32_t b;
+    CR_STAGE(BS_USER_SOUNDS);
     for (b = 0; b < UP_SLOTS / UP_PER_BANK; b++)
         up_bank_check(b, flash_ok ? st_load(OBJ_UPRESET0 + b, &up_bank[b], sizeof up_bank[b]) : -1);
 #endif
+    CR_STAGE(BS_FM6_BANK);
     fm6_bank_boot();
 #if FELUCCA_VA
+    CR_STAGE(BS_VA_STORE);
     va_store_boot();
+    CR_STAGE(BS_FM6_STORE);
     fm6u_boot();
+#endif
+#if FELUCCA_CZ
+    czu_boot();                                /* the CZ-1 tone store and banks (no breadcrumb of their own) */
+    cz_bank_boot();
 #endif
 #ifdef FELUCCA_FAVORITES
     for (uint32_t k = 0; k < UP_SLOTS; k++)
@@ -301,6 +321,9 @@ static int up_put(uint32_t k, const up_rec_t *r)
                                                         * fm6_ustore.c), or none */
         va_store_saved(k, r);
         fm6u_saved(k, r);
+#if FELUCCA_CZ
+        czu_saved(k, r);
+#endif
     }
 #endif
 #if FELUCCA_FLASH
@@ -479,6 +502,9 @@ static void up_pat_load(track_t *t, uint32_t k)
         load_pat16(t, r->note, r->flags);
 #if FELUCCA_VA
     va_user_pending = 0;                               /* (a pattern only: no sound load follows) */
+#if FELUCCA_CZ
+    cz_user_pending = 0;
+#endif
 #endif
     for (i = P_SDIV; i <= P_SGATE; i++)
         t->p[i] = v[i];
