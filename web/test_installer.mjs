@@ -12,7 +12,8 @@
 //   no backup possible (confirm), Back up and Restore, and the return to official V15 (backup, confirm first, nothing
 //   written when it is declined)
 // - the Sounds section (fm1sounds.js, docs/SOUNDS.md): Read sounds -> the table, Export -> a sound file, Rename (the
-//   bank only), Import (the store, then the bank; a used slot asks first), Delete, a bad file, and Felucca refused
+//   bank only), Import (the store, then the bank; a used slot asks first), Delete, a bad file, and Felucca refused;
+//   .syx: Export .syx on FM6 / CZ-1 rows, a .syx imported into an empty slot, a two-voice file asks which voice
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,7 +21,7 @@ import vm from "node:vm";
 import { logicalImage, productOf, STOCK_V15_SIZE } from "./fm1pkg.js";
 import { pack7, unpack7 } from "./fm1ota.js";
 import { bkU32, bkR32, bkPack, bkUnpack, bkCrc, CR_BACKUP_IDS, BACKUP_IDS } from "./fm1backup.js";
-import { readSoundFile, parseSoundObjects } from "./fm1sounds.js";
+import { readSoundFile, parseSoundObjects, parseSyx, fm6BlobToVced, fm6VcedSyx } from "./fm1sounds.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(72)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
@@ -628,6 +629,97 @@ ok(/<details id="dark">/.test(html) && html.includes('href="https://github.com/Q
   await p.$["snd-read"].fire("click");
   ok(p.$.status.textContent === en.sndNeedCr && p.$["snd-table"].hidden === true && !fel.log.length && !p.$["snd-read"].disabled,
      "sounds: on Felucca -> the status says the Sounds need ChoralRoot, nothing read or written");
+}
+
+{
+  // .syx (docs/SOUNDS.md ".syx export and import"): the fixtures of tests/sound_templates.c (factory F1 TINE EP's blob,
+  // Casio's A-1 BRASS 1)
+  ok(html.includes('id="snd-file" type="file" accept=".json,.syx,application/json"') && html.includes('"export-syx"') &&
+     ["exportSyx", "parseSyx", "soundFromSyx", "syxCount", "saveBytes"].every((f) => html.includes(f)),
+     "page: Export .syx on the rows, the Import picker accepts .json and .syx");
+  ok(["sndExportSyx", "sndSyxText", "sndSyxSaved", "sndSyxPick", "sndSyxBadPick"].every((k) => en[k]) && dataT.includes("sndSyxText") &&
+     en.sndExportSyx === "Export .syx", "texts: the .syx button, its section text, the statuses and the voice prompt");
+  const B = (x) => Uint8Array.from(Buffer.from(x, "base64"));
+  const fBlob = B("XygePGNQACeAAAA4DDQAXx4UPGNaAKeAgAAwhAIA4b6ovGMAACeAgAA7xJwAXxSUsl+AACcAAIAI2oKAXzKjY0sAACcAALscOoKAYBlDY0sAACcAgLsIYgKA4+PjMrIyMgSiIQCAKRjUTkUgRVCgIEYBMwBgHAAAAEAAAAAAAAA="), fTone = B("CgEUAAgAAAAy4AkAAQCgIAlfAADjYn/o/sxrwgA8ADwAPAA8ALNif7heNOCnAEQARABEAEQAQV0h1wBAAEAAQABAAEAAQACgAAlfAADjYn/o/sxrwgA8ADwAPAA8ALNif7heNOCnAEQARABEAEQA8V0h1wBAAEAAQABAAEAAQAAgICAgQlJBU1MgMSAgICAg");
+  const dv = (b) => new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const rec = (engine, name) => {
+    const r = new Uint8Array(192); r[0] = 0xA5; r[1] = 4; r[2] = engine; r[3] = 40;
+    for (let i = 0; i < name.length; i++) r[4 + i] = name.charCodeAt(i);
+    return r;
+  };
+  const bank = (recs) => {
+    const b = new Uint8Array(3080); dv(b).setUint32(0, 0x31425055, true); dv(b).setUint16(4, 192, true); dv(b).setUint16(6, 16, true);
+    for (const [i, r] of Object.entries(recs)) b.set(r, 8 + Number(i) * 192);
+    return b;
+  };
+  const half = (magic, first, blob, blobs) => {
+    const b = new Uint8Array(16 + 16 * blob), v = dv(b); let used = 0;
+    v.setUint32(0, magic, true); v.setUint16(4, 1, true); v.setUint16(6, 16, true); v.setUint16(8, first, true); v.setUint16(10, blob, true);
+    for (const [k, data] of Object.entries(blobs)) { b.set(data, 16 + Number(k) * blob); used |= 1 << Number(k); }
+    v.setUint32(12, used, true);
+    return b;
+  };
+  const va = new Uint8Array(3536); dv(va).setUint32(0, 0x31534156, true); dv(va).setUint16(4, 3, true); dv(va).setUint16(6, 32, true); dv(va).setUint16(12, 110, true);
+  const data = [[1, per(764, 0x50455235, 6)], [6, bank({ 1: rec(12, "TINE 2"), 2: rec(14, "HORNS"), 3: rec(0, "BASS") })], [7, new Uint8Array(0)],
+    [9, va], [10, half(0x55364D46, 0, 128, { 1: fBlob })], [11, new Uint8Array(0)],
+    [12, half(0x55315A43, 0, 144, { 2: fTone })], [13, new Uint8Array(0)]];
+  const cr = backupSide("ChoralRoot 0.14", CR_BACKUP_IDS, data);
+  let pickAnswer = "2";
+  const p = runPage({ navigator: midiOf(new FakeFM1(image, { identity: "FM-1_920", bk: () => cr })), fetch: pkgFetch(raw),
+    prompt: () => pickAnswer });
+  await settle();
+  await p.$["snd-read"].fire("click");
+  const rowOf = (n) => p.$["snd-rows"].innerHTML.split("</tr>")[n - 1];
+  ok(/data-act="export-syx"[^>]*>Export \.syx</.test(rowOf(2)) && rowOf(3).includes("export-syx") && !rowOf(4).includes("export-syx") &&
+     !rowOf(5).includes("export-syx"), "syx: Export .syx on the FM6 and CZ-1 rows with a patch only (not ANALOG, not empty)");
+  const act = (a, slot) => p.$["snd-rows"].l.click({ target: { closest: (sel) => (sel === "button[data-act]" ? { dataset: { act: a, slot: String(slot) }, disabled: false } : null) } });
+  let blob = null;
+  const realCreate = URL.createObjectURL;
+  URL.createObjectURL = (b) => { blob = b; return "blob:syx"; };
+  await act("export-syx", 2);
+  await settle();
+  URL.createObjectURL = realCreate;
+  const got = blob ? new Uint8Array(await blob.arrayBuffer()) : new Uint8Array(0);
+  ok(p.downloads.at(-1)?.name === "choralroot-sound-U02-TINE_2.syx" && got.length === 163 && got[0] === 0xF0 && got[1] === 0x43 && got[162] === 0xF7 &&
+     eq(parseSyx(got).voices[0], fm6BlobToVced(fBlob)) && p.$.status.textContent === en.sndSyxSaved + "choralroot-sound-U02-TINE_2.syx" && !cr.log.length,
+     "syx: Export .syx on U02 (FM6) -> a 163-byte DX7 voice download, nothing written");
+  blob = null;
+  URL.createObjectURL = (b) => { blob = b; return "blob:syx"; };
+  await act("export-syx", 3);
+  await settle();
+  URL.createObjectURL = realCreate;
+  const gotCz = blob ? new Uint8Array(await blob.arrayBuffer()) : new Uint8Array(0);
+  ok(gotCz.length === 295 && eq(parseSyx(gotCz).tones[0], fTone) && p.downloads.at(-1)?.name === "choralroot-sound-U03-HORNS.syx",
+     "syx: Export .syx on U03 (CZ-1) -> a 295-byte tone dump");
+
+  const syxFile = (bytes) => [{ text: async () => { throw new Error("text() of a .syx"); }, arrayBuffer: async () => bytes.slice().buffer }];
+  const confirms0 = p.confirms.length;
+  await act("import", 5);
+  p.$["snd-file"].files = syxFile(got);
+  await p.$["snd-file"].fire("change");
+  const t5 = parseSoundObjects(cr.objs).slots[4];
+  ok(cr.log.join() === "10,6" && p.confirms.length === confirms0 && t5.name === "TINE EP" && t5.engine === 12 && t5.patch === "fm6" &&
+     eq(cr.objs.get(10).subarray(16 + 4 * 128, 16 + 5 * 128), fBlob) && p.$.status.textContent === en.sndImported + "U05: TINE EP",
+     "syx: a .syx imported into U05 (empty): the FM6 store, then bank 0; named from the voice");
+
+  // two voices in one file: the prompt asks which (2: the renamed one)
+  cr.log.length = 0;
+  const v2 = fm6BlobToVced(fBlob); "SECOND".padEnd(10).split("").forEach((c, i) => { v2[145 + i] = c.charCodeAt(0); });
+  const two = Uint8Array.from([...got, ...fm6VcedSyx(v2)]), prompts0 = p.prompts.length;
+  await act("import", 6);
+  p.$["snd-file"].files = syxFile(two);
+  await p.$["snd-file"].fire("change");
+  ok(p.prompts.length === prompts0 + 1 && p.prompts.at(-1) === en.sndSyxPick.split("{n}").join("2").replace("{slot}", "U06") &&
+     cr.log.join() === "10,6" && parseSoundObjects(cr.objs).slots[5].name === "SECOND", "syx: a two-voice file asks which voice (2 -> SECOND)");
+  cr.log.length = 0; pickAnswer = "3";
+  await p.$["snd-file"].fire("change");
+  ok(!cr.log.length && p.$.status.textContent === en.sndSyxBadPick.replace("{n}", "2"), "syx: a voice number out of range -> nothing written");
+  const cz101 = Uint8Array.from([0xF0, 0x44, 0, 0, 0x70, 0x30, ...new Array(256).fill(1), 0xF7]);
+  p.$["snd-file"].files = syxFile(cz101);
+  await p.$["snd-file"].fire("change");
+  ok(!cr.log.length && p.$.status.textContent.startsWith(en.sndBadFile) && /CZ-101/.test(p.$.status.textContent),
+     "syx: a CZ-101 tone refused with the message, nothing written");
+  ok(!p.$["snd-read"].disabled && !p.$["backup-go"].disabled, "syx: the installer unlocked afterwards");
 }
 
 console.log(failed ? `INSTALLER TESTS FAILED (${failed})` : "installer tests passed");

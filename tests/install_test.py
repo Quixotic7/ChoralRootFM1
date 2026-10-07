@@ -698,9 +698,140 @@ def sounds():
        "--sounds with a package / --backup / another sound option, a bad new name: usage errors")
 
 
+# tests/sound_templates.c's fixtures (factory F1 TINE EP as the blob and the VCED, the packed function settings of
+# that blob: FM6_FNDEF packed, Casio's A-1 BRASS 1).
+SYX_FIX = {
+    "fm6_blob": "XygePGNQACeAAAA4DDQAXx4UPGNaAKeAgAAwhAIA4b6ovGMAACeAgAA7xJwAXxSUsl+AACcAAIAI2oKAXzKjY0sAACcAALscOoKAYBlDY0sAACcAgLsIYgKA4+PjMrIyMgSiIQCAKRjUTkUgRVCgIEYBMwBgHAAAAEAAAAAAAAA=",
+    "fm6_vced": "XygePGNQAAAnAAAAAAAAAzQAAQAHXx4UPGNaAAAnAAAAAAAAAU4AAQAGYT4oPGM8AAAnAAAAAAMABkQADgAHXxQUMmNfAAAnAAAAAAIAAloAAQAIXzIjTmNLAAAnAAAAAAMABzoAAQAHYBkZQ2NLAAAnAAAAAAMAAmIAAQAHY2NjYzIyMjIEAwEiIQAAAQQCGFRJTkUgRVAgICA=",
+    "fm6_fn": "MwBgHAAAAEA=",
+    "cz_tone": "CgEUAAgAAAAy4AkAAQCgIAlfAADjYn/o/sxrwgA8ADwAPAA8ALNif7heNOCnAEQARABEAEQAQV0h1wBAAEAAQABAAEAAQACgAAlfAADjYn/o/sxrwgA8ADwAPAA8ALNif7heNOCnAEQARABEAEQA8V0h1wBAAEAAQABAAEAAQAAgICAgQlJBU1MgMSAgICAg",
+}
+
+
+def syx():
+    import base64
+    F = {k: base64.b64decode(v) for k, v in SYX_FIX.items()}
+    blob, vced, tone = F["fm6_blob"], F["fm6_vced"], F["cz_tone"]
+
+    def refused(data, word):
+        try:
+            I.parse_syx(data)
+            return False
+        except I.InstallError as e:
+            return e.code == "badsound" and word in str(e)
+
+    ok(I.FM6_FN_DEFAULT == F["fm6_fn"] == bytes.fromhex("3300601c00000040") and blob[114:122] == F["fm6_fn"],
+       "FM6_FN_DEFAULT: FM6_FNDEF packed, the fixture's")
+    ok(I.fm6_blob_to_vced(blob) == vced, "fm6_blob_to_vced: the F1 blob -> the fixture VCED")
+    nb = I.vced_to_fm6_blob(vced)
+    ok(nb == blob,
+       "vced_to_fm6_blob: the voice as the F1 blob, 'F' 1, the function defaults, zeros")
+    wild = bytearray(vced)
+    wild[0], wild[134], wild[144], wild[145] = 120, 40, 60, 5
+    wb = I.fm6_blob_to_vced(I.vced_to_fm6_blob(bytes(wild)))
+    ok(wb[0] == 99 and wb[134] == 31 and wb[144] == 48 and wb[145] == 32, "vced_to_fm6_blob clamps as the firmware (rate, ALG, TRNSP, name)")
+
+    s = I.fm6_vced_syx(vced)
+    ok(len(s) == 163 and s[:6] == bytes([0xF0, 0x43, 0, 0, 1, 0x1B]) and s[-1] == 0xF7 and (sum(s[6:162]) & 0x7F) == 0
+       and I.parse_syx(s) == ("fm6", [vced]), "fm6_vced_syx: 163 bytes, the checksum, parsed back")
+    ch5 = s[:2] + b"\x05" + s[3:]
+    ok(I.parse_syx(ch5) == ("fm6", [vced]) and I.parse_syx(s + b"\r\n" + s) == ("fm6", [vced, vced]),
+       "parse_syx: any channel; two frames in one file")
+    vmem = I._fm6_unpack7(blob[:112])
+    seconds = [bytearray(vmem) for _k in range(32)]
+    seconds[2][118:128] = b"THIRD ONE "
+    body = b"".join(bytes(x) for x in seconds)
+    bank = bytes([0xF0, 0x43, 0, 9, 0x20, 0]) + body + bytes([-sum(body) & 0x7F, 0xF7])
+    k, vs = I.parse_syx(bank)
+    ok(k == "fm6" and len(vs) == 32 and vs[0] == vced and vs[2][145:155] == b"THIRD ONE " and len(bank) == 4104,
+       "parse_syx: a DX7 32-voice bank")
+    ok(I.parse_syx(vced) == ("fm6", [vced]) and len(I.parse_syx(body)[1]) == 32 and I.parse_syx(tone) == ("cz", [tone]),
+       "parse_syx: raw 155 / 4096 / 144-byte files")
+    c = I.cz_tone_syx(tone)
+    ok(len(c) == 295 and c[:6] == bytes([0xF0, 0x44, 0, 0, 0x70, 0x30]) and c[6] == tone[0] & 15 and c[7] == tone[0] >> 4
+       and c[-1] == 0xF7 and I.parse_syx(c) == ("cz", [tone]) and I.parse_syx(c[:4] + b"\x73" + c[5:]) == ("cz", [tone]),
+       "cz_tone_syx: 295 bytes, the low nibble first; parsed back (any channel)")
+    cz101 = bytes([0xF0, 0x44, 0, 0, 0x70, 0x30]) + bytes(256) + b"\xF7"
+    badsum = s[:161] + bytes([(s[161] + 1) & 0x7F]) + s[162:]
+    ok(refused(cz101, "CZ-101") and refused(badsum, "checksum") and refused(b"\xF0\x7E\x00\xF7", "no DX7") and
+       refused(bytes(100), "not a .syx") and refused(s + c, "mixes") and refused(s[:-1], "F7"),
+       "parse_syx refuses a CZ-101 tone, a bad checksum, a foreign / raw-unknown / mixed / unfinished file")
+
+    rf, nf, ef, pf = I.sound_from_syx("fm6", vced)
+    rc_, nc, ec, pc = I.sound_from_syx("cz", tone)
+    ok(I.sound_record_valid(rf) and ef == 12 and rf[2] == 12 and nf == "TINE EP" and rf[4:16] == b"TINE EP".ljust(12, b"\0")
+       and pf == ("fm6", nb) and I.sound_record_valid(rc_) and ec == 14 and nc == "BRASS 1" and pc == ("cz", tone),
+       "sound_from_syx: template records (engines 12 / 14), the names TINE EP / BRASS 1")
+    blank = bytearray(vced)
+    blank[145:155] = b"\x01" * 10
+    ok(I.sound_from_syx("fm6", bytes(blank))[1] == "FM6 VOICE" and I.syx_file_name(5, "MY PAD") == "choralroot-sound-U05-MY_PAD.syx",
+       "an empty name -> FM6 VOICE; syx_file_name")
+
+    # the CLI against a simulated ChoralRoot
+    objs = {6: sound_bank({0: sound_rec(12, "TINE 2", seed=2), 1: sound_rec(14, "HORN", seed=3),
+                           2: sound_rec(13, "MY PAD", seed=1), 3: sound_rec(12, "NO BLOB", seed=4)}),
+            7: sound_bank({}), 9: sound_store("va", 0, {2: va_blob(1)}), 10: sound_store("fm6", 0, {0: blob}),
+            11: b"", 12: sound_store("cz", 0, {1: tone}), 13: b""}
+
+    def device():
+        side = BackupSide("ChoralRoot 0.14", I.CR_IDS, objs.items())
+        return FakeFM1(b"", identity="FM-1_920", bk=lambda _i: side), side
+
+    dev, side = device()
+    rc, out, err = cli(["--export-syx", "1", str(TMP)], dev)
+    f1 = TMP / "choralroot-sound-U01-TINE_2.syx"
+    ok(rc == 0 and f1.exists() and f1.read_bytes() == s, "--export-syx of an FM6 slot: 163 bytes, the voice")
+    fc = TMP / "horn.syx"
+    rc, out, err = cli(["--export-syx", "2", str(fc)], dev)
+    ok(rc == 0 and fc.exists() and fc.read_bytes() == c, "--export-syx of a CZ-1 slot: 295 bytes, the tone")
+    rc3, _o, err3 = cli(["--export-syx", "3", str(TMP / "va.syx")], dev)
+    rc4, _o, err4 = cli(["--export-syx", "4", str(TMP / "nb.syx")], dev)
+    rc5, _o, err5 = cli(["--export-syx", "5", str(TMP / "e.syx")], dev)
+    ok(rc3 == 1 and "VA" in err3 and rc4 == 1 and "no patch" in err4 and rc5 == 1 and "empty" in err5 and
+       not any((TMP / n).exists() for n in ("va.syx", "nb.syx", "e.syx")),
+       "--export-syx of a VA slot / an FM6 slot without its blob / an empty slot: exit 1, no file")
+
+    bankf = TMP / "bank.syx"
+    bankf.write_bytes(bank)
+    dev, side = device()
+    rc, out, err = cli(["--import-syx", "20", str(bankf), "--voice", "3"], dev, answer=False)
+    t = I.parse_sound_objects(side.objs)
+    ok(rc == 0 and side.log == [11, 7] and t[19]["name"] == "THIRD ONE" and t[19]["engine"] == 12 and
+       t[19]["blob"] == I.vced_to_fm6_blob(vs[2]) and "U20  THIRD ONE" in out and "patch" in out.splitlines()[-1],
+       "--import-syx --voice 3 of a bank into an empty slot: the FM6 half, then the bank; re-read")
+    dev, side = device()
+    rc, out, err = cli(["--import-syx", "6", str(fc)], dev, answer=False)
+    t = I.parse_sound_objects(side.objs)
+    ok(rc == 0 and side.log == [12, 6] and t[5]["name"] == "BRASS 1" and t[5]["engineName"] == "CZ-1" and
+       out.splitlines()[-1].split() == ["U06", "BRASS", "1", "CZ-1", "patch"], "--import-syx of a CZ-1 tone: the CZ-1 store, then the bank")
+    rc, out, err = cli(["--import-syx", "3", str(f1)], dev, answer=False)
+    ok(rc == 1 and "cancelled" in out and not any(isinstance(x, int) for x in side.log[2:]),
+       "--import-syx over a used slot, answer no: nothing written")
+    rc, out, err = cli(["--import-syx", "3", str(f1), "--yes"], dev, answer=False)
+    t = I.parse_sound_objects(side.objs)
+    ok(rc == 0 and side.log[2:] == [9, 10, 6] and t[2]["engineName"] == "FM6" and t[2]["name"] == "TINE EP",
+       "--import-syx FM6 over a VA sound with --yes: the VA blob cleared, the FM6 blob set, the bank last")
+
+    def code(args):
+        try:
+            return cli(args, device()[0])
+        except SystemExit as e:
+            return e.code, "", ""
+    one = TMP / "one.syx"
+    one.write_bytes(s)
+    bad = TMP / "bad.syx"
+    bad.write_bytes(cz101)
+    r1, r2, r3 = code(["--import-syx", "1", str(one), "--voice", "2"]), code(["--import-syx", "1", str(bad)]), \
+        code(["--import-syx", "1", str(bankf), "--voice", "33"])
+    ok(r1[0] == 2 and "1 voice" in r1[2] and r2[0] == 2 and "CZ-101" in r2[2] and r3[0] == 2 and
+       code(["--voice", "2", "--sounds"])[0] == 2 and code(["--import-syx", "1", str(one), "--export-syx", "2", "x"])[0] == 2
+       and code(["--export-syx", "33", "x"])[0] == 2, "--voice beyond the file / a CZ-101 file / bad options: exit 2")
+
+
 wire()
 backups()
 sounds()
+syx()
 installs()
 errors()
 against_js()

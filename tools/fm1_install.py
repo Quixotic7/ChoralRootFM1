@@ -19,13 +19,16 @@ the FM-1 restarts and the installed identity is checked.
   fm1_install.py --export-sound N FILE   (user sound N to a sound file; FILE may be a directory)
   fm1_install.py --import-sound N FILE   (a sound file into slot N) [--yes]
   fm1_install.py --rename-sound N NAME   /   --delete-sound N [--yes]
+  fm1_install.py --export-syx N FILE     (an FM6 voice / CZ-1 tone as .syx: DX7 single voice / Casio tone dump)
+  fm1_install.py --import-syx N FILE [--voice V] [--yes]   (a DX7 voice or bank, or a CZ-1 tone, into slot N)
 
 Backups are web/fm1backup.js's files (JSON, "felucca-backup" version 1), over the same SysEx (web/EDITOR_PROTOCOL.md);
 FILE may be a directory (a dated name: choralroot-backup-YYYYMMDD.json). A restore writes the objects the connected
 firmware lists: a Felucca backup restores its settings, banks, FM6 patches and samples 1-2 on ChoralRoot, and back.
 
 Sound files are web/fm1sounds.js's ("choralroot-sound" version 1, docs/SOUNDS.md): one user sound, its record and
-its VA / FM6 / CZ-1 patch; only the objects that hold that slot are written.
+its VA / FM6 / CZ-1 patch; only the objects that hold that slot are written. A .syx carries an FM6 voice or a CZ-1
+tone only; an import makes the rest of the sound from the engine's defaults (docs/SOUNDS.md ".syx export and import").
 
 If the FM-1 is still in update mode (an earlier install was cut off), the
 install finishes the write. Needs mido with python-rtmidi.
@@ -1100,6 +1103,253 @@ def delete_sound(objs, slot):
     return _changes(objs, new)
 
 
+# ------------------------------------------------------- .syx export / import ---
+# docs/SOUNDS.md ".syx export and import": an FM6 slot's voice as a DX7 single voice (F0 43 0n 00 01 1B <155> sum F7)
+# and a CZ-1 slot's tone as Casio's tone dump (F0 44 00 00 7n 30 <288 nibbles> F7). An import builds the record from
+# the engine's template (generated from the firmware: tests/sound_templates.c; --check keeps these the firmware's).
+
+SOUND_TEMPLATES = {"fm6": "pQQMW1NZWCBJTVBPUlQAAKhKhpp8QEBAQHxAQEBAQEBAQEJBgEC/QEBAQEBAUEJAgEBAQEBAQEBAQEBAaEBBQb9AQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                   "cz": "pQQOW1NZWCBJTVBPUlQAAKhKhpp8QEBAQHxAQEBAQEBAQEJBgEC/QEBAQEBAUEJAgEBAQEBAQEBAQEBAaEBBQb9AQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEBAQEBAQEIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+SYX_ENGINE = {"fm6": 12, "cz": 14}
+SYX_EMPTY_NAME = {"fm6": "FM6 VOICE", "cz": "CZ TONE"}
+FM6_VCED, FM6_VMEM, FM6_BANK, CZ_TONE = 155, 128, 4096, 144
+# eng_fm6.c fm6_max: the highest value of each VCED byte (per operator 21, then the voice's 19; the name 32..126)
+FM6_OPMAX = (99,) * 11 + (3, 3, 7, 3, 7, 99, 1, 31, 99, 14)
+FM6_VMAX = (99,) * 8 + (31, 7, 1, 99, 99, 99, 99, 1, 5, 7, 48)
+# fm6_core.c FM6_FNDEF (Dexed's function settings, ENGINE = MARK1) in eng_fm6.c FM6_FNBITS bits each, LSB first
+FM6_FNBITS = (4, 4, 4, 1, 7, 1, 7, 3, 7, 3, 7, 3, 7, 3, 1, 2)
+FM6_FNDEF = (3, 3, 0, 0, 0, 0, 99, 1, 0, 0, 0, 0, 0, 0, 0, 1)
+
+
+def _fm6_fn_pack(fn):
+    w = sh = 0
+    for v, n in zip(fn, FM6_FNBITS):
+        w |= (v & (1 << n) - 1) << sh
+        sh += n
+    return w.to_bytes(8, "little")
+
+
+FM6_FN_DEFAULT = _fm6_fn_pack(FM6_FNDEF)       # blob bytes 114..121 of an imported voice
+
+
+def _fm6_sanitize(v):
+    """fm6_sanitize: every VCED value clamped into its range, a name byte outside 32..126 a space"""
+    out = bytearray(FM6_VCED)
+    for i in range(FM6_VCED):
+        x = v[i]
+        if i >= 145:
+            out[i] = x if 32 <= x <= 126 else 32
+        else:
+            out[i] = min(x, FM6_OPMAX[i % 21] if i < 126 else FM6_VMAX[i - 126])
+    return bytes(out)
+
+
+def _fm6_vmem_to_vced(b):
+    """fm6_unpack: a 128-byte VMEM record -> the 155-byte VCED (sanitized)"""
+    v = bytearray(FM6_VCED)
+    for k in range(6):
+        o, d = b[k * 17:k * 17 + 17], k * 21
+        for i in range(11):
+            v[d + i] = o[i] & 0x7F
+        v[d + 11], v[d + 12] = o[11] & 3, o[11] >> 2 & 3
+        v[d + 13], v[d + 20] = o[12] & 7, o[12] >> 3 & 15
+        v[d + 14], v[d + 15] = o[13] & 3, o[13] >> 2 & 7
+        v[d + 16] = o[14] & 0x7F
+        v[d + 17], v[d + 18] = o[15] & 1, o[15] >> 1 & 31
+        v[d + 19] = o[16] & 0x7F
+    for i in range(9):
+        v[126 + i] = b[102 + i] & 0x7F
+    v[134] &= 31
+    v[135], v[136] = b[111] & 7, b[111] >> 3 & 1
+    for i in range(4):
+        v[137 + i] = b[112 + i] & 0x7F
+    v[141], v[142], v[143] = b[116] & 1, b[116] >> 1 & 7, b[116] >> 4 & 7
+    v[144] = b[117] & 0x7F
+    for i in range(10):
+        v[145 + i] = b[118 + i] & 0x7F
+    return _fm6_sanitize(v)
+
+
+def _fm6_vced_to_vmem(v):
+    """fm6_pack: a 155-byte VCED -> the 128-byte VMEM record"""
+    b = bytearray(FM6_VMEM)
+    for k in range(6):
+        o, d = v[k * 21:k * 21 + 21], k * 17
+        for i in range(11):
+            b[d + i] = o[i] & 0x7F
+        b[d + 11] = o[11] & 3 | (o[12] & 3) << 2
+        b[d + 12] = o[13] & 7 | (o[20] & 15) << 3
+        b[d + 13] = o[14] & 3 | (o[15] & 7) << 2
+        b[d + 14] = o[16] & 0x7F
+        b[d + 15] = o[17] & 1 | (o[18] & 31) << 1
+        b[d + 16] = o[19] & 0x7F
+    for i in range(9):
+        b[102 + i] = v[126 + i] & 0x7F
+    b[110] &= 31
+    b[111] = v[135] & 7 | (v[136] & 1) << 3
+    for i in range(4):
+        b[112 + i] = v[137 + i] & 0x7F
+    b[116] = v[141] & 1 | (v[142] & 7) << 1 | (v[143] & 7) << 4
+    b[117] = v[144] & 0x7F
+    for i in range(10):
+        b[118 + i] = v[145 + i] & 0x7F
+    return bytes(b)
+
+
+def _fm6_pack7(s):
+    """fm6_pack7: eight 7-bit bytes -> seven (the eighth in the top bits) (128 -> 112)"""
+    d = bytearray()
+    for i in range(0, len(s), 8):
+        d += bytes(s[i + j] & 0x7F | (s[i + 7] >> j & 1) << 7 for j in range(7))
+    return bytes(d)
+
+
+def _fm6_unpack7(s):
+    """fm6_unpack7: 112 -> 128"""
+    d = bytearray()
+    for i in range(0, len(s), 7):
+        g = s[i:i + 7]
+        d += bytes(x & 0x7F for x in g) + bytes([sum((x >> 7) << j for j, x in enumerate(g))])
+    return bytes(d)
+
+
+def fm6_blob_to_vced(blob):
+    """a 128-byte FM6 blob -> the 155-byte VCED (fm6_blob_read's voice; the function settings are left out)"""
+    if len(blob) != PATCH_SIZE["fm6"] or blob[112] != 0x46 or blob[113] != 1:
+        raise InstallError("badsound", "not an FM6 patch (bytes 112, 113 are not 'F', 1)")
+    return _fm6_vmem_to_vced(_fm6_unpack7(blob[:112]))
+
+
+def vced_to_fm6_blob(vced):
+    """a 155-byte VCED -> a 128-byte FM6 blob (fm6_blob_make: every value clamped, the function defaults)"""
+    if len(vced) != FM6_VCED:
+        raise InstallError("badsound", f"a DX7 voice is {FM6_VCED} bytes, not {len(vced)}")
+    return _fm6_pack7(_fm6_vced_to_vmem(_fm6_sanitize(vced))) + b"F\x01" + FM6_FN_DEFAULT + bytes(6)
+
+
+def _dx7_sum(data):
+    return -sum(data) & 0x7F
+
+
+def fm6_vced_syx(vced):
+    """the DX7 single voice: F0 43 00 00 01 1B <155> checksum F7 (163 bytes)"""
+    return bytes([0xF0, 0x43, 0x00, 0x00, 0x01, 0x1B]) + bytes(vced) + bytes([_dx7_sum(vced), 0xF7])
+
+
+def cz_tone_syx(tone):
+    """Casio's tone dump: F0 44 00 00 70 30 <288 nibbles, the low first> F7 (295 bytes)"""
+    if len(tone) != CZ_TONE:
+        raise InstallError("badsound", f"a CZ-1 tone is {CZ_TONE} bytes, not {len(tone)}")
+    return bytes([0xF0, 0x44, 0x00, 0x00, 0x70, 0x30]) + bytes(n for x in tone for n in (x & 15, x >> 4)) + b"\xF7"
+
+
+def parse_syx(data):
+    """a .syx (or a raw voice / bank / tone) -> ("fm6", [VCED 155 ...]) or ("cz", [tone 144 ...]); InstallError
+    "badsound" for anything else (a CZ-101 / 1000 128-byte tone, a bad checksum, an unknown file)"""
+    def bad(msg):
+        return InstallError("badsound", msg)
+    data = bytes(data)
+    if not data:
+        raise bad("the file is empty")
+    if data[0] != 0xF0:                           # a raw voice / bank / tone, by its length
+        if len(data) == FM6_VCED:
+            return "fm6", [_fm6_sanitize(data)]
+        if len(data) == FM6_BANK:
+            return "fm6", [_fm6_vmem_to_vced(data[k * 128:k * 128 + 128]) for k in range(32)]
+        if len(data) == CZ_TONE:
+            return "cz", [data]
+        raise bad(f"not a .syx file (no SysEx F0) and not a raw DX7 voice (155), bank (4096) or CZ-1 tone (144): "
+                  f"{len(data)} bytes")
+    frames, i = [], 0
+    while i < len(data):
+        if data[i] != 0xF0:
+            if data[i] in (0x0A, 0x0D, 0x20):    # stray line ends between frames
+                i += 1
+                continue
+            raise bad(f"not a SysEx file (byte {i} is {data[i]:02X} between frames)")
+        j = data.find(b"\xF7", i)
+        if j < 0:
+            raise bad("a SysEx frame is not finished (no F7)")
+        frames.append(data[i:j + 1])
+        i = j + 1
+    kind, out = None, []
+    for f in frames:
+        if f[1:2] == b"\x43" and len(f) >= 4 and f[2] & 0xF0 == 0 and f[3] == 0x00:      # DX7 single voice
+            if len(f) != 163 or f[4:6] != b"\x01\x1B":
+                raise bad(f"a DX7 single voice is 163 bytes (F0 43 0n 00 01 1B .. F7), not {len(f)}")
+            body, what, voices = f[6:161], "voice", None
+        elif f[1:2] == b"\x43" and len(f) >= 4 and f[2] & 0xF0 == 0 and f[3] == 0x09:    # DX7 32-voice bank
+            if len(f) != 4104 or f[4:6] != b"\x20\x00":
+                raise bad(f"a DX7 32-voice bank is 4104 bytes (F0 43 0n 09 20 00 .. F7), not {len(f)}")
+            body, what = f[6:4102], "bank"
+            voices = [_fm6_vmem_to_vced(body[k * 128:k * 128 + 128]) for k in range(32)]
+        elif f[1:4] == b"\x44\x00\x00" and len(f) > 6 and f[4] & 0xF0 == 0x70 and f[5] == 0x30:   # Casio tone
+            n = len(f) - 7
+            if n == 256:
+                raise bad("a CZ-101 / CZ-1000 tone (128 bytes): the FM-1 converts those only live, over MIDI "
+                          "(send it to the CZ-1 part), not into a slot")
+            if n != 288 or any(x > 15 for x in f[6:-1]):
+                raise bad(f"not a CZ-1 tone dump (288 nibbles), {n} bytes of data")
+            if kind not in (None, "cz"):
+                raise bad("the file mixes DX7 voices and CZ tones")
+            kind = "cz"
+            out.append(bytes(f[6 + 2 * k] | f[7 + 2 * k] << 4 for k in range(CZ_TONE)))
+            continue
+        else:
+            continue                              # another device's message: not ours
+        if f[-2] != _dx7_sum(body):
+            raise bad(f"the DX7 {what}'s checksum is wrong (the file is damaged)")
+        if kind not in (None, "fm6"):
+            raise bad("the file mixes DX7 voices and CZ tones")
+        kind = "fm6"
+        out += voices if voices is not None else [_fm6_sanitize(body)]
+    if not out:
+        raise bad("no DX7 voice or CZ-1 tone in this .syx file")
+    return kind, out
+
+
+def _syx_name(raw, kind):
+    s = "".join(c if 32 <= ord(c) <= 126 else " " for c in raw.decode("latin-1")).strip()[:12].rstrip()
+    return s or SYX_EMPTY_NAME[kind]
+
+
+def sound_from_syx(kind, patch):
+    """a voice (VCED 155) or a tone (144) -> (record, name, engine, (kind, blob)) as read_sound_file returns: the
+    engine's template record named after the voice / tone"""
+    import base64
+    if kind == "fm6":
+        blob = vced_to_fm6_blob(patch)
+        name = _syx_name(bytes(patch[145:155]), kind)
+    elif kind == "cz":
+        if len(patch) != CZ_TONE:
+            raise InstallError("badsound", f"a CZ-1 tone is {CZ_TONE} bytes, not {len(patch)}")
+        blob, name = bytes(patch), _syx_name(bytes(patch[128:144]), kind)
+    else:
+        raise InstallError("badsound", f"no .syx kind {kind!r}")
+    rec = bytearray(base64.b64decode(SOUND_TEMPLATES[kind]))
+    rec[4:16] = name.encode("ascii").ljust(12, b"\0")
+    return bytes(rec), name, SYX_ENGINE[kind], (kind, blob)
+
+
+def export_syx(objs, slot):
+    """slot 1..32 (an FM6 / CZ-1 sound with its patch) -> (the .syx bytes, the sound's name)"""
+    row = parse_sound_objects(objs)[slot - 1]
+    if not row["used"]:
+        raise InstallError("emptyslot", f"U{slot:02d} is empty: nothing to export")
+    if row["engine"] not in SYX_ENGINE.values():
+        raise InstallError("nosyx", f"U{slot:02d} is a {row['engineName']} sound: only FM6 and CZ-1 sounds export "
+                                    "as .syx (--export-sound saves any sound)")
+    if not row["patch"]:
+        raise InstallError("nosyx", f"U{slot:02d} ({row['engineName']}) has no patch stored: nothing to export as .syx")
+    if row["patch"] == "fm6":
+        return fm6_vced_syx(fm6_blob_to_vced(row["blob"])), row["name"]
+    return cz_tone_syx(row["blob"]), row["name"]
+
+
+def syx_file_name(slot, name):
+    return sound_file_name(slot, name)[:-len(".json")] + ".syx"
+
+
 def read_sounds(bl, progress=lambda done, total: None):
     """LIST, then GET of the sound objects the FM-1 lists -> {id: bytes} (an object that changed while it was read
     is read again once)"""
@@ -1138,7 +1388,8 @@ def write_sounds(bl, changed, progress=lambda done, total: None, busy=lambda: No
 
 
 def run_sounds(up, a, out, ask):
-    """--sounds, --export-sound N FILE, --import-sound N FILE, --rename-sound N NAME, --delete-sound N"""
+    """--sounds, --export-sound N FILE, --import-sound N FILE, --export-syx N FILE, --import-syx N FILE [--voice V],
+    --rename-sound N NAME, --delete-sound N"""
     import json
     import os
     sound = None
@@ -1149,6 +1400,18 @@ def run_sounds(up, a, out, ask):
         except (OSError, UnicodeDecodeError) as e:
             raise InstallError("badsound", f"cannot read {path}: {getattr(e, 'strerror', None) or e}")
         sound = read_sound_file(text)
+    if a.import_syx:                              # the .syx too: checked before anything is sent
+        path = a.import_syx[1]
+        try:
+            data = open(path, "rb").read()
+        except OSError as e:
+            raise InstallError("badsound", f"cannot read {path}: {e.strerror}")
+        kind, patches = parse_syx(data)
+        v = a.voice or 1
+        if v > len(patches):
+            raise InstallError("usage", f"--voice {v}: {path} holds {len(patches)} "
+                                        f"{'voice' if kind == 'fm6' else 'tone'}{'s' if len(patches) > 1 else ''}")
+        sound = sound_from_syx(kind, patches[v - 1])
     bl, (version, fam) = open_backup(up)
     try:
         if fam != "choralroot":
@@ -1180,8 +1443,20 @@ def run_sounds(up, a, out, ask):
                 raise InstallError("other", f"cannot write {path}: {e.strerror}")
             print(f"{sound_line(table[slot - 1])}\nsaved: {path}", file=out)
             return 0
-        if a.import_sound:
-            slot = a.import_sound[0]
+        if a.export_syx:
+            slot, path = a.export_syx
+            data, name = export_syx(objs, slot)
+            if os.path.isdir(path):
+                path = os.path.join(path, syx_file_name(slot, name))
+            try:
+                with open(path, "wb") as fh:
+                    fh.write(data)
+            except OSError as e:
+                raise InstallError("other", f"cannot write {path}: {e.strerror}")
+            print(f"{sound_line(table[slot - 1])}\nsaved: {path} ({len(data)} bytes)", file=out)
+            return 0
+        if a.import_sound or a.import_syx:
+            slot = (a.import_sound or a.import_syx)[0]
             row = table[slot - 1]
             print(f"import {sound[1]} ({ENGINE_NAMES[sound[2]]}, {'patch' if sound[3] else 'no patch'}) into U{slot:02d}",
                   file=out)
@@ -1338,6 +1613,7 @@ def run(a, backend, out, ask):
 
 def sound_op(a):
     return [o for o, v in (("--sounds", a.sounds), ("--export-sound", a.export_sound), ("--import-sound", a.import_sound),
+                           ("--export-syx", a.export_syx), ("--import-syx", a.import_syx),
                            ("--rename-sound", a.rename_sound), ("--delete-sound", a.delete_sound)) if v]
 
 
@@ -1364,6 +1640,14 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
                     help="save user sound N (1..32) to a sound file FILE (a directory: choralroot-sound-UNN-NAME.json)")
     ap.add_argument("--import-sound", nargs=2, metavar=("N", "FILE"),
                     help="write the sound file FILE into slot N (asks before replacing a sound; --yes does not)")
+    ap.add_argument("--export-syx", nargs=2, metavar=("N", "FILE"),
+                    help="save the FM6 voice / CZ-1 tone of user sound N as a .syx FILE (DX7 single voice / Casio tone "
+                         "dump; a directory: choralroot-sound-UNN-NAME.syx)")
+    ap.add_argument("--import-syx", nargs=2, metavar=("N", "FILE"),
+                    help="a .syx FILE (a DX7 voice or bank, a CZ-1 tone) into slot N as an FM6 / CZ-1 sound (asks "
+                         "before replacing a sound; --yes does not)")
+    ap.add_argument("--voice", metavar="V", help="with --import-syx: voice V (1..32) of a bank or multi-voice file "
+                                                 "(default 1)")
     ap.add_argument("--rename-sound", nargs=2, metavar=("N", "NAME"), help="rename user sound N (1 to 12 characters)")
     ap.add_argument("--delete-sound", metavar="N", help="empty slot N (asks; --yes does not)")
     a = ap.parse_args(argv)
@@ -1377,11 +1661,17 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
         if not re.fullmatch(r"\d+", v) or not 1 <= int(v) <= SOUND_SLOTS:
             ap.error(f"{ops[0]}: N is a slot 1..{SOUND_SLOTS}, not {v!r}")
         return int(v)
-    for o in ("export_sound", "import_sound", "rename_sound"):
+    for o in ("export_sound", "import_sound", "export_syx", "import_syx", "rename_sound"):
         if getattr(a, o):
             setattr(a, o, (slot_of(getattr(a, o)[0]), getattr(a, o)[1]))
     if a.delete_sound:
         a.delete_sound = slot_of(a.delete_sound)
+    if a.voice is not None:
+        if not a.import_syx:
+            ap.error("--voice goes with --import-syx")
+        if not re.fullmatch(r"\d+", a.voice) or not 1 <= int(a.voice) <= 32:
+            ap.error(f"--voice: V is a voice 1..32, not {a.voice!r}")
+        a.voice = int(a.voice)
     if a.rename_sound and check_sound_name(a.rename_sound[1]):
         ap.error(f"--rename-sound: {check_sound_name(a.rename_sound[1])}")
     if a.info and (a.package or a.backup or a.restore):

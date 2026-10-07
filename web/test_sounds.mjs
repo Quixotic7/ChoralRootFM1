@@ -7,7 +7,8 @@
 //   node web/test_sounds.mjs
 import { CR_BACKUP_IDS, BACKUP_CMD, bkU32, bkR32, bkPack, bkUnpack, bkCrc } from "./fm1backup.js";
 import { SOUND_IDS, ENGINE_NAMES, PATCH_SIZE, patchKindOf, parseSoundObjects, exportSound, soundFileName, readSoundFile,
-  importSound, renameSound, deleteSound, readSounds, writeSounds, recordValid } from "./fm1sounds.js";
+  importSound, renameSound, deleteSound, readSounds, writeSounds, recordValid, SOUND_TEMPLATES, FM6_FN_DEFAULTS, fm6BlobToVced,
+  vcedToFm6Blob, fm6VcedSyx, czToneSyx, parseSyx, soundFromSyx, exportSyx, syxFileName } from "./fm1sounds.js";
 
 let fails = 0;
 const ok = (c, what) => { console.log(`${what.padEnd(78)} ${c ? "ok" : "FAIL"}`); if (!c) fails++; };
@@ -301,6 +302,101 @@ const crExtra = [[1, Uint8Array.from({ length: 764 }, (_, i) => i & 255)], [40, 
      "write: rc 2 at a commit -> reported with the object, aborted, the bank not written");
   const stubborn = device([...source()], { busy: 99 });
   ok(await athrowsMsg(() => writeSounds(stubborn.request, renameSound(source(), 1, "X").changed, { busyTries: 1 }), /busy/), "write: still busy after the retries: stops");
+}
+
+/* -------------------------------------------------------------- .syx (docs/SOUNDS.md) --- */
+// the fixtures of tests/sound_templates.c (factory F1 TINE EP's blob and voice, the packed function defaults, Casio's
+// A-1 BRASS 1)
+const FX = {
+  fm6_blob: "XygePGNQACeAAAA4DDQAXx4UPGNaAKeAgAAwhAIA4b6ovGMAACeAgAA7xJwAXxSUsl+AACcAAIAI2oKAXzKjY0sAACcAALscOoKAYBlDY0sAACcAgLsIYgKA4+PjMrIyMgSiIQCAKRjUTkUgRVCgIEYBMwBgHAAAAEAAAAAAAAA=",
+  fm6_vced: "XygePGNQAAAnAAAAAAAAAzQAAQAHXx4UPGNaAAAnAAAAAAAAAU4AAQAGYT4oPGM8AAAnAAAAAAMABkQADgAHXxQUMmNfAAAnAAAAAAIAAloAAQAIXzIjTmNLAAAnAAAAAAMABzoAAQAHYBkZQ2NLAAAnAAAAAAMAAmIAAQAHY2NjYzIyMjIEAwEiIQAAAQQCGFRJTkUgRVAgICA=",
+  fm6_fn: "MwBgHAAAAEA=",
+  cz_tone: "CgEUAAgAAAAy4AkAAQCgIAlfAADjYn/o/sxrwgA8ADwAPAA8ALNif7heNOCnAEQARABEAEQAQV0h1wBAAEAAQABAAEAAQACgAAlfAADjYn/o/sxrwgA8ADwAPAA8ALNif7heNOCnAEQARABEAEQA8V0h1wBAAEAAQABAAEAAQAAgICAgQlJBU1MgMSAgICAg",
+};
+{
+  const B = (s) => Uint8Array.from(Buffer.from(s, "base64"));
+  const fBlob = B(FX.fm6_blob), fVced = B(FX.fm6_vced), fFn = B(FX.fm6_fn), fTone = B(FX.cz_tone);
+  ok(fBlob.length === 128 && fVced.length === 155 && fFn.length === 8 && fTone.length === 144, "syx: the fixtures' sizes (128, 155, 8, 144)");
+  ok(same(FM6_FN_DEFAULTS, fFn) && same(FM6_FN_DEFAULTS, fBlob.subarray(114, 122)), "syx: FM6_FN_DEFAULTS = fm6_fn = the fixture blob's bytes 114..121");
+  ok(same(fm6BlobToVced(fBlob), fVced), "syx: fm6BlobToVced(fm6_blob) = fm6_vced byte for byte");
+  ok(same(vcedToFm6Blob(fVced), fBlob), "syx: vcedToFm6Blob(fm6_vced) = fm6_blob byte for byte (function defaults included)");
+  {
+    const wild = fVced.slice(); wild[0] = 127; wild[20] = 127; wild[134] = 127; wild[145] = 5;   // R1, DET, ALG out of range; a name byte
+    const back = fm6BlobToVced(vcedToFm6Blob(wild));
+    ok(back[0] === 99 && back[20] === 14 && back[134] === 31 && back[145] === 32, "syx: vcedToFm6Blob clamps (R1 99, DET 14, ALG 31, a name byte -> space)");
+  }
+  ok(throwsMsg(() => fm6BlobToVced(new Uint8Array(128)), /Not an FM6 patch/), "syx: fm6BlobToVced refuses a blob without 'F' 1");
+
+  const one = fm6VcedSyx(fVced), sum = (d) => d.reduce((a, x) => a + x, 0);
+  ok(one.length === 163 && same(one.subarray(0, 6), [0xF0, 0x43, 0, 0, 1, 0x1B]) && one[162] === 0xF7 && same(one.subarray(6, 161), fVced) &&
+     (sum(one.subarray(6, 162)) & 127) === 0, "syx: fm6VcedSyx: 163 bytes, F0 43 00 00 01 1B, the voice, checksum (sum + check = 0 mod 128), F7");
+  const p1 = parseSyx(one);
+  ok(p1.kind === "fm6" && p1.voices.length === 1 && same(p1.voices[0], fVced), "syx: parseSyx(single voice) -> the voice back");
+  const ch5 = one.slice(); ch5[2] = 0x05;
+  ok(same(parseSyx(ch5).voices[0], fVced), "syx: the channel nibble is ignored");
+  const bad = one.slice(); bad[161] ^= 1;
+  ok(throwsMsg(() => parseSyx(bad), /checksum is wrong/), "syx: a bad checksum refused");
+
+  // a 32-voice bank: the fixture's VMEM 32 times (voice 7 renamed)
+  const vmem = new Uint8Array(4096);
+  const vm1 = new Uint8Array(128);                // fm6_unpack7 of the fixture blob (the VMEM voice), inline
+  for (let i = 0, o = 0; i < 128; i += 8, o += 7) for (let j = 0; j < 7; j++) { vm1[i + j] = fBlob[o + j] & 127; vm1[i + 7] |= (fBlob[o + j] >> 7) << j; }
+  for (let k = 0; k < 32; k++) vmem.set(vm1, k * 128);
+  "BANK SEVEN".split("").forEach((c, i) => { vmem[6 * 128 + 118 + i] = c.charCodeAt(0); });
+  const bankSyx = Uint8Array.from([0xF0, 0x43, 0x00, 0x09, 0x20, 0x00, ...vmem, (128 - (sum(vmem) & 127)) & 127, 0xF7]);
+  const pb = parseSyx(bankSyx);
+  ok(bankSyx.length === 4104 && pb.kind === "fm6" && pb.voices.length === 32 && pb.voices.every((v, k) => k === 6 || same(v, fVced)),
+     "syx: a 32-voice bank (4104 bytes) -> 32 voices, each the fixture's");
+  ok(soundFromSyx(pb, 7).name === "BANK SEVEN" && soundFromSyx(pb).name === "TINE EP" && throwsMsg(() => soundFromSyx(pb, 33), /1\.\.32/),
+     "syx: soundFromSyx picks the bank's voice (1..32; 7 = BANK SEVEN, default 1)");
+  const bbad = bankSyx.slice(); bbad[4102] ^= 1;
+  ok(throwsMsg(() => parseSyx(bbad), /bank's checksum is wrong/), "syx: a bank with a bad checksum refused");
+  const two = Uint8Array.from([...one, ...ch5]);
+  ok(parseSyx(two).voices.length === 2, "syx: two frames in one file -> two voices");
+  ok(same(parseSyx(fVced).voices[0], fVced) && parseSyx(vmem).voices.length === 32 && same(parseSyx(vmem).voices[0], fVced) &&
+     same(parseSyx(fTone).tones[0], fTone), "syx: raw files (155 voice, 4096 bank, 144 tone)");
+  ok(throwsMsg(() => parseSyx(new Uint8Array(100)), /Not a DX7 or CZ-1 file/) && throwsMsg(() => parseSyx(Uint8Array.from([0xF0, 0x41, 1, 2, 0xF7])), /not a DX7/) &&
+     throwsMsg(() => parseSyx(one.subarray(0, 100)), /no end/) && throwsMsg(() => parseSyx(new Uint8Array(0)), /empty/),
+     "syx: other files refused (a 100-byte file, a Roland frame, a cut frame, an empty file)");
+
+  const cz = czToneSyx(fTone);
+  ok(cz.length === 295 && same(cz.subarray(0, 6), [0xF0, 0x44, 0, 0, 0x70, 0x30]) && cz[294] === 0xF7 &&
+     cz[6] === (fTone[0] & 15) && cz[7] === fTone[0] >> 4 && cz[6 + 2 * 143] === (fTone[143] & 15) && cz.subarray(6, 294).every((x) => x < 16),
+     "syx: czToneSyx: 295 bytes, F0 44 00 00 70 30, the low nibble first, F7");
+  const pc = parseSyx(cz);
+  ok(pc.kind === "cz" && pc.tones.length === 1 && same(pc.tones[0], fTone), "syx: parseSyx(CZ-1 tone) -> the tone back");
+  const cz101 = Uint8Array.from([0xF0, 0x44, 0, 0, 0x73, 0x30, ...new Array(256).fill(1), 0xF7]);
+  ok(throwsMsg(() => parseSyx(cz101), /CZ-101 \/ 1000 tone: the FM-1 takes only CZ-1 tones from files/), "syx: a 128-byte CZ-101 tone refused");
+  ok(throwsMsg(() => parseSyx(Uint8Array.from([...one, ...cz])), /mixes/), "syx: DX7 and CZ-1 in one file refused");
+
+  // the sounds: the template record with the name, the patch; imported as the doc's operations
+  const sf = soundFromSyx(p1), sc = soundFromSyx(pc);
+  const tf = Buffer.from(SOUND_TEMPLATES.fm6, "base64"), tc = Buffer.from(SOUND_TEMPLATES.cz, "base64");
+  ok(recordValid(sf.record) && sf.engine === 12 && sf.kind === "fm6" && sf.record[3] === tf[3] && sf.record[3] >= 8 && sf.name === "TINE EP" &&
+     same(sf.record.subarray(4, 16), [..."TINE EP"].map((c) => c.charCodeAt(0)).concat([0, 0, 0, 0, 0])) && same(sf.record.subarray(16), tf.subarray(16)) &&
+     same(sf.patch, fBlob), "syx: soundFromSyx(DX7) -> the FM6 template (engine 12, np), named TINE EP, the blob");
+  ok(recordValid(sc.record) && sc.engine === 14 && sc.kind === "cz" && sc.record[3] === tc[3] && sc.name === "BRASS 1" && same(sc.patch, fTone) &&
+     same(sc.record.subarray(16), tc.subarray(16)), "syx: soundFromSyx(CZ-1) -> the CZ-1 template (engine 14, np), named BRASS 1, the tone");
+  const noname = fVced.slice(); noname.fill(32, 145);
+  ok(soundFromSyx({ kind: "fm6", voices: [noname] }).name === "FM6 VOICE" &&
+     soundFromSyx({ kind: "cz", tones: [Uint8Array.from(fTone, (x, i) => (i >= 128 ? 0 : x))] }).name === "CZ TONE" &&
+     soundFromSyx({ kind: "cz", tones: [Uint8Array.from(fTone, (x, i) => (i >= 128 ? 65 + (i - 128) : x))] }).name === "ABCDEFGHIJKL",
+     "syx: names: blank -> FM6 VOICE / CZ TONE, a 16-character CZ name cut to 12");
+  const rf = importSound(src, 7, sf), rc = importSound(src, 20, sc);
+  ok(rf.changed.map((c) => c.id).join() === "9,10,6" && parseSoundObjects(rf.objs).slots[6].name === "TINE EP" &&
+     parseSoundObjects(rf.objs).slots[6].patch === "fm6" && same(rf.objs.get(10).subarray(16 + 6 * 128, 16 + 7 * 128), fBlob),
+     "syx: DX7 voice into U07: its stale VA blob cleared, the FM6 half 0, then bank 0");
+  ok(rc.changed.map((c) => c.id).join() === "13,7" && parseSoundObjects(rc.objs).slots[19].engineName === "CZ-1" &&
+     parseSoundObjects(rc.objs).slots[19].patch === "cz" && same(rc.objs.get(13).subarray(16 + 3 * 144, 16 + 4 * 144), fTone),
+     "syx: import of the CZ-1 tone into U20 (was FM6): the CZ-1 half 1 created, then bank 1");
+
+  // export: the slot's patch as .syx; other slots refused
+  const ef = exportSyx(rf.objs, 7), ec = exportSyx(src, 3);
+  ok(same(ef.bytes, one) && ef.name === "TINE EP" && ef.fileName === "choralroot-sound-U07-TINE_EP.syx", "syx: exportSyx of the imported FM6 slot = the voice's .syx");
+  ok(ec.bytes.length === 295 && same(parseSyx(ec.bytes).tones[0], blobs.cz3), "syx: exportSyx of a CZ-1 slot -> its tone");
+  ok(throwsMsg(() => exportSyx(src, 1), /only FM6 and CZ-1/) && throwsMsg(() => exportSyx(src, 20), /no FM6 patch/) &&
+     throwsMsg(() => exportSyx(src, 5), /U05 is empty/), "syx: exportSyx refuses VA, an FM6 slot without its blob, an empty slot");
+  ok(syxFileName(5, "MY PAD") === "choralroot-sound-U05-MY_PAD.syx", "syx: file names");
 }
 
 console.log(fails ? `SOUNDS TESTS FAILED (${fails})` : "sounds tests passed");

@@ -289,3 +289,203 @@ export async function writeSounds(request, changed, opts = {}) {
   }
   return written;
 }
+
+// ---- .syx export and import (docs/SOUNDS.md ".syx export and import"): an FM6 slot's voice as a DX7 single voice, a
+// CZ-1 slot's tone as Casio's tone dump; an import builds the rest of the record from the engine's template
+// (tests/sound_templates.c prints these from the firmware; its --check fails until they are pasted again)
+export const SOUND_TEMPLATES = {
+  fm6: "pQQMW1NZWCBJTVBPUlQAAKhKhpp8QEBAQHxAQEBAQEBAQEJBgEC/QEBAQEBAUEJAgEBAQEBAQEBAQEBAaEBBQb9AQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  cz: "pQQOW1NZWCBJTVBPUlQAAKhKhpp8QEBAQHxAQEBAQEBAQEJBgEC/QEBAQEBAUEJAgEBAQEBAQEBAQEBAaEBBQb9AQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEBAQEBAQEIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+};
+// the FM6 function settings an imported voice gets (eng_fm6.c FM6_FNDEF bit-packed as fm6_blob_make packs them: the
+// fixture fm6_fn, = bytes 114..121 of a blob the firmware makes)
+export const FM6_FN_DEFAULTS = Uint8Array.from([0x33, 0x00, 0x60, 0x1C, 0x00, 0x00, 0x00, 0x40]);
+const FM6_VCED = 155, FM6_VMEM = 128, FM6_BANK = 32 * FM6_VMEM, CZ_TONE = 144;
+const FV = { LC: 11, RC: 12, RS: 13, AMS: 14, KVS: 15, OL: 16, MODE: 17, FC: 18, FF: 19, DET: 20, OP: 21,
+  PR1: 126, ALG: 134, FB: 135, OKS: 136, LFS: 137, LKS: 141, LFW: 142, LPMS: 143, TRNSP: 144, NAME: 145 };
+const FM6_OPMAX = [99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 3, 3, 7, 3, 7, 99, 1, 31, 99, 14];
+const FM6_VMAX = [99, 99, 99, 99, 99, 99, 99, 99, 31, 7, 1, 99, 99, 99, 99, 1, 5, 7, 48];
+const fm6Max = (i) => (i < 126 ? FM6_OPMAX[i % 21] : i < FV.NAME ? FM6_VMAX[i - 126] : 126);
+function fm6Sanitize(v) {               // eng_fm6.c fm6_sanitize: every value in its range, a bad name byte -> space
+  for (let i = 0; i < FM6_VCED; i++) {
+    if (i >= FV.NAME) { if (v[i] < 32 || v[i] > 126) v[i] = 32; }
+    else if (v[i] > fm6Max(i)) v[i] = fm6Max(i);
+  }
+  return v;
+}
+function fm6Unpack(b) {                 // VMEM 128 -> VCED 155 (eng_fm6.c fm6_unpack, then sanitized)
+  const v = new Uint8Array(FM6_VCED);
+  for (let k = 0; k < 6; k++) {
+    const o = b.subarray(k * 17, k * 17 + 17), d = k * FV.OP;
+    for (let i = 0; i < 11; i++) v[d + i] = o[i] & 0x7F;
+    v[d + FV.LC] = o[11] & 3; v[d + FV.RC] = o[11] >> 2 & 3;
+    v[d + FV.RS] = o[12] & 7; v[d + FV.DET] = o[12] >> 3 & 15;
+    v[d + FV.AMS] = o[13] & 3; v[d + FV.KVS] = o[13] >> 2 & 7;
+    v[d + FV.OL] = o[14] & 0x7F;
+    v[d + FV.MODE] = o[15] & 1; v[d + FV.FC] = o[15] >> 1 & 31;
+    v[d + FV.FF] = o[16] & 0x7F;
+  }
+  for (let i = 0; i < 9; i++) v[FV.PR1 + i] = b[102 + i] & 0x7F;
+  v[FV.ALG] &= 31;
+  v[FV.FB] = b[111] & 7; v[FV.OKS] = b[111] >> 3 & 1;
+  for (let i = 0; i < 4; i++) v[FV.LFS + i] = b[112 + i] & 0x7F;
+  v[FV.LKS] = b[116] & 1; v[FV.LFW] = b[116] >> 1 & 7; v[FV.LPMS] = b[116] >> 4 & 7;
+  v[FV.TRNSP] = b[117] & 0x7F;
+  for (let i = 0; i < 10; i++) v[FV.NAME + i] = b[118 + i] & 0x7F;
+  return fm6Sanitize(v);
+}
+function fm6Pack(v) {                   // VCED 155 -> VMEM 128 (eng_fm6.c fm6_pack)
+  const b = new Uint8Array(FM6_VMEM);
+  for (let k = 0; k < 6; k++) {
+    const o = k * FV.OP, d = k * 17;
+    for (let i = 0; i < 11; i++) b[d + i] = v[o + i] & 0x7F;
+    b[d + 11] = (v[o + FV.LC] & 3) | (v[o + FV.RC] & 3) << 2;
+    b[d + 12] = (v[o + FV.RS] & 7) | (v[o + FV.DET] & 15) << 3;
+    b[d + 13] = (v[o + FV.AMS] & 3) | (v[o + FV.KVS] & 7) << 2;
+    b[d + 14] = v[o + FV.OL] & 0x7F;
+    b[d + 15] = (v[o + FV.MODE] & 1) | (v[o + FV.FC] & 31) << 1;
+    b[d + 16] = v[o + FV.FF] & 0x7F;
+  }
+  for (let i = 0; i < 9; i++) b[102 + i] = v[FV.PR1 + i] & 0x7F;
+  b[110] &= 31;
+  b[111] = (v[FV.FB] & 7) | (v[FV.OKS] & 1) << 3;
+  for (let i = 0; i < 4; i++) b[112 + i] = v[FV.LFS + i] & 0x7F;
+  b[116] = (v[FV.LKS] & 1) | (v[FV.LFW] & 7) << 1 | (v[FV.LPMS] & 7) << 4;
+  b[117] = v[FV.TRNSP] & 0x7F;
+  for (let i = 0; i < 10; i++) b[118 + i] = v[FV.NAME + i] & 0x7F;
+  return b;
+}
+// eight 7-bit bytes <-> seven (eng_fm6.c fm6_pack7 / fm6_unpack7): 128 <-> 112
+function fm6Pack7(s) {
+  const d = new Uint8Array(s.length / 8 * 7);
+  for (let i = 0, o = 0; i < s.length; i += 8, o += 7)
+    for (let j = 0; j < 7; j++) d[o + j] = (s[i + j] & 0x7F) | (s[i + 7] >> j & 1) << 7;
+  return d;
+}
+function fm6Unpack7(s, n) {
+  const d = new Uint8Array(n);
+  for (let i = 0, o = 0; i < n; i += 8, o += 7) {
+    for (let j = 0; j < 7; j++) { d[i + j] = s[o + j] & 0x7F; d[i + 7] |= (s[o + j] >> 7) << j; }
+  }
+  return d;
+}
+// an FM6 blob (128) -> the DX7 voice (VCED, 155 bytes); the function settings (114..121) are left out
+export function fm6BlobToVced(blob) {
+  if (!(blob instanceof Uint8Array) || blob.length !== PATCH_SIZE.fm6 || blob[112] !== 0x46 || blob[113] !== 1)
+    throw new Error("Not an FM6 patch (128 bytes, 'F' 1 at 112)");
+  return fm6Unpack(fm6Unpack7(blob.subarray(0, 112), FM6_VMEM));
+}
+// a DX7 voice (VCED, 155) -> an FM6 blob (128): every value clamped into its range, the function defaults
+export function vcedToFm6Blob(vced) {
+  if (!vced || vced.length !== FM6_VCED) throw new Error(`A DX7 voice is ${FM6_VCED} bytes, not ${vced ? vced.length : 0}`);
+  const b = new Uint8Array(PATCH_SIZE.fm6);
+  b.set(fm6Pack7(fm6Pack(fm6Sanitize(Uint8Array.from(vced)))), 0);
+  b[112] = 0x46; b[113] = 1;
+  b.set(FM6_FN_DEFAULTS, 114);
+  return b;
+}
+const syxSum = (d) => (128 - (d.reduce((s, x) => s + x, 0) & 127)) & 127;
+// a DX7 single voice: F0 43 00 00 01 1B <155> <checksum> F7 (163 bytes)
+export function fm6VcedSyx(vced) {
+  if (!vced || vced.length !== FM6_VCED) throw new Error(`A DX7 voice is ${FM6_VCED} bytes`);
+  const d = Uint8Array.from(vced, (x) => x & 0x7F);
+  return Uint8Array.from([0xF0, 0x43, 0x00, 0x00, 0x01, 0x1B, ...d, syxSum(d), 0xF7]);
+}
+// a CZ-1 tone: F0 44 00 00 70 30 <288 nibbles, the low first> F7 (295 bytes)
+export function czToneSyx(tone) {
+  if (!tone || tone.length !== CZ_TONE) throw new Error(`A CZ-1 tone is ${CZ_TONE} bytes`);
+  const out = new Uint8Array(7 + 2 * CZ_TONE);
+  out.set([0xF0, 0x44, 0x00, 0x00, 0x70, 0x30]);
+  for (let j = 0; j < CZ_TONE; j++) { out[6 + 2 * j] = tone[j] & 15; out[7 + 2 * j] = tone[j] >> 4; }
+  out[out.length - 1] = 0xF7;
+  return out;
+}
+const SYX_WHAT = "a .syx for the FM-1 holds a DX7 voice or 32-voice bank (F0 43 ..) or a CZ-1 tone (F0 44 ..); " +
+  "a raw file is 155 (a DX7 voice), 4096 (a DX7 bank) or 144 bytes (a CZ-1 tone)";
+function syxFrame(f, n) {               // one F0 .. F7 frame -> {kind, voices | tones}
+  const at = `SysEx message ${n} (${f.length} bytes)`;
+  if (f[1] === 0x43 && (f[2] & 0xF0) === 0 && f[3] === 0 && f[4] === 0x01 && f[5] === 0x1B) {
+    if (f.length !== 163) throw new Error(`${at}: a DX7 single voice is 163 bytes`);
+    const d = f.subarray(6, 161);
+    if (syxSum(d) !== f[161]) throw new Error(`${at}: the DX7 voice's checksum is wrong (the file is damaged)`);
+    return { kind: "fm6", voices: [d.slice()] };
+  }
+  if (f[1] === 0x43 && (f[2] & 0xF0) === 0 && f[3] === 0x09 && f[4] === 0x20 && f[5] === 0x00) {
+    if (f.length !== 4104) throw new Error(`${at}: a DX7 32-voice bank is 4104 bytes`);
+    const d = f.subarray(6, 4102);
+    if (syxSum(d) !== f[4102]) throw new Error(`${at}: the DX7 bank's checksum is wrong (the file is damaged)`);
+    return { kind: "fm6", voices: Array.from({ length: 32 }, (_, k) => fm6Unpack(d.subarray(k * FM6_VMEM, (k + 1) * FM6_VMEM))) };
+  }
+  if (f[1] === 0x44 && f[2] === 0 && f[3] === 0 && (f[4] & 0xF0) === 0x70 && f[5] === 0x30) {
+    const nib = f.subarray(6, f.length - 1);
+    if (nib.length === 256) throw new Error("This is a CZ-101 / 1000 tone: the FM-1 takes only CZ-1 tones from files (send it to the FM-1 over MIDI to convert it)");
+    if (nib.length !== 2 * CZ_TONE) throw new Error(`${at}: a CZ-1 tone dump holds 288 nibbles, this one ${nib.length}`);
+    if (nib.some((x) => x > 15)) throw new Error(`${at}: not a CZ-1 tone dump (a nibble above 15)`);
+    return { kind: "cz", tones: [Uint8Array.from({ length: CZ_TONE }, (_, j) => nib[2 * j] | nib[2 * j + 1] << 4)] };
+  }
+  if (f[1] === 0x43) throw new Error(`${at}: a Yamaha message that is not a DX7 voice or bank`);
+  if (f[1] === 0x44) throw new Error(`${at}: a Casio message that is not a CZ-1 tone dump`);
+  throw new Error(`${at}: not a DX7 voice or bank, nor a CZ-1 tone (${SYX_WHAT})`);
+}
+// a .syx (or raw) file's bytes -> {kind: "fm6", voices: [VCED 155 ..]} | {kind: "cz", tones: [144 ..]}
+export function parseSyx(bytes) {
+  if (!(bytes instanceof Uint8Array)) bytes = Uint8Array.from(bytes || []);
+  if (!bytes.length) throw new Error("The file is empty");
+  if (bytes[0] !== 0xF0) {
+    const raw7 = () => bytes.every((x) => x < 0x80);
+    if (bytes.length === FM6_VCED && raw7()) return { kind: "fm6", voices: [bytes.slice()] };
+    if (bytes.length === FM6_BANK && raw7())
+      return { kind: "fm6", voices: Array.from({ length: 32 }, (_, k) => fm6Unpack(bytes.subarray(k * FM6_VMEM, (k + 1) * FM6_VMEM))) };
+    if (bytes.length === CZ_TONE) return { kind: "cz", tones: [bytes.slice()] };
+    throw new Error(`Not a DX7 or CZ-1 file (${bytes.length} bytes): ${SYX_WHAT}`);
+  }
+  const frames = [];
+  for (let i = 0; i < bytes.length;) {
+    if (bytes[i] !== 0xF0) throw new Error(`Not a SysEx file: byte ${i} is outside a message`);
+    let e = i + 1;
+    while (e < bytes.length && bytes[e] !== 0xF7) {
+      if (bytes[e] & 0x80) throw new Error(`SysEx message ${frames.length + 1} is cut short (byte ${e})`);
+      e++;
+    }
+    if (e >= bytes.length) throw new Error(`SysEx message ${frames.length + 1} has no end (F7)`);
+    frames.push(bytes.subarray(i, e + 1));
+    i = e + 1;
+  }
+  const parts = frames.map((f, n) => syxFrame(f, n + 1)), kind = parts[0].kind;
+  if (parts.some((p) => p.kind !== kind)) throw new Error("The file mixes DX7 voices and CZ-1 tones: keep one kind per file");
+  return kind === "fm6" ? { kind, voices: parts.flatMap((p) => p.voices) } : { kind, tones: parts.flatMap((p) => p.tones) };
+}
+export const syxCount = (parsed) => (parsed.kind === "fm6" ? parsed.voices : parsed.tones).length;
+// the name an imported voice / tone gets: printable ASCII, trimmed, cut to 12; empty -> the engine's default
+function syxName(bytes, fallback) {
+  const s = Array.from(bytes, (c) => (c < 32 || c > 126 ? " " : String.fromCharCode(c))).join("").trim().slice(0, SND_NAME).trimEnd();
+  return s || fallback;
+}
+// a voice / tone of parseSyx's result (index 1..N) -> a sound as readSoundFile returns it (the template's record)
+export function soundFromSyx(parsed, index = 1) {
+  const list = parsed && (parsed.kind === "fm6" ? parsed.voices : parsed.kind === "cz" ? parsed.tones : null);
+  if (!list) throw new Error("Not a parsed .syx");
+  if (!Number.isInteger(index) || index < 1 || index > list.length) throw new Error(`Voice ${index} is not in the file (1..${list.length})`);
+  const item = list[index - 1], fm6 = parsed.kind === "fm6";
+  const record = sndUnB64(SOUND_TEMPLATES[parsed.kind], "template");
+  const name = fm6 ? syxName(item.subarray(FV.NAME, FV.NAME + 10), "FM6 VOICE") : syxName(item.subarray(128, 144), "CZ TONE");
+  sndWriteName(record, name);
+  if (!recordValid(record)) throw new Error("The template record is not valid");
+  const engine = record[2], kind = patchKindOf(engine);
+  const patch = fm6 ? vcedToFm6Blob(item) : Uint8Array.from(item);
+  return { record, name, engine, engineName: ENGINE_NAMES[engine], kind, patch };
+}
+// choralroot-sound-U05-NAME.syx
+export const syxFileName = (slot, name) => soundFileName(slot, name).replace(/\.json$/, ".syx");
+// an FM6 / CZ-1 slot with its patch -> {bytes: the .syx, name: the sound's name, fileName}
+export function exportSyx(objs, slot) {
+  sndCheckSlot(slot);
+  const m = sndMap(objs), r = sndRecord(m, slot);
+  if (!r || !recordValid(r)) throw new Error(`${sndLabel(slot)} is empty`);
+  const engine = r[2], kind = patchKindOf(engine);
+  if (kind !== "fm6" && kind !== "cz") throw new Error(`${sndLabel(slot)} is ${ENGINE_NAMES[engine]}: only FM6 and CZ-1 sounds export as .syx`);
+  const blob = sndBlob(m, kind, slot);
+  if (!blob) throw new Error(`${sndLabel(slot)} has no ${ENGINE_NAMES[engine]} patch stored (it plays the engine's defaults)`);
+  const name = sndDecodeName(r);
+  return { bytes: kind === "fm6" ? fm6VcedSyx(fm6BlobToVced(blob)) : czToneSyx(blob), name, fileName: syxFileName(slot, name) };
+}

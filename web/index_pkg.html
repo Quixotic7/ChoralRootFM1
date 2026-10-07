@@ -109,8 +109,9 @@
     <h2 data-t="sndTitle"></h2>
     <p class="small" data-t="sndText"></p>
     <p class="small" data-t="sndAll"></p>
+    <p class="small" data-t="sndSyxText"></p>
     <p><button id="snd-read" disabled data-t="sndReadGo"></button></p>
-    <input id="snd-file" type="file" accept=".json,application/json" hidden>
+    <input id="snd-file" type="file" accept=".json,.syx,application/json" hidden>
     <div class="snd-wrap">
       <table class="snd" id="snd-table" hidden>
         <thead><tr><th data-t="sndColSlot"></th><th data-t="sndColName"></th><th data-t="sndColEngine"></th><th data-t="sndColPatch"></th><th></th></tr></thead>
@@ -211,6 +212,11 @@ const TEXT = {
     sndRenamePrompt: "New name for {slot} (1 to 12 characters):",
     sndBadName: "A name is 1 to 12 characters: letters, digits, symbols or spaces (no accents). Nothing was written.",
     sndBadFile: "Not a usable sound file: ",
+    sndExportSyx: "Export .syx",
+    sndSyxText: "FM6 and CZ-1 sounds also export as .syx: a DX7 voice (Dexed and other DX7 editors) or a CZ-1 tone (Casio tools). Import takes these .syx files too (and raw DX7 / CZ-1 dumps): the voice or tone becomes the slot's sound, with every other setting at the engine's default.",
+    sndSyxSaved: ".syx saved: ",
+    sndSyxPick: "This file holds {n} voices. Which one goes into {slot}? (1 to {n})",
+    sndSyxBadPick: "Choose a voice from 1 to {n}. Nothing was written.",
   },
 };
 const lang = "en";
@@ -243,6 +249,12 @@ const coded = (code, detail = "") => Object.assign(new Error(code + (detail ? ":
 const pct = (d, total) => `${Math.round(d / Math.max(1, total) * 100)}%`;
 function saveJson(obj, name) {                  // -> the file name (the browser's download)
   const url = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 1)], { type: "application/json" }));
+  const a = document.createElement("a"); a.href = url; a.download = name;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return a.download;
+}
+function saveBytes(bytes, name) {               // a binary download (.syx) -> the file name
+  const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
   const a = document.createElement("a"); a.href = url; a.download = name;
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   return a.download;
@@ -300,7 +312,7 @@ if (midiOk) { $("backup-go").disabled = false; $("snd-read").disabled = false; }
 
 // ---- Sounds (fm1sounds.js, docs/SOUNDS.md): one user sound as a file; each action reads the seven objects afresh,
 // edits the slot, writes back only what changed (the stores, then the bank) and reads again for the table
-const tf = (k, vals) => Object.entries(vals).reduce((s, [a, v]) => s.replace(`{${a}}`, () => String(v)), t(k));
+const tf = (k, vals) => Object.entries(vals).reduce((s, [a, v]) => s.split(`{${a}}`).join(String(v)), t(k));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[c]);
 function renderSounds() {
   if (!sndTable) return;
@@ -308,7 +320,8 @@ function renderSounds() {
   $("snd-rows").innerHTML = sndTable.map((s) => `<tr${s.used ? "" : ' class="empty"'}><td class="n">${s.label}</td>` +
     `<td>${s.used ? esc(s.name) : t("sndEmpty")}</td><td>${s.used ? esc(s.engineName) : ""}</td>` +
     `<td>${s.used ? (s.patch || (s.kind ? t("sndNoPatch") : "")) : ""}</td><td class="a">` +
-    btn(s, "export", t("sndExport"), s.used) + btn(s, "import", t("sndImport"), true) +
+    btn(s, "export", t("sndExport"), s.used) +
+    (s.used && (s.patch === "fm6" || s.patch === "cz") ? btn(s, "export-syx", t("sndExportSyx"), true) : "") + btn(s, "import", t("sndImport"), true) +
     btn(s, "rename", t("sndRename"), s.used) + btn(s, "delete", t("sndDelete"), s.used) + "</td></tr>").join("");
 }
 function showSounds(objs) { sndTable = parseSoundObjects(objs).slots; $("snd-table").hidden = false; renderSounds(); }
@@ -348,6 +361,10 @@ $("snd-rows").addEventListener("click", (e) => {
     const file = exportSound(objs, slot, { firmware: info.version });
     sayK("sndExported", saveJson(file, soundFileName(slot, file.name || "")));
   });
+  if (b.dataset.act === "export-syx") return soundsRun(async ({ objs }) => {
+    const x = exportSyx(objs, slot);
+    sayK("sndSyxSaved", saveBytes(x.bytes, x.fileName));
+  });
   if (b.dataset.act === "rename") {
     const answer = prompt(tf("sndRenamePrompt", { slot: label }), cur ? cur.name : "");
     if (answer === null) return;
@@ -363,8 +380,25 @@ $("snd-rows").addEventListener("click", (e) => {
 $("snd-file").addEventListener("change", async () => {
   const file = $("snd-file").files[0], slot = sndTarget, label = slotLabel(slot || 1);
   if (!file || !slot || writing) return;
+  // the kind by content: a JSON object -> a sound file; else a .syx (or a raw DX7 / CZ-1 dump)
   let sound;
-  try { sound = readSoundFile(await file.text()); }
+  try {
+    const bytes = file.arrayBuffer ? new Uint8Array(await file.arrayBuffer()) : new TextEncoder().encode(await file.text());
+    let i = 0;
+    while (i < bytes.length && (bytes[i] === 0x20 || bytes[i] === 0x09 || bytes[i] === 0x0A || bytes[i] === 0x0D || bytes[i] === 0xEF || bytes[i] === 0xBB || bytes[i] === 0xBF)) i++;
+    if (bytes[i] === 0x7B) sound = readSoundFile(new TextDecoder().decode(bytes));
+    else {
+      const syx = parseSyx(bytes), n = syxCount(syx);
+      let pick = 1;
+      if (n > 1) {
+        const answer = prompt(tf("sndSyxPick", { n, slot: label }), "1");
+        if (answer === null) { sayK("cancelled"); return; }
+        pick = Number(answer.trim());
+        if (!Number.isInteger(pick) || pick < 1 || pick > n) { say(tf("sndSyxBadPick", { n })); return; }
+      }
+      sound = soundFromSyx(syx, pick);
+    }
+  }
   catch (e) { sayK("sndBadFile", e.message); log(`sounds: ${e.message}`); return; }
   return soundsRun(async (ctx) => {
     const now = sndTable[slot - 1];                // as the FM-1 holds it now (read afresh)

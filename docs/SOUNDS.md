@@ -188,6 +188,75 @@ These go alone or together with `--port`; not with a package, `--backup`, `--res
 ChoralRoot firmware (a Felucca firmware has the banks but not the stores: refused with a message). Exit codes are the
 installer's (`EXIT`: a bad file = 2, the FM-1 not found = 3, …; a refused write = the backup error code).
 
+## .syx export and import (FM6 and CZ-1 slots; the user's pick from Melodee 0.12)
+
+Beside the JSON sound file, an FM6 slot's voice and a CZ-1 slot's tone travel in the standard SysEx files the rest of
+the world uses (Dexed / DX7 editors, Casio tools), so patches can be exchanged. The page gets an **Export .syx** per
+FM6 / CZ-1 slot and the Import picker accepts `.syx` files; the CLI gets `--export-syx N FILE` and `--import-syx N
+FILE`. The JSON file stays the complete sound; a .syx carries the engine's patch only, and an import builds the rest
+of the record from a **template** (below).
+
+### FM6: the DX7 single voice
+
+| direction | bytes |
+| --- | --- |
+| **export** | the slot's 128-byte blob -> `fm6_unpack7` (112 -> 128: the VMEM packed voice, eight 7-bit bytes in seven, `eng_fm6.c`) -> the 155-byte VCED (the DX7 unpacking Dexed does: per operator 17 packed -> 21 unpacked bytes, then the pitch EG, algorithm, feedback/OKS, LFO, transpose, the 10-character name) -> `F0 43 00 00 01 1B <155> <sum> F7` (163 bytes; the checksum is the two's complement of the 155 bytes' sum, 7 bits; `web/EDITOR_PROTOCOL.md` "FM6 patches"). The function settings (blob bytes 114..121) have no place in a DX7 voice and are left out. |
+| **import** | `F0 43 0n 00 01 1B <155> <sum> F7` (a single voice; the channel nibble ignored; the checksum checked) or `F0 43 0n 09 20 00 <4096> <sum> F7` (a 32-voice bank: voice 1 unless the page's / CLI's voice number says which) or a raw 155 / 4096-byte file -> VMEM 128 (packed, every byte clamped into its range as the firmware's `fm6_pack` does) -> `fm6_pack7` -> blob bytes 0..111, `'F'`, 1 at 112, 113, the **function defaults** at 114..121 (`FM6_FNDEF` packed: the fixture `fm6_fn` below, 8 bytes), zeros at 122..127. |
+
+### CZ-1: Casio's tone dump
+
+| direction | bytes |
+| --- | --- |
+| **export** | the slot's 144-byte tone -> `F0 44 00 00 70 30 <288 nibbles> F7` (295 bytes): each byte as two 7-bit bytes, the **low nibble first** (`cz_store.c`, docs/CZ1.md), no checksum. |
+| **import** | the same frame (any channel nibble `7n`), 288 nibbles -> 144 bytes, validated as the firmware will (`cz_patch_valid`: the clients check the length and the frame only); a CZ-101 / 1000 **128-byte** tone (256 nibbles) is **refused** with a message (the firmware converts those only live, over MIDI); a file with several frames: the first unless a number is given; a raw 144-byte file is taken too. |
+
+### The template: the rest of the record
+
+A .syx has no ChoralRoot record, so the importer makes one from a per-engine **template**: a valid ver-4 record of
+that engine with every parameter at the firmware's default (`param_desc_of(engine, i)->def`), `np` = P_COUNT, no
+pattern, named `SYX IMPORT`; the importer writes the voice's / tone's own name over it (the DX7 name is VCED bytes
+145..154, 10 characters; the CZ-1 LCD name is tone bytes 128..143, 16 characters: trimmed of spaces, characters
+outside ASCII 32..126 replaced by a space, cut to 12; empty -> `FM6 VOICE` / `CZ TONE`), then imports it as a sound
+of that engine with the blob / tone as its patch (the operations table above). The firmware maps a record's values by
+count (upreset.c), so a template stays valid when P_COUNT grows.
+
+The templates are **generated from the firmware**, never typed: `tests/sound_templates.c` (built on the emulator's
+firmware as `cr_backup_test.c` is) prints them with the fixtures as JSON:
+
+```
+cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/sound_templates tests/sound_templates.c -lm
+./build/host/sound_templates                                              # {"templates": {"fm6", "cz"}, "fixtures": {...}}
+./build/host/sound_templates --check web/fm1sounds.js tools/fm1_install.py   # the embedded templates are the firmware's
+```
+
+`web/fm1sounds.js` and `tools/fm1_install.py` embed the two base64 strings as constants (`SOUND_TEMPLATES` /
+`SOUND_TEMPLATES`), and `tests/run_cr_tests.sh` runs the `--check`, so a firmware change of a default or of P_COUNT
+fails the suite until the constants are pasted again. Fixtures for the clients' tests: `fm6_blob` (factory F1's
+blob), `fm6_vced` (the same voice as 155 bytes), `fm6_fn` (the packed function defaults), `cz_tone` (Casio's A-1
+BRASS 1, 144 bytes); at 2026-10-07 P_COUNT is 91.
+
+### File names and the page
+
+Export names: `choralroot-sound-U05-NAME.syx` (as the JSON's, the extension apart). On the page each FM6 / CZ-1 slot
+row gets an **Export .syx** button beside Export; the row's Import accepts `.json` and `.syx` (the kind by content:
+a JSON object, else SysEx `F0`, else a raw voice / tone by length); a bank .syx asks which voice (a prompt, 1..32).
+The CLI: `--export-syx N FILE`, `--import-syx N FILE [--voice V]` (V 1..32 for a bank file, default 1); a .syx of the
+other engine's kind or of an engine the slot is not is simply the file's engine: the slot becomes that engine.
+
+### .syx decisions (2026-10-07)
+
+- The clients sanitise a voice into the firmware's ranges first (`fm6_sanitize` / the JS mirror), then pack: `fm6_pack`
+  itself only masks bits. A single voice comes back from the parser as in the file; bank voices come back unpacked and
+  clamped, as the firmware would hold them.
+- A raw 128-byte file is refused with the generic size message (it could be a packed DX7 voice as well as a CZ-101
+  tone); only a framed 256-nibble Casio dump gets the CZ-101 / 1000 message.
+- Several frames in one file concatenate (a bank plus a voice: 33); a file mixing DX7 and Casio frames is refused. The
+  page refuses any other frame; the CLI skips frames of other manufacturers as long as one usable frame is in the file.
+- Names: characters outside 32..126 become spaces, the name is trimmed, cut to 12, trimmed again; blank -> `FM6 VOICE`
+  / `CZ TONE`.
+- On hardware (2026-10-07): `--export-syx 2` (TINE EP, 163 bytes), `--import-syx 3` of it, `--export-syx 3` byte-identical
+  to the first file, the slot's JSON export equal to U02's blob including the function defaults, then `--delete-sound 3`.
+
 ## Decisions taken in the implementation (2026-10-07)
 
 - **A version-2 VA store** (the same 3536 bytes, older blobs) is converted by the FM-1 at boot by reading every blob as
