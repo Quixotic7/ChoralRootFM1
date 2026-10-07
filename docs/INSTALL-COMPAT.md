@@ -125,7 +125,23 @@ watchdog reset, WDT still wins; if bit2 or bit6 stayed set across a later power-
 count, as in 1.0, but would end in SAFE MODE, not ROM boot), and that SAFE MODE boots on a unit whose crash is in
 the flash data.
 
+### Before an install (learned the hard way, 2026-10-07)
+
+The update loader writes the app area sector by sector over USB-MIDI with an 8 s watchdog and no fallback that
+survives a warm reset: if the FM-1 resets or drops off USB mid-write, the app is half old, half new, and whether the
+chip comes back as the loader at the next power-on depends on the SPL honouring the flash record (see the case below).
+So: **charge the FM-1 fully first** (it runs on its battery while updating; the installers cannot read its battery),
+plug it **straight into the computer** with a cable known to carry data (no hub), keep the computer awake
+(`caffeinate -dimsu` on a Mac), and do not touch the cable until "done" is printed.
+
 ### If an FM-1 is dark (a user's checklist)
+
+0. **If the install was interrupted mid-write** ("the loader was disconnected after N requests") and afterwards the
+   computer sees *nothing at all* (no FM-1 port, no `ota-FM-1`, no WL82 disk): this happened on 2026-10-07 to the
+   author's unit (274 of ~1167 requests; black screen; no USB device in any mode on a Mac and on Windows; the OCT hold,
+   two minutes on, three quick restarts and an hour of charging changed nothing). Note that the reworked boot guard is
+   cleared by a power-on, so quick restarts cannot drive it into ROM boot. The route is the hardware one, the FM-1
+   Transporter (`docs/TRANSPORTER-HANDOFF.md`); its flash dump tells why the loader did not come back.
 
 1. **Leave it switched on, on USB, for 2 minutes** and watch. A unit in ROM boot stays black and shows the
    "WL82 UBOOT1.00" disk (USB 4C4A:8057) the whole time. A unit whose firmware crashes and restarts flashes its

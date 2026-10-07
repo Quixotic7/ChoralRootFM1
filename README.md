@@ -20,6 +20,10 @@ Afterwards the FM-1 restarts and reports the identity `FM-1_920`. Before install
 is stored on the FM-1 (settings, user sounds, loops, FM6 patches) to a file, and after installing over
 Felucca it offers that backup back; its Back up and Restore buttons do the same at any time.
 
+**Before any install:** charge the FM-1 fully (it updates on its battery), connect it straight to the computer with a
+data cable (no hub), keep the computer awake, and leave the cable alone until the installer prints "done". An update
+interrupted mid-write can leave the FM-1 dark with no USB device at all (docs/INSTALL-COMPAT.md, "Before an install").
+
 **From the command line:** download `choralroot-X.Y.fwsc` from
 [Releases](https://github.com/Quixotic7/ChoralRootFM1/releases) (`SHA256SUMS` next to it), then
 
