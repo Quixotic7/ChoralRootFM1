@@ -15,10 +15,17 @@ the FM-1 restarts and the installed identity is checked.
   fm1_install.py --backup FILE        (save what is stored on the FM-1: settings, user sounds, loops, samples ...)
   fm1_install.py --restore FILE       (write a backup back; ChoralRoot restarts afterwards)
   fm1_install.py PACKAGE.fwsc --backup FILE [--restore FILE]   (back up, install, restore onto the new firmware)
+  fm1_install.py --sounds             (ChoralRoot: list the 32 user sounds U01..U32)
+  fm1_install.py --export-sound N FILE   (user sound N to a sound file; FILE may be a directory)
+  fm1_install.py --import-sound N FILE   (a sound file into slot N) [--yes]
+  fm1_install.py --rename-sound N NAME   /   --delete-sound N [--yes]
 
 Backups are web/fm1backup.js's files (JSON, "felucca-backup" version 1), over the same SysEx (web/EDITOR_PROTOCOL.md);
 FILE may be a directory (a dated name: choralroot-backup-YYYYMMDD.json). A restore writes the objects the connected
 firmware lists: a Felucca backup restores its settings, banks, FM6 patches and samples 1-2 on ChoralRoot, and back.
+
+Sound files are web/fm1sounds.js's ("choralroot-sound" version 1, docs/SOUNDS.md): one user sound, its record and
+its VA / FM6 / CZ-1 patch; only the objects that hold that slot are written.
 
 If the FM-1 is still in update mode (an earlier install was cut off), the
 install finishes the write. Needs mido with python-rtmidi.
@@ -26,7 +33,8 @@ install finishes the write. Needs mido with python-rtmidi.
 Exit codes: 0 done, 1 cancelled or other error, 2 bad arguments or package,
 3 FM-1 not found, 4 connection lost or the device stopped, 5 timeout (no
 loader / no restart), 6 wrong model, or another identity after the install,
-7 the backup or restore failed (or the firmware has no backup protocol), 8 the running firmware is one ChoralRoot
+7 the backup, restore or sound write failed (or the firmware has no backup protocol, or is not ChoralRoot for the
+sounds), 8 the running firmware is one ChoralRoot
 is not installed over (Sloop, the Felucca 0.x betas, unknown ones: docs/INSTALL-COMPAT.md; --force overrides).
 """
 import argparse
@@ -53,7 +61,7 @@ DELAY = {"open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0,
          "wait_loader": 30.0, "wait_reboot": 40.0}
 
 EXIT = {"usage": 2, "badpkg": 2, "badbackup": 2, "notfound": 3, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
-        "nobackup": 7, "backup": 7, "unsupported": 8,
+        "nobackup": 7, "backup": 7, "nosounds": 7, "unsupported": 8, "badsound": 2,
         "noloader": 5, "noreturn": 5, "mismatch": 6}
 
 
@@ -431,7 +439,8 @@ BK_HDR = bytes([0xF0, 0x7D, 0x46, 0x4C])
 BK_INFO, BK_LIST, BK_GET, BK_PUT, BK_RESTART = 1, 65, 66, 67, 72
 BK_CHUNK = 256
 FELUCCA_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34]
-CR_IDS = [1, 6, 7, 8, 9] + list(range(40, 50))   # (no samples: ChoralRoot has no SAMPLE engine)
+CR_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13] + list(range(14, 22)) + list(range(40, 50))   # web/fm1backup.js CR_BACKUP_IDS
+# (9 the VA patches, 10 11 the FM6 patches, 12 13 the CZ-1 tones, 14..21 the CZ-1 banks, 40..49 loops; no samples)
 KNOWN_IDS = set(FELUCCA_IDS) | set(CR_IDS)
 BK_RC = {1: "invalid object, size or request", 2: "the data failed validation", 3: "busy: stop the loop on the FM-1",
          4: "flash write failed", 5: "stale session: start again"}
@@ -577,27 +586,74 @@ def device_info(bl):
     return v, family(v)
 
 
+def bk_get_object(bl, i, size, chunk=lambda n: None):
+    """GET object i (size bytes, as LIST reported) in 256-byte windows -> its bytes (the caller compares the CRC)"""
+    data = bytearray()
+    for off in range(0, size, BK_CHUNK):
+        n = min(BK_CHUNK, size - off)
+        for attempt in range(2):
+            try:
+                a = bl.request(BK_GET, [i, *bk_u32(off), n & 127, n >> 7], 1.0)
+                break
+            except BackupError:
+                if attempt:
+                    raise
+        bk_check(a[1])
+        if a[0] != i or bk_r32(a, 2) != off or (a[7] | a[8] << 7) != n:
+            raise BackupError("unexpected backup reply")
+        data += bk_unpack(a[9:], n)
+        chunk(n)
+    return bytes(data)
+
+
+def bk_retry(fn, busy=lambda: None):
+    """fn(), sent again while the FM-1 answers rc 3 (busy: the loop plays), a second apart"""
+    for k in range(int(DELAY["bk_busy_tries"]) + 1):
+        try:
+            return fn()
+        except BackupError as e:
+            if e.rc != 3 or k >= DELAY["bk_busy_tries"]:
+                raise
+            busy()
+            time.sleep(DELAY["bk_busy"])
+
+
+def bk_put_object(bl, i, b, chunk=lambda n: None, busy=lambda: None):
+    """PUT object i whole: begin (busy retried), data, commit (busy retried); after a begin, a failure aborts the
+    session. The BackupError raised carries .begun (False: the begin itself was refused)."""
+    def put(args):
+        a = bl.request(BK_PUT, args, 4.0)
+        bk_check(a[2])
+    try:
+        bk_retry(lambda: put([0, i, *bk_u32(len(b)), *bk_u32(bk_crc(b))]), busy)
+    except BackupError as e:
+        e.begun = False
+        raise
+    try:
+        for off in range(0, len(b), BK_CHUNK):
+            c = b[off:off + BK_CHUNK]
+            put([1, i, *bk_u32(off), *bk_pack(c)])
+            chunk(len(c))
+        bk_retry(lambda: put([2, i]), busy)
+    except BackupError as e:
+        try:
+            put([3, i])
+        except InstallError:
+            pass
+        e.begun = True
+        raise
+
+
 def capture(bl, firmware, progress=lambda done, total: None):
     import base64
     man = bk_manifest(bl.request(BK_LIST, [], 3.0))
     total, done, objs = sum(o["size"] for o in man), 0, []
     for o in man:
-        data = bytearray()
-        for off in range(0, o["size"], BK_CHUNK):
-            n = min(BK_CHUNK, o["size"] - off)
-            for attempt in range(2):
-                try:
-                    a = bl.request(BK_GET, [o["id"], *bk_u32(off), n & 127, n >> 7], 1.0)
-                    break
-                except BackupError:
-                    if attempt:
-                        raise
-            bk_check(a[1])
-            if a[0] != o["id"] or bk_r32(a, 2) != off or (a[7] | a[8] << 7) != n:
-                raise BackupError("unexpected backup reply")
-            data += bk_unpack(a[9:], n)
+        def chunk(n):
+            nonlocal done
             done += n
             progress(done, total)
+        data = bk_get_object(bl, o["id"], o["size"], chunk)
         if bk_crc(data) != o["crc"]:
             raise BackupError("the FM-1 changed during the backup: try again with it stopped")
         objs.append({**o, "data": base64.b64encode(bytes(data)).decode("ascii")})
@@ -660,18 +716,7 @@ def restore(bl, f, progress=lambda done, total: None, busy=lambda: None):
     restored, total, done = [], sum(o["size"] for o in plan), 0
 
     def retry(fn):
-        for k in range(int(DELAY["bk_busy_tries"]) + 1):
-            try:
-                return fn()
-            except BackupError as e:
-                if e.rc != 3 or k >= DELAY["bk_busy_tries"]:
-                    raise
-                busy()
-                time.sleep(DELAY["bk_busy"])
-
-    def put(args):
-        a = bl.request(BK_PUT, args, 4.0)
-        bk_check(a[2])
+        return bk_retry(fn, busy)
 
     def smp(cmd, args):
         a = bl.request(cmd, args, 4.0)
@@ -697,26 +742,14 @@ def restore(bl, f, progress=lambda done, total: None, busy=lambda: None):
                 done += 512
                 progress(done, total)
         else:
+            def chunk(n):
+                nonlocal done
+                done += n
+                progress(done, total)
             try:
-                retry(lambda: put([0, i, *bk_u32(o["size"]), *bk_u32(o["crc"])]))
+                bk_put_object(bl, i, b, chunk, busy)
             except BackupError as e:
-                if o.get("converted") and e.rc == 1:
-                    skipped.append(i)
-                    continue
-                raise
-            try:
-                for off in range(0, o["size"], BK_CHUNK):
-                    c = b[off:off + BK_CHUNK]
-                    put([1, i, *bk_u32(off), *bk_pack(c)])
-                    done += len(c)
-                    progress(done, total)
-                retry(lambda: put([2, i]))
-            except BackupError as e:
-                try:
-                    put([3, i])
-                except InstallError:
-                    pass
-                if o.get("converted") and e.rc == 2:
+                if o.get("converted") and e.rc == (2 if e.begun else 1):
                     skipped.append(i)
                     continue
                 raise
@@ -794,6 +827,399 @@ def run_restore(up, path, out, ask, yes):
     return 0
 
 
+# ------------------------------------------------------------ user sounds ---
+# docs/SOUNDS.md (the page's web/fm1sounds.js in Python): one user sound (slot U01..U32: its record and, for a VA /
+# FM6 / CZ-1 sound, its patch) to and from a small JSON file ("choralroot-sound" version 1), renamed or deleted, on
+# the backup protocol's whole-object reads and writes. Only the objects whose bytes change are written, the stores
+# first and the bank last (a refused patch leaves the slot's record as it was).
+
+SOUND_IDS = (6, 7, 9, 10, 11, 12, 13)            # the banks, the VA store, the FM6 halves, the CZ-1 halves
+SOUND_SLOTS, SOUND_PER_BANK, SOUND_REC = 32, 16, 192
+ENGINE_NAMES = ("ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "PHYS", "DRUM",
+                "NOISE", "FM6", "VA", "CZ-1")   # ENGINES[] (append-only; 1, 4, 8, 10 retired)
+ENGINE_PATCH = {12: "fm6", 13: "va", 14: "cz"}  # engine -> its patch kind
+PATCH_KINDS = ("va", "fm6", "cz")
+PATCH_SIZE = {"va": 110, "fm6": 128, "cz": 144}
+PATCH_ID = {"va": 9, "fm6": 10, "cz": 12}       # the store (the first half for FM6 / CZ-1)
+UPB_MAGIC, VAS_MAGIC, FM6U_MAGIC, CZU_MAGIC = 0x31425055, 0x31534156, 0x55364D46, 0x55315A43
+BANK_SIZE = 8 + SOUND_PER_BANK * SOUND_REC     # 3080
+STORE_SIZE = {"va": 16 + SOUND_SLOTS * 110, "fm6": 16 + 16 * 128, "cz": 16 + 16 * 144}   # 3536, 2064, 2320
+SOUND_FORMAT = "choralroot-sound"
+
+
+def _u16(b, off):
+    return int.from_bytes(b[off:off + 2], "little")
+
+
+def _u32(b, off):
+    return int.from_bytes(b[off:off + 4], "little")
+
+
+def sound_record_valid(r):
+    """up_valid: used 0xA5, ver 1..5, engine < 15, 8 <= np <= (144 | 72), name[0] != 0, packed values <= 191"""
+    if len(r) != SOUND_REC or r[0] != 0xA5 or not 1 <= r[1] <= 5 or r[2] >= len(ENGINE_NAMES) or not r[4]:
+        return False
+    if not 8 <= r[3] <= (144 if r[1] >= 4 else 72):
+        return False
+    return r[1] < 4 or all(v <= 191 for v in r[16:16 + r[3]])
+
+
+def _record_name(r):
+    return bytes(r[4:16]).split(b"\0")[0].decode("latin-1")
+
+
+def _bank_ok(b):
+    return len(b) == BANK_SIZE and _u32(b, 0) == UPB_MAGIC and _u16(b, 4) == SOUND_REC and _u16(b, 6) == SOUND_PER_BANK
+
+
+def _new_bank():
+    return UPB_MAGIC.to_bytes(4, "little") + SOUND_REC.to_bytes(2, "little") + SOUND_PER_BANK.to_bytes(2, "little") \
+        + bytes(SOUND_PER_BANK * SOUND_REC)
+
+
+def _store_at(kind, slot):
+    """-> (backup id, index in that store, byte offset of the blob)"""
+    k = slot - 1
+    if kind == "va":
+        return 9, k, 16 + k * 110
+    return PATCH_ID[kind] + k // 16, k % 16, 16 + (k % 16) * PATCH_SIZE[kind]
+
+
+def _store_ok(kind, i, b):
+    if len(b) != STORE_SIZE[kind]:
+        return False
+    if kind == "va":
+        return _u32(b, 0) == VAS_MAGIC and _u16(b, 4) in (2, 3) and _u16(b, 6) == 32 and _u16(b, 12) == 110
+    return (_u32(b, 0) == (FM6U_MAGIC if kind == "fm6" else CZU_MAGIC) and _u16(b, 4) == 1 and _u16(b, 6) == 16 and
+            _u16(b, 8) == 16 * (i - PATCH_ID[kind]) and _u16(b, 10) == PATCH_SIZE[kind] and not _u32(b, 12) >> 16)
+
+
+def _new_store(kind, i):
+    if kind == "va":
+        head = VAS_MAGIC.to_bytes(4, "little") + (3).to_bytes(2, "little") + (32).to_bytes(2, "little") + bytes(4) \
+            + (110).to_bytes(2, "little") + bytes(2)
+    else:
+        head = (FM6U_MAGIC if kind == "fm6" else CZU_MAGIC).to_bytes(4, "little") + (1).to_bytes(2, "little") \
+            + (16).to_bytes(2, "little") + (16 * (i - PATCH_ID[kind])).to_bytes(2, "little") \
+            + PATCH_SIZE[kind].to_bytes(2, "little") + bytes(4)
+    return head + bytes(STORE_SIZE[kind] - 16)
+
+
+def _store_blob(objs, kind, slot):
+    """the blob of `kind` stored for slot (its used bit set in a well-formed store), or None"""
+    i, k, off = _store_at(kind, slot)
+    b = objs.get(i, b"")
+    if not _store_ok(kind, i, b) or not _u32(b, 8 if kind == "va" else 12) >> k & 1:
+        return None
+    return bytes(b[off:off + PATCH_SIZE[kind]])
+
+
+def _set_blob(objs, kind, slot, blob):
+    """objs[store] with slot's blob set (bit set) or, blob None, cleared (bit cleared, bytes zeroed). An empty or
+    malformed store (the FM-1 reads it as empty) is created from the header when a blob goes in, else left alone."""
+    i, k, off = _store_at(kind, slot)
+    b = objs.get(i, b"")
+    if not _store_ok(kind, i, b):
+        if blob is None:
+            return
+        b = _new_store(kind, i)
+    b = bytearray(b)
+    uo = 8 if kind == "va" else 12
+    used = _u32(b, uo)
+    used = used | 1 << k if blob is not None else used & ~(1 << k)
+    b[uo:uo + 4] = used.to_bytes(4, "little")
+    b[off:off + PATCH_SIZE[kind]] = blob if blob is not None else bytes(PATCH_SIZE[kind])
+    objs[i] = bytes(b)
+
+
+def _set_record(objs, slot, rec):
+    """objs[bank] with slot's record replaced; an empty or malformed bank is created when a sound goes in"""
+    i, off = 6 + (slot - 1) // 16, 8 + ((slot - 1) % 16) * SOUND_REC
+    b = objs.get(i, b"")
+    if not _bank_ok(b):
+        if not any(rec):
+            return
+        b = _new_bank()
+    objs[i] = bytes(b[:off]) + bytes(rec) + bytes(b[off + SOUND_REC:])
+
+
+def _record(objs, slot):
+    b = objs.get(6 + (slot - 1) // 16, b"")
+    if not _bank_ok(b):
+        return bytes(SOUND_REC)
+    off = 8 + ((slot - 1) % 16) * SOUND_REC
+    return bytes(b[off:off + SOUND_REC])
+
+
+def parse_sound_objects(objs):
+    """objs: {backup id: bytes} (b"" or missing: never written) -> the 32 slots, a dict each:
+    slot, used, name, engine, engineName, patch (the kind when the slot's blob is stored, else None), record, blob"""
+    table = []
+    for slot in range(1, SOUND_SLOTS + 1):
+        r = _record(objs, slot)
+        row = {"slot": slot, "used": False, "name": "", "engine": None, "engineName": "", "patch": None,
+               "record": r, "blob": None}
+        if sound_record_valid(r):
+            kind = ENGINE_PATCH.get(r[2])
+            blob = kind and _store_blob(objs, kind, slot)
+            row.update(used=True, name=_record_name(r), engine=r[2], engineName=ENGINE_NAMES[r[2]],
+                       patch=kind if blob else None, blob=blob or None)
+        table.append(row)
+    return table
+
+
+def sound_line(row):
+    """U05  MY PAD        VA      patch / U06  (empty)"""
+    if not row["used"]:
+        return f"U{row['slot']:02d}  (empty)"
+    kind = ENGINE_PATCH.get(row["engine"])
+    tail = "" if not kind else "patch" if row["patch"] else "no patch"
+    return f"U{row['slot']:02d}  {row['name']:<12}  {row['engineName']:<7} {tail}".rstrip()
+
+
+def sound_file_name(slot, name):
+    return f"choralroot-sound-U{slot:02d}-{re.sub(r'[^A-Za-z0-9-]', '_', name)}.json"
+
+
+def export_sound(objs, slot, firmware):
+    """slot 1..32 -> the sound file (a dict, "choralroot-sound" version 1)"""
+    import base64
+    row = parse_sound_objects(objs)[slot - 1]
+    if not row["used"]:
+        raise InstallError("emptyslot", f"U{slot:02d} is empty: nothing to export")
+    patch = None
+    if row["patch"]:
+        patch = {"kind": row["patch"], "data": base64.b64encode(row["blob"]).decode("ascii")}
+    return {"format": SOUND_FORMAT, "version": 1, "firmware": firmware,
+            "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "slot": slot, "name": row["name"],
+            "engine": row["engine"], "engineName": row["engineName"],
+            "record": base64.b64encode(row["record"]).decode("ascii"), "patch": patch}
+
+
+def check_sound_name(name):
+    """None when name is a valid sound name (1..12 ASCII 32..126), else what is wrong"""
+    if not isinstance(name, str) or not 1 <= len(name) <= 12 or any(not 32 <= ord(c) <= 126 for c in name):
+        return "a name is 1 to 12 characters, ASCII 32..126 (letters, digits, space, punctuation)"
+    return None
+
+
+def read_sound_file(f):
+    """validate a sound file (dict or JSON text) -> (record bytes, name, engine, patch (kind, bytes) or None);
+    the JSON's name, when present, is written into the record"""
+    import base64
+    import binascii
+    import json
+
+    def bad(msg):
+        return InstallError("badsound", msg)
+
+    def b64(v, what):
+        if not isinstance(v, str):
+            raise bad(f"{what} is missing or not base64 text")
+        try:
+            return base64.b64decode(v, validate=True)
+        except (binascii.Error, ValueError):
+            raise bad(f"{what} is not valid base64 (the file is damaged)")
+    if isinstance(f, (str, bytes)):
+        try:
+            f = json.loads(f)
+        except ValueError as e:
+            raise bad(f"not a sound file: {e}")
+    if isinstance(f, dict) and f.get("format") == "felucca-backup":
+        raise bad("this is a whole backup, not a sound file (--restore writes a backup)")
+    if not isinstance(f, dict) or f.get("format") != SOUND_FORMAT or f.get("version") != 1:
+        raise bad("not a ChoralRoot sound file (format choralroot-sound, version 1)")
+    rec = bytearray(b64(f.get("record"), "the record"))
+    if len(rec) != SOUND_REC:
+        raise bad(f"the record is {len(rec)} bytes, not {SOUND_REC}")
+    if not sound_record_valid(rec):
+        raise bad("the record is not a valid user sound (used / version / engine / parameter count / name / values)")
+    engine = rec[2]
+    if f.get("engine") is not None and f["engine"] != engine:
+        raise bad(f"the file's engine ({f['engine']!r}) is not the record's ({engine} {ENGINE_NAMES[engine]})")
+    name = f.get("name")
+    if name is not None:
+        why = check_sound_name(name)
+        if why:
+            raise bad(f"name {name!r}: {why}")
+        rec[4:16] = name.encode("ascii").ljust(12, b"\0")
+    else:
+        name = _record_name(rec)
+    patch, want = f.get("patch"), ENGINE_PATCH.get(engine)
+    if patch is not None:
+        if not isinstance(patch, dict) or patch.get("kind") not in PATCH_KINDS:
+            raise bad("the patch is not {kind: va | fm6 | cz, data: base64}")
+        kind = patch["kind"]
+        if kind != want:
+            raise bad(f"a {kind} patch does not go with the engine {ENGINE_NAMES[engine]} "
+                      + (f"(its patch kind is {want})" if want else "(it has no patch)"))
+        data = b64(patch.get("data"), "the patch data")
+        if len(data) != PATCH_SIZE[kind]:
+            raise bad(f"the {kind} patch is {len(data)} bytes, not {PATCH_SIZE[kind]}")
+        if kind == "va" and (data[0] != 0x56 or not 1 <= data[1] <= 3):
+            raise bad("not a VA patch (its first bytes are not 'V' and a version 1..3)")
+        if kind == "fm6" and (data[112] != 0x46 or data[113] != 1):
+            raise bad("not an FM6 patch (bytes 112, 113 are not 'F', 1)")
+        patch = (kind, bytes(data))
+    return bytes(rec), name, engine, patch
+
+
+def _changes(old, new):
+    """the objects whose bytes changed, the stores first, the banks last"""
+    return [(i, new[i]) for i in (9, 10, 11, 12, 13, 6, 7) if i in new and new[i] != old.get(i, b"")]
+
+
+def import_sound(objs, slot, sound):
+    """sound: read_sound_file's result -> [(id, bytes)] to write. The patch goes into its store at slot (bit set);
+    the other kinds' blobs of that slot are cleared (as the FM-1 does when a sound is saved)."""
+    rec, _name, _engine, patch = sound
+    new = dict(objs)
+    for kind in PATCH_KINDS:
+        _set_blob(new, kind, slot, patch[1] if patch and patch[0] == kind else None)
+    _set_record(new, slot, rec)
+    return _changes(objs, new)
+
+
+def rename_sound(objs, slot, name):
+    why = check_sound_name(name)
+    if why:
+        raise InstallError("usage", f"name {name!r}: {why}")
+    r = _record(objs, slot)
+    if not sound_record_valid(r):
+        raise InstallError("emptyslot", f"U{slot:02d} is empty: nothing to rename")
+    new = dict(objs)
+    _set_record(new, slot, r[:4] + name.encode("ascii").ljust(12, b"\0") + r[16:])
+    return _changes(objs, new)
+
+
+def delete_sound(objs, slot):
+    new = dict(objs)
+    for kind in PATCH_KINDS:
+        _set_blob(new, kind, slot, None)
+    _set_record(new, slot, bytes(SOUND_REC))
+    return _changes(objs, new)
+
+
+def read_sounds(bl, progress=lambda done, total: None):
+    """LIST, then GET of the sound objects the FM-1 lists -> {id: bytes} (an object that changed while it was read
+    is read again once)"""
+    for attempt in range(2):
+        man = [o for o in bk_manifest(bl.request(BK_LIST, [], 3.0)) if o["id"] in SOUND_IDS]
+        total, done, objs, changed = sum(o["size"] for o in man), 0, {}, False
+        for o in man:
+            def chunk(n):
+                nonlocal done
+                done += n
+                progress(done, total)
+            objs[o["id"]] = bk_get_object(bl, o["id"], o["size"], chunk)
+            if bk_crc(objs[o["id"]]) != o["crc"]:
+                changed = True
+                break
+        if not changed:
+            return objs
+    raise BackupError("the FM-1 changed its sounds while they were read: try again with it stopped")
+
+
+def write_sounds(bl, changed, progress=lambda done, total: None, busy=lambda: None):
+    """PUT each changed object in order; the first failure stops it (BackupError naming the object)"""
+    total, done = sum(len(b) for _i, b in changed), 0
+    for k, (i, b) in enumerate(changed):
+        def chunk(n):
+            nonlocal done
+            done += n
+            progress(done, total)
+        try:
+            bk_put_object(bl, i, b, chunk, busy)
+        except BackupError as e:
+            rest = [object_name(j) for j, _b in changed[k + 1:]]
+            more = f"; not written: {', '.join(rest)}" if rest else ""
+            raise BackupError(f"writing {object_name(i)}: {e}" + (" (the FM-1 refused the content)" if e.rc == 2 else "")
+                              + more, e.rc)
+
+
+def run_sounds(up, a, out, ask):
+    """--sounds, --export-sound N FILE, --import-sound N FILE, --rename-sound N NAME, --delete-sound N"""
+    import json
+    import os
+    sound = None
+    if a.import_sound:                            # the file is checked before anything is sent
+        path = a.import_sound[1]
+        try:
+            text = open(path, encoding="utf-8").read()
+        except (OSError, UnicodeDecodeError) as e:
+            raise InstallError("badsound", f"cannot read {path}: {getattr(e, 'strerror', None) or e}")
+        sound = read_sound_file(text)
+    bl, (version, fam) = open_backup(up)
+    try:
+        if fam != "choralroot":
+            raise InstallError("nosounds", f"the Sounds need a ChoralRoot firmware (the FM-1 runs {version}: it has "
+                                           "the banks but not the patch stores; --backup saves everything)")
+        prog = Progress(out)
+        try:
+            objs = read_sounds(bl, lambda d, t: prog.put(f"reading the sounds {d * 100 // max(1, t):3d}%"))
+        finally:
+            prog.end()
+        if 6 not in objs or 7 not in objs:
+            raise InstallError("nosounds", f"{version} does not list the user sound banks")
+        table = parse_sound_objects(objs)
+        if a.sounds:
+            print(f"user sounds on {version}:", file=out)
+            for row in table:
+                print(sound_line(row), file=out)
+            return 0
+        if a.export_sound:
+            slot, path = a.export_sound
+            f = export_sound(objs, slot, version)
+            if os.path.isdir(path):
+                path = os.path.join(path, sound_file_name(slot, f["name"]))
+            try:
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump(f, fh, indent=2)
+                    fh.write("\n")
+            except OSError as e:
+                raise InstallError("other", f"cannot write {path}: {e.strerror}")
+            print(f"{sound_line(table[slot - 1])}\nsaved: {path}", file=out)
+            return 0
+        if a.import_sound:
+            slot = a.import_sound[0]
+            row = table[slot - 1]
+            print(f"import {sound[1]} ({ENGINE_NAMES[sound[2]]}, {'patch' if sound[3] else 'no patch'}) into U{slot:02d}",
+                  file=out)
+            if row["used"] and not a.yes and not ask(f"U{slot:02d} holds {row['name']} ({row['engineName']}). "
+                                                     "Replace it? [y/N] "):
+                print("cancelled", file=out)
+                return 1
+            changed = import_sound(objs, slot, sound)
+        elif a.rename_sound:
+            slot, name = a.rename_sound
+            changed = rename_sound(objs, slot, name)
+        else:
+            slot = a.delete_sound
+            row = table[slot - 1]
+            what = f"{row['name']} ({row['engineName']})" if row["used"] else "(empty)"
+            if not a.yes and not ask(f"Delete U{slot:02d} {what}? [y/N] "):
+                print("cancelled", file=out)
+                return 1
+            changed = delete_sound(objs, slot)
+        if not changed:
+            print(f"{sound_line(table[slot - 1])}\nnothing to write: the FM-1 holds this already", file=out)
+            return 0
+        missing = [object_name(i) for i, _b in changed if i not in objs]
+        if missing:
+            raise InstallError("nosounds", f"{version} does not list {', '.join(missing)}: this sound cannot be written")
+        prog = Progress(out)
+        try:
+            write_sounds(bl, changed, lambda d, t: prog.put(f"writing U{slot:02d} {d * 100 // max(1, t):3d}%"),
+                         lambda: prog.put("busy: stop the loop on the FM-1"))
+        finally:
+            prog.end()
+        print(f"written: {', '.join(object_name(i) for i, _b in changed)}", file=out)
+        print(sound_line(parse_sound_objects(read_sounds(bl))[slot - 1]), file=out)
+        return 0
+    finally:
+        bl.link.close()
+
+
 # ------------------------------------------------------------------- CLI ---
 
 def load_package(path, force):
@@ -846,6 +1272,8 @@ class Progress:
 
 def run(a, backend, out, ask):
     up = Updater(backend, a.port)
+    if sound_op(a):
+        return run_sounds(up, a, out, ask)
     if a.info:
         dev = up.find()
         if not dev:
@@ -908,6 +1336,11 @@ def run(a, backend, out, ask):
     return 0
 
 
+def sound_op(a):
+    return [o for o, v in (("--sounds", a.sounds), ("--export-sound", a.export_sound), ("--import-sound", a.import_sound),
+                           ("--rename-sound", a.rename_sound), ("--delete-sound", a.delete_sound)) if v]
+
+
 def ask_tty(prompt):
     try:
         return input(prompt).strip().lower() in ("y", "yes")
@@ -926,11 +1359,35 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     ap.add_argument("--backup", metavar="FILE", help="save a backup of the FM-1 to FILE (a directory: a dated name) "
                                                      "before the install, or alone")
     ap.add_argument("--restore", metavar="FILE", help="restore a backup FILE onto the FM-1 (after the install, or alone)")
+    ap.add_argument("--sounds", action="store_true", help="list the 32 user sounds (ChoralRoot)")
+    ap.add_argument("--export-sound", nargs=2, metavar=("N", "FILE"),
+                    help="save user sound N (1..32) to a sound file FILE (a directory: choralroot-sound-UNN-NAME.json)")
+    ap.add_argument("--import-sound", nargs=2, metavar=("N", "FILE"),
+                    help="write the sound file FILE into slot N (asks before replacing a sound; --yes does not)")
+    ap.add_argument("--rename-sound", nargs=2, metavar=("N", "NAME"), help="rename user sound N (1 to 12 characters)")
+    ap.add_argument("--delete-sound", metavar="N", help="empty slot N (asks; --yes does not)")
     a = ap.parse_args(argv)
+    ops = sound_op(a)
+    if len(ops) > 1:
+        ap.error(f"{' and '.join(ops)}: one sound operation at a time")
+    if ops and (a.package or a.info or a.backup or a.restore):
+        ap.error(f"{ops[0]} goes alone (with --port, --yes): not with a package, --info, --backup or --restore")
+
+    def slot_of(v):
+        if not re.fullmatch(r"\d+", v) or not 1 <= int(v) <= SOUND_SLOTS:
+            ap.error(f"{ops[0]}: N is a slot 1..{SOUND_SLOTS}, not {v!r}")
+        return int(v)
+    for o in ("export_sound", "import_sound", "rename_sound"):
+        if getattr(a, o):
+            setattr(a, o, (slot_of(getattr(a, o)[0]), getattr(a, o)[1]))
+    if a.delete_sound:
+        a.delete_sound = slot_of(a.delete_sound)
+    if a.rename_sound and check_sound_name(a.rename_sound[1]):
+        ap.error(f"--rename-sound: {check_sound_name(a.rename_sound[1])}")
     if a.info and (a.package or a.backup or a.restore):
         ap.error("--info goes alone")
-    if not (a.info or a.package or a.backup or a.restore):
-        ap.error("give a PACKAGE.fwsc, --backup FILE, --restore FILE or --info")
+    if not (a.info or a.package or a.backup or a.restore or ops):
+        ap.error("give a PACKAGE.fwsc, --backup FILE, --restore FILE, --info or --sounds")
     try:
         if backend is None:
             try:

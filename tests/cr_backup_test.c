@@ -12,7 +12,9 @@
  * with nothing written; a playing loop answers busy (3) and the commit goes through once it stops; stale sessions
  * (the UI's buffer, a USB reset, 15 s); Felucca's objects: a PER4 settings record becomes PER5 with ChoralRoot's
  * defaults, the banks and the FM6 bank as they are (Felucca 1.0's 27-slot FM6 bank too, imported at the next boot),
- * ids 0 / 2..5 / 32..34 refused, the SMP_* commands unanswered; RESTART. */
+ * ids 0 / 2..5 / 32..34 refused, the SMP_* commands unanswered; the Sounds (docs/SOUNDS.md): single slots imported,
+ * renamed, deleted and replaced by another engine through whole-object PUTs, usable at once (name, engine, patch), a
+ * bad blob / bank header refused with nothing written, LIST's sizes and CRCs; RESTART. */
 #include <os/lock.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -479,6 +481,123 @@ int main(void)
                   "Felucca 1.0: its FM6 bank imported (B2 = the record)");
         }
         CHECK(t_put(6, 0, 0) == 0 && !up_used(3), "a bank of size 0: emptied");
+    }
+
+    /* ---- sounds: single slots through PUT (docs/SOUNDS.md: export / import / rename / delete as whole objects) ---- */
+    {
+        static up_bank_t b0, b1, bad_b;
+        static va_store_t vs, bad_v;
+        static fm6u_t f0;
+        static czu_t c1;
+        static uint8_t got[4096];
+        uint8_t vb[VA_BLOB], fb[FM6_BLOB], out[256];
+        char nm[13];
+        int rc;
+        memset(emu_flash, 0xFF, sizeof emu_flash);   /* a fresh device */
+        power_on();
+        trk[0].eng_req = ENGI_VA;
+        va_blob_get(&trk[0], vb);
+        trk[1].eng_req = ENGI_FM6;
+        fm6_load_slot(1, 3);
+        fm6_blob_get(&trk[1], fb);
+        CHECK(va_blob_ok(vb) && fm6_blob_ok(fb), "sounds: a VA blob and an FM6 blob");
+        /* a: import U03 (VA "MY PAD") and U05 (FM6 "TINE 2"): the stores first, the bank last */
+        memset(&b0, 0, sizeof b0);
+        b0.magic = UP_BANK_MAGIC; b0.rsize = sizeof(up_rec_t); b0.nslot = UP_PER_BANK;
+        b0.r[2].used = UP_USED; b0.r[2].ver = UP_VER; b0.r[2].engine = ENGI_VA; b0.r[2].np = P_COUNT;
+        memcpy(b0.r[2].name, "MY PAD", 6);
+        for (i = 0; i < P_COUNT; i++) b0.r[2].packed[i] = (uint8_t)(64 + (int)(i % 7));
+        b0.r[4] = b0.r[2];
+        b0.r[4].engine = ENGI_FM6;
+        memset(b0.r[4].name, 0, 12);
+        memcpy(b0.r[4].name, "TINE 2", 6);
+        memset(&vs, 0, sizeof vs);
+        vs.magic = VA_STORE_MAGIC; vs.ver = 3; vs.nslot = UP_SLOTS; vs.blob = VA_BLOB; vs.used = 1u << 2;
+        memcpy(vs.p[2], vb, VA_BLOB);
+        memset(&f0, 0, sizeof f0);
+        f0.magic = FM6U_MAGIC; f0.ver = FM6U_VER; f0.nslot = FM6U_HALF; f0.first = 0; f0.blob = FM6_BLOB; f0.used = 1u << 4;
+        memcpy(f0.b[4], fb, FM6_BLOB);
+        CHECK(sizeof b0 == 3080 && sizeof vs == 3536 && sizeof f0 == 2064 && sizeof c1 == 2320, "sounds: the object sizes of docs/SOUNDS.md");
+        CHECK(t_put(9, (uint8_t *)&vs, sizeof vs) == 0, "sounds: the VA store PUT");
+        CHECK(t_put(10, (uint8_t *)&f0, sizeof f0) == 0, "sounds: FM6 store half 0 PUT");
+        CHECK(t_put(6, (uint8_t *)&b0, sizeof b0) == 0, "sounds: bank 0 PUT");
+        CHECK(up_used(2) && up_used(4), "sounds: U03 and U05 used at once (no restart)");
+        up_name(2, nm);
+        CHECK(!strcmp(nm, "MY PAD"), "sounds: U03's name (%s)", nm);
+        up_name(4, nm);
+        CHECK(!strcmp(nm, "TINE 2"), "sounds: U05's name (%s)", nm);
+        CHECK(up_rec(2)->engine == ENGI_VA && up_rec(4)->engine == ENGI_FM6, "sounds: the engines");
+        CHECK(va_store_get(2, out) == 0 && !memcmp(out, vb, VA_BLOB), "sounds: U03's VA patch reads back");
+        CHECK(fm6u_get(4, out) == 0 && !memcmp(out, fb, FM6_BLOB), "sounds: U05's FM6 patch reads back");
+        for (k = 0, i = 0; i < UP_SLOTS; i++) k += i != 2 && i != 4 && up_used(i);
+        CHECK(k == 0, "sounds: the other slots empty");
+        CHECK(va_store_get(4, out) != 0 && fm6u_get(2, out) != 0, "sounds: no VA patch in U05, no FM6 patch in U03");
+        /* b: rename U03 */
+        memset(b0.r[2].name, 0, 12);
+        memcpy(b0.r[2].name, "RENAMED", 7);
+        CHECK(t_put(6, (uint8_t *)&b0, sizeof b0) == 0, "sounds: rename: bank 0 PUT");
+        up_name(2, nm);
+        CHECK(!strcmp(nm, "RENAMED") && up_used(2) && va_store_get(2, out) == 0 && !memcmp(out, vb, VA_BLOB),
+              "sounds: rename: the new name, the same patch (%s)", nm);
+        /* c: delete U03 */
+        vs.used &= ~(1u << 2);
+        memset(vs.p[2], 0, VA_BLOB);
+        memset(&b0.r[2], 0, sizeof b0.r[2]);
+        CHECK(t_put(9, (uint8_t *)&vs, sizeof vs) == 0 && t_put(6, (uint8_t *)&b0, sizeof b0) == 0, "sounds: delete: store + bank PUT");
+        CHECK(!up_used(2) && va_store_get(2, out) != 0, "sounds: delete: U03 empty, its patch gone");
+        up_name(4, nm);
+        CHECK(up_used(4) && !strcmp(nm, "TINE 2") && fm6u_get(4, out) == 0 && !memcmp(out, fb, FM6_BLOB), "sounds: delete: U05 intact");
+        /* another engine over a slot: U05 becomes a VA sound, its FM6 bit cleared */
+        f0.used = 0;
+        memset(f0.b[4], 0, FM6_BLOB);
+        vs.used |= 1u << 4;
+        memcpy(vs.p[4], vb, VA_BLOB);
+        b0.r[4].engine = ENGI_VA;
+        CHECK(t_put(10, (uint8_t *)&f0, sizeof f0) == 0 && t_put(9, (uint8_t *)&vs, sizeof vs) == 0 &&
+              t_put(6, (uint8_t *)&b0, sizeof b0) == 0, "sounds: U05 replaced by a VA sound: PUTs");
+        CHECK(up_used(4) && up_rec(4)->engine == ENGI_VA && fm6u_get(4, out) != 0 && va_store_get(4, out) == 0 &&
+              !memcmp(out, vb, VA_BLOB), "sounds: U05 now VA, the old FM6 patch unreadable");
+#if FELUCCA_CZ
+        /* d: a CZ-1 sound in U20 (bank 1, store half 1) */
+        memset(&c1, 0, sizeof c1);
+        c1.magic = CZU_MAGIC; c1.ver = CZU_VER; c1.nslot = CZU_HALF; c1.first = CZU_HALF; c1.blob = CZ_BYTES; c1.used = 1u << 3;
+        memcpy(c1.b[3], CZ_FACTORY[24], CZ_BYTES);
+        memset(&b1, 0, sizeof b1);
+        b1.magic = UP_BANK_MAGIC; b1.rsize = sizeof(up_rec_t); b1.nslot = UP_PER_BANK;
+        b1.r[3] = b0.r[4];
+        b1.r[3].engine = ENGI_CZ;
+        memset(b1.r[3].name, 0, 12);
+        memcpy(b1.r[3].name, "CZ PIANO", 8);
+        CHECK(t_put(13, (uint8_t *)&c1, sizeof c1) == 0 && t_put(7, (uint8_t *)&b1, sizeof b1) == 0, "sounds: CZ-1: store half 1 + bank 1 PUT");
+        up_name(19, nm);
+        CHECK(up_used(19) && up_rec(19)->engine == ENGI_CZ && !strcmp(nm, "CZ PIANO") && czu_get(19, out) == 0 &&
+              !memcmp(out, CZ_FACTORY[24], CZ_BYTES), "sounds: CZ-1: U20 used, its tone reads back (%s)", nm);
+        CHECK(czu_get(3, out) != 0, "sounds: CZ-1: half 0 empty");
+#endif
+        /* e: refusals */
+        memcpy(&bad_v, &vs, sizeof vs);
+        bad_v.p[4][0] = 'X';                         /* U05's blob: a wrong magic byte */
+        CHECK(t_put(9, (uint8_t *)&bad_v, sizeof bad_v) == 2, "sounds: a VA store with a bad blob magic: rc 2");
+        rc = t_list();
+        for (i = 0; !rc && i < sizeof vs; i += 256) rc = t_get(9, i, sizeof vs - i < 256 ? sizeof vs - i : 256, got + i);
+        CHECK(!rc && !memcmp(got, &vs, sizeof vs) && va_store_get(4, out) == 0 && !memcmp(out, vb, VA_BLOB),
+              "sounds: refused: GET 9 still the previous store, the mirror too");
+        memcpy(&bad_b, &b0, sizeof b0);
+        bad_b.rsize = 190;
+        bad_b.r[2] = b0.r[4];                        /* (would add U03) */
+        CHECK(t_put(6, (uint8_t *)&bad_b, sizeof bad_b) == 2 && !up_used(2) && up_used(4), "sounds: a bank of rsize 190: rc 2, slots unchanged");
+        /* f: LIST: sizes and CRCs of what was written */
+        CHECK(t_list() == 0, "sounds: LIST");
+        CHECK(find(man, nman, 6)->size == 3080 && find(man, nman, 6)->crc == st_crc32((uint8_t *)&b0, sizeof b0) &&
+              find(man, nman, 9)->size == 3536 && find(man, nman, 9)->crc == st_crc32((uint8_t *)&vs, sizeof vs) &&
+              find(man, nman, 10)->size == 2064 && find(man, nman, 10)->crc == st_crc32((uint8_t *)&f0, sizeof f0) &&
+              find(man, nman, 11)->size == 0,
+              "sounds: LIST: bank 0, the VA store, FM6 half 0 as written (FM6 half 1 never written: 0)");
+#if FELUCCA_CZ
+        CHECK(find(man, nman, 7)->size == 3080 && find(man, nman, 7)->crc == st_crc32((uint8_t *)&b1, sizeof b1) &&
+              find(man, nman, 13)->size == 2320 && find(man, nman, 13)->crc == st_crc32((uint8_t *)&c1, sizeof c1) &&
+              find(man, nman, 12)->size == 0, "sounds: LIST: bank 1 and CZ-1 half 1 as written");
+#endif
     }
 
     /* ---- RESTART ---- */

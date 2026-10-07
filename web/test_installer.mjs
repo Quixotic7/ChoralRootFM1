@@ -11,6 +11,8 @@
 //   errors, the backup before an install (Felucca's data saved to a file, then offered back on ChoralRoot), Skip backup,
 //   no backup possible (confirm), Back up and Restore, and the return to official V15 (backup, confirm first, nothing
 //   written when it is declined)
+// - the Sounds section (fm1sounds.js, docs/SOUNDS.md): Read sounds -> the table, Export -> a sound file, Rename (the
+//   bank only), Import (the store, then the bank; a used slot asks first), Delete, a bad file, and Felucca refused
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -18,10 +20,12 @@ import vm from "node:vm";
 import { logicalImage, productOf, STOCK_V15_SIZE } from "./fm1pkg.js";
 import { pack7, unpack7 } from "./fm1ota.js";
 import { bkU32, bkR32, bkPack, bkUnpack, bkCrc, CR_BACKUP_IDS, BACKUP_IDS } from "./fm1backup.js";
+import { readSoundFile, parseSoundObjects } from "./fm1sounds.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(72)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
 const eq = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+const same = eq;
 const HERE = new URL(".", import.meta.url).pathname;
 const count = (s, sub) => s.split(sub).length - 1;
 
@@ -39,6 +43,10 @@ ok(["captureBackup", "restoreBackup", "BackupConnection", "saveArchive", "device
    ["skip-backup", "backup-go", "restore-go", "restore-file", "stock-recovery"].every((id) => html.includes(`id="${id}"`)),
    "page: the backup step (capture, restore, restart; Skip backup, Back up, Restore, stock resume box)");
 ok(!/no backup protocol|has no backup/i.test(html), "page: the \"no backup\" texts are gone");
+ok(["snd-read", "snd-file", "snd-table", "snd-rows"].every((id) => html.includes(`id="${id}"`)) &&
+   ["readSounds", "writeSounds", "parseSoundObjects", "exportSound", "importSound", "renameSound", "deleteSound", "readSoundFile",
+    "soundFileName", "soundsRun", "renderSounds"].every((f) => html.includes(f)) &&
+   html.indexOf('id="sounds"') > html.indexOf('data-t="bkTitle"'), "page: the Sounds section (after Back up and restore): Read sounds, the table, the file input");
 ok(html.includes("<title>ChoralRoot FM-1 · installer</title>") && /<html lang="en">/.test(html), "page: title and lang");
 ok(html.includes('href="../../"') && ["LICENSING.md", "LICENSE\"", "LICENSES/Apache-2.0.txt", "LICENSES/\""].every((p) => html.includes(`href="../../firmware/${p}`)),
   "page: link to the landing page and the licence links");
@@ -63,6 +71,11 @@ const missingC = [...codes].filter((c) => typeof en[c] !== "string");
 ok(codes.size > 13 && !missingC.length, `texts: every fm1ota.js error code and status has a text (${codes.size}${missingC.length ? "; missing " + missingC : ""})`);
 const sayKeys = [...scriptOf(html).matchAll(/(?:\bsayK|\bt|\bcoded)\("([A-Za-z]+)"/g)].map((m) => m[1]);
 ok(sayKeys.every((k) => typeof en[k] === "string"), `texts: every key the script names has a text (${sayKeys.filter((k) => typeof en[k] !== "string")})`);
+const tfKeys = [...scriptOf(html).matchAll(/\btf\("([A-Za-z]+)"/g)].map((m) => m[1]);
+ok(tfKeys.length >= 4 && tfKeys.every((k) => typeof en[k] === "string"), `texts: every key tf() fills has a text (${tfKeys.length})`);
+ok(["sndTitle", "sndText", "sndAll", "sndReadGo", "sndColSlot", "sndColName", "sndColEngine", "sndColPatch"].every((k) => dataT.includes(k) && en[k]) &&
+   ["sndNeedCr", "sndExport", "sndImport", "sndRename", "sndDelete", "sndEmpty"].every((k) => en[k]) && /ChoralRoot/.test(en.sndNeedCr),
+   "texts: the Sounds section's data-t keys and its statuses");
 
 /* -------------------------------------------------------- (d) status line --- */
 const tpl = html.match(/say\((`ChoralRoot \$\{meta\.version\} · \$\{meta\.product\}`)\)/);
@@ -73,7 +86,8 @@ ok(tpl && new Function("meta", `return ${tpl[1]}`)(META) === "ChoralRoot 0.1 · 
 const stripModule = (src) => src.replace(/^export\s+/gm, "").replace(/^import .*?;\n/gm, "");
 const site = readFileSync(join(HERE, "make_site.py"), "utf8");
 let libs = [...site.matchAll(/strip_module\(\(HERE \/ "([\w.]+\.js)"\)/g)].map((m) => m[1]);
-if (!libs.length) libs = ["fm1pkg.js", "fm1ota.js", "fm1backup.js"];
+if (!libs.length) libs = ["fm1pkg.js", "fm1ota.js", "fm1backup.js", "fm1sounds.js"];
+ok(libs.join() === "fm1pkg.js,fm1ota.js,fm1backup.js,fm1sounds.js", `make_site.py inlines ${libs.join(", ")} (fm1sounds.js after fm1backup.js)`);
 const lib = libs.map((f) => stripModule(readFileSync(join(HERE, f), "utf8"))).join("\n");
 const built = html.split("/*LIB*/").join(lib).split("/*META*/").join(JSON.stringify(META));   // no $-patterns
 const code = scriptOf(built);
@@ -86,8 +100,10 @@ ok(!/^\s*(import|export)\s/m.test(code), "inlined page: no import / export left"
 class El {
   constructor(attrs) {
     this.id = attrs.id; this.textContent = ""; this.disabled = "disabled" in attrs; this.value = 0; this.files = [];
-    this.checked = false; this.dataset = attrs.t ? { t: attrs.t } : {}; this.style = {}; this.l = {};
+    this.checked = false; this.dataset = attrs.t ? { t: attrs.t } : {}; this.style = {}; this.l = {}; this.clicks = 0;
+    this.hidden = "hidden" in attrs; this.innerHTML = "";
   }
+  click() { this.clicks++; }                    // (a file input opening its picker)
   addEventListener(type, f) { this.l[type] = f; }
   fire(type) { return this.l[type] ? this.l[type]({ type }) : undefined; }
 }
@@ -100,6 +116,7 @@ function makeDom() {
     if (id) attrs.id = id[1];
     if (t) attrs.t = t[1];
     if (/\sdisabled(\s|=|$)/.test(a)) attrs.disabled = true;
+    if (/\shidden(\s|=|$)/.test(a)) attrs.hidden = true;
     const el = new El(attrs);
     if (id) byId[id[1]] = el;
     if (t) withT.push(el);
@@ -110,10 +127,10 @@ const realSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // the Updater's waits (2 s, 3 s, 1 s polls) at a tenth: the simulated FM-1 answers in milliseconds
 const fastTimeout = (f, ms = 0, ...a) => setTimeout(f, ms >= 100 ? ms / 10 : ms, ...a);
 
-function runPage({ navigator = {}, fetch, confirm = () => true, prelude = "", extra = {} } = {}) {
+function runPage({ navigator = {}, fetch, confirm = () => true, prompt = () => null, prelude = "", extra = {} } = {}) {
   const { byId, withT } = makeDom();
   const win = { l: {}, addEventListener(type, f) { this.l[type] = f; } };
-  const confirms = [], downloads = [];
+  const confirms = [], downloads = [], prompts = [];
   const document = {
     documentElement: { lang: "" },
     body: { append() {} },
@@ -124,13 +141,14 @@ function runPage({ navigator = {}, fetch, confirm = () => true, prelude = "", ex
   const ctx = {
     document, window: win, navigator, fetch: fetch || (async () => { throw new Error("fetch not expected"); }),
     confirm: (msg) => { confirms.push(msg); return confirm(msg); },
+    prompt: (msg, def) => { prompts.push(msg); return prompt(msg, def); },
     URL, Blob, crypto: globalThis.crypto, TextEncoder, TextDecoder, console, btoa, atob, DataView,
     setTimeout: fastTimeout, clearTimeout, setInterval, clearInterval, ...extra,
   };
   const src = prelude ? code.replace(lib, () => lib + "\n" + prelude) : code;
   let error = null;
   try { vm.runInNewContext(src, ctx, { filename: "installer.js" }); } catch (e) { error = e; }
-  return { $: byId, withT, win, document, confirms, downloads, error };
+  return { $: byId, withT, win, document, confirms, downloads, prompts, error };
 }
 
 /* a simulated FM-1 on WebMIDI (test_web.mjs's FakeFM1 with the identities as parameters) */
@@ -502,6 +520,114 @@ ok(/<details id="dark">/.test(html) && html.includes('href="https://github.com/Q
   await none.$["stock-file"].fire("change");
   await none.$["stock-go"].fire("click");
   ok(none.$.status.textContent === en.notfound && none.confirms.length === 0, "stock: no FM-1 -> notfound before any confirm");
+}
+
+/* ----------------------------------------------- the Sounds section (docs/SOUNDS.md) --- */
+{
+  const dv = (b) => new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const rec = (engine, name, seed) => {
+    const r = new Uint8Array(192); r[0] = 0xA5; r[1] = 4; r[2] = engine; r[3] = 40;
+    for (let i = 0; i < name.length; i++) r[4 + i] = name.charCodeAt(i);
+    for (let i = 0; i < 144; i++) r[16 + i] = (i * 7 + seed) % 192;
+    return r;
+  };
+  const bank = (recs) => {
+    const b = new Uint8Array(3080); dv(b).setUint32(0, 0x31425055, true); dv(b).setUint16(4, 192, true); dv(b).setUint16(6, 16, true);
+    for (const [i, r] of Object.entries(recs)) b.set(r, 8 + Number(i) * 192);
+    return b;
+  };
+  const store = (magic, ver, nslot, size, first, blob, blobs) => {   // VA (first null) or an FM6 / CZ-1 half
+    const b = new Uint8Array(size), v = dv(b); let used = 0;
+    v.setUint32(0, magic, true); v.setUint16(4, ver, true); v.setUint16(6, nslot, true);
+    if (first === null) v.setUint16(12, blob, true); else { v.setUint16(8, first, true); v.setUint16(10, blob, true); }
+    for (const [k, data] of Object.entries(blobs)) { b.set(data, 16 + Number(k) * blob); used |= 1 << Number(k); }
+    v.setUint32(first === null ? 8 : 12, used >>> 0, true);
+    return b;
+  };
+  const vaBlob = Uint8Array.from({ length: 110 }, (_, i) => (i ? (i * 5) & 127 : 0x56)); vaBlob[1] = 3;
+  const fm6Blob = Uint8Array.from({ length: 128 }, (_, i) => (i * 3) & 127); fm6Blob[112] = 0x46; fm6Blob[113] = 1;
+  const czBlob = Uint8Array.from({ length: 144 }, (_, i) => (i * 11) & 255);
+  const soundData = () => [
+    [1, per(764, 0x50455235, 6)], [6, bank({ 0: rec(13, "MY PAD", 1), 2: rec(0, "BASS", 2) })], [7, bank({ 1: rec(14, "CZ BELL", 3) })],
+    [9, store(0x31534156, 3, 32, 3536, null, 110, { 0: vaBlob })], [10, store(0x55364D46, 1, 16, 2064, 0, 128, {})],
+    [11, store(0x55364D46, 1, 16, 2064, 16, 128, { 5: fm6Blob })], [12, store(0x55315A43, 1, 16, 2320, 0, 144, {})],
+    [13, store(0x55315A43, 1, 16, 2320, 16, 144, { 1: czBlob })],
+  ];
+  const cr = backupSide("ChoralRoot 0.14", CR_BACKUP_IDS, soundData());
+  const dev = new FakeFM1(image, { identity: "FM-1_920", bk: () => cr });
+  let answer = true, name = null;
+  const p = runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw), confirm: () => answer, prompt: () => name });
+  await settle();
+  const act = (a, slot) => p.$["snd-rows"].l.click({ target: { closest: (sel) => (sel === "button[data-act]" ? { dataset: { act: a, slot: String(slot) }, disabled: false } : null) } });
+  ok(!p.$["snd-read"].disabled && p.$["snd-table"].hidden === true, "sounds: Read sounds enabled, the table hidden until a read");
+
+  await p.$["snd-read"].fire("click");
+  const rows = () => p.$["snd-rows"].innerHTML;
+  ok(p.$["snd-table"].hidden === false && (rows().match(/<tr/g) || []).length === 32 && rows().includes(">U01<") && rows().includes(">U32<") &&
+     rows().includes("MY PAD") && rows().includes("BASS") && rows().includes("CZ BELL") && rows().includes(en.sndEmpty) && !cr.log.length,
+     "sounds: Read sounds -> 32 rows (U01..U32) with the names, empty slots marked, nothing written");
+  ok(p.$.status.textContent === en.sndRead.replace("{n}", "3") && !p.$["snd-read"].disabled && !/disabled/.test(rows().split("</tr>")[0]),
+     `sounds: status "${p.$.status.textContent}", unlocked`);
+
+  let blobText = null;
+  const realCreate = URL.createObjectURL;
+  URL.createObjectURL = (b) => { b.text().then((x) => { blobText = x; }); return "blob:sound"; };
+  await act("export", 1);
+  await settle();
+  URL.createObjectURL = realCreate;
+  let sound = null;
+  try { sound = readSoundFile(blobText); } catch (e) { console.log(String(e)); }
+  ok(p.downloads.at(-1)?.name === "choralroot-sound-U01-MY_PAD.json" && sound && sound.name === "MY PAD" && sound.engine === 13 &&
+     sound.patch && sound.patch.length === 110 && p.$.status.textContent === en.sndExported + "choralroot-sound-U01-MY_PAD.json" && !cr.log.length,
+     "sounds: Export U01 -> a download readSoundFile accepts (VA with its patch), nothing written");
+
+  name = "NEW BASS";
+  await act("rename", 3);
+  ok(cr.log.join() === "6" && rows().includes("NEW BASS") && p.prompts.at(-1) === en.sndRenamePrompt.replace("{slot}", "U03") &&
+     p.$.status.textContent === en.sndRenamed + "U03: NEW BASS", "sounds: Rename U03 -> only bank 0 written, the table read again");
+  name = "THIS IS TOO LONG"; cr.log.length = 0;
+  await act("rename", 3);
+  ok(!cr.log.length && p.$.status.textContent === en.sndBadName, "sounds: a 16-character name refused, nothing written");
+
+  const confirms0 = p.confirms.length;
+  await act("import", 5);
+  ok(p.$["snd-file"].clicks === 1, "sounds: Import opens the file picker for the row");
+  p.$["snd-file"].files = [{ text: async () => blobText }];
+  await p.$["snd-file"].fire("change");
+  ok(cr.log.join() === "9,6" && p.confirms.length === confirms0 && parseSoundObjects(cr.objs).slots[4].name === "MY PAD" &&
+     parseSoundObjects(cr.objs).slots[4].patch === "va" && p.$.status.textContent === en.sndImported + "U05: MY PAD",
+     "sounds: Import into U05 (empty): no question, the VA store then bank 0 written");
+
+  cr.log.length = 0; answer = false;
+  await act("import", 18);
+  p.$["snd-file"].files = [{ text: async () => blobText }];
+  await p.$["snd-file"].fire("change");
+  ok(!cr.log.length && p.confirms.at(-1).startsWith("U18 holds \"CZ BELL\"") && p.$.status.textContent === en.cancelled,
+     "sounds: Import over U18 (used): asked, declined -> nothing written");
+  answer = true;
+  await p.$["snd-file"].fire("change");
+  ok(cr.log.join() === "9,13,7" && parseSoundObjects(cr.objs).slots[17].name === "MY PAD" && parseSoundObjects(cr.objs).slots[17].patch === "va",
+     "sounds: ... confirmed -> the VA store, the CZ-1 half cleared, then bank 1");
+
+  cr.log.length = 0;
+  p.$["snd-file"].files = [{ text: async () => JSON.stringify({ format: "felucca-backup", version: 1, objects: [] }) }];
+  await p.$["snd-file"].fire("change");
+  ok(!cr.log.length && p.$.status.textContent.startsWith(en.sndBadFile) && /whole backup/.test(p.$.status.textContent),
+     "sounds: a backup file chosen for Import -> refused (a whole backup), nothing written");
+
+  await act("delete", 1);
+  ok(cr.log.join() === "9,6" && !parseSoundObjects(cr.objs).slots[0].used && p.confirms.at(-1).startsWith("Delete U01 \"MY PAD\"") &&
+     p.$.status.textContent === en.sndDeleted + "U01" && same(cr.objs.get(1), soundData()[0][1]),
+     "sounds: Delete U01 (confirmed) -> the VA store then the bank; the settings untouched");
+  ok(!p.$.go.disabled && !p.$["backup-go"].disabled && !p.$["snd-read"].disabled, "sounds: the installer unlocked afterwards");
+}
+{
+  const fel = backupSide("FELUCCA 1.0", BACKUP_IDS, feluccaData());
+  const p = runPage({ navigator: midiOf(new FakeFM1(image, { identity: "FM-1_910", bk: () => fel })), fetch: pkgFetch(raw) });
+  await settle();
+  await p.$["snd-read"].fire("click");
+  ok(p.$.status.textContent === en.sndNeedCr && p.$["snd-table"].hidden === true && !fel.log.length && !p.$["snd-read"].disabled,
+     "sounds: on Felucca -> the status says the Sounds need ChoralRoot, nothing read or written");
 }
 
 console.log(failed ? `INSTALLER TESTS FAILED (${failed})` : "installer tests passed");

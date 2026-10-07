@@ -28,7 +28,12 @@ pip3 install mido python-rtmidi
 python3 tools/fm1_install.py choralroot-X.Y.fwsc --backup .   # back up to ./choralroot-backup-YYYYMMDD.json, install
 python3 tools/fm1_install.py --info          # identity of the connected FM-1 (FM-1_920 after the install)
 python3 tools/fm1_install.py --restore FILE  # a backup back onto the FM-1
+python3 tools/fm1_install.py --sounds        # the 32 user sounds; --export-sound N FILE / --import-sound N FILE /
+                                             # --rename-sound N NAME / --delete-sound N (docs/SOUNDS.md)
 ```
+
+**Single sounds as files:** the installer page's Sounds section and the commands above export, import, rename and
+delete one user sound at a time (its record and its VA / FM6 / CZ-1 patch) as a small JSON file, without a restart.
 
 **Back to the stock firmware:** the installer's "Return to official V15" section installs the official FM-1
 V15 firmware, `FM-1.fwsc`, which you download yourself from M-VAVE's

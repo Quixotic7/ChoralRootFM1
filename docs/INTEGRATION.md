@@ -448,7 +448,14 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
   the replies in `st_buf`. The page (`web/fm1backup.js`, `web/index_pkg.html`: backup before install, Skip backup,
   Back up / Restore, the restore offered after installing over another firmware) and `tools/fm1_install.py --backup /
   --restore`. Host test `tests/cr_backup_test.c` (the emulator's build: it has no SysEx transport, so no emulator
-  script); not yet on hardware.
+  script); run on hardware 2026-10-07 (a full backup of the user's FM-1: settings, user sounds 1-16, FM6 patches 1-16).
+
+- **Sounds as files** (2026-10-07, docs/SOUNDS.md): the installer page's Sounds section (`web/fm1sounds.js`,
+  `web/index_pkg.html`) and `fm1_install.py --sounds / --export-sound / --import-sound / --rename-sound / --delete-sound`
+  export, import, rename and delete single user sounds (the 192-byte record plus the VA / FM6 / CZ-1 blob) as
+  `choralroot-sound` JSON files by rewriting the backup objects 6, 7, 9..13 per slot (the stores first, the bank last);
+  no firmware change: `crb_commit` reloads the mirrors (`up_boot`), pinned by `tests/cr_backup_test.c` "sounds: single
+  slots through PUT". Verified on the device the same day (an FM6 sound copied to U03, renamed, deleted).
 
 ### All-synth (2026-10-07: the dead weight out)
 

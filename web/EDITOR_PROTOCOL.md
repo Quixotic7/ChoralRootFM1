@@ -596,12 +596,17 @@ switched. Framing, u32, pack7, CRC-32 and the rc table are as in "v7: full backu
 no reply. Host coverage: `tests/cr_backup_test.c` (the handler on the emulator's firmware build: list -> read all ->
 write back -> identical, CRC / size / content errors, busy, stale sessions, Felucca's objects); `web/test_backup.mjs`,
 `web/test_installer.mjs` and `tests/install_test.py` (the page, the installer page and the CLI against simulated
-firmwares). Not yet run on hardware.
+firmwares). Run on hardware 2026-10-07 (a full backup, and the per-slot writes below).
+
+The installer page's **Sounds** section and `fm1_install.py --sounds / --export-sound / --import-sound / --rename-sound /
+--delete-sound` (docs/SOUNDS.md) are built on these commands alone: they GET the objects 6, 7, 9..13, edit one slot in
+them and PUT back the objects that changed (the stores first, the bank last); the firmware reloads its mirrors after
+each commit, no RESTART.
 
 | cmd | request | reply |
 | --- | --- | --- |
 | 1 INFO | — | version string (`ChoralRoot 0.1`), then 0 engines, P_COUNT 0, G_COUNT 0, NSTEP 0, P_E0 0, NTRK 0, CHAIN_ROWS 0, then `42 01 03` (backup read + restore) and `43 01 02` (ChoralRoot backup v2: ids 9 and 40..49, `RESTART`, no sample slots; v1, ChoralRoot 0.1, also listed 32 and 33 and answered SMP_BEGIN .. SMP_ERASE) |
-| 65 BACKUP_LIST | — | `1, rc, 15`, then per object `id, size u32, crc u32` |
+| 65 BACKUP_LIST | — | `1, rc, 27` (17 without CZ-1), then per object `id, size u32, crc u32` |
 | 66 BACKUP_GET | as above | as above (a loop may play: reads never stop anything) |
 | 67 BACKUP_PUT | as above | as above |
 | 72 RESTART | — | rc (0); then the device restarts (about 150 ms later, once the reply has left) |

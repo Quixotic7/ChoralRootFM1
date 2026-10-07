@@ -257,7 +257,7 @@
     <h2 id="recovery">Recovery</h2>
     <p class="intro">The installer's <b>Return to official V15</b> puts M-VAVE's firmware back.</p>
     <p>Download the official FM-1 V15 firmware (<code>FM-1.fwsc</code>) yourself from <a href="https://www.m-vave.com/download">M-VAVE's downloads page</a> and select it in the installer. The browser checks its size and SHA-256 locally (the file is never uploaded) and installs it the same way. On the command line: <code class="cmd">python3 tools/fm1_install.py <span class="nw">FM-1.fwsc</span></code>.</p>
-    <p class="warn">ChoralRoot has no backup protocol. User sounds, loops and settings stored on the FM-1 are not saved, and a return to stock erases them.</p>
+    <p>The installer's <b>Back up</b> saves everything stored on the FM-1 (the settings, the 32 user sounds with their patches, the loops, the FM6 patch bank and the CZ-1 banks) to one <code>.json</code> file, and <b>Restore</b> writes it back; Return to official V15 saves one first. Its <b>Sounds</b> section exports, imports and renames single user sounds as files.</p>
     <p>If an install fails and the FM-1 no longer starts, recovery needs <a href="https://github.com/kurogedelic/FM-1-transporter">FM-1-transporter</a>.</p>
   </div>
 </section>

@@ -494,8 +494,213 @@ def backups():
     ok(rc == 2 and "damaged" in err, "--restore of a damaged file: exit 2 before any request")
 
 
+def sound_rec(engine, name, ver=4, np=40, used=0xA5, seed=0):
+    """an up_rec_t (docs/SOUNDS.md): used, ver, engine, np, name[12], packed[144] (+64), note[16], flags[16]"""
+    vals = bytes(64 + (k * 7 + seed) % 100 for k in range(144)) if ver >= 4 else \
+        b"".join(((k * 5 + seed) % 50 - 20).to_bytes(2, "little", signed=True) for k in range(72))
+    return bytes([used, ver, engine, np]) + name.encode().ljust(12, b"\0") + vals + fill(32, seed)
+
+
+def sound_bank(recs):
+    b = bytearray(0x31425055.to_bytes(4, "little") + (192).to_bytes(2, "little") + (16).to_bytes(2, "little") + bytes(16 * 192))
+    for k, r in recs.items():
+        b[8 + k * 192:8 + (k + 1) * 192] = r
+    return bytes(b)
+
+
+def sound_store(kind, half, blobs):
+    """the VA store (half 0) or an FM6 / CZ-1 half with {index: blob}"""
+    size = {"va": 110, "fm6": 128, "cz": 144}[kind]
+    used = sum(1 << k for k in blobs)
+    if kind == "va":
+        head = (0x31534156).to_bytes(4, "little") + bytes([3, 0, 32, 0]) + used.to_bytes(4, "little") + bytes([110, 0, 0, 0])
+        n = 32
+    else:
+        head = ((0x55364D46 if kind == "fm6" else 0x55315A43).to_bytes(4, "little") + bytes([1, 0, 16, 0, 16 * half, 0, size, 0])
+                + used.to_bytes(4, "little"))
+        n = 16
+    b = bytearray(head + bytes(n * size))
+    for k, v in blobs.items():
+        b[16 + k * size:16 + (k + 1) * size] = v
+    return bytes(b)
+
+
+def va_blob(seed):
+    return bytes([0x56, 3]) + fill(108, seed)
+
+
+def fm6_blob(seed):
+    b = bytearray(fill(128, seed))
+    b[112:114] = b"\x46\x01"
+    return bytes(b)
+
+
+def sounds():
+    import base64
+    import json
+    I.DELAY.update(bk_busy=0.01)
+    pad, tine, long_, warm, bell = (sound_rec(13, "MY PAD", seed=1), sound_rec(12, "TINE 2", seed=2),
+                                    sound_rec(14, "ABCDEFGHIJKL", seed=3), sound_rec(0, "WARM", seed=5),
+                                    sound_rec(2, "BELL", ver=3, np=30, seed=6))
+    broken = sound_rec(13, "BROKEN", np=200, seed=4)              # np > 144: up_valid fails -> empty
+    vpad, vstale3, vstale6, f6stale3, f6stale20, czlong = (va_blob(1), va_blob(9), va_blob(10), fm6_blob(11),
+                                                           fm6_blob(12), fill(144, 13))
+
+    def objects():
+        return {6: sound_bank({0: pad, 1: tine, 2: long_, 3: broken, 4: warm}), 7: sound_bank({0: bell}),
+                9: sound_store("va", 0, {0: vpad, 2: vstale3, 5: vstale6}),
+                10: sound_store("fm6", 0, {2: f6stale3}), 11: sound_store("fm6", 1, {3: f6stale20}),
+                12: sound_store("cz", 0, {2: czlong}), 13: b""}
+
+    def device(busy=0, objs=None):
+        side = BackupSide("ChoralRoot 0.14", I.CR_IDS, (objs or objects()).items(), busy=busy)
+        return FakeFM1(b"", identity="FM-1_920", bk=lambda _i: side), side
+
+    def rec_of(side, slot):
+        b = side.objs[6 + (slot - 1) // 16]
+        return b[8 + (slot - 1) % 16 * 192:8 + ((slot - 1) % 16 + 1) * 192]
+
+    def usage(args):
+        try:
+            return cli(args, FakeFM1(b"", identity="FM-1_920"))[0]
+        except SystemExit as e:
+            return e.code
+
+    dev, side = device()
+    rc, out, err = cli(["--sounds"], dev)
+    lines = {ln[:3]: ln for ln in out.splitlines() if ln[:1] == "U"}
+    ok(rc == 0 and len(lines) == 32 and lines["U01"].split() == ["U01", "MY", "PAD", "VA", "patch"] and
+       lines["U02"].split() == ["U02", "TINE", "2", "FM6", "no", "patch"] and
+       lines["U03"].split() == ["U03", "ABCDEFGHIJKL", "CZ-1", "patch"] and lines["U04"] == "U04  (empty)" and
+       lines["U05"].split() == ["U05", "WARM", "ANALOG"] and lines["U06"] == "U06  (empty)" and
+       lines["U17"].split() == ["U17", "BELL", "PHASE"] and lines["U20"] == "U20  (empty)" and
+       len({ln.index(w) for ln, w in ((lines["U01"], "VA"), (lines["U02"], "FM6"), (lines["U03"], "CZ-1"))}) == 1 and
+       not any(isinstance(x, int) for x in side.log), "--sounds: 32 slots, names, engines, patch / no patch, invalid -> (empty)")
+
+    rc, out, err = cli(["--export-sound", "1", str(TMP)], dev)
+    f1 = TMP / "choralroot-sound-U01-MY_PAD.json"
+    snd = I.read_sound_file(f1.read_text()) if f1.exists() else None
+    ok(rc == 0 and snd and snd[0] == pad and snd[1] == "MY PAD" and snd[2] == 13 and snd[3] == ("va", vpad),
+       "--export-sound 1 DIR: choralroot-sound-U01-MY_PAD.json, record and VA patch")
+    f3 = TMP / "long.json"
+    rc, out, err = cli(["--export-sound", "3", str(f3)], dev)
+    snd3 = I.read_sound_file(f3.read_text()) if f3.exists() else None
+    ok(rc == 0 and snd3 and snd3[0] == long_ and snd3[3] == ("cz", czlong) and json.loads(f3.read_text())["engineName"] == "CZ-1",
+       "--export-sound 3 FILE: a CZ-1 sound with a 12-character name")
+    f2 = TMP / "tine.json"
+    rc, out, err = cli(["--export-sound", "2", str(f2)], dev)
+    ok(rc == 0 and json.loads(f2.read_text())["patch"] is None, "--export-sound: an FM6 sound without its blob: patch null")
+    rc, out, err = cli(["--export-sound", "4", str(TMP / "x.json")], dev)
+    ok(rc != 0 and "empty" in err and not (TMP / "x.json").exists(), "--export-sound of an empty slot: an error, no file")
+
+    dev, side = device()
+    rc, out, err = cli(["--import-sound", "8", str(f1)], dev, answer=False)
+    ok(rc == 0 and side.log == [9, 6] and rec_of(side, 8) == pad and I.parse_sound_objects(side.objs)[7]["blob"] == vpad
+       and "U08  MY PAD" in out, "--import-sound into an empty slot: the VA store, then the bank (no question); re-read shows it")
+    rc, out, err = cli(["--sounds"], dev)
+    ok("U08  MY PAD" in out and "U01  MY PAD" in out, "--sounds after the import lists U08")
+
+    dev, side = device()
+    rc, out, err = cli(["--import-sound", "5", str(f1)], dev, answer=False)
+    ok(rc == 1 and "cancelled" in out and not any(isinstance(x, int) for x in side.log), "--import-sound over a used slot, answer no: nothing written")
+    rc, out, err = cli(["--import-sound", "5", str(f1), "--yes"], dev, answer=False)
+    ok(rc == 0 and side.log == [9, 6] and rec_of(side, 5) == pad, "--import-sound over a used slot with --yes: written")
+    rc, out, err = cli(["--import-sound", "3", str(f1), "--yes"], dev)
+    t = I.parse_sound_objects(side.objs)
+    ok(rc == 0 and side.log[2:] == [9, 10, 12, 6] and t[2]["engineName"] == "VA" and t[2]["blob"] == vpad and
+       side.objs[12][16 + 2 * 144:16 + 3 * 144] == bytes(144) and side.objs[10][16 + 2 * 128:16 + 3 * 128] == bytes(128),
+       "--import-sound VA over a CZ-1 sound: its CZ-1 tone and a stale FM6 blob cleared, the bank last")
+
+    renamed = TMP / "renamed.json"
+    renamed.write_text(json.dumps({**json.loads(f1.read_text()), "name": "Night Pad 2"}))
+    dev, side = device()
+    rc, out, err = cli(["--import-sound", "9", str(renamed)], dev)
+    ok(rc == 0 and rec_of(side, 9)[4:16] == b"Night Pad 2\0" and rec_of(side, 9)[16:] == pad[16:] and "Night Pad 2" in out,
+       "--import-sound: the JSON's name renames the sound")
+
+    dev, side = device()
+    rc, out, err = cli(["--rename-sound", "17", "CHIME"], dev)
+    ok(rc == 0 and side.log == [7] and rec_of(side, 17) == bell[:4] + b"CHIME".ljust(12, b"\0") + bell[16:] and "U17  CHIME" in out,
+       "--rename-sound: only the bank, only the name")
+    rc, out, err = cli(["--rename-sound", "4", "X"], dev)
+    ok(rc != 0 and "empty" in err and side.log == [7], "--rename-sound of an empty slot: an error, nothing written")
+
+    dev, side = device()
+    rc, out, err = cli(["--delete-sound", "3"], dev, answer=False)
+    ok(rc == 1 and not any(isinstance(x, int) for x in side.log), "--delete-sound, answer no: nothing written")
+    rc, out, err = cli(["--delete-sound", "3", "--yes"], dev)
+    st = side.objs
+    ok(rc == 0 and side.log == [9, 10, 12, 6] and rec_of(side, 3) == bytes(192) and
+       not (int.from_bytes(st[9][8:12], "little") >> 2 & 1) and st[9][16 + 220:16 + 330] == bytes(110) and
+       not (int.from_bytes(st[10][12:16], "little") >> 2 & 1) and st[10][16 + 256:16 + 384] == bytes(128) and
+       not (int.from_bytes(st[12][12:16], "little") >> 2 & 1) and st[12][16 + 288:16 + 432] == bytes(144) and
+       st[9][16:126] == vpad and "U03  (empty)" in out, "--delete-sound: record zeroed, the three stores' slot cleared, the bank last")
+
+    dev, side = device(busy=1)
+    rc, out, err = cli(["--import-sound", "8", str(f1)], dev)
+    ok(rc == 0 and side.log == ["busy 9", 9, 6], "a busy FM-1 (the loop plays): the write is retried")
+
+    empty = {6: b"", 7: b"", 9: b"", 10: b"", 11: b"", 12: b"", 13: b""}
+    dev, side = device(objs=empty)
+    rc, out, err = cli(["--sounds"], dev)
+    ok(rc == 0 and out.count("(empty)") == 32, "--sounds on an FM-1 that never saved a sound: 32 empty slots")
+    rc, out, err = cli(["--import-sound", "20", str(f3)], dev)
+    t = I.parse_sound_objects(side.objs)
+    ok(rc == 0 and side.log == [13, 7] and t[19]["name"] == "ABCDEFGHIJKL" and t[19]["blob"] == czlong and
+       len(side.objs[13]) == 2320 and len(side.objs[7]) == 3080, "--import-sound into empty objects: the CZ-1 half and the bank created")
+
+    # bad sound files: exit 2 before any request
+    bk = TMP / "a-backup.json"
+    bk.write_text(json.dumps({"format": "felucca-backup", "version": 1, "objects": []}))
+    dmg = TMP / "damaged.json"
+    dmg.write_text(json.dumps({**json.loads(f1.read_text()), "record": "%%%" + json.loads(f1.read_text())["record"][3:]}))
+    kind = TMP / "kind.json"
+    kind.write_text(json.dumps({**json.loads(f1.read_text()), "patch": {"kind": "fm6", "data": json.loads(f1.read_text())["patch"]["data"]}}))
+    for path, what, word in ((bk, "a felucca-backup", "whole backup"), (dmg, "damaged base64", "base64"),
+                             (kind, "a wrong patch kind", "fm6")):
+        dev, side = device()
+        rc, out, err = cli(["--import-sound", "8", str(path), "--yes"], dev)
+        ok(rc == 2 and word in err and dev.sent == [], f"--import-sound of {what}: exit 2, nothing sent")
+    base = json.loads(f1.read_text())
+    bad = []
+    cases = [({"record": base["record"][:-8]}, "bytes, not 192"),
+             ({"record": base64.b64encode(broken).decode()}, "not a valid user sound"),
+             ({"engine": 12}, "engine"), ({"name": "THIRTEEN CHAR"}, "1 to 12"), ({"name": "café"}, "ASCII"),
+             ({"patch": {"kind": "va", "data": base["patch"]["data"][:-4]}}, "bytes, not 110"),
+             ({"patch": {"kind": "va", "data": base64.b64encode(b"X" + vpad[1:]).decode()}}, "not a VA patch"),
+             ({"format": "something"}, "not a ChoralRoot sound file")]
+    for ch, word in cases:
+        try:
+            I.read_sound_file({**base, **ch})
+            bad.append((ch, "accepted"))
+        except I.InstallError as e:
+            if e.code != "badsound" or word not in str(e):
+                bad.append((ch, str(e)))
+    fm6 = {**json.loads(f2.read_text()), "patch": {"kind": "fm6", "data": base64.b64encode(fill(128, 1)).decode()}}
+    try:
+        I.read_sound_file(fm6)
+        bad.append(("fm6 magic", "accepted"))
+    except I.InstallError as e:
+        if "FM6" not in str(e):
+            bad.append(("fm6 magic", str(e)))
+    ok(not bad and I.read_sound_file({**base, "name": None})[1] == "MY PAD",
+       f"read_sound_file: each malformed case refused with its message{'; wrong: ' + repr(bad) if bad else ''}")
+
+    fel = BackupSide("FELUCCA 1.0", I.FELUCCA_IDS, {6: sound_bank({0: pad})}.items())
+    dev = FakeFM1(b"", identity="FM-1_910", bk=lambda _i: fel)
+    rc, out, err = cli(["--sounds"], dev)
+    ok(rc == 7 and "ChoralRoot" in err and "FELUCCA 1.0" in err, "--sounds on Felucca: exit 7, needs ChoralRoot")
+
+    ok(usage(["--delete-sound", "33"]) == 2 and usage(["--export-sound", "0", "x.json"]) == 2 and
+       usage(["--rename-sound", "a", "X"]) == 2, "N outside 1..32: a usage error (exit 2)")
+    ok(usage(["--sounds", pkgfile("s.fwsc", package())]) == 2 and usage(["--sounds", "--backup", "x.json"]) == 2 and
+       usage(["--sounds", "--delete-sound", "1"]) == 2 and usage(["--rename-sound", "1", "THIRTEEN CHAR"]) == 2,
+       "--sounds with a package / --backup / another sound option, a bad new name: usage errors")
+
+
 wire()
 backups()
+sounds()
 installs()
 errors()
 against_js()

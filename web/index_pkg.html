@@ -37,7 +37,7 @@
   button:disabled { opacity: .3; cursor: default; }
   #go { display: block; width: 100%; margin: 32px 0 0; padding: 20px 24px; background: var(--red); color: #fff;
         font-size: 24px; font-weight: 800; letter-spacing: -0.02em; text-align: left; }
-  #stock-go, #backup-go, #restore-go { padding: 12px 20px; background: var(--cream); color: #000; font-weight: 700; }
+  #stock-go, #backup-go, #restore-go, #snd-read { padding: 12px 20px; background: var(--cream); color: #000; font-weight: 700; }
   .check { display: flex; gap: 10px; align-items: baseline; margin: 16px 0 0; color: var(--dim); font-size: 14px; cursor: pointer; }
   .check input { accent-color: var(--red); }
   section.bk { margin-top: 56px; border-top: 3px solid var(--dark); padding-top: 20px; }
@@ -57,6 +57,15 @@
   input[type=file] { margin-top: 8px; color: var(--dim); font: inherit; font-size: 14px; max-width: 100%; }
   input[type=file]::file-selector-button { font: inherit; font-weight: 700; border: 0; border-radius: 2px;
              background: var(--dark); color: var(--cream); padding: 8px 14px; margin-right: 12px; cursor: pointer; }
+  .snd-wrap { margin: 16px 0 0; overflow-x: auto; }
+  table.snd { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .snd th { text-align: left; color: var(--dim); font-weight: 600; padding: 0 6px 6px; border-bottom: 1px solid var(--dark); }
+  .snd td { padding: 4px 6px; border-bottom: 1px solid var(--dark); vertical-align: middle; }
+  .snd td.n { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); }
+  .snd td.a { white-space: nowrap; text-align: right; }
+  .snd tr.empty td { color: var(--grey); }
+  .snd button { padding: 3px 8px; margin: 2px 0 2px 4px; background: var(--dark); color: var(--cream); font-size: 13px; font-weight: 700; }
+  .snd button:not(:disabled):hover { background: var(--cream); color: #000; }
   footer { margin-top: 64px; padding-top: 20px; border-top: 3px solid var(--dark); }
   footer p { color: var(--dim); font-size: 13px; }
 </style>
@@ -96,6 +105,19 @@
     <p><label><span data-t="restoreFile"></span><br><input id="restore-file" type="file" accept=".json,application/json"></label></p>
     <p><button id="restore-go" disabled data-t="restoreGo"></button></p>
   </section>
+  <section class="bk" id="sounds">
+    <h2 data-t="sndTitle"></h2>
+    <p class="small" data-t="sndText"></p>
+    <p class="small" data-t="sndAll"></p>
+    <p><button id="snd-read" disabled data-t="sndReadGo"></button></p>
+    <input id="snd-file" type="file" accept=".json,application/json" hidden>
+    <div class="snd-wrap">
+      <table class="snd" id="snd-table" hidden>
+        <thead><tr><th data-t="sndColSlot"></th><th data-t="sndColName"></th><th data-t="sndColEngine"></th><th data-t="sndColPatch"></th><th></th></tr></thead>
+        <tbody id="snd-rows"></tbody>
+      </table>
+    </div>
+  </section>
   <details>
     <summary data-t="stockTitle"></summary>
     <p class="warn" data-t="stockWarn"></p>
@@ -131,7 +153,7 @@ const TEXT = {
     backupFirst: "Install first saves a backup of what is stored on the FM-1 (user sounds, loops, settings, FM6 patches) to a file on this computer. Felucca and ChoralRoot can be backed up; the stock firmware cannot.",
     skipBackup: "Skip the backup (I already saved one, or the FM-1 runs the stock firmware)",
     bkTitle: "Back up and restore",
-    bkText: "A backup is one .json file holding everything stored on the FM-1: the settings, the 32 user sounds with their VA patches, the 10 loops and the FM6 patch bank. Restore writes it back; each part is checked before anything is written, and the FM-1 restarts at the end. Stop any loop first. Each flash write holds the sound for about 45 ms.",
+    bkText: "A backup is one .json file holding everything stored on the FM-1: the settings, the 32 user sounds with their VA, FM6 and CZ-1 patches, the 10 loops, the FM6 patch bank and the CZ-1 banks. Restore writes it back; each part is checked before anything is written, and the FM-1 restarts at the end. Stop any loop first. Each flash write holds the sound for about 45 ms.",
     bkAcross: "Across firmwares: a Felucca backup restores its settings, user sounds and FM6 patches on ChoralRoot; a ChoralRoot backup restores the same on Felucca. What the other firmware cannot use (Felucca's songs and samples, ChoralRoot's VA patches and loops) stays in the file.",
     backupGo: "Back up", restoreFile: "Backup file (.json)", restoreGo: "Restore",
     backup: "Saving a backup ", backupSaved: "Backup saved: ",
@@ -173,6 +195,22 @@ const TEXT = {
     badpkg: "The file to install is damaged. Reload the page.",
     leave: "Writing. Do not close the page.",
     license: "ChoralRoot FM-1: GPL-3.0, no warranty. Source:",
+    sndTitle: "Sounds",
+    sndText: "Each of the 32 user sounds (U01 to U32) can be saved as its own small .json file: the sound and, for a VA, FM6 or CZ-1 sound, its patch. Import puts a sound file into any slot (edit the name in the file to rename the sound), Rename and Delete change one slot. Only the parts that change are written; the FM-1 keeps playing. Needs ChoralRoot.",
+    sndAll: "Back up (above) saves everything at once: all the sounds, the loops and the settings. The Sounds are for single sounds, to keep, share or move between slots.",
+    sndReadGo: "Read sounds",
+    sndColSlot: "Slot", sndColName: "Name", sndColEngine: "Engine", sndColPatch: "Patch",
+    sndEmpty: "empty", sndNoPatch: "no patch",
+    sndExport: "Export", sndImport: "Import", sndRename: "Rename", sndDelete: "Delete",
+    sndNeedCr: "The Sounds need ChoralRoot on the FM-1 (this firmware does not keep its sounds this way). Back up and Restore work on it.",
+    sndReading: "Reading the sounds ", sndRead: "Sounds read: {n} of 32 slots used.",
+    sndWriting: "Writing ", sndBusy: "Stop the loop on the FM-1 to continue writing the sound",
+    sndExported: "Sound saved: ", sndImported: "Imported into ", sndRenamed: "Renamed ", sndDeleted: "Deleted ",
+    sndOverwrite: "{slot} holds \"{name}\". Replace it with \"{new}\" from the file?",
+    sndDeleteConfirm: "Delete {slot} \"{name}\" from the FM-1? Export it first to keep it.",
+    sndRenamePrompt: "New name for {slot} (1 to 12 characters):",
+    sndBadName: "A name is 1 to 12 characters: letters, digits, symbols or spaces (no accents). Nothing was written.",
+    sndBadFile: "Not a usable sound file: ",
   },
 };
 const lang = "en";
@@ -190,23 +228,26 @@ const log = (t) => { $("log").textContent += t + "\n"; };
 let image = null;
 
 let writing = false, stock = null, stockFileEpoch = 0, restoreArc = null, restoreEpoch = 0;
+let sndTable = null, sndTarget = 0;              // the Sounds: the slot table last read, the row a file is chosen for
 const midiOk = !!navigator.requestMIDIAccess;
 const lockInstaller = (on) => {
   writing = on; $("go").disabled = on || !image; $("stock-go").disabled = on || !stock; $("stock-file").disabled = on;
   $("stock-recovery").disabled = on; $("skip-backup").disabled = on; $("force-risk").disabled = on; $("backup-go").disabled = on || !midiOk;
   $("restore-go").disabled = on || !midiOk || !restoreArc; $("restore-file").disabled = on;
+  $("snd-read").disabled = on || !midiOk; $("snd-file").disabled = on; renderSounds();
 };
 window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
 
 // ---- backup / restore (fm1backup.js: Felucca's protocol; ChoralRoot answers it with its own objects) ----
 const coded = (code, detail = "") => Object.assign(new Error(code + (detail ? ": " + detail : "")), { code, detail });
 const pct = (d, total) => `${Math.round(d / Math.max(1, total) * 100)}%`;
-function saveArchive(archive) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(archive)], { type: "application/json" }));
-  const a = document.createElement("a"); a.href = url; a.download = backupFileName(archive.firmware);
+function saveJson(obj, name) {                  // -> the file name (the browser's download)
+  const url = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 1)], { type: "application/json" }));
+  const a = document.createElement("a"); a.href = url; a.download = name;
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   return a.download;
 }
+const saveArchive = (archive) => saveJson(archive, backupFileName(archive.firmware));
 async function openBackup(up) {                 // the running FM-1 (handshake), as a backup connection
   const dev = await up.find((id) => id.model === "FM-1");
   if (!dev) throw coded("notfound");
@@ -255,7 +296,83 @@ const failSay = (e) => {
   else sayK("error", e && e.message);
   log(String(e && e.stack || e));
 };
-if (midiOk) $("backup-go").disabled = false;
+if (midiOk) { $("backup-go").disabled = false; $("snd-read").disabled = false; }
+
+// ---- Sounds (fm1sounds.js, docs/SOUNDS.md): one user sound as a file; each action reads the seven objects afresh,
+// edits the slot, writes back only what changed (the stores, then the bank) and reads again for the table
+const tf = (k, vals) => Object.entries(vals).reduce((s, [a, v]) => s.replace(`{${a}}`, () => String(v)), t(k));
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[c]);
+function renderSounds() {
+  if (!sndTable) return;
+  const btn = (s, act, text, on) => `<button data-act="${act}" data-slot="${s.slot}"${on && !writing ? "" : " disabled"}>${text}</button>`;
+  $("snd-rows").innerHTML = sndTable.map((s) => `<tr${s.used ? "" : ' class="empty"'}><td class="n">${s.label}</td>` +
+    `<td>${s.used ? esc(s.name) : t("sndEmpty")}</td><td>${s.used ? esc(s.engineName) : ""}</td>` +
+    `<td>${s.used ? (s.patch || (s.kind ? t("sndNoPatch") : "")) : ""}</td><td class="a">` +
+    btn(s, "export", t("sndExport"), s.used) + btn(s, "import", t("sndImport"), true) +
+    btn(s, "rename", t("sndRename"), s.used) + btn(s, "delete", t("sndDelete"), s.used) + "</td></tr>").join("");
+}
+function showSounds(objs) { sndTable = parseSoundObjects(objs).slots; $("snd-table").hidden = false; renderSounds(); }
+// connect, require ChoralRoot, read the sounds (the table shown), then fn({req, info, objs, read}); locked meanwhile
+async function soundsRun(fn) {
+  if (writing) return;
+  lockInstaller(true);
+  try {
+    let midi;
+    try { midi = await navigator.requestMIDIAccess({ sysex: true }); } catch (e) { sayK("denied"); return; }
+    const link = await openBackup(new Updater(midi, log));
+    try {
+      const req = (r, o) => link.request(r, o), info = await deviceInfo(req);
+      if (!info || info.family !== "choralroot") { sayK("sndNeedCr"); log(`sounds: ${info ? info.version : "no INFO answer"}: not ChoralRoot`); return; }
+      const read = async () => { const r = await readSounds(req, (d, n) => sayK("sndReading", pct(d, n))); showSounds(r.objs); return r.objs; };
+      await fn({ req, info, read, objs: await read() });
+    } finally { link.close(); }
+  } catch (e) { failSay(e); }
+  finally { lockInstaller(false); }
+}
+async function writeSlot(ctx, slot, changed) {   // the changed objects, then the table read again from flash
+  if (!changed.length) return;
+  const label = slotLabel(slot);
+  await writeSounds(ctx.req, changed, { onProgress: (d, n) => sayK("sndWriting", `${label} … ${pct(d, n)}`), onBusy: () => sayK("sndBusy") });
+  log(`sounds: ${label}: wrote ${changed.map((c) => objectName(c.id)).join(", ")}`);
+  await ctx.read();
+}
+$("snd-read").addEventListener("click", () => soundsRun(async () => {
+  say(tf("sndRead", { n: sndTable.filter((s) => s.used).length }));
+}));
+$("snd-rows").addEventListener("click", (e) => {
+  const b = e.target && e.target.closest ? e.target.closest("button[data-act]") : null;
+  if (!b || b.disabled || writing) return;
+  const slot = Number(b.dataset.slot), label = slotLabel(slot), cur = sndTable && sndTable[slot - 1];
+  if (b.dataset.act === "import") { sndTarget = slot; $("snd-file").value = ""; $("snd-file").click(); return; }
+  if (b.dataset.act === "export") return soundsRun(async ({ objs, info }) => {
+    const file = exportSound(objs, slot, { firmware: info.version });
+    sayK("sndExported", saveJson(file, soundFileName(slot, file.name || "")));
+  });
+  if (b.dataset.act === "rename") {
+    const answer = prompt(tf("sndRenamePrompt", { slot: label }), cur ? cur.name : "");
+    if (answer === null) return;
+    const name = answer.trim();
+    if (!nameValid(name)) { sayK("sndBadName"); return; }
+    return soundsRun(async (ctx) => { await writeSlot(ctx, slot, renameSound(ctx.objs, slot, name).changed); sayK("sndRenamed", `${label}: ${name}`); });
+  }
+  if (b.dataset.act === "delete") {
+    if (!confirm(tf("sndDeleteConfirm", { slot: label, name: cur ? cur.name : "" }))) { sayK("cancelled"); return; }
+    return soundsRun(async (ctx) => { await writeSlot(ctx, slot, deleteSound(ctx.objs, slot).changed); sayK("sndDeleted", label); });
+  }
+});
+$("snd-file").addEventListener("change", async () => {
+  const file = $("snd-file").files[0], slot = sndTarget, label = slotLabel(slot || 1);
+  if (!file || !slot || writing) return;
+  let sound;
+  try { sound = readSoundFile(await file.text()); }
+  catch (e) { sayK("sndBadFile", e.message); log(`sounds: ${e.message}`); return; }
+  return soundsRun(async (ctx) => {
+    const now = sndTable[slot - 1];                // as the FM-1 holds it now (read afresh)
+    if (now.used && !confirm(tf("sndOverwrite", { slot: label, name: now.name, new: sound.name }))) { sayK("cancelled"); return; }
+    await writeSlot(ctx, slot, importSound(ctx.objs, slot, sound).changed);
+    sayK("sndImported", `${label}: ${sound.name}`);
+  });
+});
 
 (async () => {
   if (!navigator.requestMIDIAccess) { sayK("nomidi"); return; }
