@@ -2146,7 +2146,7 @@
   },
   {
    "name": "16 \u00b7 FX held: the fx layer (locked open)",
-   "notes": "Tap FX: the sound's main effect on/off (Orchid's FX Dial default). Hold FX past 300 ms: the fx layer opens and stays (FX blinks); the white root keys pick which effect KNOB 4 rides (Orchid's FX push + turn), KNOB 1-3 its parameters, KNOB 4 the amount. OCT- or HOME closes it.",
+   "notes": "Tap FX: the sound's main effect on/off (Orchid's FX Dial default). Hold FX past 300 ms: the fx layer opens and stays (FX blinks); the white root keys pick the effect (Reverb Chorus Delay Drive), KNOB 1-3 its parameters, KNOB 4 the amount. The screen is the layer grammar: the effect big in green over one row of four cells in the knob colours, each a picture of what the knob does (the room's far wall recedes with SIZE, the moon fills as DAMP lifts, the type's picture, the dry / wet squares); a turned cell sits on a hot block instead of a popup. OCT- or HOME closes it.",
    "export": true,
    "keys": [
     0,
@@ -2178,14 +2178,10 @@
     0
    ],
    "keyLabels": {
-    "9": "REV",
-    "11": "DELAY",
-    "12": "CHOR",
-    "14": "PHASE",
-    "16": "DRIVE",
-    "18": "TREM",
-    "19": "FILT",
-    "21": "ENSMB"
+    "9": "REVERB",
+    "11": "CHORUS",
+    "12": "DELAY",
+    "14": "DRIVE"
    },
    "keyNotes": {},
    "buttons": {
@@ -2228,11 +2224,11 @@
     },
     "KNOB1": {
      "note": "SIZE",
-     "value": "60"
+     "value": "90"
     },
     "KNOB2": {
      "note": "DAMP",
-     "value": "40"
+     "value": "60"
     },
     "KNOB3": {
      "note": "TYPE",
@@ -2254,25 +2250,49 @@
     },
     "cards": null,
     "panel": {
-     "kind": "picker",
+     "kind": "knobrow",
      "items": [
       "Reverb",
       "Chorus",
       "Delay",
-      "Phaser",
-      "Drive",
-      "Tremolo",
-      "Filter"
+      "Drive"
      ],
      "sel": 0,
-     "label": "fx \u00b7 KNOB 4 amount",
      "col": "green",
-     "value": "05"
+     "label": "fx",
+     "cells": [
+      {
+       "label": "Size",
+       "value": "90",
+       "glyph": "room",
+       "pct": 0.709
+      },
+      {
+       "label": "Damp",
+       "value": "60",
+       "glyph": "moon",
+       "pct": 0.528
+      },
+      {
+       "label": "Type",
+       "value": "Room",
+       "glyph": "room",
+       "pct": 0.5
+      },
+      {
+       "label": "Amount",
+       "value": "25",
+       "glyph": "mix",
+       "pct": 0.25
+      }
+     ],
+     "hot": null,
+     "value": ""
     },
     "footer": {
      "text": "a root: effect \u00b7 OCT-: back \u00b7 HOME: home"
     },
-    "note": "the fx layer: the effect one at a time in green with its amount under it."
+    "note": "the fx layer: Reverb big in green, its neighbours peeking, the four knob cells with their glyphs under it."
    }
   },
   {

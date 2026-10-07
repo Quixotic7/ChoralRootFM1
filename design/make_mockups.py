@@ -527,18 +527,35 @@ S.append(state(
 ))
 
 # 16 ------------------------------------------------------------------------------ fx layer
-fx_names = ["REV", "DELAY", "CHOR", "PHASE", "DRIVE", "TREM", "FILT", "ENSMB"]
+# the layer grammar (2026-10-07, decided; design/make_fx_mockups.py has the whole study): the picker on top, one row
+# of four cells under it in the knob colours, each a bespoke glyph that changes with its value (room, moon, mix, ..)
+fx_names = ["REVERB", "CHORUS", "DELAY", "DRIVE"]
 fx_labels = {ROOT_WHITE[i]: n for i, n in enumerate(fx_names)}
+
+
+def gcell(label, value, glyph, pct=None, pct2=None, **kw):
+    c = cell(label, value, glyph, pct, **kw)
+    if pct2 is not None:
+        c["pct2"] = round(pct2, 3)
+    return c
+
+
+FX_CELLS_REVERB = [gcell("Size", "90", "room", 90 / 127), gcell("Damp", "60", "moon", 1 - 60 / 127), gcell("Type", "Room", "room", 0.5),
+                   gcell("Amount", "25", "mix", 0.25)]
 S.append(state(
     "16 · FX held: the fx layer (locked open)",
     "Tap FX: the sound's main effect on/off (Orchid's FX Dial default). Hold FX past 300 ms: the fx layer opens and stays "
-    "(FX blinks); the white root keys pick which effect KNOB 4 rides (Orchid's FX push + turn), KNOB 1-3 its parameters, "
-    "KNOB 4 the amount. OCT- or HOME closes it.",
+    "(FX blinks); the white root keys pick the effect (Reverb Chorus Delay Drive), KNOB 1-3 its parameters, KNOB 4 the "
+    "amount. The screen is the layer grammar: the effect big in green over one row of four cells in the knob colours, "
+    "each a picture of what the knob does (the room's far wall recedes with SIZE, the moon fills as DAMP lifts, the "
+    "type's picture, the dry / wet squares); a turned cell sits on a hot block instead of a popup. OCT- or HOME closes it.",
     keys=[OFF] * 27, lit=["D4"], buttons={"FX": BLINK},
     key_labels=fx_labels,
     button_notes={"FX": LAYER_BTN_NOTE},
-    encoders={"KNOB1": ("SIZE", "60"), "KNOB2": ("DAMP", "40"), "KNOB3": ("TYPE", "ROOM"), "KNOB4": ("AMOUNT", "25")},
-    screen=scr({'kind': 'picker', 'items': ['Reverb', 'Chorus', 'Delay', 'Phaser', 'Drive', 'Tremolo', 'Filter'], 'sel': 0, 'label': 'fx · KNOB 4 amount', 'col': 'green', 'value': '05'}, foot="a root: effect · " + LAYER_FOOT, note="the fx layer: the effect one at a time in green with its amount under it."),
+    encoders={"KNOB1": ("SIZE", "90"), "KNOB2": ("DAMP", "60"), "KNOB3": ("TYPE", "ROOM"), "KNOB4": ("AMOUNT", "25")},
+    screen=scr({"kind": "knobrow", "items": ["Reverb", "Chorus", "Delay", "Drive"], "sel": 0, "col": "green", "label": "fx",
+                "cells": FX_CELLS_REVERB, "hot": None, "value": ""},
+               foot="a root: effect · " + LAYER_FOOT, note="the fx layer: Reverb big in green, its neighbours peeking, the four knob cells with their glyphs under it."),
     chord_block=False,
 ))
 
