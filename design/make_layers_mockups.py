@@ -142,7 +142,7 @@ design = {
     "labels": {"buttons": BUTTON_LABELS, "encoders": ENCODER_LABELS},
     "notes": "The knob row on the three layers with a wrinkle: KEY (A: the keyboard kept as the band over the cells; B: the "
              "key name big), LOOP (A: inside the ring, stopped and playing; B: without the ring), METRO (one cell). "
-             "Recommended: KEY A, LOOP A, METRO as drawn.",
+             "Decided 2026-10-07 by the user: KEY A, LOOP B (no ring in the LOOP layer; the dial in the top line while playing, as everywhere), METRO as drawn.",
     "states": S,
 }
 

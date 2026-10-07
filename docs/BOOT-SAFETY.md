@@ -2,7 +2,7 @@
 
 The user's ask after the dark unit: *there should always be a quick, simple way to get the device back to UBOOT if an
 upload fails*, and the current "hold OCT- and OCT+ for 10 s" is too long. This page is the design; the pieces that
-need the real unit (the dump, two experiments) are marked. Nothing here is implemented yet.
+need the real unit (the dump, two experiments) are marked. Nothing here is implemented yet. **Decided 2026-10-07: wait for the Transporter's dump and the two experiments before building any of it** (the SPL's behaviour may change the design).
 
 ## What we have today, and where it failed
 
