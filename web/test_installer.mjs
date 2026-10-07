@@ -4,17 +4,20 @@
 // Node checks of the installer page, web/index_pkg.html (no browser, no hardware). Run from the repo root:
 //   node web/test_installer.mjs
 // - the page's shape: /*LIB*/ and /*META*/ once, one module script, no editor link, no Felucca status, English only,
-//   no backup step (ChoralRoot has no backup SysEx)
+//   the backup step (Install backs up first, Skip backup, Back up / Restore buttons)
 // - the texts: every data-t key and every error code fm1ota.js throws has an English text
 // - the page as make_site.py inlines it (the libraries make_site.py names, META for 0.1 / FM-1_920) runs against a
 //   DOM stub and a simulated FM-1 (after test_web.mjs's FakeFM1): no Web MIDI, package load, install, resume,
-//   errors, and the return to official V15 (confirm first, nothing written when it is declined)
+//   errors, the backup before an install (Felucca's data saved to a file, then offered back on ChoralRoot), Skip backup,
+//   no backup possible (confirm), Back up and Restore, and the return to official V15 (backup, confirm first, nothing
+//   written when it is declined)
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
 import { logicalImage, productOf, STOCK_V15_SIZE } from "./fm1pkg.js";
 import { pack7, unpack7 } from "./fm1ota.js";
+import { bkU32, bkR32, bkPack, bkUnpack, bkCrc, CR_BACKUP_IDS, BACKUP_IDS } from "./fm1backup.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(72)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
@@ -32,7 +35,10 @@ ok(count(html, "<script") === 1 && count(html, '<script type="module">') === 1, 
 ok(!html.includes("../editor/"), "page: no link to ../editor/");
 ok(!/say\(\s*`Felucca /.test(html) && !/`Felucca \$\{/.test(html), "page: the status does not name Felucca as the product");
 ok(!/\bja\s*:/.test(html) && !html.includes('id="lang"'), "page: English only (no ja table, no language toggle)");
-ok(!/archiveInfo|captureBackup|BackupConnection|saveArchive|stock-recovery/.test(html), "page: no backup step (archiveInfo, captureBackup, BackupConnection)");
+ok(["captureBackup", "restoreBackup", "BackupConnection", "saveArchive", "deviceInfo", "restartDevice"].every((f) => html.includes(f)) &&
+   ["skip-backup", "backup-go", "restore-go", "restore-file", "stock-recovery"].every((id) => html.includes(`id="${id}"`)),
+   "page: the backup step (capture, restore, restart; Skip backup, Back up, Restore, stock resume box)");
+ok(!/no backup protocol|has no backup/i.test(html), "page: the \"no backup\" texts are gone");
 ok(html.includes("<title>ChoralRoot FM-1 · installer</title>") && /<html lang="en">/.test(html), "page: title and lang");
 ok(html.includes('href="../../"') && ["LICENSING.md", "LICENSE\"", "LICENSES/Apache-2.0.txt", "LICENSES/\""].every((p) => html.includes(`href="../../firmware/${p}`)),
   "page: link to the landing page and the licence links");
@@ -55,8 +61,8 @@ for (const m of ota.matchAll(/\bfail\(([^,]+),/g)) for (const s of m[1].matchAll
 for (const c of ["nomidi", "loadfail", "badpkg", "denied", "leave", "error", "start", "verify", "loader", "write", "reboot", "done", "stopped"]) codes.add(c);
 const missingC = [...codes].filter((c) => typeof en[c] !== "string");
 ok(codes.size > 13 && !missingC.length, `texts: every fm1ota.js error code and status has a text (${codes.size}${missingC.length ? "; missing " + missingC : ""})`);
-const sayKeys = [...scriptOf(html).matchAll(/(?:sayK|t)\("([A-Za-z]+)"/g)].map((m) => m[1]);
-ok(sayKeys.every((k) => typeof en[k] === "string"), "texts: every key the script names has a text");
+const sayKeys = [...scriptOf(html).matchAll(/(?:\bsayK|\bt|\bcoded)\("([A-Za-z]+)"/g)].map((m) => m[1]);
+ok(sayKeys.every((k) => typeof en[k] === "string"), `texts: every key the script names has a text (${sayKeys.filter((k) => typeof en[k] !== "string")})`);
 
 /* -------------------------------------------------------- (d) status line --- */
 const tpl = html.match(/say\((`ChoralRoot \$\{meta\.version\} · \$\{meta\.product\}`)\)/);
@@ -107,31 +113,33 @@ const fastTimeout = (f, ms = 0, ...a) => setTimeout(f, ms >= 100 ? ms / 10 : ms,
 function runPage({ navigator = {}, fetch, confirm = () => true, prelude = "", extra = {} } = {}) {
   const { byId, withT } = makeDom();
   const win = { l: {}, addEventListener(type, f) { this.l[type] = f; } };
-  const confirms = [];
+  const confirms = [], downloads = [];
   const document = {
     documentElement: { lang: "" },
+    body: { append() {} },
+    createElement: (tag) => ({ tag, href: "", download: "", remove() {}, click() { downloads.push({ name: this.download, href: this.href }); } }),
     getElementById: (id) => byId[id] || null,
     querySelectorAll: (sel) => { if (sel !== "[data-t]") throw new Error(`querySelectorAll(${sel})`); return withT; },
   };
   const ctx = {
     document, window: win, navigator, fetch: fetch || (async () => { throw new Error("fetch not expected"); }),
     confirm: (msg) => { confirms.push(msg); return confirm(msg); },
-    URL, Blob, crypto: globalThis.crypto, TextEncoder, TextDecoder, console,
+    URL, Blob, crypto: globalThis.crypto, TextEncoder, TextDecoder, console, btoa, atob, DataView,
     setTimeout: fastTimeout, clearTimeout, setInterval, clearInterval, ...extra,
   };
   const src = prelude ? code.replace(lib, () => lib + "\n" + prelude) : code;
   let error = null;
   try { vm.runInNewContext(src, ctx, { filename: "installer.js" }); } catch (e) { error = e; }
-  return { $: byId, withT, win, document, confirms, error };
+  return { $: byId, withT, win, document, confirms, downloads, error };
 }
 
 /* a simulated FM-1 on WebMIDI (test_web.mjs's FakeFM1 with the identities as parameters) */
 const HS = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
 const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 class FakeFM1 {
-  constructor(image, { identity = "FM-1_015", loader = "ota-FM-1_920", final = "FM-1_920", onServe = null } = {}) {
-    this.image = image; this.served = 0; this.bad = 0; this.upgrades = 0;
-    this.loader = loader; this.final = final; this.onServe = onServe;
+  constructor(image, { identity = "FM-1_015", loader = "ota-FM-1_920", final = "FM-1_920", onServe = null, bk = null } = {}) {
+    this.image = image; this.served = 0; this.bad = 0; this.upgrades = 0; this.bkFrames = 0;
+    this.loader = loader; this.final = final; this.onServe = onServe; this.bk = bk;   // bk(identity): its backup side, or null
     this.access = { inputs: new Map(), outputs: new Map() };
     this.boot(identity, identity.startsWith("ota-") ? "Felucca Update" : "FM-1");
   }
@@ -149,6 +157,12 @@ class FakeFM1 {
   }
   tx(bytes) { const i = this.input; setTimeout(() => { if (i.state === "connected" && i.onmidimessage) i.onmidimessage({ data: Uint8Array.from(bytes) }); }, 1); }
   rx(d) {
+    if (d[0] === 0xF0 && d[1] === 0x7D && d[2] === 0x46 && d[3] === 0x4C) {   // the backup protocol (fm1backup.js)
+      this.bkFrames++;
+      const side = this.bk && this.bk(this.identity), r = side && side.handle(d[4], d.slice(5, -1));
+      if (r) this.tx([0xF0, 0x7D, 0x46, 0x4C, d[4], ...r, 0xF7]);
+      return;
+    }
     if (eq(d, HS)) {
       const t = [...new TextEncoder().encode(this.identity)];
       const body = [0, 0x59, 0x11, 0, 0, 0, ...t, ...new Array(28 - t.length).fill(0)];
@@ -192,6 +206,38 @@ function makePackage(product) {
   for (let i = 0; i < 20; i++) raw[i * 48 + 47] = i < product.length ? (product.charCodeAt(i) + i + 1) & 0xFF : 0x7D;
   return raw;
 }
+// a firmware's backup side (cr_backup.c / Felucca's editor_backup.c, as the protocol says): INFO, LIST, GET, PUT, SMP, RESTART
+function backupSide(version, ids, objs = []) {
+  const b = { objs: new Map(objs), log: [], staged: null, restarts: 0 };
+  b.handle = (cmd, a) => {
+    if (cmd === 1) return [...new TextEncoder().encode(version), 0, 0, 0, 0, 0, 0, 0, 0, 0x42, 1, 3];
+    if (cmd === 65) {
+      const out = [1, 0, ids.length];
+      for (const id of ids) { const v = b.objs.get(id) || new Uint8Array(0); out.push(id, ...bkU32(v.length), ...bkU32(v.length ? bkCrc(v) : 0)); }
+      return out;
+    }
+    if (cmd === 66) {
+      const id = a[0], off = bkR32(a, 1), n = a[6] | a[7] << 7, v = b.objs.get(id);
+      return [id, 0, ...bkU32(off), n & 127, n >> 7, ...bkPack(v.subarray(off, off + n))];
+    }
+    if (cmd === 67) {
+      const [op, id] = a;
+      if (op === 0) { b.staged = { id, size: bkR32(a, 2), crc: bkR32(a, 7), bytes: [] }; return [op, id, ids.includes(id) ? 0 : 1]; }
+      if (op === 1) { b.staged.bytes.push(...bkUnpack(a.slice(7), Math.min(256, b.staged.size - bkR32(a, 2)))); return [op, id, 0]; }
+      if (op === 2) { const v = Uint8Array.from(b.staged.bytes); const rc = bkCrc(v) === b.staged.crc ? 0 : 2; if (!rc) { b.objs.set(id, v); b.log.push(id); } return [op, id, rc]; }
+      return [op, id, 0];
+    }
+    if (cmd >= 11 && cmd <= 14) { if (cmd >= 13) b.log.push(32 + a[0]); return cmd === 12 ? [a[0], a[1], a[2], a[3], 0] : [a[0], 0]; }
+    if (cmd === 72 && /^ChoralRoot/.test(version)) { b.restarts++; return [0]; }
+    return null;
+  };
+  return b;
+}
+const fill = (n, seed) => Uint8Array.from({ length: n }, (_, i) => (i * 31 + seed) & 255);
+const per = (n, magic, seed) => { const v = fill(n, seed); new DataView(v.buffer).setUint32(0, magic, true); return v; };
+const feluccaData = () => [[0, fill(3584, 1)], [1, per(572, 0x50455234, 2)], [2, fill(3584, 3)], [6, fill(3080, 4)], [8, fill(3472, 5)]];
+const crData = () => [[1, per(764, 0x50455235, 6)], [6, fill(3080, 7)], [9, fill(3536, 8)], [40, fill(46, 9)]];
+
 const pkgFetch = (raw) => async (url) => (url === META.pkg
   ? { ok: true, status: 200, arrayBuffer: async () => raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.length) }
   : { ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) });
@@ -232,6 +278,80 @@ if (existsSync(built920)) ok(productOf(readFileSync(built920)) === META.product,
   let after = false; p.win.l.beforeunload({ preventDefault: () => { after = true; }, returnValue: "" });
   ok(!after && !p.$.go.disabled, "install: unlocked afterwards");
   ok(/^start /m.test(p.$.log.textContent) && /^write \d+/m.test(p.$.log.textContent), "install: the log lists the steps");
+  ok(p.confirms.length === 1 && p.confirms[0].startsWith(en.noBackupConfirm) && !p.downloads.length && dev.bkFrames > 0,
+    "install: the stock firmware does not answer the backup -> asked once to install without one");
+}
+
+// install over Felucca: the backup first (a file), then ChoralRoot, then the backup offered back and restored
+{
+  const fel = backupSide("FELUCCA 1.0", BACKUP_IDS, feluccaData()), cr = backupSide("ChoralRoot 0.1", CR_BACKUP_IDS);
+  const dev = new FakeFM1(image, { identity: "FM-1_910", bk: (id) => (id === "FM-1_910" ? fel : id === "FM-1_920" ? cr : null) });
+  const p = runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw) });
+  await settle();
+  await p.$.go.fire("click");
+  ok(p.downloads.length === 1 && /^felucca-backup-\d{8}\.json$/.test(p.downloads[0].name) && p.downloads[0].href.startsWith("blob:"),
+    `over Felucca: the backup saved first (${p.downloads[0]?.name})`);
+  ok(dev.identity === "FM-1_920" && dev.bad === 0 && p.confirms.length === 1 && p.confirms[0] === en.restoreOffer, "over Felucca: installed, then the restore offered");
+  ok(cr.log.join() === "6,7,8,32,33,1" && cr.objs.get(1).length === 572 && cr.objs.get(6).every((v, i) => v === feluccaData()[3][1][i]) && cr.restarts === 1,
+    "over Felucca: its settings, banks, FM6 bank, samples restored on ChoralRoot, then RESTART");
+  ok(p.$.status.textContent.startsWith(en.restored) && p.$.status.textContent.includes("current music") && p.$.status.textContent.includes("project 1"),
+    `over Felucca: the status lists what was restored and what stays in the file`);
+}
+// Skip backup: no backup request at all
+{
+  const fel = backupSide("FELUCCA 1.0", BACKUP_IDS, feluccaData());
+  const dev = new FakeFM1(image, { identity: "FM-1_910", bk: (id) => (id === "FM-1_910" ? fel : null) });
+  const p = runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw) });
+  await settle();
+  p.$["skip-backup"].checked = true;
+  await p.$.go.fire("click");
+  ok(dev.bkFrames === 0 && !p.downloads.length && !p.confirms.length && p.$.status.textContent === en.done, "Skip backup: installed with no backup request, no question");
+}
+// no backup possible, declined: nothing written
+{
+  const dev = new FakeFM1(image);
+  const p = runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw), confirm: () => false });
+  await settle();
+  await p.$.go.fire("click");
+  ok(p.confirms.length === 1 && dev.upgrades === 0 && p.$.status.textContent === en.cancelled && !p.$.go.disabled, "no backup, declined: nothing written, unlocked");
+}
+// an update of ChoralRoot over ChoralRoot: backed up, no restore offered (its flash stays)
+{
+  const cr = backupSide("ChoralRoot 0.1", CR_BACKUP_IDS, crData());
+  const dev = new FakeFM1(image, { identity: "FM-1_920", bk: (id) => (id.startsWith("ota-") ? null : cr) });
+  const p = runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw) });
+  await settle();
+  await p.$.go.fire("click");
+  ok(p.downloads.length === 1 && /^choralroot-backup-/.test(p.downloads[0].name) && !p.confirms.length && !cr.log.length && p.$.status.textContent === en.done,
+    "ChoralRoot over ChoralRoot: backed up, no restore offered");
+}
+// Back up and Restore buttons
+{
+  const cr = backupSide("ChoralRoot 0.1", CR_BACKUP_IDS, crData());
+  const dev = new FakeFM1(image, { identity: "FM-1_920", bk: () => cr });
+  const p = runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw) });
+  await settle();
+  ok(!p.$["backup-go"].disabled && p.$["restore-go"].disabled, "Back up enabled, Restore waits for a file");
+  let blobText = null;
+  const realCreate = URL.createObjectURL;
+  URL.createObjectURL = (b) => { b.text().then((x) => { blobText = x; }); return "blob:test"; };
+  await p.$["backup-go"].fire("click");
+  await settle();
+  URL.createObjectURL = realCreate;
+  const file = blobText && JSON.parse(blobText);
+  ok(p.downloads.length === 1 && p.$.status.textContent.startsWith(en.backupSaved) && file && file.firmware === "ChoralRoot 0.1" &&
+     file.objects.length === CR_BACKUP_IDS.length, "Back up: the file holds ChoralRoot's 17 objects");
+  const blank = backupSide("ChoralRoot 0.1", CR_BACKUP_IDS);
+  dev.bk = () => blank;
+  p.$["restore-file"].files = [{ text: async () => "{\"format\":\"other\"}" }];
+  await p.$["restore-file"].fire("change");
+  ok(p.$.status.textContent.startsWith(en.badBackup) && p.$["restore-go"].disabled, "Restore: a file that is not a backup is refused");
+  p.$["restore-file"].files = [{ text: async () => blobText }];
+  await p.$["restore-file"].fire("change");
+  ok(!p.$["restore-go"].disabled, "Restore: a backup file enables Restore");
+  await p.$["restore-go"].fire("click");
+  ok(p.confirms.at(-1) === en.restoreConfirm && blank.log.at(-1) === 1 && crData().every(([id, v]) => blank.objs.get(id)?.every((b, i) => b === v[i])) &&
+     blank.restarts === 1 && p.$.status.textContent.startsWith(en.restored), "Restore: confirmed, every object back, the settings last, RESTART");
 }
 {
   const p = runPage({ navigator: midiOf(new FakeFM1(image)), fetch: pkgFetch(makePackage("FM-1_900")) });
@@ -298,25 +418,38 @@ if (existsSync(built920)) ok(productOf(readFileSync(built920)) === META.product,
     return { p, wrong, valid };
   };
   const confirmText = en.stockConfirm || "";
-  ok(/no backup/.test(confirmText) && /erased/.test(confirmText) && /no backup/.test(en.stockWarn || ""), "stock: the warning and the confirm say there is no backup");
-  ok(!/stockUnsupported|backup:/.test(Object.keys(en).join()) && !("stockRecovery" in en), "stock: no backup texts left");
+  ok(/backup/.test(confirmText) && /Restore/.test(en.stockWarn || ""), "stock: the warning and the confirm speak of the backup");
+  const crSide = () => backupSide("ChoralRoot 0.1", CR_BACKUP_IDS, crData());
 
-  let dev = new FakeFM1(stockImage, { identity: "FM-1_920", final: "FM-1_015", loader: "ota-FM-1_015" });
+  let dev = new FakeFM1(stockImage, { identity: "FM-1_920", final: "FM-1_015", loader: "ota-FM-1_015", bk: (id) => (id === "FM-1_920" ? crSide() : null) });
   let r = await stockRun(dev, false);
   ok(r.wrong && r.valid, "stock: a file of the wrong size is refused, the V15 (stub) accepted");
+  ok(r.p.downloads.length === 1 && /^choralroot-backup-/.test(r.p.downloads[0].name), "stock: the backup is saved first");
   ok(r.p.confirms.length === 1 && r.p.confirms[0] === confirmText && dev.upgrades === 0 && dev.served === 0 && !r.p.$["stock-go"].disabled,
     "stock: declined -> confirm asked once, nothing written, unlocked");
-  dev = new FakeFM1(stockImage, { identity: "FM-1_920", final: "FM-1_015", loader: "ota-FM-1_015" });
+  dev = new FakeFM1(stockImage, { identity: "FM-1_920", final: "FM-1_015", loader: "ota-FM-1_015", bk: (id) => (id === "FM-1_920" ? crSide() : null) });
   r = await stockRun(dev, true);
-  ok(r.p.confirms.length === 1 && r.p.$.status.textContent === en.done && dev.bad === 0 && dev.identity === "FM-1_015",
-    "stock: confirmed -> ChoralRoot -> loader -> FM-1_015, status Done");
+  ok(r.p.confirms.length === 1 && r.p.downloads.length === 1 && r.p.$.status.textContent === en.done && dev.bad === 0 && dev.identity === "FM-1_015",
+    "stock: confirmed -> backup, ChoralRoot -> loader -> FM-1_015, status Done");
 
   dev = new FakeFM1(stockImage, { identity: "ota-FM-1_920", final: "FM-1_015" });
-  r = await stockRun(dev, false);
-  ok(r.p.confirms.length === 1 && dev.upgrades === 0, "stock resume (in update mode): declined -> nothing written");
-  dev = new FakeFM1(stockImage, { identity: "ota-FM-1_920", final: "FM-1_015" });
   r = await stockRun(dev, true);
-  ok(r.p.confirms.length === 1 && r.p.$.status.textContent === en.done && dev.identity === "FM-1_015", "stock resume: confirmed -> FM-1_015, status Done");
+  ok(r.p.confirms.length === 0 && dev.upgrades === 0 && r.p.$.status.textContent === en.stockNeedBackup, "stock resume (in update mode) without the resume box: nothing written");
+  dev = new FakeFM1(stockImage, { identity: "ota-FM-1_920", final: "FM-1_015" });
+  const stockRunR = async (d, answer) => {
+    const p = runPage({ navigator: midiOf(d), fetch: pkgFetch(raw), prelude, extra: { __stockImage: stockImage }, confirm: () => answer });
+    await settle();
+    p.$["stock-file"].files = [v15];
+    await p.$["stock-file"].fire("change");
+    p.$["stock-recovery"].checked = true;
+    await p.$["stock-go"].fire("click");
+    return { p };
+  };
+  r = await stockRunR(dev, false);
+  ok(r.p.confirms.length === 1 && dev.upgrades === 0, "stock resume (box ticked): declined -> nothing written");
+  dev = new FakeFM1(stockImage, { identity: "ota-FM-1_920", final: "FM-1_015" });
+  r = await stockRunR(dev, true);
+  ok(r.p.confirms.length === 1 && r.p.$.status.textContent === en.done && dev.identity === "FM-1_015", "stock resume (box ticked): confirmed -> FM-1_015, status Done");
 
   const none = runPage({ navigator: midiOf({ access: { inputs: new Map(), outputs: new Map() } }), fetch: pkgFetch(raw), prelude, extra: { __stockImage: stockImage } });
   await settle();

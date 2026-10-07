@@ -1,11 +1,34 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-// Local, complete musical archives. Requests name whitelisted objects, never flash addresses.
-export const BACKUP_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34];   // 8: the FM6 patch bank (firmware with FM6)
-const BACKUP_IDS_V1 = BACKUP_IDS.filter((id) => id !== 8);              // firmware before FM6, and its archives
+// Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca)
+// Local, complete archives. Requests name whitelisted objects, never flash addresses (web/EDITOR_PROTOCOL.md).
+// One file format ("felucca-backup" version 1) for every firmware that speaks the protocol; each firmware lists its
+// own objects (BACKUP_LIST) and a restore writes the objects of the file that the connected firmware lists:
+//   Felucca     0 the music now, 1 settings, 2..5 projects, 6 7 user preset banks, 8 the FM6 bank, 32..34 samples
+//   ChoralRoot  1 settings, 6 7 user sound banks, 8 the FM6 bank, 9 the VA patches, 32 33 samples, 40..49 loop slots
+// so a Felucca archive restores its settings, banks, FM6 bank and samples 1-2 on ChoralRoot, and a ChoralRoot archive
+// those (its settings record cut back to Felucca's) on Felucca; the rest stays in the file.
+export const BACKUP_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34];   // Felucca's archive (8: the FM6 patch bank)
+const BACKUP_IDS_V1 = BACKUP_IDS.filter((id) => id !== 8);              // Felucca before FM6, and its archives
 const idsOf = (n) => (n === BACKUP_IDS.length ? BACKUP_IDS : n === BACKUP_IDS_V1.length ? BACKUP_IDS_V1 : null);
-export const BACKUP_CMD = { LIST: 65, GET: 66, PUT: 67 };
+export const CR_LOOP_IDS = Array.from({ length: 10 }, (_, k) => 40 + k);
+export const CR_BACKUP_IDS = [1, 6, 7, 8, 9, 32, 33, ...CR_LOOP_IDS];  // ChoralRoot's (9: the VA patches, 40..49: loops)
+const KNOWN = new Set([...BACKUP_IDS, ...CR_BACKUP_IDS]);
+export const BACKUP_CMD = { INFO: 1, LIST: 65, GET: 66, PUT: 67, RESTART: 72 };
 const BACKUP_CHUNK = 256;
+const isSample = (id) => id >= 32 && id <= 34;
+const maxSize = (id) => (isSample(id) || !KNOWN.has(id) ? 81920 : 3840);
+export function objectName(id) {
+  if (id === 0) return "current music";
+  if (id === 1) return "settings";
+  if (id >= 2 && id <= 5) return `project ${id - 1}`;
+  if (id === 6 || id === 7) return `user sounds ${id === 6 ? "1-16" : "17-32"}`;
+  if (id === 8) return "FM6 patch bank";
+  if (id === 9) return "VA patches";
+  if (isSample(id)) return `sample slot ${id - 31}`;
+  if (id >= 40 && id <= 49) return `loop slot ${id - 39}`;
+  return `object ${id}`;
+}
 export const bkU32 = (n) => Array.from({ length: 5 }, (_, i) => (n >>> (i * 7)) & (i === 4 ? 15 : 127));
 export const bkR32 = (a, off = 0) => {
   if (a.length < off + 5 || a[off + 4] > 15) throw new Error("Invalid archive number");
@@ -40,36 +63,45 @@ export function bkCrc(bytes) {
   }
   return (~c) >>> 0;
 }
+const BK_RC = { 1: "Invalid archive object", 2: "Archive data failed validation", 3: "Stop playback first (the loop on the FM-1)",
+  4: "Flash write failed", 5: "Start a fresh backup" };
 function bkCheck(rc) {
-  if (rc) throw new Error(({ 1: "Invalid archive object", 2: "Archive data failed validation", 3: "Stop playback first", 4: "Flash write failed", 5: "Start a fresh backup" })[rc] || `Archive error ${rc}`);
+  if (rc) { const e = new Error(BK_RC[rc] || `Archive error ${rc}`); e.rc = rc; throw e; }
 }
+// BACKUP_LIST's reply -> [{id, size, crc}]: any firmware's list (distinct ids; Felucca's, ChoralRoot's or unknown ones)
 export function bkManifest(a) {
   if (a[0] !== 1) throw new Error("Unsupported archive protocol");
   bkCheck(a[1]);
-  const ids = idsOf(a[2]);
-  if (!ids || a.length !== 3 + a[2] * 11) throw new Error("Incomplete archive manifest");
-  return ids.map((id, i) => {
-    const p = 3 + i * 11;
-    if (a[p] !== id) throw new Error("Unexpected archive object");
+  const n = a[2];
+  if (!n || a.length !== 3 + n * 11) throw new Error("Incomplete archive manifest");
+  const seen = new Set();
+  return Array.from({ length: n }, (_, i) => {
+    const p = 3 + i * 11, id = a[p];
+    if (seen.has(id)) throw new Error("Unexpected archive object");
+    seen.add(id);
     const size = bkR32(a, p + 1), crc = bkR32(a, p + 6);
-    if (size > (id >= 32 ? 81920 : 3840) || (!size && crc)) throw new Error("Archive object too large");
+    if (size > maxSize(id) || (!size && crc)) throw new Error("Archive object too large");
     return { id, size, crc };
   });
 }
 const bkBase64 = (bytes) => { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s); };
+export const backupFamily = (firmware) => (/^choralroot/i.test(firmware || "") ? "choralroot" : /^felucca/i.test(firmware || "") ? "felucca" : "other");
 export function readBackup(file) {
   if (typeof file === "string") file = JSON.parse(file);
-  const ids = file && Array.isArray(file.objects) ? idsOf(file.objects.length) : null;
-  if (!file || file.format !== "felucca-backup" || file.version !== 1 || !ids)
+  if (!file || file.format !== "felucca-backup" || file.version !== 1 || !Array.isArray(file.objects) || !file.objects.length)
+    throw new Error("Not a complete FM-1 backup");
+  const felucca = backupFamily(file.firmware) === "felucca", ids = idsOf(file.objects.length), seen = new Set();
+  if (felucca && (!ids || file.objects.some((o, i) => !o || o.id !== ids[i])))   // Felucca writes its whole set, in order
     throw new Error("Not a complete Felucca backup");
-  const objects = file.objects.map((o, i) => {
-    if (!o || o.id !== ids[i] || !Number.isInteger(o.size) || o.size < 0 || o.size > (o.id >= 32 ? 81920 : 3840) ||
-        !Number.isInteger(o.crc) || o.crc < 0 || o.crc > 0xffffffff || typeof o.data !== "string" ||
+  const objects = file.objects.map((o) => {
+    if (!o || !Number.isInteger(o.id) || o.id < 0 || o.id > 127 || seen.has(o.id) || !Number.isInteger(o.size) || o.size < 0 ||
+        o.size > maxSize(o.id) || !Number.isInteger(o.crc) || o.crc < 0 || o.crc > 0xffffffff || typeof o.data !== "string" ||
         o.data.length !== 4 * Math.ceil(o.size / 3) || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(o.data))
       throw new Error("Invalid backup object");
+    seen.add(o.id);
     const bytes = Uint8Array.from(atob(o.data), (c) => c.charCodeAt(0));
     if (bytes.length !== o.size || bkCrc(bytes) !== o.crc) throw new Error("Backup checksum mismatch");
-    if (o.id >= 32 && o.size) {
+    if (isSample(o.id) && o.size) {
       if (o.size < 512) throw new Error("Short sample backup");
       const view = new DataView(bytes.buffer), length = view.getUint32(16, true), count = bytes[6];
       if (view.getUint32(0, true) !== 0x504d5346 || view.getUint16(4, true) !== 1 || !count || count > 16 ||
@@ -83,7 +115,9 @@ export function readBackup(file) {
     }
     return { ...o, bytes };
   });
-  if (!objects[0].size || !objects[1].size) throw new Error("Backup is missing the current music or settings");
+  const by = new Map(objects.map((o) => [o.id, o]));
+  if ((by.has(0) && !by.get(0).size) || (felucca && !by.get(1).size)) throw new Error("Backup is missing the current music or settings");
+  if (!objects.some((o) => o.size)) throw new Error("The backup holds nothing");
   return { ...file, objects };
 }
 export async function captureBackup(request, firmware, onProgress = () => {}) {
@@ -105,42 +139,85 @@ export async function captureBackup(request, firmware, onProgress = () => {}) {
   const file = { format: "felucca-backup", version: 1, firmware, created: new Date().toISOString(), objects };
   readBackup(file); return file;
 }
-export async function restoreBackup(request, file, onProgress = () => {}) {
+// the settings record across firmwares: ChoralRoot's (PER5) is Felucca's (PER4) + its own 192-byte block at the end
+const PER4 = 0x50455234, PER5 = 0x50455235, CR_BLOCK = 192;
+function adaptObject(o, dev) {
+  if (o.id !== 1 || !dev.size || o.size === dev.size || o.size !== dev.size + CR_BLOCK) return o;
+  const view = new DataView(o.bytes.buffer, o.bytes.byteOffset, o.size);
+  if (view.getUint32(0, true) !== PER5) return o;
+  const bytes = o.bytes.slice(0, dev.size);
+  new DataView(bytes.buffer).setUint32(0, PER4, true);
+  return { ...o, bytes, size: bytes.length, crc: bkCrc(bytes), converted: true };
+}
+const bkSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// restore the objects of `file` that the connected firmware lists; opts.onBusy() while the FM-1 answers busy (a loop
+// plays: rc 3, retried each second, opts.busyTries times). -> the archive with restored / skipped ids
+export async function restoreBackup(request, file, onProgress = () => {}, opts = {}) {
   const archive = readBackup(file); // Validate every byte before the first destructive request.
-  const total = archive.objects.reduce((n, o) => n + o.size, 0); let done = 0;
+  const device = new Map(bkManifest(await request([BACKUP_CMD.LIST, []], { timeout: 3000, retries: 0 })).map((o) => [o.id, o]));
+  const plan = archive.objects.filter((o) => device.has(o.id)).map((o) => adaptObject(o, device.get(o.id)));
+  const skipped = archive.objects.filter((o) => !device.has(o.id)).map((o) => o.id), restored = [];
+  const total = plan.reduce((n, o) => n + o.size, 0); let done = 0;
+  const busyTries = opts.busyTries ?? 120;
   const ask = async (r, o = {}) => request(r, { timeout: 4000, retries: 0, ...o });
+  const retry = async (f) => {
+    for (let i = 0; ; i++) {
+      try { return await f(); }
+      catch (e) { if (e.rc !== 3 || i >= busyTries) throw e; if (opts.onBusy) opts.onBusy(); await bkSleep(1000); }
+    }
+  };
   const put = async (args) => { const a = await ask([BACKUP_CMD.PUT, args]); bkCheck(a[2]); return a; };
-  // Restore live music last. Other objects commit individually; a disconnect can leave a partial restore.
-  for (const o of [...archive.objects.slice(2), archive.objects[1], archive.objects[0]]) {
-    if (o.id >= 32) {
+  // Restore the live music last, the settings before it. Objects commit one by one; a disconnect can leave a partial restore.
+  const order = [...plan.filter((o) => o.id > 1), ...plan.filter((o) => o.id === 1), ...plan.filter((o) => o.id === 0)];
+  for (const o of order) {
+    if (isSample(o.id)) {
       const slot = o.id - 32;
       const check = (a) => { if (a[0] !== slot) throw new Error("Unexpected sample reply"); bkCheck(a.at(-1)); };
-      if (!o.size) check(await ask([14, [slot]]));
+      if (!o.size) await retry(async () => check(await ask([14, [slot]])));
       else {
-        if (o.size < 512) throw new Error("Short sample backup");
-        check(await ask([11, [slot]]));
+        await retry(async () => check(await ask([11, [slot]])));
         for (let off = 512; off < o.size; off += BACKUP_CHUNK) {
           const chunk = o.bytes.subarray(off, off + BACKUP_CHUNK);
-          check(await ask([12, [slot, off & 127, off >>> 7 & 127, off >>> 14 & 127, ...bkPack(chunk)]]));
+          await retry(async () => check(await ask([12, [slot, off & 127, off >>> 7 & 127, off >>> 14 & 127, ...bkPack(chunk)]])));
           done += chunk.length; onProgress(done, total);
         }
-        check(await ask([13, [slot, ...bkPack(o.bytes.subarray(0, 480))]]));
+        await retry(async () => check(await ask([13, [slot, ...bkPack(o.bytes.subarray(0, 480))]])));
         done += 512; onProgress(done, total);
       }
     } else {
-      await put([0, o.id, ...bkU32(o.size), ...bkU32(o.crc)]);
+      try { await retry(() => put([0, o.id, ...bkU32(o.size), ...bkU32(o.crc)])); }
+      catch (e) { if (o.converted && e.rc === 1) { skipped.push(o.id); continue; } throw e; }
       try {
         for (let off = 0; off < o.size; off += BACKUP_CHUNK) {
           const chunk = o.bytes.subarray(off, off + BACKUP_CHUNK);
           await put([1, o.id, ...bkU32(off), ...bkPack(chunk)]);
           done += chunk.length; onProgress(done, total);
         }
-        await put([2, o.id]);
-      } catch (e) { await put([3, o.id]).catch(() => {}); throw e; }
+        await retry(() => put([2, o.id]));
+      } catch (e) {
+        await put([3, o.id]).catch(() => {});
+        if (o.converted && e.rc === 2) { skipped.push(o.id); continue; }   // another firmware's settings: best effort
+        throw e;
+      }
     }
+    restored.push(o.id);
   }
-  return archive;
+  return { ...archive, restored, skipped };
 }
+// INFO -> {version, family}; null when the firmware does not answer (stock, an update loader)
+export async function deviceInfo(request) {
+  let a;
+  try { a = await request([BACKUP_CMD.INFO, []], { timeout: 1500, retries: 0 }); } catch (_) { return null; }
+  const end = a.indexOf(0), version = String.fromCharCode(...a.slice(0, end < 0 ? a.length : end));
+  return { version, family: backupFamily(version) };
+}
+// ChoralRoot: restart after a restore, so everything restored loads from flash (its settings wait for it)
+export async function restartDevice(request) {
+  const a = await request([BACKUP_CMD.RESTART, []], { timeout: 2000, retries: 0 });
+  bkCheck(a[0]);
+}
+export const backupFileName = (firmware, date = new Date()) =>
+  `${backupFamily(firmware) === "other" ? "fm1" : backupFamily(firmware)}-backup-${date.toISOString().slice(0, 10).replace(/-/g, "")}.json`;
 
 // Installer connection: no editor page or watcher owns this input simultaneously.
 export class BackupConnection {

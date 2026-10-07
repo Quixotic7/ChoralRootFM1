@@ -18,7 +18,7 @@ include order, keeping: the HAL, `libc.c`, `lcd.c`, `gfx.c`, `core.h`, `engines.
 `mod.c`, `voice.c`, `slicer.c`, `fx.c`, `usb.c`, `midi_uart.c`, `audio.c`, `panel.c`, `icons.c`,
 `storage*`, `upreset.c`, `ota*`, `console.c`, `main.c`; dropping Felucca's instrument: `seq.c`,
 `song_chain.c`, `motion.c`, `perform.c`, `chord.c`, `ui*.c`, `project.c`, `editor*.c`, `favorites.c`,
-`ui_name.c` (naming is re-done small in `cr_ui.c`). Where a kept file references a dropped one
+`ui_name.c` (naming is re-done small in `cr_ui.c`; of `editor*.c`'s SysEx, `cr_backup.c` answers the backup subset). Where a kept file references a dropped one
 (`voice.c` → `seq.c`'s `trk_note_on`, `audio.c` → `seq_block`, `usb.c` → `midi_event`, `main.c` →
 `ui_input/ui_leds/ui_draw`), `cr_out.c` / `cr_ui.c` provide functions of the same names, so kept
 files are not edited (a `#define` shim header `cr_shim.h` where a signature must differ).
@@ -350,9 +350,22 @@ leaves part 0 alone.
   saves (OCT− cancels, F#4 deletes a letter). Scripts: `cr_editor.txt`, `cr_editor_pick.txt` (new), `cr_engine.txt`
   (OCT+ keeps), `cr_save_del.txt`, `va_persist_*.txt` (U01 at power-on), `persist_roots_*.txt` (new).
 
+- **Backup and restore** (2026-10-06, `cr_backup.c`; web/EDITOR_PROTOCOL.md "ChoralRoot: backup and restore"):
+  Felucca's backup SysEx (INFO 1, SMP 11-14, LIST / GET / PUT 65-67) plus RESTART 72, answered from `ed_service`
+  (`cr_shim.c` keeps a stub only without it) on ChoralRoot's objects: settings 1, user sound banks 6 / 7, FM6 bank 8,
+  VA store 9, samples 32 / 33, loop slots 40..49. Reads from flash (the current A/B copy) in 256-byte windows, also
+  while a loop plays; writes staged in `cu_loop_buf` (`cu_loop_gen`: the UI's use ends a session), validated, then
+  `st_save` / `crl_fl_save`; busy (rc 3) while a loop plays or records; a restored settings record sets
+  `cr_restore_lock` (`CR_SETTINGS_BUSY`: no settings save until the restart). RAM: the session state only (~120 B),
+  the replies in `st_buf`. The page (`web/fm1backup.js`, `web/index_pkg.html`: backup before install, Skip backup,
+  Back up / Restore, the restore offered after installing over another firmware) and `tools/fm1_install.py --backup /
+  --restore`. Host test `tests/cr_backup_test.c` (the emulator's build: it has no SysEx transport, so no emulator
+  script); not yet on hardware.
+
 ### Stubbed (screens and gestures only; TODO in the code)
 
-Nothing in the grammar.
+Nothing in the grammar. Of Felucca's web editor protocol only the backup subset is answered (no sound / sequence
+editing over SysEx: `web/editor.html` does not work with ChoralRoot).
 
 ### Next steps
 

@@ -37,7 +37,11 @@
   button:disabled { opacity: .3; cursor: default; }
   #go { display: block; width: 100%; margin: 32px 0 0; padding: 20px 24px; background: var(--red); color: #fff;
         font-size: 24px; font-weight: 800; letter-spacing: -0.02em; text-align: left; }
-  #stock-go { padding: 12px 20px; background: var(--cream); color: #000; font-weight: 700; }
+  #stock-go, #backup-go, #restore-go { padding: 12px 20px; background: var(--cream); color: #000; font-weight: 700; }
+  .check { display: flex; gap: 10px; align-items: baseline; margin: 16px 0 0; color: var(--dim); font-size: 14px; cursor: pointer; }
+  .check input { accent-color: var(--red); }
+  section.bk { margin-top: 56px; border-top: 3px solid var(--dark); padding-top: 20px; }
+  h2 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 16px; }
   progress { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 8px; margin: 16px 0 0;
              border: 0; background: var(--dark); color: var(--cream); }
   progress::-webkit-progress-bar { background: var(--dark); }
@@ -70,16 +74,27 @@
   <p class="small" data-t="beta"></p>
   <p class="small"><span data-t="brick"></span>
     <a href="https://github.com/kurogedelic/FM-1-transporter" target="_blank" rel="noopener">github.com/kurogedelic/FM-1-transporter</a></p>
+  <p class="small" data-t="backupFirst"></p>
   <button id="go" disabled data-t="install"></button>
+  <label class="check"><input id="skip-backup" type="checkbox"><span data-t="skipBackup"></span></label>
   <progress id="bar" max="100" value="0"></progress>
   <p id="status"></p>
   <pre id="log"></pre>
+  <section class="bk">
+    <h2 data-t="bkTitle"></h2>
+    <p class="small" data-t="bkText"></p>
+    <p class="small" data-t="bkAcross"></p>
+    <p><button id="backup-go" disabled data-t="backupGo"></button></p>
+    <p><label><span data-t="restoreFile"></span><br><input id="restore-file" type="file" accept=".json,application/json"></label></p>
+    <p><button id="restore-go" disabled data-t="restoreGo"></button></p>
+  </section>
   <details>
     <summary data-t="stockTitle"></summary>
     <p class="warn" data-t="stockWarn"></p>
     <p class="small" data-t="back"></p>
     <p class="small"><a href="https://www.m-vave.com/download" target="_blank" rel="noopener">M-VAVE Downloads</a></p>
     <p><label><span data-t="stockFile"></span><br><input id="stock-file" type="file" accept=".fwsc"></label></p>
+    <label class="check"><input id="stock-recovery" type="checkbox"><span data-t="stockRecovery"></span></label>
     <p><button id="stock-go" disabled data-t="stockGo"></button></p>
   </details>
   <footer>
@@ -105,13 +120,29 @@ const TEXT = {
     install: "Install",
     direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
     over: "Installing over the stock firmware or Felucca replaces it; the FM-1 reports FM-1_920 afterwards. An interrupted install is resumed by pressing Install again.",
+    backupFirst: "Install first saves a backup of what is stored on the FM-1 (user sounds, loops, settings, samples, FM6 patches) to a file on this computer. Felucca and ChoralRoot can be backed up; the stock firmware cannot.",
+    skipBackup: "Skip the backup (I already saved one, or the FM-1 runs the stock firmware)",
+    bkTitle: "Back up and restore",
+    bkText: "A backup is one .json file holding everything stored on the FM-1: the settings, the 32 user sounds with their VA patches, the 10 loops, the FM6 patch bank and the user samples. Restore writes it back; each part is checked before anything is written, and the FM-1 restarts at the end. Stop any loop first. Each flash write holds the sound for about 45 ms.",
+    bkAcross: "Across firmwares: a Felucca backup restores its settings, user sounds, FM6 patches and samples 1-2 on ChoralRoot; a ChoralRoot backup restores the same on Felucca. What the other firmware cannot use (Felucca's songs and sample 3, ChoralRoot's VA patches and loops) stays in the file.",
+    backupGo: "Back up", restoreFile: "Backup file (.json)", restoreGo: "Restore",
+    backup: "Saving a backup ", backupSaved: "Backup saved: ",
+    noBackup: "The FM-1 cannot be backed up from this page (the stock firmware, or an older Felucca).",
+    noBackupConfirm: "The FM-1 could not be backed up. Install anyway, without a backup? Its user sounds, loops and settings may be lost.",
+    restoreOffer: "ChoralRoot is installed. Restore the backup just saved onto it now (settings, user sounds, FM6 patches, samples)?",
+    restoreConfirm: "Restore this backup onto the FM-1? What it holds replaces what is stored on the FM-1, and the FM-1 restarts afterwards.",
+    restoring: "Restoring ", restoreBusy: "Stop the loop on the FM-1 to continue the restore",
+    restored: "Restored: ", restoreSkipped: " (not used by this firmware, kept in the file: ", badBackup: "Not a usable backup file: ",
+    cancelled: "Cancelled. Nothing was written.",
     brick: "If an install fails and the FM-1 no longer starts, recovering it needs FM-1-transporter:",
     beta: "ChoralRoot {version} is a first public beta; please report problems on GitHub. Installing firmware is at your own risk: the authors accept no responsibility if your FM-1 is damaged or misbehaves.",
     back: "Get the official FM-1 V15 firmware from M-VAVE and select the unmodified FM-1.fwsc. The browser checks the file locally; it is not sent to a server.",
-    stockTitle: "Return to official V15", stockFile: "Official FM-1.fwsc", stockGo: "Return to official V15",
-    stockWarn: "ChoralRoot has no backup: the user sounds, loops and settings stored on the FM-1 are erased by the return to the stock firmware.",
+    stockTitle: "Return to official V15", stockFile: "Official FM-1.fwsc", stockGo: "Back up and return to official V15",
+    stockWarn: "The stock firmware cannot use ChoralRoot's user sounds, loops or settings. They are saved to a backup file first; to bring them back, reinstall ChoralRoot and press Restore.",
+    stockRecovery: "Resume an interrupted update: I already saved a backup to this computer",
+    stockNeedBackup: "An FM-1 in update mode cannot be backed up. Tick the resume box only if you already saved a backup.",
     stockValid: "Official V15 verified",
-    stockConfirm: "ChoralRoot has no backup: the user sounds, loops and settings stored on the FM-1 are erased by the return to the stock firmware. Continue and install the official V15?",
+    stockConfirm: "Has the backup file been saved to this computer? Continue to install the official V15. The stock firmware cannot open ChoralRoot's data.",
     stockError: "Cannot validate the official firmware: ",
     nomidi: "This browser cannot do it. Open the page in Chrome or Edge.", loadfail: "Could not load: ",
     start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
@@ -144,9 +175,61 @@ const say = (txt) => { lastKey = null; $("status").textContent = txt; };
 const log = (t) => { $("log").textContent += t + "\n"; };
 let image = null;
 
-let writing = false, stock = null, stockFileEpoch = 0;
-const lockInstaller = (on) => { writing = on; $("go").disabled = on || !image; $("stock-go").disabled = on || !stock; $("stock-file").disabled = on; };
+let writing = false, stock = null, stockFileEpoch = 0, restoreArc = null, restoreEpoch = 0;
+const midiOk = !!navigator.requestMIDIAccess;
+const lockInstaller = (on) => {
+  writing = on; $("go").disabled = on || !image; $("stock-go").disabled = on || !stock; $("stock-file").disabled = on;
+  $("stock-recovery").disabled = on; $("skip-backup").disabled = on; $("backup-go").disabled = on || !midiOk;
+  $("restore-go").disabled = on || !midiOk || !restoreArc; $("restore-file").disabled = on;
+};
 window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
+
+// ---- backup / restore (fm1backup.js: Felucca's protocol; ChoralRoot answers it with its own objects) ----
+const coded = (code, detail = "") => Object.assign(new Error(code + (detail ? ": " + detail : "")), { code, detail });
+const pct = (d, total) => `${Math.round(d / Math.max(1, total) * 100)}%`;
+function saveArchive(archive) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(archive)], { type: "application/json" }));
+  const a = document.createElement("a"); a.href = url; a.download = backupFileName(archive.firmware);
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return a.download;
+}
+async function openBackup(up) {                 // the running FM-1 (handshake), as a backup connection
+  const dev = await up.find((id) => id.model === "FM-1");
+  if (!dev) throw coded("notfound");
+  const input = dev.link.input, output = dev.link.output; dev.link.close();
+  return new BackupConnection(input, output);
+}
+async function takeBackup(up) {                 // -> the archive, saved to a file
+  const link = await openBackup(up);
+  try {
+    const req = (r, o) => link.request(r, o), info = await deviceInfo(req);
+    if (!info) throw coded("noBackup");
+    let archive;
+    try { archive = await captureBackup(req, info.version, (d, total) => sayK("backup", pct(d, total))); }
+    catch (e) { throw /timed out/i.test(e.message) && !e.rc ? coded("noBackup", e.message) : e; }
+    sayK("backupSaved", saveArchive(archive));
+    log(`backup ${archive.firmware}: ${archive.objects.filter((o) => o.size).map((o) => objectName(o.id)).join(", ")}`);
+    return archive;
+  } finally { link.close(); }
+}
+async function restoreArchive(up, archive) {
+  const link = await openBackup(up);
+  try {
+    const req = (r, o) => link.request(r, o), info = await deviceInfo(req);
+    if (!info) throw coded("noBackup");
+    const r = await restoreBackup(req, archive, (d, total) => sayK("restoring", pct(d, total)), { onBusy: () => sayK("restoreBusy") });
+    if (info.family === "choralroot") await restartDevice(req).catch((e) => log(`restart: ${e.message}`));
+    const names = (ids) => ids.map(objectName).join(", ");
+    sayK("restored", names(r.restored) + (r.skipped.length ? t("restoreSkipped") + names(r.skipped) + ")" : ""));
+    log(`restored ${r.restored.join(" ")}; skipped ${r.skipped.join(" ") || "none"}`);
+  } finally { link.close(); }
+}
+const failSay = (e) => {
+  if (e && e.code && TEXT[lang][e.code]) sayK(e.code, e.code === "noBackup" ? "" : e.detail || "");
+  else sayK("error", e && e.message);
+  log(String(e && e.stack || e));
+};
+if (midiOk) $("backup-go").disabled = false;
 
 (async () => {
   if (!navigator.requestMIDIAccess) { sayK("nomidi"); return; }
@@ -180,18 +263,59 @@ $("go").addEventListener("click", async () => {
       if (k === "done") { $("bar").value = 100; sayK("done"); }
     };
     const ota = await up.find((id) => /^ota-/i.test(id.model));
-    if (ota) {
+    if (ota) {                                  // an interrupted update: the backup (if any) was taken before it
       ota.link.close();
       sayK((await up.resume(image, step, meta.product)) ? "done" : "stopped");
     } else {
+      let saved = null;
+      if (!$("skip-backup").checked) {          // back up first, as Felucca before the return to stock
+        try { saved = await takeBackup(up); }
+        catch (e) {                             // (no FM-1 found: the install below says why, notfound or model)
+          log(`backup: ${e.message}`);
+          if (e.code !== "notfound" && !confirm(t("noBackupConfirm") + (e.code === "noBackup" ? "" : `\n\n${e.message}`))) {
+            sayK("cancelled"); lockInstaller(false); return;
+          }
+        }
+      }
       await up.install(image, meta.product, step);
+      // over another firmware: offer its data back (an update of ChoralRoot keeps its own flash)
+      if (saved && backupFamily(saved.firmware) !== "choralroot" && confirm(t("restoreOffer"))) await restoreArchive(up, saved);
     }
-  } catch (e) {
-    if (e && e.code && TEXT[lang][e.code]) sayK(e.code, e.detail || "");
-    else sayK("error", e && e.message);
-    log(String(e && e.stack || e));
-  }
+  } catch (e) { failSay(e); }
   lockInstaller(false);
+});
+
+$("backup-go").addEventListener("click", async () => {
+  if (writing) return;
+  lockInstaller(true);
+  try {
+    let midi;
+    try { midi = await navigator.requestMIDIAccess({ sysex: true }); } catch (e) { sayK("denied"); return; }
+    await takeBackup(new Updater(midi, log));
+  } catch (e) { failSay(e); }
+  finally { lockInstaller(false); }
+});
+$("restore-file").addEventListener("change", async () => {
+  const epoch = ++restoreEpoch, file = $("restore-file").files[0]; restoreArc = null; lockInstaller(false);
+  if (!file) return;
+  try {
+    const arc = readBackup(await file.text());
+    if (epoch !== restoreEpoch) return;
+    restoreArc = arc; lockInstaller(false);
+    say(`${arc.firmware || "?"} · ${arc.created || ""} · ${arc.objects.filter((o) => o.size).map((o) => objectName(o.id)).join(", ")}`);
+  } catch (e) { if (epoch === restoreEpoch) sayK("badBackup", e.message); }
+});
+$("restore-go").addEventListener("click", async () => {
+  if (writing || !restoreArc) return;
+  const arc = restoreArc;
+  lockInstaller(true);
+  try {
+    if (!confirm(t("restoreConfirm"))) return;
+    let midi;
+    try { midi = await navigator.requestMIDIAccess({ sysex: true }); } catch (e) { sayK("denied"); return; }
+    await restoreArchive(new Updater(midi, log), arc);
+  } catch (e) { failSay(e); }
+  finally { lockInstaller(false); }
 });
 
 $("stock-file").addEventListener("change", async () => {
@@ -204,8 +328,7 @@ $("stock-file").addEventListener("change", async () => {
     stock = verified; sayK("stockValid"); lockInstaller(false);
   } catch (e) { if (epoch === stockFileEpoch) sayK("stockError", e.message); }
 });
-// ChoralRoot has no backup protocol (no editor / backup SysEx): the user data on the FM-1 is not saved and the
-// return to stock erases it; the user confirms that before anything is written
+// the return to stock: a backup first (the stock firmware cannot use ChoralRoot's data), as Felucca's installer
 $("stock-go").addEventListener("click", async () => {
   if (!stock || writing) return;
   const selected = stock; lockInstaller(true);
@@ -217,19 +340,22 @@ $("stock-go").addEventListener("click", async () => {
     const loader = await up.find(id => id.model === "ota-FM-1");
     if (loader) {
       loader.link.close();
+      if (!$("stock-recovery").checked) { sayK("stockNeedBackup"); return; }
       if (!confirm(t("stockConfirm"))) return;
       sayK(await up.resume(selected.image, step, selected.product) ? "done" : "stopped");
     } else {
-      const device = await up.find(id => id.model === "FM-1");
-      if (!device) { sayK("notfound"); return; }
-      device.link.close();
+      if (!$("stock-recovery").checked) {
+        try { await takeBackup(up); }
+        catch (e) {
+          if (e.code === "notfound") throw e;
+          log(`backup: ${e.message}`);
+          if (!confirm(t("noBackupConfirm"))) { sayK("cancelled"); return; }
+        }
+      }
       if (!confirm(t("stockConfirm"))) return;
       await up.install(selected.image, selected.product, step);
     }
-  } catch (e) {
-    if (e.code && TEXT[lang][e.code]) sayK(e.code,e.detail || ""); else sayK("error",e.message);
-    log(String(e.stack || e));
-  } finally { lockInstaller(false); }
+  } catch (e) { failSay(e); } finally { lockInstaller(false); }
 });
 </script>
 </body>

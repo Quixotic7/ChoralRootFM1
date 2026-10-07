@@ -1,0 +1,573 @@
+/* SPDX-License-Identifier: GPL-3.0-only
+ * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
+/* ChoralRoot FM-1: backup and restore over USB-MIDI SysEx (web/EDITOR_PROTOCOL.md, "ChoralRoot: backup and
+ * restore"). The subset of Felucca's protocol (editor.c / editor_backup.c, dropped with Felucca's UI) that the
+ * installer page (web/fm1backup.js) and tools/fm1_install.py use, on ChoralRoot's objects:
+ *
+ *   1 INFO      "ChoralRoot <version>", no editor (0 engines), tags 42 01 03 (backup read + restore) and 43 01 01
+ *   11..14      SMP_BEGIN / SMP_WRITE / SMP_END / SMP_ERASE: user sample slots 1, 2 (slot 3 holds the loops)
+ *   65 LIST     1, rc, count, per object: id, size u32, crc u32 (CRC-32 zlib of the bytes GET returns)
+ *   66 GET      id, offset u32, count (<= 256) -> id, rc, offset u32, count, pack7 data
+ *   67 PUT      0 begin (id, size u32, crc u32) / 1 data (id, offset u32, pack7) / 2 commit (id) / 3 abort (id)
+ *   72 RESTART  -> rc; the device restarts (everything restored loads from flash)
+ *
+ * Objects (Felucca's ids where Felucca has them; 9 and 40..49 are ChoralRoot's):
+ *   1 settings (persist_t PER5: Felucca's fields + cr_settings_t; a PUT takes PER1..PER5, settings_persist.c migrates)
+ *   6, 7 user sound banks (upreset.c, 2 x 16 records), 8 the FM6 patch bank (fm6_bank.c), 9 the VA patch store
+ *   (va_store.c), 32, 33 user sample slots 1, 2 (header + ADPCM, read as Felucca), 40..49 loop slots 1..10 (cr_ui.c's
+ *   flash records, docs/LOOPER.md).
+ *
+ * Reads come from flash (the current copy of each A/B pair, checked at LIST) in 256-byte st_read windows: no RAM
+ * copy, the audio keeps running (a loop may play). LIST first saves a pending settings change (cr_settings_save,
+ * not while a loop plays). Writes are staged in cr_ui.c's cu_loop_buf (the largest object, a loop record, fits;
+ * cu_loop_gen tells when the UI reused it: rc 5) and validated whole before one commit through storage.c's
+ * protocol (st_save: the other copy, the header last; a loop: crl_fl_save, the same protocol): a torn write leaves
+ * the previous copy. A begin or a commit while a loop plays, records or a slot load is on its way answers rc 3
+ * (busy: the page retries); the commit's erase holds the audio ~45 ms (storage_hw.c), which a restore accepts.
+ * After a commit the RAM mirrors are reloaded from flash; a restored settings record also sets cr_restore_lock
+ * (cr_ui.c: no settings save until the restart, so the UI's older state cannot overwrite it).
+ *
+ * Scratch: the replies and GET's data use storage.c's st_buf between storage calls (no RAM of its own but the
+ * session state below). Device unit (choralroot.c) and the emulator / host test (tools/emu/emu_firmware.h,
+ * tests/cr_backup_test.c): CRB_SEND / CRB_REBOOT are the transport hooks; the device's ed_service (main.c) is here. */
+#if FELUCCA_FLASH
+#if !FELUCCA_VA || !CR_HAVE_SETTINGS
+#error "cr_backup.c: the VA store (FELUCCA_VA) and the settings record (cr_settings.c) are part of the backup"
+#endif
+#define CRB_HDR0 0x7Du
+#define CRB_HDR1 0x46u
+#define CRB_HDR2 0x4Cu
+enum { CRB_INFO = 1, CRB_SMP_BEGIN = 11, CRB_SMP_WRITE, CRB_SMP_END, CRB_SMP_ERASE,
+       CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72 };
+#define CRB_LOOP0 40u                                /* loop slot k: id 40 + k */
+#define CRB_VA 9u
+#define CRB_SMP_SLOTS 2u                             /* user sample slots 1, 2; slot 3's flash holds the loops */
+static const uint8_t CRB_IDS[] = {1, 6, 7, 8, CRB_VA, 32, 33, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+#define CRB_N ((uint32_t)sizeof CRB_IDS)
+_Static_assert(CRL_SLOTS == 10u && SMP_USER_SLOTS == 3u, "backup ids: 10 loop slots, user sample slot 3 = the loops");
+_Static_assert(sizeof(persist_t) <= CRL_REC_MAX && sizeof(up_bank_t) <= CRL_REC_MAX && sizeof(fm6_bank_t) <= CRL_REC_MAX &&
+               sizeof(va_store_t) <= CRL_REC_MAX, "backup: every object stages in cu_loop_buf");
+_Static_assert(ST_PAYLOAD_MAX >= 2048u + 256u, "backup: the reply and the data share st_buf");
+
+#ifndef CRB_SEND
+#if FELUCCA_OTA
+#define CRB_SEND(p, n) ota_wire_send((p), (n))
+#else
+#define CRB_SEND(p, n) ((void)(p), (void)(n))        /* (the emulator: no SysEx transport) */
+#endif
+#endif
+
+static struct {
+    uint8_t listed, put, id, gen;                    /* a LIST snapshot; a PUT session: its id, cu_loop_gen */
+    int8_t copy[CRB_N];                              /* the current copy at LIST (-1: none / a sample slot) */
+    uint32_t size[CRB_N];                            /* the object's size at LIST */
+    uint32_t usb, len, crc, pos, ms, reboot;         /* usb.resets at LIST / begin; the PUT; restart at (ms | 1) */
+} crb;
+
+/* ------------------------------------------------------------------ the reply --- */
+#define CRB_OUT st_buf                               /* the reply (<= 400 bytes, written after any storage call) .. */
+#define CRB_DATA (st_buf + 2048u)                    /* .. and GET's flash data, SMP's unpacked bytes */
+static uint32_t crb_n;
+static void crb_b(uint32_t v)
+{
+    if (crb_n < 1024u - 1u)
+        CRB_OUT[crb_n++] = (uint8_t)(v & 0x7Fu);
+}
+static void crb_u32(uint32_t v)
+{
+    uint32_t i;
+    for (i = 0; i < 5u; i++)
+        crb_b(v >> (7u * i));
+}
+static uint32_t crb_r32(const uint8_t *p)
+{
+    return (uint32_t)p[0] | (uint32_t)p[1] << 7 | (uint32_t)p[2] << 14 | (uint32_t)p[3] << 21 | (uint32_t)p[4] << 28;
+}
+static void crb_pack(const uint8_t *p, uint32_t n)  /* pack7: a byte of top bits, then up to 7 low-7-bit bytes */
+{
+    while (n) {
+        uint32_t k = n > 7u ? 7u : n, m = 0, i;
+        for (i = 0; i < k; i++)
+            m |= (uint32_t)(p[i] >> 7) << i;
+        crb_b(m);
+        for (i = 0; i < k; i++)
+            crb_b(p[i]);
+        p += k;
+        n -= k;
+    }
+}
+static uint32_t crb_unpack(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t max)   /* 0: malformed / too long */
+{
+    uint32_t n = 0;
+    while (na && n < max) {
+        uint32_t m = *a++, j, k;
+        na--;
+        k = na > 7u ? 7u : na;
+        if (!k || n + k > max || (m >> k))
+            return 0;
+        for (j = 0; j < k; j++, na--)
+            out[n++] = (uint8_t)(*a++ | ((m >> j) & 1u) << 7);
+    }
+    return na ? 0u : n;
+}
+static void crb_send(uint32_t cmd, uint32_t from)   /* the reply's bytes are CRB_OUT[from..crb_n) */
+{
+    CRB_OUT[from - 5u] = 0xF0;
+    CRB_OUT[from - 4u] = CRB_HDR0;
+    CRB_OUT[from - 3u] = CRB_HDR1;
+    CRB_OUT[from - 2u] = CRB_HDR2;
+    CRB_OUT[from - 1u] = (uint8_t)cmd;
+    CRB_OUT[crb_n++] = 0xF7;
+    CRB_SEND(CRB_OUT + from - 5u, crb_n - (from - 5u));
+}
+
+/* ------------------------------------------------------------------ the objects --- */
+static int crb_index(uint32_t id)
+{
+    uint32_t i;
+    for (i = 0; i < CRB_N; i++)
+        if (CRB_IDS[i] == id)
+            return (int)i;
+    return -1;
+}
+static int crb_is_loop(uint32_t id) { return id >= CRB_LOOP0 && id < CRB_LOOP0 + CRL_SLOTS; }
+static int crb_is_smp(uint32_t id) { return id >= 32u && id < 32u + CRB_SMP_SLOTS; }
+static uint32_t crb_obj(uint32_t id)                 /* storage.c's object of ids 1, 6..9 */
+{
+    return id == 1u ? (uint32_t)OBJ_SETTINGS : id == 8u ? (uint32_t)OBJ_FM6BANK : id == CRB_VA ? (uint32_t)OBJ_VASTORE
+                                                                                   : (uint32_t)OBJ_UPRESET0 + id - 6u;
+}
+/* an A/B object (storage.c's or a loop slot's: the same commit record, another type and place) */
+static uint32_t crb_sector(uint32_t id, uint32_t copy)
+{
+    return crb_is_loop(id) ? crl_fl_sector(id - CRB_LOOP0, copy) : st_sector(crb_obj(id), copy);
+}
+static int crb_head(uint32_t id, uint32_t copy, st_hdr_t *h)   /* 0: a valid commit record */
+{
+    uint32_t type = crb_is_loop(id) ? CRL_FL_TYPE + id - CRB_LOOP0 : crb_obj(id);
+    if (st_read(crb_sector(id, copy), h, sizeof *h) || h->magic != ST_MAGIC || h->type != type || h->slot != copy ||
+        h->len > ST_PAYLOAD_MAX || h->hcrc != st_crc32(h, sizeof *h - 4u))
+        return -1;
+    return 0;
+}
+static int crb_body(uint32_t id, uint32_t copy, const st_hdr_t *h)   /* the payload (into st_buf) is intact: 0 */
+{
+    return st_read(crb_sector(id, copy) + ST_PAYLOAD_OFF, st_buf, h->len) || st_crc32(st_buf, h->len) != h->crc ? -1 : 0;
+}
+static int crb_current(uint32_t id, st_hdr_t *h)    /* storage.c st_current's choice: the newest intact copy */
+{
+    st_hdr_t a, b;
+    int va = crb_head(id, 0, &a) == 0, vb = crb_head(id, 1, &b) == 0;
+    if (vb && (!va || (b.seq != a.seq && b.seq - a.seq < 0x80000000u)) && crb_body(id, 1, &b) == 0) {
+        *h = b;
+        return 1;
+    }
+    if (va && crb_body(id, 0, &a) == 0) {
+        *h = a;
+        return 0;
+    }
+    if (vb && crb_body(id, 1, &b) == 0) {
+        *h = b;
+        return 1;
+    }
+    return -1;
+}
+static const uint8_t *crb_smp(uint32_t k, uint32_t *len)   /* user sample slot k as Felucca reads it */
+{
+    const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(k);
+    *len = 0;
+    if (usr_nz[k] && h->magic == SMP_USER_MAGIC && h->data_len <= SMP_USER_SIZE - SMP_USER_DATA)
+        *len = SMP_USER_DATA + h->data_len;
+    return smp_user_xip(k);
+}
+
+/* a flash erase now would cut a loop: it plays, records, or a slot load is on its way */
+static int crb_busy(void)
+{
+    return cr_snap.lstate == CRL_PLAYING || cr_snap.lcap != CRL_CAP_NONE || crl_stage_busy;
+}
+
+/* ------------------------------------------------------------------ LIST / GET --- */
+static void crb_list(void)
+{
+    uint32_t i, crc[CRB_N];
+    st_hdr_t h;
+#if CR_HAVE_SETTINGS
+    if (crs_loaded && !CR_SETTINGS_BUSY())
+        cr_settings_save();                          /* a change not yet saved goes in first (none: no erase) */
+#endif
+    for (i = 0; i < CRB_N; i++) {
+        uint32_t id = CRB_IDS[i];
+        crb.copy[i] = -1;
+        crb.size[i] = crc[i] = 0;
+        if (crb_is_smp(id)) {
+            const uint8_t *p = crb_smp(id - 32u, &crb.size[i]);
+            crc[i] = st_crc32(p, crb.size[i]);
+        } else if (flash_ok && (crb.copy[i] = (int8_t)crb_current(id, &h)) >= 0) {
+            crb.size[i] = h.len;
+            crc[i] = h.crc;
+        }
+        fm1_wdt_feed();
+    }
+    crb.listed = 1;
+    crb.put = 0;
+    crb.usb = usb.resets;
+    crb_b(1);
+    crb_b(0);
+    crb_b(CRB_N);
+    for (i = 0; i < CRB_N; i++) {
+        crb_b(CRB_IDS[i]);
+        crb_u32(crb.size[i]);
+        crb_u32(crc[i]);
+    }
+}
+static void crb_get(const uint8_t *a, uint32_t n)
+{
+    uint32_t off = n >= 6u ? crb_r32(a + 1) : 0u, count = n == 8u ? (uint32_t)a[6] | (uint32_t)a[7] << 7 : 0u, rc;
+    int i = n ? crb_index(a[0]) : -1;
+    if (!crb.listed || crb.usb != usb.resets)
+        rc = 5;
+    else if (n != 8u || a[5] > 15u || i < 0 || !count || count > 256u || off > crb.size[i] || count > crb.size[i] - off)
+        rc = 1;
+    else if (crb_is_smp(a[0]))
+        rc = 0;
+    else
+        rc = st_read(crb_sector(a[0], (uint32_t)crb.copy[i]) + ST_PAYLOAD_OFF + off, CRB_DATA, count) ? 4u : 0u;
+    crb_b(n ? a[0] : 127u);
+    crb_b(rc);
+    crb_u32(off);
+    crb_b(rc ? 0u : count & 127u);
+    crb_b(rc ? 0u : count >> 7);
+    if (!rc)
+        crb_pack(crb_is_smp(a[0]) ? smp_user_xip(a[0] - 32u) + off : CRB_DATA, count);
+}
+
+/* ------------------------------------------------------------------ PUT --- */
+#define CRB_RAW cu_loop_buf                          /* staging: cr_ui.c's loop record buffer (see the top) */
+static int crb_panel_ok(const panel_t *p)
+{
+    uint32_t i, b = 0, e = 0;
+    if (p->magic != PANEL_MAGIC)
+        return 0;
+    for (i = 0; i < NB; i++) {
+        if (p->btn[i] >= NB || (b & (1u << p->btn[i])))
+            return 0;
+        b |= 1u << p->btn[i];
+    }
+    for (i = 0; i < NE; i++) {
+        if (p->enc[i] >= NE || (e & (1u << p->enc[i])) || (p->dir[i] != 1 && p->dir[i] != -1))
+            return 0;
+        e |= 1u << p->enc[i];
+    }
+    return 1;
+}
+static int crb_size_ok(uint32_t id, uint32_t len)   /* a begin's size for this id */
+{
+    if (id == 1u)                                    /* PER1 (8 + panel) .. PER5 (this record) */
+        return len >= 8u + sizeof(panel_t) && len <= sizeof(persist_t);
+    if (id == 6u || id == 7u)
+        return !len || len == sizeof(up_bank_t);
+    if (id == 8u)
+        return !len || len == sizeof(fm6_bank_t);
+    if (id == CRB_VA)                                /* version 3 / 2, or version 1's 104-byte blobs */
+        return !len || len == sizeof(va_store_t) || len == 16u + UP_SLOTS * VA_BLOB1;
+    if (crb_is_loop(id))
+        return !len || (len >= CRL_REC_HDR && len <= CRL_REC_MAX);
+    return 0;
+}
+static uint32_t crb_commit(void)
+{
+    uint8_t *raw = CRB_RAW;
+    uint32_t id = crb.id, len = crb.len;
+    if (crb.pos != len || st_crc32(raw, len) != crb.crc)
+        return 2;
+    if (id == 1u) {                                  /* settings: Felucca's fields migrated, ChoralRoot's block checked */
+        persist_t *p = (persist_t *)raw;
+        const panel_t *pn = (const panel_t *)(raw + (len == 8u + sizeof(panel_t) ? 8u : 16u));
+        if (!crb_panel_ok(pn) || !settings_import(p, (int)len))
+            return 2;
+        cr_settings_import(&p->cr, &p->cr, sizeof p->cr);   /* (a PER1..4 record: a zeroed block -> the defaults) */
+        if (st_save(OBJ_SETTINGS, p, sizeof *p))
+            return 4;
+#if CR_HAVE_SETTINGS
+        crs_rec = *p;                                /* what flash holds now */
+        crs_seen = p->cr;
+        crs_pending = 0;
+#endif
+        cr_restore_lock = 1;                         /* no settings save before the restart */
+        cu_message("settings restored: restart", CR_COL_GREEN);
+        return 0;
+    }
+    if (id == 6u || id == 7u) {
+        const up_bank_t *b = (const up_bank_t *)raw;
+        if (len && (b->magic != UP_BANK_MAGIC || b->rsize != sizeof(up_rec_t) || b->nslot != UP_PER_BANK))
+            return 2;
+    } else if (id == 8u) {
+        if (len && !fm6_bank_valid((const fm6_bank_t *)raw))
+            return 2;
+    } else if (id == CRB_VA) {
+        const va_store_t *s = (const va_store_t *)raw;
+        if (len && (s->magic != VA_STORE_MAGIC || s->nslot != UP_SLOTS ||
+                    !(len == sizeof *s ? (s->ver == 3u && va_store_valid(s)) || (s->ver == 2u && s->blob == VA_BLOB)
+                                       : s->ver == 1u && s->blob == VA_BLOB1)))
+            return 2;                                /* (versions 1 / 2: converted by va_store_boot, as at power-on) */
+    } else if (crb_is_loop(id)) {
+        uint32_t k = id - CRB_LOOP0;
+        if (crl_stage_busy)
+            return 3;
+        if (len && !cr_loop_unpack(raw, len, &crl_stage))   /* (crl_stage: free while not busy, as cu_loop_scan) */
+            return 2;
+        if (len ? crl_fl_save(k, raw, len) : crl_fl_delete(k))
+            return 4;
+        if (len)
+            cs.loop_used |= (uint16_t)(1u << k);
+        else
+            cs.loop_used &= (uint16_t)~(1u << k);
+        return 0;
+    } else {
+        return 1;
+    }
+    if (st_save(crb_obj(id), raw, len))
+        return 4;
+    if (id == 8u) {                                  /* the mirror from flash; parts on a bank patch reload theirs */
+        uint32_t t;
+        fm6_bank_boot();
+        for (t = 0; t < NTRK; t++)
+            if (fm6_slot[t] >= FM6_NFACTORY)
+                fm6_slot[t] = 0xFFu;
+    } else {
+        up_boot();                                   /* both banks, the FM6 bank, the VA store (converted) from flash */
+        up_gen++;
+    }
+    ui.force = 1;
+    return 0;
+}
+static uint32_t crb_put(const uint8_t *a, uint32_t n)
+{
+    uint32_t rc;
+    if (n < 2u || a[0] > 3u)
+        return 1;
+    if (a[0] == 0u) {
+        uint32_t len;
+        if (n != 12u || a[6] > 15u || a[11] > 15u || !crb_size_ok(a[1], len = crb_r32(a + 2)))
+            return 1;
+        if (!flash_ok)
+            return 4;
+        if (crb_busy())
+            return 3;
+        crb.listed = 0;                              /* (a begin ends the snapshot, as Felucca) */
+        crb.put = 1;
+        crb.id = a[1];
+        crb.len = len;
+        crb.crc = crb_r32(a + 7);
+        crb.pos = 0;
+        crb.gen = cu_loop_gen;
+        crb.usb = usb.resets;
+        crb.ms = fm1_ms;
+        return 0;
+    }
+    if (!crb.put || crb.id != a[1] || crb.usb != usb.resets || fm1_ms - crb.ms > 15000u || crb.gen != cu_loop_gen) {
+        crb.put = 0;                                 /* stale: no begin, another id, a USB reset, 15 s, the UI's buffer */
+        return 5;
+    }
+    crb.ms = fm1_ms;
+    if (a[0] == 3u) {
+        crb.put = 0;
+        return n == 2u ? 0u : 1u;
+    }
+    if (a[0] == 2u) {
+        if (n != 2u)
+            return 1;
+        if (crb_busy())
+            return 3;                                /* (the session stays: the page sends the commit again) */
+        rc = crb_commit();
+        crb.put = rc == 3u;
+        return rc;
+    }
+    if (n < 9u || a[6] > 15u || crb_r32(a + 2) != crb.pos)
+        return 1;
+    {
+        uint32_t left = crb.len - crb.pos, k = crb_unpack(a + 7, n - 7u, CRB_RAW + crb.pos, left < 256u ? left : 256u);
+        if (!k)
+            return 1;
+        crb.pos += k;
+    }
+    return 0;
+}
+
+/* --------------------------------------------- user sample slots 1, 2 (Felucca's 11..14) --- */
+static uint32_t crb_smp_base(uint32_t k) { return SMP_USER_BASE + k * SMP_USER_SIZE; }
+static int crb_smp_erase(uint32_t k, uint32_t all)  /* the header sector, or the whole slot */
+{
+    uint32_t i;
+    int rc = 0;
+    usr_nz[k] = 0;
+    for (i = 0; i < 16u; i++)
+        usr_zone[k][i].n = 0;                        /* a sounding voice ends instead of reading 0xFF */
+    for (i = 0; i < (all ? SMP_USER_SIZE / ST_SECTOR : 1u) && !rc; i++) {
+        rc = st_erase(crb_smp_base(k) + i * ST_SECTOR);
+        fm1_wdt_feed();
+    }
+    return rc;
+}
+static int crb_prog(uint32_t off, const uint8_t *p, uint32_t n)   /* page by page (st_prog never wraps a page) */
+{
+    while (n) {
+        uint32_t k = 256u - (off & 255u);
+        if (k > n)
+            k = n;
+        if (st_prog(off, p, k))
+            return -1;
+        off += k;
+        p += k;
+        n -= k;
+    }
+    return 0;
+}
+static uint32_t crb_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
+{
+    const smp_user_hdr_t *h = (const smp_user_hdr_t *)CRB_DATA;
+    if (crb_unpack(a, na, CRB_DATA, sizeof *h) != sizeof *h)
+        return 1;
+    if (h->magic != SMP_USER_MAGIC || h->version != 1 || !h->nz || h->nz > 16u || h->data_len > SMP_USER_SIZE - SMP_USER_DATA)
+        return 2;
+    if (usr_nz[k])                                   /* published: identical again is ok, else BEGIN first */
+        return memcmp(h, smp_user_xip(k), sizeof *h) ? 2u : 0u;
+    if (st_crc32(smp_user_xip(k) + SMP_USER_DATA, h->data_len) != h->crc)
+        return 3;
+    if (crb_prog(crb_smp_base(k), CRB_DATA, sizeof *h))
+        return 4;
+    smp_user_scan(k);
+    return usr_nz[k] ? 0u : 5u;
+}
+static int crb_smp_cmd(uint32_t cmd, const uint8_t *a, uint32_t n)   /* 0: no reply */
+{
+    uint32_t k = n ? a[0] : 0u, rc;
+    if (!n || k >= SMP_USER_SLOTS || !flash_ok)
+        return 0;
+    if (cmd == CRB_SMP_BEGIN || cmd == CRB_SMP_ERASE) {
+        if (n != 1u)
+            return 0;
+        rc = k >= CRB_SMP_SLOTS ? 1u : crb_busy() ? 3u : crb_smp_erase(k, cmd == CRB_SMP_ERASE) ? 1u : 0u;
+        crb_b(k);
+        crb_b(rc);
+        return 1;
+    }
+    if (cmd == CRB_SMP_WRITE) {
+        uint32_t off, len;
+        if (n < 5u)
+            return 0;
+        off = (uint32_t)a[1] | (uint32_t)a[2] << 7 | (uint32_t)a[3] << 14;
+        len = crb_unpack(a + 4, n - 4u, CRB_DATA, 256u);
+        if (k >= CRB_SMP_SLOTS || off < SMP_USER_DATA || (off & 0xFFu) || !len || off + len > SMP_USER_SIZE)
+            rc = 1;
+        else if (usr_nz[k])
+            rc = 4;                                  /* in use: SMP_BEGIN first (voices read it) */
+        else if (crb_busy())
+            rc = 3;
+        else {
+            rc = !(off & 0xFFFu) && st_erase(crb_smp_base(k) + off) ? 2u : 0u;   /* a sector's first write erases it */
+            if (!rc && crb_prog(crb_smp_base(k) + off, CRB_DATA, len))
+                rc = 3;
+        }
+        crb_b(k);
+        crb_b(off);
+        crb_b(off >> 7);
+        crb_b(off >> 14);
+        crb_b(rc);
+        return 1;
+    }
+    if (n < 2u)
+        return 0;
+    rc = k >= CRB_SMP_SLOTS ? 1u : crb_busy() ? 3u : crb_smp_end(k, a + 1, n - 1u);   /* SMP_END */
+    crb_b(k);
+    crb_b(rc);
+    return 1;
+}
+
+/* ------------------------------------------------------------------ the dispatcher --- */
+/* f: the bytes between F0 and F7 (7D 46 4C cmd args); 1 = answered */
+static int crb_handle(const uint8_t *f, uint32_t n)
+{
+    const uint8_t *a = f + 4;
+    uint32_t cmd, na, from = 5u;
+    if (n < 4u || f[0] != CRB_HDR0 || f[1] != CRB_HDR1 || f[2] != CRB_HDR2)
+        return 0;
+    cmd = f[3];
+    na = n - 4u;
+    crb_n = from;
+    switch (cmd) {
+    case CRB_INFO: {                                 /* Felucca's INFO layout, no editor: 0 engines, 0 tracks */
+        const char *v = FELUCCA_VERSION;
+        uint32_t i;
+        if (na)
+            return 0;
+        for (i = 0; v[i] && i < 24u; i++)
+            crb_b((uint8_t)v[i]);
+        crb_b(0);
+        for (i = 0; i < 7u; i++)
+            crb_b(0);                                /* NENGINES P_COUNT G_COUNT NSTEP P_E0, NTRK, CHAIN_ROWS */
+        crb_b(0x42);
+        crb_b(1);
+        crb_b(3);                                    /* backup read + restore */
+        crb_b(0x43);
+        crb_b(1);
+        crb_b(1);                                    /* ChoralRoot backup v1: ids 9, 40..49, RESTART */
+        break;
+    }
+    case CRB_SMP_BEGIN: case CRB_SMP_WRITE: case CRB_SMP_END: case CRB_SMP_ERASE:
+        if (!crb_smp_cmd(cmd, a, na))
+            return 0;
+        break;
+    case CRB_LIST:
+        if (na) {
+            crb_b(1);
+            crb_b(1);
+            crb_b(0);
+        } else {
+            crb_list();
+        }
+        break;
+    case CRB_GET:
+        crb_get(a, na);
+        break;
+    case CRB_PUT: {
+        uint32_t rc = crb_put(a, na);
+        crb_b(na ? a[0] : 127u);
+        crb_b(na >= 2u ? a[1] : 127u);
+        crb_b(rc);
+        break;
+    }
+    case CRB_RESTART:
+        if (na)
+            return 0;
+        crb.put = crb.listed = 0;
+        crb_b(0);
+        crb.reboot = fm1_ms | 1u;                    /* ed_service restarts once the reply is out */
+        break;
+    default:
+        return 0;
+    }
+    crb_send(cmd, from);
+    return 1;
+}
+
+#if FELUCCA_OTA
+#ifndef CRB_REBOOT
+#define CRB_REBOOT() do { bootguard.pending = 0; usb_detach(); fm1_delay_ms(30); fm1_reboot(); } while (0)
+#endif
+#define CR_BACKUP_SERVICE 1                          /* cr_shim.c: no ed_service stub */
+/* main.c's main loop: our frames (7D 46 4C), anything else stays for ota_service (M-UPGRADE) */
+static void ed_service(void)
+{
+    const uint8_t *p;
+    uint32_t n;
+    if (crb.reboot && fm1_ms - crb.reboot > 150u && so_r == so_w)
+        CRB_REBOOT();                                /* (the RESTART reply has left) */
+    if (!ota_frame_get(&p, &n) || n < 4u || p[0] != CRB_HDR0 || p[1] != CRB_HDR1 || p[2] != CRB_HDR2)
+        return;
+    crb_handle(p, n);                                /* (in place: the frame is released after the reply) */
+    ota_frame_done();
+}
+#endif
+#endif /* FELUCCA_FLASH */

@@ -586,3 +586,61 @@ rc 0 = applied and saved; 1 = invalid arguments; 2 = unsupported feature;
 by the same persistence path as the panel. These changes never stop playback.
 Unchanged writes do not erase flash. Replies echo preference ids/values and
 favorite ranges so the editor rejects replies to a different request.
+
+## ChoralRoot: backup and restore
+
+ChoralRoot (identity `FM-1_920`, `firmware/src/cr_backup.c`) has no editor: of the commands above it answers only
+the backup subset, with its own objects, so the installer page (`web/fm1backup.js`, `web/index_pkg.html`) and
+`tools/fm1_install.py --backup / --restore` can save and restore what is stored on the FM-1 when firmwares are
+switched. Framing, u32, pack7, CRC-32 and the rc table are as in "v7: full backup" above. Every other command gets
+no reply. Host coverage: `tests/cr_backup_test.c` (the handler on the emulator's firmware build: list -> read all ->
+write back -> identical, CRC / size / content errors, busy, stale sessions, Felucca's objects); `web/test_backup.mjs`,
+`web/test_installer.mjs` and `tests/install_test.py` (the page, the installer page and the CLI against simulated
+firmwares). Not yet run on hardware.
+
+| cmd | request | reply |
+| --- | --- | --- |
+| 1 INFO | — | version string (`ChoralRoot 0.1`), then 0 engines, P_COUNT 0, G_COUNT 0, NSTEP 0, P_E0 0, NTRK 0, CHAIN_ROWS 0, then `42 01 03` (backup read + restore) and `43 01 01` (ChoralRoot backup v1: ids 9 and 40..49, `RESTART`) |
+| 11..14 SMP_BEGIN / WRITE / END / ERASE | as above, slots 0 and 1 only | as above; slot 2 (sample slot 3: its flash holds the loops) answers rc 1; rc 3 = busy (below) |
+| 65 BACKUP_LIST | — | `1, rc, 17`, then per object `id, size u32, crc u32` |
+| 66 BACKUP_GET | as above | as above (a loop may play: reads never stop anything) |
+| 67 BACKUP_PUT | as above | as above |
+| 72 RESTART | — | rc (0); then the device restarts (about 150 ms later, once the reply has left) |
+
+Objects (Felucca's ids where Felucca has the same object; 9 and 40..49 are ChoralRoot's):
+
+| id | object | size |
+| --- | --- | --- |
+| 1 | settings: Felucca's record (`settings_persist.c` PER5) with ChoralRoot's block (`cr_settings.h`, 192 bytes) at its end | 764, or 0 if never saved |
+| 6, 7 | user sound banks (slots 1..16, 17..32), Felucca's layout | 3080, or 0 if empty |
+| 8 | the FM6 patch bank, Felucca's layout | 3472, or 0 if empty |
+| 9 | the VA patch store (`va_store.c`: one patch per user slot) | 3536 (version 3), or 0 |
+| 32, 33 | user sample slots 1, 2, as Felucca's | 512 + data length, or 0 |
+| 40..49 | loop slots 1..10 (docs/LOOPER.md, the record `CRL1`) | 16 + 2 × layers + 7 × events (at most 3664), or 0 |
+
+Reading: `LIST` first saves a settings change not yet saved (not while a loop plays), then answers every object as it
+is in flash: the current copy of each A/B pair (storage.c's choice: the newest copy whose header and payload CRC hold;
+the CRC listed is the payload's), the samples as Felucca reads them. `GET` reads that copy in 256-byte pieces.
+
+Restoring: `BACKUP_PUT` takes ids 1, 6, 7, 8, 9 and 40..49 (others: rc 1). Sizes at the begin: id 1 any record
+`settings_persist.c` imports (PER1 .. PER5, 40 .. 764 bytes; a PER1..PER4 record from Felucca keeps Felucca's fields
+and gets ChoralRoot's defaults; it is stored as PER5); 6 / 7 the bank or 0; 8 the FM6 bank or 0; 9 a VA store of
+version 3 or 2 (3536) or version 1 (3344; converted at boot), or 0; 40..49 a loop record (16..3664) or 0 (deletes the
+slot). The data is staged in RAM; the commit checks the length, the CRC and the content (the panel table and the
+settings import; a bank's magic, record size and slot count; the FM6 bank's layout and bytes; the VA store's header and
+every patch; the loop record's full unpack) and then writes with storage.c's protocol (the other copy, the header
+last: a torn write leaves the previous copy). The RAM mirrors are reloaded from flash after each commit. Busy
+(rc 3): a begin, a commit or a sample write while a loop plays, records, or a slot load is on its way; the session
+stays, the page waits a second and sends it again ("Stop the loop on the FM-1"). Stale (rc 5): no begin, another id,
+a USB reset, 15 s without a request, or the UI reused the staging buffer (a loop slot loaded or saved meanwhile).
+A restored settings record is not applied live: the device stops saving settings until it restarts (the UI's older
+state would otherwise overwrite it), so a restore ends with `RESTART`. Each commit erases one 4 KiB sector (a loop
+record: one; the samples: one per 4 KiB): the sound stops for about 45 ms each time.
+
+Across firmwares: a restore writes the objects of the file that the connected firmware lists. A Felucca archive on
+ChoralRoot restores 1 (Felucca's fields; ChoralRoot's settings take their defaults), 6, 7, 8, 32, 33; its music (0),
+projects (2..5) and sample slot 3 (34) stay in the file (sample slot 3's flash is ChoralRoot's loops; Felucca's
+project slot 1 sectors hold ChoralRoot's VA store). A ChoralRoot archive on Felucca restores 6, 7, 8, 32, 33 and
+its settings record cut back to Felucca's (the first 572 bytes, magic `PER4`; skipped if Felucca refuses it); the VA
+patches (9) and the loops (40..49) stay in the file. Felucca's own pages read only Felucca's archives (11 or 12
+objects in order); the ChoralRoot page reads both (and any archive of this format with distinct, intact objects).

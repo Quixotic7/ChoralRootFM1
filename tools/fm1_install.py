@@ -12,13 +12,21 @@ the FM-1 restarts and the installed identity is checked.
   fm1_install.py PACKAGE.fwsc [--port NAME] [--yes] [--force]
   fm1_install.py FM-1.fwsc            (the official V15 file: back to the stock firmware)
   fm1_install.py --info [--port NAME]
+  fm1_install.py --backup FILE        (save what is stored on the FM-1: settings, user sounds, loops, samples ...)
+  fm1_install.py --restore FILE       (write a backup back; ChoralRoot restarts afterwards)
+  fm1_install.py PACKAGE.fwsc --backup FILE [--restore FILE]   (back up, install, restore onto the new firmware)
+
+Backups are web/fm1backup.js's files (JSON, "felucca-backup" version 1), over the same SysEx (web/EDITOR_PROTOCOL.md);
+FILE may be a directory (a dated name: choralroot-backup-YYYYMMDD.json). A restore writes the objects the connected
+firmware lists: a Felucca backup restores its settings, banks, FM6 patches and samples 1-2 on ChoralRoot, and back.
 
 If the FM-1 is still in update mode (an earlier install was cut off), the
 install finishes the write. Needs mido with python-rtmidi.
 
 Exit codes: 0 done, 1 cancelled or other error, 2 bad arguments or package,
 3 FM-1 not found, 4 connection lost or the device stopped, 5 timeout (no
-loader / no restart), 6 wrong model, or another identity after the install.
+loader / no restart), 6 wrong model, or another identity after the install,
+7 the backup or restore failed (or the firmware has no backup protocol).
 """
 import argparse
 import hashlib
@@ -43,7 +51,8 @@ DELAY = {"open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0,
          "poll": 1.0, "hs": 1.0, "idle_check": 8.0, "idle_write": 180.0,
          "wait_loader": 30.0, "wait_reboot": 40.0}
 
-EXIT = {"usage": 2, "badpkg": 2, "notfound": 3, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
+EXIT = {"usage": 2, "badpkg": 2, "badbackup": 2, "notfound": 3, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
+        "nobackup": 7, "backup": 7,
         "noloader": 5, "noreturn": 5, "mismatch": 6}
 
 
@@ -364,6 +373,372 @@ class Updater:
         return self.verify(product, step)
 
 
+# ------------------------------------------------------------ backup / restore ---
+# The page's web/fm1backup.js in Python (web/EDITOR_PROTOCOL.md: Felucca's backup commands; ChoralRoot answers them
+# with its own objects). One file format, "felucca-backup" version 1 (JSON); a restore writes the objects of the file
+# that the connected firmware lists in BACKUP_LIST.
+
+BK_HDR = bytes([0xF0, 0x7D, 0x46, 0x4C])
+BK_INFO, BK_LIST, BK_GET, BK_PUT, BK_RESTART = 1, 65, 66, 67, 72
+BK_CHUNK = 256
+FELUCCA_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34]
+CR_IDS = [1, 6, 7, 8, 9, 32, 33] + list(range(40, 50))
+KNOWN_IDS = set(FELUCCA_IDS) | set(CR_IDS)
+BK_RC = {1: "invalid object, size or request", 2: "the data failed validation", 3: "busy: stop the loop on the FM-1",
+         4: "flash write failed", 5: "stale session: start again"}
+PER4, PER5, CR_BLOCK = 0x50455234, 0x50455235, 192
+DELAY.update({"bk_busy": 1.0, "bk_busy_tries": 120})
+
+
+class BackupError(InstallError):
+    def __init__(self, msg, rc=0):
+        super().__init__("backup", msg)
+        self.rc = rc
+
+
+def bk_u32(n):
+    return [(n >> (7 * i)) & (15 if i == 4 else 127) for i in range(5)]
+
+
+def bk_r32(a, off=0):
+    if len(a) < off + 5 or a[off + 4] > 15:
+        raise BackupError("invalid number in a reply")
+    return a[off] | a[off + 1] << 7 | a[off + 2] << 14 | a[off + 3] << 21 | a[off + 4] << 28
+
+
+def bk_pack(data):
+    out = []
+    for off in range(0, len(data), 7):
+        c = data[off:off + 7]
+        out.append(sum((b >> 7) << i for i, b in enumerate(c)))
+        out += [b & 127 for b in c]
+    return out
+
+
+def bk_unpack(a, size):
+    out, i = bytearray(), 0
+    while len(out) < size:
+        n = min(7, size - len(out))
+        if i >= len(a) or a[i] >> n or i + 1 + n > len(a):
+            raise BackupError("malformed data in a reply")
+        m = a[i]
+        out += bytes(a[i + 1 + k] | ((m >> k) & 1) << 7 for k in range(n))
+        i += 1 + n
+    if i != len(a):
+        raise BackupError("trailing bytes in a reply")
+    return bytes(out)
+
+
+def bk_crc(b):
+    import zlib
+    return zlib.crc32(bytes(b)) & 0xFFFFFFFF
+
+
+def bk_check(rc):
+    if rc:
+        raise BackupError(f"the FM-1 answered {rc}: {BK_RC.get(rc, 'error')}", rc)
+
+
+def is_sample(i):
+    return 32 <= i <= 34
+
+
+def max_size(i):
+    return 81920 if is_sample(i) or i not in KNOWN_IDS else 3840
+
+
+def object_name(i):
+    if i == 0:
+        return "current music"
+    if i == 1:
+        return "settings"
+    if 2 <= i <= 5:
+        return f"project {i - 1}"
+    if i in (6, 7):
+        return "user sounds " + ("1-16" if i == 6 else "17-32")
+    if i == 8:
+        return "FM6 patch bank"
+    if i == 9:
+        return "VA patches"
+    if is_sample(i):
+        return f"sample slot {i - 31}"
+    if 40 <= i <= 49:
+        return f"loop slot {i - 39}"
+    return f"object {i}"
+
+
+def family(firmware):
+    f = (firmware or "").lower()
+    return "choralroot" if f.startswith("choralroot") else "felucca" if f.startswith("felucca") else "other"
+
+
+class BackupLink:
+    """request / reply over a MidoLink (one request at a time, the reply carries the same command)"""
+
+    def __init__(self, link):
+        self.link = link
+
+    def request(self, cmd, args, timeout=1.5):
+        self.link.drain()
+        if not self.link.send(BK_HDR + bytes([cmd, *args, 0xF7])):
+            raise InstallError("lost", "the FM-1 was disconnected")
+        end = time.monotonic() + timeout
+        while (left := end - time.monotonic()) > 0:
+            p = self.link.read(left)
+            if p is None:
+                break
+            if len(p) >= 6 and p[:4] == BK_HDR and p[4] == cmd and p[-1] == 0xF7:
+                return list(p[5:-1])
+        if self.link.lost:
+            raise InstallError("lost", "the FM-1 was disconnected")
+        raise BackupError(f"no answer to backup command {cmd} (the stock firmware, or an older Felucca?)")
+
+
+def bk_manifest(a):
+    if not a or a[0] != 1:
+        raise BackupError("unsupported backup protocol")
+    bk_check(a[1])
+    n = a[2]
+    if not n or len(a) != 3 + n * 11:
+        raise BackupError("incomplete object list")
+    out, seen = [], set()
+    for k in range(n):
+        p = 3 + k * 11
+        i, size, crc = a[p], bk_r32(a, p + 1), bk_r32(a, p + 6)
+        if i in seen or size > max_size(i) or (not size and crc):
+            raise BackupError("unexpected object list")
+        seen.add(i)
+        out.append({"id": i, "size": size, "crc": crc})
+    return out
+
+
+def device_info(bl):
+    """INFO -> (version, family), or None when the firmware does not answer"""
+    try:
+        a = bl.request(BK_INFO, [], 1.5)
+    except BackupError:
+        return None
+    v = bytes(a[:a.index(0)] if 0 in a else a).decode("latin-1")
+    return v, family(v)
+
+
+def capture(bl, firmware, progress=lambda done, total: None):
+    import base64
+    man = bk_manifest(bl.request(BK_LIST, [], 3.0))
+    total, done, objs = sum(o["size"] for o in man), 0, []
+    for o in man:
+        data = bytearray()
+        for off in range(0, o["size"], BK_CHUNK):
+            n = min(BK_CHUNK, o["size"] - off)
+            for attempt in range(2):
+                try:
+                    a = bl.request(BK_GET, [o["id"], *bk_u32(off), n & 127, n >> 7], 1.0)
+                    break
+                except BackupError:
+                    if attempt:
+                        raise
+            bk_check(a[1])
+            if a[0] != o["id"] or bk_r32(a, 2) != off or (a[7] | a[8] << 7) != n:
+                raise BackupError("unexpected backup reply")
+            data += bk_unpack(a[9:], n)
+            done += n
+            progress(done, total)
+        if bk_crc(data) != o["crc"]:
+            raise BackupError("the FM-1 changed during the backup: try again with it stopped")
+        objs.append({**o, "data": base64.b64encode(bytes(data)).decode("ascii")})
+    f = {"format": "felucca-backup", "version": 1, "firmware": firmware,
+         "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "objects": objs}
+    read_backup(f)
+    return f
+
+
+def read_backup(f):
+    """validate a backup (dict or JSON text) -> list of objects with their bytes"""
+    import base64
+    import binascii
+    import json
+    if isinstance(f, (str, bytes)):
+        try:
+            f = json.loads(f)
+        except ValueError as e:
+            raise InstallError("badbackup", f"not a backup file: {e}")
+    if not isinstance(f, dict) or f.get("format") != "felucca-backup" or f.get("version") != 1 or not f.get("objects"):
+        raise InstallError("badbackup", "not an FM-1 backup (format felucca-backup, version 1)")
+    objs, seen = [], set()
+    for o in f["objects"]:
+        try:
+            i, size, crc = o["id"], o["size"], o["crc"]
+            data = base64.b64decode(o["data"], validate=True)
+        except (KeyError, TypeError, binascii.Error):
+            raise InstallError("badbackup", "invalid object in the backup")
+        if not isinstance(i, int) or not 0 <= i <= 127 or i in seen or not isinstance(size, int) or not 0 <= size <= max_size(i) \
+                or len(data) != size or bk_crc(data) != crc:
+            raise InstallError("badbackup", f"object {i}: damaged (size or checksum)")
+        if is_sample(i) and size and (size < 512 or int.from_bytes(data[:4], "little") != 0x504D5346 or
+                                      int.from_bytes(data[16:20], "little") != size - 512 or
+                                      bk_crc(data[512:]) != int.from_bytes(data[20:24], "little")):
+            raise InstallError("badbackup", f"{object_name(i)}: not a valid sample set")
+        seen.add(i)
+        objs.append({"id": i, "size": size, "crc": crc, "bytes": data})
+    if family(f.get("firmware")) == "felucca" and [o["id"] for o in objs] not in (FELUCCA_IDS, [i for i in FELUCCA_IDS if i != 8]):
+        raise InstallError("badbackup", "not a complete Felucca backup")
+    if any(o["id"] == 0 and not o["size"] for o in objs) or not any(o["size"] for o in objs):
+        raise InstallError("badbackup", "the backup holds nothing")
+    return objs
+
+
+def restore(bl, f, progress=lambda done, total: None, busy=lambda: None):
+    """write the objects of f that the FM-1 lists (settings, then the music, last) -> (restored ids, skipped ids)"""
+    objs = read_backup(f)                         # every byte checked before the first write
+    dev = {o["id"]: o for o in bk_manifest(bl.request(BK_LIST, [], 3.0))}
+    plan = []
+    for o in objs:
+        d = dev.get(o["id"])
+        if d is None:
+            continue
+        if (o["id"] == 1 and d["size"] and o["size"] == d["size"] + CR_BLOCK and
+                int.from_bytes(o["bytes"][:4], "little") == PER5):   # ChoralRoot's settings on Felucca: its fields only
+            b = PER4.to_bytes(4, "little") + o["bytes"][4:d["size"]]
+            o = {**o, "bytes": b, "size": len(b), "crc": bk_crc(b), "converted": True}
+        plan.append(o)
+    skipped = [o["id"] for o in objs if o["id"] not in dev]
+    restored, total, done = [], sum(o["size"] for o in plan), 0
+
+    def retry(fn):
+        for k in range(int(DELAY["bk_busy_tries"]) + 1):
+            try:
+                return fn()
+            except BackupError as e:
+                if e.rc != 3 or k >= DELAY["bk_busy_tries"]:
+                    raise
+                busy()
+                time.sleep(DELAY["bk_busy"])
+
+    def put(args):
+        a = bl.request(BK_PUT, args, 4.0)
+        bk_check(a[2])
+
+    def smp(cmd, args):
+        a = bl.request(cmd, args, 4.0)
+        if a[0] != args[0]:
+            raise BackupError("unexpected sample reply")
+        bk_check(a[-1])
+
+    order = [o for o in plan if o["id"] > 1] + [o for o in plan if o["id"] == 1] + [o for o in plan if o["id"] == 0]
+    for o in order:
+        i, b = o["id"], o["bytes"]
+        if is_sample(i):
+            slot = i - 32
+            if not o["size"]:
+                retry(lambda: smp(14, [slot]))
+            else:
+                retry(lambda: smp(11, [slot]))
+                for off in range(512, o["size"], BK_CHUNK):
+                    c = b[off:off + BK_CHUNK]
+                    retry(lambda: smp(12, [slot, off & 127, off >> 7 & 127, off >> 14 & 127, *bk_pack(c)]))
+                    done += len(c)
+                    progress(done, total)
+                retry(lambda: smp(13, [slot, *bk_pack(b[:480])]))
+                done += 512
+                progress(done, total)
+        else:
+            try:
+                retry(lambda: put([0, i, *bk_u32(o["size"]), *bk_u32(o["crc"])]))
+            except BackupError as e:
+                if o.get("converted") and e.rc == 1:
+                    skipped.append(i)
+                    continue
+                raise
+            try:
+                for off in range(0, o["size"], BK_CHUNK):
+                    c = b[off:off + BK_CHUNK]
+                    put([1, i, *bk_u32(off), *bk_pack(c)])
+                    done += len(c)
+                    progress(done, total)
+                retry(lambda: put([2, i]))
+            except BackupError as e:
+                try:
+                    put([3, i])
+                except InstallError:
+                    pass
+                if o.get("converted") and e.rc == 2:
+                    skipped.append(i)
+                    continue
+                raise
+        restored.append(i)
+    return restored, skipped
+
+
+def backup_name(firmware):
+    fam = family(firmware)
+    return f"{'fm1' if fam == 'other' else fam}-backup-{time.strftime('%Y%m%d')}.json"
+
+
+def open_backup(up):
+    """the running FM-1 -> (BackupLink, (version, family)); the link must be closed by the caller"""
+    dev = up.find(lambda i: not i.loader)
+    if not dev:
+        raise not_found(up)
+    bl = BackupLink(dev.link)
+    info = device_info(bl)
+    if not info:
+        dev.link.close()
+        raise InstallError("nobackup", f"{dev.id.text} does not answer the backup protocol "
+                                       "(the stock firmware, or an older Felucca)")
+    return bl, info
+
+
+def run_backup(up, path, out):
+    import json
+    import os
+    bl, (version, _) = open_backup(up)
+    prog = Progress(out)
+    try:
+        f = capture(bl, version, lambda d, t: prog.put(f"backing up {d * 100 // max(1, t):3d}%"))
+    finally:
+        prog.end()
+        bl.link.close()
+    if os.path.isdir(path):
+        path = os.path.join(path, backup_name(version))
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(f, fh)
+    held = [object_name(o["id"]) for o in f["objects"] if o["size"]]
+    print(f"backup of {version} saved: {path}\n  holds: {', '.join(held) or 'nothing'}", file=out)
+    return path
+
+
+def run_restore(up, path, out, ask, yes):
+    try:
+        text = open(path, encoding="utf-8").read()
+    except OSError as e:
+        raise InstallError("badbackup", f"cannot read {path}: {e.strerror}")
+    objs = read_backup(text)
+    bl, (version, fam) = open_backup(up)
+    try:
+        held = [object_name(o["id"]) for o in objs if o["size"]]
+        print(f"restore onto {version}: {', '.join(held)}", file=out)
+        if not yes and not ask("Restore? What the backup holds replaces what is stored on the FM-1. [y/N] "):
+            print("cancelled", file=out)
+            return 1
+        prog = Progress(out)
+        try:
+            restored, skipped = restore(bl, text, lambda d, t: prog.put(f"restoring {d * 100 // max(1, t):3d}%"),
+                                        lambda: prog.put("busy: stop the loop on the FM-1"))
+        finally:
+            prog.end()
+        if fam == "choralroot":
+            try:
+                bk_check(bl.request(BK_RESTART, [], 2.0)[0])
+            except InstallError as e:
+                print(f"restart: {e} (power-cycle the FM-1)", file=out)
+    finally:
+        bl.link.close()
+    print(f"restored: {', '.join(map(object_name, restored)) or 'nothing'}", file=out)
+    if skipped:
+        print(f"not used by {version} (kept in the file): {', '.join(map(object_name, skipped))}", file=out)
+    return 0
+
+
 # ------------------------------------------------------------------- CLI ---
 
 def load_package(path, force):
@@ -424,6 +799,10 @@ def run(a, backend, out, ask):
         mode = "update loader (update not finished)" if dev.id.loader else "running"
         print(f"{dev.id.text}  [{mode}]  port: {dev.name}", file=out)
         return 0
+    if not a.package:                             # backup and / or restore only
+        if a.backup:
+            run_backup(up, a.backup, out)
+        return run_restore(up, a.restore, out, ask, a.yes) if a.restore else 0
     product, image = load_package(a.package, a.force)
     print(f"package: {product}  ({a.package})", file=out)
     dev = up.find()
@@ -435,11 +814,26 @@ def run(a, backend, out, ask):
         dev.link.close()
         print("cancelled", file=out)
         return 1
+    if a.backup:                                  # the FM-1's data to a file first (as the web installer)
+        if dev.id.loader:
+            dev.link.close()
+            raise InstallError("nobackup", "the FM-1 is in update mode and cannot be backed up: finish the install "
+                                           "without --backup (a backup saved earlier is still the one to restore)")
+        dev.link.close()
+        run_backup(up, a.backup, out)
+        dev = up.find()
+        if not dev:
+            raise not_found(up)
+    elif not dev.id.loader:
+        print("(no --backup FILE: what is stored on the FM-1 is not saved first)", file=out)
     prog = Progress(out)
     try:
         up.install(dev, image, product, prog)
     finally:
         prog.end()
+    if a.restore:                                 # the backup onto the firmware just installed
+        time.sleep(DELAY["start"])
+        return run_restore(up, a.restore, out, ask, True)
     return 0
 
 
@@ -457,9 +851,14 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     ap.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
     ap.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     ap.add_argument("--force", action="store_true", help="install a package without the Felucca loader marker")
+    ap.add_argument("--backup", metavar="FILE", help="save a backup of the FM-1 to FILE (a directory: a dated name) "
+                                                     "before the install, or alone")
+    ap.add_argument("--restore", metavar="FILE", help="restore a backup FILE onto the FM-1 (after the install, or alone)")
     a = ap.parse_args(argv)
-    if bool(a.info) == bool(a.package):
-        ap.error("give a PACKAGE.fwsc or --info")
+    if a.info and (a.package or a.backup or a.restore):
+        ap.error("--info goes alone")
+    if not (a.info or a.package or a.backup or a.restore):
+        ap.error("give a PACKAGE.fwsc, --backup FILE, --restore FILE or --info")
     try:
         if backend is None:
             try:

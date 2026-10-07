@@ -329,7 +329,10 @@ static struct {
 static void cr_settings_load(void);       /* cr_settings.c (included after this file): the record -> the UI */
 static void cr_settings_save(void);       /* .. save now (Felucca's settings_save: the panel table too) */
 #endif
-#define CR_SETTINGS_BUSY() (cr_snap.lstate == CRL_PLAYING)   /* cr_settings.c: no flash erase while a loop plays */
+static uint8_t cr_restore_lock;            /* cr_backup.c: a settings record was restored into flash; the UI's state is
+                                            * older, so no settings save until the restart (RESTART, or a power cycle) */
+#define CR_SETTINGS_BUSY() (cr_snap.lstate == CRL_PLAYING || cr_restore_lock)   /* cr_settings.c: no flash erase while a
+                                                                                 * loop plays (nor over a restore) */
 
 static void cu_post_key(void) { cr_post(CRE_KEYMODE, cs.key_on, cs.tonic, cs.scale); }
 static void cu_post_single(void) { cr_post(CRE_SINGLE, cs.single, 0, cs.split); }
@@ -676,6 +679,8 @@ static uint32_t cu_perf_mode(void) { return CU_PERF[cs.perf_sel].mode; }
 #define CRL_FL_BASE 0xC8000u
 #define CRL_FL_TYPE 0x4C30u
 static uint8_t cu_loop_buf[CRL_REC_MAX] __attribute__((aligned(4)));   /* a packed record */
+static uint8_t cu_loop_gen;                        /* + 1 whenever cu_loop_buf is written here (cr_backup.c stages a
+                                                    * restore in it between requests: a change ends that restore) */
 #if FELUCCA_FLASH
 static uint32_t crl_fl_sector(uint32_t k, uint32_t copy) { return CRL_FL_BASE + (2u * k + copy) * ST_SECTOR; }
 static int crl_fl_head(uint32_t k, uint32_t copy, st_hdr_t *h)   /* 0: a valid commit record */
@@ -767,6 +772,7 @@ static void cu_loop_scan(void)                     /* which slots hold a loop */
 {
     uint32_t k;
     crl_data_t *d = &crl_stage;
+    cu_loop_gen++;
     cs.loop_used = 0;
     if (crl_stage_busy)
         return;
@@ -791,6 +797,7 @@ static void cu_slot_msg(const char *a, uint32_t k, const char *b, uint32_t col)
 static void cu_loop_load(uint32_t k)
 {
     int n, ok = 0, play = cu_playing();
+    cu_loop_gen++;
     if (crl_stage_busy) {
         cu_message("a slot is on its way", CR_COL_RED);
         return;
@@ -808,6 +815,7 @@ static void cu_loop_save_now(uint32_t k)
 {
     uint32_t n;
     int rc;
+    cu_loop_gen++;
     fm1_irq_off();                                 /* the ISR's loop, packed as it is now */
     n = cr_loop_pack(&crl.d, cu_loop_buf, sizeof cu_loop_buf);
     fm1_irq_on();

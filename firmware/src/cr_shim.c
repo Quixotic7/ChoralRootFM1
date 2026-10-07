@@ -9,8 +9,8 @@
  *   the main loop: ui_input -> cr_ui_input (the first call: cr_ui_init, the engine's power-on), ui_leds ->
  *     cr_ui_frame, ui_draw -> cr_ui_draw (the UPDATE MODE countdown of OCT- + OCT+ held: a big message)
  *   persist_boot: the flash part, the user sample sets, the user sounds and the settings record; settings_save /
- *     settings_poll: cr_settings.c; panel_setup: main.c's own (cr_panel_setup); ed_service: none (the web editor's
- *     SysEx is Felucca's, dropped with editor.c) */
+ *     settings_poll: cr_settings.c; panel_setup: main.c's own (cr_panel_setup); ed_service: cr_backup.c's (backup and
+ *     restore over SysEx: Felucca's protocol, a subset; editor.c is dropped) */
 
 /* ---------------------------------------------------------- ui.c's state --- */
 /* (`ui`, ui_message and load_pat16: cr_bank.c / cr_ui.c, which upreset.c needs in the emulator too) */
@@ -63,7 +63,9 @@ static void settings_save(void) { cr_settings_save(); }
 static void settings_poll(void) {}
 static void settings_save(void) {}
 #endif
-static void ed_service(void) {}        /* (Felucca's web editor SysEx: not in ChoralRoot 0.1) */
+#ifndef CR_BACKUP_SERVICE
+static void ed_service(void) {}        /* (no SysEx service: cr_backup.c's is the device's, FELUCCA_OTA) */
+#endif
 
 /* ------------------------------------------------------- the power-on splash --- */
 /* main.c's splash(): the idle stripes (cr_ui.c cu_stripes) sliding in with the version under them, played here

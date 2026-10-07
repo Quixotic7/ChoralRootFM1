@@ -4,7 +4,7 @@
  * section 1). Felucca's order, Felucca's platform; Felucca's instrument (ui*.c, project.c, editor*.c, favorites.c,
  * ui_name.c) dropped for ChoralRoot's: the engine (cr_engine.c), its streams to the parts and MIDI (cr_out.c), the
  * screens (cr_gfx.c, cr_draw.c), the motion (cr_anim.c), the UI (cr_ui.c) and the names main.c and the kept files
- * call (cr_shim.c).
+ * call (cr_shim.c). Of editor*.c's SysEx only the backup / restore subset stays, on ChoralRoot's objects (cr_backup.c).
  *
  * Kept as in the emulator (tools/emu/emu_firmware.h, the same order): seq.c with song_chain.c, chord.c, motion.c,
  * midi_control.c and midi_clock.c stay compiled but inert (cr_ui_init sets song.grid = 2: seq.c's keyboard never
@@ -143,6 +143,7 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 #if CR_HAVE_SETTINGS
 #include "cr_settings.c"         /* the settings record (after cr_ui.c and storage.c) */
 #endif
+#include "cr_backup.c"           /* backup / restore over SysEx (after usb.c, the stores, cr_ui.c, cr_settings.c) */
 #include "cr_shim.c"             /* what main.c and the kept files call of Felucca's dropped UI */
 
 /* ----------------------------------------------------------- update --- */

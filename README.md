@@ -16,22 +16,27 @@ FM-1 needed).
 **From the browser:** open the web installer at <https://quixotic7.github.io/ChoralRootFM1/> in Chrome or
 Edge, connect the FM-1 by USB and press Install. Nothing is installed on the computer: the page talks to the
 FM-1 over Web MIDI. Do not unplug while it writes; an interrupted install is resumed by pressing Install again.
-Afterwards the FM-1 restarts and reports the identity `FM-1_920`.
+Afterwards the FM-1 restarts and reports the identity `FM-1_920`. Before installing, the page saves a backup of what
+is stored on the FM-1 (settings, user sounds, loops, samples, FM6 patches) to a file, and after installing over
+Felucca it offers that backup back; its Back up and Restore buttons do the same at any time.
 
 **From the command line:** download `choralroot-X.Y.fwsc` from
 [Releases](https://github.com/Quixotic7/ChoralRootFM1/releases) (`SHA256SUMS` next to it), then
 
 ```
 pip3 install mido python-rtmidi
-python3 tools/fm1_install.py choralroot-X.Y.fwsc
+python3 tools/fm1_install.py choralroot-X.Y.fwsc --backup .   # back up to ./choralroot-backup-YYYYMMDD.json, install
 python3 tools/fm1_install.py --info          # identity of the connected FM-1 (FM-1_920 after the install)
+python3 tools/fm1_install.py --restore FILE  # a backup back onto the FM-1
 ```
 
 **Back to the stock firmware:** the installer's "Return to official V15" section installs the official FM-1
 V15 firmware, `FM-1.fwsc`, which you download yourself from M-VAVE's
-[downloads page](https://www.m-vave.com/download) (or `python3 tools/fm1_install.py FM-1.fwsc`). ChoralRoot
-has no backup protocol: the user sounds, loops and settings stored on the FM-1 are not saved and are erased
-by a return to stock. If an install fails and the FM-1 no longer starts, recovery needs
+[downloads page](https://www.m-vave.com/download) (or `python3 tools/fm1_install.py FM-1.fwsc --backup .`). It
+saves a backup first: the stock firmware cannot use ChoralRoot's user sounds, loops or settings; reinstall ChoralRoot
+and press Restore to bring them back. Backups move between firmwares too: a Felucca backup restores its settings,
+user sounds, FM6 patches and samples on ChoralRoot, and back (BUILDING.md, "Backup and restore"). If an install fails
+and the FM-1 no longer starts, recovery needs
 [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
 
 Installing firmware is at your own risk.

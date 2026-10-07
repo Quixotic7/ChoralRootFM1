@@ -67,8 +67,9 @@ class FakeFM1:
     """a MIDI backend with one FM-1 on it"""
 
     def __init__(self, image, identity="FM-1_015", name="FM-1", unplug_after=None, after_write="FM-1_900",
-                 stall_after=None, bad_addr=None):
+                 stall_after=None, bad_addr=None, bk=None):
         self.image, self.unplug_after, self.after_write = image, unplug_after, after_write
+        self.bk = bk                              # bk(identity): the firmware's backup side (BackupSide) or None
         self.stall_after, self.bad_addr = stall_after, bad_addr
         self.served = self.bad = self.upgrades = 0
         self.sent, self.links, self.gen, self.lock = [], [], 0, threading.Lock()
@@ -98,6 +99,12 @@ class FakeFM1:
                 link.q.put(bytes(pkt))
 
     def rx(self, d):
+        if d[:4] == I.BK_HDR:                     # the backup protocol
+            side = self.bk and self.bk(self.identity)
+            r = side and side.handle(d[4], list(d[5:-1]))
+            if r is not None and r is not False:
+                self.tx(I.BK_HDR + bytes([d[4], *r, 0xF7]))
+            return
         if d == I.HS_QUERY:
             t = self.identity.encode()
             self.tx(b"\xF0" + I.pack7(bytes([0, 0x59, 0x11, 0, 0, 0]) + t + bytes(28 - len(t))) + b"\xF7")
@@ -136,6 +143,65 @@ class FakeFM1:
         u = bytearray([0, 0x59, 0x30, 0, 0, 0, 0]) + addr.to_bytes(4, "little") + bytes([n & 0xFF, n >> 8, 0])
         u.append(~sum(u[6:14]) & 0xFF)
         self.tx(b"\xF0" + I.pack7(u) + b"\xF7")
+
+
+class BackupSide:
+    """a firmware's backup commands (cr_backup.c / Felucca's editor_backup.c as the protocol says)"""
+
+    def __init__(self, version, ids, objs=(), busy=0):
+        self.version, self.ids, self.objs, self.busy = version, ids, dict(objs), busy
+        self.log, self.staged, self.restarts = [], None, 0
+
+    def handle(self, cmd, a):
+        if cmd == I.BK_INFO:
+            return [*self.version.encode(), 0, 0, 0, 0, 0, 0, 0, 0, 0x42, 1, 3]
+        if cmd == I.BK_LIST:
+            out = [1, 0, len(self.ids)]
+            for i in self.ids:
+                v = self.objs.get(i, b"")
+                out += [i, *I.bk_u32(len(v)), *I.bk_u32(I.bk_crc(v) if v else 0)]
+            return out
+        if cmd == I.BK_GET:
+            i, off, n = a[0], I.bk_r32(a, 1), a[6] | a[7] << 7
+            return [i, 0, *I.bk_u32(off), n & 127, n >> 7, *I.bk_pack(self.objs[i][off:off + n])]
+        if cmd == I.BK_PUT:
+            op, i = a[0], a[1]
+            if op == 0:
+                if i not in self.ids:
+                    return [op, i, 1]
+                if self.busy:
+                    self.busy -= 1
+                    self.log.append(f"busy {i}")
+                    return [op, i, 3]
+                self.staged = [I.bk_r32(a, 2), I.bk_r32(a, 7), bytearray()]
+                return [op, i, 0]
+            if op == 1:
+                self.staged[2] += I.bk_unpack(a[7:], min(256, self.staged[0] - I.bk_r32(a, 2)))
+                return [op, i, 0]
+            if op == 2:
+                v = bytes(self.staged[2])
+                rc = 0 if I.bk_crc(v) == self.staged[1] else 2
+                if not rc:
+                    self.objs[i] = v
+                    self.log.append(i)
+                return [op, i, rc]
+            return [op, i, 0]
+        if 11 <= cmd <= 14:
+            if cmd >= 13:
+                self.log.append(32 + a[0])
+            return [a[0], a[1], a[2], a[3], 0] if cmd == 12 else [a[0], 0]
+        if cmd == I.BK_RESTART and self.version.startswith("ChoralRoot"):
+            self.restarts += 1
+            return [0]
+        return None
+
+
+def fill(n, seed):
+    return bytes((i * 31 + seed) & 255 for i in range(n))
+
+
+def per(n, magic, seed):
+    return magic.to_bytes(4, "little") + fill(n - 4, seed)
 
 
 # ----------------------------------------------------------------- helpers ---
@@ -293,7 +359,62 @@ def official():
     ok(rc == 2 and "official V15" in err and dev.sent == [], "a modified V15 is still refused (no MIDI)")
 
 
+def backups():
+    import json
+    I.DELAY.update(bk_busy=0.01)
+    cr_objs = {1: per(764, I.PER5, 1), 6: fill(3080, 2), 8: fill(3472, 3), 9: fill(3536, 4), 40: fill(46, 5), 49: fill(3602, 6)}
+    cr = BackupSide("ChoralRoot 0.1", I.CR_IDS, cr_objs.items())
+    dev = FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr)
+    path = TMP / "cr.json"
+    rc, out, err = cli(["--backup", str(path)], dev)
+    f = json.loads(path.read_text()) if path.exists() else {}
+    ok(rc == 0 and f.get("firmware") == "ChoralRoot 0.1" and [o["id"] for o in f["objects"]] == I.CR_IDS and
+       "VA patches" in out and "loop slot 10" in out, "--backup: ChoralRoot's 17 objects to a file")
+    rc, out, err = cli(["--backup", str(TMP)], dev)
+    ok(rc == 0 and list(TMP.glob("choralroot-backup-*.json")), "--backup DIR: a dated choralroot-backup-YYYYMMDD.json")
+    blank = BackupSide("ChoralRoot 0.1", I.CR_IDS, busy=1)
+    dev = FakeFM1(b"", identity="FM-1_920", bk=lambda _i: blank)
+    rc, out, err = cli(["--restore", str(path), "--yes"], dev)
+    ok(rc == 0 and all(blank.objs.get(i) == v for i, v in cr_objs.items()) and blank.log[-1] == 1 and blank.log[0] == "busy 6" and
+       blank.restarts == 1, "--restore: every object back (busy retried, the settings last), then RESTART")
+    rc, out, err = cli(["--restore", str(path)], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: BackupSide("ChoralRoot 0.1", I.CR_IDS)), answer=False)
+    ok(rc == 1 and "cancelled" in out, "--restore: answer no -> nothing written")
+
+    # Felucca's backup restored on ChoralRoot, ChoralRoot's on Felucca (the settings cut back to PER4)
+    fel = BackupSide("FELUCCA 1.0", I.FELUCCA_IDS, {0: fill(3584, 7), 1: per(572, I.PER4, 8), 2: fill(3584, 9), 6: fill(3080, 10)}.items())
+    fpath = TMP / "fel.json"
+    rc, out, err = cli(["--backup", str(fpath)], FakeFM1(b"", identity="FM-1_910", bk=lambda _i: fel))
+    onto = BackupSide("ChoralRoot 0.1", I.CR_IDS)
+    rc2, out, err = cli(["--restore", str(fpath), "--yes"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: onto))
+    ok(rc == 0 and rc2 == 0 and onto.objs[1] == fel.objs[1] and onto.objs[6] == fel.objs[6] and 0 not in onto.objs and
+       "current music" in out and "project 1" in out, "Felucca backup -> ChoralRoot: settings and banks; music and projects kept in the file")
+    back = BackupSide("FELUCCA 1.0", I.FELUCCA_IDS, {1: per(572, I.PER4, 11)}.items())
+    rc, out, err = cli(["--restore", str(path), "--yes"], FakeFM1(b"", identity="FM-1_910", bk=lambda _i: back))
+    ok(rc == 0 and back.objs[1] == I.PER4.to_bytes(4, "little") + cr_objs[1][4:572] and back.objs[6] == cr_objs[6] and 9 not in back.objs
+       and back.restarts == 0, "ChoralRoot backup -> Felucca: settings cut back to PER4, banks; VA patches and loops kept in the file")
+
+    # install with --backup: the backup first, then the install; --restore after it
+    raw = package("FM-1_920")
+    image = I.logical_image(raw)
+    p = pkgfile("cr.fwsc", raw)
+    fel2 = BackupSide("FELUCCA 1.0", I.FELUCCA_IDS, {0: fill(3584, 7), 1: per(572, I.PER4, 8), 6: fill(3080, 12)}.items())
+    cr2 = BackupSide("ChoralRoot 0.1", I.CR_IDS)
+    dev = FakeFM1(image, identity="FM-1_910", after_write="FM-1_920", bk=lambda i: fel2 if i == "FM-1_910" else cr2 if i == "FM-1_920" else None)
+    bpath = TMP / "before.json"
+    rc, out, err = cli([p, "--yes", "--backup", str(bpath), "--restore", str(bpath)], dev)
+    ok(rc == 0 and bpath.exists() and dev.identity == "FM-1_920" and dev.bad == 0 and cr2.objs.get(6) == fel2.objs[6] and cr2.restarts == 1,
+       "PACKAGE --backup F --restore F: backed up, installed, restored onto ChoralRoot")
+    dev = FakeFM1(image)                          # the stock firmware: no backup protocol
+    rc, out, err = cli([p, "--yes", "--backup", str(TMP / "x.json")], dev)
+    ok(rc == 7 and dev.upgrades == 0 and "backup protocol" in err, "PACKAGE --backup on the stock firmware: exit 7, nothing written")
+    bad = TMP / "bad.json"
+    bad.write_text(json.dumps({**f, "objects": [{**f["objects"][1], "crc": f["objects"][1]["crc"] ^ 1}]}))
+    rc, out, err = cli(["--restore", str(bad), "--yes"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: BackupSide("ChoralRoot 0.1", I.CR_IDS)))
+    ok(rc == 2 and "damaged" in err, "--restore of a damaged file: exit 2 before any request")
+
+
 wire()
+backups()
 installs()
 errors()
 against_js()

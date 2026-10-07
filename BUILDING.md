@@ -135,9 +135,25 @@ does the same for the cost files.
 From the command line (needs `pip3 install mido python-rtmidi`):
 
 ```
-python3 tools/fm1_install.py build/choralroot.fwsc
+python3 tools/fm1_install.py build/choralroot.fwsc --backup ~/fm1-backups/   # back up first, then install
 python3 tools/fm1_install.py --info          # identity of the connected FM-1 (FM-1_920 after the install)
+python3 tools/fm1_install.py --backup FILE   # save what is stored on the FM-1 (a directory: a dated file name)
+python3 tools/fm1_install.py --restore FILE  # write a backup back (ChoralRoot restarts afterwards)
 ```
+
+**Backup and restore.** A backup is one JSON file (`choralroot-backup-YYYYMMDD.json`, Felucca's format
+`felucca-backup` version 1) with everything stored on the FM-1: the settings, the 32 user sounds and their VA patches,
+the 10 loops, the FM6 patch bank and user samples 1-2. Felucca and ChoralRoot answer the same SysEx
+(`web/EDITOR_PROTOCOL.md`, "ChoralRoot: backup and restore"; `firmware/src/cr_backup.c`); the stock firmware does
+not. The web installer backs up before it installs (a "Skip the backup" box for an FM-1 that cannot be, or when one is
+saved already), offers the backup back after installing ChoralRoot over another firmware, and has Back up / Restore
+buttons; the return to the stock V15 backs up first too. `PACKAGE --backup F --restore F` does the same from the
+command line. A restore writes what the connected firmware uses: a Felucca backup restores its settings, user preset
+banks, FM6 patches and samples 1-2 on ChoralRoot (its songs stay in the file), a ChoralRoot backup restores the same on
+Felucca (the VA patches and loops stay in the file). Each part is checked before anything is written and committed
+torn-write safe; stop a playing loop first (the FM-1 answers busy and the restore waits); each flash write holds the
+sound for about 45 ms. Tests: `tests/cr_backup_test.c` (in `tests/run_cr_tests.sh`), `web/test_backup.mjs`,
+`web/test_installer.mjs`, `tests/install_test.py`.
 
 Or install your own build from the web installer (Chrome or Edge): make a local copy of the site and open it from
 `localhost` (Web MIDI needs a secure context):

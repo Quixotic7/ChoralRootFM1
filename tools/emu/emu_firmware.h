@@ -11,7 +11,9 @@
 #include <stddef.h>
 #include <stdint.h>
 static uint32_t host_slots[3u * 0x14000u / 4u];          /* USR1..3 (zero: empty), as the flash at 0xA0000 */
+#ifndef SMP_USER_XIP                                 /* (tests/cr_backup_test.c: the slots in the flash image) */
 #define SMP_USER_XIP(k) ((const uint8_t *)host_slots + (k) * SMP_USER_SIZE)
+#endif
 #define main hostsim_main
 #ifndef FELUCCA_SLICE
 #define FELUCCA_SLICE 0                               /* as choralroot.c: no SLICE engine, so engine numbers match the device */
@@ -66,3 +68,5 @@ static void mix_block(int32_t *out, uint32_t n)        /* the audio ISR's block:
 #define CR_HAVE_SETTINGS 1                            /* cr_ui_init loads the settings record */
 #include "../../firmware/src/cr_ui.c"
 #include "../../firmware/src/cr_settings.c"           /* the settings record (after cr_ui.c and storage.c) */
+#include "../../firmware/src/cr_backup.c"             /* backup / restore SysEx (the handler: no transport here;
+                                                         * tests/cr_backup_test.c drives it) */
