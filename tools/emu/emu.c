@@ -2,7 +2,7 @@
 /* The M-VAVE FM-1 emulator for the Mac: the firmware (emu_fw.c, through emu_hooks.h only) driven from
  * the keyboard and the mouse, with its LCD, LEDs, audio (SDL2) and MIDI (CoreMIDI).
  *   build: sh tools/emu/build.sh      run: build/host/emu [--help]
- * The window: the 240x240 LCD scaled (x3, nearest neighbour), below it the FM-1 panel drawn in the
+ * The window (resizable): the FM-1 panel with its live 240x240 screen, F9 shows the LCD big above it; the panel drawn in the
  * geometry of ChoralRootFM1Designer/index.html (KEYS, BUTTONS, ENCODERS, SCREEN, BODY; 904 x 566 units). */
 #include <SDL.h>
 #include <errno.h>
@@ -21,7 +21,11 @@
 #include "emu_hooks.h"
 
 /* ================================================================== options === */
-static int opt_front, opt_scale = 0, opt_demo, opt_midi = 1, opt_midi_log, opt_audio = 1;
+static int opt_front, opt_lcd, opt_display = -1, opt_pos_x, opt_pos_y, opt_pos, opt_size_w, opt_size_h;
+static int show_lcd;                             /* F9: the big LCD view above the panel */
+static SDL_Renderer *ren;
+static void relayout(void);
+static int opt_scale = 0, opt_demo, opt_midi = 1, opt_midi_log, opt_audio = 1;
 static int opt_no_flash, opt_save_on_exit;
 static const char *opt_flash;               /* the flash image file (emu_fw_options) */
 static int opt_boot_fail = -1, opt_boot_stage = -1;   /* the boot guard as the last run left it (emu_fw_boot_options) */
@@ -885,6 +889,14 @@ static void key_action(const keymap_t *m, int down, int src)
     case KM_SHOT: if (down) shot(NULL); break;
     case KM_RECORD: if (down) toggle_record(); break;
     case KM_DUMP: if (down) emu_fw_dump(); break;
+    case KM_LCDVIEW:
+        if (down) {
+            show_lcd = !show_lcd;
+            printf("F9: LCD view %s\n", show_lcd ? "shown" : "hidden");
+            if (ren)
+                relayout();
+        }
+        break;
     }
 }
 
@@ -1021,10 +1033,15 @@ static void usage(void)
            "                   (firmware/src/cr_bootguard.h; with --reset-reason wdt: 1 -> SAFE MODE, 3 -> UBOOT)\n"
            "  --reset-reason R this power-on's reset: poweron (default), wdt, soft, other, or the reason word\n"
            "  --boot-stage N   the breadcrumb the crashed run left (felucca_dbg.stage; default 13 with --boot-fail)\n"
-           "  --scale N        LCD scale in the window (default 3, smaller if the screen is too small)\n"
+           "  --lcd            start with the big LCD view shown above the panel (F9 shows / hides it)\n"
+           "  --scale N        with --lcd: the starting window is 240*N points wide (the LCD view at xN)\n"
+           "  --display N      open the window on display N (default: the one the mouse pointer is on)\n"
+           "  --pos X,Y        the window's top-left corner, global screen points\n"
+           "  --size W,H       the window's size in points (default: the panel at ~80%% of the display's height)\n"
+           "                   The window is resizable: the panel (and LCD view) scale to fit, letterboxed\n"
            "  --front          a normal app: Dock icon, the window centred and in front. Default: a background\n"
            "                   app (SDL_HINT_MAC_BACKGROUND_APP), no Dock icon, never takes the focus, its\n"
-           "                   window at the bottom-right of the main display; click it to play\n"
+           "                   window at the bottom-right of the display; click it to play\n"
            "  --quit-after S   quit after S seconds (prints the timing)\n"
            "  --midi-log       print every MIDI event in and out\n"
            "  --no-midi        no CoreMIDI ports\n"
@@ -1037,6 +1054,7 @@ static SDL_Window *win;
 static SDL_Renderer *ren;
 static SDL_Texture *t_lcd, *t_lcd_small, *t_panel;
 static int win_w, win_h, lcd_px, pix_w, pix_h;
+static int out_w, out_h, fr_x, fr_y;            /* renderer output (pixels), the letterboxed frame's origin */
 static float dpi = 1;
 static uint16_t lcd_rgb[EMU_LCD_W * EMU_LCD_H];
 static uint32_t lcd_seen = 0xFFFFFFFFu;
@@ -1083,11 +1101,65 @@ static void update_title(void)
     SDL_SetWindowTitle(win, t);
 }
 
+/* fit the frame (the LCD view, if shown, a square as wide as the panel; the panel) in the renderer's
+ * output, keeping its aspect ratio; the panel is rasterised at that size (sharp at any size), the mouse
+ * goes through to_units() with the same numbers */
+static void relayout(void)
+{
+    int ww, wh, nw, nh;
+    float fh = VIEW.h + (show_lcd ? VIEW.w : 0), k, ks;
+    SDL_GetWindowSize(win, &ww, &wh);
+    SDL_GetRendererOutputSize(ren, &out_w, &out_h);
+    dpi = ww > 0 ? (float)out_w / (float)ww : 1;
+    k = fminf(out_w / VIEW.w, out_h / fh);
+    {   /* snap to an integer scale of the panel's 240x240 screen when one is close (nearest, sharp) */
+        int n = (int)(k * SCREEN_A.w / EMU_LCD_W);
+        ks = n * (float)EMU_LCD_W / SCREEN_A.w;
+        if (n >= 1 && ks >= 0.92f * k)
+            k = ks;
+    }
+    nw = (int)(VIEW.w * k);
+    nh = (int)(VIEW.h * k);
+    if (nw < 16) nw = 16;
+    if (nh < 16) nh = 16;
+    lcd_px = show_lcd ? nw : 0;
+    fr_x = (out_w - nw) / 2;
+    fr_y = (out_h - nh - lcd_px) / 2;
+    if (fr_x < 0) fr_x = 0;
+    if (fr_y < 0) fr_y = 0;
+    if (nw != pix_w || nh != pix_h || !t_panel) {
+        pix_w = nw;
+        pix_h = nh;
+        free(base.p);
+        free(cv.p);
+        base = (canvas_t){calloc((size_t)pix_w * (size_t)pix_h, 4), pix_w, pix_h, (float)pix_w / VIEW.w, VIEW.x, VIEW.y};
+        cv = base;
+        cv.p = calloc((size_t)pix_w * (size_t)pix_h, 4);
+        if (t_panel)
+            SDL_DestroyTexture(t_panel);
+        t_panel = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, pix_w, pix_h);
+        draw_base();
+    }
+    panel_seen = 1;
+    {   /* nearest when the LCD's scale is an integer, linear otherwise */
+        float sb = (float)lcd_px / EMU_LCD_W, ss = SCREEN_A.w * cv.k / EMU_LCD_W;
+        SDL_SetTextureScaleMode(t_lcd, fabsf(sb - lroundf(sb)) < 0.01f ? SDL_ScaleModeNearest : SDL_ScaleModeLinear);
+        SDL_SetTextureScaleMode(t_lcd_small, fabsf(ss - lroundf(ss)) < 0.01f && ss >= 0.99f ? SDL_ScaleModeNearest
+                                                                                         : SDL_ScaleModeLinear);
+    }
+}
+
 static void present(void)
 {
     uint32_t sig = 0;
     int i;
     SDL_Rect r;
+    {   /* resized, or moved to a display of another pixel density */
+        int ow, oh;
+        SDL_GetRendererOutputSize(ren, &ow, &oh);
+        if (ow != out_w || oh != out_h)
+            relayout();
+    }
     if (emu_hal.lcd_writes != lcd_seen) {
         lcd_seen = emu_hal.lcd_writes;
         for (i = 0; i < EMU_LCD_W * EMU_LCD_H; i++)
@@ -1116,12 +1188,18 @@ static void present(void)
     }
     SDL_SetRenderDrawColor(ren, 14, 14, 16, 255);
     SDL_RenderClear(ren);
-    r = (SDL_Rect){0, 0, lcd_px, lcd_px};
-    SDL_RenderCopy(ren, t_lcd, NULL, &r);
-    r = (SDL_Rect){0, lcd_px, pix_w, pix_h};
+    if (lcd_px) {
+        r = (SDL_Rect){fr_x, fr_y, lcd_px, lcd_px};
+        SDL_RenderCopy(ren, t_lcd, NULL, &r);
+    }
+    r = (SDL_Rect){fr_x, fr_y + lcd_px, pix_w, pix_h};
     SDL_RenderCopy(ren, t_panel, NULL, &r);
-    r = (SDL_Rect){(int)lroundf((SCREEN_A.x - VIEW.x) * cv.k), lcd_px + (int)lroundf((SCREEN_A.y - VIEW.y) * cv.k),
-                   (int)lroundf(SCREEN_A.w * cv.k), (int)lroundf(SCREEN_A.h * cv.k)};
+    {   /* the panel's screen: its edges rounded, so the rectangle is exactly the one drawn on the panel */
+        int x0 = (int)lroundf((SCREEN_A.x - VIEW.x) * cv.k), y0 = (int)lroundf((SCREEN_A.y - VIEW.y) * cv.k);
+        int x1 = (int)lroundf((SCREEN_A.x + SCREEN_A.w - VIEW.x) * cv.k);
+        int y1 = (int)lroundf((SCREEN_A.y + SCREEN_A.h - VIEW.y) * cv.k);
+        r = (SDL_Rect){fr_x + x0, fr_y + lcd_px + y0, x1 - x0, y1 - y0};
+    }
     SDL_RenderCopy(ren, t_lcd_small, NULL, &r);
     if (window_pending[0]) {
         window_shot(window_pending);
@@ -1151,8 +1229,8 @@ static void window_shot(const char *name)
 /* window (logical) point -> drawing units; 0 if on the LCD */
 static int to_units(int x, int y, float *ux, float *uy)
 {
-    float px = x * dpi, py = y * dpi - lcd_px;
-    if (py < 0)
+    float px = x * dpi - fr_x, py = y * dpi - fr_y - lcd_px;
+    if (py < 0 || px < 0 || px >= pix_w)
         return 0;
     *ux = px / cv.k + VIEW.x;
     *uy = py / cv.k + VIEW.y;
@@ -1280,6 +1358,10 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--frames") && v) { opt_frames = atoi(v); i++; }
         else if (!strcmp(a, "--shot") && v) { opt_shot = v; i++; }
         else if (!strcmp(a, "--front")) opt_front = 1;
+        else if (!strcmp(a, "--lcd")) opt_lcd = 1;
+        else if (!strcmp(a, "--display") && v) { opt_display = atoi(v); i++; }
+        else if (!strcmp(a, "--pos") && v && sscanf(v, "%d,%d", &opt_pos_x, &opt_pos_y) == 2) { opt_pos = 1; i++; }
+        else if (!strcmp(a, "--size") && v && sscanf(v, "%d,%d", &opt_size_w, &opt_size_h) == 2) i++;
         else if (!strcmp(a, "--wav") && v) { opt_wav = v; i++; }
         else if (!strcmp(a, "--midi-log")) opt_midi_log = 1;
         else if (!strcmp(a, "--no-midi")) opt_midi = 0;
@@ -1359,51 +1441,66 @@ int main(int argc, char **argv)
         return 1;
     }
     make_dirs();
-    {   /* the window: LCD x scale, the panel below at the same width */
+    {   /* the window: the panel (and with F9 / --lcd the LCD view above it), resizable, letterboxed */
         SDL_Rect ub;
-        int s = opt_scale > 0 ? opt_scale : 3;
-        if (!opt_scale && SDL_GetDisplayUsableBounds(0, &ub) == 0)
-            while (s > 1 && 240 * s + (int)(240 * s * VIEW.h / VIEW.w) > ub.h - 28)
-                s--;
-        win_w = 240 * s;
-        win_h = win_w + (int)lroundf(win_w * VIEW.h / VIEW.w);
-        {   /* bottom-right of the screen (it never covers the centre), centred with --front */
-            int x = SDL_WINDOWPOS_CENTERED, y = SDL_WINDOWPOS_CENTERED;
-            if (!opt_front && SDL_GetDisplayUsableBounds(0, &ub) == 0) {
-                x = ub.x + ub.w - win_w - 8;
-                y = ub.y + ub.h - win_h - 8;
-                if (y < ub.y + 28)
-                    y = ub.y + 28;
+        int d = opt_display, x, y, nd = SDL_GetNumVideoDisplays();
+        float fh_units;
+        show_lcd = opt_lcd;
+        fh_units = VIEW.h + (show_lcd ? VIEW.w : 0);
+        if (d < 0 || d >= nd) {                   /* the display the mouse pointer is on */
+            int mx, my, j;
+            d = 0;
+            SDL_GetGlobalMouseState(&mx, &my);
+            for (j = 0; j < nd; j++) {
+                SDL_Rect db;
+                if (SDL_GetDisplayBounds(j, &db) == 0 && mx >= db.x && mx < db.x + db.w && my >= db.y && my < db.y + db.h) {
+                    d = j;
+                    break;
+                }
             }
-            win = SDL_CreateWindow("FM-1 emulator", x, y, win_w, win_h, SDL_WINDOW_ALLOW_HIGHDPI);
         }
+        if (SDL_GetDisplayUsableBounds(d, &ub) != 0)
+            ub = (SDL_Rect){0, 0, 1280, 800};
+        if (opt_size_w > 0 && opt_size_h > 0) {
+            win_w = opt_size_w;
+            win_h = opt_size_h;
+        } else {
+            if (opt_scale > 0 && show_lcd)
+                win_w = 240 * opt_scale;
+            else
+                win_w = (int)lroundf(ub.h * 0.8f * VIEW.w / fh_units);
+            if (win_w > ub.w * 95 / 100)
+                win_w = ub.w * 95 / 100;
+            win_h = (int)lroundf(win_w * fh_units / VIEW.w);
+        }
+        if (opt_pos) {
+            x = opt_pos_x;
+            y = opt_pos_y;
+        } else if (opt_front) {
+            x = (int)SDL_WINDOWPOS_CENTERED_DISPLAY(d);
+            y = (int)SDL_WINDOWPOS_CENTERED_DISPLAY(d);
+        } else {                                  /* bottom-right of the display (it never covers the centre) */
+            x = ub.x + ub.w - win_w - 8;
+            y = ub.y + ub.h - win_h - 8;
+            if (x < ub.x) x = ub.x;
+            if (y < ub.y + 28) y = ub.y + 28;
+        }
+        win = SDL_CreateWindow("FM-1 emulator", x, y, win_w, win_h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE);
         if (!win) {
             printf("SDL_CreateWindow: %s\n", SDL_GetError());
             return 1;
         }
+        SDL_SetWindowMinimumSize(win, 240, 160);
         ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
         if (!ren)
             ren = SDL_CreateRenderer(win, -1, 0);
-        {
-            int ow, oh;
-            SDL_GetRendererOutputSize(ren, &ow, &oh);
-            dpi = (float)ow / (float)win_w;
-        }
-        lcd_px = (int)lroundf(win_w * dpi);
-        pix_w = lcd_px;
-        pix_h = (int)lroundf(win_w * dpi * VIEW.h / VIEW.w);
-        base = (canvas_t){calloc((size_t)pix_w * (size_t)pix_h, 4), pix_w, pix_h, (float)pix_w / VIEW.w, VIEW.x, VIEW.y};
-        cv = base;
-        cv.p = calloc((size_t)pix_w * (size_t)pix_h, 4);
         t_lcd = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, EMU_LCD_W, EMU_LCD_H);
         t_lcd_small = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, EMU_LCD_W, EMU_LCD_H);
-        t_panel = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, pix_w, pix_h);
-        SDL_SetTextureScaleMode(t_lcd, SDL_ScaleModeNearest);
-        SDL_SetTextureScaleMode(t_lcd_small, SDL_ScaleModeLinear);
-        printf("window %dx%d points (LCD x%d, %.0fx pixels)\n", win_w, win_h, s, dpi);
+        relayout();
+        printf("window %dx%d points on display %d (%.0fx pixels; F9: LCD view %s)\n", win_w, win_h, d, dpi,
+               show_lcd ? "shown" : "hidden");
     }
     emu_fw_init(opt_demo);
-    draw_base();
     t0_ms = SDL_GetTicks();
     emu_fw_tick(0);
     if (opt_midi && emu_midi_open(opt_midi_log) != 0)
@@ -1457,6 +1554,8 @@ int main(int argc, char **argv)
                         release_src(SRC_KEY | SRC_ESC | SRC_MOUSE);    /* no stuck notes */
                     else if (e.window.event == SDL_WINDOWEVENT_EXPOSED)
                         panel_seen = 1;
+                    else if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+                        relayout();
                     break;
                 }
             }

@@ -14,6 +14,7 @@ enum {
     KM_SHOT,       /* LCD screenshot */
     KM_RECORD,     /* toggle recording every LCD frame */
     KM_DUMP,       /* print the input state */
+    KM_LCDVIEW,    /* show / hide the big LCD view above the panel (window only) */
 };
 typedef struct {
     SDL_Scancode sc;

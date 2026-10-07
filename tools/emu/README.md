@@ -33,11 +33,20 @@ build/host/emu --help          # options and the key map
 
 `build/host/emu` starts as a **background app**: `SDL_HINT_MAC_BACKGROUND_APP=1` (no Dock icon, no
 activation, it never takes the keyboard focus from the app you are using), and its window opens at the
-**bottom-right corner of the main display**. Click the window to play it with the keyboard.
+**bottom-right corner of the display the mouse pointer is on**. Click the window to play it with the keyboard.
 
-`--front` turns that off: a normal app with a Dock icon, the window centred and in front.
+`--front` turns that off: a normal app with a Dock icon, the window centred on that display and in front.
 
-The window: the LCD x3 (smaller if the screen is too small; `--scale N`), below it the FM-1 panel drawn in
+**Layout: the panel first.** The window shows the FM-1 panel alone, sized to about 80 % of the display's
+usable height, with the live LCD on the panel's own screen. **F9** shows / hides the big LCD view above the
+panel (a square as wide as the panel; `--lcd` starts with it shown, `--scale N` then makes the starting
+window 240*N points wide). The window is **resizable** and can go to any display: everything is redrawn
+to fit, keeping the aspect ratio (letterboxed); the panel is re-rasterised at the new size, so it stays
+sharp, and the scale snaps to an integer multiple of the 240x240 screen when one is close (nearest
+neighbour; linear otherwise). `--display N` picks the display, `--pos X,Y` the top-left corner (global
+points), `--size W,H` the size in points. Nothing is remembered between runs.
+
+The panel is drawn in
 the geometry of `ChoralRootFM1Designer/index.html` (BODY, SCREEN, KEYS, BUTTONS, ENCODERS) with the live
 LEDs: key and button LEDs lit / dim from `fm1_led` / `fm1_led_dim`, REC red, PLAY orange plus its green LED.
 Keys and buttons are clickable (right-click / ctrl-click latches one down), the knobs turn with the mouse
@@ -67,6 +76,7 @@ Firmware key index = MIDI note - 53 (0 = F3 .. 26 = G5).
 | `6 7 8 9` | select KNOB1 .. KNOB4 |
 | Up / Down | turn the selected knob one detent clockwise / counter-clockwise (repeats while held; MASTER: 32 of 1023) |
 | mouse wheel over a knob | turn that knob |
+| F9 | show / hide the big LCD view above the panel (window only) |
 | F10 | LCD screenshot: `build/emu/shot_NNN.png` |
 | F11 | record every LCD frame to `build/emu/rec/NNNN.ppm` (again to stop) |
 | F12 | print the input state (`fm1_in`, the LEDs, the track, the song) |

@@ -16,7 +16,8 @@
  *   knobs              Q = MASTER (pot)  R = SELECT  U = PRESETS  P = ALGORITHM  6 7 8 9 = KNOB 1..4:
  *                      select the knob; Up / Down turn the selected one (one detent per press, repeats)
  *                      mouse: wheel over a knob turns it, click selects it, vertical drag turns it
- *   tools              F10 LCD screenshot (build/emu/shot_NNN.png)
+ *   tools              F9 show / hide the big LCD view above the panel (window)
+ *                      F10 LCD screenshot (build/emu/shot_NNN.png)
  *                      F11 record every LCD frame (build/emu/rec/NNNN.ppm), again to stop
  *                      F12 print the fm1_in state
  * (On a Mac keyboard the F keys may need fn.)
@@ -84,6 +85,7 @@ const keymap_t KEYMAP[] = {
     {SDL_SCANCODE_UP, KM_TURN, +1, "UP"},
     {SDL_SCANCODE_DOWN, KM_TURN, -1, "DOWN"},
     /* tools */
+    {SDL_SCANCODE_F9, KM_LCDVIEW, 0, "F9"},
     {SDL_SCANCODE_F10, KM_SHOT, 0, "F10"},
     {SDL_SCANCODE_F11, KM_RECORD, 0, "F11"},
     {SDL_SCANCODE_F12, KM_DUMP, 0, "F12"},
@@ -139,6 +141,7 @@ void keymap_help(void)
         case KM_SHOT: printf("screenshot of the LCD -> build/emu/shot_NNN.png\n"); break;
         case KM_RECORD: printf("record every LCD frame -> build/emu/rec/NNNN.ppm (toggle)\n"); break;
         case KM_DUMP: printf("print the fm1_in state\n"); break;
+        case KM_LCDVIEW: printf("show / hide the big LCD view above the panel\n"); break;
         }
     }
     printf("  mouse    click a key / button: press it (right-click: latch it down, again to release)\n"
