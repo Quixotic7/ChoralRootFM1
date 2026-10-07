@@ -7,7 +7,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ChoralRoot FM-1</title>
-<meta name="description" content="ChoralRoot FM-1: a chord instrument firmware for the M-VAVE FM-1, after the Telepathic Orchid. One hand plays roots, the other shapes chords. Version {{VERSION}}, GPL-3.0.">
+<meta name="description" content="ChoralRoot FM-1 : a chord instrument firmware for the M-VAVE FM-1, after the Telepathic Orchid. One hand plays roots, the other shapes chords. Version {{VERSION}}, GPL-3.0.">
 <meta name="theme-color" content="#080808">
 <link rel="preload" href="InterTight.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="site.css">
@@ -17,8 +17,8 @@
 <header class="title">
   <div class="wrap">
     <h1><span>ChoralRoot</span> <span>FM-1</span></h1>
-    <p class="lede">A chord instrument for the M-VAVE FM-1, after the Telepathic Orchid.</p>
-    <p class="ver">Version {{VERSION}}, a first public beta. GPL-3.0.</p>
+    <p class="lede">A chord instrument for the M-VAVE FM-1 inspired by the Telepathic Orchid ORC—1.</p>
+    <p class="ver">Version {{VERSION}}. GPL-3.0.</p>
   </div>
   <div class="stripes" aria-hidden="true"><i class="s-red"></i><i class="s-orange"></i><i class="s-cream"></i></div>
 </header>
@@ -27,19 +27,19 @@
 
 <section class="shots" aria-labelledby="h-screen">
   <div class="wrap">
-    <h2 id="h-screen">One big thing per screen</h2>
-    <p class="intro">One hand plays roots, the other shapes chords. The screen shows one thing at a time, big.</p>
+    <h2 id="h-screen">Melodic Exploration, Not a Groovebox</h2>
+    <p class="intro">One hand plays root notes while the other shapes the chords. The screen shows one thing at a time, BIG.</p>
     <figure class="shot">
       <img src="img/screen-idle.png" width="240" height="240" alt="the idle screen: the name over three stripes">
-      <figcaption><b>Idle.</b> The name over three stripes, red, orange and cream. They slide at the tempo; the first chord sweeps them off.</figcaption>
+      <figcaption><b>Idle.</b></figcaption>
     </figure>
     <figure class="shot">
       <img src="img/screen-chord.png" width="240" height="240" alt="D major 7 held: the chord name, the notes D4 F#4 A4 C#5">
-      <figcaption><b>A chord.</b> MAJ and M7 held, D4 pressed. The name fills the screen, the voiced notes under it, the 7th in <span class="c-orange">orange</span>.</figcaption>
+      <figcaption><b>Chord.</b> MAJ and M7 held, D4 pressed. The 7th in <span class="c-orange">ORANGE</span>.</figcaption>
     </figure>
     <figure class="shot">
       <img src="img/screen-editor.png" width="240" height="240" alt="the sound editor: the four oscillators of WARM PAD">
-      <figcaption><b>The sound editor.</b> The four oscillators of WARM PAD. The active lane is in the colours of KNOB 1–4.</figcaption>
+      <figcaption><b>Sound Editor.</b> Four oscillators of creamy V-Analog goodness. Easy to program.</figcaption>
     </figure>
   </div>
 </section>
@@ -48,13 +48,13 @@
   <div class="wrap">
     <h2 id="h-get">Get it</h2>
     <div class="try">
-      <a class="btn b-green" href="emu/">Try it in the browser</a>
-      <p class="note">The same firmware, run in the browser with sound. Play it from the computer keyboard or the mouse; no FM-1 needed. Chrome, Edge or Firefox; Safari plays but has no MIDI.</p>
+      <a class="btn b-green" href="emu/">Try it first</a>
+      <p class="note">The exact same firmware, running in your browser. No FM-1 needed. Chrome, Edge and Firefox supported.</p>
     </div>
     <div class="buttons">
       <div class="cell">
-        <a class="btn b-red" href="webapp/installer/">Install</a>
-        <p class="note">From Chrome or Edge, with the FM-1 connected by USB. Nothing to install on the computer.</p>
+        <a class="btn b-red" href="webapp/installer/">It's even better on hardware</a>
+        <p class="note">Install directly to your FM-1 from Chrome or Edge.</p>
       </div>
       <div class="cell">
         <a class="btn b-cream" href="{{PKG_URL}}" download>Download <span class="pkg">{{PKG}}</span></a>
@@ -62,11 +62,11 @@
       </div>
       <div class="cell">
         <a class="btn b-blue" href="https://github.com/Quixotic7/ChoralRootFM1">Source</a>
-        <p class="note">On GitHub, GPL-3.0. Built on Felucca by Hügelton Instruments.</p>
+        <p class="note">On GitHub, GPL-3.0. Created by Quixotic7, building off of Felucca by Hügelton Instruments.</p>
       </div>
       <div class="cell">
         <a class="btn b-yellow" href="#playing">Manual</a>
-        <p class="note">This page, from Playing on.</p>
+        <p class="note">Who needs this?</p>
       </div>
     </div>
     <p>The installer talks to the FM-1 over Web MIDI. The firmware it runs now (stock, Felucca or ChoralRoot) stages the update loader, the loader writes the whole image, then the FM-1 restarts and reports {{PRODUCT}}. Do not unplug it while it writes. An interrupted install resumes when you press Install again: the FM-1 stays in update mode.</p>
@@ -85,7 +85,7 @@
 <section class="playing" aria-labelledby="playing">
   <div class="wrap">
     <h2 id="playing">Playing</h2>
-    <p class="intro">The left of the keybed is the chord block, the Orchid's two rows of four. The right is the roots. All of it can be tried in the browser, in the <a href="emu/">emulator</a>.</p>
+    <p class="intro">The left side of the keyboard is your chord command center. Use the top row to control a chord type and the bottom row to add modifiers like 7ths and 9ths. Key B will lock your chord commands. Play a root note on the right and let ChoralRoot handle the rest. We promise, you're in good company. </p>
 
     <figure class="panel">
       <a href="img/panel-main.png"><img src="img/panel-main.png" width="1757" height="1072" loading="lazy" alt="The FM-1 panel with ChoralRoot's labels: VOLUME, BPM, SOUND, BASS SOUND on the left rotaries, VOICING, BASS VOICE, PERFORM, FX on KNOB 1–4, the buttons named KEY, PERF, FX, BASS, LATCH, OPT, HOME, SAVE, METRO, LOOP, REC, EDIT, the screen showing D major 7, and the keys DIM MIN MAJ SUS, 6 m7 M7 LOCK 9 on the chord block"></a>
@@ -265,10 +265,10 @@
 <section class="credits" aria-labelledby="credits">
   <div class="wrap">
     <h2 id="credits">Credits and licence</h2>
-    <p class="intro">ChoralRoot FM-1 is free software under the GNU General Public License, version 3 only: <a href="firmware/LICENSE">LICENSE</a>. The package and this site carry <a href="firmware/LICENSING.md">LICENSING.md</a> and the licence texts in <a href="firmware/LICENSES/">LICENSES</a>.</p>
+    <p class="intro">ChoralRoot was made by Quixotic7 with the assistance of his AI Overlords: Claude Fable 5.1 and Claude Opus 5.5. ChoralRoot is free, don't like something, feel free to make your own version. ChoralRoot FM-1 is free software under the GNU General Public License, version 3 only: <a href="firmware/LICENSE">LICENSE</a>. The package and this site carry <a href="firmware/LICENSING.md">LICENSING.md</a> and the licence texts in <a href="firmware/LICENSES/">LICENSES</a>.</p>
     <ul class="credit-list">
       <li><b>Felucca</b> by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com">Hügelton Instruments</a>: the platform, the engines, the installer, the update loader; with its CrispyZebra waveforms, drum voices and Fukiai icons (MIT). <a href="https://github.com/hugelton/Felucca">github.com/hugelton/Felucca</a></li>
-      <li><b>The chord logic</b> after the <a href="https://telepathicinstruments.com">Telepathic Instruments</a> Orchid and the author's monome grid <a href="https://github.com/Quixotic7/choralroot">choralroot</a>.</li>
+      <li><b>The chord logic</b> is inspired after the <a href="https://telepathicinstruments.com">Telepathic Instruments</a> Orchid ORC—1 and Quixotic7's prior monome grid iii adaption <a href="https://github.com/Quixotic7/choralroot">choralroot</a>.</li>
       <li><b>Inter Tight</b> by The Inter Project Authors (SIL OFL 1.1, <a href="OFL.txt">OFL.txt</a>): the UI font, and this page's.</li>
       <li><b>Samples</b>: Versilian Studios VSCO-2 Community Edition and VCSL (CC0 1.0).</li>
       <li><b>DaisySP</b> (Electrosmith, Emilie Gillet) and <b>Rings</b> (Emilie Gillet), MIT: the PHYS engine.</li>
@@ -283,8 +283,8 @@
 <footer class="foot">
   <div class="stripes stripes-thin" aria-hidden="true"><i class="s-red"></i><i class="s-orange"></i><i class="s-cream"></i></div>
   <div class="wrap">
-    <p>ChoralRoot FM-1 is independent of and not affiliated with Telepathic Instruments, M-VAVE or Cuvave. Orchid, M-VAVE and FM-1 are trademarks of their owners.</p>
-    <p><b>Installing firmware is at your own risk.</b></p>
+    <p>ChoralRoot FM-1 is completely independent of and not affiliated in any way with Telepathic Instruments, M-VAVE or Cuvave. Orchid ORC—1, M-VAVE and FM-1 are trademarks of their respective owners. A real ORC—1 will be much better than this will ever be due to it's physical interface</p>
+    <p><b>Installing this firmware is entirely at your own risk. Quixotic7 is not responsible for any damages to your M-VAVE FM-1 hardware</b></p>
   </div>
 </footer>
 
