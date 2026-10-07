@@ -2,7 +2,7 @@
  * cr_screen_t (firmware/src/cr_screen.h); `anim` is the animation that leads into the state */
 #pragma once
 
-#define CR_NSCREENS 51u
+#define CR_NSCREENS 53u
 
 static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 1: 1 · idle (CHORD view) */
@@ -854,6 +854,48 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
+    {   /* 52: FX 10 · the same grammar: the perform layer */
+        .header = 1,
+        .icon = CR_ICON_NONE,
+        .batt = 255,
+        .mid_col = CR_COL_WHITE,
+        .right_col = CR_COL_WHITE,
+        .footer = "a root: mode \267 OCT-: back \267 HOME: home",
+        .kind = CR_K_KNOBROW,
+        .item = {"Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves", "Pattern", "Harp"},
+        .n_items = 7,
+        .item0 = 0,
+        .sel = 3,
+        .orient = 1,
+        .col = CR_COL_WHITE,
+        .label = "perform",
+        .cell = {{{"Rate", "1/8", CR_CF_ON | CR_CF_PCT, CR_G_ECHOES, 128, 255}, {"Order", "Up", CR_CF_ON | CR_CF_PCT, CR_G_ARROW, 26, 128}, {"Range", "1 oct", CR_CF_ON | CR_CF_PCT, CR_G_RANGE, 84, 128}, {"Gate", "70%", CR_CF_ON | CR_CF_PCT, CR_G_GATE, 179, 128}}},
+        .n_rows = 1,
+        .slide = 1,
+        .pos = -1,
+        .anim = CR_A_SLIDE,
+    },
+    {   /* 53: FX 11 · the same grammar: the bass layer */
+        .header = 1,
+        .icon = CR_ICON_NONE,
+        .batt = 255,
+        .mid_col = CR_COL_WHITE,
+        .right_col = CR_COL_WHITE,
+        .footer = "a root: preview \267 OCT-: back \267 HOME",
+        .kind = CR_K_KNOBROW,
+        .item = {"Chords Only", "Unison Bass", "Bass Single Notes", "Solo"},
+        .n_items = 4,
+        .item0 = 0,
+        .sel = 0,
+        .orient = 1,
+        .col = CR_COL_ORANGE,
+        .label = "bass",
+        .cell = {{{"Behaviour", "Chords", CR_CF_ON, CR_G_NONE, 128, 128}, {"Register", "-1", CR_CF_ON | CR_CF_PCT, CR_G_SHIFT, 85, 128}, {"Sound", "03 SUB", CR_CF_ON, CR_G_NONE, 128, 128}, {"Level", "80", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 205, 128}}},
+        .n_rows = 1,
+        .slide = -1,
+        .pos = -1,
+        .anim = CR_A_SLIDE,
+    },
 };
 static const char *const CR_SCREEN_NAMES[CR_NSCREENS] = {
     "1 - idle (CHORD view)",
@@ -907,6 +949,8 @@ static const char *const CR_SCREEN_NAMES[CR_NSCREENS] = {
     "FX 5b - knob row: Reverb, Type = Spring",
     "FX 6 - the glyphs change with the value (low row, high row)",
     "FX 7 - the glyphs change with the value, continued",
+    "FX 10 - the same grammar: the perform layer",
+    "FX 11 - the same grammar: the bass layer",
 };
 static const char *const CR_SCREEN_SLUGS[CR_NSCREENS] = {
     "01_idle_chord_view",
@@ -960,4 +1004,6 @@ static const char *const CR_SCREEN_SLUGS[CR_NSCREENS] = {
     "49_knob_row_reverb_type_spring",
     "50_the_glyphs_change_with_the",
     "51_the_glyphs_change_with_the",
+    "52_the_same_grammar_the_perform",
+    "53_the_same_grammar_the_bass",
 };

@@ -73,9 +73,9 @@ layer or out, is always the button's on/off action.
 | Printed | ChoralRoot | Tap | Hold (opens and stays; OCT− / HOME closes) |
 | --- | --- | --- | --- |
 | SEL | **KEY** | Key Mode on/off (LED lit when on) | key layer: root keys = tonic (MIN held too = minor key), KNOB 1–4 = TONIC / SCALE / TRANSPOSE / SINGLE NOTES |
-| ARP | **PERF** | performance on/off | perform layer: white root keys D4–C5 = STRUM, STRUM 2, SLOP, ARP, ARP 2, PATTERN, HARP (press = selected and on); KNOB 1–4 = the mode's parameters |
+| ARP | **PERF** | performance on/off | perform layer: white root keys D4–C5 = STRUM, STRUM 2, SLOP, ARP, ARP 2, PATTERN, HARP (press = selected and on); KNOB 1–4 = the mode's parameters, a **knob row** (the mode on top, its four parameters as cells: rate / division echoes, direction arrow, range, gate, slop amount bar; no popup, the turned cell hot) |
 | FX | **FX** | the sound's main effect on/off | fx layer, a **knob row**: white root keys pick the effect (the picker on top), KNOB 1–3 its parameters, KNOB 4 the amount, all four shown as cells with their glyphs under it (no popup; the turned cell hot) |
-| ENV | **BASS** | bass on/off | bass layer: KNOB 1–4 = BEHAVIOUR (Chords Only / Unison / Single Notes / Solo) / REGISTER / SOUND / LEVEL; root keys preview the bass; **BASS held + EDIT** = the bass sound's editor |
+| ENV | **BASS** | bass on/off | bass layer, a **knob row**: KNOB 1–4 = BEHAVIOUR (Chords Only / Unison / Single Notes / Solo; text) / REGISTER (shift glyph) / SOUND (text) / LEVEL (bar), no popups, the turned cell hot; root keys preview the bass; **BASS held + EDIT** = the bass sound's editor |
 | LFO | **LATCH** | Sticky keys / arp hold on/off | — |
 | GLO | **OPT** | Options menu open/close | held + a knob = that knob's second function (Orchid's press+turn): KNOB 1 split point, SELECT metronome level, ALGORITHM bass volume. In the editor: SHIFT |
 | HOME | **HOME** | back to the view from any page, menu, layer or the editor; tapped again on the view: next View (CHORD / KEYBOARD / NOTES / GEEK OUT / SCOPE) | — |
@@ -116,7 +116,7 @@ is displayed permanently for the knobs. In a layer KNOB 1–4 are the layer's; i
   gesture any more (no HOME + hold, no OPT + FX / PERF, no OPT + KNOB 3).
 - **Layers** (sloop's idiom, made to stay): the root keys and KNOB 1–4 are the layer's, the screen shows the layer's
   picker or meter, the footer shows keycap hints (`a root: the mode · OCT-: back · HOME: home`); the chord keys keep
-  their job. **The knob row** (the layer grammar, 2026-10-07; the FX layer first, the others later): the picker in the
+  their job. **The knob row** (the layer grammar, 2026-10-07; FX, PERF and BASS done, KEY / LOOP / METRO next): the picker in the
   upper part of the panel and under it one row of four cells, one per knob, in the knob colours (blue, orange, white,
   green) with a glyph that pictures the value; a turned knob makes its cell hot for 800 ms instead of a popup.
 - **The engine picker locks the same way**: EDIT held = the white root keys are the engines in the firmware's order
@@ -190,7 +190,7 @@ orange, white, green (KNOB 1–4) whatever they edit.
   just turned sits on a hot block (no popup). The glyphs are pictures of the parameter that change with it: a room
   (reverb size: the far wall recedes), a moon (damping / tone), echoes (delay time and feedback), an LFO wave (chorus
   rate and depth), a clipped sine (drive), a coil (spring reverb), dry / wet squares (the amount); gate, range, arrow
-  and shift are ready for the other layers. Used by the FX layer; PERF, BASS, KEY and LOOP to follow.
+  and shift are ready for the other layers. Used by the FX, PERF and BASS layers; KEY, LOOP and METRO to follow.
 - **Pickers** replace every list: one choice at a time, huge, its neighbours peeking small and faded
   above and below (left and right inside the ring), square position marks, the value under it. SELECT
   or the root keys move it with a split-flap flip; OCT+ confirms, OCT− backs out. Used for Perform,

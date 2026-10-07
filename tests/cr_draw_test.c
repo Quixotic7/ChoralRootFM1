@@ -480,6 +480,26 @@ int main(int argc, char **argv)
                 cr_draw_invalidate();
                 cr_draw(&s, 0);
                 check("knob row: the partial draw equals a full one", !memcmp(a, host_screen, sizeof a));
+                {   /* PERF / BASS: a text-only cell (Behaviour, Swing) and a null cell (a mode with fewer knobs) */
+                    uint16_t bg = host_screen[(ry - 4u) * 240u + 2u];
+                    uint32_t ink0 = 0, ink2 = 0;
+                    s.hot_r = 0;
+                    s.cell[0][0].flags = CR_CF_ON;
+                    s.cell[0][0].glyph = CR_G_NONE;
+                    snprintf(s.cell[0][0].label, sizeof s.cell[0][0].label, "Behaviour");
+                    snprintf(s.cell[0][0].value, sizeof s.cell[0][0].value, "Chords");
+                    memset(&s.cell[0][2], 0, sizeof s.cell[0][2]);
+                    cr_draw_invalidate();
+                    cr_draw(&s, 0);
+                    write_ppm(dir, "knobrow_text_null");
+                    for (y = ry; y < ry + 75u && y < 240u; y++)
+                        for (x = 0; x < 60u; x++) ink0 += host_screen[y * 240u + x] != bg;
+                    for (y = ry; y < ry + 75u && y < 240u; y++)
+                        for (x = 124; x < 176u; x++) ink2 += host_screen[y * 240u + x] != bg;
+                    snprintf(name, sizeof name, "knob row: a text-only cell (%u ink px) and a null cell (%u: its dash) render",
+                             ink0, ink2);
+                    check(name, ink0 > 100u && ink2 > 0u && ink2 < ink0);
+                }
             }
         check("knob row: a knob row state is in the table", found);
     }

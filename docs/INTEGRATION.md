@@ -163,9 +163,9 @@ a button pressed during another's hold is that hold's combo (its release does no
 | printed | role | tap | hold (locked open unless noted) |
 | --- | --- | --- | --- |
 | SEL | KEY | Key Mode on/off | key layer: roots = tonic (MIN held: minor); KNOB 1–4 TONIC SCALE TRANSPOSE SINGLE NOTES |
-| ARP | PERF | performance on/off | white roots = mode; KNOB 1–4 = the mode's params |
+| ARP | PERF | performance on/off | the knob row: white roots = mode; KNOB 1–4 = the mode's params as cells; no popups, the turned cell hot 800 ms |
 | FX | FX | main effect on/off | the knob row: white roots = effect; KNOB 1–3 params, KNOB 4 amount (on: FX on); no popups, the turned cell hot 800 ms |
-| ENV | BASS | bass on/off | KNOB 1–4 BEHAVIOUR REGISTER SOUND LEVEL; BASS held + EDIT = the bass sound's editor, + SAVE its saving |
+| ENV | BASS | bass on/off | the knob row: KNOB 1–4 BEHAVIOUR REGISTER SOUND LEVEL as cells (no popups, the turned cell hot); BASS held + EDIT = the bass sound's editor, + SAVE its saving |
 | LFO | LATCH | latch on/off | — |
 | GLO | OPT | Options (picker pages) | shift (momentary): OPT + KNOB 1 split point, + SELECT metronome level, + ALGORITHM bass level; the other knobs keep their job |
 | EDIT | EDIT | the sound editor (again: leave; in the engine picker: keep its sound, close it) | the engine picker (a preview: OCT− cancels, OCT+ keeps) on the white roots, KNOB 1 its presets, KNOB 2 init, KNOB 4 roots engines / play |
@@ -188,8 +188,14 @@ effect's picker over KNOB 1–4's cells (labels `gname` capitalised: Size Damp T
 the values as the popup showed them, enums and Hz through `param_format`: "90", "Room", "1/8", "0.80 Hz"; KNOB 4
 "Amount" = `fx_amt * 99 / 127` or "off"); glyphs room (SIZE; TYPE Room), spring (TYPE Spring), moon (DAMP inverted,
 COLOUR), echoes (TIME and FEEDBACK: the division's index, feedback / 120), lfo (RATE and DEPTH), mix (the amount;
-Drive: clip). A turn changes the value as before and marks its cell hot for 800 ms (`cu_fx_hot`, cleared when a layer
-opens or another effect is picked); traces `fx: effect Delay`, `fx: cells Time Feedback Colour Amount`,
+Drive: clip). A turn changes the value as before and marks its cell hot for 800 ms (`cu_hot` {layer, knob, until},
+cleared when a layer opens or another item is picked). The PERF layer (`cu_perf_cells`) and the BASS layer
+(`cu_bass_cells`) are knob rows the same way: PERF's cells are the mode's `CU_PERF_KNOB` parameters, labelled as the
+popups named them (Rate Division Direction Range Gate Swing Pattern Amount Hold), glyphs echoes (rate, division;
+pct2 1.0), arrow (direction), range, gate, bar (slop amount, pattern), else text (the table in cr_ui.c); BASS's are
+Behaviour (text: Chords / Unison / Single / Solo), Register (shift, -2..4 from `cr_snap.bass_voicing`), Sound (the
+popup's number and name, "off"), Level (bar). Traces `perf: cells ...`, `perf: knob Arp division 8`, `bass: cells
+...`, `bass: knob 4 level 84`; traces `fx: effect Delay`, `fx: cells Time Feedback Colour Amount`,
 `fx: knob 2 Reverb damp 64`.
 
 Pickers (`cr_picker_t { items, n, sel, on_change }`): SELECT or a root key moves `sel` (the white

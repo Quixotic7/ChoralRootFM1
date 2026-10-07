@@ -1,0 +1,34 @@
+# ChoralRoot: the bass layer is a knob row (CR_K_KNOBROW): BASS (ENV) held and released locks it open (Behaviour /
+# Register / Sound / Level); KNOB 4 turned: the Level cell hot, no popup (EMU_UI_LOG=0: every UI frame "knobrow");
+# 900 ms later the hot block is gone; KNOB 2: the register (the shift glyph moves); KNOB 3: a bass sound (the Sound
+# cell reads its number and name); KNOB 1: the behaviour (Unison; the picker follows); E4 -> F4: the behaviour by a
+# root; OCT- closes the layer.
+wait 300
+btn ENV down
+wait 500
+btn ENV up
+wait 300
+shot build/emu/test/cr_bass_row.ppm
+knob KNOB4 -4
+wait 100
+shot build/emu/test/cr_bass_row_hot.ppm
+wait 900
+shot build/emu/test/cr_bass_row_cool.ppm
+knob KNOB2 +1
+wait 100
+shot build/emu/test/cr_bass_row_reg.ppm
+wait 900
+knob KNOB3 +1
+wait 100
+shot build/emu/test/cr_bass_row_sound.ppm
+wait 900
+knob KNOB1 +1
+wait 300
+shot build/emu/test/cr_bass_row_unison.ppm
+wait 900
+btn F4
+wait 300
+shot build/emu/test/cr_bass_row_single.ppm
+btn OCT-
+wait 300
+dump

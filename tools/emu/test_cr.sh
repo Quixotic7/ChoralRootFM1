@@ -194,6 +194,43 @@ differ cr_fx_row cr_fx_row_delay "Reverb / Delay rows differ"
 has '^fx: knob 4 Delay amount' "$L" && differ cr_fx_row_delay cr_fx_row_amount "KNOB 4: Delay's amount cell changed (hot): $OUT/cr_fx_row_amount.ppm"
 differ cr_fx_row_chorus cr_fx_row_drive_off "Drive with FX off (the amount reads off): $OUT/cr_fx_row_drive_off.ppm"
 
+echo "the perform layer: a knob row (the mode over its four parameters), a turned cell hot, no popup"
+export EMU_UI_LOG=0
+run cr_perf_row
+unset EMU_UI_LOG
+L="$OUT/cr_perf_row.log"
+has '^perf: cells Division Direction Gate Swing' "$L" && ok "PERF held, G4: Arpeggiate over Division / Direction / Gate / Swing: $OUT/cr_perf_row.ppm" || bad "no Arpeggiate cells"
+has '^perf: knob Arp division' "$L" && ok "KNOB 1: the arp's division ($(grep '^perf: knob Arp' "$L" | tail -1 | sed 's/^perf: //'))" || bad "KNOB 1: no division change"
+fr=$(grep -c '^ui: frame' "$L"); kr=$(grep -c '^ui: frame.*device): knobrow ' "$L"); mt=$(grep -c '^ui: frame.*device): meter ' "$L")
+[ "$mt" = 0 ] && [ "$kr" -gt 100 ] && ok "no popup: every frame in the layer a knob row ($kr knobrow frames of $fr, 0 meters)" \
+    || bad "a popup in the perform layer ($mt meter frames, $kr knobrow)"
+grep -q '^ui: frame.*device): knobrow .*hot 1\.0$' "$L" && grep -q '^ui: frame.*device): knobrow .*hot 1\.2$' "$L" &&
+    ok "the turned cell hot (KNOB 1: cell 0, KNOB 3: cell 2)" || bad "no hot cell in the trace"
+differ cr_perf_row_hot cr_perf_row_cool "the hot block gone 900 ms later: $OUT/cr_perf_row_hot.ppm"
+has '^perf: cells Rate Direction Range Hold' "$L" && has '^perf: cells Amount Rate Direction Range' "$L" && has '^perf: cells Pattern Division Gate Swing' "$L" &&
+    ok "a root picks the mode, the cells follow (Strum, Slop, Pattern): $OUT/cr_perf_row_strum.ppm" || bad "the cells did not follow the mode"
+has '^perf: knob Slop direction' "$L" && ok "KNOB 3 in Slop: its direction" || bad "KNOB 3: no Slop direction"
+differ cr_perf_row cr_perf_row_strum "Arpeggiate / Strum rows differ"
+
+echo "the bass layer: a knob row (behaviour, register, sound, level), a turned cell hot, no popup"
+export EMU_UI_LOG=0
+run cr_bass_row
+unset EMU_UI_LOG
+L="$OUT/cr_bass_row.log"
+has '^bass: cells Behaviour Register Sound Level' "$L" && ok "BASS held: Behaviour / Register / Sound / Level: $OUT/cr_bass_row.ppm" || bad "no bass cells"
+has '^bass: knob 4 level' "$L" && has '^bass: knob 2 register' "$L" && has '^bass: knob 3 sound' "$L" &&
+    ok "KNOB 4 level, KNOB 2 register, KNOB 3 sound ($(grep '^bass: knob 4' "$L" | tail -1 | sed 's/^bass: //'))" || bad "bass knobs: $(grep '^bass: knob' "$L" | tr '\n' ' ')"
+fr=$(grep -c '^ui: frame' "$L"); kr=$(grep -c '^ui: frame.*device): knobrow ' "$L"); mt=$(grep -c '^ui: frame.*device): meter ' "$L")
+[ "$mt" = 0 ] && [ "$kr" -gt 100 ] && ok "no popup: every frame in the layer a knob row ($kr knobrow frames of $fr, 0 meters)" \
+    || bad "a popup in the bass layer ($mt meter frames, $kr knobrow)"
+grep -q '^ui: frame.*device): knobrow .*hot 1\.3$' "$L" && grep -q '^ui: frame.*device): knobrow .*hot 1\.1$' "$L" &&
+    ok "the turned cell hot (KNOB 4: cell 3, KNOB 2: cell 1)" || bad "no hot cell in the trace"
+differ cr_bass_row_hot cr_bass_row_cool "the hot block gone 900 ms later: $OUT/cr_bass_row_hot.ppm"
+differ cr_bass_row_cool cr_bass_row_reg "KNOB 2: the register cell changed: $OUT/cr_bass_row_reg.ppm"
+differ cr_bass_row_reg cr_bass_row_sound "KNOB 3: the sound cell changed: $OUT/cr_bass_row_sound.ppm"
+has '^bass: behaviour Unison Bass' "$L" && has '^bass: behaviour Bass Single Notes' "$L" &&
+    ok "KNOB 1 and F4: the behaviour (Unison, Single): $OUT/cr_bass_row_unison.ppm" || bad "behaviour: $(grep '^bass: behaviour' "$L" | tr '\n' ' ')"
+
 echo "EDIT: the sound editor (cr_edit.c): groups, screens, lanes, knobs, memory"
 export EMU_UI_LOG=5
 run cr_editor --wav "$OUT/cr_editor.wav"

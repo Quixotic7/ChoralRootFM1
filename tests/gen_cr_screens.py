@@ -554,9 +554,10 @@ def editor_states():
 
 
 # .. and the fx layer's (design/choralroot-fm1-fx-mockups.json, the user-approved spec of the knob row and its glyphs):
-# the knob rows (2 Reverb, 3 Delay hot, 4 Chorus, 5 Drive off, 5b Spring) and the glyph studies (6, 7: edit8)
+# the knob rows (2 Reverb, 3 Delay hot, 4 Chorus, 5 Drive off, 5b Spring), the glyph studies (6, 7: edit8) and the
+# same grammar on the perform and bass layers (10, 11)
 FX_SRC = ROOT / "design" / "choralroot-fm1-fx-mockups.json"
-FX_PICK = ["2", "3", "4", "5", "5b", "6", "7"]
+FX_PICK = ["2", "3", "4", "5", "5b", "6", "7", "10", "11"]
 
 
 def fx_states():

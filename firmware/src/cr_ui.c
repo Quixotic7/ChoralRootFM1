@@ -393,11 +393,25 @@ static void cu_sends_to_fx(void)                  /* part 0's own sends become t
     cu_fx_apply();
 }
 
-/* the fx layer's knob row (cr_screen.h CR_K_KNOBROW): the cell just turned stays hot CU_FX_HOT_MS (the editor's
- * CE_HOT_MS); a layer opened or another effect picked clears it */
-#define CU_FX_HOT_MS 800u
-static struct { uint8_t knob; uint32_t t0; } cu_fx_hot;   /* knob + 1 (0: none) */
-static void cu_fx_hot_set(uint32_t knob) { cu_fx_hot.knob = (uint8_t)(knob + 1u); cu_fx_hot.t0 = fm1_ms; }
+/* the layers' knob row (cr_screen.h CR_K_KNOBROW: FX, PERF, BASS): the cell just turned stays hot CU_HOT_MS (the
+ * editor's CE_HOT_MS) instead of a popup; a layer opened or another item picked clears it */
+#define CU_HOT_MS 800u
+static struct { uint8_t layer, knob; uint32_t until; } cu_hot;   /* knob + 1 (0: none) */
+static void cu_hot_set(uint32_t l, uint32_t knob)
+{
+    cu_hot.layer = (uint8_t)l;
+    cu_hot.knob = (uint8_t)(knob + 1u);
+    cu_hot.until = fm1_ms + CU_HOT_MS;
+}
+static void cu_hot_row(cr_screen_t *s, uint32_t l)   /* the row's hot cell, if layer l's knob is still hot */
+{
+    uint32_t k = (cu_hot.knob - 1u) & 3u;
+    s->n_rows = 1;
+    if (cu_hot.knob && cu_hot.layer == l && (int32_t)(cu_hot.until - fm1_ms) > 0 && (s->cell[0][k].flags & CR_CF_ON)) {
+        s->hot_r = 1;
+        s->hot_c = (uint8_t)k;
+    }
+}
 /* a bus parameter's value as the knob row shows it: a name capitalised ("Room", "Spring"; a division as it is:
  * "1/8"), a rate in Hz ("0.80 Hz"), else the number the popup showed ("90") */
 static void cu_fx_val(uint32_t g, char *out, uint32_t n)
@@ -478,11 +492,7 @@ static void cu_fx_cells(cr_screen_t *s)
             cu_cpy(c->value, "off", sizeof c->value);
         }
     }
-    s->n_rows = 1;
-    if (cu_fx_hot.knob && fm1_ms - cu_fx_hot.t0 < CU_FX_HOT_MS && (s->cell[0][(cu_fx_hot.knob - 1u) & 3u].flags & CR_CF_ON)) {
-        s->hot_r = 1;
-        s->hot_c = (uint8_t)((cu_fx_hot.knob - 1u) & 3u);
-    }
+    cu_hot_row(s, L_FX);
 }
 static void cu_sound_go(uint32_t pos)             /* PRESETS: the bank, then the user slots */
 {
@@ -799,7 +809,7 @@ static void cu_param_text(uint32_t p, int32_t v, char *val, char *sub)
         cu_cpy(sub, p == CR_P_RATE ? "ms" : p == CR_P_RANGE ? "oct" : p == CR_P_ROTATE ? "" : "%", 12);
     }
 }
-static void cu_param_turn(uint32_t mode, int32_t p, int32_t s)
+static void cu_param_turn(uint32_t mode, int32_t p, int32_t s, int pop)   /* pop 0: the PERF layer's knob row */
 {
     char val[8], sub[12], label[24];
     int32_t v;
@@ -809,6 +819,10 @@ static void cu_param_turn(uint32_t mode, int32_t p, int32_t s)
     v = v < CU_PAR[p].min ? CU_PAR[p].min : v > CU_PAR[p].max ? CU_PAR[p].max : v;
     cs.par[mode][p] = (int16_t)v;
     cr_post(CRE_PARAM, mode, (uint32_t)p, v);
+    if (!pop) {
+        cu_trace("perf: knob %s %s %d\n", CU_PERF[cs.perf_sel].short_name, CU_PAR[p].name, (int)v);
+        return;
+    }
     cu_param_text((uint32_t)p, v, val, sub);
     cu_cpy(label, CU_PERF[cs.perf_sel].short_name, sizeof label);
     label[0] = (char)(label[0] | 0x20);
@@ -1191,7 +1205,7 @@ static void cu_opened(uint32_t b)                 /* a button held past HOLD (or
     if (was == L_EDIT && l != L_EDIT)             /* the picker left for another layer: its sound kept */
         cu_pick_end(1);
     cu.lock = (uint8_t)(cu_lockable(l) ? l : L_NONE);   /* the layer stays open after release */
-    cu_fx_hot.knob = 0;                           /* (a layer opens with no hot cell) */
+    cu_hot.knob = 0;                              /* (a layer opens with no hot cell) */
     cu_trace("layer: open %u%s\n", (unsigned)l, cu.lock ? " (locked)" : "");
     if (l == L_EDIT && was != L_EDIT)             /* the engine picker: a preview of the sound as it is now */
         cu_pick_begin();
@@ -1600,6 +1614,8 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
     switch (l) {
     case L_PERF:
         if (i < 7) {
+            if (cs.perf_sel != (uint8_t)i)
+                cu_hot.knob = 0;                  /* another mode: its row has no hot cell */
             cu_perf_pick((uint32_t)i);
             if (!cs.perform_on) {
                 cs.perform_on = 1;
@@ -1610,13 +1626,15 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
     case L_FX:
         if (i < (int32_t)CU_NFX) {
             if (cs.fx_sel != (uint8_t)i)
-                cu_fx_hot.knob = 0;               /* another effect: its row has no hot cell */
+                cu_hot.knob = 0;                  /* another effect: its row has no hot cell */
             cs.fx_sel = (uint8_t)i;
             cu_trace("fx: effect %s\n", CU_FX[i].name);
         }
         break;
     case L_BASS:
         if (i < 4) {
+            if (cs.bass_mode != (uint8_t)i)
+                cu_hot.knob = 0;
             cs.bass_mode = (uint8_t)i;
             cr_post(CRE_BASS_MODE, 0, 0, i);
             cu_trace("bass: behaviour %s\n", CU_BASSMODE[i]);
@@ -1737,7 +1755,8 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         }
         break;
     case L_PERF:
-        cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][knob], s);
+        cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][knob], s, 0);
+        cu_hot_set(L_PERF, knob);                 /* (no popup: the cell turns hot) */
         break;
     case L_FX:
         if (knob == 3) {
@@ -1745,13 +1764,13 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cs.fx_amt[cs.fx_sel] = (uint8_t)(v < 0 ? 0 : v > 127 ? 127 : v);
             cs.fx_on = 1;
             cu_fx_apply();
-            cu_fx_hot_set(3);                     /* (no popup: the knob row is the readout, its cell turns hot) */
+            cu_hot_set(L_FX, 3);                    /* (no popup: the knob row is the readout, its cell turns hot) */
             cu_trace("fx: knob 4 %s amount %u\n", CU_FX[cs.fx_sel].name, (unsigned)cs.fx_amt[cs.fx_sel]);
         } else if (CU_FX[cs.fx_sel].g[knob] >= 0) {
             uint32_t g = (uint32_t)CU_FX[cs.fx_sel].g[knob];
             v = song.g[g] + s * (GP[g].max - GP[g].min > 20 ? 2 : 1);
             song.g[g] = (int16_t)(v < GP[g].min ? GP[g].min : v > GP[g].max ? GP[g].max : v);
-            cu_fx_hot_set(knob);
+            cu_hot_set(L_FX, knob);
             cu_trace("fx: knob %u %s %s %d\n", (unsigned)knob + 1u, CU_FX[cs.fx_sel].name, CU_FX[cs.fx_sel].gname[knob],
                      (int)song.g[g]);
         }
@@ -1762,17 +1781,17 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cu_layer_pick(L_BASS, v < 0 ? 0 : v > 3 ? 3 : v);
         } else if (knob == 1) {                    /* REGISTER */
             cr_post(CRE_BASS_VOICING, 0, 0, s);
-            cu.pop.until = cu_now() + CR_POPUP_MS;
-            cu.pop.kind = PU_BASS_VOICING;
+            cu_trace("bass: knob 2 register %+d\n", (int)s);
         } else if (knob == 2) {                    /* SOUND */
             v = (int32_t)cs.bass_sound + s;
             cu_bass_go((uint32_t)(v < 0 ? 0 : v));
-            cu_sound_popup(1);
+            cu_trace("bass: knob 3 sound %u\n", (unsigned)cs.bass_sound);
         } else {                                   /* LEVEL */
             v = trk[CR_PART_BASS].p[P_LEVEL] + s * 2;
             trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)(v < 0 ? 0 : v > 127 ? 127 : v);
-            cu_popup_num(trk[CR_PART_BASS].p[P_LEVEL], 0, "", "bass level", CR_COL_ORANGE, 0, 127, 12);
+            cu_trace("bass: knob 4 level %d\n", (int)trk[CR_PART_BASS].p[P_LEVEL]);
         }
+        cu_hot_set(L_BASS, knob);                 /* (no popup: the knob row is the readout, its cell turns hot) */
         break;
     case L_EDIT:
         if (knob == 0) {                           /* the engine's factory presets (a preview: the bar jumps) */
@@ -2146,7 +2165,7 @@ static void cu_knob(uint32_t role, int32_t s)
         cu.pop.kind = PU_BASS_VOICING;
         break;
     case EN_K3:
-        cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][0], s);
+        cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][0], s, 1);
         break;
     case EN_K4:
         v = cs.fx_amt[cs.fx_sel] + s * 4;
@@ -2706,10 +2725,10 @@ static void cu_header(cr_screen_t *s)
             cu_cpy(s->mid, "Loop ", sizeof s->mid);
             cu_int(b, cs.loop_slot + 1, 0, sizeof b);
             cu_cat(s->mid, b, sizeof s->mid);
-            if (sn->lcap == CRL_CAP_OD)
+            if (sn->lcap == CRL_CAP_OD || sn->lcap == CRL_CAP_OD_ARMED)   /* (armed too: "Dub 3.2", loop mock-up 7) */
                 cu_cpy(s->right, "Dub ", sizeof s->right);
         }
-        if (sn->lcap == CRL_CAP_REC || sn->lcap == CRL_CAP_OD) {
+        if (sn->lcap == CRL_CAP_REC || sn->lcap == CRL_CAP_OD || sn->lcap == CRL_CAP_OD_ARMED) {
             cu_int(b, (int32_t)sn->lbar, 0, sizeof b);
             cu_cat(s->right, b, sizeof s->right);
             cu_cat(s->right, ".", sizeof s->right);
@@ -2892,6 +2911,144 @@ static void cu_stripes(cr_screen_t *s)
     }
 }
 
+/* the trace (CR_TRACE): a knob row's labels and values when they change ("perf: cells Division=1/8 ...") */
+static void cu_row_trace(const cr_screen_t *s, const char *who, char *seen, uint32_t n)
+{
+    char lb[96];
+    uint32_t k;
+    lb[0] = 0;
+    for (k = 0; k < 4u; k++) {
+        cu_cat(lb, k ? " " : "", sizeof lb);
+        cu_cat(lb, s->cell[0][k].flags ? s->cell[0][k].label : "-", sizeof lb);
+    }
+    if (!cu_eq(lb, seen)) {
+        cu_cpy(seen, lb, n);
+        cu_trace("%s: cells %s\n", who, lb);
+    }
+    (void)who;
+}
+
+/* PERF's knob row: the mode's four parameters as KNOB 1..4 carry them (CU_PERF_KNOB; '-' for none), the labels the
+ * popups' names capitalised, the glyph by the parameter's kind (pct / pct2 Q8 of 255):
+ *   parameter          glyph    pct                             value
+ *   rate (ms)          ECHOES   (v - 1) / 999, pct2 1.0         "120 ms"
+ *   division           ECHOES   index / 11, pct2 1.0            "1/8"
+ *   direction          ARROW    up 0, down 96, up-down and      "Up" "Down" "Up-down" "Down-up" "Played" "Random"
+ *                               down-up 160, as played 0,
+ *                               random 255 (the arrow's bands)
+ *   range (octaves)    RANGE    (v - 1) / 3                     "2 oct"
+ *   gate (%)           GATE     v / 200                         "70%"
+ *   amount (slop %)    BAR      v / 100                         "40%"
+ *   pattern            BAR      (v - 1) / (patterns - 1)        "03"
+ *   swing (%)          text                                     "55%"
+ *   hold, retrigger    text                                     "On" / "Off"
+ *   rotate             text                                     "+3"                                               */
+static void cu_perf_cells(cr_screen_t *s)
+{
+    static const uint8_t ARROW[6] = {0, 96, 160, 160, 0, 255};
+    static const char *const DIR[6] = {"Up", "Down", "Up-down", "Down-up", "Played", "Random"};
+    uint32_t m = cu_perf_mode(), k;
+    for (k = 0; k < 4u; k++) {
+        cr_cell_t *c = &s->cell[0][k];
+        int32_t p = CU_PERF_KNOB[m][k], v;
+        if (p < 0)
+            continue;
+        v = cs.par[m][p];
+        c->flags = CR_CF_ON;
+        cu_cpy(c->label, CU_PAR[p].name, sizeof c->label);
+        c->label[0] = (char)(c->label[0] - 'a' + 'A');
+        switch (p) {
+        case CR_P_RATE:
+            cu_int(c->value, v, 0, sizeof c->value);
+            cu_cat(c->value, " ms", sizeof c->value);
+            c->glyph = CR_G_ECHOES;
+            c->pct = (uint8_t)((uint32_t)(v - 1) * 255u / 999u);
+            c->pct2 = 255;
+            break;
+        case CR_P_DIV:
+            cu_cpy(c->value, CU_DIV[v % CR_DIV_COUNT], sizeof c->value);
+            c->glyph = CR_G_ECHOES;
+            c->pct = (uint8_t)((uint32_t)v * 255u / (CR_DIV_COUNT - 1u));
+            c->pct2 = 255;
+            break;
+        case CR_P_DIR:
+            cu_cpy(c->value, DIR[v % 6], sizeof c->value);
+            c->glyph = CR_G_ARROW;
+            c->pct = ARROW[v % 6];
+            break;
+        case CR_P_RANGE:
+            cu_int(c->value, v, 0, sizeof c->value);
+            cu_cat(c->value, " oct", sizeof c->value);
+            c->glyph = CR_G_RANGE;
+            c->pct = (uint8_t)((uint32_t)(v - 1) * 255u / 3u);
+            break;
+        case CR_P_GATE: case CR_P_AMOUNT: case CR_P_SWING:
+            cu_int(c->value, v, 0, sizeof c->value);
+            cu_cat(c->value, "%", sizeof c->value);
+            if (p == CR_P_GATE) {
+                c->glyph = CR_G_GATE;
+                c->pct = (uint8_t)((uint32_t)v * 255u / 200u);
+            } else if (p == CR_P_AMOUNT) {
+                c->glyph = CR_G_BAR;
+                c->pct = (uint8_t)((uint32_t)v * 255u / 100u);
+            }
+            break;
+        case CR_P_PATTERN:
+            cu_2d(c->value, (uint32_t)v, sizeof c->value);
+            c->glyph = CR_G_BAR;
+            c->pct = (uint8_t)(CR_NPATTERN > 1 ? (uint32_t)(v - 1) * 255u / (CR_NPATTERN - 1u) : 0u);
+            break;
+        case CR_P_HOLD: case CR_P_RETRIG:
+            cu_cpy(c->value, v ? "On" : "Off", sizeof c->value);
+            break;
+        default:
+            cu_int(c->value, v, p == CR_P_ROTATE, sizeof c->value);
+            break;
+        }
+    }
+    cu_hot_row(s, L_PERF);
+}
+
+/* BASS's knob row: KNOB 1 Behaviour (text), 2 Register (shift: -2..4 octaves), 3 Sound (the popup's number and name,
+ * "off" while BASS is off; text), 4 Level (bar; the real level even with BASS off: the top line says so) */
+static void cu_bass_cells(cr_screen_t *s)
+{
+    static const char *const SHORT[4] = {"Chords", "Unison", "Single", "Solo"};
+    static const char *const LB[4] = {"Behaviour", "Register", "Sound", "Level"};
+    int32_t bv = cr_snap.bass_voicing, lv = trk[CR_PART_BASS].p[P_LEVEL];
+    uint32_t k;
+    for (k = 0; k < 4u; k++) {
+        s->cell[0][k].flags = CR_CF_ON;
+        cu_cpy(s->cell[0][k].label, LB[k], sizeof s->cell[0][k].label);
+    }
+    cu_cpy(s->cell[0][0].value, SHORT[cs.bass_mode & 3u], sizeof s->cell[0][0].value);
+    cu_int(s->cell[0][1].value, bv, bv != 0, sizeof s->cell[0][1].value);
+    s->cell[0][1].glyph = CR_G_SHIFT;
+    s->cell[0][1].pct = (uint8_t)((uint32_t)(bv + 2 < 0 ? 0 : bv + 2) * 255u / 6u);
+    if (!cs.bass_sound || !cs.bass_on) {
+        cu_cpy(s->cell[0][2].value, "off", sizeof s->cell[0][2].value);
+    } else {
+        uint32_t pos = cs.bass_sound - 1u, slot = cb_slot_at(1, pos);
+        char nm[13];
+        cu_2d(s->cell[0][2].value, slot < UP_SLOTS ? slot + 1u : pos + 1u, sizeof s->cell[0][2].value);
+        cb_name(1, pos, nm);
+        cu_cat(s->cell[0][2].value, " ", sizeof s->cell[0][2].value);
+        cu_cat(s->cell[0][2].value, nm, sizeof s->cell[0][2].value);
+        {   /* a name cut short ends at a word: "01 SUB" for SUB BASS, not "01 SUB B" */
+            char *v = s->cell[0][2].value;
+            uint32_t i = 0, sp = 0, nl = 0;
+            while (nm[nl]) nl++;
+            while (v[i]) { if (v[i] == ' ') sp = i; i++; }
+            if (i < 3u + nl && sp > 2u)
+                v[sp] = 0;
+        }
+    }
+    cu_int(s->cell[0][3].value, lv, 0, sizeof s->cell[0][3].value);
+    s->cell[0][3].glyph = CR_G_BAR;
+    s->cell[0][3].pct = (uint8_t)((uint32_t)lv * 255u / 127u);
+    cu_hot_row(s, L_BASS);
+}
+
 static void cu_layer_screen(cr_screen_t *s, uint32_t l)
 {
     static const char *const PERF_ITEMS[7] = {"Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves",
@@ -2901,7 +3058,6 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
                                           "Slot 8", "Slot 9", "Slot 10"};
     const char *eng[NENGINES];
     uint32_t k, n;
-    char val[8], sub[12];
     switch (l) {
     case L_KEY:
         s->kind = CR_K_KEYBOARD;
@@ -2917,48 +3073,33 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
             }
         break;
     case L_PERF: {
-        uint32_t m = cu_perf_mode();
-        int32_t p = CU_PERF_KNOB[m][0];
+        static char seen[48];
         cu_picker(s, PERF_ITEMS, 7, cs.perf_sel, CR_COL_WHITE, "perform",
                   "a root: mode \267 OCT-: back \267 HOME: home");
-        cu_param_text((uint32_t)p, cs.par[m][p], val, sub);
-        if (p == CR_P_DIV || p == CR_P_PATTERN || p == CR_P_DIR)
-            cu_cpy(s->value, sub, sizeof s->value);
-        else {
-            cu_cpy(s->value, val, sizeof s->value);
-            cu_cat(s->value, " ", sizeof s->value);
-            cu_cat(s->value, sub, sizeof s->value);
-        }
+        s->kind = CR_K_KNOBROW;
+        s->orient = 1;
+        cu_perf_cells(s);
+        cu_row_trace(s, "perf", seen, sizeof seen);
         break;
     }
     case L_FX: {                                   /* the knob row: the effect over KNOB 1..4's cells */
         static char seen[48];                      /* (the trace: the row's labels when they change) */
-        char lb[48];
         cu_picker(s, FX_ITEMS, CU_NFX, cs.fx_sel, CR_COL_GREEN, "fx", "a root: effect \267 OCT-: back \267 HOME: home");
         s->kind = CR_K_KNOBROW;
         s->orient = 1;
         cu_fx_cells(s);
-        lb[0] = 0;
-        for (k = 0; k < 4u; k++) {
-            cu_cat(lb, k ? " " : "", sizeof lb);
-            cu_cat(lb, s->cell[0][k].flags ? s->cell[0][k].label : "-", sizeof lb);
-        }
-        if (!cu_eq(lb, seen)) {
-            cu_cpy(seen, lb, sizeof seen);
-            cu_trace("fx: cells %s\n", lb);
-        }
+        cu_row_trace(s, "fx", seen, sizeof seen);
         break;
     }
-    case L_BASS:
-        cu_picker(s, CU_BASSMODE, 4, cs.bass_mode, CR_COL_ORANGE, "bass",
-                  "KNOB 3: sound \267 OCT-: back \267 HOME: home");
-        if (cs.bass_on && cs.bass_sound) {
-            cu_2d(s->value, cs.bass_sound, sizeof s->value);
-            cu_cat(s->value, " ", sizeof s->value);
-            cu_cat(s->value, psnd[1].name, sizeof s->value);
-        } else
-            cu_cpy(s->value, "off", sizeof s->value);
+    case L_BASS: {
+        static char seen[48];
+        cu_picker(s, CU_BASSMODE, 4, cs.bass_mode, CR_COL_ORANGE, "bass", "a root: preview \267 OCT-: back \267 HOME");
+        s->kind = CR_K_KNOBROW;
+        s->orient = 1;
+        cu_bass_cells(s);
+        cu_row_trace(s, "bass", seen, sizeof seen);
         break;
+    }
     case L_EDIT:
         cu_engine_at(0, &n);
         for (k = 0; k < n && k < NENGINES; k++)
