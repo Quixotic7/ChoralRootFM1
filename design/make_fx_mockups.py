@@ -42,10 +42,26 @@ def knobrow(items, sel, col, cells, hot=None, label="", value=""):
             "value": value}
 
 
-REVERB_CELLS = [cell("Size", "90", pct=90 / 127), cell("Damp", "60", pct=60 / 127), cell("Type", "Room"), cell("Amount", "25", pct=0.25)]
-DELAY_CELLS = [cell("Time", "1/8", pct=0.5), cell("Feedback", "60", pct=0.5), cell("Colour", "70", pct=70 / 127), cell("Amount", "40", pct=0.4)]
-CHORUS_CELLS = [cell("Rate", "0.8 Hz", pct=40 / 127), cell("Depth", "60", pct=60 / 127), None, cell("Amount", "30", pct=0.3)]
-DRIVE_CELLS = [None, None, None, cell("Amount", "15", pct=0.15)]
+# the bespoke glyphs (the designer's FORMAT.md, "cell glyphs"): a parameter is a small picture that changes with its
+# value, in the spirit of Ableton's device pictograms and the reverb UIs in ../UI Inspiration: a room for the reverb's
+# size (the far wall recedes), a moon phase for damping / colour (tone), echoes for the delay's time (spacing) and
+# feedback (decay), an LFO wave for the chorus (density = rate, height = depth), a sine squaring off for drive, two
+# squares for dry / wet. pct is the value; pct2 a second value the picture needs.
+def g(label, value, glyph, pct=None, pct2=None, **kw):
+    c = cell(label, value, glyph, pct, **kw)
+    if pct2 is not None:
+        c["pct2"] = round(pct2, 3)
+    return c
+
+
+REVERB_CELLS = [g("Size", "90", "room", 90 / 127), g("Damp", "60", "moon", 1 - 60 / 127), g("Type", "Room", "room", 0.5),
+                g("Amount", "25", "mix", 0.25)]
+REVERB_SPRING = [g("Size", "90", "room", 90 / 127), g("Damp", "60", "moon", 1 - 60 / 127), g("Type", "Spring", "spring"),
+                 g("Amount", "25", "mix", 0.25)]
+DELAY_CELLS = [g("Time", "1/8", "echoes", 0.45, 0.5), g("Feedback", "60", "echoes", 0.45, 0.5), g("Colour", "70", "moon", 70 / 127),
+               g("Amount", "40", "mix", 0.4)]
+CHORUS_CELLS = [g("Rate", "0.8 Hz", "lfo", 0.3, 0.5), g("Depth", "60", "lfo", 0.3, 60 / 127), None, g("Amount", "30", "mix", 0.3)]
+DRIVE_CELLS = [None, None, None, g("Amount", "15", "clip", 0.15)]
 
 # 1 ---------------------------------------------------------------- today
 S.append(state(
@@ -104,14 +120,52 @@ S.append(state(
     "'off' and its bar is empty; a KNOB 4 turn switches it on again (today's rule).",
     keys=[OFF] * 27, lit=["G4"], buttons={"FX": BLINK}, key_labels=fx_labels, button_notes=FX_NOTE,
     encoders={"KNOB1": "", "KNOB2": "", "KNOB3": "", "KNOB4": ("AMOUNT", "off")},
-    screen=scr(knobrow(FX, 3, C_FX, [None, None, None, cell("Amount", "off", pct=0.0)], label="fx"), foot=FX_FOOT,
+    screen=scr(knobrow(FX, 3, C_FX, [None, None, None, g("Amount", "off", "clip", 0.0)], label="fx"), foot=FX_FOOT,
                note="Drive, FX off: the amount cell reads off."),
     chord_block=False,
 ))
 
-# 6, 7 ------------------------------------------------------------- the alternatives
 S.append(state(
-    "6 · alternative: four tall stripes",
+    "5b · knob row: Reverb, Type = Spring",
+    "TYPE is an enum (Room / Spring), so its cell is a picture of the type rather than a level: the room box for Room, "
+    "a coil for Spring. The other cells keep their pictures.",
+    keys=[OFF] * 27, lit=["D4"], buttons=FX_BTN, key_labels=fx_labels, button_notes=FX_NOTE,
+    encoders={"KNOB1": ("SIZE", "90"), "KNOB2": ("DAMP", "60"), "KNOB3": ("TYPE", "SPRING"), "KNOB4": ("AMOUNT", "25")},
+    screen=scr(knobrow(FX, 0, C_FX, REVERB_SPRING, hot=2, label="fx"), foot=FX_FOOT,
+               note="Type = Spring: the coil; KNOB 3 just turned (hot)."),
+    chord_block=False,
+))
+
+# 6 ---------------------------------------------------------------- the glyphs at two values
+S.append(state(
+    "6 · the glyphs change with the value (low row, high row)",
+    "The pictures are the readout: the same four parameters at a low value (row A, on the knobs) and a high one (row B): "
+    "the reverb's room deepens as SIZE grows, the moon fills as the damping lifts, the delay's echoes spread with TIME "
+    "and linger with FEEDBACK, the chorus wave quickens with RATE and swells with DEPTH, the drive's sine squares off. "
+    "(Drawn with the editor's two-row kind for the comparison only.)",
+    keys=[OFF] * 27, buttons=FX_BTN, button_notes=FX_NOTE, encoders={},
+    screen=editor_screen({"kind": "edit8", "title": "glyph study", "titleCol": C_FX, "right": "low · high",
+                          "rows": [[g("Size", "20", "room", 0.15), g("Time", "1/16", "echoes", 0.15, 0.5), g("Feedback", "10", "echoes", 0.45, 0.1), g("Drive", "10", "clip", 0.1)],
+                                   [g("Size", "120", "room", 0.95), g("Time", "1/2", "echoes", 0.95, 0.5), g("Feedback", "110", "echoes", 0.45, 0.95), g("Drive", "120", "clip", 0.95)]],
+                          "active": 0}, note="the same glyphs low (top) and high (bottom)."),
+    chord_block=False,
+))
+
+S.append(state(
+    "7 · the glyphs change with the value, continued",
+    "Damp and Colour as a moon (dark to full), the chorus Rate (one cycle to five) and Depth (flat to full height), "
+    "and the dry / wet squares (the front square fills with the amount).",
+    keys=[OFF] * 27, buttons=FX_BTN, button_notes=FX_NOTE, encoders={},
+    screen=editor_screen({"kind": "edit8", "title": "glyph study", "titleCol": C_FX, "right": "low · high",
+                          "rows": [[g("Damp", "110", "moon", 0.15), g("Rate", "0.1 Hz", "lfo", 0.05, 0.5), g("Depth", "10", "lfo", 0.3, 0.1), g("Amount", "10", "mix", 0.1)],
+                                   [g("Damp", "10", "moon", 0.95), g("Rate", "6 Hz", "lfo", 0.95, 0.5), g("Depth", "120", "lfo", 0.3, 0.95), g("Amount", "90", "mix", 0.9)]],
+                          "active": 0}, note="moon, LFO and mix glyphs low (top) and high (bottom)."),
+    chord_block=False,
+))
+
+# 8, 9 ------------------------------------------------------------- the alternatives
+S.append(state(
+    "8 · alternative: four tall stripes",
     "The OSC mixer's tall meters instead of a row: the effect name as the layer's top line, four tall stripe meters in "
     "the knob colours filling from the bottom, the values at the foot. Bigger and more graphic, but a text value "
     "(TYPE = Room) has no height to fill, and the effect picker has no room left: the roots pick blind.",
@@ -124,7 +178,7 @@ S.append(state(
 ))
 
 S.append(state(
-    "7 · alternative: the amount first",
+    "9 · alternative: the amount first",
     "Today's popup made permanent: the amount huge in green over its stripe meter (what the hand rides on KNOB 4), the "
     "effect name as the label, and KNOB 1-3's values as one small line under it. Honest about what matters live, but "
     "the three parameters are a footnote and still need a popup to be edited.",
@@ -135,29 +189,29 @@ S.append(state(
     chord_block=False,
 ))
 
-# 8, 9 ------------------------------------------------------------- the grammar on the other layers
+# 10, 11 ----------------------------------------------------------- the grammar on the other layers
 perf_modes = ["Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves", "Pattern", "Harp"]
 S.append(state(
-    "8 · the same grammar: the perform layer",
+    "10 · the same grammar: the perform layer",
     "The knob row is a layer grammar, not an FX screen: PERF held shows the mode big in white (Arpeggiate; Slop and "
     "Arp 2 Octaves peeking) over RATE / ORDER / RANGE / GATE in the knob colours. Today the mode's parameters are "
     "popups too.",
     keys=[OFF] * 27, lit=["G4"], buttons={"ARP": BLINK}, button_notes={"ARP": LAYER_BTN_NOTE},
     key_labels={ROOT_WHITE[i]: m for i, m in enumerate(["STRUM", "STR 2", "SLOP", "ARP", "ARP 2", "PATT", "HARP"])},
     encoders={"KNOB1": ("RATE", "1/8"), "KNOB2": ("ORDER", "UP"), "KNOB3": ("RANGE", "1 OCT"), "KNOB4": ("GATE", "70%")},
-    screen=scr(knobrow(perf_modes, 3, "white", [cell("Rate", "1/8", pct=0.5), cell("Order", "Up"), cell("Range", "1 oct", pct=0.33), cell("Gate", "70%", pct=0.7)], label="perform"),
+    screen=scr(knobrow(perf_modes, 3, "white", [g("Rate", "1/8", "echoes", 0.5, 1.0), g("Order", "Up", "arrow", 0.1), g("Range", "1 oct", "range", 0.33), g("Gate", "70%", "gate", 0.7)], label="perform"),
                foot="a root: mode · " + LAYER_FOOT, note="the perform layer in the same grammar: the mode over its four parameters."),
     chord_block=False,
 ))
 
 S.append(state(
-    "9 · the same grammar: the bass layer",
+    "11 · the same grammar: the bass layer",
     "BASS held: the behaviour big in orange over REGISTER / SOUND / LEVEL and, on KNOB 1, the behaviour itself (the "
     "picker and KNOB 1 are the same control, so the first cell repeats the choice small). Today: the picker alone.",
     keys=[OFF] * 27, buttons={"ENV": BLINK}, button_notes={"ENV": LAYER_BTN_NOTE},
     encoders={"KNOB1": ("BEHAVIOUR", "CHORDS"), "KNOB2": ("REGISTER", "-1"), "KNOB3": ("SOUND", "03 SUB"), "KNOB4": ("LEVEL", "80")},
     screen=scr(knobrow(["Chords Only", "Unison Bass", "Bass Single Notes", "Solo"], 0, C_BASS,
-                       [cell("Behaviour", "Chords"), cell("Register", "-1", pct=1 / 6), cell("Sound", "03 SUB"), cell("Level", "80", pct=0.8)], label="bass"),
+                       [cell("Behaviour", "Chords"), g("Register", "-1", "shift", 1 / 3), cell("Sound", "03 SUB"), g("Level", "80", "bar", 0.8)], label="bass"),
                foot="a root: preview · OCT-: back · HOME", note="the bass layer: behaviour over register, sound and level."),
     chord_block=False,
 ))
@@ -174,7 +228,7 @@ design = {
     "name": "ChoralRoot FM-1 fx layer mockups",
     "palette": "MOD",
     "labels": {"buttons": BUTTON_LABELS, "encoders": ENCODER_LABELS},
-    "notes": "The fx layer today shows the effect picker alone; KNOB 1-3's parameters differ per effect and appear only as "
+    "notes": "The fx layer today shows the effect picker alone (state 1); every parameter cell carries a bespoke glyph that changes with its value (room, moon, echoes, lfo, clip, mix: states 2-7); KNOB 1-3's parameters differ per effect and appear only as "
              "popups (state 1). Proposal (2-5): a layer grammar, the `knobrow` kind: the picker on top (the choice big in the "
              "layer's colour, neighbours peeking, square marks), one row of four cells under it in the knob colours (blue "
              "orange white green) with stripe bars and values, the cell just turned on a hot block; missing parameters are a "

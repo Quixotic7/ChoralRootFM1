@@ -32,7 +32,7 @@
    "KNOB4": "FX"
   }
  },
- "notes": "The fx layer today shows the effect picker alone; KNOB 1-3's parameters differ per effect and appear only as popups (state 1). Proposal (2-5): a layer grammar, the `knobrow` kind: the picker on top (the choice big in the layer's colour, neighbours peeking, square marks), one row of four cells under it in the knob colours (blue orange white green) with stripe bars and values, the cell just turned on a hot block; missing parameters are a dim '\u2013'; the FX amount lands on green KNOB 4. Alternatives (6, 7): four tall stripes, the amount first. The grammar on the perform and bass layers (8, 9). Recommended: the knob row, on every layer.",
+ "notes": "The fx layer today shows the effect picker alone (state 1); every parameter cell carries a bespoke glyph that changes with its value (room, moon, echoes, lfo, clip, mix: states 2-7); KNOB 1-3's parameters differ per effect and appear only as popups (state 1). Proposal (2-5): a layer grammar, the `knobrow` kind: the picker on top (the choice big in the layer's colour, neighbours peeking, square marks), one row of four cells under it in the knob colours (blue orange white green) with stripe bars and values, the cell just turned on a hot block; missing parameters are a dim '\u2013'; the FX amount lands on green KNOB 4. Alternatives (6, 7): four tall stripes, the amount first. The grammar on the perform and bass layers (8, 9). Recommended: the knob row, on every layer.",
  "states": [
   {
    "name": "1 \u00b7 today: the fx layer is a picker; the knobs are a surprise",
@@ -278,20 +278,25 @@
       {
        "label": "Size",
        "value": "90",
+       "glyph": "room",
        "pct": 0.709
       },
       {
        "label": "Damp",
        "value": "60",
-       "pct": 0.472
+       "glyph": "moon",
+       "pct": 0.528
       },
       {
        "label": "Type",
-       "value": "Room"
+       "value": "Room",
+       "glyph": "room",
+       "pct": 0.5
       },
       {
        "label": "Amount",
        "value": "25",
+       "glyph": "mix",
        "pct": 0.25
       }
      ],
@@ -424,21 +429,27 @@
       {
        "label": "Time",
        "value": "1/8",
-       "pct": 0.5
+       "glyph": "echoes",
+       "pct": 0.45,
+       "pct2": 0.5
       },
       {
        "label": "Feedback",
        "value": "60",
-       "pct": 0.5
+       "glyph": "echoes",
+       "pct": 0.45,
+       "pct2": 0.5
       },
       {
        "label": "Colour",
        "value": "70",
+       "glyph": "moon",
        "pct": 0.551
       },
       {
        "label": "Amount",
        "value": "40",
+       "glyph": "mix",
        "pct": 0.4
       }
      ],
@@ -571,17 +582,22 @@
       {
        "label": "Rate",
        "value": "0.8 Hz",
-       "pct": 0.315
+       "glyph": "lfo",
+       "pct": 0.3,
+       "pct2": 0.5
       },
       {
        "label": "Depth",
        "value": "60",
-       "pct": 0.472
+       "glyph": "lfo",
+       "pct": 0.3,
+       "pct2": 0.472
       },
       null,
       {
        "label": "Amount",
        "value": "30",
+       "glyph": "mix",
        "pct": 0.3
       }
      ],
@@ -717,6 +733,7 @@
       {
        "label": "Amount",
        "value": "off",
+       "glyph": "clip",
        "pct": 0.0
       }
      ],
@@ -730,7 +747,481 @@
    }
   },
   {
-   "name": "6 \u00b7 alternative: four tall stripes",
+   "name": "5b \u00b7 knob row: Reverb, Type = Spring",
+   "notes": "TYPE is an enum (Room / Spring), so its cell is a picture of the type rather than a level: the room box for Room, a coil for Spring. The other cells keep their pictures.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "REVERB",
+    "11": "CHORUS",
+    "12": "DELAY",
+    "14": "DRIVE"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 3,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "FX": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SIZE",
+     "value": "90"
+    },
+    "KNOB2": {
+     "note": "DAMP",
+     "value": "60"
+    },
+    "KNOB3": {
+     "note": "TYPE",
+     "value": "SPRING"
+    },
+    "KNOB4": {
+     "note": "AMOUNT",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "knobrow",
+     "items": [
+      "Reverb",
+      "Chorus",
+      "Delay",
+      "Drive"
+     ],
+     "sel": 0,
+     "col": "green",
+     "label": "fx",
+     "cells": [
+      {
+       "label": "Size",
+       "value": "90",
+       "glyph": "room",
+       "pct": 0.709
+      },
+      {
+       "label": "Damp",
+       "value": "60",
+       "glyph": "moon",
+       "pct": 0.528
+      },
+      {
+       "label": "Type",
+       "value": "Spring",
+       "glyph": "spring"
+      },
+      {
+       "label": "Amount",
+       "value": "25",
+       "glyph": "mix",
+       "pct": 0.25
+      }
+     ],
+     "hot": 2,
+     "value": ""
+    },
+    "footer": {
+     "text": "a root: effect \u00b7 OCT-: back \u00b7 HOME: home"
+    },
+    "note": "Type = Spring: the coil; KNOB 3 just turned (hot)."
+   }
+  },
+  {
+   "name": "6 \u00b7 the glyphs change with the value (low row, high row)",
+   "notes": "The pictures are the readout: the same four parameters at a low value (row A, on the knobs) and a high one (row B): the reverb's room deepens as SIZE grows, the moon fills as the damping lifts, the delay's echoes spread with TIME and linger with FEEDBACK, the chorus wave quickens with RATE and swells with DEPTH, the drive's sine squares off. (Drawn with the editor's two-row kind for the comparison only.)",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {},
+   "keyNotes": {},
+   "buttons": {
+    "FX": 3,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "FX": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB2": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "glyph study",
+     "titleCol": "green",
+     "right": "low \u00b7 high",
+     "rows": [
+      [
+       {
+        "label": "Size",
+        "value": "20",
+        "glyph": "room",
+        "pct": 0.15
+       },
+       {
+        "label": "Time",
+        "value": "1/16",
+        "glyph": "echoes",
+        "pct": 0.15,
+        "pct2": 0.5
+       },
+       {
+        "label": "Feedback",
+        "value": "10",
+        "glyph": "echoes",
+        "pct": 0.45,
+        "pct2": 0.1
+       },
+       {
+        "label": "Drive",
+        "value": "10",
+        "glyph": "clip",
+        "pct": 0.1
+       }
+      ],
+      [
+       {
+        "label": "Size",
+        "value": "120",
+        "glyph": "room",
+        "pct": 0.95
+       },
+       {
+        "label": "Time",
+        "value": "1/2",
+        "glyph": "echoes",
+        "pct": 0.95,
+        "pct2": 0.5
+       },
+       {
+        "label": "Feedback",
+        "value": "110",
+        "glyph": "echoes",
+        "pct": 0.45,
+        "pct2": 0.95
+       },
+       {
+        "label": "Drive",
+        "value": "120",
+        "glyph": "clip",
+        "pct": 0.95
+       }
+      ]
+     ],
+     "active": 0
+    },
+    "footer": null,
+    "note": "the same glyphs low (top) and high (bottom)."
+   }
+  },
+  {
+   "name": "7 \u00b7 the glyphs change with the value, continued",
+   "notes": "Damp and Colour as a moon (dark to full), the chorus Rate (one cycle to five) and Depth (flat to full height), and the dry / wet squares (the front square fills with the amount).",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {},
+   "keyNotes": {},
+   "buttons": {
+    "FX": 3,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "FX": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB2": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "glyph study",
+     "titleCol": "green",
+     "right": "low \u00b7 high",
+     "rows": [
+      [
+       {
+        "label": "Damp",
+        "value": "110",
+        "glyph": "moon",
+        "pct": 0.15
+       },
+       {
+        "label": "Rate",
+        "value": "0.1 Hz",
+        "glyph": "lfo",
+        "pct": 0.05,
+        "pct2": 0.5
+       },
+       {
+        "label": "Depth",
+        "value": "10",
+        "glyph": "lfo",
+        "pct": 0.3,
+        "pct2": 0.1
+       },
+       {
+        "label": "Amount",
+        "value": "10",
+        "glyph": "mix",
+        "pct": 0.1
+       }
+      ],
+      [
+       {
+        "label": "Damp",
+        "value": "10",
+        "glyph": "moon",
+        "pct": 0.95
+       },
+       {
+        "label": "Rate",
+        "value": "6 Hz",
+        "glyph": "lfo",
+        "pct": 0.95,
+        "pct2": 0.5
+       },
+       {
+        "label": "Depth",
+        "value": "120",
+        "glyph": "lfo",
+        "pct": 0.3,
+        "pct2": 0.95
+       },
+       {
+        "label": "Amount",
+        "value": "90",
+        "glyph": "mix",
+        "pct": 0.9
+       }
+      ]
+     ],
+     "active": 0
+    },
+    "footer": null,
+    "note": "moon, LFO and mix glyphs low (top) and high (bottom)."
+   }
+  },
+  {
+   "name": "8 \u00b7 alternative: four tall stripes",
    "notes": "The OSC mixer's tall meters instead of a row: the effect name as the layer's top line, four tall stripe meters in the knob colours filling from the bottom, the values at the foot. Bigger and more graphic, but a text value (TYPE = Room) has no height to fill, and the effect picker has no room left: the roots pick blind.",
    "export": true,
    "keys": [
@@ -864,7 +1355,7 @@
    }
   },
   {
-   "name": "7 \u00b7 alternative: the amount first",
+   "name": "9 \u00b7 alternative: the amount first",
    "notes": "Today's popup made permanent: the amount huge in green over its stripe meter (what the hand rides on KNOB 4), the effect name as the label, and KNOB 1-3's values as one small line under it. Honest about what matters live, but the three parameters are a footnote and still need a popup to be edited.",
    "export": true,
    "keys": [
@@ -983,7 +1474,7 @@
    }
   },
   {
-   "name": "8 \u00b7 the same grammar: the perform layer",
+   "name": "10 \u00b7 the same grammar: the perform layer",
    "notes": "The knob row is a layer grammar, not an FX screen: PERF held shows the mode big in white (Arpeggiate; Slop and Arp 2 Octaves peeking) over RATE / ORDER / RANGE / GATE in the knob colours. Today the mode's parameters are popups too.",
    "export": true,
    "keys": [
@@ -1108,20 +1599,26 @@
       {
        "label": "Rate",
        "value": "1/8",
-       "pct": 0.5
+       "glyph": "echoes",
+       "pct": 0.5,
+       "pct2": 1.0
       },
       {
        "label": "Order",
-       "value": "Up"
+       "value": "Up",
+       "glyph": "arrow",
+       "pct": 0.1
       },
       {
        "label": "Range",
        "value": "1 oct",
+       "glyph": "range",
        "pct": 0.33
       },
       {
        "label": "Gate",
        "value": "70%",
+       "glyph": "gate",
        "pct": 0.7
       }
      ],
@@ -1135,7 +1632,7 @@
    }
   },
   {
-   "name": "9 \u00b7 the same grammar: the bass layer",
+   "name": "11 \u00b7 the same grammar: the bass layer",
    "notes": "BASS held: the behaviour big in orange over REGISTER / SOUND / LEVEL and, on KNOB 1, the behaviour itself (the picker and KNOB 1 are the same control, so the first cell repeats the choice small). Today: the picker alone.",
    "export": true,
    "keys": [
@@ -1253,7 +1750,8 @@
       {
        "label": "Register",
        "value": "-1",
-       "pct": 0.167
+       "glyph": "shift",
+       "pct": 0.333
       },
       {
        "label": "Sound",
@@ -1262,6 +1760,7 @@
       {
        "label": "Level",
        "value": "80",
+       "glyph": "bar",
        "pct": 0.8
       }
      ],
