@@ -40,7 +40,7 @@ cc -std=gnu11 -O2 -w -o build/host/cr_usbaudio_test tests/cr_usbaudio_test.c
 ./build/host/cr_usbaudio_test > build/host/cr_usbaudio_test.log || { cat build/host/cr_usbaudio_test.log; exit 1; }
 tail -1 build/host/cr_usbaudio_test.log
 cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_midi_test tests/cr_midi_test.c
-exec ./build/host/cr_midi_test
+./build/host/cr_midi_test
 # the sound templates the clients embed for .syx imports are the firmware's defaults (docs/SOUNDS.md)
 cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/sound_templates tests/sound_templates.c -lm
 ./build/host/sound_templates --check web/fm1sounds.js tools/fm1_install.py
