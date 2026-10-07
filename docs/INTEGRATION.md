@@ -74,7 +74,7 @@ band (`cr_draw.c`, `cr_edit.c`), five chord rows and a bass in `cr_bank.c`. The 
 before (`tests/regress.c`: goldens added, none changed).
 
 Build flags stay Felucca's; `FELUCCA_SLICE=0`, `FELUCCA_SLICER=0`, `FELUCCA_FM4=0`, `FELUCCA_UAC=1` (since 0.14 Melodee's
-USB audio: ChoralRoot Out / ChoralRoot In, docs/USB-AUDIO.md), `FELUCCA_UART=1`,
+USB audio recording: ChoralRoot In, docs/USB-AUDIO.md), `FELUCCA_UART=1`,
 and the all-synth set `FELUCCA_SEQ=0`, `FELUCCA_SAMPLE=0`, `FELUCCA_GRAIN=0`, `FELUCCA_DRUM=0`, `FELUCCA_ICONS=0`,
 `FELUCCA_KEYCAPS=0` (BUILDING.md).
 The package identity becomes `FM-1_920` and the version string `ChoralRoot 0.1`.
@@ -289,13 +289,13 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
   Tests: `tests/cr_bootguard_test.c`; `tools/emu/scripts/cr_safe*.txt` (`--boot-fail`, `--reset-reason`,
   `--boot-stage`; shots `build/emu/test/cr_safe_*.ppm`).
 
-- **USB audio (0.14, docs/USB-AUDIO.md)**: Melodee's two UAC1 functions in `usb.c` / `usb_audio.c` /
-  `usb_audio_stream.c` / `usb_audio_desc.h`: "ChoralRoot Out" (the computer's stereo, added after the master limiter,
-  x MASTER) and "ChoralRoot In" (six channels: the master before the click and the playback, the CHORD and BASS parts'
-  dry stereo at -6 dB: `fx.c` `ua_stage`, `choralroot.c`'s `mix_block` shim). The endpoints are served from TIMER5
-  (`main.c` `ua_service`, nested in the render); `audio.c` copies a block with the IRQs off. Options > USB Audio Out /
-  In leave a device out of the configuration (the FM-1 replugs itself, `usb_replug`); both off present the serial
-  console instead (EP2 / EP3 are shared). Options > USB Level = Fixed (Felucca 1.0.5): USB at the full level, MASTER
+- **USB audio (0.14, docs/USB-AUDIO.md)**: Melodee's UAC1 recording function in `usb.c` / `usb_audio.c` /
+  `usb_audio_stream.c` / `usb_audio_desc.h`: "ChoralRoot In" (six channels: the master before the click, the CHORD
+  and BASS parts' dry stereo at -6 dB: `fx.c` `ua_stage`, `choralroot.c`'s `mix_block` shim). Melodee's playback
+  function ("ChoralRoot Out" in the dev builds) is removed. The endpoint is served from TIMER5 (`main.c`
+  `ua_service`, nested in the render); `audio.c` copies a block with the IRQs off. Options > USB Record Off leaves
+  the recording out and presents the serial console instead (the FM-1 replugs itself, `usb_replug`; both need EP2
+  IN). Options > USB Level = Fixed (Felucca 1.0.5): USB at the full level, MASTER
   scales the DAC after (`fx.c` `usb_fixed_dac`). The emulator has no USB (`FELUCCA_UAC` 0 there): the settings only.
   Felucca 1.0.5's BASS+ fix (#42) came with it: `spk_bass`'s low-pass has 4 poles.
 
@@ -333,7 +333,7 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
   register, sound, level), EDIT (the engine picker; KNOB 1 the engine's sounds). Knobs: KNOB 1 voicing, KNOB 2 bass
   voicing, KNOB 3 the mode's main parameter, KNOB 4 FX amount, PRESETS the chord sound (Felucca's factory presets of
   the melodic engines, POLY), ALGORITHM the bass (presets named BASS / ACID; 0 = OFF), SELECT tempo (in a picker:
-  move); OPT + ALGORITHM bass level. Options: a picker of 19 settings (USB Audio Out / In and USB Level since 0.14, docs/USB-AUDIO.md), KNOB 1 sets. `cr_build_screen` in the order
+  move); OPT + ALGORITHM bass level. Options: a picker of 18 settings (USB Record and USB Level since 0.14, docs/USB-AUDIO.md), KNOB 1 sets. `cr_build_screen` in the order
   of section 5 (PANIC / message, knob meter 900 ms, layer, page, Options, idle stripes after 3 s, the View: CHORD,
   ARP in motion, KEYBOARD, NOTES, GEEK OUT); `cr_leds` as section 6.
 - **Sounds** (`cr_bank.c`, `cr_pages.c`, `cr_name.c`; section 7): PRESETS browses the ChoralRoot bank (24 chord
@@ -514,7 +514,7 @@ editing over SysEx: `web/editor.html` does not work with ChoralRoot).
 ### Reading it on the device
 
 USB serial console (`FELUCCA_CDC`, the CDC-ACM port; the baud rate is ignored; since 0.14 the FM-1 presents it while
-Options > USB Audio Out and USB Audio In are both Off, and in SAFE MODE: docs/USB-AUDIO.md): `screen /dev/tty.usbmodem* 115200`
+Options > USB Record is Off, and in SAFE MODE: docs/USB-AUDIO.md): `screen /dev/tty.usbmodem* 115200`
 on the Mac (or any terminal), then `cpu` (`help` lists the rest; `status` and `dbg` are Felucca's; `boot` prints the
 boot guard: this boot's mode (normal / safe), failed and pending, the reset that started it (power-on, wdt, soft,
 other; the raw `p3_rst`, `rst_src`, `wdt_con`), the stage the last run reached (`last_stage 13 fm6 bank`) and every
@@ -568,7 +568,7 @@ buses +1 % (no buffer of theirs saturates). ChoralRoot's own ISR work (`cr_audio
 engine's and the looper's ticks, the click, the clock) is ~1.4 % over Felucca's idle mix (silent: 7 % against
 Felucca's 5.4 %); nothing there is worth moving to the UI frame. The host says the ISR has 2x headroom; the device's
 `cpu` readout is the proof (XIP cache misses, the nested TIMER5 and USB audio are not in the host figure; perf.sh's
-(u) line estimates USB audio streaming both ways at ~66 us a half, 2.3 %, without the SIE accesses: docs/USB-AUDIO.md).
+(u) line estimates the USB recording at ~31 us a half, 1.1 %, without the SIE accesses: docs/USB-AUDIO.md).
 
 ### What was found and fixed
 

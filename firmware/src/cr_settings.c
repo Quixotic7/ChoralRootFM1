@@ -82,7 +82,7 @@ void cr_settings_defaults(cr_settings_t *s)
     s->loop_count_in = 1;
     s->metro_vol = 70;
     s->pick_roots = 1;                             /* the engine picker: the roots choose engines */
-    s->usb_out = s->usb_in = 1;                    /* both USB audio devices presented (Melodee's) */
+    s->usb_in = 1;                                 /* USB Record (ChoralRoot In) on */
     s->usb_level = CRS_USB_MASTER;
     for (i = 0; i < 3u; i++) {
         s->midi_en[i] = i != CR_STREAM_RAW;        /* RAW stream off (Orchid) */
@@ -162,7 +162,6 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(metro_vol, 0, 100);
     CRS_FIX(loop_slot, 0, 9);
     CRS_FIX(pick_roots, 0, 1);
-    CRS_FIX(usb_out, 0, 1);
     CRS_FIX(usb_in, 0, 1);
     CRS_FIX(usb_level, 0, CRS_USB_FIXED);
     /* palette, chord_sound, bass_sound: checked against the lists by the UI glue (the lists are the UI's) */
@@ -218,10 +217,11 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
         if (in.version < 4u) {                     /* version 4: USB audio (zeros there would switch both off) */
             cr_settings_t d;
             cr_settings_defaults(&d);
-            s->usb_out = d.usb_out;
             s->usb_in = d.usb_in;
             s->usb_level = d.usb_level;
         }
+        if (in.version < 5u)                       /* version 5: the USB playback removed, its byte (v4's usb_out, */
+            s->rsv_usb = 0;                        /* 1 by default there) cleared */
     }
     crs_sanitize(s);
     cr_settings_seal(s);
@@ -322,7 +322,7 @@ static void crs_usb_apply(const cr_settings_t *s)
 {
     fx_usb_fixed = s->usb_level == CRS_USB_FIXED;
 #if FELUCCA_UAC
-    ua_off = ua_off_want = (uint8_t)((s->usb_out ? 0u : UA_OFF_OUT) | (s->usb_in ? 0u : UA_OFF_IN));
+    ua_off = ua_off_want = s->usb_in ? 0u : UA_OFF_IN;
 #endif
 }
 
@@ -394,7 +394,6 @@ static void crs_capture(cr_settings_t *s)
     s->metro_vol = cs.metro_vol;
     s->loop_slot = cs.loop_slot;
     s->pick_roots = cs.pick_roots;
-    s->usb_out = cs.usb_out;
     s->usb_in = cs.usb_in;
     s->usb_level = cs.usb_fixed;
     s->split_pc = cs.split;
@@ -448,10 +447,9 @@ static void cr_settings_load(void)
     cs.metro_vol = s->metro_vol;
     cs.loop_slot = s->loop_slot;
     cs.pick_roots = s->pick_roots;
-    cs.usb_out = s->usb_out;
     cs.usb_in = s->usb_in;
     cs.usb_fixed = s->usb_level;
-    fx_usb_fixed = cs.usb_fixed;                   /* (USB Audio Out / In: crs_usb_apply at boot, before usb_start) */
+    fx_usb_fixed = cs.usb_fixed;                   /* (USB Record: crs_usb_apply at boot, before usb_start) */
     cs.split = s->split_pc;
     cs.view = s->view;
     cr_motion = s->motion;

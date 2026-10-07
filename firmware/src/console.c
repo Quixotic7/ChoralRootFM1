@@ -168,22 +168,16 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
 #endif
 
 #if FELUCCA_UAC
-static void con_uac(void)                              /* USB audio (usb_audio_stream.c): the streams and their glitches
-                                                        * (the console is presented only with both devices off: the
-                                                        * counters of the last streams, since the boot) */
+static void con_uac(void)                              /* USB audio (usb_audio_stream.c): the recording and its
+                                                        * glitches (the console is presented only with USB Record
+                                                        * Off: the counters of the last stream, since the boot) */
 {
     con_kv("ua_off", ua_off);
-    con_kv("ua_play_alt", ua.play_alt);
     con_kv("ua_cap_alt", ua.cap_alt);
-    con_kv("ua_rx_pkts", (int32_t)ua.rx_packets);
     con_kv("ua_tx_pkts", (int32_t)ua.tx_packets);
-    con_kv("ua_play_underruns", (int32_t)ua.play_underruns);
-    con_kv("ua_play_overruns", (int32_t)ua.play_overruns);
     con_kv("ua_cap_underruns", (int32_t)ua.cap_underruns);
     con_kv("ua_cap_overruns", (int32_t)ua.cap_overruns);
-    con_kv("ua_bad_pkts", (int32_t)ua.bad_packets);
     con_kv("ua_missed_frames", (int32_t)ua.missed_frames);
-    con_kv("ua_feedback", (int32_t)ua_feedback());
     con_kv("ua_poll_max_us", (int32_t)(ua.poll_max_ticks / FM1_TICKS_PER_US));
     con_kv("ua_service_max_us", (int32_t)(ua.service_max_ticks / FM1_TICKS_PER_US));
 }

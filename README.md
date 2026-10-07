@@ -62,9 +62,9 @@ Installing firmware is at your own risk.
 A first public beta (0.1). The instrument plays: the chord block, Key Mode, the performance modes,
 the bass, the views; the sound editor, the looper, MIDI (USB and TRS) and the VA engine are in. The engines: ANALOG,
 FM6 (Melodee's: DX7 voices rendered as Dexed renders them, DX7 SysEx import, [docs/FM6.md](docs/FM6.md)), VA, PHASE,
-CZ-1 (Melodee's, [docs/CZ1.md](docs/CZ1.md)), LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE. **USB audio** (Melodee's,
-class compliant, no driver): **ChoralRoot Out** plays the computer through the FM-1, **ChoralRoot In** records the
-master, the CHORD part and the BASS part as three stereo pairs; each can be switched off in Options
+CZ-1 (Melodee's, [docs/CZ1.md](docs/CZ1.md)), LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE. **USB audio recording** (Melodee's,
+class compliant, no driver): the computer records the FM-1 through **ChoralRoot In**: the master, the CHORD part and
+the BASS part as three stereo pairs; Options > USB Record switches it (Off: the serial console instead)
 ([docs/USB-AUDIO.md](docs/USB-AUDIO.md)). Open: the
 Orchid parity passes (M8: the secret-chord map, chromatic Key Mode quantization, Key Mode sevenths and the
 factory patterns, which ship as labelled fallbacks until they are captured from an Orchid).

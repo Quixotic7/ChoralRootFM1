@@ -17,10 +17,10 @@ extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[];
  * encoders lost frames. Nested in ALNK0 it only scans (GPIO + fm1_in, nothing the audio ISR touches)
  * and counts ms; USB and UART polls wait for the first tick after the render, as they always did,
  * and the time spent nested is handed to the audio ISR so its load figures stay render-only.
- * The USB audio streams cannot wait for the render (a packet each way per 1 ms frame, a render takes up to
+ * The USB audio stream cannot wait for the render (a packet per 1 ms frame, a render takes up to
  * ~5 ms): ua_service also runs nested, by elapsed time (every 250 us at most: work spanning ticks does not
- * stretch the next deadline). It touches only the audio endpoints (INDEX is set on every access) and the
- * USB side of the audio rings (audio.c copies with the IRQs off), and usb_poll never runs nested, so the
+ * stretch the next deadline). It touches only the audio endpoint (INDEX is set on every access) and the
+ * USB side of the capture ring (audio.c copies with the IRQs off), and usb_poll never runs nested, so the
  * two never interleave (Melodee's). */
 void fm1_timer5_irq(void)
 {
@@ -227,7 +227,7 @@ static void fm1_main(void)
         fm1_wdt_feed();
         usb_retry(fm1_ms);
 #if FELUCCA_UAC
-        if (ua_off_apply(fm1_ms))                       /* Options > USB Audio Out / In: the host re-reads (a second off
+        if (ua_off_apply(fm1_ms))                       /* Options > USB Record: the host re-reads (a second off
                                                          * the bus; the setting is saved as any other, cr_settings.c) */
             ui_message("USB RECONNECTING");
 #endif

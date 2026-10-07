@@ -47,8 +47,8 @@
 #                   contacts: a press within 2 scans (<= 2.3 ms), one note per bouncy press, no early or hanging
 #                   release, stray samples ignored, fast repeats, the encoders' detents; the LED scan: lit LEDs every
 #                   frame, dim ones a short pulse (the second line write) every frame, each only on its own column.
-# USB audio (tests/cr_usbaudio_test.c, also in run_cr_tests.sh): Melodee's two UAC1 functions as ChoralRoot builds
-#                   them: the descriptors in each presentation, routing, packing, the rings against clock drift.
+# USB audio (tests/cr_usbaudio_test.c, also in run_cr_tests.sh): Melodee's UAC1 recording as ChoralRoot builds it
+#                   (no playback): the descriptors in each presentation, routing, packing, the ring against drift.
 # web (web/test_web.mjs): the editor protocol against its mock device, whose tables must equal the
 #                   firmware's (tests/descdump.c -> build/host/desc.json), the package builder, the updater.
 # PHYS (tests/phys_test.c): stability over the whole parameter and pitch range, the worst-case cost against

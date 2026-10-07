@@ -66,13 +66,13 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
     if (fx_usb_fixed)                                   /* Options > USB Level = Fixed: USB took the full level, the */
         usb_fixed_dac(out, n);                          /* DAC (speaker, headphones) gets MASTER's (fx.c) */
 #if FELUCCA_UAC
-    /* the USB audio rings (usb_audio_stream.c): the capture frames in (fx.c ua_stage), ChoralRoot Out's playback into
-     * the output. TIMER5 serves the endpoints nested in this render (main.c): only this short copy goes without IRQs,
-     * stream resets and alternate changes included, not the synth and FX work (Melodee's) */
-    if (ua.play_alt | ua.cap_alt) {                     /* (a stream selected: else no IRQ-off section at all) */
+    /* the USB recording's ring (usb_audio_stream.c): the capture frames in (fx.c ua_stage). TIMER5 serves the
+     * endpoint nested in this render (main.c): only this short copy goes without IRQs, stream resets and alternate
+     * changes included, not the synth and FX work (Melodee's) */
+    if (ua_stage_on) {                                  /* (the computer records: else no IRQ-off section at all) */
         fm1_irq_off();
         if (usb.up && usb.config && !usb.suspended && !USB_CDC_ON)
-            ua_audio(out, ua_stage_on ? ua_stage : 0, n, song.master_q12);   /* (0: not staged this block) */
+            ua_audio(ua_stage, n);
         fm1_irq_on();
     }
 #endif

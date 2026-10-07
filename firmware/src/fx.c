@@ -378,7 +378,7 @@ static void events_block(uint32_t n);                    /* seq.c */
 static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_r[CTL];
 #if FELUCCA_UAC
 /* USB audio's "ChoralRoot In" (usb_audio_stream.c ua_audio), one block's frames of six channels: 0-1 the master
- * (choralroot.c's mix_block shim: before the click and the host's playback), 2-3 the CHORD part, 4-5 the BASS part,
+ * (choralroot.c's mix_block shim: before the click), 2-3 the CHORD part, 4-5 the BASS part,
  * each part's dry stereo as it goes into the mix (after DIST, LEVEL, pan and the stereo side, before the sends, the
  * FX buses and MASTER), at half level (-6 dB: a loud chord there is ~2x the limiter's threshold) and saturated to
  * 16 bits. Filled only while the computer records (ua_stage_on: the shim sets it for the block from ChoralRoot In's

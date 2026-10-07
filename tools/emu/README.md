@@ -24,7 +24,7 @@ build/host/emu --help          # options and the key map
 | `keymap.c` | the computer-key map (change it there; `--help` and the panel hints follow) |
 | `emu_hooks.h` | the boundary: `emu_hal` (keys, buttons, knobs, LEDs, LCD) and the `emu_fw_*` hooks |
 | `emu_fw.c`, `emu_firmware.h`, `emu_hal_fw.h` | the firmware side: its sources, the HAL, power-on, frame, audio ISR |
-| `emu_midi.c` | CoreMIDI: source "ChoralRoot FM-1" (out), destination "ChoralRoot FM-1 In" (in); there is no USB audio (the firmware is built with `FELUCCA_UAC` 0 through `tests/hostsim.c`: Options > USB Audio Out / In / USB Level are kept and saved, USB Level = Fixed applies, nothing streams; docs/USB-AUDIO.md) |
+| `emu_midi.c` | CoreMIDI: source "ChoralRoot FM-1" (out), destination "ChoralRoot FM-1 In" (in); there is no USB audio (the firmware is built with `FELUCCA_UAC` 0 through `tests/hostsim.c`: Options > USB Record / USB Playback / USB Level are kept and saved, USB Level = Fixed applies, nothing streams; docs/USB-AUDIO.md) |
 | `emu_img.c` | LCD to PNG / PPM |
 | `perf.sh`, `scripts/perf_*.txt`, `wavclicks.py` | the worst cases for the CPU and the pops (docs/INTEGRATION.md, Performance): the audio block's cost and its device estimate, the UI frame's, voices stolen, flash erases, and the WAV checked for jumps, silent holes and clicks |
 | `scripts/`, `test.sh`, `test_cr.sh` | headless scripts and their checks (`sel.txt`, `knobs.txt`, `acceptance.txt`: Felucca's UI, no longer run) |

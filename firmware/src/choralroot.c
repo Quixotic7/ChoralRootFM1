@@ -33,8 +33,8 @@
                                   * are off, and in SAFE MODE; usb.c usb_cdc_on) */
 #endif
 #ifndef FELUCCA_UAC
-#define FELUCCA_UAC 1            /* USB audio (Melodee's, docs/USB-AUDIO.md): "ChoralRoot Out" plays the computer through
-                                  * the FM-1, "ChoralRoot In" records the master, CHORD and BASS (six channels) */
+#define FELUCCA_UAC 1            /* USB audio recording (Melodee's, docs/USB-AUDIO.md): "ChoralRoot In" records the
+                                  * master, CHORD and BASS (six channels) */
 #endif
 #ifndef FELUCCA_UART
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 / PH8 */
@@ -148,7 +148,7 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 #endif
     fx_mix_block(out, n);
 #if FELUCCA_UAC
-    if (ua_stage_on) {   /* USB audio: ChoralRoot In's master pair (fx.c ua_stage), before the click and the playback */
+    if (ua_stage_on) {   /* USB audio: ChoralRoot In's master pair (fx.c ua_stage), before the click */
         uint32_t i;
         for (i = 0; i < n; i++) {
             ua_stage[i * UA_CAP_CHANNELS] = ua_sat(out[2u * i]);

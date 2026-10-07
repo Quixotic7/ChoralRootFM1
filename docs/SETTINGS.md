@@ -28,7 +28,7 @@ LEDs in `zoom`.
 The block has its own header:
 
 - `magic` `CRS1`
-- `version` (`CRS_VERSION`, currently 4)
+- `version` (`CRS_VERSION`, currently 5)
 - `size` (the writer's `CRS_SIZE`)
 - `check`: FNV-1a over bytes 12..size
 
@@ -56,8 +56,9 @@ The block has its own header:
 | bass_sound | the ALGORITHM position BASS tap brings (1..), 0 = the UI's default | SUB BASS |
 | metro_on, metro_sig, metro_vol, loop_slot (v2) | the click, 4/4 3/4 6/8, 0..100, 0..9 | off, 4/4, 70, 0 |
 | pick_roots (v3) | the engine picker's white roots: 1 choose engines, 0 play (KNOB 4 in the picker) | **1** (engines) |
-| usb_out, usb_in (v4) | Options > USB Audio Out / In: the device is presented to the computer (docs/USB-AUDIO.md) | **1, 1** (both on, Melodee's); a v1..v3 record takes these (its zeros would mean off) |
-| usb_level (v4) | Options > USB Level: `CRS_USB_MASTER` (USB follows MASTER) / `CRS_USB_FIXED` (USB at the full level, MASTER after) | Master |
+| rsv_usb (v4: usb_out) | retired in v5: v4's Options > USB Audio Out (the playback device, removed: docs/USB-AUDIO.md) | 0; a v4 record's byte (1 by default there) is cleared on import |
+| usb_in (v4) | Options > **USB Record**: ChoralRoot In is presented to the computer (docs/USB-AUDIO.md); Off: the serial console instead | **1** (on); a v1..v3 record takes it (its zero would mean off) |
+| usb_level (v4) | Options > USB Level: `CRS_USB_MASTER` (the recording follows MASTER) / `CRS_USB_FIXED` (recorded at the full level, MASTER after) | Master |
 | rsv[20] | reserve for new fields | 0 |
 
 ### Import rules (`cr_settings_import`)
@@ -72,6 +73,11 @@ The block has its own header:
 4. **Range check:** every field is checked against its range. A field out of range takes its default and the
    others are kept.
 5. **Lists:** `palette`, `chord_sound` and `bass_sound` are checked against the lists by the glue.
+
+Migrations by version (the `in.version < CRS_VERSION` block): v1 → 2 the metronome fields and the loop slot take
+their defaults; v2 → 3 `pick_roots`; v3 → 4 the USB settings (`usb_in` on, `usb_level` Master; the zeros there would
+switch the recording off); v4 → 5 the USB playback is removed: `rsv_usb` (v4's `usb_out`) is cleared, `usb_in` and
+`usb_level` are kept.
 
 ## How to add a field
 

@@ -10,17 +10,16 @@
  * TEST id: fine for the bench, must be replaced before any release.
  * FELUCCA_CDC=1 adds a CDC-ACM serial function (IAD composite: EP2 notify,
  * EP3 bulk data) for the console in console.c.
- * FELUCCA_UAC=1 adds Melodee's USB audio (usb_audio.c, docs/USB-AUDIO.md): two
- * UAC1 functions, a stereo output device "ChoralRoot Out" (EP2 OUT, explicit
- * feedback on EP3) and a separate six-channel input device "ChoralRoot In"
- * (EP2 IN: the master, CHORD and BASS, each a stereo pair), 44.1 kHz. Their
- * endpoints are served from the TIMER5 ISR by elapsed time (ua_service,
- * main.c), nested in the render too; usb_poll never runs nested, so the two
- * never interleave. Either can be left out of the configuration (ua_off,
- * Options > USB Audio Out / In); usb_replug makes the host see the change.
- * The audio functions and the console share EP2 / EP3: a build with both
- * presents the console only when both audio devices are off (Options) and in
- * SAFE MODE (usb_cdc_on, decided at usb_start), the audio otherwise.
+ * FELUCCA_UAC=1 adds Melodee's USB audio recording (usb_audio.c,
+ * docs/USB-AUDIO.md): one UAC1 function, the six-channel input device
+ * "ChoralRoot In" (EP2 IN: the master, CHORD and BASS, each a stereo pair),
+ * 44.1 kHz; Melodee's playback function is not there. Its endpoint is served
+ * from the TIMER5 ISR by elapsed time (ua_service, main.c), nested in the
+ * render too; usb_poll never runs nested, so the two never interleave. It can
+ * be left out of the configuration (ua_off, Options > USB Record); usb_replug
+ * makes the host see the change. The recording and the console both need EP2
+ * IN: a build with both presents the console only when USB Record is Off and
+ * in SAFE MODE (usb_cdc_on, decided at usb_start), the recording otherwise.
  * The update loader leaves both off: MIDI only. */
 #include "../hal/fm1_usb.h"   /* registers; relative, so the loader and the host tests find it too */
 #ifndef FELUCCA_CDC
@@ -129,16 +128,16 @@ static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 #define FELUCCA_USB_PID 0x0001   /* the update loader is 0x0002 */
 #endif
 #if FELUCCA_UAC
-/* interfaces: 0 audio control, 1 MIDI streaming, then the USB audio functions' four (usb_audio_desc.h), or with the
- * console presented (usb_cdc_on) CDC's two instead (CFG_DESC_CDC).
- * bcdDevice (hosts cache descriptors per version): 3.20 ChoralRoot's USB audio (Melodee's 3.06 has four capture
- * channels: another layout), 3.21 ChoralRoot's MIDI + console */
+/* interfaces: 0 audio control, 1 MIDI streaming, then the recording's two (usb_audio_desc.h), or with the console
+ * presented (usb_cdc_on) CDC's two instead (CFG_DESC_CDC).
+ * bcdDevice (hosts cache descriptors per version): 3.22 ChoralRoot's USB recording (3.20 was the 0.14 dev builds'
+ * playback + recording, Melodee's 3.06 has four capture channels: other layouts), 3.21 ChoralRoot's MIDI + console */
 #include "usb_audio_stream.c"
-#define CFG_LEN 368
+#define CFG_LEN 208
 static const uint8_t DEV_DESC[18] = {18, 1, 0x00, 0x02, 0xEF, 0x02, 0x01, 64, 0x09, 0x12, FELUCCA_USB_PID & 0xFF,
-                                     FELUCCA_USB_PID >> 8, 0x20, 0x03, 1, 2, 0, 1};   /* misc/IAD, 3.20 */
+                                     FELUCCA_USB_PID >> 8, 0x22, 0x03, 1, 2, 0, 1};   /* misc/IAD, 3.22 */
 static const uint8_t CFG_DESC[] = {
-    9, 2, CFG_LEN & 0xFF, CFG_LEN >> 8, 6, 1, 0, 0x80, 50,   /* 368 bytes, six interfaces */
+    9, 2, CFG_LEN & 0xFF, CFG_LEN >> 8, 4, 1, 0, 0x80, 50,   /* 208 bytes, four interfaces */
     8, 0x0B, 0, 2, 1, 1, 0, 0,                          /* IAD: MIDI (IF 0-1) */
     9, 4, 0, 0, 0, 1, 1, 0, 0,
     9, 0x24, 1, 0x00, 0x01, 9, 0, 1, 1,
@@ -282,9 +281,9 @@ static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
 }
 #else
 /* the device's strings: 1 the maker, 2 the product (the MIDI port's name: tools/fm1_install.py, web/fm1ota.js and
- * web/editor.html match "FM-1" / "ChoralRoot"), 3 / 4 the audio devices, 5..10 the recording's channel names
+ * web/editor.html match "FM-1" / "ChoralRoot"), 3 the recording device, 4..9 its channel names
  * (usb_audio_desc.h). Built from ASCII into usb_str on request (one control transfer at a time) */
-static const char *const USB_STRS[] = {0, "ChoralRoot", "ChoralRoot FM-1", "ChoralRoot Out", "ChoralRoot In",
+static const char *const USB_STRS[] = {0, "ChoralRoot", "ChoralRoot FM-1", "ChoralRoot In",
                                        "Master L", "Master R", "Chord L", "Chord R", "Bass L", "Bass R"};
 #define USB_NSTR (FELUCCA_UAC ? sizeof USB_STRS / sizeof USB_STRS[0] : 3u)
 static uint8_t usb_str[2 + 2 * 16];
@@ -389,7 +388,7 @@ static void ep1_config(void)
     fm1_usb_ep_enable(1u << 1);
 #if FELUCCA_CDC
     if (!USB_CDC_ON)
-        return;                                         /* the audio presented: EP2 / EP3 are its (usb_audio.c) */
+        return;                                         /* the recording presented: EP2 IN is its (usb_audio.c) */
     fm1_usb_ep_txbuf(2, ep2tx);
     sie_wr(S_INDEX, 2);
     sie_wr(S_TXMAXP, 0xFF);
@@ -553,11 +552,11 @@ static void ep0_service(void)
     case 0x8200:
         e0_send(zero2, 2, wlength);
         return;
-    case 0x010B:                                        /* SET_INTERFACE: alt 0 (1, 2 for the audio streams) */
+    case 0x010B:                                        /* SET_INTERFACE: alt 0 (1 for the recording) */
 #if FELUCCA_UAC
         if (wlength || s[5] || !usb.config || s[4] >= ua_nif)
             goto stall;
-        if (s[4] == ua_if_play || s[4] == ua_if_cap) {
+        if (s[4] == ua_if_cap) {
             if (ua_set_interface(s[4], wvalue))
                 goto ack;
             goto stall;
@@ -570,8 +569,8 @@ static void ep0_service(void)
 #if FELUCCA_UAC
         if (wvalue || s[5] || s[4] >= ua_nif || !usb.config)
             goto stall;
-        if (s[4] == ua_if_play || s[4] == ua_if_cap) {
-            e0_send(s[4] == ua_if_play ? &ua.play_alt : &ua.cap_alt, 1, wlength);
+        if (s[4] == ua_if_cap) {
+            e0_send(&ua.cap_alt, 1, wlength);
             return;
         }
 #endif
@@ -580,7 +579,7 @@ static void ep0_service(void)
     case 0x0201: {                                      /* CLEAR_FEATURE(ENDPOINT_HALT): data toggle reset */
         uint32_t ep = s[4] & 0x0Fu, last = USB_CDC_ON ? 3u : 1u;
 #if FELUCCA_UAC
-        if (wvalue == 0 && !USB_CDC_ON && (s[4] == 0x02u || s[4] == 0x82u || s[4] == 0x83u))
+        if (wvalue == 0 && !USB_CDC_ON && s[4] == 0x82u)
             goto ack;                                   /* isochronous: no halt, no toggle */
 #endif
         if (wvalue != 0 || ep > last)
@@ -1003,12 +1002,12 @@ static void usb_start(void)                             /* boot, or main-loop re
 {
 #if FELUCCA_UAC
 #if FELUCCA_CDC
-    usb_cdc_on = (uint8_t)((ua_off & (UA_OFF_OUT | UA_OFF_IN)) == (UA_OFF_OUT | UA_OFF_IN) || UAC_BLOCKED());
+    usb_cdc_on = (uint8_t)((ua_off & UA_OFF_IN) || UAC_BLOCKED());
 #endif
     ua_reset();
     ua_rate_pending = 0;
     ua_frame_valid = ua_paused = 0;
-    ua_cfg_build();                                     /* without the functions in ua_off (or the console's) */
+    ua_cfg_build();                                     /* without the recording if in ua_off (or the console's) */
 #endif
     usb.timeouts = 0;
     fm1_usb_reset();                                    /* reset whatever the ROM left */
@@ -1069,7 +1068,7 @@ static void usb_replug(uint32_t now_ms)
 #endif
 }
 
-/* Options > USB Audio Out / In switch a device on or off (main loop). The host gets the new configuration once the
+/* Options > USB Record switches the recording on or off (main loop). The host gets the new configuration once the
  * setting has rested for 0.6 s, so stepping through Off and back costs no replug. ua_off_apply: 1 = replugged. */
 static void ua_off_set(uint32_t bit, int on, uint32_t now_ms)
 {
@@ -1089,7 +1088,7 @@ static int ua_off_apply(uint32_t now_ms)
     return 1;
 }
 
-/* TIMER5 (main.c), every 250 us at most and nested in the render too: the isochronous endpoints */
+/* TIMER5 (main.c), every 250 us at most and nested in the render too: the isochronous endpoint */
 static void ua_service(void)
 {
     if (usb.up && !USB_CDC_ON)

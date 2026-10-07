@@ -13,7 +13,7 @@
 #include <stdint.h>
 
 #define CRS_MAGIC 0x31535243u           /* "CRS1" */
-#define CRS_VERSION 4u
+#define CRS_VERSION 5u
 #define CRS_SIZE 192u                   /* bytes, header included; never changes (fields come out of rsv) */
 #define CRS_NPM 5                       /* perform modes (cr_engine.h CR_PM_COUNT) */
 #define CRS_NPAR 11                     /* parameters per mode (CR_P_COUNT) */
@@ -49,8 +49,8 @@ typedef struct {
     uint8_t metro_on, metro_sig, metro_vol, loop_slot;   /* the click, 4/4 3/4 6/8, its level 0..100, slot 0..9 */
     /* version 3 */
     uint8_t pick_roots;                              /* the engine picker's white roots: 1 engines, 0 they play */
-    /* version 4 */
-    uint8_t usb_out, usb_in, usb_level;              /* Options > USB Audio Out / In (on), USB Level (CRS_USB_*) */
+    /* version 4 (rsv_usb: v4's usb_out, Options > USB Audio Out, the playback removed in v5: always 0 since) */
+    uint8_t rsv_usb, usb_in, usb_level;              /* -, Options > USB Record (on), USB Level (CRS_USB_*) */
     uint8_t rsv[20];                                 /* new fields come out of here */
 } cr_settings_t;
 
