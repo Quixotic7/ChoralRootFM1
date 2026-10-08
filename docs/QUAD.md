@@ -75,7 +75,7 @@ number**; Harm and Dtune have their own glyphs (the harm wave; detune a flat lin
 | FILT | 1 `FILTER` | Attack · Decay · Sustain · Release (the filter envelope) / Freq · Reso · Type · Env depth | the filter response band (multimode: LP HP BP, as the VA's) |
 | | 2 `FILTER 2` | Env delay · Key track · – · – / Base · Width · – · – | the base-width filter drawn as a window (two edges) on the response band |
 | AMP ("master envelope") | `AMP` | Attack · Decay · Sustain · Release / Level · Pan · Drive · – | the AHDSR band (QUAD is `ownenv`: its own amp envelope, as the Digitone's AMP page; velocity to level) |
-| LFO | `LFO 1`, `LFO 2`, `LFO 3` (one screen each, as the Digitone's three) | Speed · Multiplier · Fade · Dest / Wave · Start phase · Trig mode · Depth | the lfo glyph (density = speed, height = depth); Dest an enum over QUAD's parameters (the Digitone's list: the SYN and FILT pages' values, amp level, pan) |
+| LFO | `LFO 1`, `LFO 2`, `LFO 3` (one screen each, as the Digitone's three) | Speed · Multiplier · Fade · Dest / Wave + Start phase (one double cell on KNOB 1 and 2) · Trig mode · Depth | Speed is a **bipolar knob** -64..+64 with a centre detent (negative runs the LFO backwards), Multiplier the fixed series 1 2 4 8 16 32 64 128 256 512 1k 2k, Dest an enum over QUAD's parameters (the Digitone's list: the SYN and FILT pages' values, amp level, pan); **Wave and Start phase read as one parameter**: a double-width cell draws the chosen wave (tri, sine, square, saw, ramp, exp, random) shifted by the phase, so turning the phase knob slides the shape; Depth bipolar |
 | MOD | the platform's routes | | as every engine (QUAD's two LFOs are its own; the platform's matrix still reaches the P_E macros) |
 | FX, MIX | as every engine | | |
 

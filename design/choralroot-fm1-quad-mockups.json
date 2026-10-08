@@ -1234,7 +1234,7 @@
   },
   {
    "name": "8 \u00b7 QUAD \u00b7 LFO 1 (LFO 2 and LFO 3 the same, a screen each)",
-   "notes": "Three LFOs, a screen each (the Digitone's): Speed \u00b7 Multiplier \u00b7 Fade \u00b7 Dest (an enum over QUAD's parameters: Harm, Dtune, Feedback, Mix, the ratios, the filter's Freq and Reso, Level, Pan) / Wave \u00b7 Start phase \u00b7 Trig mode (free / trig / hold / one / half) \u00b7 Depth. The lfo glyph: density = speed, height = depth.",
+   "notes": "Three LFOs, a screen each (the Digitone's): Speed (a bipolar knob, -64..+64, centre detent; negative runs backwards) \u00b7 Multiplier (1 2 4 .. 1k 2k) \u00b7 Fade \u00b7 Dest (an enum over QUAD's parameters: Harm, Dtune, Feedback, Mix, the ratios, the filter's Freq and Reso, Level, Pan) / Wave + Start phase as one double-width cell (the chosen wave drawn shifted by the phase: turning the phase slides the shape; KNOB 1 picks the wave, KNOB 2 the phase) \u00b7 Trig mode (free / trig / hold / one / half) \u00b7 Depth.",
    "export": true,
    "keys": [
     1,
@@ -1328,11 +1328,11 @@
     },
     "KNOB1": {
      "note": "SPEED",
-     "value": "24"
+     "value": "+24"
     },
     "KNOB2": {
      "note": "MULT",
-     "value": "x2"
+     "value": "x16"
     },
     "KNOB3": {
      "note": "FADE",
@@ -1355,14 +1355,14 @@
       [
        {
         "label": "Speed",
-        "value": "24",
-        "glyph": "lfo",
-        "pct": 0.3,
-        "pct2": 0.6
+        "value": "+24",
+        "glyph": "knob",
+        "pct": 0.688,
+        "bipolar": true
        },
        {
         "label": "Mult",
-        "value": "x2"
+        "value": "x16"
        },
        {
         "label": "Fade",
@@ -1376,17 +1376,15 @@
       ],
       [
        {
-        "label": "Wave",
-        "value": "Tri",
-        "glyph": "wave"
+        "label": "Wave \u00b7 Phase",
+        "value": "Tri \u00b7 90",
+        "glyph": "lfowave",
+        "pct": 0.25,
+        "wave": "tri",
+        "span": 2
        },
        {
-        "label": "Phase",
-        "value": "0",
-        "pct": 0.0
-       },
-       {
-        "label": "Mode",
+        "label": "Trig",
         "value": "Free"
        },
        {
@@ -1401,7 +1399,7 @@
      "hot": null
     },
     "footer": null,
-    "note": "LFO 1: speed with the lfo glyph, the destination as an enum."
+    "note": "LFO 1: the speed knob, the multiplier, the wave + phase double cell."
    }
   },
   {

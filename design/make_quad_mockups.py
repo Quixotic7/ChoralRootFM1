@@ -137,15 +137,15 @@ S.append(state(
 # 8 ---------------------------------------------------------------- LFO 1
 S.append(state(
     "8 · QUAD · LFO 1 (LFO 2 and LFO 3 the same, a screen each)",
-    "Three LFOs, a screen each (the Digitone's): Speed · Multiplier · Fade · Dest (an enum over QUAD's parameters: Harm, Dtune, Feedback, Mix, "
-    "the ratios, the filter's Freq and Reso, Level, Pan) / Wave · Start phase · Trig mode (free / trig / hold / one / half) · Depth. The lfo "
-    "glyph: density = speed, height = depth.",
+    "Three LFOs, a screen each (the Digitone's): Speed (a bipolar knob, -64..+64, centre detent; negative runs backwards) · Multiplier (1 2 4 .. 1k 2k) · Fade · Dest (an enum over QUAD's parameters: Harm, Dtune, Feedback, Mix, "
+    "the ratios, the filter's Freq and Reso, Level, Pan) / Wave + Start phase as one double-width cell (the chosen wave drawn shifted by the phase: turning the phase slides "
+    "the shape; KNOB 1 picks the wave, KNOB 2 the phase) · Trig mode (free / trig / hold / one / half) · Depth.",
     held=["MAJ"], lit=["D4", "F#4", "A4"], buttons=ED | {"LFO": LIT}, button_labels=EDITOR_BUTTON_LABELS,
-    encoders={"SELECT": ("LFO", "1"), "KNOB1": ("SPEED", "24"), "KNOB2": ("MULT", "x2"), "KNOB3": ("FADE", "0"), "KNOB4": ("DEST", "HARM")},
+    encoders={"SELECT": ("LFO", "1"), "KNOB1": ("SPEED", "+24"), "KNOB2": ("MULT", "x16"), "KNOB3": ("FADE", "0"), "KNOB4": ("DEST", "HARM")},
     screen=editor_screen(edit8("GLASS EP", "LFO 1 · A", [
-        [g("Speed", "24", "lfo", 0.3, 0.6), g("Mult", "x2"), g("Fade", "0", pct=0.0), g("Dest", "Harm")],
-        [g("Wave", "Tri", "wave"), g("Phase", "0", pct=0.0), g("Mode", "Free"), g("Depth", "+30", bipolar=True, pct=0.5 + 30 / 126)]], 0),
-        note="LFO 1: speed with the lfo glyph, the destination as an enum."),
+        [g("Speed", "+24", "knob", bipolar=True, pct=0.5 + 24 / 128), g("Mult", "x16"), g("Fade", "0", pct=0.0), g("Dest", "Harm")],
+        [g("Wave · Phase", "Tri · 90", "lfowave", 0.25, wave="tri", span=2), g("Trig", "Free"), g("Depth", "+30", bipolar=True, pct=0.5 + 30 / 126)]], 0),
+        note="LFO 1: the speed knob, the multiplier, the wave + phase double cell."),
 ))
 
 # 9 ---------------------------------------------------------------- PRESETS
