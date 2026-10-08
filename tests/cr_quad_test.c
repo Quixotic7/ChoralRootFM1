@@ -199,6 +199,18 @@ static uint32_t names_n(const char *const *n)
         k++;
     return k;
 }
+/* RATIO B's pair v as the editor shows it (cr_edit.c ce_pair: the column's QUAD_NRCB names over QUAD_NRCB^2 values,
+ * B1 = names[v % 19] over B2 = names[v / 19]) */
+static const char *rb_txt(int32_t v)
+{
+    static char b[4][16];
+    static uint32_t k;
+    char *s = b[k++ & 3u];
+    const char *const *n = QUAD_PAGES[0].col[3].names;
+    v = clamp(v, 0, QUAD_NRB - 1);
+    snprintf(s, 16, "%s/%s", n[v % QUAD_NRCB], n[v / QUAD_NRCB]);
+    return s;
+}
 
 static void t_pages(void)
 {
@@ -221,7 +233,9 @@ static void t_pages(void)
             if (d->fmt == F_ENUM)
                 CHECK(d->names && names_n(d->names) >= (uint32_t)(d->max + 1), "page %u col %u: names", pg, c);
             if (d->fmt == F_INT && d->names)
-                CHECK(names_n(d->names) == (uint32_t)(d->max - d->min + 1), "page %u col %u: %u names for %d values",
+                CHECK(names_n(d->names) == (uint32_t)(d->max - d->min + 1) ||   /* (or a pair: k names over k x k) */
+                          names_n(d->names) * names_n(d->names) == (uint32_t)(d->max - d->min + 1),
+                      "page %u col %u: %u names for %d values",
                       pg, c, names_n(d->names), d->max - d->min + 1);
             if (ix >= QP_NP) {
                 CHECK(ix == QUAD_XPAN || ix == QUAD_XDIST, "page %u col %u: index %u", pg, c, ix);
@@ -232,7 +246,7 @@ static void t_pages(void)
                 used[QP_RB2]++;
                 CHECK(d->min == 0 && d->max == QUAD_NRB - 1 && QUAD_NRB == 361 && d->def == QUAD_RB_DEF &&
                           QUAD_RB_DEF == 3 * QUAD_NRCB + 3 && quad_range(QP_RB1).max == QUAD_NRCB - 1 &&
-                          quad_range(QP_RB2).max == QUAD_NRCB - 1 && quad_range(QP_RB2).def == 3 && d->names == N_QUAD_RB,
+                          quad_range(QP_RB2).max == QUAD_NRCB - 1 && quad_range(QP_RB2).def == 3 && d->names == N_QUAD_RCB,
                       "RATIO B: the pair's column");
                 continue;
             }
@@ -260,7 +274,7 @@ static void t_pages(void)
     CHECK(ENG_QUAD.ownenv && ENG_QUAD.done && ENG_QUAD.poly == 8 && !ENG_QUAD.render2 && ENG_QUAD.legato, "contract");
     /* the value texts */
     CHECK(!strcmp(N_QUAD_RCB[3], "1.00") && !strcmp(N_QUAD_RCB[18], "16.00") && !strcmp(N_QUAD_RA[7], "2.00") &&
-              !strcmp(N_QUAD_RB[QUAD_RB_DEF], "1.00/1.00") && !strcmp(N_QUAD_RB[3 * QUAD_NRCB + 1], "0.50/1.00") &&
+              !strcmp(rb_txt(QUAD_RB_DEF), "1.00/1.00") && !strcmp(rb_txt(3 * QUAD_NRCB + 1), "0.50/1.00") &&
               !strcmp(N_QUAD_OFS[100], "+0.00") && !strcmp(N_QUAD_OFS[101], "+0.01") && !strcmp(N_QUAD_OFS[0], "-1.00"),
           "value names");
     CHECK(!strcmp(N_QUAD_MULT[4], "x16") && !strcmp(N_QUAD_MULT[11], "x2k") && QUAD_PAGES[1].col[0].fmt == F_OFS &&
@@ -299,7 +313,7 @@ static void t_set_macros(void)
     quad_block(t);
     CHECK(quad_patch[0][QP_FDBK] == 99 && quad_patch[0][QP_RB1] == QUAD_NRCB - 1 && quad_patch[0][QP_RB2] == 5,
           "macros -> patch: %d %d %d", quad_patch[0][QP_FDBK], quad_patch[0][QP_RB1], quad_patch[0][QP_RB2]);
-    CHECK(quad_get(t, 0, 3) == 5 * QUAD_NRCB + 18 && !strcmp(N_QUAD_RB[quad_get(t, 0, 3)], "16.00/3.00"),
+    CHECK(quad_get(t, 0, 3) == 5 * QUAD_NRCB + 18 && !strcmp(rb_txt(quad_get(t, 0, 3)), "16.00/3.00"),
           "the macro moved B1 only: %d", quad_get(t, 0, 3));
     quad_set(t, 0, 0, 5);
     quad_block(t);
@@ -350,11 +364,12 @@ static void t_ratios(void)
         CHECK(QUAD_RCB_Q16[i] == (int32_t)(CB[i] * 65536), "C/B step %u", i);
     for (i = 0; i < QUAD_NRA; i++)
         CHECK(QUAD_RA_Q16[i] == (int32_t)((i + 1) * 16384), "A step %u", i);
-    CHECK(names_n(N_QUAD_RB) == QUAD_NRB && QUAD_NRB == QUAD_NRCB * QUAD_NRCB, "RATIO B: %u names", names_n(N_QUAD_RB));
+    CHECK(names_n(QUAD_PAGES[0].col[3].names) == QUAD_NRCB && QUAD_NRB == QUAD_NRCB * QUAD_NRCB,
+          "RATIO B: %u names over %u values (a pair)", names_n(QUAD_PAGES[0].col[3].names), QUAD_NRB);
     for (i = 0; i < QUAD_NRB; i++) {             /* the pair: B1 cycles through its steps, then B2 steps on */
         char s[24];
         snprintf(s, sizeof s, "%.2f/%.2f", CB[i % QUAD_NRCB], CB[i / QUAD_NRCB]);
-        CHECK(!strcmp(s, N_QUAD_RB[i]), "pair %u: %s, want %s", i, N_QUAD_RB[i], s);
+        CHECK(!strcmp(s, rb_txt(i)), "pair %u: %s, want %s", i, rb_txt(i), s);
     }
     for (i = 0; i < QUAD_NBR; i++)               /* (version 1's B2 / B1: its loader) */
         CHECK(QUAD_BR_Q16[i] == (int32_t)(BRV[i] * 65536), "BR %u", i);
@@ -386,9 +401,9 @@ static void t_ratio_b(void)
     char s[24];
     drv_reset(t);
     quad_blob_set(t, 0);
-    CHECK(quad_get(t, 0, 3) == QUAD_RB_DEF && !strcmp(N_QUAD_RB[QUAD_RB_DEF], "1.00/1.00"), "init: RATIO B 1.00/1.00");
+    CHECK(quad_get(t, 0, 3) == QUAD_RB_DEF && !strcmp(rb_txt(QUAD_RB_DEF), "1.00/1.00"), "init: RATIO B 1.00/1.00");
     quad_set(t, 0, 3, 0);
-    CHECK(quad_get(t, 0, 3) == 0 && !strcmp(N_QUAD_RB[0], "0.25/0.25") && quad_patch[0][QP_RB1] == 0 &&
+    CHECK(quad_get(t, 0, 3) == 0 && !strcmp(rb_txt(0), "0.25/0.25") && quad_patch[0][QP_RB1] == 0 &&
               quad_patch[0][QP_RB2] == 0, "the first pair 0.25/0.25");
     for (v = 0, i = 0; i < 400; i++) {           /* up: a step a detent (cr_edit: v0 + 1), as the editor turns */
         int32_t w = clamp(quad_get(t, 0, 3) + 1, 0, QUAD_NRB - 1), b1, b2;
@@ -396,15 +411,15 @@ static void t_ratio_b(void)
         v = quad_get(t, 0, 3);
         b1 = quad_patch[0][QP_RB1], b2 = quad_patch[0][QP_RB2];
         snprintf(s, sizeof s, "%.2f/%.2f", CB[b1], CB[b2]);
-        if (v != w || b1 != w % 19 || b2 != w / 19 || t->p[P_E3] != b1 || strcmp(N_QUAD_RB[v], s))
+        if (v != w || b1 != w % 19 || b2 != w / 19 || t->p[P_E3] != b1 || strcmp(rb_txt(v), s))
             bad++;
     }
-    CHECK(!bad && v == QUAD_NRB - 1 && !strcmp(N_QUAD_RB[v], "16.00/16.00"), "walk up: %d bad, ends at %d", bad, v);
+    CHECK(!bad && v == QUAD_NRB - 1 && !strcmp(rb_txt(v), "16.00/16.00"), "walk up: %d bad, ends at %d", bad, v);
     quad_set(t, 0, 3, 18);                       /* the carry: 16.00/0.25 + 1 = 0.25/0.50 */
-    CHECK(!strcmp(N_QUAD_RB[quad_get(t, 0, 3)], "16.00/0.25"), "B1's last step under B2 0.25");
+    CHECK(!strcmp(rb_txt(quad_get(t, 0, 3)), "16.00/0.25"), "B1's last step under B2 0.25");
     quad_set(t, 0, 3, quad_get(t, 0, 3) + 1);
     CHECK(quad_get(t, 0, 3) == 19 && quad_patch[0][QP_RB1] == 0 && quad_patch[0][QP_RB2] == 1 &&
-              !strcmp(N_QUAD_RB[19], "0.25/0.50"), "the carry into B2");
+              !strcmp(rb_txt(19), "0.25/0.50"), "the carry into B2");
     quad_set(t, 0, 3, quad_get(t, 0, 3) - 1);
     CHECK(quad_get(t, 0, 3) == 18 && quad_patch[0][QP_RB1] == 18 && quad_patch[0][QP_RB2] == 0, "the carry back");
     for (bad = 0, i = 0; i < 400; i++) {         /* down from the top */
@@ -962,6 +977,104 @@ static void t_render(void)
     }
 }
 
+/* RATIO B heard (the emulator report: "algo 4, MIX at Y, no change when B1 / B2 change"): BELL (algorithm 4: A > C
+ * on X, B2 > B1 on Y), MIX +63 (Y only), B LEV 30 (a small index: B1's phase runs monotonic, its zero crossings count
+ * its frequency); a note at RATIO B 1.00/1.00, the editor's path to 2.00/1.00 (cr_edit.c ce_knob: eng_deep_t.set, then
+ * .get; the macro P_E3 mirrored by quad_set, quad_block the next block), a note again: Y an octave up (zero crossings
+ * and the FFT-free peak bin both x2), and live: the same edit while a note sounds moves it within a block. With B LEV
+ * 0 (the init patch's) Y is silent: the carrier B1 is at ENV B x B LEV^2 (docs/QUAD.md) */
+static int16_t rb_buf[2][FS / 2];
+static double rb_note(track_t *t, uint32_t b, int32_t edit_at, int32_t edit_to, double *zc2, double *rms)
+{
+    int16_t *buf = rb_buf[b & 1u];
+    const eng_deep_t *dd = ENG_QUAD.deep;
+    int32_t out[CTL];
+    uint32_t n, i, ns = 0, z1 = 0, z2 = 0, nt = (uint32_t)(FS / 2 / CTL), h0 = 0, h1 = 0;
+    double e = 0;
+    memset(quad_vs, 0, sizeof quad_vs);
+    memset(t->v, 0, sizeof t->v);
+    drv_on(t, 0, 60, 100);
+    for (n = 0; n < nt; n++) {
+        if ((int32_t)n == edit_at) {
+            dd->set(t, 0, 3, edit_to);            /* (the editor's sequence: set, then get for the trace) */
+            (void)dd->get(t, 0, 3);
+        }
+        drv_tick(t, out);
+        for (i = 0; i < CTL; i++)
+            buf[ns++] = (int16_t)clamp(out[i] >> 4, -32768, 32767);
+    }
+    memset(buf + ns, 0, (FS / 2 - ns) * sizeof *buf);
+    for (i = ns / 8u; i + 1u < ns; i++) {         /* (past the attack) zero crossings: the first half, the second */
+        int c = (buf[i] < 0) != (buf[i + 1] < 0);
+        if (i < ns / 2u - ns / 16u)
+            z1 += (uint32_t)c, h0 = h0 ? h0 : i;
+        else if (i >= ns / 2u + ns / 16u)
+            z2 += (uint32_t)c, h1 = h1 ? h1 : i;
+        e += (double)buf[i] * buf[i];
+    }
+    *rms = sqrt(e / (double)ns);
+    *zc2 = z2 * (double)FS / 2.0 / (double)(ns - 1u - h1);
+    return z1 * (double)FS / 2.0 / (double)(ns / 2u - ns / 16u - h0);
+}
+static void t_ratio_b_heard(void)
+{
+    const eng_deep_t *dd = ENG_QUAD.deep;
+    track_t *t = &trk[0];
+    double f1, f2, fl1, fl2, z, r1, r2, r0;
+    uint32_t k;
+    for (k = 0; k < QUAD_NPRESETS && strcmp(QUAD_PRESETS[k].name, "BELL"); k++)
+        ;
+    drv_reset(t);
+    t->preset = (uint8_t)k;
+    quad_blob_preset(t, k);
+    dd->set(t, 0, 0, 4);                          /* ALGO 4 (BELL's) */
+    dd->set(t, 1, 3, 63);                         /* MIX +63: Y only */
+    dd->set(t, 8, 3, 30);                         /* B LEV 30 */
+    dd->set(t, 0, 3, QRB(4, 4));                  /* 1.00/1.00 */
+    CHECK(quad_get(t, 1, 3) == 63 && t->p[P_E7] == 63 && quad_get(t, 0, 3) == QRB(4, 4), "BELL, MIX +63, 1.00/1.00");
+    f1 = rb_note(t, 0, -1, 0, &z, &r1);
+    dd->set(t, 0, 3, QRB(8, 4));                  /* the edit: B1 2.00, B2 1.00 */
+    CHECK(quad_get(t, 0, 3) == QRB(8, 4) && quad_patch[0][QP_RB1] == 4 && quad_patch[0][QP_RB2] == 3 &&
+              t->p[P_E3] == 4 && !strcmp(rb_txt(quad_get(t, 0, 3)), "2.00/1.00"), "2.00/1.00 in the patch and the macro");
+    quad_block(t);                                /* (a block: the macro mirror must not undo it) */
+    CHECK(quad_patch[0][QP_RB1] == 4 && quad_patch[0][QP_RB2] == 3, "a block after the edit kept 2.00/1.00");
+    f2 = rb_note(t, 1, -1, 0, &z, &r2);
+    if (getenv("VERBOSE"))
+        printf("  RATIO B heard: Y at 1.00/1.00 %.1f Hz, at 2.00/1.00 %.1f Hz (RMS %.0f, %.0f)\n", f1, f2, r1, r2);
+    CHECK(r1 > 5.0 && r2 > 5.0 && memcmp(rb_buf[0], rb_buf[1], sizeof rb_buf[0]), "Y silent or the same (RMS %.0f, %.0f)",
+          r1, r2);
+    CHECK(fabs(f1 - 261.6) < 8.0 && fabs(f2 / f1 - 2.0) < 0.04, "Y: %.1f Hz at 1.00/1.00, %.1f Hz at 2.00/1.00 (want x2)",
+          f1, f2);
+    dd->set(t, 0, 3, QRB(4, 4));                  /* live: 1.00/1.00, the edit to 2.00/1.00 halfway through a note */
+    fl1 = rb_note(t, 0, (int32_t)(0.25 * FS / CTL), QRB(8, 4), &fl2, &z);
+    CHECK(fabs(fl1 - f1) < 0.06 * f1 && fabs(fl2 / f1 - 2.0) < 0.05, "live: %.1f Hz, then %.1f Hz (want %.1f, x2)", fl1,
+          fl2, f1);
+    dd->set(t, 0, 3, QRB(8, 8));                  /* B2 2.00: the timbre (the same pitch, other samples) */
+    {
+        double f3 = rb_note(t, 0, -1, 0, &z, &r0), d = 0;
+        uint32_t i;
+        for (i = 0; i < NELEM(rb_buf[0]); i++)
+            d += fabs((double)rb_buf[0][i] - rb_buf[1][i]);
+        CHECK(fabs(f3 / f2 - 1.0) < 0.03 && d / NELEM(rb_buf[0]) > 0.2 * r2,
+              "B2 1.00 -> 2.00: %.1f Hz (want %.1f), the samples %.1f apart (RMS %.1f)", f3, f2, d / NELEM(rb_buf[0]), r2);
+    }
+    if (getenv("VERBOSE")) {                      /* BELL as it is (B LEV 72): X alone, Y alone, MIX +36 */
+        double rx, ry, rm;
+        quad_blob_preset(t, k);
+        dd->set(t, 1, 3, -63);
+        (void)rb_note(t, 0, -1, 0, &z, &rx);
+        dd->set(t, 1, 3, 63);
+        (void)rb_note(t, 0, -1, 0, &z, &ry);
+        dd->set(t, 1, 3, 36);
+        (void)rb_note(t, 0, -1, 0, &z, &rm);
+        printf("  BELL algorithm 4: RMS X alone %.0f, Y alone %.0f (%.1f dB), MIX +36 %.0f\n", rx, ry, db(ry, rx), rm);
+        dd->set(t, 1, 3, 63);
+    }
+    dd->set(t, 8, 3, 0);                          /* B LEV 0 (the init patch's): the carrier B1 silent on Y */
+    (void)rb_note(t, 0, -1, 0, &z, &r0);
+    CHECK(r0 < 1.0, "B LEV 0: Y RMS %.1f", r0);
+}
+
 /* the mean and the RMS (AC) of 0.3..1 s of one note (60, velocity 100) held 1 s on patch p */
 static void held_dc(const int8_t *p, double *mean, double *rms)
 {
@@ -1118,6 +1231,7 @@ int main(int argc, char **argv)
     t_presets();
     t_ratios();
     t_ratio_b();
+    t_ratio_b_heard();
     t_algo_table();
     t_golden();
     t_env();

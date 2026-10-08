@@ -239,6 +239,11 @@ GLO (printed; OPT outside) is SHIFT in the editor:
   latched state (a hold never toggles it);
 - held + EDIT = chord ↔ bass sound.
 
+A **ratio pair** (a column of k names over k x k values: QUAD's RATIO B, B1 / B2) takes SHIFT as **its B2 a step**
+(B1 kept, B2 held at its first and last step) instead of a fine step: a plain detent already moves B1 one step. The
+title line then reads `fine · B2` (`cr_screen_t.fine` 2: the active lane has a pair). The pair's cell is a fraction,
+B1 over B2, each with two decimals (the cell's `pct` / `pct2` in quarters, cr_draw.c formats them).
+
 While the editor is open the edit wins over OPT's outside knob functions (split point, metronome level, bass volume).
 
 ## 7. The engine picker: a preview (EDIT held, or PRESETS in the editor; main walk-through state 22)
@@ -294,7 +299,7 @@ Left: the sound's name in 13 px bold, white; a trailing **`*`** once edited (dee
 ` · BASS` and the whole title in **orange** (`PUNCH BASS · BASS`). Right, 11 px grey, right-aligned: the group and
 what is on the knobs — `OSC 1 · A` (screen A, lane OSC 1), `OSC 2 · B`, `OSC · MIX`, `FILTER`, `ENV 1 · amp`,
 `ENV 2 · filter`, `LFO 2 · B`, `MOD 3`, `FX`, `MIX`. With SHIFT on (latched or held), the word **`fine`** (9 px,
-white) left of it. The editor's title line has no battery (it shows on the Options page only); the section text sits at the right end:
+white) left of it (**`fine · B2`** on a lane with a ratio pair, §6). The editor's title line has no battery (it shows on the Options page only); the section text sits at the right end:
 the header's 16 x 10 case and nub, 0–3 quarters filled, full on USB power (`cr_screen_t.batt`, 255 = none; the
 right text moves left of it).
 

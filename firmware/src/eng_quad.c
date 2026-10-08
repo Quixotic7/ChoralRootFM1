@@ -93,7 +93,9 @@ static const quad_algo_t QUAD_ALGO[8] = {
 #define QC_ALGO {"ALGO", F_INT, 1, 8, 1, 0, 0}
 #define QC_RC {"RATIO C", F_INT, 0, QUAD_NRCB - 1, 3, N_QUAD_RCB, 0}
 #define QC_RA {"RATIO A", F_INT, 0, QUAD_NRA - 1, 3, N_QUAD_RA, 0}
-#define QC_RB {"RATIO B", F_INT, 0, QUAD_NRB - 1, QUAD_RB_DEF, N_QUAD_RB, 0}   /* the pair (deep: one per detent) */
+/* the pair (deep: one per detent): QUAD_NRCB names over QUAD_NRCB^2 values = a ratio pair to the editor (cr_edit.c
+ * ce_pair: B1 = names[v % 19], B2 = names[v / 19]; SHIFT steps B2) */
+#define QC_RB {"RATIO B", F_INT, 0, QUAD_NRB - 1, QUAD_RB_DEF, N_QUAD_RCB, 0}
 #define QC_RB1 {"RATIO B", F_INT, 0, QUAD_NRCB - 1, 3, N_QUAD_RCB, 0}             /* the macro P_E3: B1's step */
 #define QC_HARM {"HARM", F_OFS, -26, 26, 0, 0, 0}
 #define QC_DTUN {"DTUNE", F_INT, 0, 127, 0, 0, 0}

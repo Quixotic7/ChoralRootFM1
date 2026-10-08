@@ -762,6 +762,33 @@ blue_q=$(od -An -tu1 -v -j $((15 + 180 * 240 * 3)) -N$((240 * 40 * 3)) "$OUT/cr_
 [ "${blue_q:-0}" -gt 2000 ] && ok "the span cell hot over two columns (KNOB 2 -> its cell 0, $blue_q blue pixels)" || bad "span cell not hot: $blue_q"
 silent_end cr_quad
 
+echo "FM TONE's RATIO B heard: B1 the pitch of Y, SHIFT (GLO held) steps B2, the fraction uncut (docs/QUAD.md)"
+run cr_quad_ratiob --wav "$OUT/cr_quad_ratiob.wav"
+QL="$OUT/cr_quad_ratiob.log"
+has '^deep: part 0 page 1 SYN 1+ col 3 MIX 0 -> 63 ' "$QL" && has '^deep: part 0 page 8 ENV B col 3 B LEV 72 -> 30 ' "$QL" &&
+    ok "BELL (algorithm 4), MIX +63 (Y only), B LEV 30" || bad "BELL's MIX / B LEV: $(grep -c '^deep:' "$QL") edits"
+has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 156 -> 158 (4.00/6.00)' "$QL" && ok "KNOB 4 +2: RATIO B 2.00/6.00 -> 4.00/6.00 (B1 two steps)" ||
+    bad "B1 edit: $(grep -m1 'RATIO B' "$QL")"
+has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 158 -> 139 (4.00/5.00)' "$QL" && ok "GLO held + KNOB 4 -1: B2 6.00 -> 5.00, B1 kept" ||
+    bad "SHIFT on RATIO B: $(grep 'RATIO B' "$QL" | sed -n 2p)"
+has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 139 -> 348 (4.00/16.00)' "$QL" && has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 348 -> 6 (4.00/0.25)' "$QL" &&
+    ok "GLO held + KNOB 4 +-30: B2 stops at 16.00 and 0.25, B1 kept" || bad "B2's ends: $(grep 'RATIO B' "$QL" | tail -2 | tr '\n' ' ')"
+rbp=$(python3 tools/emu/wavpitch.py "$OUT/cr_quad_ratiob.wav" | sed -n 's/.*peak \([0-9.]*\) Hz/\1/p' | tr '\n' ' ')
+python3 -c "import sys; p = [float(x) for x in sys.argv[1:]]; sys.exit(not (len(p) == 3 and abs(p[0] - 523) < 15 and
+    abs(p[1] / p[0] - 2) < 0.05 and abs(p[2] / p[1] - 1) < 0.03))" $rbp &&
+    ok "the WAV: C4's Y at $rbp Hz (B1 2.00, 4.00 an octave up, B2 stepped: the same pitch)" || bad "Y's pitch per note: $rbp (want ~523, x2, x1)"
+den() {          # den FILE: ink columns of RATIO B's denominator (column 4, the hot block, rows 160..173)
+    python3 -c "
+import sys; d = open(sys.argv[1], 'rb').read(); o = len(d) - 240 * 240 * 3
+px = lambda x, y: d[o + (y * 240 + x) * 3:o + (y * 240 + x) * 3 + 3]
+b = px(186, 150); print(sum(1 for x in range(184, 237) if any(px(x, y) != b for y in range(160, 174))))" "$1"
+}
+d5=$(den "$OUT/cr_quad_ratiob_b2.ppm"); d16=$(den "$OUT/cr_quad_ratiob_b16.ppm")
+[ "${d5:-0}" -gt 20 ] && [ "${d16:-0}" -gt $((d5 + 3)) ] && ok "the fraction: 4.00 over 5.00 ($d5 columns), over 16.00 ($d16): the denominator whole: $OUT/cr_quad_ratiob_b16.ppm" ||
+    bad "the denominator: $d5 / $d16 ink columns"
+differ cr_quad_ratiob_b1 cr_quad_ratiob_b2 "SHIFT: the title line reads \"fine · B2\", the denominator 5.00: $OUT/cr_quad_ratiob_b2.ppm"
+silent_end cr_quad_ratiob
+
 echo "SAFE MODE: the boot guard (firmware/src/cr_bootguard.h)"
 SF="$OUT/cr_safe_flash.bin"
 rm -f "$SF"

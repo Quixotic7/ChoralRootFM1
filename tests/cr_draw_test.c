@@ -642,6 +642,18 @@ int main(int argc, char **argv)
                 if (!strcmp(boxes[k].s, "1.00") && boxes[k].x0 >= 180) yd = boxes[k].y0;
             }
             check("ratio cell: the numerator above the denominator, in the fourth column", yn > 0 && yd > yn && xn >= 180);
+            s.cell[0][3].pct = 64;                               /* 16.00 / 16.00: both whole, two decimals each */
+            s.cell[0][3].pct2 = 64;
+            render(&s, 0);
+            for (yn = 0, k = 0; k < nbox; k++)
+                yn += !strcmp(boxes[k].s, "16.00") && boxes[k].x0 >= 180;
+            s.cell[0][3].pct = 1;                                /* 0.25 / 1.00 */
+            s.cell[0][3].pct2 = 4;
+            render(&s, 0);
+            for (yd = 0, k = 0; k < nbox; k++)
+                yd += (!strcmp(boxes[k].s, "0.25") || !strcmp(boxes[k].s, "1.00")) && boxes[k].x0 >= 180;
+            snprintf(name, sizeof name, "ratio cell: 16.00 over 16.00 (%d), 0.25 over 1.00 (%d): the parts uncut", yn, yd);
+            check(name, yn == 2 && yd == 2);
         }
         {   /* the new glyphs: ink, and a change with pct (and the wave) */
             static uint16_t g0[240 * 40];

@@ -1067,19 +1067,27 @@ static void cr_cnum(const char *v, int32_t cx, int32_t vy, int32_t w, uint32_t p
     cr_text(cx, vy, v, px, 1, CR_C, 4096, hot ? T_BG : col, hot ? col : T_BG, 0);
 }
 
-/* CR_G_RATIO: "B1/B2" as a fraction round mid (Q8): the numerator 13 px over a 1.5 px divider (w - 14 wide) over the
- * denominator 13 px; hot: the whole on a block */
+/* a ratio in quarters (1..255) as "%u.%02u": "0.25", "16.00" */
+static void cr_quarters(uint32_t q, char *b)
+{
+    uint32_t w = q / 4u, f = (q % 4u) * 25u, i = 0;
+    if (w >= 10u) b[i++] = (char)('0' + w / 10u);
+    b[i++] = (char)('0' + w % 10u);
+    b[i++] = '.';
+    b[i++] = (char)('0' + f / 10u);
+    b[i++] = (char)('0' + f % 10u);
+    b[i] = 0;
+}
+
+/* CR_G_RATIO: B1 / B2 (pct / pct2, quarters) as a fraction round mid (Q8), both "%u.%02u": the numerator 13 px over a
+ * 1.5 px divider (w - 14 wide) over the denominator 13 px; hot: the whole on a block */
 static void cr_cratio(const cr_cell_t *c, int32_t cx, int32_t mid, int32_t w, uint16_t col, int hot)
 {
-    char nu[sizeof c->value], de[sizeof c->value];
-    uint32_t i = 0, j = 0;
+    char nu[8], de[8];
     int32_t dw = w - P8(14);
     uint16_t tc = hot ? T_BG : col;
-    while (c->value[i] && c->value[i] != '/') i++;
-    for (j = 0; j < i; j++) nu[j] = c->value[j];
-    nu[j] = 0;
-    for (j = 0; c->value[i] && c->value[i + 1u]; i++) de[j++] = c->value[i + 1u];
-    de[j] = 0;
+    cr_quarters(c->pct, nu);
+    cr_quarters(c->pct2, de);
     if (hot) {
         int32_t x0 = (cx - w / 2 + P8(3) + 128) >> 8, x1 = (cx + w / 2 - P8(3) + 128) >> 8, y0 = ((mid + 128) >> 8) - 18;
         cv_rrect(x0, y0, x1 - x0, 36, 2, col, T_BG);
@@ -1087,12 +1095,6 @@ static void cr_cratio(const cr_cell_t *c, int32_t cx, int32_t mid, int32_t w, ui
     cr_cnum(nu, cx, mid - P8(4), dw + P8(6), 13, tc, 0);
     cr_frect((cx - dw / 2) >> 4, (mid >> 4) - 12, dw >> 4, 24, tc);
     cr_cnum(de, cx, mid + P8(15), dw + P8(6), 13, tc, 0);
-}
-
-static int cr_has_slash(const char *v)
-{
-    while (*v && *v != '/') v++;
-    return *v == '/';
 }
 
 /* a cell's columns: 2 for a CR_CF_SPAN2 cell starting in column 0..2, else 1 */
@@ -1107,10 +1109,12 @@ static void cr_ed_title(const cr_screen_t *s)
     }
     rw = (s->page[0] ? cr_tw(s->page, 11, 1) : 0) + P8(232 - rx);
     if (s->page[0]) cr_text(P8(rx), P8(17), s->page, 11, 1, CR_R, 4096, T_MID, T_BG, 0);
-    if (s->fine) {                                   /* SHIFT on: "fine", small, left of the right text */
+    if (s->fine) {                                   /* SHIFT on: "fine", small, left of the right text (2: a ratio
+                                                      * pair's B2 steps) */
+        const char *ft = s->fine == 2u ? "fine \267 B2" : "fine";
         int32_t fx = P8(232) - rw - (rw ? P8(6) : 0);
-        cr_text(fx, P8(16), "fine", 9, 1, CR_R, 4096, T_TEXT, T_BG, 0);
-        rw += cr_tw("fine", 9, 1) + P8(6);
+        cr_text(fx, P8(16), ft, 9, 1, CR_R, 4096, T_TEXT, T_BG, 0);
+        rw += cr_tw(ft, 9, 1) + P8(6);
     }
     if (s->title[0])
         cr_text_fit(P8(8), P8(17), s->title, 13, 1, CR_L, cr_rgb(s->title_col, T_TEXT), T_BG, P8(224) - rw - (rw ? P8(8) : 0));
@@ -1582,7 +1586,7 @@ static void cr_p_edit8(const cr_screen_t *s)
             col0 += sp;
             if (!(c->flags & CR_CF_ON)) continue;
             vcol = hot ? cr_hcol(s, col) : col;
-            ratio = c->glyph == CR_G_RATIO && cr_has_slash(c->value);
+            ratio = c->glyph == CR_G_RATIO && c->pct && c->pct2;
             bigv = !ratio && ((c->flags & CR_CF_BIG) || c->glyph == CR_G_RATIO);
             if (c->label[0]) {
                 char b[16];

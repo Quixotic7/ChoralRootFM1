@@ -60,8 +60,9 @@ enum { CR_G_NONE, CR_G_KNOB, CR_G_BAR, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_ST
                                      * past 0.3 every third segment gone, past 0.7 every other */
        CR_G_LFOWAVE,                /* one LFO cycle of `wave` (CR_LW_*; two cycles in a CR_CF_SPAN2 cell), started pct of
                                      * a cycle later (the start phase), a tick at its start */
-       CR_G_RATIO,                  /* not a picture: the value "B1/B2" drawn as a fraction (numerator over a divider over
-                                     * the denominator, 13 px); a value without '/' is drawn as CR_CF_BIG */
+       CR_G_RATIO,                  /* not a picture: B1 / B2 drawn as a fraction (numerator over a divider over the
+                                     * denominator, 13 px), pct and pct2 the two ratios in quarters (1..255 = 0.25..63.75,
+                                     * each "%u.%02u"); pct2 0: the value is drawn as CR_CF_BIG */
        CR_G_N };
 
 /* CR_G_LFOWAVE's wave (cr_cell_t.wave) */
@@ -106,7 +107,7 @@ typedef struct { char root[4], quality[6], sup[8]; uint8_t col_root, col_quality
 typedef struct { char t[6]; uint8_t col, mark; } cr_note_t;                    /* "C#5", its colour, a block under it */
 typedef struct {                                                                /* an editor cell (KNOB 1..4) */
     char label[14], value[10];      /* label: edit8 only (a stack's columns have headings), "Wave \267 Phase" fits;
-                                     * value: "0.50/1.00" fits */
+                                     * value: "16.00" fits (a CR_G_RATIO pair's two parts are pct / pct2) */
     uint16_t flags;                 /* CR_CF_*, the mark's colour in bits 4..7 */
     uint8_t glyph;                  /* CR_G_* */
     uint8_t pct;                    /* Q8 of 255: the glyph's / bar's fill (square: the duty) */
@@ -196,7 +197,8 @@ typedef struct {
     uint8_t hot_col;                /* .. the block's colour (NONE: the knob's; a modulation source's while mapping) */
     uint8_t wide;                   /* edit8: CR_W_* */
     uint8_t tall;                   /* edit8: one row of tall level bars over the whole panel (the oscillator mixer) */
-    uint8_t fine;                   /* edit8 / stack: SHIFT on (fine steps): "fine" small in the title line;
+    uint8_t fine;                   /* edit8 / stack: SHIFT on (fine steps): "fine" small in the title line (2: the
+                                     * lane has a ratio pair, SHIFT steps its B2: "fine \267 B2");
                                      * `batt` (0..4, 4 = charging; 255 = none): edit8 / stack draw the header's battery
                                      * at the title line's right end (the MIX screens) */
     uint8_t wv[20];                 /* env: a h d s r (Q8 of 255), the lit segment + 1 (1 A .. 5 R, 0 none);

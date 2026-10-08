@@ -142,7 +142,9 @@ operators of the algorithm) read the HARM tables when HARM != 0. A modulator's o
 offset of `o << 18` (full level = 2 cycles, index ~12.6 rad). Feedback: the feedback operator's own wave (before its
 level), `(y[n-1] + y[n-2]) x FDBK^2 x 2 << 1` (FDBK 127 = one cycle of the average: saw-like near 64, noise above
 ~90). Levels: operator A = ENV A x LEV^2 (C is always at full level: the amp envelope shapes it), B1 and B2 = ENV B x B
-LEV^2; ramped per sample. MIX: `X x (63 - MIX) / 126 + Y x (63 + MIX) / 126` (equal sum: algorithms 1-3, X = Y = C,
+LEV^2; ramped per sample (so a B carrier on Y is only as loud as ENV B x B LEV^2: BELL's Y alone is 16.6 dB under its
+X, the init patch's B LEV 0 silences Y; at MIX +36 X still covers Y: the 2026-10-08 report "no change when B1 / B2
+change" was this, the edit reaches the voice live). MIX: `X x (63 - MIX) / 126 + Y x (63 + MIX) / 126` (equal sum: algorithms 1-3, X = Y = C,
 do not change level with MIX). Then a DC blocker (a one-pole high-pass at ~8 Hz, `QUAD_DC_K` 75 Q16, Q12 state): the
 operators are not DC-free. The feedback's average lags 1.5 samples, which skews the feedback operator's saw (on a plain
 sine its mean is -12 % of its RMS at FDBK 60, -61 % at 100; a float model of the same loop gives the same), and at
@@ -170,8 +172,12 @@ step (patch values `QP_RB1`, `QP_RB2`, 0..18 each); the deep column is one value
 B2 one step up); turning down the same backwards; 0 = 0.25/0.25 and 360 = 16.00/16.00 hold (no wrap). Default 60 =
 1.00/1.00; e.g. 3 x 19 + 1 = 58 = 0.50/1.00. `quad_get` / `quad_set` join and split the pair; the macro `P_E3`
 (`ENG_QUAD.edit[3]`, `preset_t.e[3]`) is B1's step only (0..18: the user preset record keeps a macro in one byte,
--64..191), so a knob, the matrix or motion on `P_E3` moves B1 and leaves B2. The texts: `N_QUAD_RB`, 361 generated names
-"0.50/6.00" (cr_edit.c needs a name list to step a ratio one value a detent and to show the whole name; ~5 KB flash).
+-64..191), so a knob, the matrix or motion on `P_E3` moves B1 and leaves B2. **SHIFT (GLO held or latched) on RATIO B
+steps B2** (+-19 in the deep value, B1 kept; B2 stops at 0.25 and 16.00; the title line reads `fine · B2`). The texts:
+the column's name list is `N_QUAD_RCB` (19 names over 361 values: cr_edit.c's *ratio pair*, `ce_pair`: B1 =
+names[v % 19], B2 = names[v / 19], no engine hook); the cell carries B1 and B2 in quarters (`cr_cell_t.pct` /
+`pct2`) and cr_draw.c writes each `%u.%02u` ("16.00" over "16.00"); the trace line "4.00/16.00" (until 2026-10-08:
+361 generated names `N_QUAD_RB`, ~5 KB flash, and the 10-byte cell text cut "16.00/1.00" to "16.00/1.0").
 Version 1 (until 2026-10-08) had 114 pairs `BR x 19 + B1`, B2 = B1 x BR, BR in `0.5 1 1.5 2 3 4` (`QUAD_BR_Q16`,
 kept for the loader below). Offsets: -100..+100 =
 -1.00..+1.00 added to the ratio (clamped at 0). DTUNE: B1 -, B2 + `DTUNE x 7.5 / 65536` (+-25 cents at 127, B1 / B2
@@ -246,9 +252,9 @@ ATK DEC SUS REL (0 64 0 40); 34 FREQ (127); 35 RESO (0); 36 TYPE 0..2 LP HP BP (
 Deviations from the plan's table: FILTER comes before ENV (the sections ascend: OSC FILTER ENV LFO); ENV 2+'s empty
 column holds VEL and a one-row **ENV 3** (A KTRK, B KTRK) was added: the brief's key tracks and VEL had no place on the
 user's layout. Value formats (existing `F_*` kinds only): ALGO `F_INT` ("3"); RATIO C / A / B and the offsets `F_INT`
-with a 0-terminated name list (`N_QUAD_RCB` "2.00", `N_QUAD_RA`, `N_QUAD_RB` "0.50/1.00" (361), `N_QUAD_OFS` "+0.01"; params.c
-names value v with names[v - min]; its 5-character cut truncates "0.50/1.00", so the editor draws the pair from
-`N_QUAD_RB` itself, or splits it at the '/'); HARM, MIX, SPEED, the depths, PAN `F_OFS` ("+8"; 0 at the middle of a
+with a 0-terminated name list (`N_QUAD_RCB` "2.00" (RATIO B: the same 19 names over its 361 values, a pair), `N_QUAD_RA`,
+`N_QUAD_OFS` "+0.01"; params.c names value v with names[v - min] (a list shorter than the range: spread evenly, RATIO
+B's B2); the editor draws RATIO B's pair itself, B1 over B2); HARM, MIX, SPEED, the depths, PAN `F_OFS` ("+8"; 0 at the middle of a
 symmetric range); MULT `F_ENUM` "x16"; TYPE, WAVE, TRIG, DEST `F_ENUM`; TRIG / RESET / PHASE `F_ONOFF`; times `F_TIME`;
 FREQ `F_CUTOFF`; RESO, SUS, KTRK, VEL, DRIVE `F_PCT`; BASE, WIDTH, END, LEV, LEVEL, START PHASE plain `F_INT`.
 
@@ -259,7 +265,7 @@ re-expressed each preset's pair as B1 / B2 steps (`QRB(b1, b2)`, x4 as `QRC`); t
 METAL 7/10.5 and DRONE 1/1.5 are now 7/10 and 1/1 with OFS B2 +0.50 (the same Q16 increments: regress's 16 renders
 unchanged).
 
-**Tests** (`cr_quad_test`, 22 775 checks, 0 failed (2026-10-08: RATIO B's walk 0..360, the carry, the ends, the texts; version-1 blobs and macros); built with `-fsanitize=signed-integer-overflow`): blob round trip of
+**Tests** (`cr_quad_test`, 22 783 checks, 0 failed (2026-10-08: RATIO B's walk 0..360, the carry, the ends, the texts; version-1 blobs and macros; RATIO B heard: BELL algorithm 4, MIX +63, B LEV 30, the editor's set 1.00/1.00 -> 2.00/1.00 doubles Y's zero-crossing pitch on the next note and live within the note, B2 changes the samples, B LEV 0 silences Y); built with `-fsanitize=signed-integer-overflow`): blob round trip of
 2000 random patches, every bad blob -> init; the pages against the ranges (every value on exactly one column), the
 sections, the macros = SYN 1 = `ENG_QUAD.edit`; set clamps, PAN / DRIVE to the part; the macros both ways; the 16
 presets (blob, macros = `preset_t.e`, `env` = the amp ADSR, `quad_track_loaded`); the ratio tables and the pair's names;
@@ -323,9 +329,10 @@ Felucca's unit builds as before). Where:
   eight screens (OSC SYN 1 under the algorithm, SYN 2; FILT FILTER, FILTER 2 with the window; ENV A/B, ENV 2, ENV 3,
   AMP; LFO 1..3 a screen each, Wave · Phase one span cell); MOD is the platform's routes (QUAD has no MOD section; the
   quick mapping says "not modulatable"). Ratios step one value a detent (RATIO B: one pair, B1 first, then the carry into
-  B2). The engine's display name is "FM TONE" (`ENG_QUAD.name`; identifiers, files, the patch kind and the blob stay
+  B2; SHIFT: B2 a step, B1 kept). The engine's display name is "FM TONE" (`ENG_QUAD.name`; identifiers, files, the patch kind and the blob stay
   QUAD).
-- **Tests**: `tools/emu/scripts/cr_quad.txt` (test_cr.sh "QUAD"), `quad_persist_set/check.txt` (test_persist.sh), perf.sh
+- **Tests**: `tools/emu/scripts/cr_quad.txt` (test_cr.sh "QUAD"), `cr_quad_ratiob.txt` (RATIO B heard: BELL on Y,
+  B1 2.00 -> 4.00 an octave up in the WAV, `tools/emu/wavpitch.py`; SHIFT steps B2; the fraction uncut), `quad_persist_set/check.txt` (test_persist.sh), perf.sh
   scenario (i); `tests/cr_backup_test.c` (object 22, a QUAD sound through PUT), `tests/golden.txt` and
   `tests/cpu_baseline.txt` (the 16 presets), `tests/target_budget.py` lists `quad_render` / `quad_block` (their budget
   lines: the next device build, `BUDGET_UPDATE=1`).

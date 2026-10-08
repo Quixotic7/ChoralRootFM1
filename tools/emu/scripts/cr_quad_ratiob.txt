@@ -1,0 +1,69 @@
+# FM TONE's RATIO B heard (docs/QUAD.md; the report "algo 4, MIX at Y: no change when B1 / B2 change"): BELL
+# (algorithm 4: A > C on X, B2 > B1 on Y), EDIT: SYN 1+ MIX +63 (Y only); ENV A/B row B: B LEV down to a small index
+# (B1's phase runs forward: tools/emu/wavpitch.py's zero crossings count its pitch); back on SYN 1: a C4 (MIDI, part 0),
+# KNOB 4 +2: RATIO B 2.00/6.00 -> 4.00/6.00 (B1 doubles: shot), C4 again (an octave up); GLO held + KNOB 4 -1: B2 one
+# step, B1 kept (4.00/5.00: shot, "fine . B2" in the title line), C4 again (the same pitch); GLO held + KNOB 4 +30: B2
+# stops at 16.00 (4.00/16.00, the longest denominator: shot), -30: at 0.25. tools/emu/test_cr.sh reads the "deep:" lines,
+# the shots and the WAV's notes (wavpitch.py)
+wait 300
+btn EDIT down
+wait 400
+btn E4
+wait 300
+btn EDIT up
+btn OCT+                      # FM TONE (01 EP)
+wait 300
+knob PRESETS +1               # 02 BELL
+wait 600
+btn EDIT                      # OSC: SYN 1
+wait 400
+knob SELECT +1                # row B: SYN 1+
+wait 100
+knob KNOB4 +63                # MIX +63
+wait 100
+knob SELECT -1                # row A: SYN 1
+wait 100
+btn ENV                       # ENV A/B
+wait 300
+knob SELECT +1                # row B
+wait 100
+knob KNOB4 -7                 # B LEV 72 -> 30: a small index
+wait 100
+knob SELECT -1
+wait 100
+btn FX                        # OSC: back on SYN 1, row A
+wait 1000
+midi 90 3C 64                 # note 1: C4 at 2.00/6.00
+wait 700
+midi 80 3C 00
+wait 1500
+knob KNOB4 +2                 # 4.00/6.00
+wait 200
+shot build/emu/test/cr_quad_ratiob_b1.ppm
+wait 1000
+midi 90 3C 64                 # note 2: C4 an octave up
+wait 700
+midi 80 3C 00
+wait 1500
+btn GLO down
+wait 50
+knob KNOB4 -1                 # SHIFT: B2 6.00 -> 5.00, B1 kept
+wait 200
+shot build/emu/test/cr_quad_ratiob_b2.ppm
+btn GLO up
+wait 1000
+midi 90 3C 64                 # note 3: the same pitch, B2 another timbre
+wait 700
+midi 80 3C 00
+wait 1500
+btn GLO down
+wait 50
+knob KNOB4 +30                # B2 up to its end: 16.00
+wait 200
+shot build/emu/test/cr_quad_ratiob_b16.ppm
+knob KNOB4 -30                # .. down to its end: 0.25
+wait 50
+btn GLO up
+wait 3000                     # (BELL's release: every voice ends)
+dump
+quit

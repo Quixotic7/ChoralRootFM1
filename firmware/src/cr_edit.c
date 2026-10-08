@@ -1097,10 +1097,43 @@ static uint32_t ce_kmod(void)
     return 0;
 }
 
-/* a value's whole text for the "deep:" trace line: a name of a name list uncut (param_format stops at 5 characters:
- * "3.00/" for RATIO B's 3.00/6.00; the longest, "16.00/16.00", is 11), else as the cell shows it */
+/* a ratio pair (QUAD's RATIO B): an F_INT column of k names over k x k values, v - min = B2 x k + B1, B1 names[v % k]
+ * (the numerator), B2 names[v / k]; k (0: not a pair). The editor needs no engine hook: one detent steps B1 (carrying
+ * into B2), SHIFT steps B2 (ce_knob), the cell is a fraction of both (ce_cell_plan) */
+static uint32_t ce_pair(const param_desc_t *d)
+{
+    uint32_t k = 0;
+    if (!d || d->fmt != F_INT || !d->names || d->max < d->min)
+        return 0;
+    while (d->names[k])
+        k++;
+    return k > 1u && k * k == (uint32_t)(d->max - d->min + 1) ? k : 0u;
+}
+
+/* a ratio's text ("0.25", "16.00") in quarters (1 .. 255: the CR_G_RATIO cell's pct / pct2), 0 when it is not one */
+static uint32_t ce_quarters(const char *s)
+{
+    uint32_t w = 0, f = 0, i = 0;
+    while (s[i] >= '0' && s[i] <= '9')
+        w = w * 10u + (uint32_t)(s[i++] - '0');
+    if (s[i] == '.' && s[i + 1] >= '0' && s[i + 1] <= '9' && s[i + 2] >= '0' && s[i + 2] <= '9')
+        f = (uint32_t)(s[i + 1] - '0') * 10u + (uint32_t)(s[i + 2] - '0');
+    w = w * 4u + f / 25u;
+    return w <= 255u ? w : 0u;
+}
+
+/* a value's whole text for the "deep:" trace line: a name of a name list uncut (param_format stops at 5 characters),
+ * a ratio pair "B1/B2" (the longest, "16.00/16.00", is 11), else as the cell shows it */
 static void ce_trace_value(const param_desc_t *d, int32_t v, char *b, uint32_t n)
 {
+    uint32_t pk = ce_pair(d);
+    if (pk) {
+        uint32_t c = (uint32_t)(clamp(v, d->min, d->max) - d->min);
+        str_cpy(b, d->names[c % pk], n);
+        cu_cat(b, "/", n);
+        cu_cat(b, d->names[c / pk], n);
+        return;
+    }
     if (d->names && (d->fmt == F_ENUM || d->fmt == F_INT) && d->max >= d->min) {
         uint32_t c = (uint32_t)(clamp(v, d->min, d->max) - d->min), k = 0;
         if (d->fmt == F_INT) {                     /* (a 0-terminated list: the range split evenly over it) */
@@ -1124,7 +1157,7 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
     ce_ref_t r;
     const param_desc_t *d;
     int32_t v0 = 0, v;
-    uint32_t i, m = ce_kmod();
+    uint32_t i, m = ce_kmod(), pk;
     char b[16];                                    /* (the trace's value: up to 11 characters, ce_trace_value) */
     if (m == 3u) {                                 /* OCT- held: clear the parameter's modulation */
         cu.oct_mod = 1;                            /* (its release: no octave step) */
@@ -1143,6 +1176,10 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
     if (r.k == CE_R_DEEP && d->names && (ce_cstyle(t, &vw, vw.active, knob & 3u) == ENG_C_RATIO ||
                                          ce_cstyle(t, &vw, vw.active, knob & 3u) == ENG_C_BIG))
         v = clamp(v0 + s, d->min, d->max);        /* (a ratio: one step a detent, as the Digitone's) */
+    if (r.k == CE_R_DEEP && (pk = ce_pair(d)) != 0 && (fine || cx.shift)) {   /* a ratio pair, SHIFT: B2 a step, B1 kept */
+        int32_t c = v0 - d->min, b2 = clamp(c / (int32_t)pk + s, 0, (int32_t)pk - 1);
+        v = d->min + b2 * (int32_t)pk + c % (int32_t)pk;
+    }
     cx.hot_slot = 0;
     cx.hot_r = (uint8_t)(vw.active + 1u);
     cx.hot_c = (uint8_t)(knob & 3u);
@@ -1441,7 +1478,7 @@ static void ce_ptext(const param_desc_t *d, int32_t v, uint32_t style, char *out
 static void ce_cell_plan(const track_t *t, const ce_view_t *vw, uint32_t r, uint32_t c, cr_cell_t *cl)
 {
     const eng_screen_t *h = ce_plan(ce_deep(t), vw->hs);
-    uint32_t st = ce_cstyle(t, vw, r, c);
+    uint32_t st = ce_cstyle(t, vw, r, c), k;
     ce_ref_t rf = vw->ref[r][c];
     const param_desc_t *d;
     int32_t v = 0;
@@ -1457,7 +1494,17 @@ static void ce_cell_plan(const track_t *t, const ce_view_t *vw, uint32_t r, uint
     ce_ptext(d, v, st, cl->value, sizeof cl->value);
     switch (st) {
     case ENG_C_BIG: cl->flags |= CR_CF_BIG; break;
-    case ENG_C_RATIO: cl->glyph = CR_G_RATIO; break;
+    case ENG_C_RATIO:                             /* a pair: B1 over B2 in quarters (cr_draw formats both "%u.%02u") */
+        cl->glyph = CR_G_RATIO;
+        if ((k = ce_pair(d)) != 0) {
+            uint32_t c = (uint32_t)(clamp(v, d->min, d->max) - d->min);
+            cl->pct = (uint8_t)ce_quarters(d->names[c % k]);
+            cl->pct2 = (uint8_t)ce_quarters(d->names[c / k]);
+            cu_cpy(cl->value, d->names[c % k], sizeof cl->value);
+            if (!cl->pct || !cl->pct2)            /* (not a ratio in quarters: B1's name alone, big) */
+                cl->pct2 = 0;
+        }
+        break;
     case ENG_C_HARM: cl->glyph = CR_G_HARM; cl->flags |= CR_CF_PCT; break;
     case ENG_C_DETUNE: cl->glyph = CR_G_DETUNE; cl->flags |= CR_CF_PCT; break;
     case ENG_C_KNOB: cl->glyph = CR_G_KNOB; cl->flags |= CR_CF_PCT | (d->min < 0 ? CR_CF_BIPOLAR : 0u); break;
@@ -1515,6 +1562,11 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     s->title_col = p ? CR_COL_ORANGE : CR_COL_NONE;
     cu_cpy(s->page, vw.right, sizeof s->page);
     s->fine = (uint8_t)(cx.shift || cu_shift());
+    for (c = 0; s->fine && c < 4u && vw.active < CR_ED_ROWS; c++) {   /* a ratio pair in the lane: SHIFT steps its B2 */
+        int32_t pv;
+        if (vw.ref[vw.active][c].k == CE_R_DEEP && ce_pair(ce_param(t, vw.ref[vw.active][c], &pv)))
+            s->fine = 2;
+    }
     s->batt = 255;                                /* no battery in the editor (it is on the Options page) */
     s->n_rows = vw.n;
     s->active = vw.active;

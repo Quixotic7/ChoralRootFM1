@@ -369,9 +369,14 @@ def cell_init(c):
     glyph = CELL_GLYPH[g] if g and g != "none" else "NONE"
     wave = f"CR_LW_{LFO_WAVE[str(c.get('wave') or 'sine').lower()]}" if glyph == "LFOWAVE" else "0"
     value = str(c.get("value") or "").replace("\u2013", "-")
+    pct = q8c(c.get('pct') if c.get('pct') is not None else 0.5)
+    pct2 = q8c(c.get('pct2') if c.get('pct2') is not None else 0.5)
+    if glyph == "RATIO":                                # (a fraction "B1/B2": the two ratios in quarters, pct / pct2)
+        parts = value.split("/")
+        q = [max(0, min(255, int(round(float(x) * 4)))) for x in parts] if len(parts) == 2 else [0, 0]
+        value, pct, pct2 = parts[0], q[0], q[1]
     return (f"{{{cstr(c.get('label'), 14)}, {cstr(value, 10)}, {' | '.join(flags)}, CR_G_{glyph}, "
-            f"{q8c(c.get('pct') if c.get('pct') is not None else 0.5)}, "
-            f"{q8c(c.get('pct2') if c.get('pct2') is not None else 0.5)}, {wave}}}")
+            f"{pct}, {pct2}, {wave}}}")
 
 
 def row_columns(row):

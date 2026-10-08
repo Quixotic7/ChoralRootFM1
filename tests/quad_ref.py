@@ -128,7 +128,6 @@ def write_header():
     L.append("/* the value names (F_INT columns with a 0-terminated name list: value v - min names it) */")
     names("N_QUAD_RCB", [rtxt(r) for r in RCB])
     names("N_QUAD_RA", [rtxt(r) for r in RA])
-    names("N_QUAD_RB", ["%s/%s" % (rtxt(RCB[i % len(RCB)]), rtxt(RCB[i // len(RCB)])) for i in range(NRB)])
     names("N_QUAD_OFS", [("+" if o >= 0 else "-") + "%d.%02d" % (abs(o) // 100, abs(o) % 100) for o in range(-100, 101)])
     L.append("/* the base-width filter: a one-pole's coefficient (Q16) at 30 Hz x (16000 / 30)^(v / 127) (CUTOFF_HZ's scale) */")
     arr("QUAD_BW_K", "uint16_t", BW_K)

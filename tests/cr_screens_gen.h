@@ -1083,7 +1083,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 63: QUAD 1 · QUAD · OSC 1: the SYN1 page under the algorithm diagram */
         .batt = 255,
         .kind = CR_K_EDIT8,
-        .cell = {{{"Algo", "3", CR_CF_ON | CR_CF_BIG, CR_G_NONE, 128, 128, 0}, {"Ratio C", "1.00", CR_CF_ON | CR_CF_BIG, CR_G_NONE, 128, 128, 0}, {"Ratio A", "2.00", CR_CF_ON | CR_CF_BIG, CR_G_NONE, 128, 128, 0}, {"Ratio B", "0.50/1.00", CR_CF_ON, CR_G_RATIO, 128, 128, 0}}, {{"Harm", "+8", CR_CF_ON | CR_CF_PCT, CR_G_HARM, 167, 128, 0}, {"Dtune", "40", CR_CF_ON | CR_CF_PCT, CR_G_DETUNE, 81, 128, 0}, {"Feedback", "40", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 81, 128, 0}, {"Mix", "+12", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 152, 128, 0}}},
+        .cell = {{{"Algo", "3", CR_CF_ON | CR_CF_BIG, CR_G_NONE, 128, 128, 0}, {"Ratio C", "1.00", CR_CF_ON | CR_CF_BIG, CR_G_NONE, 128, 128, 0}, {"Ratio A", "2.00", CR_CF_ON | CR_CF_BIG, CR_G_NONE, 128, 128, 0}, {"Ratio B", "0.50", CR_CF_ON, CR_G_RATIO, 2, 4, 0}}, {{"Harm", "+8", CR_CF_ON | CR_CF_PCT, CR_G_HARM, 167, 128, 0}, {"Dtune", "40", CR_CF_ON | CR_CF_PCT, CR_G_DETUNE, 81, 128, 0}, {"Feedback", "40", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 81, 128, 0}, {"Mix", "+12", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 152, 128, 0}}},
         .n_rows = 2,
         .active = 0,
         .title = "GLASS EP",
