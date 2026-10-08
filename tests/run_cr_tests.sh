@@ -16,6 +16,10 @@ cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_settings_test t
 ./build/host/cr_settings_test
 cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Ibuild/gen -o build/host/cr_va_test tests/cr_va_test.c -lm
 ./build/host/cr_va_test
+# QUAD (docs/QUAD.md): blob, pages, ratios, the routings, against tests/quad_ref.py's goldens, envelopes, filters, LFOs,
+# presets; an int32 wrap aborts (the sanitizer). The CPU figure: tests/run_quad_test.sh
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -DFELUCCA_QUAD=1 -Ibuild/gen -o build/host/cr_quad_test tests/cr_quad_test.c -lm
+./build/host/cr_quad_test
 cc -std=c99 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_trans_test tests/cr_trans_test.c -lm
 ./build/host/cr_trans_test
 # backup / restore SysEx (cr_backup.c) on the emulator's firmware build (tools/emu/emu_firmware.h; macOS: os_unfair_lock)
