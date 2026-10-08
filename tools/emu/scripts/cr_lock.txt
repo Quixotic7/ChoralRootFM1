@@ -3,7 +3,7 @@
 # off: the latch gone, D4 alone a single note. The trace: "lock:" and "chord:" lines.
 wait 300
 expect led B3 dim
-key 1                         # B3 = LOCK
+btn B3                         # B3 = LOCK
 wait 100
 expect led B3 on
 btn G#3 down
@@ -48,7 +48,7 @@ btn D4 down
 wait 300
 btn D4 up
 wait 300
-key 1                         # B3 = LOCK
+btn B3                         # B3 = LOCK
 wait 100
 expect led B3 dim
 expect led A#3 dim

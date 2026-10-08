@@ -8,11 +8,11 @@
 wait 300
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 500
 expect sound
 dump
-key A up
+btn D4 up
 key F3 up
 wait 1500
 btn ENV
@@ -23,14 +23,14 @@ wait 1000
 shot build/emu/test/cr_bass_both_on.ppm
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 500
 expect sound
 dump
 knob ALGORITHM +1
 wait 500
 dump
-key A up
+btn D4 up
 key F3 up
 wait 1500
 btn ENV
@@ -40,16 +40,16 @@ wait 1000
 shot build/emu/test/cr_bass_both_off.ppm
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 500
 expect sound
 dump
-key A up
+btn D4 up
 key F3 up
 wait 1500
 btn ENV 900
 wait 200
-key F 100
+btn G4 100
 wait 200
 btn HOME
 wait 300
@@ -58,24 +58,24 @@ wait 1200
 shot build/emu/test/cr_bass_both_solo.ppm
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 500
 dump
-key A up
+btn D4 up
 key F3 up
 wait 1500
 btn ENV 900
 wait 200
-key A 100
+btn D4 100
 wait 200
 btn HOME
 wait 300
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 500
 dump
-key A up
+btn D4 up
 key F3 up
 wait 2000
 dump

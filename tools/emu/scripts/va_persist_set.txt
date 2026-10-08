@@ -4,9 +4,9 @@
 wait 500
 knob PRESETS +24
 wait 400
-key B 100
+btn EDIT 100
 wait 300
-key X 100
+btn SEL 100
 wait 300
 knob KNOB2 +9
 wait 400

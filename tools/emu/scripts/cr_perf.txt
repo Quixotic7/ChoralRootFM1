@@ -3,30 +3,30 @@
 # then Am7 (MIN = F2, m7 = 3, A4 = G) arpeggiated; released, the arp's Hold keeps it going; PERF tapped off:
 # silent within 2 s
 wait 300
-key / down
+btn ARP down
 wait 500
 shot build/emu/test/cr_perf_picker.ppm
-key F 100
+btn G4 100
 wait 250
 shot build/emu/test/cr_perf_arp.ppm
-key / up
+btn ARP up
 btn OCT-                      # the layer stays open after a hold: OCT- closes it
 wait 200
 dump
 key F2 down
 key 3 down
 wait 40
-key G down
+btn A4 down
 wait 900
 shot build/emu/test/cr_arp_view.ppm
 dump
-key G up
+btn A4 up
 key 3 up
 key F2 up
 wait 100
 expect sound
 wait 1000
 dump
-key / 80
+btn ARP 80
 wait 2000
 dump

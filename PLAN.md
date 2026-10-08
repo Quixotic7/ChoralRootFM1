@@ -365,16 +365,17 @@ number row are the chord block.
 
 | Mac keys | FM-1 |
 | --- | --- |
-| `A S D F G H J K L ; '` | white root keys D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 |
-| `W E T Y I O [` | black root keys D#4 F#4 G#4 A#4 C#5 D#5 F#5 (above the whites, piano-wise) |
+| `A S D F G H J K L ; ' ]` | white note keys C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 (Ableton Live's layout) |
+| `W E T Y U O P [` | black note keys C#4 D#4 F#4 G#4 A#4 C#5 D#5 F#5 (above the whites, piano-wise) |
 | `F1 F2 F3 F4` | DIM MIN MAJ SUS (the black chord keys) |
-| `2 3 4 5` | 6 m7 M7 9 (the white chord keys); B3 = LOCK has no Mac key in `keymap.c` yet |
-| `Z X C V B N` / `, . / ⇧ ⏎ ⌫` | printed FX SEL ENV LFO EDIT GLO / HOME SAVE ARP SEQ PLAY REC = FX KEY BASS LATCH EDIT OPT / HOME SAVE PERF METRO LOOP REC (in the editor: OSC FILT ENV LFO EDIT SHIFT / HOME SAVE PERF MOD FX MIX) |
-| `←` `→` | OCT− OCT+ (both: panic) · `Esc` panic |
-| mouse wheel over a knob, or `↑ ↓` with a knob selected (`Q` MASTER, `R` SELECT, `U` PRESETS, `P` ALGORITHM, `6`–`9` KNOB 1–4) | the eight rotaries |
+| `2 3 4 5` | 6 m7 M7 9 (the white chord keys) · `Tab` = B3 LOCK (the chord mod key) |
+| `F5`–`F10` / `7 8 9 0 - =` (the panel's two rows) | printed FX SEL ENV LFO EDIT GLO / HOME SAVE ARP SEQ PLAY REC = FX KEY BASS LATCH EDIT OPT / HOME SAVE PERF METRO LOOP REC (in the editor: OSC FILT ENV LFO EDIT SHIFT / HOME SAVE PERF MOD FX MIX) |
+| `Z` `C` (and `←` `→`) | OCT− OCT+ (both together: panic) · `Esc` panic |
+| mouse wheel over a knob, or `↑ ↓` with a knob selected (`Q` MASTER, `R` SELECT, `M` PRESETS, `,` ALGORITHM, `X V B N` KNOB 1–4) | the eight rotaries |
 | click | any button or key on the drawn panel |
+| `` ` `` · F11 · F12 · End | big LCD view · LCD screenshot · record frames · print the state |
 
-The map lives in one table (`tools/emu/keymap.c`) and can be changed. The emulator is M0's second
+The map lives in one table (`tools/emu/keymap.c`) and can be changed; no key may be mapped twice (checked at start-up, exit 2). The emulator is M0's second
 deliverable, before any hardware milestone, so every screen and gesture is tried on the Mac first.
 
 ## 8. Milestones

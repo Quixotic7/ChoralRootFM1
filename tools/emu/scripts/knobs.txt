@@ -7,7 +7,7 @@ wait 200
 shot build/emu/test/fx_knob1.ppm
 btn HOME
 wait 200
-key U                       # select PRESETS (U) ...
+key M                       # select PRESETS (M) ...
 key UP                      # ... and turn it one detent (Up)
 wait 300
 shot build/emu/test/preset_next.ppm

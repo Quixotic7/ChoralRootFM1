@@ -4,8 +4,8 @@ wait 300
 wait 700
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 700
-key A up
+btn D4 up
 key F3 up
 wait 1500

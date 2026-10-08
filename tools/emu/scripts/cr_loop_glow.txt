@@ -5,14 +5,14 @@
 # REC commits the take into playback: 0xFA; LOOP tap stops it: 0xFC (the trace "midi: FA start" / "midi: FC stop").
 # Then MIDI Clock Off: LOOP plays and stops it again with no start / stop sent.
 wait 300
-key N 80
+btn GLO 80
 wait 200
 knob SELECT +14
 wait 100
 knob KNOB1 +1
 wait 200
 shot build/emu/test/cr_glow_options.ppm
-key N 80
+btn GLO 80
 wait 300
 expect led D4 on
 btn REC
@@ -41,13 +41,13 @@ wait 300
 expect led D4 on
 expect led F#4 on
 dump
-key N 80
+btn GLO 80
 wait 200
 knob SELECT -3
 wait 100
 knob KNOB1 -1
 wait 100
-key N 80
+btn GLO 80
 wait 300
 btn PLAY
 wait 600

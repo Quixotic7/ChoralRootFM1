@@ -7,10 +7,10 @@ expect led ENV on
 wait 700
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 500
 dump
-key A up
+btn D4 up
 key F3 up
 wait 2000
 dump

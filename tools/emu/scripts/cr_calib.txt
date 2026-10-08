@@ -66,10 +66,10 @@ master 724
 wait 1500
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 500
 expect sound
-key A up
+btn D4 up
 key F3 up
 wait 2000
 dump

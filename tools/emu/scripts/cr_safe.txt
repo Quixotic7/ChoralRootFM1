@@ -8,12 +8,12 @@ dump
 wait 5000
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 700
 expect sound
 shot build/emu/test/cr_safe_play.ppm
 dump
-key A up
+btn D4 up
 key F3 up
 wait 2000
 dump

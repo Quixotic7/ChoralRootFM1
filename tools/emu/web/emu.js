@@ -62,7 +62,7 @@
     const role = BTN_ROLE[i];
     const cap = rect(r, oct ? 6 : 5, C.cap, g, { stroke: C.edge, "stroke-width": 1.5 });
     const t = text(r[0] + r[2] / 2, r[1] + (oct ? 15 : 20), role, oct ? 9 : role.length > 4 ? 8.5 : 10, BTN_COL[role] || C.cream, g);
-    const h = i === 12 ? "←" : i === 13 ? "→" : hint("btn", i);
+    const h = hint("btn", i);
     const ht = h ? text(r[0] + r[2] / 2, oct ? r[1] + r[3] + 10 : r[1] + 31, h === "RSHIFT" ? "SHIFT" : h === "RETURN" ? "\u23ce" : h === "BKSP" ? "⌫" : h, 6.5, C.grey, g, 700) : null;
     const dot = i === 10 ? el("circle", { cx: r[0] + 6, cy: r[1] + r[3] - 6, r: 3.2, fill: C.led }, g) : null;
     btnEl.push({ cap, t, ht, dot, col: i === 11 ? C.red : i === 10 ? C.orange : C.cream, tcol: BTN_COL[role] || C.cream });

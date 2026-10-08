@@ -38,7 +38,7 @@ activation, it never takes the keyboard focus from the app you are using), and i
 `--front` turns that off: a normal app with a Dock icon, the window centred on that display and in front.
 
 **Layout: the panel first.** The window shows the FM-1 panel alone, sized to about 80 % of the display's
-usable height, with the live LCD on the panel's own screen. **F9** shows / hides the big LCD view above the
+usable height, with the live LCD on the panel's own screen. **`` ` ``** (backtick) shows / hides the big LCD view above the
 panel (a square as wide as the panel; `--lcd` starts with it shown, `--scale N` then makes the starting
 window 240*N points wide). The window is **resizable** and can go to any display: everything is redrawn
 to fit, keeping the aspect ratio (letterboxed); the panel is re-rasterised at the new size, so it stays
@@ -63,24 +63,25 @@ Firmware key index = MIDI note - 53 (0 = F3 .. 26 = G5).
 
 | computer keys | FM-1 |
 |---|---|
-| `A S D F G H J K L ; '` | white root keys D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 (keys 9 11 12 14 16 18 19 21 23 24 26) |
-| `W E T Y I O [` | black root keys D#4 F#4 G#4 A#4 C#5 D#5 F#5 (keys 10 13 15 17 20 22 25) |
+| `A S D F G H J K L ; ' ]` | white note keys C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 (keys 7 9 11 12 14 16 18 19 21 23 24 26; Ableton Live's layout) |
+| `W E T Y U O P [` | black note keys C#4 D#4 F#4 G#4 A#4 C#5 D#5 F#5 (keys 8 10 13 15 17 20 22 25) |
 | `F1 F2 F3 F4` | F#3 G#3 A#3 C#4 (keys 1 3 5 8) |
 | `2 3 4 5` | F3 G3 A3 C4 (keys 0 2 4 7) |
-| `1` | B3 (key 6: ChoralRoot's LOCK) |
-| `Z X C V B N` | FX SEL ENV LFO EDIT GLO |
-| `,` `.` `/` Right-Shift Return Backspace | HOME SAVE ARP SEQ PLAY REC |
-| Left / Right | OCT- / OCT+ |
-| Esc | OCT- and OCT+ together |
-| `Q R U P` | select the knob MASTER, SELECT, PRESETS, ALGORITHM |
-| `6 7 8 9` | select KNOB1 .. KNOB4 |
+| Tab | B3 (key 6: ChoralRoot's LOCK, the chord mod key) |
+| `Z` `C` (and Left / Right) | OCT- / OCT+ (`Z` + `C` together = panic, as the arrows) |
+| Esc | OCT- and OCT+ together (panic) |
+| F5 F6 F7 F8 F9 F10 | the top button row: FX SEL ENV LFO EDIT GLO (ChoralRoot: FX KEY BASS LATCH EDIT OPT; in the editor: OSC FILT ENV LFO EDIT SHIFT) |
+| `7 8 9 0 - =` | the bottom button row: HOME SAVE ARP SEQ PLAY REC (ChoralRoot: HOME SAVE PERF METRO LOOP REC; in the editor: HOME SAVE PERF MOD FX MIX) |
+| `Q R M ,` | select the knob MASTER, SELECT, PRESETS, ALGORITHM |
+| `X V B N` | select KNOB1 .. KNOB4 |
 | Up / Down | turn the selected knob one detent clockwise / counter-clockwise (repeats while held; MASTER: 32 of 1023) |
 | mouse wheel over a knob | turn that knob |
-| F9 | show / hide the big LCD view above the panel (window only) |
-| F10 | LCD screenshot: `build/emu/shot_NNN.png` |
-| F11 | record every LCD frame to `build/emu/rec/NNNN.ppm` (again to stop) |
-| F12 | print the input state (`fm1_in`, the LEDs, the track, the song) |
+| `` ` `` (backtick) | show / hide the big LCD view above the panel (window only) |
+| F11 | LCD screenshot: `build/emu/shot_NNN.png` |
+| F12 | record every LCD frame to `build/emu/rec/NNNN.ppm` (again to stop) |
+| End | print the input state (`fm1_in`, the LEDs, the track, the song) |
 
+No computer key is mapped twice: the emulator checks the table at start-up and exits 2 on a duplicate.
 On a Mac keyboard the F keys may need `fn`. Cmd shortcuts stay the system's; losing the focus releases
 every held key (no stuck notes).
 
@@ -109,7 +110,7 @@ own clock in ms from power-on; commands run in order and only `wait` (and the ti
 | command | meaning |
 |---|---|
 | `wait MS` | move the clock on: `200`, `200ms`, `1.5s` (`frames N` = N x 15 ms) |
-| `key KEY down` / `key KEY up` | a computer key of the map, as if typed: `key A down`, `key RETURN up`, `key UP down` |
+| `key KEY down` / `key KEY up` | a computer key of the map, as if typed: `key S down` (D4), `key RETURN up`, `key UP down` |
 | `key KEY [MS]` | press KEY for MS (default 100) ms; the clock moves on by MS |
 | `btn NAME [down\|up\|MS]` | a panel control by name: `FX SEL ENV LFO EDIT GLO HOME SAVE ARP SEQ PLAY REC OCT- OCT+` or a note key `F3`..`G5` (`D#4`); default a 100 ms tap |
 | `knob NAME +-N` | turn `SELECT ALGORITHM PRESETS KNOB1..KNOB4` N detents (+ clockwise); `MASTER`: N x 16 of 1023 |
@@ -117,8 +118,8 @@ own clock in ms from power-on; commands run in order and only `wait` (and the ti
 | `shot NAME` | the LCD to `build/emu/NAME.png` and `.ppm`; a NAME with `/` or ending `.ppm` / `.png` is a path |
 | `expect led NAME on\|dim\|off` | check a key's or button's LED now (`on` = lit); `GREEN` is PLAY's green LED |
 | `expect sound` / `expect silence` | non-zero samples since the previous `expect sound\|silence` (or power-on) |
-| `dump` | print the input state (as F12) |
-| `rec` | start / stop recording the LCD frames (as F11) |
+| `dump` | print the input state (as End) |
+| `rec` | start / stop recording the LCD frames (as F12) |
 | `quit` | stop here |
 
 Older forms still work: `press KEY [MS]`, `tap`, `hold` / `down`, `release` / `up`, `turn KNOB N`, and an
@@ -130,18 +131,18 @@ Example (`scripts/key_a.txt`):
 ```
 wait 500
 shot build/emu/test/home.ppm   # the power-on screen
-key A down                      # D4
+btn D4 down                     # D4 (computer key S)
 wait 150
-expect led A on
+expect led D4 on
 wait 150
-key A up
+btn D4 up
 wait 100
 expect sound
 ```
 
 ### test.sh
 
-`sh tools/emu/test.sh` rebuilds when a source is newer, then checks in headless mode: A held 300 ms
+`sh tools/emu/test.sh` rebuilds when a source is newer, then checks in headless mode: D4 held 300 ms
 lights key D4's LED and gives non-silent blocks; the power-on screen is written; a second run gives the same
 LCD and WAV; then `test_cr.sh`: MAJ + D4 (D major: sound, the D4 F#4 A4 LEDs, the chord screen), KNOB 1
 (voicing), KEY tap / hold (Key Mode, select-key), PERF hold (the Perform picker), PRESETS (another sound),
@@ -161,11 +162,11 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy build/host/emu --no-midi --demo --qu
 
 - Flash is RAM only (`FELUCCA_FLASH 0`): SAVE and user presets do not persist across runs.
 - The CPU meter reads ~0 %: the Mac renders a block in a few tens of us against the device's budget.
-- ChoralRoot's roles of the printed buttons: `X` (SEL) = KEY, `B` (EDIT) = EDIT, `Z` FX, `C` (ENV) BASS, `V` (LFO)
-  LATCH, `N` (GLO) OPT, `/` (ARP) PERF, Right-Shift (SEQ) METRO, Return (PLAY) LOOP; B3 (`1`) = LOCK.
+- ChoralRoot's roles of the printed buttons: F6 (SEL) = KEY, F9 (EDIT) = EDIT, F5 FX, F7 (ENV) BASS, F8 (LFO)
+  LATCH, F10 (GLO) OPT, `9` (ARP) PERF, `0` (SEQ) METRO, `-` (PLAY) LOOP, `=` REC; B3 (Tab) = LOCK.
   A layer button held 300 ms locks its layer open: scripts close it with `btn OCT-` (or `btn HOME`).
-- Sound editing: `B` (EDIT) tap = the sound editor (`C` held + `B` the bass's), held = the engine picker;
-  `.` (SAVE) = naming (the white roots type, Left deletes, Right saves). User sounds are RAM only here.
+- Sound editing: F9 (EDIT) tap = the sound editor (F7 held + F9 the bass's), held = the engine picker;
+  `8` (SAVE) = naming (the white roots type, Left deletes, Right saves). User sounds are RAM only here.
 - ChoralRoot's looper and metronome are not there yet (their screens
   show; docs/INTEGRATION.md "Status").
 

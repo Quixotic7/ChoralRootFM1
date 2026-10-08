@@ -4,10 +4,10 @@ wait 500
 btn EDIT 600
 wait 300
 shot build/emu/test/persist_roots.ppm
-key A down
+btn D4 down
 wait 400
 expect sound
-key A up
+btn D4 up
 wait 300
 btn OCT-
 wait 300

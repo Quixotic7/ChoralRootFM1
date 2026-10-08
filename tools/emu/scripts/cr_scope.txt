@@ -12,14 +12,14 @@ btn HOME
 wait 100
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 700
 expect sound
 shot build/emu/test/cr_scope.ppm
 wait 300
 shot build/emu/test/cr_scope_b.ppm
 dump
-key A up
+btn D4 up
 key F3 up
 wait 4000
 shot build/emu/test/cr_scope_flat.ppm

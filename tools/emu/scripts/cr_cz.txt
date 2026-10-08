@@ -10,10 +10,10 @@ wait 500
 dump
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 1500
 expect sound
-key A up
+btn D4 up
 key F3 up
 wait 2000
 btn EDIT
@@ -35,10 +35,10 @@ shot build/emu/test/cr_cz_env_hot.ppm
 wait 300
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 1500
 expect sound
-key A up
+btn D4 up
 key F3 up
 wait 1000
 btn ENV

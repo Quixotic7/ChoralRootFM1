@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Headless acceptance of the FM-1 emulator (no window, no audio device, deterministic):
 #   sh tools/emu/test.sh            builds build/host/emu when a source is newer, runs tools/emu/scripts/*
-# Checks: a 300 ms press of A (D4) lights its LED and renders sound; the power-on screen is written; two runs
+# Checks: a 300 ms press of D4 (computer key S) lights its LED and renders sound; the power-on screen is written; two runs
 # give the same LCD and the same audio; then ChoralRoot's own acceptance (test_cr.sh). (scripts/sel.txt,
 # knobs.txt and acceptance.txt were Felucca's UI: no longer run.)
 set -u
@@ -32,12 +32,12 @@ run() {   # run NAME SCRIPT FRAMES [more options]: the log in $OUT/NAME.log, the
 num() { sed -n "s/.*$1 \([0-9][0-9]*\).*/\1/p" "$2" | head -1; }
 same() { cmp -s "$1" "$2"; }
 
-echo "key A held 300 ms"
+echo "D4 held 300 ms"
 run key_a "$S/key_a.txt" 80 --shot "$OUT/key_a_end.ppm" --wav "$OUT/key_a.wav"
 nz=$(num "non-silent blocks" "$OUT/key_a.log")
 [ "${nz:-0}" -gt 0 ] && ok "non-silent audio blocks: $nz ($(num 'non-zero samples' "$OUT/key_a.log") non-zero samples)" \
-                     || bad "no sound from the key A press"
-grep -q 'expect led A on .*: ok' "$OUT/key_a.log" && ok "key A's LED lit during the press" || bad "key A's LED not lit"
+                     || bad "no sound from the D4 press"
+grep -q 'expect led D4 on .*: ok' "$OUT/key_a.log" && ok "D4's LED lit during the press" || bad "D4's LED not lit"
 [ -s "$OUT/home.ppm" ] && ok "power-on screen written: $OUT/home.ppm" || bad "no power-on screenshot"
 [ -s "$OUT/key_a_end.ppm" ] && ok "--shot wrote $OUT/key_a_end.ppm" || bad "--shot wrote nothing"
 

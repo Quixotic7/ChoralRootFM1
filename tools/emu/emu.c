@@ -2,7 +2,7 @@
 /* The M-VAVE FM-1 emulator for the Mac: the firmware (emu_fw.c, through emu_hooks.h only) driven from
  * the keyboard and the mouse, with its LCD, LEDs, audio (SDL2) and MIDI (CoreMIDI).
  *   build: sh tools/emu/build.sh      run: build/host/emu [--help]
- * The window (resizable): the FM-1 panel with its live 240x240 screen, F9 shows the LCD big above it; the panel drawn in the
+ * The window (resizable): the FM-1 panel with its live 240x240 screen, ` (backtick) shows the LCD big above it; the panel drawn in the
  * geometry of ChoralRootFM1Designer/index.html (KEYS, BUTTONS, ENCODERS, SCREEN, BODY; 904 x 566 units). */
 #include <SDL.h>
 #include <errno.h>
@@ -22,7 +22,7 @@
 
 /* ================================================================== options === */
 static int opt_front, opt_lcd, opt_display = -1, opt_pos_x, opt_pos_y, opt_pos, opt_size_w, opt_size_h;
-static int show_lcd;                             /* F9: the big LCD view above the panel */
+static int show_lcd;                             /* `: the big LCD view above the panel */
 static SDL_Renderer *ren;
 static void relayout(void);
 static int opt_scale = 0, opt_demo, opt_midi = 1, opt_midi_log, opt_audio = 1;
@@ -341,7 +341,7 @@ static void draw_panel(void)
         rect_t r = BTNR[i];
         int lv = led_state(emu_hal.btn_id[i]), oct = i >= EMU_B_OCTDN;
         uint32_t col = i == EMU_B_REC ? C_RED : i == EMU_B_PLAY ? C_ORANGE : C_WHITE;
-        h = i == EMU_B_OCTDN ? "LEFT" : i == EMU_B_OCTUP ? "RIGHT" : keymap_hint(KM_BTN, i);
+        h = keymap_hint(KM_BTN, i);
         rrect(c, r, oct ? 6 : 5, C_CAP, 1);
         if (lv)
             rrect(c, r, oct ? 6 : 5, col, lv == 2 ? 1.f : .38f);
@@ -630,7 +630,7 @@ static char window_pending[32];                  /* taken in present(), before t
  * Time is the script's own clock (ms from power-on): commands run in order, "wait" moves the clock on.
  *   wait MS                 200 | 200ms | 1.5s;   frames N = N x 15 ms
  *   key KEY down|up         a computer key of the keyboard map, exactly as typed (A, W, F1, Z, RETURN, ESC,
- *                           R, UP, F12 ...): "key A down", "wait 300", "key A up"
+ *                           R, UP, END ...): "key A down", "wait 300", "key A up"
  *   key KEY [MS]            press KEY for MS (default 100), the clock moves on by MS
  *   btn NAME [down|up|MS]   a panel control by name (PLAY SEL FX ... OCT- OCT+, D4 F#3 .. G5): a tap of MS
  *                           (default 100 ms; the clock moves on), or down / up
@@ -642,7 +642,7 @@ static char window_pending[32];                  /* taken in present(), before t
  *   expect sound|silence    non-zero samples since the previous "expect sound|silence" (or power-on)
  *   midi HEX [HEX [HEX]]    one MIDI message into the firmware's MIDI in (usb.c's queue, as from USB): "midi B0 07 64";
  *                           "midi F8 xN MS": N clock pulses MS apart (MS may be fractional: 20.833), the clock moves on
- *   dump | rec | window NAME | quit       F12's print, F11's LCD recording, a window shot, stop here
+ *   dump | rec | window NAME | quit       End's print, F12's LCD recording, a window shot, stop here
  * Also accepted (older scripts): press KEY [MS], tap, hold / down, release / up, turn KNOB N, and a leading
  * "<ms>" for an absolute time ("1200 down A"). Names: a computer key wins for key/press/hold, a panel control
  * for btn; "note:F3" names the note F3. */
@@ -892,7 +892,7 @@ static void key_action(const keymap_t *m, int down, int src)
     case KM_LCDVIEW:
         if (down) {
             show_lcd = !show_lcd;
-            printf("F9: LCD view %s\n", show_lcd ? "shown" : "hidden");
+            printf("`: LCD view %s\n", show_lcd ? "shown" : "hidden");
             if (ren)
                 relayout();
         }
@@ -1033,7 +1033,7 @@ static void usage(void)
            "                   (firmware/src/cr_bootguard.h; with --reset-reason wdt: 1 -> SAFE MODE, 3 -> UBOOT)\n"
            "  --reset-reason R this power-on's reset: poweron (default), wdt, soft, other, or the reason word\n"
            "  --boot-stage N   the breadcrumb the crashed run left (felucca_dbg.stage; default 13 with --boot-fail)\n"
-           "  --lcd            start with the big LCD view shown above the panel (F9 shows / hides it)\n"
+           "  --lcd            start with the big LCD view shown above the panel (` shows / hides it)\n"
            "  --scale N        with --lcd: the starting window is 240*N points wide (the LCD view at xN)\n"
            "  --display N      open the window on display N (default: the one the mouse pointer is on)\n"
            "  --pos X,Y        the window's top-left corner, global screen points\n"
@@ -1337,6 +1337,7 @@ static void make_dirs(void)
 int main(int argc, char **argv)
 {
     int i, running = 1;
+    keymap_check();
     for (i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--help") || !strcmp(a, "-h")) { usage(); return 0; }
@@ -1441,7 +1442,7 @@ int main(int argc, char **argv)
         return 1;
     }
     make_dirs();
-    {   /* the window: the panel (and with F9 / --lcd the LCD view above it), resizable, letterboxed */
+    {   /* the window: the panel (and with ` / --lcd the LCD view above it), resizable, letterboxed */
         SDL_Rect ub;
         int d = opt_display, x, y, nd = SDL_GetNumVideoDisplays();
         float fh_units;
@@ -1497,7 +1498,7 @@ int main(int argc, char **argv)
         t_lcd = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, EMU_LCD_W, EMU_LCD_H);
         t_lcd_small = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, EMU_LCD_W, EMU_LCD_H);
         relayout();
-        printf("window %dx%d points on display %d (%.0fx pixels; F9: LCD view %s)\n", win_w, win_h, d, dpi,
+        printf("window %dx%d points on display %d (%.0fx pixels; `: LCD view %s)\n", win_w, win_h, d, dpi,
                show_lcd ? "shown" : "hidden");
     }
     emu_fw_init(opt_demo);

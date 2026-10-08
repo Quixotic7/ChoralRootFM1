@@ -10,11 +10,11 @@ key F3 down
 key 4 down
 key 5 down
 wait 40
-key A down
+btn D4 down
 wait 1200
 expect sound
 shot build/emu/test/cr_allsynth_piano.ppm
-key A up
+btn D4 up
 key F3 up
 key 4 up
 key 5 up
@@ -26,10 +26,10 @@ key F3 down
 key 4 down
 key 5 down
 wait 40
-key A down
+btn D4 down
 wait 1200
 expect sound
-key A up
+btn D4 up
 key F3 up
 key 4 up
 key 5 up
@@ -41,11 +41,11 @@ key F3 down
 key 4 down
 key 5 down
 wait 40
-key A down
+btn D4 down
 wait 1200
 expect sound
 shot build/emu/test/cr_allsynth_shimmer.ppm
-key A up
+btn D4 up
 key F3 up
 key 4 up
 key 5 up

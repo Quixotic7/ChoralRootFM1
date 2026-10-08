@@ -25,6 +25,7 @@ typedef struct {
 extern const keymap_t KEYMAP[];
 extern const int KEYMAP_N;
 void keymap_help(void);
+void keymap_check(void);
 const keymap_t *keymap_find(SDL_Scancode sc);
 const char *keymap_hint(uint8_t kind, int idx);   /* the computer key of a control, or NULL */
 

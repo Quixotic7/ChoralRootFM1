@@ -103,10 +103,10 @@ wait 200
 expect led GLO dim
 key F3 down
 wait 40
-key A down
+btn D4 down
 wait 500
 expect sound
-key A up
+btn D4 up
 key F3 up
 wait 300
 btn GLO down

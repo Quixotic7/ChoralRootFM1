@@ -9,13 +9,13 @@ key 2 down
 key 4 down
 key 5 down
 wait 40
-key A down
+btn D4 down
 wait 3000
-key A up
-key G down
+btn D4 up
+btn A4 down
 wait 3000
 dump
-key G up
+btn A4 up
 key F3 up
 key 2 up
 key 4 up

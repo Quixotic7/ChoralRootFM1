@@ -2,7 +2,7 @@
 # each locks open, the next hold switches to its layer, OCT- closes the last; SELECT (tempo meter), KNOB 4 (the FX
 # amount), HOME (the views)
 wait 300
-key N 80
+btn GLO 80
 wait 300
 shot build/emu/test/cr_options.ppm
 knob SELECT +3
@@ -10,24 +10,24 @@ wait 300
 knob KNOB1 +1
 wait 300
 shot build/emu/test/cr_options_sel.ppm
-key N 80
+btn GLO 80
 wait 200
-key Z down
+btn FX down
 wait 500
 shot build/emu/test/cr_fx_layer.ppm
-key Z up
-key C down
+btn FX up
+btn ENV down
 wait 500
 shot build/emu/test/cr_bass_layer.ppm
-key C up
-key B down
+btn ENV up
+btn EDIT down
 wait 500
 shot build/emu/test/cr_engine_picker.ppm
-key B up
-key RETURN down
+btn EDIT up
+btn PLAY down
 wait 500
 shot build/emu/test/cr_loop_layer.ppm
-key RETURN up
+btn PLAY up
 btn OCT-                      # the layer stays open after a hold: OCT- closes it
 wait 100
 knob SELECT +4
@@ -39,20 +39,20 @@ wait 400
 shot build/emu/test/cr_fx_amount.ppm
 wait 1000
 key F3 down
-key A down
+btn D4 down
 wait 500
-key , 80
+btn HOME 80
 wait 500
 shot build/emu/test/cr_view_keyboard.ppm
-key , 80
+btn HOME 80
 wait 500
 shot build/emu/test/cr_view_notes.ppm
 wait 100
-key , 80
+btn HOME 80
 wait 500
 shot build/emu/test/cr_view_geek.ppm
-key , 80
-key A up
+btn HOME 80
+btn D4 up
 key F3 up
 wait 2000
 dump

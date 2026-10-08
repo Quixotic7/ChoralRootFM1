@@ -16,9 +16,9 @@ btn HOME
 wait 300
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 900
-key A up
+btn D4 up
 key F3 up
 wait 2500
 dump

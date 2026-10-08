@@ -5,7 +5,7 @@ wait 500
 shot build/emu/test/cr_boot.ppm
 key F3 down
 wait 60
-key A down
+btn D4 down
 wait 700
 expect led A#3 on
 expect led D4 on
@@ -25,7 +25,7 @@ expect led D4 dim
 dump
 knob KNOB1 -2
 wait 100
-key A up
+btn D4 up
 key F3 up
 wait 100
 expect sound
@@ -34,11 +34,11 @@ dump
 key F3 down
 key 4 down
 wait 60
-key A down
+btn D4 down
 wait 700
 shot build/emu/test/cr_dmaj7.ppm
 dump
-key A up
+btn D4 up
 key 4 up
 key F3 up
 wait 2000

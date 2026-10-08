@@ -14,12 +14,12 @@ key 2 down
 key 4 down
 key 5 down
 wait 40
-key A down
+btn D4 down
 wait 560
-key A up
-key G down
+btn D4 up
+btn A4 down
 wait 560
-key G up
+btn A4 up
 key F3 up
 key 2 up
 key 4 up
@@ -27,14 +27,14 @@ key 5 up
 wait 40
 btn REC
 wait 300
-key / down
+btn ARP down
 wait 400
-key F 100
+btn G4 100
 wait 200
-key / up
+btn ARP up
 btn OCT-                      # the layer stays open after a hold: OCT- closes it
 wait 300
-key B 100
+btn EDIT 100
 wait 300
 knob SELECT +1
 wait 300
@@ -43,7 +43,7 @@ key 2 down
 key 4 down
 key 5 down
 wait 40
-key S down
+btn E4 down
 knob KNOB1 +1
 wait 30
 knob KNOB1 +1
@@ -445,7 +445,7 @@ wait 30
 knob KNOB4 -1
 wait 30
 dump
-key S up
+btn E4 up
 key F3 up
 key 2 up
 key 4 up
@@ -453,6 +453,6 @@ key 5 up
 wait 300
 btn PLAY
 wait 300
-key / 80
+btn ARP 80
 wait 1500
 dump

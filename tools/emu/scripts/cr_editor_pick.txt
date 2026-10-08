@@ -25,10 +25,10 @@ knob KNOB4 +1
 wait 300
 shot build/emu/test/cr_pick_roots_play.ppm
 expect silence
-key A down
+btn D4 down
 wait 400
 expect sound
-key A up
+btn D4 up
 wait 300
 knob KNOB4 +1
 wait 300

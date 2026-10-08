@@ -4,10 +4,10 @@
 wait 500
 key F3 down
 wait 40
-key A down
+btn D4 down
 wait 600
 expect sound
-key A up
+btn D4 up
 key F3 up
 wait 300
 dump
