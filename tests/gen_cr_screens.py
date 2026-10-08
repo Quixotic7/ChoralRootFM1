@@ -50,7 +50,14 @@ def ftype_pos(v):
     """the JSON's ftype ("LP" .. "NOTCH", or a position 0..127) -> the band's FTYPE position"""
     if isinstance(v, (int, float)):
         return int(v) & 127
-    return FTYPE[str(v or "LP").upper()]
+    n = str(v or "LP").upper()
+    return 0 if n == "OFF" else FTYPE[n[:-2] if n[-2:] in ("12", "24") else n]
+
+
+def ftype_slope(v):
+    """QUAD's filter type names (wv[7]): 0 the VA's, 1 OFF (flat), 2 ..12, 3 ..24"""
+    n = str(v or "").upper() if not isinstance(v, (int, float)) else ""
+    return 1 if n == "OFF" else 2 if n.endswith("12") else 3 if n.endswith("24") else 0
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 KEY_NAMES = [NOTE_NAMES[(53 + k) % 12] + str((53 + k) // 12 - 1) for k in range(27)]   # F3 .. G5
 
@@ -435,6 +442,8 @@ def editor_fields(p, kind):
         bw = w.get("bw")
         if isinstance(bw, dict):                        # QUAD's base-width window: shown, base, width
             vals += [1, q8c(bw.get("base", 0)), q8c(bw.get("width", 0))]
+        if ftype_slope(w.get("ftype")):                 # QUAD's type: OFF / 12 / 24 dB (wv[7])
+            vals += [0] * (7 - len(vals)) + [ftype_slope(w.get("ftype"))]
         f.append(".wide = CR_W_FILTER")
         f.append(".wv = {" + ", ".join(str(v) for v in vals) + "}")
     elif w and w.get("type") == "algo":                 # QUAD: the algorithm, feedback, mix (128 = X and Y alike)
@@ -672,9 +681,9 @@ def presets_states():
 
 # .. and QUAD's editor screens (design/choralroot-fm1-quad-mockups.json, docs/QUAD.md, the user-approved sheet
 # design/choralroot-fm1-quad-screens.png): states 1..8 (the algo band, big and ratio cells, harm and detune glyphs, the
-# ade2 band, the filter's base-width window, the bipolar knob, the lfowave span-2 cell)
+# ade2 band, the filter's base-width window, the bipolar knob, the lfowave span-2 cell); 10 ENV 3 (three cells)
 QUAD_SRC = ROOT / "design" / "choralroot-fm1-quad-mockups.json"
-QUAD_PICK = [1, 2, 3, 4, 5, 6, 7, 8]
+QUAD_PICK = [1, 2, 3, 4, 5, 6, 7, 8, 10]
 
 
 def quad_states():

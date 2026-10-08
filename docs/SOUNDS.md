@@ -147,11 +147,11 @@ bytes (the FM-1 checks it, `cz_patch_valid`). The clients check the lengths and 
 16  32 x 80 bytes: patch k
 ```
 
-An FM TONE blob (`eng_quad.c` `quad_pack`): byte 0 = 'Q' (0x51), byte 1 = the version 2 (0.14: 72 values, RATIO B's B1
-and B2 two values), then a byte per value (the value minus its minimum: 0..200, so **not 7-bit clean**: the backup
-protocol's pack7 carries it), then 6 zero bytes to 80. Version 1 (a 0.14 dev build's) is still read: the FM-1 converts
-it. The FM-1 checks every byte (`quad_blob_ok`: the ranges, the zero padding); the clients check the magic, the version
-(1 or 2) and the length. A
+An FM TONE blob (`eng_quad.c` `quad_pack`): byte 0 = 'Q' (0x51), byte 1 = the version 3 (0.14: 73 values, the
+Digitone manual's algorithms and ranges, B2 KEY), then a byte per value (the value minus its minimum: 0..200, so **not
+7-bit clean**: the backup protocol's pack7 carries it), then zero bytes to 80. Versions 1 and 2 (0.14 dev builds') are
+still read: the FM-1 converts them. The FM-1 checks every byte (`quad_blob_ok`: the ranges, the zero padding); the
+clients check the magic, the version (1..3) and the length. A
 FM TONE sound's PAN and DRIVE are the record's track parameters, not in the blob. **No .syx** for FM TONE (no standard
 format): the page shows no Export .syx button on an FM TONE row (it offers one for FM6 / CZ-1 patches only) and
 `exportSyx` / `--export-syx` refuse the slot.

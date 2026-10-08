@@ -1127,8 +1127,8 @@ def read_sound_file(f):
             raise bad("not a VA patch (its first bytes are not 'V' and a version 1..3)")
         if kind == "fm6" and (data[112] != 0x46 or data[113] != 1):
             raise bad("not an FM6 patch (bytes 112, 113 are not 'F', 1)")
-        if kind == "quad" and (data[0] != 0x51 or not 1 <= data[1] <= 2):
-            raise bad("not an FM TONE patch (its first bytes are not 'Q' and a version 1..2)")
+        if kind == "quad" and (data[0] != 0x51 or not 1 <= data[1] <= 3):
+            raise bad("not an FM TONE patch (its first bytes are not 'Q' and a version 1..3)")
         patch = (kind, bytes(data))
     return bytes(rec), name, engine, patch
 

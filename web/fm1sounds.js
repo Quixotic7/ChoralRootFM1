@@ -187,7 +187,7 @@ export function readSoundFile(file) {
     if (patch.length !== PATCH_SIZE[kind]) throw new Error(`The sound file's ${kind} patch is ${patch.length} bytes, not ${PATCH_SIZE[kind]}`);
     if (kind === "va" && (patch[0] !== 0x56 || patch[1] < 1 || patch[1] > 3)) throw new Error("The sound file's VA patch is not a VA patch (magic or version)");
     if (kind === "fm6" && (patch[112] !== 0x46 || patch[113] !== 1)) throw new Error("The sound file's FM6 patch is not an FM6 patch (magic)");
-    if (kind === "quad" && (patch[0] !== 0x51 || patch[1] < 1 || patch[1] > 2)) throw new Error("The sound file's FM TONE patch is not an FM TONE patch (magic or version)");
+    if (kind === "quad" && (patch[0] !== 0x51 || patch[1] < 1 || patch[1] > 3)) throw new Error("The sound file's FM TONE patch is not an FM TONE patch (magic or version)");
   }
   return { record, name, engine, engineName: ENGINE_NAMES[engine], kind, patch };
 }

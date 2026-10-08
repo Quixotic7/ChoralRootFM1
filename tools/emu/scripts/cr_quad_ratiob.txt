@@ -1,10 +1,12 @@
-# FM TONE's RATIO B heard (docs/QUAD.md; the report "algo 4, MIX at Y: no change when B1 / B2 change"): BELL
-# (algorithm 4: A > C on X, B2 > B1 on Y), EDIT: SYN 1+ MIX +63 (Y only); ENV A/B row B: B LEV down to a small index
-# (B1's phase runs forward: tools/emu/wavpitch.py's zero crossings count its pitch); back on SYN 1: a C4 (MIDI, part 0),
-# KNOB 4 +2: RATIO B 2.00/6.00 -> 4.00/6.00 (B1 doubles: shot), C4 again (an octave up); GLO held + KNOB 4 -1: B2 one
-# step, B1 kept (4.00/5.00: shot, "fine . B2" in the title line), C4 again (the same pitch); GLO held + KNOB 4 +30: B2
-# stops at 16.00 (4.00/16.00, the longest denominator: shot), -30: at 0.25. tools/emu/test_cr.sh reads the "deep:" lines,
-# the shots and the WAV's notes (wavpitch.py)
+# FM TONE's RATIO B heard (docs/EDITOR.md §6, the Digitone's hands: a detent steps B2, the fast hand on top of the
+# fraction; OPT / Shift held steps B1, the bottom): 02 BELL, EDIT: SYN 1 Algo to 2 (the manual's: A > C on X,
+# B2 > B1 on Y, B1 a direct carrier); SYN 1+ MIX +63 (Y only); ENV A/B row B: B LEV 0, then up to a small index
+# (B1's phase runs forward: tools/emu/wavpitch.py counts its pitch, B2 colours it); back on SYN 1: RATIO B to a known
+# pair: GLO held + KNOB 4 -30 (B1 0.25), KNOB 4 -30 (0.25/0.25), GLO held + KNOB 4 +3 (B1 1.00: 0.25/1.00), KNOB 4 +4
+# (B2 2.00: "2.00/1.00"); a C4 (MIDI, part 0); KNOB 4 +1: B2 3.00 (the TOP number: "3.00/1.00", shot), C4 again (the
+# same pitch, another timbre); GLO held + KNOB 4 +1: B1 2.00 ("3.00/2.00", "fine . B1" in the title line: shot), C4
+# again (an octave up); GLO held + KNOB 4 +30: B1 stops at 16.00 (3.00/16.00, the longest denominator: shot), -30: at
+# 0.25. tools/emu/test_cr.sh reads the "deep:" lines, the shots and the WAV's notes (wavpitch.py: peak and centroid)
 wait 300
 btn EDIT down
 wait 400
@@ -17,9 +19,13 @@ knob PRESETS +1               # 02 BELL
 wait 600
 btn EDIT                      # OSC: SYN 1
 wait 400
+knob KNOB1 -8                 # Algo 1
+wait 100
+knob KNOB1 +1                 # Algo 2: B2 > B1 on Y
+wait 100
 knob SELECT +1                # row B: SYN 1+
 wait 100
-knob KNOB4 +63                # MIX +63
+knob KNOB4 +127               # MIX +63
 wait 100
 knob SELECT -1                # row A: SYN 1
 wait 100
@@ -27,38 +33,58 @@ btn ENV                       # ENV A/B
 wait 300
 knob SELECT +1                # row B
 wait 100
-knob KNOB4 -7                 # B LEV 72 -> 30: a small index
+knob KNOB4 -40                # B LEV 0
+wait 100
+knob KNOB4 +10                # .. B LEV 60, a moderate index (B2 colours B1, B1's pitch still the peak)
 wait 100
 knob SELECT -1
 wait 100
 btn FX                        # OSC: back on SYN 1, row A
+wait 600
+btn GLO down
+wait 50
+knob KNOB4 -30                # SHIFT: B1 to 0.25
+wait 50
+btn GLO up
+wait 50
+knob KNOB4 -30                # B2 to 0.25: 0.25/0.25
+wait 50
+btn GLO down
+wait 50
+knob KNOB4 +3                 # SHIFT: B1 1.00: 0.25/1.00
+wait 50
+btn GLO up
+wait 50
+knob KNOB4 +4                 # B2 2.00: 2.00/1.00
+wait 200
+shot build/emu/test/cr_quad_ratiob_b0.ppm
 wait 1000
-midi 90 3C 64                 # note 1: C4 at 2.00/6.00
+midi 90 3C 64                 # note 1: C4 at 2.00/1.00
 wait 700
 midi 80 3C 00
 wait 1500
-knob KNOB4 +2                 # 4.00/6.00
+knob KNOB4 +1                 # B2 3.00: 3.00/1.00 (the top number)
 wait 200
 shot build/emu/test/cr_quad_ratiob_b1.ppm
 wait 1000
-midi 90 3C 64                 # note 2: C4 an octave up
+midi 90 3C 64                 # note 2: the same pitch, B2 another timbre
 wait 700
 midi 80 3C 00
 wait 1500
 btn GLO down
 wait 50
-knob KNOB4 -1                 # SHIFT: B2 6.00 -> 5.00, B1 kept
+knob KNOB4 +1                 # SHIFT: B1 1.00 -> 2.00, B2 kept
 wait 200
 shot build/emu/test/cr_quad_ratiob_b2.ppm
 btn GLO up
 wait 1000
-midi 90 3C 64                 # note 3: the same pitch, B2 another timbre
+midi 90 3C 64                 # note 3: C4 an octave up
 wait 700
 midi 80 3C 00
 wait 1500
 btn GLO down
 wait 50
-knob KNOB4 +30                # B2 up to its end: 16.00
+knob KNOB4 +30                # B1 up to its end: 16.00
 wait 200
 shot build/emu/test/cr_quad_ratiob_b16.ppm
 knob KNOB4 -30                # .. down to its end: 0.25

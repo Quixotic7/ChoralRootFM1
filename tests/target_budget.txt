@@ -22,8 +22,8 @@ va_block 108
 cz_native_render 528
 cz_native_wave 0
 cz_env_tick 34
-quad_render 6091
-quad_block 43
+quad_render 67230
+quad_block 37
 fm1_alnk0_irq 46077
 fm1_timer5_irq 50160
 mod_begin 158

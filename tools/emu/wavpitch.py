@@ -6,10 +6,11 @@
 
 The 16-bit output (the channels averaged) is cut into notes at silences: 10 ms blocks whose RMS is under F (default
 0.001 of full scale) for at least MS (default 150 ms) end a note. Per note one line:
-  note K: START..END s, RMS R, zc HZ, peak HZ
+  note K: START..END s, RMS R, zc HZ, cent HZ, peak HZ
 zc: the zero-crossing rate / 2 over the note's middle (from 15 % to 85 % of it: past the attack, before the tail),
-the frequency of a sine-like carrier whose phase runs forward (an FM carrier with a small index); peak: the largest
-bin of a Hann-windowed DFT over the same span. Exit 0 always. numpy if it is there, else pure python (slower)."""
+the frequency of a sine-like carrier whose phase runs forward (an FM carrier with a small index); cent: the spectral
+centroid (the power-weighted mean frequency below 8 kHz: the timbre's brightness, it moves when a modulator's ratio does and
+the pitch does not); peak: the largest bin of a Hann-windowed DFT over the same span. Exit 0 always. numpy if it is there, else pure python (slower)."""
 import cmath
 import math
 import struct
@@ -58,13 +59,19 @@ def pitch(x, fs):
         sp = np.abs(np.fft.rfft(a))
         sp[0] = 0
         pk = float(np.argmax(sp)) * fs / n
+        fr = np.arange(len(sp)) * fs / n
+        pw = (sp * sp)[fr < 8000]                                  # (power below 8 kHz)
+        ce = float(np.sum(pw * fr[fr < 8000]) / max(1e-30, float(np.sum(pw))))
     else:   # (a coarse search: 20 Hz steps to 5 kHz)
-        best, pk = -1.0, 0.0
+        best, pk, sw, sm = -1.0, 0.0, 0.0, 0.0
         for f in range(20, 5000, 20):
             s = abs(sum(x[i] * cmath.exp(-2j * math.pi * f * i / fs) for i in range(0, n, 2)))
+            sw += s * s * f
+            sm += s * s
             if s > best:
                 best, pk = s, float(f)
-    return zc, pk
+        ce = sw / max(1e-12, sm)
+    return zc, ce, pk
 
 
 def main():
@@ -82,8 +89,9 @@ def main():
         m0, m1 = s + (e - s) * 15 // 100, s + (e - s) * 85 // 100
         seg = x[m0:m1]
         rms = math.sqrt(sum(v * v for v in seg) / max(1, len(seg)))
-        zc, pk = pitch(seg, fs)
-        print("note %d: %.2f..%.2f s, RMS %.4f, zc %.1f Hz, peak %.1f Hz" % (k + 1, s / fs, e / fs, rms, zc, pk))
+        zc, ce, pk = pitch(seg, fs)
+        print("note %d: %.2f..%.2f s, RMS %.4f, zc %.1f Hz, cent %.1f Hz, peak %.1f Hz" % (k + 1, s / fs, e / fs, rms, zc, ce,
+                                                                                         pk))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
  * cr_screen_t (firmware/src/cr_screen.h); `anim` is the animation that leads into the state */
 #pragma once
 
-#define CR_NSCREENS 70u
+#define CR_NSCREENS 71u
 
 static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 1: 1 · idle (CHORD view) */
@@ -1123,7 +1123,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 66: QUAD 4 · QUAD · ENV 2: delays, trig modes, resets */
         .batt = 255,
         .kind = CR_K_EDIT8,
-        .cell = {{{"A Delay", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"A Trig", "On", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"A Reset", "On", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Phase", "Reset", CR_CF_ON, CR_G_NONE, 128, 128, 0}}, {{"B Delay", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"B Trig", "On", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"B Reset", "Off", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
+        .cell = {{{"A Delay", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"A Trig", "On", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"A Reset", "On", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Phase", "All", CR_CF_ON, CR_G_NONE, 128, 128, 0}}, {{"B Delay", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"B Trig", "On", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"B Reset", "Off", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
         .n_rows = 2,
         .active = 0,
         .title = "GLASS EP",
@@ -1135,14 +1135,14 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 67: QUAD 5 · QUAD · FILT 1: the multimode filter and its envelope */
         .batt = 255,
         .kind = CR_K_EDIT8,
-        .cell = {{{"Attack", "10", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 20, 128, 0}, {"Decay", "50", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 102, 128, 0}, {"Sustain", "60", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 120, 128, 0}, {"Release", "40", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 79, 128, 0}}, {{"Freq", "2.1k", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 154, 128, 0}, {"Reso", "30", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 61, 128, 0}, {"Type", "LP", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Env depth", "+24", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 177, 128, 0}}},
+        .cell = {{{"Attack", "10", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 20, 128, 0}, {"Decay", "50", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 102, 128, 0}, {"Sustain", "60", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 120, 128, 0}, {"Release", "40", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 79, 128, 0}}, {{"Freq", "2.1k", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 154, 128, 0}, {"Reso", "30", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 61, 128, 0}, {"Type", "LP12", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Env depth", "+24", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 177, 128, 0}}},
         .n_rows = 2,
         .active = 1,
         .title = "GLASS EP",
         .title_col = CR_COL_NONE,
         .page = "FILTER \267 B",
         .wide = CR_W_FILTER,
-        .wv = {173, 61, 0, 0},
+        .wv = {173, 61, 0, 0, 0, 0, 0, 2},
         .pos = -1,
         .anim = 0,
     },
@@ -1156,7 +1156,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .title_col = CR_COL_NONE,
         .page = "FILTER 2 \267 B",
         .wide = CR_W_FILTER,
-        .wv = {173, 61, 0, 0, 1, 41, 182},
+        .wv = {173, 61, 0, 0, 1, 41, 182, 2},
         .pos = -1,
         .anim = 0,
     },
@@ -1177,12 +1177,24 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 70: QUAD 8 · QUAD · LFO 1 (LFO 2 and LFO 3 the same, a screen each) */
         .batt = 255,
         .kind = CR_K_EDIT8,
-        .cell = {{{"Speed", "+24", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_KNOB, 176, 128, 0}, {"Mult", "x16", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Fade", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"Dest", "Harm", CR_CF_ON, CR_G_NONE, 128, 128, 0}}, {{"Wave \267 Phase", "Tri \267 90", CR_CF_ON | CR_CF_PCT | CR_CF_SPAN2, CR_G_LFOWAVE, 64, 128, CR_LW_TRI}, {"Trig", "Free", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Depth", "+30", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 189, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
+        .cell = {{{"Speed", "+24", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_KNOB, 176, 128, 0}, {"Mult", "16", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Fade", "-20", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 88, 128, 0}, {"Dest", "Harm", CR_CF_ON, CR_G_NONE, 128, 128, 0}}, {{"Wave \267 Phase", "Tri \267 90", CR_CF_ON | CR_CF_PCT | CR_CF_SPAN2, CR_G_LFOWAVE, 64, 128, CR_LW_TRI}, {"Trig", "Free", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Depth", "+30", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 189, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
         .n_rows = 2,
         .active = 0,
         .title = "GLASS EP",
         .title_col = CR_COL_NONE,
         .page = "LFO 1 \267 A",
+        .pos = -1,
+        .anim = 0,
+    },
+    {   /* 71: QUAD 10 · QUAD · ENV 3: key scaling of A, B1, B2 */
+        .batt = 255,
+        .kind = CR_K_EDIT8,
+        .cell = {{{"A Key", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"B1 Key", "40", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 81, 128, 0}, {"B2 Key", "20", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 40, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
+        .n_rows = 1,
+        .active = 0,
+        .title = "GLASS EP",
+        .title_col = CR_COL_NONE,
+        .page = "ENV 3",
         .pos = -1,
         .anim = 0,
     },
@@ -1258,6 +1270,7 @@ static const char *const CR_SCREEN_NAMES[CR_NSCREENS] = {
     "QUAD 6 - QUAD - FILT 2: envelope delay, key track, the base-width filter",
     "QUAD 7 - QUAD - AMP: the master envelope",
     "QUAD 8 - QUAD - LFO 1 (LFO 2 and LFO 3 the same, a screen each)",
+    "QUAD 10 - QUAD - ENV 3: key scaling of A, B1, B2",
 };
 static const char *const CR_SCREEN_SLUGS[CR_NSCREENS] = {
     "01_idle_chord_view",
@@ -1330,4 +1343,5 @@ static const char *const CR_SCREEN_SLUGS[CR_NSCREENS] = {
     "68_quad_filt_2_envelope_delay_key",
     "69_quad_amp_the_master_envelope",
     "70_quad_lfo_1_lfo_2_and_lfo_3_the",
+    "71_quad_env_3_key_scaling_of_a_b1",
 };

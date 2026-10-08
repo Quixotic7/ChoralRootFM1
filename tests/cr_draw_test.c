@@ -557,22 +557,56 @@ int main(int argc, char **argv)
             if (CR_SCREENS[k].cell[0][3].glyph == CR_G_RATIO && ir < 0) ir = (int32_t)k;
         }
         check("QUAD: the algo, ade2, base-width and ratio states are in the table", ia >= 0 && id >= 0 && ib >= 0 && ir >= 0);
-        if (ia >= 0) {   /* algo: four boxes where the table puts them (outline columns inked, the letter inside), 8 pictures */
+        if (ia >= 0) {   /* algo: the manual's eight diagrams (cr_algo_geom): four boxes where the geometry puts them
+                          * (outline columns inked, the letter inside), no two boxes, loops, side lines or labels
+                          * overlapping, every algorithm rendered (algo_<n>.ppm) and linted, 8 different pictures */
             static uint16_t pic[8][240 * 100];
             cr_screen_t s = CR_SCREENS[ia];
-            uint32_t n, boxes4 = 1, differ = 1, j, thin, thick;
+            uint32_t n, boxes4 = 1, differ = 1, apart = 1, j, thin, thick;
             for (n = 1; n <= 8u; n++) {
                 uint32_t found = 0;
+                int32_t ox[4], oy[4], sx[4], lx[2], bx[6][4], nb = 0, q, r2;
+                char an[16];
+                const cr_algo_t *al = &CR_ALGOS[n - 1];
                 s.wv[0] = (uint8_t)n;
+                s.anim = 0;
                 render(&s, 0);
+                snprintf(an, sizeof an, "algo_%u", n);
+                lint(an, &s);
+                write_ppm(dir, an);
                 memcpy(pic[n - 1], host_screen + 22u * 240u, sizeof pic[0]);
+                cr_algo_geom(n, ox, oy, sx, lx);
                 for (k = 0; k < 4u; k++) {
-                    uint32_t ox = 60u + CR_ALGOS[n - 1].pos[k][1] * 154u / 100u, oy = 24u + 13u + 24u * CR_ALGOS[n - 1].pos[k][0];
-                    uint32_t el, er, in;
-                    COUNT(el, ox - 8u, oy - 6u, ox - 6u, oy + 7u, HS(x, y) != bg);
-                    COUNT(er, ox + 6u, oy - 6u, ox + 8u, oy + 7u, HS(x, y) != bg);
-                    COUNT(in, ox - 4u, oy - 4u, ox + 5u, oy + 5u, HS(x, y) != bg);
+                    uint32_t cx = (uint32_t)(ox[k] / 16), cy = (uint32_t)(oy[k] / 16), el, er, in;
+                    COUNT(el, cx - 8u, cy - 6u, cx - 6u, cy + 7u, HS(x, y) != bg);
+                    COUNT(er, cx + 6u, cy - 6u, cx + 8u, cy + 7u, HS(x, y) != bg);
+                    COUNT(in, cx - 4u, cy - 4u, cx + 5u, cy + 5u, HS(x, y) != bg);
                     found += el >= 13u && er >= 13u && in >= 8u;
+                    bx[nb][0] = ox[k] / 16 - 8; bx[nb][1] = oy[k] / 16 - 8;   /* (a box and its outline) */
+                    bx[nb][2] = ox[k] / 16 + 8; bx[nb][3] = oy[k] / 16 + 8; nb++;
+                    if (sx[k] != ox[k] && !(((al->x | al->y) >> k) & 1u)) apart = 0;
+                    for (q = 0; q < 4; q++)          /* a side line passes no other box */
+                        if (q != (int32_t)k && sx[k] != ox[k] && oy[q] > oy[k] && sx[k] / 16 + 1 >= ox[q] / 16 - 8 &&
+                            sx[k] / 16 - 1 <= ox[q] / 16 + 8) {
+                            fprintf(rep, "algo %u: %s's side line crosses %s\n", n, CR_OPS[k], CR_OPS[q]);
+                            apart = 0;
+                        }
+                }
+                k = al->fb;                          /* the loop's box: up and left of its operator */
+                bx[nb][0] = ox[k] / 16 - 13; bx[nb][1] = oy[k] / 16 - 12 < 24 ? 24 : oy[k] / 16 - 12; bx[nb][2] = ox[k] / 16 - 9; bx[nb][3] = oy[k] / 16 - 8; nb++;
+                for (j = 0; j < 2u; j++) {           /* the labels X / Y: 8 x 10 px over the baseline */
+                    bx[nb][0] = lx[j] / 16 - 4; bx[nb][1] = 24 + 92 - 9; bx[nb][2] = lx[j] / 16 + 4; bx[nb][3] = 24 + 92; nb++;
+                }
+                for (q = 0; q < nb; q++) {
+                    if (bx[q][0] < 52 || bx[q][2] > 236 || bx[q][1] < 24 || bx[q][3] > 24 + 96) {
+                        fprintf(rep, "algo %u: item %d off the band\n", n, (int)q);
+                        apart = 0;
+                    }
+                    for (r2 = q + 1; r2 < nb; r2++)
+                        if (bx[q][0] < bx[r2][2] && bx[r2][0] < bx[q][2] && bx[q][1] < bx[r2][3] && bx[r2][1] < bx[q][3]) {
+                            fprintf(rep, "algo %u: items %d and %d overlap\n", n, (int)q, (int)r2);
+                            apart = 0;
+                        }
                 }
                 if (found != 4u) {
                     boxes4 = 0;
@@ -583,13 +617,32 @@ int main(int argc, char **argv)
                 for (j = n + 1u; j < 8u; j++) differ &= memcmp(pic[n], pic[j], sizeof pic[0]) != 0;
             check("algo band: four operator boxes (outlines and letters) in every algorithm", boxes4);
             check("algo band: the eight algorithms draw eight different diagrams", differ);
-            s.wv[0] = 3;                                         /* B2's loop at the right of its box */
-            s.wv[1] = 0;
-            render(&s, 0);
-            COUNT(thin, 60u + 70u * 154u / 100u + 7u, 30u, 60u + 70u * 154u / 100u + 15u, 45u, HS(x, y) != bg);
-            s.wv[1] = 255;
-            render(&s, 0);
-            COUNT(thick, 60u + 70u * 154u / 100u + 7u, 30u, 60u + 70u * 154u / 100u + 15u, 45u, HS(x, y) != bg);
+            check("algo band: no boxes, loops, side lines or labels overlap; all on the band (8 algorithms)", apart);
+            {                                        /* algo 3: X takes C (dotted) and B2 (dotted), Y B1 (dotted);
+                                                      * algo 7: X C dotted, A solid: count the ink on the lines */
+                int32_t ox[4], oy[4], sx[4], lx[2];
+                uint32_t dots, solid;
+                s.wv[0] = 7; s.wv[1] = 0;
+                render(&s, 0);
+                cr_algo_geom(7, ox, oy, sx, lx);
+                COUNT(dots, (uint32_t)(ox[0] / 16) - 1u, (uint32_t)(oy[0] / 16) + 9u, (uint32_t)(ox[0] / 16) + 2u, 24u + 82u, HS(x, y) != bg);
+                COUNT(solid, (uint32_t)(sx[1] / 16) - 1u, (uint32_t)(oy[0] / 16) + 9u, (uint32_t)(sx[1] / 16) + 2u, 24u + 82u, HS(x, y) != bg);
+                snprintf(name, sizeof name, "algo band: a direct carrier's line dotted, an enveloped one solid (%u < %u ink px)", dots, solid);
+                check(name, dots + 3u < solid);
+            }
+            s.wv[0] = 3;                                         /* A's loop over its top left */
+            {
+                int32_t ox[4], oy[4], sx[4], lx[2];
+                uint32_t lx0, ly0;
+                cr_algo_geom(3, ox, oy, sx, lx);
+                lx0 = (uint32_t)(ox[1] / 16) - 13u; ly0 = (uint32_t)(oy[1] / 16) - 12u;
+                s.wv[1] = 0;
+                render(&s, 0);
+                COUNT(thin, lx0, ly0, lx0 + 12u, ly0 + 9u, HS(x, y) != bg);
+                s.wv[1] = 255;
+                render(&s, 0);
+                COUNT(thick, lx0, ly0, lx0 + 12u, ly0 + 9u, HS(x, y) != bg);
+            }
             snprintf(name, sizeof name, "algo band: the feedback loop's stroke grows with fdbk (%u ink px at 0, %u at 255)", thin, thick);
             check(name, thick > thin + 10u);
             s.wv[1] = 77;

@@ -1097,9 +1097,10 @@ static uint32_t ce_kmod(void)
     return 0;
 }
 
-/* a ratio pair (QUAD's RATIO B): an F_INT column of k names over k x k values, v - min = B2 x k + B1, B1 names[v % k]
- * (the numerator), B2 names[v / k]; k (0: not a pair). The editor needs no engine hook: one detent steps B1 (carrying
- * into B2), SHIFT steps B2 (ce_knob), the cell is a fraction of both (ce_cell_plan) */
+/* a ratio pair (QUAD's RATIO B): an F_INT column of k names over k x k values, v - min = slow x k + fast: the fast
+ * hand names[v % k] (the numerator, on top: QUAD's B2), the slow hand names[v / k] (below: B1); k (0: not a pair).
+ * The editor needs no engine hook: one detent steps the fast hand (carrying into the slow one on the wrap), SHIFT
+ * steps the slow hand (ce_knob: "fine \267 B1"), the cell is a fraction of both (ce_cell_plan) */
 static uint32_t ce_pair(const param_desc_t *d)
 {
     uint32_t k = 0;
@@ -1123,7 +1124,7 @@ static uint32_t ce_quarters(const char *s)
 }
 
 /* a value's whole text for the "deep:" trace line: a name of a name list uncut (param_format stops at 5 characters),
- * a ratio pair "B1/B2" (the longest, "16.00/16.00", is 11), else as the cell shows it */
+ * a ratio pair "fast/slow" (QUAD's "B2/B1"; the longest, "16.00/16.00", is 11), else as the cell shows it */
 static void ce_trace_value(const param_desc_t *d, int32_t v, char *b, uint32_t n)
 {
     uint32_t pk = ce_pair(d);
@@ -1176,7 +1177,7 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
     if (r.k == CE_R_DEEP && d->names && (ce_cstyle(t, &vw, vw.active, knob & 3u) == ENG_C_RATIO ||
                                          ce_cstyle(t, &vw, vw.active, knob & 3u) == ENG_C_BIG))
         v = clamp(v0 + s, d->min, d->max);        /* (a ratio: one step a detent, as the Digitone's) */
-    if (r.k == CE_R_DEEP && (pk = ce_pair(d)) != 0 && (fine || cx.shift)) {   /* a ratio pair, SHIFT: B2 a step, B1 kept */
+    if (r.k == CE_R_DEEP && (pk = ce_pair(d)) != 0 && (fine || cx.shift)) {   /* a pair, SHIFT: the slow hand (B1) a step */
         int32_t c = v0 - d->min, b2 = clamp(c / (int32_t)pk + s, 0, (int32_t)pk - 1);
         v = d->min + b2 * (int32_t)pk + c % (int32_t)pk;
     }
@@ -1405,23 +1406,31 @@ static uint32_t ce_band_plan(const track_t *t, const ce_view_t *vw, uint8_t *o)
         q = ce_dget(t, d, a, b, "RESO", &v);
         o[1] = (uint8_t)clamp(q >= 0 ? q : ce_dget(t, d, a, b, "RES", &v), 0, 255);
         o[2] = 0;
-        for (i = a; i < b; i++) {                 /* the type by its name: LP 0, BP 32, HP 64 (the band's positions) */
+        o[7] = 0;
+        for (i = a; i < b; i++) {                 /* the type by its name: LP 0, BP 32, HP 64 (the band's positions);
+                                                   * its slope (o[7]): "OFF" 1 (flat), "..12" 2, "..24" 3 */
             int32_t k = cp_dcol(&d->pages[i], "TYPE");
             if (k >= 0) {
                 const param_desc_t *c = &d->pages[i].col[k];
                 v = d->get(t, i, (uint32_t)k);
-                if (c->names && v >= c->min && v <= c->max)
-                    o[2] = (uint8_t)(cp_eq(c->names[v - c->min], "HP") ? 64 : cp_eq(c->names[v - c->min], "BP") ? 32 : 0);
+                if (c->names && v >= c->min && v <= c->max) {
+                    const char *nm = c->names[v - c->min];
+                    uint32_t ln = str_len(nm);
+                    o[2] = (uint8_t)(nm[0] == 'H' ? 64 : nm[0] == 'B' ? 32 : 0);
+                    o[7] = (uint8_t)(cp_eq(nm, "OFF") ? 1 : ln > 2u && nm[ln - 2u] == '1' && nm[ln - 1u] == '2' ? 2
+                                     : ln > 2u && nm[ln - 2u] == '2' && nm[ln - 1u] == '4' ? 3 : 0);
+                }
                 break;
             }
         }
         o[3] = (uint8_t)clamp(ce_dget(t, d, a, b, "DRIVE", &v), 0, 255);
+        o[4] = o[5] = o[6] = 0;
         if (h->band != ENG_B_WINDOW)
-            return 4;
+            return 8;
         o[4] = 1;
         o[5] = (uint8_t)clamp(ce_dget(t, d, a, b, "BASE", &v), 0, 255);
         o[6] = (uint8_t)clamp(ce_dget(t, d, a, b, "WIDTH", &v), 0, 255);
-        return 7;
+        return 8;
     }
     return 0;
 }
@@ -1494,14 +1503,15 @@ static void ce_cell_plan(const track_t *t, const ce_view_t *vw, uint32_t r, uint
     ce_ptext(d, v, st, cl->value, sizeof cl->value);
     switch (st) {
     case ENG_C_BIG: cl->flags |= CR_CF_BIG; break;
-    case ENG_C_RATIO:                             /* a pair: B1 over B2 in quarters (cr_draw formats both "%u.%02u") */
+    case ENG_C_RATIO:                             /* a pair: the fast hand (B2) over the slow (B1) in quarters
+                                                   * (cr_draw formats both "%u.%02u") */
         cl->glyph = CR_G_RATIO;
         if ((k = ce_pair(d)) != 0) {
             uint32_t c = (uint32_t)(clamp(v, d->min, d->max) - d->min);
             cl->pct = (uint8_t)ce_quarters(d->names[c % k]);
             cl->pct2 = (uint8_t)ce_quarters(d->names[c / k]);
             cu_cpy(cl->value, d->names[c % k], sizeof cl->value);
-            if (!cl->pct || !cl->pct2)            /* (not a ratio in quarters: B1's name alone, big) */
+            if (!cl->pct || !cl->pct2)            /* (not a ratio in quarters: the fast hand's name alone, big) */
                 cl->pct2 = 0;
         }
         break;
@@ -1562,7 +1572,7 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     s->title_col = p ? CR_COL_ORANGE : CR_COL_NONE;
     cu_cpy(s->page, vw.right, sizeof s->page);
     s->fine = (uint8_t)(cx.shift || cu_shift());
-    for (c = 0; s->fine && c < 4u && vw.active < CR_ED_ROWS; c++) {   /* a ratio pair in the lane: SHIFT steps its B2 */
+    for (c = 0; s->fine && c < 4u && vw.active < CR_ED_ROWS; c++) {   /* a ratio pair in the lane: SHIFT steps its B1 */
         int32_t pv;
         if (vw.ref[vw.active][c].k == CE_R_DEEP && ce_pair(ce_param(t, vw.ref[vw.active][c], &pv)))
             s->fine = 2;

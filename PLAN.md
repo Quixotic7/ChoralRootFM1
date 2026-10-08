@@ -288,7 +288,7 @@ firmware/src/
                     PHASE, LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE, FM6, the VA and CZ-1 (14, Melodee's, docs/CZ1.md:
                     eng_cz.c, cz_*.c, Casio's 64 tones, 8 banks, tone SysEx, cz_ustore.c), FM TONE (engine 15,
                     eng_quad.c, code name QUAD, docs/QUAD.md: quad_tables.h, its patch store quad_store.c, backup id
-                    22); the slots of ANALOG (0, retired in 0.14), DIGITAL (1), SAMPLE (4), GRAIN (8) and DRUM (10) are
+                    22; the Digitone manual's eight algorithms, blob v3 since 2026-10-08); the slots of ANALOG (0, retired in 0.14), DIGITAL (1), SAMPLE (4), GRAIN (8) and DRUM (10) are
                     retired placeholders (engines.c ENG_GONE: never offered; a user sound on ANALOG plays on the VA
                     with its macros, one on another loads as INIT on the VA)
     slicer.c        no-op stubs (SLICER off: its 32 KB POOL buffer freed; perform.c's buffer effects off with it);

@@ -687,7 +687,7 @@ def sounds():
        f"read_sound_file: each malformed case refused with its message{'; wrong: ' + repr(bad) if bad else ''}")
 
     # QUAD (the "quad" patch kind, object 22): tests/sound_templates.c's fixture, QUAD's EP as the firmware packs it
-    qb = base64.b64decode("UQEBAwMjGgoAP2RkZGQAUBhIAC4ALAABAQEAAQFkACgAQAAofwAAQAAAAH8AYCg+SFADAAAAAABAUAMAAAAAAEBQAwAAAAAAQAAAAAAAAAA=")
+    qb = base64.b64decode("UQMBAwMDGgwAImRkZGQAThRCADQAPgABAQEAAQFkKB4AQAAofwABQAAAAH8AYCg+SFADQAAAAABAUANAAAAAAEBQA0AAAAAAQBAeAAAAAAA=")
     qrec = sound_rec(15, "MY QUAD", seed=7)
     fq = TMP / "quad.json"
     fq.write_text(json.dumps({"format": "choralroot-sound", "version": 1, "slot": 10, "name": "MY QUAD", "engine": 15,
@@ -705,7 +705,7 @@ def sounds():
     rc, out, err = cli(["--delete-sound", "10", "--yes"], dev)
     ok(rc == 0 and side.log[2:] == [22, 6] and not int.from_bytes(side.objs[22][8:12], "little"), "--delete-sound of a QUAD sound: its bit cleared, the bank last")
     badq = []
-    for data, word in ((b"R" + qb[1:], "FM TONE"), (qb[:1] + b"\x03" + qb[2:], "FM TONE"), (qb[:79], "bytes, not 80")):
+    for data, word in ((b"R" + qb[1:], "FM TONE"), (qb[:1] + b"\x04" + qb[2:], "FM TONE"), (qb[:79], "bytes, not 80")):
         try:
             I.read_sound_file({**json.loads(fq.read_text()), "patch": {"kind": "quad", "data": base64.b64encode(data).decode()}})
             badq.append((word, "accepted"))
@@ -713,6 +713,9 @@ def sounds():
             if word not in str(ex):
                 badq.append((word, str(ex)))
     ok(not badq, f"read_sound_file: a QUAD blob's magic / version / length refused{'; wrong: ' + repr(badq) if badq else ''}")
+    qv1 = base64.b64decode("UQEBAwMjGgoAP2RkZGQAUBhIAC4ALAABAQEAAQFkACgAQAAofwAAQAAAAH8AYCg+SFADAAAAAABAUAMAAAAAAEBQAwAAAAAAQAAAAAAAAAA=")   # a version 1 blob (a 0.14 dev build's EP)
+    ok(qb[1] == 3 and all(I.read_sound_file({**json.loads(fq.read_text()), "patch": {"kind": "quad", "data": base64.b64encode(d).decode()}})[3][1][1] == d[1]
+                          for d in (qv1, qb[:1] + b"\x02" + qb[2:], qb)), "read_sound_file: QUAD blob versions 1..3 accepted (the fixture is version 3)")
 
     fel = BackupSide("FELUCCA 1.0", I.FELUCCA_IDS, {6: sound_bank({0: pad})}.items())
     dev = FakeFM1(b"", identity="FM-1_910", bk=lambda _i: fel)

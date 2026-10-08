@@ -1079,8 +1079,8 @@ static void cr_quarters(uint32_t q, char *b)
     b[i] = 0;
 }
 
-/* CR_G_RATIO: B1 / B2 (pct / pct2, quarters) as a fraction round mid (Q8), both "%u.%02u": the numerator 13 px over a
- * 1.5 px divider (w - 14 wide) over the denominator 13 px; hot: the whole on a block */
+/* CR_G_RATIO: top / bottom (pct / pct2, quarters: QUAD's B2 / B1) as a fraction round mid (Q8), both "%u.%02u":
+ * the numerator 13 px over a 1.5 px divider (w - 14 wide) over the denominator 13 px; hot: the whole on a block */
 static void cr_cratio(const cr_cell_t *c, int32_t cx, int32_t mid, int32_t w, uint16_t col, int hot)
 {
     char nu[8], de[8];
@@ -1110,8 +1110,8 @@ static void cr_ed_title(const cr_screen_t *s)
     rw = (s->page[0] ? cr_tw(s->page, 11, 1) : 0) + P8(232 - rx);
     if (s->page[0]) cr_text(P8(rx), P8(17), s->page, 11, 1, CR_R, 4096, T_MID, T_BG, 0);
     if (s->fine) {                                   /* SHIFT on: "fine", small, left of the right text (2: a ratio
-                                                      * pair's B2 steps) */
-        const char *ft = s->fine == 2u ? "fine \267 B2" : "fine";
+                                                      * pair's slow hand B1 steps) */
+        const char *ft = s->fine == 2u ? "fine \267 B1" : "fine";
         int32_t fx = P8(232) - rw - (rw ? P8(6) : 0);
         cr_text(fx, P8(16), ft, 9, 1, CR_R, 4096, T_TEXT, T_BG, 0);
         rw += cr_tw(ft, 9, 1) + P8(6);
@@ -1151,93 +1151,147 @@ static int32_t cr_fdb(int32_t lp, int32_t bp, int32_t hp, int32_t q, int32_t res
     return l * 3011 / 256000;                                        /* 10 log10 = 3.0103 log2: dB x 16 */
 }
 
-/* QUAD's eight algorithms (the designer's ALGOS, ../ChoralRootFM1Designer/index.html, copied exactly): operators
- * C A B1 B2 (0..3); mod: up to three [source, target] arrows; fb: the feedback operator; x / y: the carriers summed
- * into each output (bit per operator); pos: [row 0 top .. 2 bottom (carriers), x in hundredths of the diagram] */
-typedef struct { uint8_t nmod, mod[3][2], fb, x, y, pos[4][2]; } cr_algo_t;
+/* QUAD's eight algorithms, the Digitone manual's (Appendix A.3, its diagram; the designer's ALGOS,
+ * ../ChoralRootFM1Designer/index.html, the same table): operators C A B1 B2 (0..3); mod: up to four [source, target]
+ * arrows; fb: the feedback operator; x / y: the carriers summed into each output (bit per operator), xm / ym the one
+ * the label sits under; dir: the direct carriers (full level: a dotted line), the others enveloped (a solid line);
+ * side: the carriers whose line leaves the box's right side (an operator below it in its column); rows: 3 or 4;
+ * pos: [row 0 top, column 0..2] */
+typedef struct { uint8_t nmod, mod[4][2], fb, x, y, xm, ym, dir, side, rows, pos[4][2]; } cr_algo_t;
 static const cr_algo_t CR_ALGOS[8] = {
-    {3, {{1, 0}, {2, 1}, {3, 2}}, 3, 1, 1, {{2, 40}, {1, 40}, {0, 40}, {0, 75}}},
-    {3, {{1, 0}, {2, 0}, {3, 2}}, 3, 1, 1, {{2, 45}, {1, 20}, {1, 70}, {0, 70}}},
-    {3, {{1, 0}, {2, 1}, {3, 1}}, 3, 1, 1, {{2, 45}, {1, 45}, {0, 20}, {0, 70}}},
-    {2, {{1, 0}, {3, 2}}, 3, 1, 4, {{2, 25}, {1, 25}, {2, 70}, {1, 70}}},
-    {2, {{1, 0}, {2, 1}}, 3, 1, 8, {{2, 25}, {1, 25}, {0, 25}, {2, 70}}},
-    {3, {{1, 0}, {1, 2}, {3, 2}}, 3, 1, 4, {{2, 25}, {1, 25}, {2, 70}, {1, 70}}},
-    {1, {{3, 2}}, 1, 3, 4, {{2, 10}, {2, 40}, {2, 75}, {1, 75}}},
-    {0, {{0, 0}}, 3, 3, 12, {{2, 5}, {2, 30}, {2, 60}, {2, 85}}},
+    /* 1: A(fb)>C, B2>B1, B1>C; X C, Y B1 (direct) */
+    {3, {{1, 0}, {3, 2}, {2, 0}}, 1, 0x1, 0x4, 0, 2, 0x5, 0, 3, {{2, 0}, {1, 0}, {1, 1}, {0, 1}}},
+    /* 2: A>C, B2(fb)>B1; X C, Y B1 (direct) */
+    {2, {{1, 0}, {3, 2}}, 3, 0x1, 0x4, 0, 2, 0x5, 0, 3, {{2, 0}, {1, 0}, {2, 1}, {1, 1}}},
+    /* 3: A(fb)>C, A>B2, A>B1; X C + B2 (direct), Y B1 (direct) */
+    {3, {{1, 0}, {1, 3}, {1, 2}}, 1, 0x9, 0x4, 0, 2, 0xD, 0, 3, {{2, 0}, {1, 1}, {2, 2}, {2, 1}}},
+    /* 4: B2(fb)>B1, B1>A, A>C; X C, Y B1 (direct, from its side) */
+    {3, {{3, 2}, {2, 1}, {1, 0}}, 3, 0x1, 0x4, 0, 2, 0x5, 0x4, 4, {{3, 0}, {2, 0}, {1, 0}, {0, 0}}},
+    /* 5: B1(fb)>A, B2>A, A>C; X C, Y A (direct, from its side) */
+    {3, {{2, 1}, {3, 1}, {1, 0}}, 2, 0x1, 0x2, 0, 1, 0x3, 0x2, 3, {{2, 0}, {1, 0}, {0, 0}, {0, 1}}},
+    /* 6: A(fb)>C, A>B1, B2>C, B2>B1; X C, Y B1 (direct) */
+    {4, {{1, 0}, {1, 2}, {3, 0}, {3, 2}}, 1, 0x1, 0x4, 0, 2, 0x5, 0, 3, {{2, 0}, {1, 0}, {2, 1}, {1, 1}}},
+    /* 7: A(fb)>C, B2>B1; X C + A (enveloped, from its side), Y B1 + B2 (enveloped, B2 from its side) */
+    {2, {{1, 0}, {3, 2}}, 1, 0x3, 0xC, 0, 2, 0x1, 0xA, 3, {{2, 0}, {1, 0}, {2, 1}, {1, 1}}},
+    /* 8: A>C, B1(fb); X C + B2 (enveloped), Y B1 (enveloped) */
+    {1, {{1, 0}}, 2, 0x9, 0x4, 0, 2, 0x1, 0, 3, {{2, 0}, {1, 0}, {2, 2}, {2, 1}}},
 };
 static const char *const CR_OPS[4] = {"C", "A", "B1", "B2"};
+#define CR_ALGO_HS (7 * 16)              /* a box's half size (14 px) */
+#define CR_ALGO_COL (32 * 16)            /* the column pitch */
+#define CR_ALGO_SIDE (15 * 16)           /* a side line: this far right of its box's centre */
+#define CR_ALGO_LABY (24 + 92)           /* the X / Y labels' baseline (px) */
 
-/* the algo band (wv: algo 1..8, fdbk, mix): "ALGO" and the number at the left, the modulation arrows (box edge to box
- * edge, a filled head), the carriers down to the X / Y buses (the stronger output by mix in TEXT, the other DIM; both
- * when mix is centred), the four boxes with their letters, the feedback loop at its operator's right (1..3 px with
- * fdbk). Bounded: <= 3 arrows, 4 boxes, 2 buses, one arc */
+/* algorithm n (1..8)'s geometry (Q4): the boxes' centres, the side-line columns, the X / Y labels' x; the diagram
+ * centred on x 137 (the band's room right of "ALGO" and its number: 60 .. 214) */
+static void cr_algo_geom(uint32_t n, int32_t ox[4], int32_t oy[4], int32_t sx[4], int32_t lx[2])
+{
+    static const int32_t ROW3[3] = {13, 37, 61}, ROW4[4] = {11, 30, 49, 68};
+    const cr_algo_t *al = &CR_ALGOS[(n < 1u ? 1u : n > 8u ? 8u : n) - 1u];
+    int32_t mn = 99999, mx = -99999, k, off;
+    for (k = 0; k < 4; k++) {
+        ox[k] = al->pos[k][1] * CR_ALGO_COL;
+        oy[k] = (24 + (al->rows == 4u ? ROW4[al->pos[k][0] & 3u] : ROW3[al->pos[k][0] % 3u])) * 16;
+        if (ox[k] - CR_ALGO_HS < mn) mn = ox[k] - CR_ALGO_HS;
+        if (ox[k] + (al->side >> k & 1u ? CR_ALGO_SIDE + 16 : CR_ALGO_HS) > mx)
+            mx = ox[k] + (al->side >> k & 1u ? CR_ALGO_SIDE + 16 : CR_ALGO_HS);
+    }
+    off = 137 * 16 - (mn + mx) / 2;
+    for (k = 0; k < 4; k++) {
+        ox[k] += off;
+        sx[k] = al->side >> k & 1u ? ox[k] + CR_ALGO_SIDE : ox[k];
+    }
+    lx[0] = sx[al->xm];
+    lx[1] = sx[al->ym];
+}
+
+/* a carrier's line to its output (axis-aligned pieces, 1.5 px; dotted when direct): its main carrier straight down
+ * (or from its side, then down) to the label's top; another one down (or from its side, then down) to the label's
+ * middle, then across to the label's side */
+static void cr_algo_out(int32_t ox, int32_t oy, int32_t sx, int32_t lx, int main_, int dotted, uint16_t c)
+{
+    const int32_t top = (CR_ALGO_LABY - 10) * 16, midy = (CR_ALGO_LABY - 4) * 16;
+    int16_t p[4 * 2];
+    uint32_t np = 0;
+#define CR_AP(px16, py16) (p[2 * np] = (int16_t)(px16), p[2 * np + 1] = (int16_t)(py16), np++)
+    if (sx != ox) {                                  /* from the box's right side */
+        CR_AP(ox + CR_ALGO_HS + 16, oy);
+        CR_AP(sx, oy);
+    } else {
+        CR_AP(ox, oy + CR_ALGO_HS + 16);
+    }
+    if (main_) {
+        CR_AP(sx, top);
+    } else {
+        CR_AP(sx, midy);
+        CR_AP(sx > lx ? lx + 6 * 16 : lx - 6 * 16, midy);
+    }
+#undef CR_AP
+    cr_poly(p, np, 24, dotted ? 24 : 0, dotted ? 56 : 0, c);
+}
+
+/* the algo band (wv: algo 1..8, fdbk, mix): "ALGO" and the number at the left, the diagram as the manual draws it: the
+ * modulation arrows (box edge to box edge, a filled head), each carrier's line to X / Y (dotted: direct, solid:
+ * enveloped; a second carrier joins at the label's side; the stronger output by mix in TEXT, the other DIM; both when
+ * mix is centred), the four boxes with their letters, the feedback loop over its operator's top left (1..3 px with
+ * fdbk). Bounded: <= 4 arrows, 4 lines, 4 boxes, one loop */
 static void cr_algo_band(const cr_screen_t *s)
 {
-    const int32_t y0 = 24 * 16, hs = 7 * 16, DX0 = 60 * 16, DW = 154 * 16, busY = y0 + 76 * 16, labY = 24 + 92;
-    static const int32_t ROWY[3] = {(24 + 13) * 16, (24 + 37) * 16, (24 + 61) * 16};
-    int32_t n = s->wv[0] < 1u ? 1 : s->wv[0] > 8u ? 8 : s->wv[0], fb = s->wv[1], mix = s->wv[2], ox[4], oy[4], k, j;
+    const int32_t hs = CR_ALGO_HS;
+    int32_t n = s->wv[0] < 1u ? 1 : s->wv[0] > 8u ? 8 : s->wv[0], fb = s->wv[1], mix = s->wv[2];
+    int32_t ox[4], oy[4], sx[4], lx[2], k, o;
     const cr_algo_t *al = &CR_ALGOS[n - 1];
     char num[2] = {(char)('0' + n), 0};
-    int16_t p[4];
-    for (k = 0; k < 4; k++) {
-        ox[k] = DX0 + al->pos[k][1] * DW / 100;
-        oy[k] = ROWY[al->pos[k][0]];
-    }
+    int16_t p[5 * 2];
+    cr_algo_geom((uint32_t)n, ox, oy, sx, lx);
     cr_text(P8(8), P8(24 + 12), "ALGO", 10, 1, CR_L, 4096, T_MID, T_BG, 0);
     cr_text(P8(8), P8(24 + 40), num, 24, 1, CR_L, 4096, T_TEXT, T_BG, 0);
-    for (k = 0; k < al->nmod; k++) {                 /* the arrows: 1.5 px, MID, a 4.5 x 5 px head at the target */
-        int32_t sx = ox[al->mod[k][0]], sy = oy[al->mod[k][0]], tx = ox[al->mod[k][1]], ty = oy[al->mod[k][1]];
-        int32_t dx = tx - sx, dy = ty - sy, len = (int32_t)cr_isqrt((uint32_t)(dx * dx + dy * dy)), vx, vy, m, e, bx, by;
+    for (k = 0; k < al->nmod; k++) {                 /* the arrows: 1.5 px, MID, a head <= 4.5 x 5 px at the target */
+        int32_t ax = ox[al->mod[k][0]], ay = oy[al->mod[k][0]], tx = ox[al->mod[k][1]], ty = oy[al->mod[k][1]];
+        int32_t dx = tx - ax, dy = ty - ay, len = (int32_t)cr_isqrt((uint32_t)(dx * dx + dy * dy)), vx, vy, m, e, bx, by;
+        int32_t hl, gap;
         if (!len) continue;
         vx = dx * 4096 / len;                        /* (Q12) */
         vy = dy * 4096 / len;
         m = (vx < 0 ? -vx : vx) > (vy < 0 ? -vy : vy) ? (vx < 0 ? -vx : vx) : (vy < 0 ? -vy : vy);
         e = hs * 4096 / (m ? m : 1) + 16;            /* (Q4) the box edge, +1 px */
+        gap = len - 2 * e;
+        hl = gap < 72 ? (gap > 32 ? gap : 32) : 72; /* (a short gap: a shorter head) */
         bx = tx - vx * e / 4096;
         by = ty - vy * e / 4096;
-        p[0] = (int16_t)(sx + vx * e / 4096); p[1] = (int16_t)(sy + vy * e / 4096);
-        p[2] = (int16_t)(bx - vx * 48 / 4096); p[3] = (int16_t)(by - vy * 48 / 4096);
-        cr_poly(p, 2, 24, 0, 0, T_MID);
-        cr_tri(bx, by, bx - (vx * 72 + vy * 40) / 4096, by - (vy * 72 - vx * 40) / 4096,
-               bx - (vx * 72 - vy * 40) / 4096, by - (vy * 72 + vx * 40) / 4096, T_MID);
+        if (gap > hl) {
+            p[0] = (int16_t)(ax + vx * e / 4096); p[1] = (int16_t)(ay + vy * e / 4096);
+            p[2] = (int16_t)(bx - vx * (hl - 24) / 4096); p[3] = (int16_t)(by - vy * (hl - 24) / 4096);
+            cr_poly(p, 2, 24, 0, 0, T_MID);
+        }
+        cr_tri(bx, by, bx - (vx * hl + vy * 40) / 4096, by - (vy * hl - vx * 40) / 4096,
+               bx - (vx * hl - vy * 40) / 4096, by - (vy * hl + vx * 40) / 4096, T_MID);
     }
-    {                                                /* the outputs: each carrier down to its bus, a stub to X / Y */
-        int32_t lx[2], sum, cnt, o;
-        for (o = 0; o < 2; o++) {
-            uint32_t msk = o ? al->y : al->x;
-            for (sum = cnt = k = 0; k < 4; k++)
-                if (msk >> k & 1u) sum += ox[k], cnt++;
-            lx[o] = sum / (cnt ? cnt : 1);
-        }
-        if ((lx[0] > lx[1] ? lx[0] - lx[1] : lx[1] - lx[0]) < 16 * 16) {
-            int32_t m = (lx[0] + lx[1]) / 2;
-            lx[0] = m - 12 * 16;
-            lx[1] = m + 12 * 16;
-        }
-        for (o = 0; o < 2; o++) {
-            uint32_t msk = o ? al->y : al->x;
-            int strong = o ? mix >= 128 : mix <= 128;
-            uint16_t c = strong ? T_TEXT : T_DIM;
-            int32_t mn = lx[o], mxx = lx[o];
-            for (k = 0; k < 4; k++)
-                if (msk >> k & 1u) {
-                    cr_frect(ox[k] - 12, ROWY[2] + hs + 16 - 12, 24, busY - (ROWY[2] + hs + 16) + 24, c);
-                    if (ox[k] < mn) mn = ox[k];
-                    if (ox[k] > mxx) mxx = ox[k];
-                }
-            cr_frect(mn - 12, busY - 12, mxx - mn + 24, 24, c);
-            cr_frect(lx[o] - 12, busY - 12, 24, (labY - 10) * 16 - busY + 24, c);
-            cr_text(lx[o] * 16, P8(labY), o ? "Y" : "X", 11, 1, CR_C, 4096, c, T_BG, 0);
-        }
+    for (o = 0; o < 2; o++) {                        /* the outputs */
+        uint32_t msk = o ? al->y : al->x, mo = o ? al->ym : al->xm;
+        uint16_t c = (o ? mix >= 128 : mix <= 128) ? T_TEXT : T_DIM;
+        for (k = 0; k < 4; k++)
+            if (msk >> k & 1u)
+                cr_algo_out(ox[k], oy[k], sx[k], lx[o], (uint32_t)k == mo, al->dir >> k & 1u, c);
+        cr_text(lx[o] * 16, P8(CR_ALGO_LABY), o ? "Y" : "X", 11, 1, CR_C, 4096, c, T_BG, 0);
     }
     for (k = 0; k < 4; k++) {                        /* the boxes: 14 px, a 1.5 px outline, the letter 9 px */
         cr_frect(ox[k] - hs, oy[k] - hs, 2 * hs, 2 * hs, T_BG);
         cr_srect(ox[k] - hs, oy[k] - hs, 2 * hs, 2 * hs, 24, T_TEXT);
         cr_text(ox[k] * 16, oy[k] * 16 + 819, CR_OPS[k], 9, 1, CR_C, 4096, T_TEXT, T_BG, 0);
     }
-    j = al->fb;                                      /* the feedback loop: a half circle r 5 at the box's right */
-    cr_arc(ox[j] + hs + 16, oy[j], 80, 16 + 32 * fb / 255, 49152u, 32768u, 1, 0, 0, T_TEXT);
-    cr_tri(ox[j] + hs + 8, oy[j] + 80, ox[j] + hs + 80, oy[j] + 80 - 48, ox[j] + hs + 80, oy[j] + 80 + 48, T_TEXT);
+    {                                                /* the feedback loop: up from the box's top, left past its left
+                                                      * edge, down, back in (a head at the edge), as the manual's */
+        int32_t j = al->fb, w = 16 + 32 * fb / 255, l = ox[j] - hs, t = oy[j] - hs, ty = t - 3 * 16;
+        if (ty < 24 * 16 + w / 2) ty = 24 * 16 + w / 2;
+        p[0] = (int16_t)(ox[j] - 2 * 16); p[1] = (int16_t)(t - 16);
+        p[2] = (int16_t)(ox[j] - 2 * 16); p[3] = (int16_t)ty;
+        p[4] = (int16_t)(l - 4 * 16); p[5] = (int16_t)ty;
+        p[6] = (int16_t)(l - 4 * 16); p[7] = (int16_t)(oy[j] - 3 * 16);
+        p[8] = (int16_t)(l - 2 * 16); p[9] = (int16_t)(oy[j] - 3 * 16);
+        cr_poly(p, 5, w, 0, 0, T_TEXT);
+        cr_tri(l, oy[j] - 3 * 16, l - 3 * 16, oy[j] - 6 * 16, l - 3 * 16, oy[j], T_TEXT);
+    }
 }
 
 /* the ade2 band (wv: A's a d end lev, B's, the lit segment 1..8): A's envelope in x 8..112, B's in 128..232, each a
@@ -1446,8 +1500,10 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
         for (k = 0; k < 3; k++)
             wt[k] = (TW[sg][k] * (32 - fr) + TW[(sg + 1) & 3][k] * fr) * 8;   /* (Q8) */
         for (k = 0; k < 7; k++) {
+            int32_t db = s->wv[7] == 1u ? 0 : cr_fdb(wt[0], wt[1], wt[2], Q[k], res);   /* (OFF: flat) */
             xs[n + 1] = cx + Q[k] * W / 36;                          /* (9 octaves across W) */
-            ys[n + 1] = y0db - (cr_fdb(wt[0], wt[1], wt[2], Q[k], res) + dr * 96 / 255) * 14 / 10;
+            if (s->wv[7] == 3u) db *= 2;                             /* (24 dB: two 12 dB stages, twice the slope) */
+            ys[n + 1] = y0db - (db + dr * 96 / 255) * 14 / 10;
             n++;
         }
         xs[0] = L < xs[1] ? L : xs[1] - 16;                          /* the edges, on the outer lines */
@@ -1502,7 +1558,16 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
             cr_text((xx < R - 64 ? xx : R - 64) * 16, P8(24 + 96), "W", 9, 1, CR_C, 4096, oc, T_BG, 0);
         }
         cr_poly(p, np, 48, 0, 0, CR_NAMED[CR_COL_ORANGE]);
-        cr_text(P8(8), P8(24 + 12), cr_ftype_name((uint32_t)ft), 10, 1, CR_L, 4096, T_MID, T_BG, 0);
+        {                                            /* the type: the VA's position name; QUAD's (wv[7]) OFF, the
+                                                      * name and its slope "LP12" "HP12" "LP24" */
+            char tn[8];
+            const char *nm = s->wv[7] == 1u ? "OFF" : cr_ftype_name((uint32_t)ft);
+            uint32_t i2 = 0;
+            while (nm[i2] && i2 < 5u) { tn[i2] = nm[i2]; i2++; }
+            if (s->wv[7] >= 2u) { tn[i2++] = s->wv[7] == 3u ? '2' : '1'; tn[i2++] = s->wv[7] == 3u ? '4' : '2'; }
+            tn[i2] = 0;
+            cr_text(P8(8), P8(24 + 12), tn, 10, 1, CR_L, 4096, T_MID, T_BG, 0);
+        }
         if (dr) {
             char b[12] = "DRIVE ";
             int32_t v = (dr * 100 + 127) / 255, i2 = 6;

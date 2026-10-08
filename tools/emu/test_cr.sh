@@ -745,12 +745,36 @@ has '^popup: part 0 03 / BASS / FM TONE · 03/17$' "$QL" && ok "PRESETS +2: the 
     bad "pool: $(grep -m1 '^popup:' "$QL")"
 has 'part 0: FM TONE / BELL, voices 3' "$QL" && has '^expect sound .*: ok' "$QL" && ok "MAJ + D4 on 02 BELL: a chord of three FM TONE voices sounds" ||
     bad "FM TONE chord: $(grep 'part 0: FM TONE / BELL' "$QL" | head -1)"
-has '^deep: part 0 page 0 SYN 1 col 0 ALGO 4 -> 5 ' "$QL" && ok "SYN 1 on BELL, KNOB 1: Algo 4 -> 5 (one step a detent)" || bad "no Algo edit: $(grep -m1 '^deep:' "$QL")"
+qa=$(sed -n 's/^deep: part 0 page 0 SYN 1 col 0 ALGO \([1-7]\) -> \([2-8]\) .*/\1 \2/p' "$QL" | head -1)
+[ -n "$qa" ] && [ $(( ${qa% *} + 1 )) -eq "${qa#* }" ] && ok "SYN 1 on BELL, KNOB 1: Algo ${qa% *} -> ${qa#* } (one step a detent)" || bad "no Algo edit: $(grep -m1 '^deep:' "$QL")"
 band=$(python3 -c "
 import sys; a, b = (open(f, 'rb').read() for f in sys.argv[1:3]); o = 15 + 30 * 240 * 3; n = 90 * 240 * 3
 print(sum(x != y for x, y in zip(a[o:o + n], b[o:o + n])))" "$OUT/cr_quad_syn1.ppm" "$OUT/cr_quad_syn1_algo.ppm")
-[ "${band:-0}" -gt 300 ] && ok "the algorithm band redrawn for Algo 5 ($band bytes differ): $OUT/cr_quad_syn1_algo.ppm" || bad "the band did not change: $band"
-for n in syn2 filter filter2 envab env2 env3 amp lfo1 lfo2 mod; do [ -s "$OUT/cr_quad_$n.ppm" ] || bad "no shot cr_quad_$n"; done
+[ "${band:-0}" -gt 300 ] && ok "the algorithm band redrawn for Algo ${qa#* } ($band bytes differ): $OUT/cr_quad_syn1_algo.ppm" || bad "the band did not change: $band"
+for n in syn2 filter filter_off filter_lp24 filter2 envab env2 env3 amp lfo1 lfo1_fade lfo2 mod; do [ -s "$OUT/cr_quad_$n.ppm" ] || bad "no shot cr_quad_$n"; done
+has '^deep: part 0 page 4 FILTER+ col 2 TYPE [0-9] -> 0 (OFF)' "$QL" && has '^deep: part 0 page 4 FILTER+ col 2 TYPE 0 -> 3 (LP24)' "$QL" &&
+    ok "FILTER row B, KNOB 3: TYPE OFF, then LP24 (OFF LP12 HP12 LP24)" || bad "filter TYPE: $(grep -m2 'TYPE' "$QL" | tr '\n' ' ')"
+fband() {        # fband FILE: the filter band's orange curve: its lowest and highest row (x 8..232, y 28..114)
+    python3 -c "
+import sys; d = open(sys.argv[1], 'rb').read(); o = len(d) - 240 * 240 * 3
+ys = [y for y in range(28, 114) for x in range(8, 232) if d[o + (y * 240 + x) * 3] > 200 and 60 < d[o + (y * 240 + x) * 3 + 1] < 170 and d[o + (y * 240 + x) * 3 + 2] < 90]
+print(max(ys) - min(ys) if ys else -1)" "$1"
+}
+fo=$(fband "$OUT/cr_quad_filter_off.ppm"); f24=$(fband "$OUT/cr_quad_filter_lp24.ppm")
+[ "${fo:-99}" -ge 0 ] && [ "${fo:-99}" -le 5 ] && [ "${f24:-0}" -gt 12 ] && ok "the band: OFF a flat line ($fo rows), LP24 a slope ($f24 rows): $OUT/cr_quad_filter_off.ppm" ||
+    bad "the filter band's curve: OFF $fo rows, LP24 $f24"
+has '^deep: part 0 page 9 ENV 2 col 3 PHRT [0-4] -> [0-4] ([A-Z+0-9]*)' "$QL" && ok "ENV 2, KNOB 4: PHRT, a name (OFF ALL C A+B A+B2)" ||
+    bad "PHRT: $(grep -m1 'ENV 2 col 3' "$QL")"
+e3=$(python3 -c "
+import sys; d = open(sys.argv[1], 'rb').read(); o = len(d) - 240 * 240 * 3; b = d[o + (30 * 240 + 238) * 3:o + (30 * 240 + 239) * 3]
+ink = lambda x0, x1: sum(1 for y in range(28, 120) for x in range(x0, x1) if d[o + (y * 240 + x) * 3:o + (y * 240 + x) * 3 + 3] != b)
+print(ink(124, 176), ink(184, 236))" "$OUT/cr_quad_env3.ppm")
+has '^deep: part 0 page 11 ENV 3 col 2 B2 KEY [0-9]* -> ' "$QL" && [ "${e3% *}" -gt 100 ] && [ "${e3#* }" -lt 20 ] &&
+    ok "ENV 3: three cells (A Key, B1 Key, B2 Key: KNOB 3 turns B2 KEY; ink $e3 in columns 3, 4): $OUT/cr_quad_env3.ppm" ||
+    bad "ENV 3: $(grep -m1 'ENV 3' "$QL"), ink $e3"
+has '^deep: part 0 page 14 LFO 1 col 1 MULT [0-9]* -> [0-9]* (F[0-9k]*)' "$QL" && has '^deep: part 0 page 14 LFO 1 col 2 FADE -*[0-9]* -> -' "$QL" &&
+    ok "LFO 1: MULT to the fixed-120 half (F..), FADE below 0 (bipolar): $OUT/cr_quad_lfo1_fade.ppm" ||
+    bad "LFO 1 MULT / FADE: $(grep 'LFO 1 col [12]' "$QL" | tr '\n' ' ')"
 has '^edit: group OSC screen 2 ' "$QL" && has '^edit: group FILT screen 2 ' "$QL" && has '^edit: group ENV screen 4 ' "$QL" &&
     has '^edit: group LFO screen 2 ' "$QL" && has '^edit: group MOD screen 1 ' "$QL" &&
     ok "FM TONE's groups: OSC SYN 1 / SYN 2, FILT FILTER / FILTER 2, ENV A/B, 2, 3, AMP, LFO 1..3 a screen each, MOD the platform's" ||
@@ -762,31 +786,48 @@ blue_q=$(od -An -tu1 -v -j $((15 + 180 * 240 * 3)) -N$((240 * 40 * 3)) "$OUT/cr_
 [ "${blue_q:-0}" -gt 2000 ] && ok "the span cell hot over two columns (KNOB 2 -> its cell 0, $blue_q blue pixels)" || bad "span cell not hot: $blue_q"
 silent_end cr_quad
 
-echo "FM TONE's RATIO B heard: B1 the pitch of Y, SHIFT (GLO held) steps B2, the fraction uncut (docs/QUAD.md)"
+echo "FM TONE's RATIO B heard: a detent steps B2 (the top), Shift steps B1 (the bottom: Y's pitch), the fraction uncut"
 run cr_quad_ratiob --wav "$OUT/cr_quad_ratiob.wav"
 QL="$OUT/cr_quad_ratiob.log"
-has '^deep: part 0 page 1 SYN 1+ col 3 MIX 0 -> 63 ' "$QL" && has '^deep: part 0 page 8 ENV B col 3 B LEV 72 -> 30 ' "$QL" &&
-    ok "BELL (algorithm 4), MIX +63 (Y only), B LEV 30" || bad "BELL's MIX / B LEV: $(grep -c '^deep:' "$QL") edits"
-has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 156 -> 158 (4.00/6.00)' "$QL" && ok "KNOB 4 +2: RATIO B 2.00/6.00 -> 4.00/6.00 (B1 two steps)" ||
-    bad "B1 edit: $(grep -m1 'RATIO B' "$QL")"
-has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 158 -> 139 (4.00/5.00)' "$QL" && ok "GLO held + KNOB 4 -1: B2 6.00 -> 5.00, B1 kept" ||
-    bad "SHIFT on RATIO B: $(grep 'RATIO B' "$QL" | sed -n 2p)"
-has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 139 -> 348 (4.00/16.00)' "$QL" && has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 348 -> 6 (4.00/0.25)' "$QL" &&
-    ok "GLO held + KNOB 4 +-30: B2 stops at 16.00 and 0.25, B1 kept" || bad "B2's ends: $(grep 'RATIO B' "$QL" | tail -2 | tr '\n' ' ')"
-rbp=$(python3 tools/emu/wavpitch.py "$OUT/cr_quad_ratiob.wav" | sed -n 's/.*peak \([0-9.]*\) Hz/\1/p' | tr '\n' ' ')
-python3 -c "import sys; p = [float(x) for x in sys.argv[1:]]; sys.exit(not (len(p) == 3 and abs(p[0] - 523) < 15 and
-    abs(p[1] / p[0] - 2) < 0.05 and abs(p[2] / p[1] - 1) < 0.03))" $rbp &&
-    ok "the WAV: C4's Y at $rbp Hz (B1 2.00, 4.00 an octave up, B2 stepped: the same pitch)" || bad "Y's pitch per note: $rbp (want ~523, x2, x1)"
+has '^deep: part 0 page 0 SYN 1 col 0 ALGO 1 -> 2 ' "$QL" && has '^deep: part 0 page 1 SYN 1+ col 3 MIX -*[0-9]* -> 63 ' "$QL" &&
+    has '^deep: part 0 page 8 ENV B col 3 B LEV 0 -> [1-9][0-9]* ' "$QL" &&
+    ok "BELL on algorithm 2 (B2 > B1 on Y), MIX +63 (Y only), B LEV a small index" || bad "algo / MIX / B LEV: $(grep -c '^deep:' "$QL") edits"
+has '^deep: part 0 page 0 SYN 1 col 3 RATIO B [0-9]* -> 0 (0.25/0.25)' "$QL" && has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 0 -> 57 (0.25/1.00)' "$QL" &&
+    has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 57 -> 61 (2.00/1.00)' "$QL" &&
+    ok "RATIO B to 2.00/1.00: the text B2/B1 (index B1 x 19 + B2), Shift +3 steps B1 by 19s" || bad "RATIO B setup: $(grep 'RATIO B' "$QL" | head -4 | tr '\n' ' ')"
+has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 61 -> 62 (3.00/1.00)' "$QL" && ok "KNOB 4 +1: B2 2.00 -> 3.00, the top number (one step a detent)" ||
+    bad "B2 edit: $(grep 'RATIO B' "$QL" | sed -n 5p)"
+has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 62 -> 81 (3.00/2.00)' "$QL" && ok "OPT / Shift held + KNOB 4 +1: B1 1.00 -> 2.00, B2 kept" ||
+    bad "Shift on RATIO B: $(grep 'RATIO B' "$QL" | sed -n 6p)"
+has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 81 -> 347 (3.00/16.00)' "$QL" && has '^deep: part 0 page 0 SYN 1 col 3 RATIO B 347 -> 5 (3.00/0.25)' "$QL" &&
+    ok "Shift + KNOB 4 +-30: B1 stops at 16.00 and 0.25, B2 kept" || bad "B1's ends: $(grep 'RATIO B' "$QL" | tail -2 | tr '\n' ' ')"
+rbn=$(python3 tools/emu/wavpitch.py "$OUT/cr_quad_ratiob.wav")
+rbp=$(echo "$rbn" | sed -n 's/.*peak \([0-9.]*\) Hz/\1/p' | tr '\n' ' ')
+rbc=$(echo "$rbn" | sed -n 's/.*cent \([0-9.]*\) Hz.*/\1/p' | tr '\n' ' ')
+python3 -c "import sys; p = [float(x) for x in sys.argv[1:]]; sys.exit(not (len(p) == 3 and abs(p[0] - 262) < 10 and
+    abs(p[1] / p[0] - 1) < 0.03 and abs(p[2] / p[1] - 2) < 0.05))" $rbp &&
+    ok "the WAV: C4's Y at $rbp Hz (B1 1.00; B2 stepped: the same pitch; B1 2.00: an octave up)" || bad "Y's pitch per note: $rbp (want ~262, x1, x2)"
+python3 -c "import sys; c = [float(x) for x in sys.argv[1:]]; sys.exit(not (len(c) == 3 and abs(c[1] / c[0] - 1) > 0.05))" $rbc &&
+    ok "the WAV: B2 2.00 -> 3.00 changes Y's timbre (spectral centroid $rbc Hz)" || bad "B2 did not change the timbre: centroids $rbc"
+frac() {         # frac FILE Y0 Y1: RATIO B's cell (column 4, x 184..236) rows Y0..Y1 as one string (a part of the fraction)
+    python3 -c "
+import sys; d = open(sys.argv[1], 'rb').read(); o = len(d) - 240 * 240 * 3; y0, y1 = int(sys.argv[2]), int(sys.argv[3])
+print(b''.join(d[o + (y * 240 + 184) * 3:o + (y * 240 + 237) * 3] for y in range(y0, y1)).hex())" "$1" "$2" "$3"
+}
+[ "$(frac "$OUT/cr_quad_ratiob_b0.ppm" 160 174)" = "$(frac "$OUT/cr_quad_ratiob_b1.ppm" 160 174)" ] &&
+    [ "$(frac "$OUT/cr_quad_ratiob_b0.ppm" 138 157)" != "$(frac "$OUT/cr_quad_ratiob_b1.ppm" 138 157)" ] &&
+    ok "the fraction: a detent changes the top number (2.00 -> 3.00), the bottom (1.00) kept: $OUT/cr_quad_ratiob_b1.ppm" ||
+    bad "the top / bottom of the fraction after a plain detent"
 den() {          # den FILE: ink columns of RATIO B's denominator (column 4, the hot block, rows 160..173)
     python3 -c "
 import sys; d = open(sys.argv[1], 'rb').read(); o = len(d) - 240 * 240 * 3
 px = lambda x, y: d[o + (y * 240 + x) * 3:o + (y * 240 + x) * 3 + 3]
 b = px(186, 150); print(sum(1 for x in range(184, 237) if any(px(x, y) != b for y in range(160, 174))))" "$1"
 }
-d5=$(den "$OUT/cr_quad_ratiob_b2.ppm"); d16=$(den "$OUT/cr_quad_ratiob_b16.ppm")
-[ "${d5:-0}" -gt 20 ] && [ "${d16:-0}" -gt $((d5 + 3)) ] && ok "the fraction: 4.00 over 5.00 ($d5 columns), over 16.00 ($d16): the denominator whole: $OUT/cr_quad_ratiob_b16.ppm" ||
-    bad "the denominator: $d5 / $d16 ink columns"
-differ cr_quad_ratiob_b1 cr_quad_ratiob_b2 "SHIFT: the title line reads \"fine · B2\", the denominator 5.00: $OUT/cr_quad_ratiob_b2.ppm"
+d2=$(den "$OUT/cr_quad_ratiob_b2.ppm"); d16=$(den "$OUT/cr_quad_ratiob_b16.ppm")
+[ "${d2:-0}" -gt 20 ] && [ "${d16:-0}" -gt $((d2 + 3)) ] && ok "the fraction: 3.00 over 2.00 ($d2 columns), over 16.00 ($d16): the denominator whole: $OUT/cr_quad_ratiob_b16.ppm" ||
+    bad "the denominator: $d2 / $d16 ink columns"
+differ cr_quad_ratiob_b1 cr_quad_ratiob_b2 "Shift: the title line reads \"fine · B1\", the denominator 2.00: $OUT/cr_quad_ratiob_b2.ppm"
 silent_end cr_quad_ratiob
 
 echo "SAFE MODE: the boot guard (firmware/src/cr_bootguard.h)"

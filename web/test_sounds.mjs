@@ -468,11 +468,13 @@ const FX = {
 }
 
 /* ------------------------------------------------------- QUAD (the "quad" patch kind) --- */
-// the fixture of tests/sound_templates.c: QUAD's EP preset as the firmware packs it ('Q', version 1, 80 bytes)
-const QUAD_FX = "UQEBAwMjGgoAP2RkZGQAUBhIAC4ALAABAQEAAQFkACgAQAAofwAAQAAAAH8AYCg+SFADAAAAAABAUAMAAAAAAEBQAwAAAAAAQAAAAAAAAAA=";
+// the fixture of tests/sound_templates.c: QUAD's EP preset as the firmware packs it ('Q', version 3, 80 bytes); and
+// a version 1 blob (a 0.14 dev build's EP): still accepted (the FM-1 converts it)
+const QUAD_FX = "UQMBAwMDGgwAImRkZGQAThRCADQAPgABAQEAAQFkKB4AQAAofwABQAAAAH8AYCg+SFADQAAAAABAUANAAAAAAEBQA0AAAAAAQBAeAAAAAAA=";
+const QUAD_FX_V1 = "UQEBAwMjGgoAP2RkZGQAUBhIAC4ALAABAQEAAQFkACgAQAAofwAAQAAAAH8AYCg+SFADAAAAAABAUAMAAAAAAEBQAwAAAAAAQAAAAAAAAAA=";
 {
   const qb = Uint8Array.from(Buffer.from(QUAD_FX, "base64")), rq = rec(15, "MY QUAD", { seed: 12 });
-  ok(qb.length === 80 && qb[0] === 0x51 && qb[1] === 1, "quad: the fixture is an 80-byte 'Q' 1 blob");
+  ok(qb.length === 80 && qb[0] === 0x51 && qb[1] === 3, "quad: the fixture is an 80-byte 'Q' 3 blob");
   const blank = new Map(SOUND_IDS.map((id) => [id, new Uint8Array(0)]));
   const f = { format: "choralroot-sound", version: 1, slot: 10, name: "MY QUAD", engine: 15, record: b64(rq), patch: { kind: "quad", data: QUAD_FX } };
   const r = importSound(blank, 10, readSoundFile(JSON.stringify(f))), q = r.objs.get(22);
@@ -486,10 +488,12 @@ const QUAD_FX = "UQEBAwMjGgoAP2RkZGQAUBhIAC4ALAABAQEAAQFkACgAQAAofwAAQAAAAH8AYCg
   ok(e.engine === 15 && e.engineName === "FM TONE" && e.patch.kind === "quad" && e.patch.data === QUAD_FX, "quad: export -> patch.kind quad, the blob");
   ok(throwsMsg(() => exportSyx(r.objs, 10), /only FM6 and CZ-1/), "quad: no .syx (exportSyx refuses a QUAD slot)");
   const bad = (m) => { const b = qb.slice(); m(b); return { ...f, patch: { kind: "quad", data: b64(b) } }; };
-  ok(throwsMsg(() => readSoundFile(bad((b) => { b[0] = 0x52; })), /FM TONE patch is not/) && throwsMsg(() => readSoundFile(bad((b) => { b[1] = 3; })), /FM TONE patch is not/) &&
+  ok(throwsMsg(() => readSoundFile(bad((b) => { b[0] = 0x52; })), /FM TONE patch is not/) && throwsMsg(() => readSoundFile(bad((b) => { b[1] = 4; })), /FM TONE patch is not/) &&
+     readSoundFile({ ...f, patch: { kind: "quad", data: QUAD_FX_V1 } }).patch[1] === 1 &&
+     readSoundFile(bad((b) => { b[1] = 2; })).patch[1] === 2 &&
      throwsMsg(() => readSoundFile({ ...f, patch: { kind: "quad", data: b64(qb.subarray(0, 79)) } }), /79 bytes, not 80/) &&
      throwsMsg(() => readSoundFile({ ...f, patch: { kind: "va", data: b64(blobs.va1) } }), /not the kind of its engine FM TONE/),
-     "quad: file checks (magic, version, length, another kind)");
+     "quad: file checks (magic, version 1..3 read, 4 refused, length, another kind)");
   const over = importSound(r.objs, 10, exportSound(src, 1));
   ok(over.changed.map((c) => c.id).join() === "9,22,6" && !(view(over.objs.get(22)).getUint32(8, true) >>> 9 & 1) &&
      over.objs.get(22).subarray(16 + 9 * 80, 16 + 10 * 80).every((x) => !x), "quad: a VA sound over U10 clears its QUAD bit and bytes");

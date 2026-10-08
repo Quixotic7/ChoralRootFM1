@@ -209,22 +209,35 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
   FORMAT.md. tests/cr_draw_test.c checks each one's ink stays in its box and changes with pct.
 - **QUAD's primitives** (docs/QUAD.md; design/choralroot-fm1-quad-mockups.json, the user-approved sheet
   design/choralroot-fm1-quad-screens.png; the designer's drawWide `algo` / `ade2` / the filter's `bw`, drawPicto `harm`
-  `detune` `lfowave`, cellRow's `big`, `ratio`, `span`, the bipolar knob). States 63–70 of `tests/gen_cr_screens.py`
-  are that file's states 1–8 (`QUAD_PICK`).
+  `detune` `lfowave`, cellRow's `big`, `ratio`, `span`, the bipolar knob). States 63–71 of `tests/gen_cr_screens.py`
+  are that file's states 1–8 and 10 (ENV 3's three cells) (`QUAD_PICK`); `tests/cr_draw_test.c` renders all eight
+  algorithms besides (`algo_1` .. `algo_8`, linted).
   - `CR_W_ALGO`: `wv` = algo (0: 1..8), fdbk (1: 0..255), mix (2: 0..255, 128 = X and Y alike). "ALGO" 10 px MID and
-    the number 24 px at the left; the diagram is the designer's `ALGOS` table copied (`CR_ALGOS`: per algorithm up to
-    three modulation arrows, the feedback operator, the X / Y carriers, the boxes' row and x in hundredths of the 154 px
-    diagram from x 60): the 1.5 px MID arrows box edge to box edge with a filled 4.5 × 5 px head (`cr_tri`, new in
-    cr_gfx.c: a 4 × 4-sample triangle), the carriers down to an X and a Y bus (the output mix favours in TEXT, the other
-    DIM, both TEXT at 128), the 14 px boxes (BG filled, 1.5 px outline, the letter 9 px), the feedback loop a half
-    circle r 5 at its box's right, 1..3 px with fdbk, its arrowhead back into the box. Bounded: <= 3 arrows, 4 boxes,
-    2 buses, one arc.
+    the number 24 px at the left; the diagram is the **Digitone manual's** (Appendix A.3's figure; `CR_ALGOS`, the
+    designer's `ALGOS` the same table: per algorithm up to four modulation arrows, the feedback operator, the X / Y
+    carriers and the one each label sits under, the **direct** carriers, the carriers whose line leaves their box's
+    right side, 3 or 4 rows, each box's row and column). `cr_algo_geom` places them: rows at y 13 / 37 / 61 (four rows:
+    11 / 30 / 49 / 68, algorithm 4's stack), 32 px columns, a side line 15 px right of its box's centre, the diagram
+    centred on x 137. The 1.5 px MID arrows box edge to box edge with a filled head (4.5 × 5 px, shorter in a short gap:
+    `cr_tri`); each carrier's 1.5 px line to its label (the output mix favours in TEXT, the other DIM, both TEXT at
+    128): **dotted for a direct carrier** (full level, unaffected by its operator envelope; `cr_poly` dashes 1.5 of
+    3.5 px), **solid for an enveloped one**; the label's own carrier straight down (or from its side, then down) to the
+    label's top, a second carrier down to the label's middle and across to its side (algorithms 3, 7, 8); the 14 px
+    boxes (BG filled, 1.5 px outline, the letter 9 px); the feedback loop the manual's square bracket over its box's top
+    left (up 3 px, left past the edge, down, a head back in), 1..3 px with fdbk (clamped to the band's top). The eight:
+    1 A(fb)>C, B2>B1>C, X C, Y B1 · 2 A>C, B2(fb)>B1, X C, Y B1 · 3 A(fb)>C, B2, B1, X C + B2, Y B1 · 4 B2(fb)>B1>A>C,
+    X C, Y B1 (side) · 5 B1(fb)>A, B2>A, A>C, X C, Y A (side) · 6 A(fb)>C, B1, B2>C, B1, X C, Y B1 · 7 A(fb)>C, B2>B1,
+    X C + A, Y B1 + B2 (A, B1, B2 enveloped) · 8 A>C, B1(fb), X C + B2, Y B1 (B2, B1 enveloped); C always direct. Bounded:
+    <= 4 arrows, 4 lines, 4 boxes, one loop.
   - `CR_W_ADE2`: `wv` = A's attack decay end level (0..3), B's (4..7) (0..255), the lit segment (8: 1..8 = A's attack
     decay end level, B's; 0 none). A in x 8..112, B in 128..232: each a 3 px TEXT polyline (rise to its level over 40 %
     of its room at attack 1, fall to its end over 40 % at decay 1, held; steep runs cut <= 26 px as the env band), a
     4 px level bar at its right (a LINE track filled to the level: the lit colour when a segment of that half is lit,
     else MID), its letter 10 px top left; the lit attack / decay / hold 4 px in the knob colour of (seg - 1) % 4 with
     dots at its ends (a lit level: the bar and letter only); a 1 px LINE divider at x 119.5.
+  - `CR_W_FILTER`'s type for FM TONE: `wv` 7 = 0 the VA's (the position's name), 1 OFF (a flat line at the pass
+    level, "OFF"), 2 a 12 dB slope (the name + "12": "LP12" "HP12"), 3 24 dB ("LP24": the response's dB doubled, two
+    12 dB stages); the editor sets it from the TYPE column's name (cr_edit.c `ce_band_plan`).
   - `CR_W_FILTER`'s base-width window: `wv` 4 = shown (0 none: a cleared struct draws no window), 5 = base, 6 = width
     (Q8 of 255 of the band; the window base .. base + width, clipped at 255). The designer's lit region is the orange at
     12 % alpha; with no alpha here it is that composite as a **solid dim fill** (`ux_mix(T_BG, orange, 12)`, a dark
@@ -249,8 +262,9 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
     the `wave` byte): + 7 bytes a cell, + 224 bytes a `cr_screen_t` (three in the firmware: `cu_scr` in the POOL, two
     statics).
   - Cache: the bands are hashed with the editor's `wv` as the others (a new algorithm composes strips 0–3 only, the
-    partial draw equal to a full one: tested). `tests/cr_draw_test.c` checks the four boxes of every algorithm and the
-    eight diagrams differing, the loop thickening with fdbk, ade2's two curves and bars filled to their levels, the
+    partial draw equal to a full one: tested). `tests/cr_draw_test.c` checks the four boxes of every algorithm where
+    `cr_algo_geom` puts them, the eight diagrams differing, no boxes / loops / side lines / labels overlapping or off
+    the band, a direct line dotted and an enveloped one solid (algorithm 7), the loop thickening with fdbk, ade2's two curves and bars filled to their levels, the
     window's edges and fill (none when off), the fraction, the three glyphs' ink and change with pct, lfowave's seven
     waves, phase and two cycles, a big cell's missing bar and larger value, a span cell over two columns with the next
     cells shifted, the bipolar knob's arc flipping across 0.5. `gen_cr_screens.py` refuses a row whose spans pass the
@@ -268,6 +282,6 @@ device | mid-animation per state). Lint (gfx.c `GFX_HOOK_TEXT`, boxes in screen 
 no text off the screen, no two texts overlapping, no text on the ring's band. Checks: glyphs fit the buffer, the CRX
 charset, the cache (0 / 1 / 6 strips), animations pure and settling. States 45–53 are design/choralroot-fm1-fx-mockups.json's 2 3 4 5 5b (knob rows), 6 7 (the
 glyph studies, edit8) and 10 11 (the perform and bass layers); states 54–57 the layers sheet's 1 3 (KEY, the keyboard band), 6 (LOOP, no
-ring), 7 (METRO); states 58–62 the preset sheet's 1 2 3 5 6; states 63–70 QUAD's 1–8 (compare.png cuts them from
+ring), 7 (METRO); states 58–62 the preset sheet's 1 2 3 5 6; states 63–71 QUAD's 1–8, 10 (compare.png cuts them from
 design/choralroot-fm1-quad-screens.png); state 16 is the main sheet's fx layer, a knob row. The pictograms and the knob row's hot
 block and strips are checked too. Report: `build/cr_screens/report.txt`.

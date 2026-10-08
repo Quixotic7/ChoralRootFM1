@@ -202,15 +202,15 @@ Built from FM TONE's screen plan (`eng_quad.c` `QUAD_SCREENS`), not from the tit
 
 | Group | Screen | Kind | Lanes | KNOB 1–4 | Top-right text |
 | --- | --- | --- | --- | --- | --- |
-| OSC | 1 | `edit8`, the **algo** band (`CR_W_ALGO`: algorithm, feedback, mix) | A, B | A: Algo · Ratio C · Ratio A (big numbers) · Ratio B (the fraction B1/B2); B: Harm (harm glyph) · Dtune (detune glyph) · Feedback (bar) · Mix (bipolar) (`SYN 1`, `SYN 1+`) | `SYN 1 · A` |
+| OSC | 1 | `edit8`, the **algo** band (`CR_W_ALGO`: algorithm, feedback, mix) | A, B | A: Algo (1–8, the Digitone manual's eight: the band draws its diagram, a direct carrier's line dotted, an enveloped one solid) · Ratio C · Ratio A (big numbers) · Ratio B (the fraction B2/B1: the fast hand B2 on top); B: Harm (harm glyph, −26..+26) · Dtune (detune glyph) · Feedback (bar) · Mix (bipolar, −64..+63) (`SYN 1`, `SYN 1+`) | `SYN 1 · A` |
 | OSC | 2 | `edit8`, one row | one | Offset C · Offset A · Offset B1 · Offset B2 (`SYN 2`) | `SYN 2` |
-| FILT | 1 | `edit8`, the filter band | A, B | A: Attack · Decay · Sustain · Release (the filter envelope); B: Freq · Reso · Type · Env depth | `FILTER · B` |
+| FILT | 1 | `edit8`, the filter band | A, B | A: Attack · Decay · Sustain · Release (the filter envelope); B: Freq · Reso · Type (Off · LP12 · HP12 · LP24: the band flat for Off, twice the slope for LP24) · Env depth | `FILTER · B` |
 | FILT | 2 | `edit8`, the filter band with the base-width window | A, B | A: Env delay · Key track; B: Base · Width | `FILTER 2 · A` |
 | ENV | 1 | `edit8`, the **ade2** band (`CR_W_ADE2`: A's and B's curves, level bars; the turned cell's segment lit) | A, B | A: A Attack · A Decay · A End · A Level; B: the same for B | `ENV A/B` |
-| ENV | 2 | `edit8`, no band | A, B | A: A Delay · A Trig · A Reset · Phase; B: B Delay · B Trig · B Reset · Velocity | `ENV 2` |
-| ENV | 3 | `edit8`, one row | one | A Key · B Key (the operator envelopes' key tracks) | `ENV 3` |
+| ENV | 2 | `edit8`, no band | A, B | A: A Delay · A Trig · A Reset · Phase (PHRT, text: Off · All · C · A+B · A+B2); B: B Delay · B Trig · B Reset · Velocity | `ENV 2` |
+| ENV | 3 | `edit8`, one row | one | A Key · B1 Key · B2 Key (the operators' key scaling, three cells) | `ENV 3` |
 | ENV | 4 | `edit8`, the AHDSR band (FM TONE's own amp envelope) | A, B | A: Attack · Decay · Sustain · Release; B: Level · Pan · Drive (the part's P_PAN and P_DIST) | `AMP · A` |
-| LFO | 1–3 | `edit8`, no band, one screen an LFO | A, B | A: Speed (a bipolar knob) · Mult · Fade · Dest; B: **Wave · Phase** (one span cell: the wave drawn from its start phase, "Tri · 90", degrees; KNOB 1 the wave, KNOB 2 the phase) · Trig · Depth | `LFO 1 · A` |
+| LFO | 1–3 | `edit8`, no band, one screen an LFO | A, B | A: Speed (a bipolar knob, −64..+63) · Mult (text: 1 .. 2k synced, F1 .. F2k at a fixed 120 BPM) · Fade (bipolar, −64..+63: below 0 fades in, above fades out) · Dest; B: **Wave · Phase** (one span cell: the wave drawn from its start phase, "Tri · 90", degrees; KNOB 1 the wave, KNOB 2 the phase) · Trig · Depth | `LFO 1 · A` |
 | MOD | 1 | the platform's routes (as an engine without deep pages) | 4 | | `MOD n` |
 
 The numbers are the values as stored (Attack "12", Reso "30"), as the mock-ups write them; Freq "2.1k"; on / off and
@@ -239,10 +239,12 @@ GLO (printed; OPT outside) is SHIFT in the editor:
   latched state (a hold never toggles it);
 - held + EDIT = chord ↔ bass sound.
 
-A **ratio pair** (a column of k names over k x k values: QUAD's RATIO B, B1 / B2) takes SHIFT as **its B2 a step**
-(B1 kept, B2 held at its first and last step) instead of a fine step: a plain detent already moves B1 one step. The
-title line then reads `fine · B2` (`cr_screen_t.fine` 2: the active lane has a pair). The pair's cell is a fraction,
-B1 over B2, each with two decimals (the cell's `pct` / `pct2` in quarters, cr_draw.c formats them).
+A **ratio pair** (a column of k names over k x k values, the value slow × k + fast: FM TONE's RATIO B, B1 × 19 +
+B2, the Digitone's hands) takes SHIFT as **its slow hand a step** (FM TONE's B1: B2 kept, B1 held at its first and
+last step) instead of a fine step: a plain detent already moves the fast hand (B2) one step, carrying into B1 on the
+wrap. The title line then reads `fine · B1` (`cr_screen_t.fine` 2: the active lane has a pair). The pair's cell is a
+fraction, the fast hand **on top** (B2 over B1), each with two decimals (the cell's `pct` / `pct2` in quarters,
+cr_draw.c formats them); the trace and the value text read "B2/B1" ("2.00/1.00": B2 2.00, B1 1.00).
 
 While the editor is open the edit wins over OPT's outside knob functions (split point, metronome level, bass volume).
 
@@ -299,7 +301,7 @@ Left: the sound's name in 13 px bold, white; a trailing **`*`** once edited (dee
 ` · BASS` and the whole title in **orange** (`PUNCH BASS · BASS`). Right, 11 px grey, right-aligned: the group and
 what is on the knobs — `OSC 1 · A` (screen A, lane OSC 1), `OSC 2 · B`, `OSC · MIX`, `FILTER`, `ENV 1 · amp`,
 `ENV 2 · filter`, `LFO 2 · B`, `MOD 3`, `FX`, `MIX`. With SHIFT on (latched or held), the word **`fine`** (9 px,
-white) left of it (**`fine · B2`** on a lane with a ratio pair, §6). The editor's title line has no battery (it shows on the Options page only); the section text sits at the right end:
+white) left of it (**`fine · B1`** on a lane with a ratio pair, §6). The editor's title line has no battery (it shows on the Options page only); the section text sits at the right end:
 the header's 16 x 10 case and nub, 0–3 quarters filled, full on USB power (`cr_screen_t.batt`, 255 = none; the
 right text moves left of it).
 

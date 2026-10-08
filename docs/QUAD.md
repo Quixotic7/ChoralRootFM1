@@ -18,35 +18,29 @@ Mock-ups: `design/choralroot-fm1-quad-screens.png` (`design/make_quad_mockups.py
 
 ## The voice (what we model; our own code, no Elektron code)
 
+Since 2026-10-08 (the Digitone review, blob version 3) the voice follows the Digitone manual (OS 1.44: §11.3-11.12,
+§9.5, Appendix A and C) wherever it says something; where it gives no number (DTUN's curve, FDBK's scale, the key
+scaling law, the HARM partials) the curves are ours, listed under "Implementation".
+
 ```
-          ALGO 1..8 (the Digitone's eight routings of C, A, B1, B2; X and Y are the two outputs)
-   ratios:  C fixed at 1.00 (its RATIO page offset only), A 0.25..16, B 0.25..16 (B1 and B2 share B, B2 = B x BR)
-   HARM  -26..+26   the carriers' waveshape: 0 = sine; + adds the odd series (toward a square-ish wave),
-                    - adds all harmonics (toward a saw-ish wave); implemented as a wavetable morph of 7 shapes a side
-   DTUN  0..127     B1 / B2 detuned against each other (and A against C a little), cents
-   FDBK  0..127     the feedback operator's self-modulation (which operator feeds back is the algorithm's)
-   MIX   -63..+63   output X alone .. both .. Y alone
-   ENV A: ATK DEC END LEV   the modulation index of operator A over time (attack to LEV, decay to END, held)
-   ENV B: ATK DEC END LEV   the same for B1 and B2 (one envelope, as the Digitone)
-   A / B DELAY 0..127       the envelopes start late (the Digitone's A/B DLY)
-   TRIG  A RESET / B RESET  (0/1 each) whether an envelope restarts on every note (else free-running on legato)
-   PHASE RESET  on/off      operators restart their phase at note-on (click-free off)
-   KEY TRACK  A / B 0..127  the modulation index follows the key (brighter up the keyboard, or not)
-   RATIO OFFSETS  C A B1 B2 -1.00..+1.00 fine ratio offsets (the Digitone's "ratio offset" page)
-   LEVEL  A B               operator output levels (the modulation depth ceiling the envelopes scale)
+   ALGO 1..8     the manual's eight routings of C, A, B1, B2 (Appendix A.3), two outputs X and Y; each output
+                 carrier direct (full level) or enveloped (its envelope x level)
+   ratios        C 0.25..16 (19 steps), A 0.25..16 (64 steps of 0.25), B = the pair B1 / B2 (19 steps each), one knob:
+                 B2 the fast hand, B1 steps when B2 wraps (the manual's watch)
+   HARM -26..+26 the 26-wave additive series (Appendix A.6), interpolated; - shapes C, + shapes A and B1, B2 never
+   DTUN 0..127   A up, B2 down: 0..64 a few cents (to 6), 64..127 wide (to 50 cents)
+   FDBK 0..120   the algorithm's feedback operator; 35 = a saw
+   MIX -64..63   X alone .. Y alone
+   ENV A, ENV B  ATK DEC END LEV each (A: operator A; B: B1 and B2 through the B LEV law), DELAY, TRIG, RESET
+   PHRT          OFF ALL C A+B A+B2: the operators restarted at a note (OFF: they run on, even on a fresh voice)
+   KEY A B1 B2   key scaling: less modulation the higher you play (neutral at C3 = MIDI 60)
+   OFFSETS       C A B1 B2 -1.00..+1.00 added to the ratios
+   then          DC blocker -> base-width filter -> multimode (OFF LP12 HP12 LP24) with its ADSR -> amp ADSR, LEVEL
+   LFO 1..3      SPEED -64..63 x MULT (BPM-synced 1..2k, or the same at 120 BPM), FADE in / out, 40 destinations
 ```
 
-The amp envelope is QUAD's own (`ownenv`, the Digitone's AMP page; decided by the user's page layout: unlike FM6 and CZ-1 the amp envelope is
-the platform's, as the Digitone's AMP page is separate from its FM core), so the ENV group in the editor shows the
-platform ADSR as for ANALOG, and QUAD's own two envelopes are deep pages under OSC / its own section (below).
-Velocity scales the operator envelopes' LEV (a VEL amount, default 50 %).
-
-Rendering: 44.1 kHz, per sample, four sine (or harmonic-table) lookups with linear interpolation on 2^12 tables,
-phase accumulators 32-bit, the algorithm as a small switch over eight routing tables (each operator's modulators as
-a bit set, the feedback operator and the X / Y outputs), the envelopes at control rate (every 32 samples) with
-linear ramps per sample. Feedback as in the DX7 family (the average of the last two outputs). Harmonics as a morph
-between 15 pre-computed 2^12 tables (sine, then 7 odd-series steps one side, 7 all-series steps the other) chosen by
-HARM, two tables crossfaded. Budget target: 8 voices <= 18 % of the block; the first measurement decides `poly`.
+The amp envelope is QUAD's own (`ownenv`, the Digitone's AMP page). Velocity scales the operator levels (VEL) and
+the amplitude (half).
 
 ## The eight P_E macros (EDIT 1 / EDIT 2) and HOME's knobs
 
@@ -130,161 +124,188 @@ list of (value index, value) edits over the init patch, as the VA's `VA_PRESET_E
 - Should QUAD's own two envelopes also be able to be the amplitude (an `ownenv` option, like the Digitone's A env
   on a carrier in some algorithms), or keep the platform ADSR as the amp always (simpler, proposed)?
 
-## Implementation (milestone 1, 2026-10-08)
+## Implementation (version 3: the Digitone review, 2026-10-08)
 
 Files: `firmware/src/eng_quad.c` (the engine, `ENG_QUAD`, `QUAD_DEEP`), `firmware/src/quad_tables.h` (generated by
 `tests/quad_ref.py`, committed), `tests/quad_ref.py` (the table generator and the reference model),
-`tests/quad_goldens/*.json` (12 renders), `tests/cr_quad_test.c` (in `tests/run_cr_tests.sh`), `tests/run_quad_test.sh`
-(regenerate, test, CPU). Not wired yet (milestone 2): see "For the wiring" below.
+`tests/quad_goldens/*.json` (12 renders), `tests/cr_quad_test.c` (in `tests/run_cr_tests.sh`), `tests/run_quad_test.sh`.
 
-**The voice.** Per sample: four 32-bit phases; modulators are `sine_i` (Felucca's SINE, RAM); carriers (the X / Y
-operators of the algorithm) read the HARM tables when HARM != 0. A modulator's output (Q15, at its level) is a phase
-offset of `o << 18` (full level = 2 cycles, index ~12.6 rad). Feedback: the feedback operator's own wave (before its
-level), `(y[n-1] + y[n-2]) x FDBK^2 x 2 << 1` (FDBK 127 = one cycle of the average: saw-like near 64, noise above
-~90). Levels: operator A = ENV A x LEV^2 (C is always at full level: the amp envelope shapes it), B1 and B2 = ENV B x B
-LEV^2; ramped per sample (so a B carrier on Y is only as loud as ENV B x B LEV^2: BELL's Y alone is 16.6 dB under its
-X, the init patch's B LEV 0 silences Y; at MIX +36 X still covers Y: the 2026-10-08 report "no change when B1 / B2
-change" was this, the edit reaches the voice live). MIX: `X x (63 - MIX) / 126 + Y x (63 + MIX) / 126` (equal sum: algorithms 1-3, X = Y = C,
-do not change level with MIX). Then a DC blocker (a one-pole high-pass at ~8 Hz, `QUAD_DC_K` 75 Q16, Q12 state): the
-operators are not DC-free. The feedback's average lags 1.5 samples, which skews the feedback operator's saw (on a plain
-sine its mean is -12 % of its RMS at FDBK 60, -61 % at 100; a float model of the same loop gives the same), and at
-near-unison ratios a modulator's phase offset (that mean, or DTUNE's drift of 0.06..0.5 Hz) is `J1(I) sin(offset)` at
-0 Hz in the carrier (BRASS held: +57 % of its RMS). The Digitone and the DX7 AC-couple their outputs; QUAD does it per
-voice, before the SVF and its knee. Then the SVF (dsp.c's, LP / HP / BP as the VA's switch, bypassed when LP, FREQ 127 and no
-resonance), the soft knee, the base-width filter, the amp. The routings mirror the designer's `ALGOS` (`QUAD_ALGO` in
-eng_quad.c; the test checks it against a transcription of `index.html`):
+**The algorithms** (`QUAD_ALGO`; the contract with the editor, the manual's Appendix A.3 diagram; "fb" the feedback
+operator; *direct* = at full level whatever its envelope / LEV, *env* = x its envelope x level). A modulator's
+output into its target = its wave x its envelope x its level (+ velocity, key scaling): the modulation index. An
+operator that is both (B1 in 1 and 4, A in 5) has its modulation path scaled, its audio path not.
 
-| algo | modulations | feedback | X | Y |
+| algo | modulations | fb | X | Y |
 | --- | --- | --- | --- | --- |
-| 1 | A>C, B1>A, B2>B1 | B2 | C | C |
-| 2 | A>C, B1>C, B2>B1 | B2 | C | C |
-| 3 | A>C, B1>A, B2>A | B2 | C | C |
-| 4 | A>C, B2>B1 | B2 | C | B1 |
-| 5 | A>C, B1>A | B2 | C | B2 |
-| 6 | A>C, A>B1, B2>B1 | B2 | C | B1 |
-| 7 | B2>B1 | A | C + A | B1 |
-| 8 | none | B2 | C + A | B1 + B2 |
+| 1 | A>C, B2>B1, B1>C | A | C | B1 (direct) |
+| 2 | A>C, B2>B1 | B2 | C | B1 (direct) |
+| 3 | A>C, A>B2, A>B1 | A | C + B2 (direct) | B1 (direct) |
+| 4 | B2>B1, B1>A, A>C | B2 | C | B1 (direct) |
+| 5 | B1>A, B2>A, A>C | B1 | C | A (direct) |
+| 6 | A>C, A>B1, B2>C, B2>B1 | A | C | B1 (direct) |
+| 7 | A>C, B2>B1 | A | C + A (env) | B1 (env) + B2 (env) |
+| 8 | A>C | B1 | C + B2 (env) | B1 (env) |
 
-**Ratio tables.** RATIO C and B1: 19 steps `0.25 0.50 0.75 1 2 3 .. 16` (index 0..18, 1.00 = 3). RATIO A: 64 steps
-`0.25 .. 16.00` by 0.25 (index = ratio x 4 - 1, 1.00 = 3). **RATIO B (the pair, version 2, 2026-10-08)**: B1 and B2 each a C/B
-step (patch values `QP_RB1`, `QP_RB2`, 0..18 each); the deep column is one value 0..360 = `B2 x 19 + B1` (`QUAD_NRB`
-361, B2-major): one detent steps B1, and past B1's last step (16) the next detent carries into B2 (B1 back to 0.25,
-B2 one step up); turning down the same backwards; 0 = 0.25/0.25 and 360 = 16.00/16.00 hold (no wrap). Default 60 =
-1.00/1.00; e.g. 3 x 19 + 1 = 58 = 0.50/1.00. `quad_get` / `quad_set` join and split the pair; the macro `P_E3`
-(`ENG_QUAD.edit[3]`, `preset_t.e[3]`) is B1's step only (0..18: the user preset record keeps a macro in one byte,
--64..191), so a knob, the matrix or motion on `P_E3` moves B1 and leaves B2. **SHIFT (GLO held or latched) on RATIO B
-steps B2** (+-19 in the deep value, B1 kept; B2 stops at 0.25 and 16.00; the title line reads `fine · B2`). The texts:
-the column's name list is `N_QUAD_RCB` (19 names over 361 values: cr_edit.c's *ratio pair*, `ce_pair`: B1 =
-names[v % 19], B2 = names[v / 19], no engine hook); the cell carries B1 and B2 in quarters (`cr_cell_t.pct` /
-`pct2`) and cr_draw.c writes each `%u.%02u` ("16.00" over "16.00"); the trace line "4.00/16.00" (until 2026-10-08:
-361 generated names `N_QUAD_RB`, ~5 KB flash, and the 10-byte cell text cut "16.00/1.00" to "16.00/1.0").
-Version 1 (until 2026-10-08) had 114 pairs `BR x 19 + B1`, B2 = B1 x BR, BR in `0.5 1 1.5 2 3 4` (`QUAD_BR_Q16`,
-kept for the loader below). Offsets: -100..+100 =
--1.00..+1.00 added to the ratio (clamped at 0). DTUNE: B1 -, B2 + `DTUNE x 7.5 / 65536` (+-25 cents at 127, B1 / B2
-50 cents apart), A + a quarter of that (+6 cents); a factor on the ratio. Increments: `pitch inc x ratio (Q16) x
-detune (Q16)` in 64-bit, per tick.
+C is always direct. Algorithm 8's B1 is enveloped (the manual draws its line to Y solid; corrected 2026-10-08):
+its Y needs B LEV > 0 (43 = B1 full, B2 off). Per sample: four 32-bit phases; a modulator's output (Q15, at its level) is a
+phase offset `o << 18` (full level = 2 cycles, an index of 12.6 rad); the loops are written out per algorithm and per
+HARM case (none, - on C, + on A and B1). MIX: `gy = (MIX + 64) x 258`, `gx = 32766 - gy` (-64 = X alone, 63 = Y alone).
 
-**HARM.** 15 tables x 1025 int16 (30.8 KB, `const`: XIP flash): 0 sine; 1..7 the odd series `sum sin(nx) / n`, n odd up
-to 3, 5 .. 15 (toward a square); 8..14 every harmonic up to 3, 5 .. 15 (toward a saw); each scaled to a peak of 32767.
-HARM h: position |h| x 7 / 26 between table floor and floor + 1 (the + side for h > 0, the - side below), crossfaded
-(Q15); +-26 is table 7 / 14 alone. The two tables share one index per sample.
+**Levels.** A: `(LEV A / 127)^2`. B: the **B LEV law** (manual §11.5.8; `quad_blev`, Q12) then squared per operator:
+0..43 B1 0 -> 1 with B2 0; 43..85 B1 1 -> 0.1 while B2 0 -> 1; 85..127 B1 0.1 -> 1, B2 1 (at 0 / 43 / 64 / 85 / 127:
+B1 0, 1, 0.55, 0.10, 1; B2 0, 0, 0.5, 1, 1). Then velocity (`32767 - VEL x (127 - velocity) x 2080 / 1024`), then
+**key scaling** (A KEY, B1 KEY, B2 KEY 0..127, manual §9.5.1-3): x `2^(-(note - 60) / 12 x KEY / 127)` (KEY 127: half
+the modulation an octave up, double an octave down, at most x 2 and full level; `quad_exp2`, a quadratic within 0.3 %),
+then x the operator's envelope. Ramped per sample over the tick (three ramps: A, B1, B2).
 
-**Envelopes.** Operator A and B: DELAY (`ENV_LIN` time), ATK (linear to 1 in `TIME_MS_X10`), DEC (exponential to
-END / 127, 99 % in the DEC time), then held at END whatever the gate (attack-decay-end). LEV: 0..127, squared; VEL:
-`32767 - VEL x (127 - velocity) x 2080 / 1024` on both LEVs; KTRK: `1 + (note - 60) x KTRK / (48 x 127)` (127: x2 four
-octaves up), clamped to full. TRIG on: a retrigger (or a MONO / LEGATO legato move, `engine_t.legato`) restarts the
-envelope, off: it holds; RESET on: the restart from 0, off: from where it is. PHASE RESET on: a retrigger zeroes the
-phases (a fresh voice always starts at 0). Filter envelope: an ADSR with DELAY (the VA's envelope code); DEPTH -64..63
-x the envelope = +-126 cutoff steps; KTRK 127 = 1 octave an octave (the VA's). Amp: an ADSR, ends the voice
-(`done`), velocity at a fixed half (`32767 - (127 - vel) x 129`), LEVEL squared (`LEVEL^2 x 2`, Q15), UNISON x 2/5.
+**Ratios.** RATIO C and B1 / B2: 19 steps `0.25 0.50 0.75 1 2 3 .. 16` (index 0..18, 1.00 = 3). RATIO A: 64 steps
+`0.25 .. 16.00` by 0.25. **RATIO B**: the patch keeps B1 (`QP_RB1`, value 3) and B2 (`QP_RB2`, value 71); the deep
+column is one value 0..360 = `B1 x 19 + B2`: one detent steps B2 (the fast hand), past 16.00 B2 wraps to 0.25 and B1
+steps (the manual's §11.3.4); 0 = 0.25/0.25 and 360 = 16/16 hold. The text is `B2/B1` (cr_edit.c's pair:
+`names[v % 19]` first / on top, `names[v / 19]`); default 60 = 1.00/1.00. The macro `P_E3` is **B2's** step
+(`QUAD_MAC`: macro k -> patch value; RATIO B's is `QP_RB2`). Offsets -1.00..+1.00 added to the ratio (clamped at 0).
+**DTUN** (`QUAD_DT_UP` / `QUAD_DT_DN`): A up and B2 down by `6 x d / 64` cents up to 64, `6 + 44 x ((d - 64) / 63)^2`
+above (16 cents at 96, 50 at 127); C and B1 untouched. Increments: `pitch inc x ratio (Q16) x detune (Q16)` in 64-bit.
 
-**Base-width filter.** BASE / WIDTH 0..127 on CUTOFF_HZ's scale (30 Hz x 533^(v/127)); a one-pole high-pass at BASE
-(off at BASE 0) then a one-pole low-pass at BASE + WIDTH (off at >= 127); Q16 coefficients `QUAD_BW_K`, Q8 states,
-64-bit products.
+**HARM.** 27 tables x 513 int16 (512 points and the wrap point; 27.1 KB `const`, XIP flash; was 15 x 1025, 30.8 KB):
+0 the sine, 1..26 the manual's series, additive (sine phases, the fundamental at 1, each wave scaled to a peak of
+32767). The recipes (harmonic: amplitude; `tests/quad_ref.py harm_recipes`):
 
-**LFOs** (three, per voice, control rate, read then advanced). Rate: `f = SPEED x MULT / 320 Hz` (SPEED 32 x1 = 0.1
-Hz; SPEED 16 x8 = 0.4 Hz; 64 x 2k = 409.6 Hz), the increment a tick `SPEED x MULT x 9739`; negative SPEED runs
-backwards, 0 stops. MULT 0..11 = x1 .. x2k. TRIG: FREE (the part's phase), TRIG (the voice's, from START PHASE at the
-note), HOLD (the part's phase at the note, frozen), ONE (one cycle, then stops), HALF (half a cycle). START PHASE x
-2^25. WAVE: TRI (0 at phase 0, rising), SINE, SQR, SAW (bipolar, rising through 0), RAMP (unipolar, falling), EXP
-(unipolar, `(1 - x)^4`), RAND (a new value each cycle). FADE: a fade-in over the FADE time (as the VA's). DEPTH
--64..63: `wave x DEPTH / 64`. DEST (summed over the three, at full depth): HARM +-26, DTUNE +-127, FDBK +-127, MIX
-+-126, RATIO A +-32 steps, RATIO B +-18 steps (B1 and B2 the same steps), FREQ +-127 cutoff steps, RESO / LEVEL / A LEV / B LEV
-+-127, PAN +-64 (the part's: `quad_pan` for fx.c, from the latest note's voice, as `va_pan`).
+| HARM | family | partials |
+| --- | --- | --- |
+| 1..7 | saw build-up | 1..n at 1/n, n = 2 3 4 6 8 11 16 |
+| 8..13 | saw reduction | the 16-partial saw without partials 2..k+1, the rest x (1 - k/7), k = 1..6 |
+| 14 | odd / even mix | odd 1..15 at 1/n, even at 0.35/n |
+| 15..19 | square build-up | odd 1..n at 1/n, n = 3 5 7 11 17 |
+| 20..23 | square reduction | the 17-partial square without 3..2k+1, the rest x (1 - k/5), k = 1..4 |
+| 24..26 | bell | {1, 3 .5, 4 .35, 7 .25, 10 .15}, {1, 2 .3, 5 .5, 9 .35, 13 .2}, {1, 4 .6, 6 .45, 11 .35, 14 .25, 19 .15} |
 
-**DRIVE and PAN are not in the patch**: AMP+'s PAN and DRIVE columns read and write the part's `P_PAN` and `P_DIST`
-(the platform's DIST insert is QUAD's drive), on any part. A sound's PAN and DRIVE travel as the track's parameters
-(a preset's `FX()` DIST send, a user slot's values), not in the blob.
+HARM h (with the LFO's share, in 1/256 steps): tables |h| and |h| + 1 crossfaded (Q15), one index a sample;
+negative h shapes C, positive A and B1 (modulators included), B2 never.
 
-**The blob** (`QUAD_BLOB` 80 bytes): `'Q'` (0x51), version 2, then a byte per value (value - min, 0..200: the offsets
-and SPEED are not 7-bit clean), zeros to 80 (72 values + 6 zero bytes). A bad magic, version, out-of-range byte or
-non-zero padding -> the init patch. **Version 1** (71 values, byte 3 RATIO B 0..113 = `BR x 19 + B1`, padding from
-byte 73) is still read (`quad_blob_ok`, so a v1 patch store stays valid; `quad_unpack` converts): B1 = its B1, B2 = the
-grid step nearest B1 x BR (the lower one when halfway), the rest added to OFS B2 (rounded to 1/100, clamped at +-1.00:
-exact for the half steps, e.g. 7 x 1.5 = 10 + 0.50; 0.25 x 0.5 = 0.25 - 0.13, 16 x 4 = 16 + 1.00 are not). Blobs are
-written as version 2. A version-1 macro (`P_E3` 19..113 in a project or a record from before) is taken the same way
-by `quad_track_loaded` (B1 to `P_E3`, so a factory preset still matches). Values (index name min..max (init)):
-0 ALGO 1..8 (1); 1 RATIO C 0..18 (3); 2 RATIO A 0..63 (3); 3 RATIO B1 0..18 (3); 4 HARM -26..26 (0); 5 DTUNE 0..127
-(0); 6 FDBK 0..127 (0); 7 MIX -63..63 (0) [0..7 = P_E0..P_E7]; 8..11 OFS C A B1 B2 -100..100 (0); 12..15 A ATK DEC END
-LEV (0 60 64 48); 16..19 B ATK DEC END LEV (0 60 0 0); 20 A DLY (0); 21 A TRIG 0..1 (1); 22 A RESET 0..1 (1); 23 PHASE
-RESET 0..1 (1); 24 B DLY (0); 25 B TRIG (1); 26 B RESET (1); 27 VEL (64); 28 A KTRK (0); 29 B KTRK (0); 30..33 filter
-ATK DEC SUS REL (0 64 0 40); 34 FREQ (127); 35 RESO (0); 36 TYPE 0..2 LP HP BP (0); 37 DEPTH -64..63 (0); 38 F DELAY
-(0); 39 F KTRK (0); 40 BASE (0); 41 WIDTH (127); 42..45 amp ATK DEC SUS REL (0 64 127 40); 46 LEVEL (100); 47..54,
-55..62, 63..70 LFO 1..3: SPEED -64..64 (16), MULT 0..11 (3), FADE (0), DEST 0..12 (0), WAVE 0..6 (0), PHASE (0), TRIG
-0..4 (0), DEPTH -64..63 (0); 71 RATIO B2 0..18 (3) (version 2). (Unlisted ranges 0..127.)
+**FDBK** 0..120 on the algorithm's feedback operator: `(y[n-1] + y[n-2]) x fbq << 2`, `fbq = (f x 4237 + f^2 x 537
+/ 64) / 32` (beta = 2 pi fbq / 16384 on the average: 1.9 rad at 35, measured h2 / h1 0.46, h3 / h1 0.29 = a saw;
+7.5 rad at 120, noise). The feedback operator may be HARM-shaped (A, B1): its feedback then turns chaotic sooner.
 
-**The pages as implemented** (`eng_page_t`, 4 columns each; a mock-up screen = row A + row B = two pages;
-`section = {0, 3, 7, 14, 0xFF}`: OSC, FILTER, ENV, LFO, **no MOD**):
+**Filters** (the manual's order): the operators' sum -> the DC blocker (8 Hz, `QUAD_DC_K`) -> the base-width filter
+(a one-pole high-pass at BASE, off at 0, then a one-pole low-pass at BASE + WIDTH, off at >= 127; 30 Hz x
+533^(v/127)) -> the multimode: TYPE `OFF` (passes), `LP12`, `HP12` (dsp.c's trapezoidal SVF, its products rounded:
+truncation's bias, integrated, was DC), `LP24` (a plain LP12 stage, damping 2, then the resonant one), the soft knee,
+FREQ + the filter ADSR x DEPTH + key track; then the amp ADSR x LEVEL^2. **Release INF is not done**: F_TIME is
+params.c's (not the engine's); REL stays 0..127 (to add: a name for the last F_TIME value in params.c, then REL 127
+holding in `quad_env_tick`).
+
+**Envelopes.** Operator A and B: DELAY, ATK (linear), DEC (exponential to END), held (attack-decay-end); TRIG / RESET
+as before (unchanged by the review). **PHRT** (`QP_PHRT`, value 23) OFF ALL C A+B A+B2: at every note-on (a fresh voice
+too) the set's phases go to 0, the others run on from where the voice left them (OFF: none reset).
+
+**LFOs** (three, per voice, control rate). Rate `f = SPEED x MULT / 128 x BPM / 240 Hz` (`QUAD_LFO_K`, 64-bit; SPEED x
+MULT = 128 is a bar: SPEED 32 x 4 = 0.5 Hz at 120 BPM): MULT 0..11 `1 2 4 .. 512 1k 2k` at the part's tempo
+(`song.g[G_BPM]`, as the VA's LFO SYNC: the tempo, tap or MIDI clock), 12..23 `F1 F2 .. F2k` the same at 120 BPM.
+SPEED -64..63 (negative runs backwards). FADE -64..63: negative fades in, positive fades out, over the time of
+`2 |FADE| - 1` (`ENV_LIN`); 0 none. SPH on RAND is the slew: a one-pole on the random steps (127 ~ a period, 0 none;
+the start phase is 0). TRIG FREE TRIG HOLD ONE HALF, waves TRI SINE SQR SAW RAMP EXP RAND, DEPTH -64..63 as before.
+**DEST** (`N_QUAD_DEST`, 40, <= 5 characters): `NONE PITCH "P AB2" ALGO "RAT C" "RAT A" "RAT B" "OFS C" "OFS A" OFSB1
+OFSB2 HARM DTUN FDBK MIX "A LEV" "B LEV" "A ATK" "A DEC" "A END" "B ATK" "B DEC" "B END" "A DLY" "B DLY" FREQ RESO
+FENV BASE WIDTH "F ATK" "F DEC" "F SUS" "F REL" "AMP A" "AMP D" "AMP S" "AMP R" LEVEL PAN`. Full depth: PITCH / P AB2
++-1 octave (all operators / A and B2), ALGO +-7, RATIO C +-18 steps, A +-63, B +-180 pair steps, offsets +-1.00, HARM
++-26, DTUN / FDBK / MIX / levels / times / FREQ / RESO / BASE / WIDTH / LEVEL +-127 (FDBK 120), FENV +-127, PAN +-64.
+
+**DRIVE and PAN are not in the patch**: AMP+'s PAN and DRIVE columns read and write the part's `P_PAN` and `P_DIST`.
+
+**The patch and the blob** (`QUAD_BLOB` 80 bytes): `'Q'` (0x51), **version 3**, a byte per value (value - min), zeros
+to 80 (73 values + 5 zero bytes). Values (index name min..max (init)): 0 ALGO 1..8 (1); 1 RATIO C 0..18 (3); 2 RATIO A
+0..63 (3); 3 RATIO B1 0..18 (3); 4 HARM -26..26 (0); 5 DTUNE 0..127 (0); 6 FDBK 0..120 (0); 7 MIX -64..63 (0); 8..11
+OFS C A B1 B2 -100..100 (0); 12..15 A ATK DEC END LEV (0 60 64 48); 16..19 B ATK DEC END LEV (0 60 0 0); 20 A DLY (0);
+21 A TRIG 0..1 (1); 22 A RESET 0..1 (1); 23 PHRT 0..4 (1 ALL); 24 B DLY (0); 25 B TRIG (1); 26 B RESET (1); 27 VEL (64);
+28 A KEY (0); 29 B1 KEY (0); 30..33 filter ATK DEC SUS REL (0 64 0 40); 34 FREQ (127); 35 RESO (0); 36 TYPE 0..3 OFF
+LP12 HP12 LP24 (1); 37 DEPTH -64..63 (0); 38 F DELAY (0); 39 F KTRK (0); 40 BASE (0); 41 WIDTH (127); 42..45 amp ATK
+DEC SUS REL (0 64 127 40); 46 LEVEL (100); 47..54, 55..62, 63..70 LFO 1..3: SPEED -64..63 (16), MULT 0..23 (3), FADE
+-64..63 (0), DEST 0..39 (0), WAVE 0..6 (0), PHASE (0), TRIG 0..4 (0), DEPTH -64..63 (0); 71 RATIO B2 0..18 (3); 72 B2
+KEY (0). (Unlisted ranges 0..127.) Macros P_E0..P_E7 = values 0 1 2 **71** 4 5 6 7.
+**Versions 1 and 2 are read** (`quad_blob_ok` with their ranges, `quad_range_v2`; `quad_unpack` converts): version 1's
+RATIO B (BR x 19 + B1) as B1, the nearest B2 and the rest in OFS B2 (as before), then version 2 -> 3
+(`quad_v2_to_v3`): FDBK to the same beta (64 -> 29, 127 -> 101); TYPE LP -> LP12, HP -> HP12, BP -> LP12; HARM
+(+-26 = +-7 positions of the old odd / all tables, on the carriers) -> - the saw build-up 1..7, + the square build-up
+15..19 (both on C: v3's + side shapes A and B1); PHRT on -> ALL, off -> OFF; B2 KEY = B KEY (note: v2's key track
+raised the modulation up the keyboard, v3's KEY lowers it); LFO SPEED 64 -> 63, FADE 0..127 (a fade-in time) -> -1..-64
+(the same time), MULT index kept (the BPM set: f is now 1.25 x v2's at 120 BPM), DEST by name. ALGO keeps its number
+(the routings changed: a v2 patch does not sound as it did). A version-1 RATIO B macro in a project (`P_E3` 19..113)
+is still taken by `quad_track_loaded`. Blobs are written as version 3; the QUAD store's own header stays version 1.
+
+**The pages as implemented** (`eng_page_t`, 4 columns each; `section = {0, 3, 7, 14, 0xFF}`: OSC, FILTER, ENV, LFO,
+**no MOD**):
 
 | # | title | columns | | # | title | columns |
 | --- | --- | --- | --- | --- | --- | --- |
 | 0 | SYN 1 | ALGO, RATIO C, RATIO A, RATIO B | | 10 | ENV 2+ | B DLY, B TRIG, B RESET, VEL |
-| 1 | SYN 1+ | HARM, DTUNE, FDBK, MIX | | 11 | ENV 3 | A KTRK, B KTRK, -, - |
+| 1 | SYN 1+ | HARM, DTUNE, FDBK, MIX | | 11 | ENV 3 | A KEY, B1 KEY, B2 KEY, - |
 | 2 | SYN 2 | OFS C, OFS A, OFS B1, OFS B2 | | 12 | AMP | ATK, DEC, SUS, REL |
 | 3 | FILTER | ATK, DEC, SUS, REL | | 13 | AMP+ | LEVEL, PAN (P_PAN), DRIVE (P_DIST), - |
 | 4 | FILTER+ | FREQ, RESO, TYPE, DEPTH | | 14 | LFO 1 | SPEED, MULT, FADE, DEST |
-| 5 | FILT 2 | DELAY, KTRK, -, - | | 15 | LFO 1+ | WAVE, PHASE, TRIG, DEPTH |
+| 5 | FILT 2 | DELAY, KTRK, -, - | | 15 | LFO 1+ | WAVE, PHASE (RAND: slew), TRIG, DEPTH |
 | 6 | FILT 2+ | BASE, WIDTH, -, - | | 16, 17 | LFO 2, LFO 2+ | as LFO 1 |
 | 7 | ENV A | A ATK, A DEC, A END, A LEV | | 18, 19 | LFO 3, LFO 3+ | as LFO 1 |
 | 8 | ENV B | B ATK, B DEC, B END, B LEV | | | | |
-| 9 | ENV 2 | A DLY, A TRIG, A RESET, PHASE | | | | |
+| 9 | ENV 2 | A DLY, A TRIG, A RESET, PHRT | | | | |
 
-Deviations from the plan's table: FILTER comes before ENV (the sections ascend: OSC FILTER ENV LFO); ENV 2+'s empty
-column holds VEL and a one-row **ENV 3** (A KTRK, B KTRK) was added: the brief's key tracks and VEL had no place on the
-user's layout. Value formats (existing `F_*` kinds only): ALGO `F_INT` ("3"); RATIO C / A / B and the offsets `F_INT`
-with a 0-terminated name list (`N_QUAD_RCB` "2.00" (RATIO B: the same 19 names over its 361 values, a pair), `N_QUAD_RA`,
-`N_QUAD_OFS` "+0.01"; params.c names value v with names[v - min] (a list shorter than the range: spread evenly, RATIO
-B's B2); the editor draws RATIO B's pair itself, B1 over B2); HARM, MIX, SPEED, the depths, PAN `F_OFS` ("+8"; 0 at the middle of a
-symmetric range); MULT `F_ENUM` "x16"; TYPE, WAVE, TRIG, DEST `F_ENUM`; TRIG / RESET / PHASE `F_ONOFF`; times `F_TIME`;
-FREQ `F_CUTOFF`; RESO, SUS, KTRK, VEL, DRIVE `F_PCT`; BASE, WIDTH, END, LEV, LEVEL, START PHASE plain `F_INT`.
+Formats: ALGO `F_INT`; RATIO C / A / B and the offsets `F_INT` with a name list (`N_QUAD_RCB`, RATIO B a pair over
+361 values); HARM, MIX, SPEED, FADE, the depths, PAN `F_OFS`; MULT, TYPE, PHRT, WAVE, TRIG, DEST `F_ENUM`; TRIG / RESET
+`F_ONOFF`; times `F_TIME`; FREQ `F_CUTOFF`; RESO, SUS, KEY, KTRK, VEL, DRIVE `F_PCT`; FDBK, DTUNE, BASE, WIDTH, END, LEV,
+LEVEL, PHASE `F_INT`. The editor's screens: ENV 3 is one row of three cells "A Key", "B1 Key", "B2 Key".
 
-**Presets**: EP, BELL, BASS (MONO), PLUCK, BRASS, GLASS PAD, HOLLOW, SQUARE LEAD (MONO), METAL, WOBBLE (MONO), CLAV,
-STRINGS, MARIMBA, DRONE, FEEDBACK, NOISE-ISH: edit lists over the init patch, starting points by design (to be tuned by
-ear). A 6-note chord (D4 F#4 A4 B4 C#5 E5, one note D2 for the MONO ones) at LEVEL 92 peaks at 30-72 % FS. Version 2
-re-expressed each preset's pair as B1 / B2 steps (`QRB(b1, b2)`, x4 as `QRC`); two were not on the grid (B2 = B1 x 1.5):
-METAL 7/10.5 and DRONE 1/1.5 are now 7/10 and 1/1 with OFS B2 +0.50 (the same Q16 increments: regress's 16 renders
-unchanged).
+**Presets** (retuned 2026-10-08 for the new routings and laws; a 6-note chord at LEVEL 92 peaks at 30-71 % FS; measured
+against the version-2 sounds by RMS, zero-crossing rate and the energy above ~2 kHz on a 3-note chord, 1 s):
 
-**Tests** (`cr_quad_test`, 22 783 checks, 0 failed (2026-10-08: RATIO B's walk 0..360, the carry, the ends, the texts; version-1 blobs and macros; RATIO B heard: BELL algorithm 4, MIX +63, B LEV 30, the editor's set 1.00/1.00 -> 2.00/1.00 doubles Y's zero-crossing pitch on the next note and live within the note, B2 changes the samples, B LEV 0 silences Y); built with `-fsanitize=signed-integer-overflow`): blob round trip of
-2000 random patches, every bad blob -> init; the pages against the ranges (every value on exactly one column), the
-sections, the macros = SYN 1 = `ENG_QUAD.edit`; set clamps, PAN / DRIVE to the part; the macros both ways; the 16
-presets (blob, macros = `preset_t.e`, `env` = the amp ADSR, `quad_track_loaded`); the ratio tables and the pair's names;
-the routings against the designer's ALGOS; **against the model**: each algorithm and EP / BASS / GLASS PAD / WOBBLE,
-two notes for 0.3 s (released at 0.2 s): SNR over the first 2048 samples 53.6-68.4 dB (> 36 required) **and** every
-10 ms block's RMS within 0.22 dB (1.5 required); envelope times (ATK, DEC to 99 %, DELAY within 2 ms / 10 %; LEV; TRIG,
-RESET, PHASE RESET, legato); LP / HP / BP and the base-width window (> 12 / > 9 dB outside, < 1-3 dB inside); LFO rates
-at six settings within 2 % (FREE and TRIG), backwards, SPEED 0, the start phase, ONE / HALF stopping, the seven waves;
-192 extreme patches (every algorithm, FDBK 127, levels 127, HARM +-26, MIX -63 / 0 / 63, three LFOs at full depth, RESO
-127, each filter type, notes 12..127): no int32 wrap, the voices end; every preset's chord: peak < 0.9 FS, not silent,
-voices gone after the release.
+| preset | algo | the voice |
+| --- | --- | --- |
+| EP | 2 | X C under A 1:1 (body), Y B1 1.00 direct under B2 14.00 (the tine, short), MIX -30, KEY 40/30/30 |
+| BELL | 2 | X C under A 3.50, Y B1 2.00 under B2 6.00, MIX -10 (was algorithm 4: the same two pairs) |
+| BASS (MONO) | 1 | C under A 1:1 with FDBK 24, X only, LP12 |
+| PLUCK | 5 | B1 3.00 and B2 3.00 into A 2.00 into C, X only |
+| BRASS | 1 | C under a slow 1:1 A with FDBK 28, a little B1, X only, LP12 |
+| GLASS PAD | 7 | X C under A 2.00 + A, Y B1 under B2 + B2, HARM +8 (A, B1), PHRT OFF |
+| HOLLOW | 2 | C a soft square (HARM -16) under A 2.00, Y B1 under a little B2 |
+| SQUARE LEAD (MONO) | 1 | C a square (HARM -19) under a little A 2.00, X only |
+| METAL | 5 | B1 7.00 (FDBK 20) and B2 10.50 into A 1.50 into C, DTUN 90, MIX -40 |
+| WOBBLE (MONO) | 1 | BASS through LP24, LFOs on A LEV and FREQ |
+| CLAV | 2 | X C (HARM -15) under A 3.00, Y B1 1.00 under B2 4.00, HP12 |
+| STRINGS | 8 | X C a saw (HARM -7) + B2 detuned (DTUN 100), Y B1 with FDBK 35 (a second saw), LP12, an LFO on DTUN |
+| MARIMBA | 1 | C under A 4.00 and B1 10.00 (short), X only, KEY 50/50/0 |
+| DRONE | 6 | C 0.50 and B1 under A (FDBK 15) and B2 1.50, three slow LFOs, PHRT OFF |
+| FEEDBACK | 8 | Y B1 (enveloped, B LEV 43) at FDBK 42, X C under A, MIX +30 |
+| NOISE-ISH | 7 | A at FDBK 120 into C, X = C + A, HP12 70 reso 40 (was BP) |
 
-**CPU** (`tests/run_quad_test.sh`, the test's driver, 8 voices held, host instructions a sample -> device % of the 2.9
-ms half = instructions x 128 / 259 / 2902): the presets 811..1398 (13.8-23.8 %), average 995 (16.9 %), worst STRINGS
-(algorithm 8: four HARM carriers between two tables, plus the SVF); VA LUSH PAD on the same driver 1478 (25.2 %): QUAD is
-0.68 x the VA. A worst-case patch (algorithm 8, HARM between tables, BP, both base-width poles, three LFOs) 1538 (26.2 %).
-Risk on the device: the HARM tables are in XIP flash (no RAM for 30.8 KB); per-sample reads from two 2 KB tables a
-carrier may miss the flash cache. Measure on the device (perf.sh) before raising `poly` or adding a fifth carrier read.
+Approximations (the user judges by ear): **GLASS PAD** (algorithm 7 now puts A into C: brighter than v2's, about 2.7 x
+the zero crossings), **DRONE** (algorithm 6 now sends A and B2 into C as well: brighter), **NOISE-ISH** (BP is gone:
+HP12 instead), **FEEDBACK** and **STRINGS** (v2's routings have no exact counterpart: Y is now an enveloped feedback
+operator / a second saw), **BASS** (C under one fed-back A instead of v2's B chain; a little darker). EP, BELL, PLUCK,
+BRASS, HOLLOW, SQUARE LEAD, METAL, WOBBLE, CLAV, MARIMBA keep v2's level and brightness within ~30 %.
 
+**Tests** (`cr_quad_test`, 21 166 checks, 0 failed, built with `-fsanitize=signed-integer-overflow`): the blob round
+trip (2000 random patches), bad blobs -> init; version 1 blobs (RATIO B and every other value converted) and macros;
+**version 2**: 500 random patches converted into range, each conversion (TYPE, HARM, PHRT, KEY, FDBK, SPEED, FADE, MULT,
+DEST), v2's ranges and padding; the pages against the ranges, the contract's enums and ranges, ENV 3's three cells;
+RATIO B's walk 0..360 (B2 first, the carry into B1, the ends, the texts "B2/B1", the macro = B2); RATIO B heard (BELL,
+algorithm 2, Y: B1 1.00 -> 2.00 an octave up, live within a note, B2 the timbre; B LEV 0 leaves the direct B1 as loud);
+the routing table against the contract (modulators, fb, X, Y, enveloped); **the routings heard**: every algorithm, X
+and Y, a ratio offset on each operator changes the output exactly when the operator reaches it; sidebands (A 1:1 -> 2:1
+removes C's 2nd harmonic); direct carriers ignore LEV and envelope (algorithms 2, 5), enveloped ones follow (7, 8: B1 by ENV B and the B LEV law); the
+B LEV law at 0 / 21 / 43 / 64 / 85 / 106 / 127 and its shape, in a voice; HARM per operator (- C only, + A and B1 only,
+A as a modulator, B2 never; the 26 waves distinct, the fundamental kept, the halfway crossfade); DTUN (A up 50 cents at
+127, B2 down, C and B1 the same); FDBK on each algorithm's operator, FDBK 35 a saw (h2 / h1 0.46, h3 / h1 0.29); key
+scaling (A KEY 127 a quarter two octaves up, B1 KEY 64 half, B2 KEY 0 flat, neutral at C3); LFO rates at 120 / 90
+/ 200 BPM and the fixed set within 2 % (SPEED 32 x 4 = one bar = 0.5 Hz at 120), backwards, SPEED 0, the start phase,
+ONE / HALF, the waves; FADE in / out; PHRT OFF / ALL / C / A+B / A+B2 on a fresh voice; against the model (each
+algorithm with a filter type of its own, EP / BASS / GLASS PAD / WOBBLE: SNR 45-73 dB, block RMS within 0.11 dB); the
+envelopes; LP12 / HP12 / LP24 / OFF and the base-width window (before the multimode); 192 extreme patches (all 40
+destinations, FADE, RAND slew, every filter type): no int32 wrap, the voices end; every preset's chord < 0.9 FS; no DC.
+(The model's FDBK in the algorithm goldens is 14: a HARM-shaped feedback operator is chaotic enough above ~25 that the
+float model and the integer engine part ways.)
+
+**CPU** (`tests/regress.c`, host instructions a sample, 8 voices): the 16 presets average 1491 (v2: 1510); the heaviest
+WOBBLE 1880 (LP24; v2's WOBBLE 1684), STRINGS 1630 (v2 1891). HARM's tables are 27.1 KB in XIP flash (v2: 30.8 KB);
+HARM + reads two tables for A and B1 (two operators a sample instead of v2's carriers).
 **For the wiring (milestone 2).** core.h: `FELUCCA_QUAD` (0 by default, 1 in choralroot.c, the emulator,
 tests/regress.c), `NENGINES += FELUCCA_QUAD`, `ENGI_QUAD` = 15 (after CZ-1, 14; eng_quad.c defaults it to 15u when core.h
 does not define it). engines.c: `#include "eng_quad.c"` (it includes `quad_tables.h`), `ENGINES[15] = &ENG_QUAD`,
@@ -299,6 +320,13 @@ screen. tests/regress.c enumerates `ENGINES[]`: with `FELUCCA_QUAD 1` there, its
 baselines are new entries to record (`tests/golden.txt`, `tests/cpu_baseline.txt`) once QUAD is registered.
 
 ## Status (milestone 2: wired, 2026-10-08)
+
+**2026-10-08, the Digitone review** (blob version 3; "Implementation" above): the routings, direct / enveloped
+carriers, the B LEV law, HARM as the 26-wave series on C (-) or A and B1 (+), DTUN on A and B2, FDBK 0..120 (35 = saw),
+key scaling A / B1 / B2 (B2 KEY new), MIX -64..63, RATIO B with B2 as the fast hand (macro = B2, text B2/B1), the
+filter OFF / LP12 / HP12 / LP24 after the base-width filter, the LFOs (tempo-synced MULT, fade in / out, RAND slew,
+40 destinations), PHRT as an enum; versions 1 and 2 read; the 16 presets retuned. Not done: release INF (params.c).
+regress: the 16 FM TONE goldens and CPU entries change (to be re-recorded), 0 health failures.
 
 **2026-10-08, RATIO B as the full grid** (the user: B1 steps through 0.25 .. 16, then B2 steps, both directions): the
 pair is B2 x 19 + B1 (361), the blob version 2 with B2 at value 71, version 1 read and converted (above, "Ratio tables",

@@ -3,8 +3,8 @@
 
   python3 design/make_quad_mockups.py       # writes design/choralroot-fm1-quad-mockups.json
 
-docs/QUAD.md is the plan; the page layout is the user's (2026-10-07): ratios as plain numbers (B as a fraction B1 over
-B2), Algo a big number, glyphs for Harm and Dtune; the operator envelopes A and B on one screen under a two-envelope
+docs/QUAD.md is the plan; the page layout is the user's (2026-10-07): ratios as plain numbers (B as a fraction B2 over
+B1: the fast hand on top), Algo a big number (the Digitone manual's eight algorithms, 2026-10-08), glyphs for Harm and Dtune; the operator envelopes A and B on one screen under a two-envelope
 band with level bars; the filter's two screens (multimode with its envelope; the base-width filter); the amp
 envelope; three LFOs. The designer draws them with: `algo` and `ade2` wide bands, the `filter` band's `bw` window,
 the `harm`, `detune`, `ratio` glyphs and `big` cells.
@@ -39,17 +39,19 @@ S = []
 S.append(state(
     "1 · QUAD · OSC 1: the SYN1 page under the algorithm diagram",
     "The Digitone's SYN1 page, one for one: row A Algo (a big number) · Ratio C · Ratio A · Ratio B (one knob over the "
-    "pair, drawn as the fraction B1 over B2; it cycles B1 through its steps, then increments B2), row B Harm (its wave "
-    "glyph) · Dtune (two beating waves) · Feedback (a bar) · Mix (bipolar, X to Y). Ratios are numbers, no bars: C and "
-    "B step 0.25 below 1 and 1 above, A in 0.25 steps. The band draws the algorithm and redraws as Algo turns. These "
-    "eight are the EDIT macros.",
+    "pair, drawn as the fraction B2 over B1: a detent steps B2, the fast hand on top, wrapping into B1; OPT / Shift "
+    "held steps B1, the bottom), row B Harm (its wave glyph, -26..+26) · Dtune (two beating waves) · Feedback (a bar) "
+    "· Mix (bipolar, -64..+63, X to Y). Ratios are numbers, no bars: C and B step 0.25 below 1 and 1 above, A in 0.25 "
+    "steps. The band draws the algorithm as the Digitone manual's diagram does (a direct carrier's line dotted, an "
+    "enveloped one solid) and redraws as Algo turns. These eight are the EDIT macros.",
     held=["MAJ"], lit=["D4", "F#4", "A4"], buttons=ED | {"FX": LIT}, button_labels=EDITOR_BUTTON_LABELS,
     encoders={"SELECT": ("SYN 1", "A"), "KNOB1": ("ALGO", "3"), "KNOB2": ("RATIO C", "1.00"), "KNOB3": ("RATIO A", "2.00"), "KNOB4": ("RATIO B", "0.50/1.00")},
     screen=editor_screen(edit8("GLASS EP", "SYN 1 · A", [
         [big("Algo", "3"), big("Ratio C", "1.00"), big("Ratio A", "2.00"), g("Ratio B", "0.50/1.00", "ratio")],
-        [g("Harm", "+8", "harm", 0.5 + 8 / 52), g("Dtune", "40", "detune", 40 / 127), g("Feedback", "40", "bar", 40 / 127), g("Mix", "+12", bipolar=True, pct=0.5 + 12 / 126)]], 0,
+        [g("Harm", "+8", "harm", 0.5 + 8 / 52), g("Dtune", "40", "detune", 40 / 127), g("Feedback", "40", "bar", 40 / 127), g("Mix", "+12", bipolar=True, pct=0.5 + 12 / 127)]], 0,
         wide={"type": "algo", "algo": 3, "fdbk": 0.3, "mix": 0.6}),
-        note="SYN1: the diagram; Algo and the ratios as numbers, B a fraction; harm and detune glyphs."),
+        note="SYN1: the diagram (the manual's algorithm 3); Algo and the ratios as numbers, B a fraction B2/B1; harm and "
+             "detune glyphs."),
 ))
 
 # 2 ---------------------------------------------------------------- OSC 2: the ratio offsets
@@ -81,27 +83,28 @@ S.append(state(
 S.append(state(
     "4 · QUAD · ENV 2: delays, trig modes, resets",
     "Row A: A Delay · A Trig · A Reset · Phase reset; row B: B Delay · B Trig · B Reset. Trig is the envelope's trigger "
-    "mode (every note / legato holds), Reset whether it restarts from zero, Phase reset whether the operators restart "
-    "their phase at note-on.",
+    "mode (every note / legato holds), Reset whether it restarts from zero, Phase reset (PHRT) which operators restart "
+    "their phase at note-on: Off · All · C · A+B · A+B2.",
     held=["MAJ"], lit=["D4", "F#4", "A4"], buttons=ED | {"ENV": LIT}, button_labels=EDITOR_BUTTON_LABELS,
-    encoders={"SELECT": ("ENV", "2"), "KNOB1": ("A DELAY", "0"), "KNOB2": ("A TRIG", "ON"), "KNOB3": ("A RESET", "ON"), "KNOB4": ("PHASE", "RESET")},
+    encoders={"SELECT": ("ENV", "2"), "KNOB1": ("A DELAY", "0"), "KNOB2": ("A TRIG", "ON"), "KNOB3": ("A RESET", "ON"), "KNOB4": ("PHRT", "ALL")},
     screen=editor_screen(edit8("GLASS EP", "ENV 2", [
-        [g("A Delay", "0", pct=0.0), g("A Trig", "On"), g("A Reset", "On"), g("Phase", "Reset")],
+        [g("A Delay", "0", pct=0.0), g("A Trig", "On"), g("A Reset", "On"), g("Phase", "All")],
         [g("B Delay", "0", pct=0.0), g("B Trig", "On"), g("B Reset", "Off"), None]], 0),
-        note="the envelopes' delays, trig modes and resets; phase reset."),
+        note="the envelopes' delays, trig modes and resets; phase reset (PHRT) a text cell."),
 ))
 
 # 5 ---------------------------------------------------------------- FILT 1: the multimode filter and its envelope
 S.append(state(
     "5 · QUAD · FILT 1: the multimode filter and its envelope",
     "The filter page: row A the filter envelope (Attack · Decay · Sustain · Release), row B the filter (Freq · Reso · "
-    "Type LP / HP / BP · Env depth), under the response band the VA's filter screen uses. Row B is on the knobs here.",
+    "Type Off / LP12 / HP12 / LP24 · Env depth), under the response band the VA's filter screen uses (Off a flat line, "
+    "LP24 twice LP12's slope). The base-width filter now comes before it in the voice. Row B is on the knobs here.",
     held=["MAJ"], lit=["D4", "F#4", "A4"], buttons=ED | {"SEL": LIT}, button_labels=EDITOR_BUTTON_LABELS,
-    encoders={"SELECT": ("FILTER", "B"), "KNOB1": ("FREQ", "2.1k"), "KNOB2": ("RESO", "30"), "KNOB3": ("TYPE", "LP"), "KNOB4": ("ENV DEPTH", "+24")},
+    encoders={"SELECT": ("FILTER", "B"), "KNOB1": ("FREQ", "2.1k"), "KNOB2": ("RESO", "30"), "KNOB3": ("TYPE", "LP12"), "KNOB4": ("ENV DEPTH", "+24")},
     screen=editor_screen(edit8("GLASS EP", "FILTER · B", [
         [g("Attack", "10", pct=0.08), g("Decay", "50", pct=0.4), g("Sustain", "60", pct=0.47), g("Release", "40", pct=0.31)],
-        [g("Freq", "2.1k", pct=0.6), g("Reso", "30", pct=0.24), g("Type", "LP"), g("Env depth", "+24", bipolar=True, pct=0.5 + 24 / 126)]], 1,
-        wide=filt_wide(cut_hz=2100, res=0.24, ftype="LP")),
+        [g("Freq", "2.1k", pct=0.6), g("Reso", "30", pct=0.24), g("Type", "LP12"), g("Env depth", "+24", bipolar=True, pct=0.5 + 24 / 126)]], 1,
+        wide=filt_wide(cut_hz=2100, res=0.24, ftype="LP12")),
         note="the multimode filter with its own envelope; the response band."),
 ))
 
@@ -116,7 +119,7 @@ S.append(state(
     screen=editor_screen(edit8("GLASS EP", "FILTER 2 · B", [
         [g("Env delay", "0", pct=0.0), g("Key track", "50", pct=0.39), None, None],
         [g("Base", "20", pct=0.16), g("Width", "90", pct=0.71), None, None]], 1,
-        wide=filt_wide(cut_hz=2100, res=0.24, ftype="LP") | {"bw": {"base": 0.16, "width": 0.71}}),
+        wide=filt_wide(cut_hz=2100, res=0.24, ftype="LP12") | {"bw": {"base": 0.16, "width": 0.71}}),
         note="the base-width window over the response."),
 ))
 
@@ -137,15 +140,16 @@ S.append(state(
 # 8 ---------------------------------------------------------------- LFO 1
 S.append(state(
     "8 · QUAD · LFO 1 (LFO 2 and LFO 3 the same, a screen each)",
-    "Three LFOs, a screen each (the Digitone's): Speed (a bipolar knob, -64..+64, centre detent; negative runs backwards) · Multiplier (1 2 4 .. 1k 2k) · Fade · Dest (an enum over QUAD's parameters: Harm, Dtune, Feedback, Mix, "
-    "the ratios, the filter's Freq and Reso, Level, Pan) / Wave + Start phase as one double-width cell (the chosen wave drawn shifted by the phase: turning the phase slides "
+    "Three LFOs, a screen each (the Digitone's): Speed (a bipolar knob, -64..+63, centre detent; negative runs backwards) · Multiplier (1 2 4 .. 1k 2k synced to "
+    "the tempo, F1 .. F2k at a fixed 120 BPM) · Fade (bipolar, -64..+63: below 0 the LFO fades in, above it fades out) · Dest (an enum over FM TONE's parameters: "
+    "Pitch, Algo, the ratios and offsets, Harm, Dtune, Fdbk, Mix, the operator envelopes, the filter, the amp envelope, Level, Pan) / Wave + Start phase as one double-width cell (the chosen wave drawn shifted by the phase: turning the phase slides "
     "the shape; KNOB 1 picks the wave, KNOB 2 the phase) · Trig mode (free / trig / hold / one / half) · Depth.",
     held=["MAJ"], lit=["D4", "F#4", "A4"], buttons=ED | {"LFO": LIT}, button_labels=EDITOR_BUTTON_LABELS,
-    encoders={"SELECT": ("LFO", "1"), "KNOB1": ("SPEED", "+24"), "KNOB2": ("MULT", "x16"), "KNOB3": ("FADE", "0"), "KNOB4": ("DEST", "HARM")},
+    encoders={"SELECT": ("LFO", "1"), "KNOB1": ("SPEED", "+24"), "KNOB2": ("MULT", "16"), "KNOB3": ("FADE", "-20"), "KNOB4": ("DEST", "HARM")},
     screen=editor_screen(edit8("GLASS EP", "LFO 1 · A", [
-        [g("Speed", "+24", "knob", bipolar=True, pct=0.5 + 24 / 128), g("Mult", "x16"), g("Fade", "0", pct=0.0), g("Dest", "Harm")],
+        [g("Speed", "+24", "knob", bipolar=True, pct=0.5 + 24 / 128), g("Mult", "16"), g("Fade", "-20", bipolar=True, pct=0.5 - 20 / 127), g("Dest", "Harm")],
         [g("Wave · Phase", "Tri · 90", "lfowave", 0.25, wave="tri", span=2), g("Trig", "Free"), g("Depth", "+30", bipolar=True, pct=0.5 + 30 / 126)]], 0),
-        note="LFO 1: the speed knob, the multiplier, the wave + phase double cell."),
+        note="LFO 1: the speed knob, the multiplier, the bipolar fade, the wave + phase double cell."),
 ))
 
 # 9 ---------------------------------------------------------------- PRESETS
@@ -156,6 +160,18 @@ S.append(state(
     held=["MAJ"], lit=["D4", "F#4", "A4"], encoders=IDLE_ENC | {"PRESETS": ("SOUND", "03")},
     screen=scr({"kind": "meter", "value": "03", "sub": "GLASS EP", "label": "QUAD · 03/17", "col": C_CHORD, "pct": 3 / 17, "segments": 17},
                note="PRESETS on QUAD."),
+))
+
+# 10 --------------------------------------------------------------- ENV 3: the key scaling
+S.append(state(
+    "10 · QUAD · ENV 3: key scaling of A, B1, B2",
+    "The operators' key scaling, one row of three: A Key · B1 Key · B2 Key (0..127: how much the operator's level "
+    "falls as the note rises, the Digitone's A / B1 / B2 key tracking), numbers with bars.",
+    held=["MAJ"], lit=["D4", "F#4", "A4"], buttons=ED | {"ENV": LIT}, button_labels=EDITOR_BUTTON_LABELS,
+    encoders={"SELECT": ("ENV 3", ""), "KNOB1": ("A KEY", "0"), "KNOB2": ("B1 KEY", "40"), "KNOB3": ("B2 KEY", "20"), "KNOB4": ""},
+    screen=editor_screen(edit8("GLASS EP", "ENV 3", [[g("A Key", "0", pct=0.0), g("B1 Key", "40", pct=40 / 127),
+                                                      g("B2 Key", "20", pct=20 / 127), None]], 0),
+                         note="the key scaling: three cells."),
 ))
 
 for _s in S:
@@ -171,7 +187,8 @@ design = {
     "notes": "QUAD, a Digitone-style four-operator FM engine (docs/QUAD.md), the user's page layout: SYN1 under the algorithm "
              "diagram with numbers for the ratios (B a fraction) and glyphs for Harm and Dtune (1), the ratio offsets (2), the "
              "operator envelopes A and B under a two-envelope band (3), their delays / trigs / resets (4), the multimode filter "
-             "with its envelope (5), the base-width filter (6), the amp envelope (7), the three LFOs (8), the preset pool (9).",
+             "with its envelope (5), the base-width filter (6), the amp envelope (7), the three LFOs (8), the preset pool (9), "
+             "the key scaling A / B1 / B2 (10).",
     "states": S,
 }
 

@@ -71,7 +71,8 @@ Installing firmware is at your own risk.
 A first public beta (0.1). The instrument plays: the chord block, Key Mode, the performance modes,
 the bass, the views; the sound editor, the looper, MIDI (USB and TRS) and the VA engine are in. The engines, in the
 picker's order: FM6 (Melodee's: DX7 voices rendered as Dexed renders them, DX7 SysEx import, [docs/FM6.md](docs/FM6.md)),
-FM TONE (engine 15, `eng_quad.c`, code name QUAD: four-operator FM in the style of the Digitone, [docs/QUAD.md](docs/QUAD.md)),
+FM TONE (engine 15, `eng_quad.c`, code name QUAD: four-operator FM in the style of the Digitone, aligned with the
+Digitone manual's algorithms, carrier levels and controls, [docs/QUAD.md](docs/QUAD.md)),
 VA, CZ-1 (Melodee's, [docs/CZ1.md](docs/CZ1.md)), PHASE, LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE. (Felucca's ANALOG is
 retired since 0.14: the VA replaces it; an ANALOG sound saved before loads on the VA.) **USB audio recording** (Melodee's,
 class compliant, no driver): the computer records the FM-1 through **ChoralRoot In**: the master, the CHORD part and

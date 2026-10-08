@@ -32,11 +32,11 @@
    "KNOB4": "FX"
   }
  },
- "notes": "QUAD, a Digitone-style four-operator FM engine (docs/QUAD.md), the user's page layout: SYN1 under the algorithm diagram with numbers for the ratios (B a fraction) and glyphs for Harm and Dtune (1), the ratio offsets (2), the operator envelopes A and B under a two-envelope band (3), their delays / trigs / resets (4), the multimode filter with its envelope (5), the base-width filter (6), the amp envelope (7), the three LFOs (8), the preset pool (9).",
+ "notes": "QUAD, a Digitone-style four-operator FM engine (docs/QUAD.md), the user's page layout: SYN1 under the algorithm diagram with numbers for the ratios (B a fraction) and glyphs for Harm and Dtune (1), the ratio offsets (2), the operator envelopes A and B under a two-envelope band (3), their delays / trigs / resets (4), the multimode filter with its envelope (5), the base-width filter (6), the amp envelope (7), the three LFOs (8), the preset pool (9), the key scaling A / B1 / B2 (10).",
  "states": [
   {
    "name": "1 \u00b7 QUAD \u00b7 OSC 1: the SYN1 page under the algorithm diagram",
-   "notes": "The Digitone's SYN1 page, one for one: row A Algo (a big number) \u00b7 Ratio C \u00b7 Ratio A \u00b7 Ratio B (one knob over the pair, drawn as the fraction B1 over B2; it cycles B1 through its steps, then increments B2), row B Harm (its wave glyph) \u00b7 Dtune (two beating waves) \u00b7 Feedback (a bar) \u00b7 Mix (bipolar, X to Y). Ratios are numbers, no bars: C and B step 0.25 below 1 and 1 above, A in 0.25 steps. The band draws the algorithm and redraws as Algo turns. These eight are the EDIT macros.",
+   "notes": "The Digitone's SYN1 page, one for one: row A Algo (a big number) \u00b7 Ratio C \u00b7 Ratio A \u00b7 Ratio B (one knob over the pair, drawn as the fraction B2 over B1: a detent steps B2, the fast hand on top, wrapping into B1; OPT / Shift held steps B1, the bottom), row B Harm (its wave glyph, -26..+26) \u00b7 Dtune (two beating waves) \u00b7 Feedback (a bar) \u00b7 Mix (bipolar, -64..+63, X to Y). Ratios are numbers, no bars: C and B step 0.25 below 1 and 1 above, A in 0.25 steps. The band draws the algorithm as the Digitone manual's diagram does (a direct carrier's line dotted, an enveloped one solid) and redraws as Algo turns. These eight are the EDIT macros.",
    "export": true,
    "keys": [
     1,
@@ -203,7 +203,7 @@
        {
         "label": "Mix",
         "value": "+12",
-        "pct": 0.595,
+        "pct": 0.594,
         "bipolar": true
        }
       ]
@@ -212,7 +212,7 @@
      "hot": null
     },
     "footer": null,
-    "note": "SYN1: the diagram; Algo and the ratios as numbers, B a fraction; harm and detune glyphs."
+    "note": "SYN1: the diagram (the manual's algorithm 3); Algo and the ratios as numbers, B a fraction B2/B1; harm and detune glyphs."
    }
   },
   {
@@ -550,7 +550,7 @@
   },
   {
    "name": "4 \u00b7 QUAD \u00b7 ENV 2: delays, trig modes, resets",
-   "notes": "Row A: A Delay \u00b7 A Trig \u00b7 A Reset \u00b7 Phase reset; row B: B Delay \u00b7 B Trig \u00b7 B Reset. Trig is the envelope's trigger mode (every note / legato holds), Reset whether it restarts from zero, Phase reset whether the operators restart their phase at note-on.",
+   "notes": "Row A: A Delay \u00b7 A Trig \u00b7 A Reset \u00b7 Phase reset; row B: B Delay \u00b7 B Trig \u00b7 B Reset. Trig is the envelope's trigger mode (every note / legato holds), Reset whether it restarts from zero, Phase reset (PHRT) which operators restart their phase at note-on: Off \u00b7 All \u00b7 C \u00b7 A+B \u00b7 A+B2.",
    "export": true,
    "keys": [
     1,
@@ -655,8 +655,8 @@
      "value": "ON"
     },
     "KNOB4": {
-     "note": "PHASE",
-     "value": "RESET"
+     "note": "PHRT",
+     "value": "ALL"
     }
    },
    "screen": {
@@ -684,7 +684,7 @@
        },
        {
         "label": "Phase",
-        "value": "Reset"
+        "value": "All"
        }
       ],
       [
@@ -708,12 +708,12 @@
      "hot": null
     },
     "footer": null,
-    "note": "the envelopes' delays, trig modes and resets; phase reset."
+    "note": "the envelopes' delays, trig modes and resets; phase reset (PHRT) a text cell."
    }
   },
   {
    "name": "5 \u00b7 QUAD \u00b7 FILT 1: the multimode filter and its envelope",
-   "notes": "The filter page: row A the filter envelope (Attack \u00b7 Decay \u00b7 Sustain \u00b7 Release), row B the filter (Freq \u00b7 Reso \u00b7 Type LP / HP / BP \u00b7 Env depth), under the response band the VA's filter screen uses. Row B is on the knobs here.",
+   "notes": "The filter page: row A the filter envelope (Attack \u00b7 Decay \u00b7 Sustain \u00b7 Release), row B the filter (Freq \u00b7 Reso \u00b7 Type Off / LP12 / HP12 / LP24 \u00b7 Env depth), under the response band the VA's filter screen uses (Off a flat line, LP24 twice LP12's slope). The base-width filter now comes before it in the voice. Row B is on the knobs here.",
    "export": true,
    "keys": [
     1,
@@ -815,7 +815,7 @@
     },
     "KNOB3": {
      "note": "TYPE",
-     "value": "LP"
+     "value": "LP12"
     },
     "KNOB4": {
      "note": "ENV DEPTH",
@@ -833,7 +833,7 @@
       "type": "filter",
       "cut": 0.677,
       "res": 0.24,
-      "ftype": "LP",
+      "ftype": "LP12",
       "drive": 0.0
      },
      "rows": [
@@ -872,7 +872,7 @@
        },
        {
         "label": "Type",
-        "value": "LP"
+        "value": "LP12"
        },
        {
         "label": "Env depth",
@@ -1011,7 +1011,7 @@
       "type": "filter",
       "cut": 0.677,
       "res": 0.24,
-      "ftype": "LP",
+      "ftype": "LP12",
       "drive": 0.0,
       "bw": {
        "base": 0.16,
@@ -1234,7 +1234,7 @@
   },
   {
    "name": "8 \u00b7 QUAD \u00b7 LFO 1 (LFO 2 and LFO 3 the same, a screen each)",
-   "notes": "Three LFOs, a screen each (the Digitone's): Speed (a bipolar knob, -64..+64, centre detent; negative runs backwards) \u00b7 Multiplier (1 2 4 .. 1k 2k) \u00b7 Fade \u00b7 Dest (an enum over QUAD's parameters: Harm, Dtune, Feedback, Mix, the ratios, the filter's Freq and Reso, Level, Pan) / Wave + Start phase as one double-width cell (the chosen wave drawn shifted by the phase: turning the phase slides the shape; KNOB 1 picks the wave, KNOB 2 the phase) \u00b7 Trig mode (free / trig / hold / one / half) \u00b7 Depth.",
+   "notes": "Three LFOs, a screen each (the Digitone's): Speed (a bipolar knob, -64..+63, centre detent; negative runs backwards) \u00b7 Multiplier (1 2 4 .. 1k 2k synced to the tempo, F1 .. F2k at a fixed 120 BPM) \u00b7 Fade (bipolar, -64..+63: below 0 the LFO fades in, above it fades out) \u00b7 Dest (an enum over FM TONE's parameters: Pitch, Algo, the ratios and offsets, Harm, Dtune, Fdbk, Mix, the operator envelopes, the filter, the amp envelope, Level, Pan) / Wave + Start phase as one double-width cell (the chosen wave drawn shifted by the phase: turning the phase slides the shape; KNOB 1 picks the wave, KNOB 2 the phase) \u00b7 Trig mode (free / trig / hold / one / half) \u00b7 Depth.",
    "export": true,
    "keys": [
     1,
@@ -1332,11 +1332,11 @@
     },
     "KNOB2": {
      "note": "MULT",
-     "value": "x16"
+     "value": "16"
     },
     "KNOB3": {
      "note": "FADE",
-     "value": "0"
+     "value": "-20"
     },
     "KNOB4": {
      "note": "DEST",
@@ -1362,12 +1362,13 @@
        },
        {
         "label": "Mult",
-        "value": "x16"
+        "value": "16"
        },
        {
         "label": "Fade",
-        "value": "0",
-        "pct": 0.0
+        "value": "-20",
+        "pct": 0.343,
+        "bipolar": true
        },
        {
         "label": "Dest",
@@ -1399,7 +1400,7 @@
      "hot": null
     },
     "footer": null,
-    "note": "LFO 1: the speed knob, the multiplier, the wave + phase double cell."
+    "note": "LFO 1: the speed knob, the multiplier, the bipolar fade, the wave + phase double cell."
    }
   },
   {
@@ -1521,6 +1522,152 @@
     },
     "footer": null,
     "note": "PRESETS on QUAD."
+   }
+  },
+  {
+   "name": "10 \u00b7 QUAD \u00b7 ENV 3: key scaling of A, B1, B2",
+   "notes": "The operators' key scaling, one row of three: A Key \u00b7 B1 Key \u00b7 B2 Key (0..127: how much the operator's level falls as the note rises, the Digitone's A / B1 / B2 key tracking), numbers with bars.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 2,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "ENV 3",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "A KEY",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "B1 KEY",
+     "value": "40"
+    },
+    "KNOB3": {
+     "note": "B2 KEY",
+     "value": "20"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "GLASS EP",
+     "right": "ENV 3",
+     "wide": null,
+     "rows": [
+      [
+       {
+        "label": "A Key",
+        "value": "0",
+        "pct": 0.0
+       },
+       {
+        "label": "B1 Key",
+        "value": "40",
+        "pct": 0.315
+       },
+       {
+        "label": "B2 Key",
+        "value": "20",
+        "pct": 0.157
+       },
+       null
+      ]
+     ],
+     "active": 0,
+     "hot": null
+    },
+    "footer": null,
+    "note": "the key scaling: three cells."
    }
   }
  ]

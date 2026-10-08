@@ -198,7 +198,7 @@ typedef struct {
     uint8_t wide;                   /* edit8: CR_W_* */
     uint8_t tall;                   /* edit8: one row of tall level bars over the whole panel (the oscillator mixer) */
     uint8_t fine;                   /* edit8 / stack: SHIFT on (fine steps): "fine" small in the title line (2: the
-                                     * lane has a ratio pair, SHIFT steps its B2: "fine \267 B2");
+                                     * lane has a ratio pair, SHIFT steps its slow hand B1: "fine \267 B1");
                                      * `batt` (0..4, 4 = charging; 255 = none): edit8 / stack draw the header's battery
                                      * at the title line's right end (the MIX screens) */
     uint8_t wv[20];                 /* env: a h d s r (Q8 of 255), the lit segment + 1 (1 A .. 5 R, 0 none);
@@ -210,6 +210,8 @@ typedef struct {
                                      * step 0..7, 8 none), END (17: 0..7), the lit step (18: 1..8, 0 none);
                                      * filter (QUAD's base-width window, 4..6): shown (4: 1, 0 none), base (5), width
                                      * (6) (Q8 of 255 of the band's width; the window runs base .. base + width);
+                                     * QUAD's type (7): 0 the VA's (the position's name), 1 OFF (a flat line),
+                                     * 2 12 dB ("LP12" "HP12"), 3 24 dB ("LP24": twice the slope);
                                      * algo: the algorithm (0: 1..8), feedback (1: 0..255, the loop's stroke 1..3 px),
                                      * mix (2: 0..255, 128 = X and Y alike, below X brighter, above Y);
                                      * ade2: A's attack decay end level (0..3), B's (4..7) (0..255), the lit segment
