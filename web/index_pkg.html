@@ -114,7 +114,7 @@
     <input id="snd-file" type="file" accept=".json,.syx,application/json" hidden>
     <div class="snd-wrap">
       <table class="snd" id="snd-table" hidden>
-        <thead><tr><th data-t="sndColSlot"></th><th data-t="sndColName"></th><th data-t="sndColEngine"></th><th data-t="sndColPatch"></th><th></th></tr></thead>
+        <thead><tr><th data-t="sndColSlot"></th><th data-t="sndColName"></th><th data-t="sndColEngine"></th><th data-t="sndColPatch"></th><th data-t="sndColPool"></th><th></th></tr></thead>
         <tbody id="snd-rows"></tbody>
       </table>
     </div>
@@ -200,8 +200,8 @@ const TEXT = {
     sndText: "Each of the 32 user sounds (U01 to U32) can be saved as its own small .json file: the sound and, for a VA, FM6 or CZ-1 sound, its patch. Import puts a sound file into any slot (edit the name in the file to rename the sound), Rename and Delete change one slot. Only the parts that change are written; the FM-1 keeps playing. Needs ChoralRoot.",
     sndAll: "Back up (above) saves everything at once: all the sounds, the loops and the settings. The Sounds are for single sounds, to keep, share or move between slots.",
     sndReadGo: "Read sounds",
-    sndColSlot: "Slot", sndColName: "Name", sndColEngine: "Engine", sndColPatch: "Patch",
-    sndEmpty: "empty", sndNoPatch: "no patch",
+    sndColSlot: "Slot", sndColName: "Name", sndColEngine: "Engine", sndColPatch: "Patch", sndColPool: "Preset",
+    sndEmpty: "empty", sndNoPatch: "no patch", sndOver: "over {at} {name}", sndAdded: "added",
     sndExport: "Export", sndImport: "Import", sndRename: "Rename", sndDelete: "Delete",
     sndNeedCr: "The Sounds need ChoralRoot on the FM-1 (this firmware does not keep its sounds this way). Back up and Restore work on it.",
     sndReading: "Reading the sounds ", sndRead: "Sounds read: {n} of 32 slots used.",
@@ -319,7 +319,8 @@ function renderSounds() {
   const btn = (s, act, text, on) => `<button data-act="${act}" data-slot="${s.slot}"${on && !writing ? "" : " disabled"}>${text}</button>`;
   $("snd-rows").innerHTML = sndTable.map((s) => `<tr${s.used ? "" : ' class="empty"'}><td class="n">${s.label}</td>` +
     `<td>${s.used ? esc(s.name) : t("sndEmpty")}</td><td>${s.used ? esc(s.engineName) : ""}</td>` +
-    `<td>${s.used ? (s.patch || (s.kind ? t("sndNoPatch") : "")) : ""}</td><td class="a">` +
+    `<td>${s.used ? (s.patch || (s.kind ? t("sndNoPatch") : "")) : ""}</td>` +
+    `<td>${s.bound ? esc(tf("sndOver", { at: s.bound.label, name: s.bound.name })) : s.used ? t("sndAdded") : ""}</td><td class="a">` +
     btn(s, "export", t("sndExport"), s.used) +
     (s.used && (s.patch === "fm6" || s.patch === "cz") ? btn(s, "export-syx", t("sndExportSyx"), true) : "") + btn(s, "import", t("sndImport"), true) +
     btn(s, "rename", t("sndRename"), s.used) + btn(s, "delete", t("sndDelete"), s.used) + "</td></tr>").join("");

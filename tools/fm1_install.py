@@ -28,7 +28,12 @@ firmware lists: a Felucca backup restores its settings, banks, FM6 patches and s
 
 Sound files are web/fm1sounds.js's ("choralroot-sound" version 1, docs/SOUNDS.md): one user sound, its record and
 its VA / FM6 / CZ-1 patch; only the objects that hold that slot are written. A .syx carries an FM6 voice or a CZ-1
-tone only; an import makes the rest of the sound from the engine's defaults (docs/SOUNDS.md ".syx export and import").
+tone only; an import makes the rest of the sound from the engine's defaults (docs/SOUNDS.md ".syx export and import")
+and adds it to its engine's preset pool (it overwrites no factory preset).
+
+The binding (docs/SOUNDS.md "The binding"): a sound saved on the FM-1 over a factory preset replaces it in the
+engine's pool; --sounds shows "over FM6 02 FM BELL" for it and "+" for a preset added after the factory ones. A sound
+file keeps the record's binding (its "binding" field says what it overwrites; the record's bytes are what counts).
 
 If the FM-1 is still in update mode (an earlier install was cut off), the
 install finishes the write. Needs mido with python-rtmidi.
@@ -848,6 +853,12 @@ UPB_MAGIC, VAS_MAGIC, FM6U_MAGIC, CZU_MAGIC = 0x31425055, 0x31534156, 0x55364D46
 BANK_SIZE = 8 + SOUND_PER_BANK * SOUND_REC     # 3080
 STORE_SIZE = {"va": 16 + SOUND_SLOTS * 110, "fm6": 16 + 16 * 128, "cz": 16 + 16 * 144}   # 3536, 2064, 2320
 SOUND_FORMAT = "choralroot-sound"
+# the factory presets of each engine (ENGINES[e]->presets[k].name) and the first of them in the engine's pool (the
+# CZ-1's preset 0, INIT TONE, is the pool's INIT): tests/sound_templates.c prints both from the firmware, and its
+# --check fails until the two lines below hold its strings verbatim (docs/SOUNDS.md "The binding")
+FACTORY_PRESETS = {"0":["SAW LEAD","SOFT PAD","SQR BASS","PWM STR","ACID","SINE KEY","RAVE","SUB BASS","PLUCK","BRASS","WIND","STRINGS"],"2":["BRASS","ORGAN","STRING","RESO","BELL","WIRE"],"3":["PULSE LD","WAVE BASS","ARP 8BIT","WAVE LEAD","STEP LEAD"],"5":["CHOIR AAH","VOX LEAD","WOW BASS","WHISPER"],"6":["FAT BASS","ARP LEAD","SYNC LEAD","RING BELL","CHIP CHOIR"],"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"9":["BELL TREE","MARIMBA","PLUCK","BOWED METAL","KALIMBA","HAND DRUM","TOMS","DRONE STRING","HARP"],"11":["WIND","RAIN","ARCADE","METAL"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"]}
+FACTORY_FIRST = {"0":0,"2":0,"3":0,"5":0,"6":0,"7":0,"9":0,"11":0,"12":0,"13":0,"14":1}
+BIND_MARK, BIND_NOTE, BIND_FLAGS = 0xA6, 160 + 15, 176 + 15   # note[15] = the mark, flags[15] = factory index + 1
 
 
 def _u16(b, off):
@@ -954,30 +965,68 @@ def _record(objs, slot):
     return bytes(b[off:off + SOUND_REC])
 
 
+def pool_of(engine):
+    """the preset pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, DIGITAL's FM6, else ANALOG"""
+    return engine if str(engine) in FACTORY_PRESETS else 12 if engine == 1 else 0
+
+
+def _bind_raw(r):
+    """the factory preset index a valid record's binding names (cr_bank.c cb_bind_raw), None: an added preset"""
+    if r[1] in (3, 5) or r[BIND_NOTE] != BIND_MARK or not r[BIND_FLAGS]:
+        return None
+    e, f = pool_of(r[2]), r[BIND_FLAGS] - 1
+    return f if FACTORY_FIRST[str(e)] <= f < len(FACTORY_PRESETS[str(e)]) else None
+
+
+def sound_bindings(records):
+    """the 32 records (None: empty) -> per slot None, or {index, pos, label, name} of the factory preset it overwrites
+    (cr_bank.c cb_bound: the first slot bound to a factory preset wins; a later one is an added preset)"""
+    seen, out = set(), []
+    for r in records:
+        f = None if r is None else _bind_raw(r)
+        e = None if f is None else pool_of(r[2])
+        if f is None or (e, f) in seen:
+            out.append(None)
+            continue
+        seen.add((e, f))
+        pos = f - FACTORY_FIRST[str(e)] + 1
+        out.append({"index": f, "pos": pos, "label": f"{ENGINE_NAMES[e]} {pos:02d}", "name": FACTORY_PRESETS[str(e)][f]})
+    return out
+
+
+def binding_of(bound):
+    """a slot's binding as a sound file carries it: {"overwrites": the pool position, "name"} or None (added)"""
+    return {"overwrites": bound["pos"], "name": bound["name"]} if bound else None
+
+
 def parse_sound_objects(objs):
     """objs: {backup id: bytes} (b"" or missing: never written) -> the 32 slots, a dict each:
-    slot, used, name, engine, engineName, patch (the kind when the slot's blob is stored, else None), record, blob"""
+    slot, used, name, engine, engineName, patch (the kind when the slot's blob is stored, else None), record, blob,
+    bound (None, or the factory preset it overwrites: sound_bindings), added (used and not bound)"""
     table = []
     for slot in range(1, SOUND_SLOTS + 1):
         r = _record(objs, slot)
         row = {"slot": slot, "used": False, "name": "", "engine": None, "engineName": "", "patch": None,
-               "record": r, "blob": None}
+               "record": r, "blob": None, "bound": None, "added": False}
         if sound_record_valid(r):
             kind = ENGINE_PATCH.get(r[2])
             blob = kind and _store_blob(objs, kind, slot)
             row.update(used=True, name=_record_name(r), engine=r[2], engineName=ENGINE_NAMES[r[2]],
                        patch=kind if blob else None, blob=blob or None)
         table.append(row)
+    for row, bound in zip(table, sound_bindings([row["record"] if row["used"] else None for row in table])):
+        row.update(bound=bound, added=row["used"] and not bound)
     return table
 
 
 def sound_line(row):
-    """U05  MY PAD        VA      patch / U06  (empty)"""
+    """U05  MY PAD        FM6     patch     over FM6 02 FM BELL / U07  PAD 2  VA  patch  + / U06  (empty)"""
     if not row["used"]:
         return f"U{row['slot']:02d}  (empty)"
     kind = ENGINE_PATCH.get(row["engine"])
     tail = "" if not kind else "patch" if row["patch"] else "no patch"
-    return f"U{row['slot']:02d}  {row['name']:<12}  {row['engineName']:<7} {tail}".rstrip()
+    pool = f"over {row['bound']['label']} {row['bound']['name']}" if row.get("bound") else "+"
+    return f"U{row['slot']:02d}  {row['name']:<12}  {row['engineName']:<7} {tail:<8}  {pool}"
 
 
 def sound_file_name(slot, name):
@@ -995,7 +1044,7 @@ def export_sound(objs, slot, firmware):
         patch = {"kind": row["patch"], "data": base64.b64encode(row["blob"]).decode("ascii")}
     return {"format": SOUND_FORMAT, "version": 1, "firmware": firmware,
             "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "slot": slot, "name": row["name"],
-            "engine": row["engine"], "engineName": row["engineName"],
+            "engine": row["engine"], "engineName": row["engineName"], "binding": binding_of(row["bound"]),
             "record": base64.b64encode(row["record"]).decode("ascii"), "patch": patch}
 
 
@@ -1008,7 +1057,8 @@ def check_sound_name(name):
 
 def read_sound_file(f):
     """validate a sound file (dict or JSON text) -> (record bytes, name, engine, patch (kind, bytes) or None);
-    the JSON's name, when present, is written into the record"""
+    the JSON's name, when present, is written into the record; its "binding" (present or not) is not read: the
+    record's binding bytes are kept as they are"""
     import base64
     import binascii
     import json
@@ -1328,6 +1378,7 @@ def sound_from_syx(kind, patch):
         raise InstallError("badsound", f"no .syx kind {kind!r}")
     rec = bytearray(base64.b64decode(SOUND_TEMPLATES[kind]))
     rec[4:16] = name.encode("ascii").ljust(12, b"\0")
+    rec[BIND_NOTE], rec[BIND_FLAGS] = BIND_MARK, 0   # bound to nothing: an added preset of its engine's pool
     return bytes(rec), name, SYX_ENGINE[kind], (kind, blob)
 
 
@@ -1635,7 +1686,8 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     ap.add_argument("--backup", metavar="FILE", help="save a backup of the FM-1 to FILE (a directory: a dated name) "
                                                      "before the install, or alone")
     ap.add_argument("--restore", metavar="FILE", help="restore a backup FILE onto the FM-1 (after the install, or alone)")
-    ap.add_argument("--sounds", action="store_true", help="list the 32 user sounds (ChoralRoot)")
+    ap.add_argument("--sounds", action="store_true", help="list the 32 user sounds (ChoralRoot): 'over FM6 02 FM BELL' "
+                                                          "for one saved over a factory preset, '+' for one added")
     ap.add_argument("--export-sound", nargs=2, metavar=("N", "FILE"),
                     help="save user sound N (1..32) to a sound file FILE (a directory: choralroot-sound-UNN-NAME.json)")
     ap.add_argument("--import-sound", nargs=2, metavar=("N", "FILE"),
@@ -1644,8 +1696,9 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
                     help="save the FM6 voice / CZ-1 tone of user sound N as a .syx FILE (DX7 single voice / Casio tone "
                          "dump; a directory: choralroot-sound-UNN-NAME.syx)")
     ap.add_argument("--import-syx", nargs=2, metavar=("N", "FILE"),
-                    help="a .syx FILE (a DX7 voice or bank, a CZ-1 tone) into slot N as an FM6 / CZ-1 sound (asks "
-                         "before replacing a sound; --yes does not)")
+                    help="a .syx FILE (a DX7 voice or bank, a CZ-1 tone) into slot N as an FM6 / CZ-1 sound, added "
+                         "to its engine's presets after the factory ones (asks before replacing a sound; --yes does "
+                         "not)")
     ap.add_argument("--voice", metavar="V", help="with --import-syx: voice V (1..32) of a bank or multi-voice file "
                                                  "(default 1)")
     ap.add_argument("--rename-sound", nargs=2, metavar=("N", "NAME"), help="rename user sound N (1 to 12 characters)")

@@ -63,10 +63,28 @@ with a binding, and `flags[15]` (byte 191) is then the **index + 1 of the factor
 `presets[]`, FM6 1..25, CZ-1 2..65: its INIT TONE is the pool's INIT) or **0 for a preset added to the pool**. A record
 without the mark (older firmware, a client's, a restore) is an added preset of its engine; so is a mark naming no
 factory preset of the engine, or one an earlier slot already binds (the first bound slot wins). The pool of an engine:
-00 INIT, its factory presets (each replaced by the slot bound to it), then the added records in slot order; so a
-client can say "FM6 02 (over FM BELL)" or "FM6 +1". Older firmware reads a bound record as an ordinary one (a note 38
-on step 16 of a pattern it never plays here); `up_valid` is unchanged. Clients that rewrite a record should keep these
-two bytes (the JSON's `record` carries them already); the Sounds page and the CLI do not show the binding yet.
+00 INIT, its factory presets (each replaced by the slot bound to it), then the added records in slot order. The pool
+of a record is its engine; a DIGITAL record (1) is in FM6's, another retired engine's in ANALOG's; a drum grid record
+(ver 3 or 5) is never bound. Older firmware reads a bound record as an ordinary one (a note 38 on step 16 of a pattern
+it never plays here); `up_valid` is unchanged.
+
+**What the clients show** (`web/fm1sounds.js` `parseSoundObjects` / `soundBindings`, `tools/fm1_install.py`
+`parse_sound_objects` / `sound_bindings`, the firmware's `cr_bank.c` `cb_bind_raw` / `cb_bound` rule for rule): per
+used slot `bound` = the factory preset it overwrites (`index` in `presets[]`, `pos` its place in the pool = index -
+the pool's first factory preset + 1, `label` "FM6 02", `name` "FM BELL") or null, and `added` = used and not bound.
+The page's table has a fourth column, Preset: "over FM6 02 FM BELL" or "added"; `--sounds` ends each line with
+`over FM6 02 FM BELL` or `+`. The sound file carries `"binding": {"overwrites": 2, "name": "FM BELL"}` (`overwrites`
+= the pool position) or `null`; it is informative: an import keeps the record's bytes, binding included, and reads a
+file with or without the field (a stale field is ignored). A record imported where an earlier slot already binds that
+preset is an added one on the FM-1 (the first bound slot wins), and the table says so after the write. A .syx import
+builds its record with the mark and `flags[15]` = 0: an added preset of its engine.
+
+**The factory names** come from the firmware, never typed: `tests/sound_templates.c` prints `"factory": {"<engine>":
+[name, ..]}` (`ENGINES[e]->presets[k].name` for every engine with `eng_ok`) and `"factory_first": {"<engine>": n}`
+(`cr_bank.c` `pool_f0`: 1 for the CZ-1, whose preset 0 INIT TONE is the pool's INIT; else 0), each compact on one
+line. Both clients embed the two strings verbatim (`FACTORY_PRESETS`, `FACTORY_FIRST`: a JSON object of strings and
+numbers is a JS and a Python literal), and its `--check` fails unless each client contains both strings, so a renamed
+or added factory preset fails the suite until they are pasted again.
 
 Engines (`ENGINES[]`, append-only; the retired ones are never produced by this firmware but a record may carry them):
 
@@ -134,13 +152,16 @@ the table gives: the number, used, the name (as stored; the FM-1 shows it upper 
   "name": "MY PAD",
   "engine": 13,
   "engineName": "VA",
+  "binding": null,
   "record": "<base64: the 192-byte record>",
   "patch": { "kind": "va", "data": "<base64: the blob>" }
 }
 ```
 
 - `record` is the truth: the 192 bytes as the FM-1 stores them (`used` 0xA5 and all). `name` and `engine` /
-  `engineName` are decoded from it for people and tools; `slot`, `firmware`, `created` are informational.
+  `engineName` are decoded from it for people and tools; `slot`, `firmware`, `created` are informational; so is
+  `binding` (the record's binding bytes decoded: `{"overwrites": <pool position>, "name": <factory preset>}` or
+  `null` for an added preset, "The binding" above; files without it read the same).
 - `patch` is `null` for an engine without a patch kind, or when the slot has no blob; else `kind` must be the engine's
   kind of the table above and `data` the blob of that kind's length.
 - **Import** takes `record` as the sound, after the validity test above, and takes **`name` from the JSON** when it
@@ -179,7 +200,7 @@ Below "Back up and restore". The look is the installer's (cream on black, the mo
 assets; the buttons as the page's). **Read sounds** connects (Web MIDI, the FM-1 found as for a backup), requires a
 ChoralRoot firmware (`deviceInfo` family `choralroot`; else the status says the Sounds need ChoralRoot), reads the
 objects and shows the table: one row per slot, `U01`..`U32`, the name (empty: "empty", dim), the engine name, the
-patch kind, and the row's buttons: **Export** (downloads the file), **Import** (a file picker for that row; a used
+patch kind, the preset it is in the pool ("over FM6 02 FM BELL" or "added", "The binding"), and the row's buttons: **Export** (downloads the file), **Import** (a file picker for that row; a used
 slot asks to confirm the overwrite), **Rename** (a prompt, 1..12 characters), **Delete** (confirm). Writes lock the
 installer's other buttons as a restore does, show the status ("Writing U05 …", the busy text while the loop plays),
 and refresh the table. Every error goes to the status line and the log as the page's other errors do. The section's
@@ -189,7 +210,7 @@ text says what a sound file is and that Back up covers everything at once.
 
 | option | does |
 | --- | --- |
-| `--sounds` | prints the 32 slots: `U05  MY PAD        VA     patch` / `U06  (empty)` / `U07  TINE 2        FM6    no patch` |
+| `--sounds` | prints the 32 slots: `U05  MY PAD        VA      patch     +` / `U06  (empty)` / `U07  TINE 2        FM6     no patch  over FM6 02 FM BELL` (`+`: an added preset) |
 | `--export-sound N FILE` | slot N (1..32) to FILE (a directory: the file name above); an empty slot is an error |
 | `--import-sound N FILE` | FILE into slot N; asks before overwriting a used slot (`--yes` skips the question) |
 | `--rename-sound N NAME` | renames slot N |
@@ -228,7 +249,8 @@ that engine with every parameter at the firmware's default (`param_desc_of(engin
 pattern, named `SYX IMPORT`; the importer writes the voice's / tone's own name over it (the DX7 name is VCED bytes
 145..154, 10 characters; the CZ-1 LCD name is tone bytes 128..143, 16 characters: trimmed of spaces, characters
 outside ASCII 32..126 replaced by a space, cut to 12; empty -> `FM6 VOICE` / `CZ TONE`), then imports it as a sound
-of that engine with the blob / tone as its patch (the operations table above). The firmware maps a record's values by
+of that engine with the blob / tone as its patch (the operations table above). The record gets the binding mark with
+`flags[15]` = 0 (byte 175 = 0xA6, byte 191 = 0): an added preset, listed after the engine's factory presets. The firmware maps a record's values by
 count (upreset.c), so a template stays valid when P_COUNT grows.
 
 The templates are **generated from the firmware**, never typed: `tests/sound_templates.c` (built on the emulator's
@@ -236,8 +258,8 @@ firmware as `cr_backup_test.c` is) prints them with the fixtures as JSON:
 
 ```
 cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/sound_templates tests/sound_templates.c -lm
-./build/host/sound_templates                                              # {"templates": {"fm6", "cz"}, "fixtures": {...}}
-./build/host/sound_templates --check web/fm1sounds.js tools/fm1_install.py   # the embedded templates are the firmware's
+./build/host/sound_templates                                              # {"templates": {"fm6", "cz"}, "fixtures": {...}, "factory": .., "factory_first": ..}
+./build/host/sound_templates --check web/fm1sounds.js tools/fm1_install.py   # the embedded templates and factory names are the firmware's
 ```
 
 `web/fm1sounds.js` and `tools/fm1_install.py` embed the two base64 strings as constants (`SOUND_TEMPLATES` /

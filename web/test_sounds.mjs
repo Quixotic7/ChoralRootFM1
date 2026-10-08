@@ -8,7 +8,9 @@
 import { CR_BACKUP_IDS, BACKUP_CMD, bkU32, bkR32, bkPack, bkUnpack, bkCrc } from "./fm1backup.js";
 import { SOUND_IDS, ENGINE_NAMES, PATCH_SIZE, patchKindOf, parseSoundObjects, exportSound, soundFileName, readSoundFile,
   importSound, renameSound, deleteSound, readSounds, writeSounds, recordValid, SOUND_TEMPLATES, FM6_FN_DEFAULTS, fm6BlobToVced,
-  vcedToFm6Blob, fm6VcedSyx, czToneSyx, parseSyx, soundFromSyx, exportSyx, syxFileName } from "./fm1sounds.js";
+  vcedToFm6Blob, fm6VcedSyx, czToneSyx, parseSyx, soundFromSyx, exportSyx, syxFileName, FACTORY_PRESETS, FACTORY_FIRST,
+  soundBindings, poolOf } from "./fm1sounds.js";
+import { readFileSync } from "node:fs";
 
 let fails = 0;
 const ok = (c, what) => { console.log(`${what.padEnd(78)} ${c ? "ok" : "FAIL"}`); if (!c) fails++; };
@@ -372,11 +374,12 @@ const FX = {
   // the sounds: the template record with the name, the patch; imported as the doc's operations
   const sf = soundFromSyx(p1), sc = soundFromSyx(pc);
   const tf = Buffer.from(SOUND_TEMPLATES.fm6, "base64"), tc = Buffer.from(SOUND_TEMPLATES.cz, "base64");
+  tf[175] = tc[175] = 0xA6; tf[191] = tc[191] = 0;      // the template + the binding mark, bound to nothing (added)
   ok(recordValid(sf.record) && sf.engine === 12 && sf.kind === "fm6" && sf.record[3] === tf[3] && sf.record[3] >= 8 && sf.name === "TINE EP" &&
      same(sf.record.subarray(4, 16), [..."TINE EP"].map((c) => c.charCodeAt(0)).concat([0, 0, 0, 0, 0])) && same(sf.record.subarray(16), tf.subarray(16)) &&
-     same(sf.patch, fBlob), "syx: soundFromSyx(DX7) -> the FM6 template (engine 12, np), named TINE EP, the blob");
+     same(sf.patch, fBlob), "syx: soundFromSyx(DX7) -> the FM6 template (engine 12, np, marked added), named TINE EP, the blob");
   ok(recordValid(sc.record) && sc.engine === 14 && sc.kind === "cz" && sc.record[3] === tc[3] && sc.name === "BRASS 1" && same(sc.patch, fTone) &&
-     same(sc.record.subarray(16), tc.subarray(16)), "syx: soundFromSyx(CZ-1) -> the CZ-1 template (engine 14, np), named BRASS 1, the tone");
+     same(sc.record.subarray(16), tc.subarray(16)), "syx: soundFromSyx(CZ-1) -> the CZ-1 template (engine 14, np, marked added), named BRASS 1, the tone");
   const noname = fVced.slice(); noname.fill(32, 145);
   ok(soundFromSyx({ kind: "fm6", voices: [noname] }).name === "FM6 VOICE" &&
      soundFromSyx({ kind: "cz", tones: [Uint8Array.from(fTone, (x, i) => (i >= 128 ? 0 : x))] }).name === "CZ TONE" &&
@@ -389,6 +392,9 @@ const FX = {
   ok(rc.changed.map((c) => c.id).join() === "13,7" && parseSoundObjects(rc.objs).slots[19].engineName === "CZ-1" &&
      parseSoundObjects(rc.objs).slots[19].patch === "cz" && same(rc.objs.get(13).subarray(16 + 3 * 144, 16 + 4 * 144), fTone),
      "syx: import of the CZ-1 tone into U20 (was FM6): the CZ-1 half 1 created, then bank 1");
+  ok(parseSoundObjects(rf.objs).slots[6].bound === null && parseSoundObjects(rf.objs).slots[6].added &&
+     parseSoundObjects(rc.objs).slots[19].added && exportSound(rc.objs, 20).binding === null,
+     "syx: an imported voice / tone is an added preset (binding null)");
 
   // export: the slot's patch as .syx; other slots refused
   const ef = exportSyx(rf.objs, 7), ec = exportSyx(src, 3);
@@ -397,6 +403,62 @@ const FX = {
   ok(throwsMsg(() => exportSyx(src, 1), /only FM6 and CZ-1/) && throwsMsg(() => exportSyx(src, 20), /no FM6 patch/) &&
      throwsMsg(() => exportSyx(src, 5), /U05 is empty/), "syx: exportSyx refuses VA, an FM6 slot without its blob, an empty slot");
   ok(syxFileName(5, "MY PAD") === "choralroot-sound-U05-MY_PAD.syx", "syx: file names");
+}
+
+/* ------------------------------------------------------- the binding (docs/SOUNDS.md "The binding") --- */
+{
+  const bind = (r, f) => { r = r.slice(); r[175] = 0xA6; r[191] = f; return r; };
+  ok(FACTORY_PRESETS[12][1] === "FM BELL" && FACTORY_PRESETS[12].length === 25 && FACTORY_PRESETS[14][0] === "INIT TONE" &&
+     FACTORY_PRESETS[14].length === 65 && FACTORY_FIRST[14] === 1 && FACTORY_FIRST[12] === 0 &&
+     ["1", "4", "8", "10"].every((e) => !(e in FACTORY_PRESETS)) && poolOf(1) === 12 && poolOf(4) === 0 && poolOf(13) === 13,
+     "binding: the factory table (the firmware's, --check), the pools of retired engines");
+  // the table both clients embed is one string (tests/sound_templates.c --check looks for it in each)
+  const line = (f, re) => (readFileSync(new URL(f, import.meta.url), "utf8").match(re) || [])[1];
+  const jsF = line("./fm1sounds.js", /^export const FACTORY_PRESETS = (.*);$/m), pyF = line("../tools/fm1_install.py", /^FACTORY_PRESETS = (.*)$/m);
+  const jsS = line("./fm1sounds.js", /^export const FACTORY_FIRST = (.*);$/m), pyS = line("../tools/fm1_install.py", /^FACTORY_FIRST = (.*)$/m);
+  ok(jsF && jsF === pyF && jsS && jsS === pyS, "binding: fm1sounds.js and fm1_install.py embed the same factory table");
+  const b6 = {
+    0: bind(rec(12, "MY BELL", { seed: 2 }), 2),          // U01 FM6 over FM BELL (index 1, pool 02)
+    1: bind(rec(12, "ADDED", { seed: 3 }), 0),            // U02 FM6 marked, bound to nothing: added
+    2: rec(12, "OLD", { seed: 4 }),                        // U03 FM6 unmarked (flags[15] != 0): added
+    3: bind(rec(12, "BELL TOO", { seed: 5 }), 2),         // U04 FM BELL again: the first slot wins, this one added
+    4: bind(rec(14, "MY BRASS", { seed: 6 }), 2),         // U05 CZ-1 over preset 1 BRASS 1 = pool 01
+    5: bind(rec(14, "OVER INIT", { seed: 7 }), 1),        // U06 CZ-1 naming INIT TONE (the pool's INIT): added
+    6: bind(rec(12, "TOO FAR", { seed: 8 }), 26),         // U07 FM6 past its 25 presets: added
+    7: bind(rec(1, "DIGI", { seed: 9 }), 3),              // U08 DIGITAL: FM6's pool, over FM BASS
+    8: bind(rec(0, "GRID", { ver: 5, seed: 10 }), 1),     // U09 a drum grid record: never bound
+    9: bind(rec(13, "VA PAD", { seed: 11 }), 25),         // U10 VA over its last preset, SHIMMER
+  };
+  b6[2][191] = 4;
+  const bo = new Map(source()); bo.set(6, bank(b6));
+  const T = parseSoundObjects(bo).slots;
+  ok(T[0].bound && T[0].bound.index === 1 && T[0].bound.pos === 2 && T[0].bound.label === "FM6 02" && T[0].bound.name === "FM BELL" && !T[0].added,
+     "binding: a bound FM6 record -> over FM6 02 FM BELL");
+  ok(T[1].bound === null && T[1].added && T[2].bound === null && T[2].added && T[3].bound === null && T[3].added,
+     "binding: marked with 0, unmarked, a second binding of the same preset -> added");
+  ok(T[4].bound && T[4].bound.label === "CZ-1 01" && T[4].bound.name === "BRASS 1" && T[5].added && T[6].added,
+     "binding: CZ-1 over BRASS 1 = pool 01; INIT TONE and an index past the presets -> added");
+  ok(T[7].bound && T[7].bound.label === "FM6 03" && T[7].bound.name === "FM BASS" && T[8].added && T[9].bound.label === "VA 25" &&
+     T[9].bound.name === "SHIMMER", "binding: DIGITAL binds in FM6's pool, a grid record never, VA 25 SHIMMER");
+  ok(T.filter((t) => !t.used).every((t) => t.bound === null && !t.added) && soundBindings([null, b6[0], b6[3]]).map((x) => x && x.pos).join() === ",2,",
+     "binding: empty slots neither; soundBindings: the first of two wins");
+  // the JSON field: written, informative; the record's bytes are the truth
+  const e1 = exportSound(bo, 1), e2 = exportSound(bo, 2), e4 = exportSound(bo, 4);
+  ok(e1.binding && e1.binding.overwrites === 2 && e1.binding.name === "FM BELL" && e2.binding === null && e4.binding === null &&
+     JSON.parse(JSON.stringify(e1)).binding.overwrites === 2, "binding: the sound file's binding {overwrites: 2, name: FM BELL} / null");
+  const without = { ...e1 }; delete without.binding;
+  const wrong = { ...e1, binding: { overwrites: 9, name: "NOPE" } };
+  ok(same(readSoundFile(without).record, b6[0]) && same(readSoundFile(JSON.stringify(wrong)).record, b6[0]) && same(readSoundFile(e1).record, b6[0]),
+     "binding: files with, without or with a stale binding field read the record as it is");
+  const ri = importSound(new Map(), 12, readSoundFile(e1)), ti = parseSoundObjects(ri.objs).slots[11];
+  ok(same(ri.objs.get(6).subarray(8 + 11 * 192, 8 + 12 * 192), b6[0]) && ti.bound && ti.bound.name === "FM BELL",
+     "binding: importSound keeps the record's binding bytes (U12 over FM BELL)");
+  const rd = importSound(bo, 20, readSoundFile(e1)), td = parseSoundObjects(rd.objs).slots;
+  ok(td[0].bound && td[19].bound === null && td[19].added, "binding: imported where an earlier slot binds the preset -> added");
+  // the page: a fourth text per row
+  const page = readFileSync(new URL("./index_pkg.html", import.meta.url), "utf8");
+  ok(/sndOver: "over \{at\} \{name\}"/.test(page) && /sndAdded: "added"/.test(page) && page.includes("s.bound.label") && page.includes('data-t="sndColPool"'),
+     "binding: the page shows over FM6 02 FM BELL / added");
 }
 
 console.log(fails ? `SOUNDS TESTS FAILED (${fails})` : "sounds tests passed");

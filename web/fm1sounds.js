@@ -15,6 +15,37 @@ export const PATCH_SIZE = { va: 110, fm6: 128, cz: 144 };
 export const SOUND_FORMAT = "choralroot-sound";
 export const patchKindOf = (engine) => (engine === 13 ? "va" : engine === 12 ? "fm6" : engine === 14 ? "cz" : null);
 
+// the factory presets of each engine (ENGINES[e]->presets[k].name) and the first of them in the engine's pool (the
+// CZ-1's preset 0, INIT TONE, is the pool's INIT): tests/sound_templates.c prints both from the firmware, and its
+// --check fails until the two lines below hold its strings verbatim (docs/SOUNDS.md "The binding")
+export const FACTORY_PRESETS = {"0":["SAW LEAD","SOFT PAD","SQR BASS","PWM STR","ACID","SINE KEY","RAVE","SUB BASS","PLUCK","BRASS","WIND","STRINGS"],"2":["BRASS","ORGAN","STRING","RESO","BELL","WIRE"],"3":["PULSE LD","WAVE BASS","ARP 8BIT","WAVE LEAD","STEP LEAD"],"5":["CHOIR AAH","VOX LEAD","WOW BASS","WHISPER"],"6":["FAT BASS","ARP LEAD","SYNC LEAD","RING BELL","CHIP CHOIR"],"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"9":["BELL TREE","MARIMBA","PLUCK","BOWED METAL","KALIMBA","HAND DRUM","TOMS","DRONE STRING","HARP"],"11":["WIND","RAIN","ARCADE","METAL"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"]};
+export const FACTORY_FIRST = {"0":0,"2":0,"3":0,"5":0,"6":0,"7":0,"9":0,"11":0,"12":0,"13":0,"14":1};
+const SND_BIND_MARK = 0xA6, SND_BIND_NOTE = 160 + 15, SND_BIND_FLAGS = 176 + 15;
+// the pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, DIGITAL's FM6, another retired one ANALOG
+export const poolOf = (engine) => (FACTORY_PRESETS[engine] ? engine : engine === 1 ? 12 : 0);
+// the factory preset index a record's binding names (cr_bank.c cb_bind_raw), -1: none (added)
+function sndBindRaw(r) {
+  if (!r || !recordValid(r) || r[1] === 3 || r[1] === 5 || r[SND_BIND_NOTE] !== SND_BIND_MARK || !r[SND_BIND_FLAGS]) return -1;
+  const e = poolOf(r[2]), f = r[SND_BIND_FLAGS] - 1;
+  return f >= (FACTORY_FIRST[e] || 0) && f < (FACTORY_PRESETS[e] || []).length ? f : -1;
+}
+// the 32 records (null: empty) -> per slot null, or {index, pos, label, name} of the factory preset it overwrites
+// (cr_bank.c cb_bound: the first slot bound to a factory preset wins, a later one is an added preset)
+export function soundBindings(records) {
+  const seen = new Set();
+  return records.map((r) => {
+    const f = sndBindRaw(r);
+    if (f < 0) return null;
+    const e = poolOf(r[2]), key = `${e}:${f}`;
+    if (seen.has(key)) return null;
+    seen.add(key);
+    const pos = f - (FACTORY_FIRST[e] || 0) + 1;
+    return { index: f, pos, label: `${ENGINE_NAMES[e]} ${String(pos).padStart(2, "0")}`, name: FACTORY_PRESETS[e][f] };
+  });
+}
+// a slot's binding as a sound file carries it: {overwrites: the pool position, name} or null (added)
+export const bindingOf = (bound) => (bound ? { overwrites: bound.pos, name: bound.name } : null);
+
 // the layouts (docs/SOUNDS.md "The objects that hold the user sounds")
 const SND_REC = 192, SND_PER_BANK = 16, SND_BANK_SIZE = 8 + SND_PER_BANK * SND_REC, SND_BANK_MAGIC = 0x31425055;
 const SND_USED = 0xA5, SND_NAME = 12;
@@ -76,14 +107,18 @@ const sndDecodeName = (r) => { let s = ""; for (let i = 4; i < 4 + SND_NAME && r
 export const nameValid = (name) => typeof name === "string" && /^[\x20-\x7e]{1,12}$/.test(name);
 
 // the seven objects -> the slot table (docs/SOUNDS.md "The slot table")
+// bound: null, or the factory preset the slot overwrites ({index, pos, label, name}: "over FM6 02 FM BELL");
+// added: a used slot that is not bound (it follows the factory presets in its engine's pool)
 export function parseSoundObjects(objs) {
   const m = sndMap(objs);
-  const slots = Array.from({ length: SOUND_SLOTS }, (_, i) => {
-    const slot = i + 1, r = sndRecord(m, slot);
-    if (!r || !recordValid(r)) return { slot, label: sndLabel(slot), used: false, name: "", engine: null, engineName: "", kind: null, patch: null };
+  const recs = Array.from({ length: SOUND_SLOTS }, (_, i) => { const r = sndRecord(m, i + 1); return r && recordValid(r) ? r : null; });
+  const binds = soundBindings(recs);
+  const slots = recs.map((r, i) => {
+    const slot = i + 1;
+    if (!r) return { slot, label: sndLabel(slot), used: false, name: "", engine: null, engineName: "", kind: null, patch: null, bound: null, added: false };
     const engine = r[2], kind = patchKindOf(engine);
     return { slot, label: sndLabel(slot), used: true, name: sndDecodeName(r), engine, engineName: ENGINE_NAMES[engine], kind,
-      patch: kind && sndBlob(m, kind, slot) ? kind : null };
+      patch: kind && sndBlob(m, kind, slot) ? kind : null, bound: binds[i], added: !binds[i] };
   });
   return { slots };
 }
@@ -95,15 +130,17 @@ function sndUnB64(s, what) {
   return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 }
 
-// slot -> the sound file (an object; JSON.stringify it to save)
+// slot -> the sound file (an object; JSON.stringify it to save). binding: what the record's binding bytes say on the
+// FM-1 it came from (informative: an import keeps the record's bytes, the FM-1 reads the binding from them)
 export function exportSound(objs, slot, { firmware, created } = {}) {
   sndCheckSlot(slot);
   const m = sndMap(objs), r = sndRecord(m, slot);
   if (!r || !recordValid(r)) throw new Error(`${sndLabel(slot)} is empty`);
+  const bound = parseSoundObjects(objs).slots[slot - 1].bound;
   const engine = r[2], kind = patchKindOf(engine), blob = kind && sndBlob(m, kind, slot), name = sndDecodeName(r);
   return {
     format: SOUND_FORMAT, version: 1, firmware: firmware || null, created: created || new Date().toISOString(), slot,
-    name: nameValid(name) ? name : null, engine, engineName: ENGINE_NAMES[engine], record: sndB64(r),
+    name: nameValid(name) ? name : null, engine, engineName: ENGINE_NAMES[engine], binding: bindingOf(bound), record: sndB64(r),
     patch: blob ? { kind, data: sndB64(blob) } : null,
   };
 }
@@ -111,6 +148,7 @@ export function exportSound(objs, slot, { firmware, created } = {}) {
 export const soundFileName = (slot, name) => `${SOUND_FORMAT}-${sndLabel(slot)}-${String(name || "").replace(/[^A-Za-z0-9-]/g, "_")}.json`;
 
 // a sound file (its text or the parsed object) -> {record: Uint8Array(192), name, engine, kind, patch: Uint8Array | null}
+// (a "binding" field, present or not, is not read: the record's two binding bytes are the truth)
 export function readSoundFile(file) {
   if (typeof file === "string") {
     try { file = JSON.parse(file); } catch (e) { throw new Error("Not a sound file (not JSON)"); }
@@ -470,6 +508,7 @@ export function soundFromSyx(parsed, index = 1) {
   const record = sndUnB64(SOUND_TEMPLATES[parsed.kind], "template");
   const name = fm6 ? syxName(item.subarray(FV.NAME, FV.NAME + 10), "FM6 VOICE") : syxName(item.subarray(128, 144), "CZ TONE");
   sndWriteName(record, name);
+  record[SND_BIND_NOTE] = SND_BIND_MARK; record[SND_BIND_FLAGS] = 0;   // bound to nothing: an added preset of its pool
   if (!recordValid(record)) throw new Error("The template record is not valid");
   const engine = record[2], kind = patchKindOf(engine);
   const patch = fm6 ? vcedToFm6Blob(item) : Uint8Array.from(item);

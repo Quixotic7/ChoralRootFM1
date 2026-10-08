@@ -569,11 +569,11 @@ def sounds():
     dev, side = device()
     rc, out, err = cli(["--sounds"], dev)
     lines = {ln[:3]: ln for ln in out.splitlines() if ln[:1] == "U"}
-    ok(rc == 0 and len(lines) == 32 and lines["U01"].split() == ["U01", "MY", "PAD", "VA", "patch"] and
-       lines["U02"].split() == ["U02", "TINE", "2", "FM6", "no", "patch"] and
-       lines["U03"].split() == ["U03", "ABCDEFGHIJKL", "CZ-1", "patch"] and lines["U04"] == "U04  (empty)" and
-       lines["U05"].split() == ["U05", "WARM", "ANALOG"] and lines["U06"] == "U06  (empty)" and
-       lines["U17"].split() == ["U17", "BELL", "PHASE"] and lines["U20"] == "U20  (empty)" and
+    ok(rc == 0 and len(lines) == 32 and lines["U01"].split() == ["U01", "MY", "PAD", "VA", "patch", "+"] and
+       lines["U02"].split() == ["U02", "TINE", "2", "FM6", "no", "patch", "+"] and
+       lines["U03"].split() == ["U03", "ABCDEFGHIJKL", "CZ-1", "patch", "+"] and lines["U04"] == "U04  (empty)" and
+       lines["U05"].split() == ["U05", "WARM", "ANALOG", "+"] and lines["U06"] == "U06  (empty)" and
+       lines["U17"].split() == ["U17", "BELL", "PHASE", "+"] and lines["U20"] == "U20  (empty)" and
        len({ln.index(w) for ln, w in ((lines["U01"], "VA"), (lines["U02"], "FM6"), (lines["U03"], "CZ-1"))}) == 1 and
        not any(isinstance(x, int) for x in side.log), "--sounds: 32 slots, names, engines, patch / no patch, invalid -> (empty)")
 
@@ -803,7 +803,9 @@ def syx():
     rc, out, err = cli(["--import-syx", "6", str(fc)], dev, answer=False)
     t = I.parse_sound_objects(side.objs)
     ok(rc == 0 and side.log == [12, 6] and t[5]["name"] == "BRASS 1" and t[5]["engineName"] == "CZ-1" and
-       out.splitlines()[-1].split() == ["U06", "BRASS", "1", "CZ-1", "patch"], "--import-syx of a CZ-1 tone: the CZ-1 store, then the bank")
+       out.splitlines()[-1].split() == ["U06", "BRASS", "1", "CZ-1", "patch", "+"] and t[5]["added"] and
+       t[5]["record"][175] == 0xA6 and t[5]["record"][191] == 0,
+       "--import-syx of a CZ-1 tone: the CZ-1 store, then the bank; marked as an added preset")
     rc, out, err = cli(["--import-syx", "3", str(f1)], dev, answer=False)
     ok(rc == 1 and "cancelled" in out and not any(isinstance(x, int) for x in side.log[2:]),
        "--import-syx over a used slot, answer no: nothing written")
@@ -828,10 +830,77 @@ def syx():
        and code(["--export-syx", "33", "x"])[0] == 2, "--voice beyond the file / a CZ-101 file / bad options: exit 2")
 
 
+def bindings():
+    """docs/SOUNDS.md "The binding": note[15] (byte 175) = 0xA6, flags[15] (byte 191) = factory index + 1 / 0 added"""
+    import json
+    import re
+
+    def bind(r, f):
+        r = bytearray(r)
+        r[175], r[191] = 0xA6, f
+        return bytes(r)
+    fp, ff = I.FACTORY_PRESETS, I.FACTORY_FIRST
+    ok(fp["12"][1] == "FM BELL" and len(fp["12"]) == 25 and fp["14"][0] == "INIT TONE" and len(fp["14"]) == 65 and
+       ff["14"] == 1 and ff["12"] == 0 and not any(e in fp for e in ("1", "4", "8", "10")) and I.pool_of(1) == 12 and
+       I.pool_of(8) == 0 and I.pool_of(14) == 14, "binding: the factory table (the firmware's, --check), retired engines' pools")
+    js = (ROOT / "web" / "fm1sounds.js").read_text()
+    jf = re.search(r"^export const FACTORY_PRESETS = (.*);$", js, re.M)
+    js1 = re.search(r"^export const FACTORY_FIRST = (.*);$", js, re.M)
+    ok(jf and js1 and json.loads(jf.group(1)) == fp and json.loads(js1.group(1)) == ff,
+       "binding: fm1_install.py and fm1sounds.js embed the same factory table")
+    unmarked = bytearray(sound_rec(12, "OLD", seed=4))
+    unmarked[191] = 4
+    recs = {0: bind(sound_rec(12, "MY BELL", seed=2), 2),        # U01 over FM6 02 FM BELL
+            1: bind(sound_rec(12, "ADDED", seed=3), 0),          # U02 marked, bound to nothing: added
+            2: bytes(unmarked),                                  # U03 no mark: added
+            3: bind(sound_rec(12, "BELL TOO", seed=5), 2),       # U04 FM BELL again: the first wins, added
+            4: bind(sound_rec(14, "MY BRASS", seed=6), 2),       # U05 CZ-1 over BRASS 1 = pool 01
+            5: bind(sound_rec(14, "OVER INIT", seed=7), 1),      # U06 INIT TONE (the pool's INIT): added
+            6: bind(sound_rec(12, "TOO FAR", seed=8), 26),       # U07 past the 25 FM6 presets: added
+            7: bind(sound_rec(1, "DIGI", seed=9), 3),            # U08 DIGITAL in FM6's pool, over FM BASS
+            8: bind(sound_rec(0, "GRID", ver=5, seed=10), 1)}    # U09 a drum grid record: never bound
+    objs = {6: sound_bank(recs), 7: b"", 9: b"", 10: b"", 11: b"", 12: b"", 13: b""}
+    t = I.parse_sound_objects(objs)
+    b0 = t[0]["bound"]
+    ok(b0 and b0["index"] == 1 and b0["pos"] == 2 and b0["label"] == "FM6 02" and b0["name"] == "FM BELL" and not t[0]["added"],
+       "binding: a bound FM6 record -> over FM6 02 FM BELL")
+    ok(all(t[k]["bound"] is None and t[k]["added"] for k in (1, 2, 3, 5, 6, 8)),
+       "binding: marked 0, unmarked, a second binding, INIT TONE, past the presets, a grid record -> added")
+    ok(t[4]["bound"]["label"] == "CZ-1 01" and t[4]["bound"]["name"] == "BRASS 1" and t[7]["bound"]["label"] == "FM6 03" and
+       t[7]["bound"]["name"] == "FM BASS" and not t[20]["added"] and t[20]["bound"] is None,
+       "binding: CZ-1 over BRASS 1 = pool 01, DIGITAL in FM6's pool; empty slots neither")
+    ln = I.sound_line(t[0]).split()
+    ok(ln == ["U01", "MY", "BELL", "FM6", "no", "patch", "over", "FM6", "02", "FM", "BELL"] and
+       I.sound_line(t[1]).split()[-1] == "+" and I.sound_line(t[8]).split() == ["U09", "GRID", "ANALOG", "+"],
+       "binding: --sounds lines: 'over FM6 02 FM BELL' / '+'")
+    e1, e2 = I.export_sound(objs, 1, "ChoralRoot 0.14"), I.export_sound(objs, 4, "ChoralRoot 0.14")
+    ok(e1["binding"] == {"overwrites": 2, "name": "FM BELL"} and e2["binding"] is None and
+       json.loads(json.dumps(e1))["binding"]["overwrites"] == 2, "binding: the sound file's binding {overwrites, name} / null")
+    without = {k: v for k, v in e1.items() if k != "binding"}
+    stale = {**e1, "binding": {"overwrites": 9, "name": "NOPE"}}
+    ok(I.read_sound_file(without)[0] == recs[0] and I.read_sound_file(json.dumps(stale))[0] == recs[0] and
+       I.read_sound_file(e1)[0] == recs[0], "binding: files with, without or with a stale binding read the record as it is")
+    new = dict(objs)
+    for i, b in I.import_sound(objs, 12, I.read_sound_file(e1)):
+        new[i] = b
+    t2 = I.parse_sound_objects(new)
+    ok(t2[11]["record"] == recs[0] and t2[11]["bound"] is None and t2[11]["added"] and t2[0]["bound"]["name"] == "FM BELL",
+       "binding: import keeps the bytes; a later slot binding FM BELL again is added (the first wins)")
+    new = {}
+    for i, b in I.import_sound({}, 12, I.read_sound_file(e1)):
+        new[i] = b
+    ok(I.parse_sound_objects(new)[11]["bound"]["label"] == "FM6 02", "binding: imported alone, U12 is over FM6 02")
+    rec, _n, _e, _p = I.sound_from_syx("cz", bytes(144))
+    ok(rec[175] == 0xA6 and rec[191] == 0 and I.sound_record_valid(rec) and
+       I.sound_bindings([rec]) == [None], "binding: a .syx import's record: the mark, bound to nothing (added)")
+    ok("added" in I.__doc__ and "over FM6 02 FM BELL" in I.__doc__, "binding: --help says what --sounds shows")
+
+
 wire()
 backups()
 sounds()
 syx()
+bindings()
 installs()
 errors()
 against_js()

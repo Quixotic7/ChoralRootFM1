@@ -5,7 +5,7 @@ OPT + PRESETS / the save dialog, settings v6, `tools/emu/scripts/cr_presets.txt`
 way: Overwrite never renames; Overwrite on a user preset keeps its binding; the bound record of a loud factory preset
 keeps that preset's trim; a delete loads what is then at the deleted place (the one before at the end); the CZ-1's
 INIT TONE is the pool's INIT (its pool: INIT + Casio's 64); an engine not played yet lands on its first preset.
-Not yet: the Sounds page / CLI showing the binding.
+The Sounds page and the CLI show the binding ("over FM6 02 FM BELL" / "added").
 
 Replaces the sound model of PLAN.md §3 / §7 and docs/INTEGRATION.md §7 ("Sounds"): the curated 48-row ChoralRoot
 bank on PRESETS followed by 32 user slots, with the engines' own factory presets reachable only inside the editor
