@@ -885,6 +885,16 @@ static void key_action(const keymap_t *m, int down, int src)
         hold_btn(EMU_B_OCTUP, src == SRC_KEY ? SRC_ESC : src, down);
         break;
     case KM_SELECT: if (down) sel_knob = m->idx; break;
+    case KM_CYCLE:
+        if (down) {
+            static const int CYC[5] = {EMU_E_SELECT, EMU_E_K1, EMU_E_K2, EMU_E_K3, EMU_E_K4};
+            int j, at = m->idx > 0 ? -1 : 0;     /* off the cycle: Page Down -> SELECT, Page Up -> KNOB4 */
+            for (j = 0; j < 5; j++)
+                if (CYC[j] == sel_knob)
+                    at = j;
+            sel_knob = CYC[((at + m->idx) % 5 + 5) % 5];
+        }
+        break;
     case KM_TURN: if (down) turn(sel_knob, sel_knob == EMU_E_MASTER ? 2 * m->idx : m->idx); break;
     case KM_SHOT: if (down) shot(NULL); break;
     case KM_RECORD: if (down) toggle_record(); break;

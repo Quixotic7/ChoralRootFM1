@@ -7,12 +7,12 @@ wait 200
 shot build/emu/test/fx_knob1.ppm
 btn HOME
 wait 200
-key M                       # select PRESETS (M) ...
+btn PRESETS down            # select PRESETS (mouse-only on the keyboard) ...
 key UP                      # ... and turn it one detent (Up)
 wait 300
 shot build/emu/test/preset_next.ppm
-key RIGHT                   # OCT+
-key ESC                     # OCT- and OCT+ together: octave 0
+btn OCT+                    # OCT+
+key END                     # OCT- and OCT+ together: octave 0
 wait 100
 btn PLAY
 wait 400

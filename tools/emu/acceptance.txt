@@ -7,7 +7,7 @@ btn ENV                      # ENV page
 wait 300ms
 shot acc_env
 btn HOME                      # HOME
-press M                      # select PRESETS
+btn PRESETS down             # select PRESETS
 press UP                     # next preset
 wait 400ms
 shot acc_preset

@@ -64,22 +64,21 @@ Firmware key index = MIDI note - 53 (0 = F3 .. 26 = G5).
 | computer keys | FM-1 |
 |---|---|
 | `A S D F G H J K L ; ' ]` | white note keys C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 (keys 7 9 11 12 14 16 18 19 21 23 24 26; Ableton Live's layout) |
-| `W E T Y U O P [` | black note keys C#4 D#4 F#4 G#4 A#4 C#5 D#5 F#5 (keys 8 10 13 15 17 20 22 25) |
+| `W E T Y U O P` | black note keys C#4 D#4 F#4 G#4 A#4 C#5 D#5 (keys 8 10 13 15 17 20 22); `R` and `I` (the gaps) are unmapped, F#5 (key 25) is mouse only |
 | `F1 F2 F3 F4` | F#3 G#3 A#3 C#4 (keys 1 3 5 8) |
 | `2 3 4 5` | F3 G3 A3 C4 (keys 0 2 4 7) |
 | Tab | B3 (key 6: ChoralRoot's LOCK, the chord mod key) |
-| `Z` `C` (and Left / Right) | OCT- / OCT+ (`Z` + `C` together = panic, as the arrows) |
-| Esc | OCT- and OCT+ together (panic) |
+| `Z` `X` (Ableton's), also Esc / Return | OCT- / OCT+ (Esc backs out of menus) |
+| End | OCT- and OCT+ together (panic) |
 | F5 F6 F7 F8 F9 F10 | the top button row: FX SEL ENV LFO EDIT GLO (ChoralRoot: FX KEY BASS LATCH EDIT OPT; in the editor: OSC FILT ENV LFO EDIT SHIFT) |
 | `7 8 9 0 - =` | the bottom button row: HOME SAVE ARP SEQ PLAY REC (ChoralRoot: HOME SAVE PERF METRO LOOP REC; in the editor: HOME SAVE PERF MOD FX MIX) |
-| `Q R M ,` | select the knob MASTER, SELECT, PRESETS, ALGORITHM |
-| `X V B N` | select KNOB1 .. KNOB4 |
+| Page Down / Page Up | select the next / previous knob of SELECT, KNOB1 .. KNOB4 (wraps; the selected knob has a ring) |
 | Up / Down | turn the selected knob one detent clockwise / counter-clockwise (repeats while held; MASTER: 32 of 1023) |
-| mouse wheel over a knob | turn that knob |
+| mouse wheel over a knob | turn that knob (MASTER, PRESETS, ALGORITHM: the mouse only; a click selects a knob for Up / Down) |
 | `` ` `` (backtick) | show / hide the big LCD view above the panel (window only) |
-| F11 | LCD screenshot: `build/emu/shot_NNN.png` |
-| F12 | record every LCD frame to `build/emu/rec/NNNN.ppm` (again to stop) |
-| End | print the input state (`fm1_in`, the LEDs, the track, the song) |
+| PrintScreen (F13 on a Mac keyboard) | LCD screenshot: `build/emu/shot_NNN.png` |
+| Insert | record every LCD frame to `build/emu/rec/NNNN.ppm` (again to stop) |
+| F12 | print the input state (`fm1_in`, the LEDs, the track, the song) |
 
 No computer key is mapped twice: the emulator checks the table at start-up and exits 2 on a duplicate.
 On a Mac keyboard the F keys may need `fn`. Cmd shortcuts stay the system's; losing the focus releases
@@ -118,8 +117,8 @@ own clock in ms from power-on; commands run in order and only `wait` (and the ti
 | `shot NAME` | the LCD to `build/emu/NAME.png` and `.ppm`; a NAME with `/` or ending `.ppm` / `.png` is a path |
 | `expect led NAME on\|dim\|off` | check a key's or button's LED now (`on` = lit); `GREEN` is PLAY's green LED |
 | `expect sound` / `expect silence` | non-zero samples since the previous `expect sound\|silence` (or power-on) |
-| `dump` | print the input state (as End) |
-| `rec` | start / stop recording the LCD frames (as F12) |
+| `dump` | print the input state (as F12) |
+| `rec` | start / stop recording the LCD frames (as Insert) |
 | `quit` | stop here |
 
 Older forms still work: `press KEY [MS]`, `tap`, `hold` / `down`, `release` / `up`, `turn KNOB N`, and an
@@ -146,7 +145,7 @@ expect sound
 lights key D4's LED and gives non-silent blocks; the power-on screen is written; a second run gives the same
 LCD and WAV; then `test_cr.sh`: MAJ + D4 (D major: sound, the D4 F#4 A4 LEDs, the chord screen), KNOB 1
 (voicing), KEY tap / hold (Key Mode, select-key), PERF hold (the Perform picker), PRESETS (another sound),
-ALGORITHM (the bass on part 1), Esc (PANIC), idle (the stripes), Options and the other layers' screens, no
+ALGORITHM (the bass on part 1), End (PANIC), idle (the stripes), Options and the other layers' screens, no
 stuck notes (every part silent 2 s after the release). Outputs and logs go to `build/emu/test/`.
 
 ## Realtime smoke test without a window
@@ -166,7 +165,7 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy build/host/emu --no-midi --demo --qu
   LATCH, F10 (GLO) OPT, `9` (ARP) PERF, `0` (SEQ) METRO, `-` (PLAY) LOOP, `=` REC; B3 (Tab) = LOCK.
   A layer button held 300 ms locks its layer open: scripts close it with `btn OCT-` (or `btn HOME`).
 - Sound editing: F9 (EDIT) tap = the sound editor (F7 held + F9 the bass's), held = the engine picker;
-  `8` (SAVE) = naming (the white roots type, Left deletes, Right saves). User sounds are RAM only here.
+  `8` (SAVE) = naming (the white roots type, OCT- (`Z`) deletes, OCT+ (`X`) saves). User sounds are RAM only here.
 - ChoralRoot's looper and metronome are not there yet (their screens
   show; docs/INTEGRATION.md "Status").
 

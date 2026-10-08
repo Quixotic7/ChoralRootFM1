@@ -6,7 +6,7 @@
 # and the chord screen; KNOB 1 +2 revoices it (A4 D5 F#5) with the voicing line; KEY tap: Key Mode, its LED,
 # "Key: C", D4 alone -> Dm; KEY held: select-key, a root sets the tonic; PERF held: the Perform picker, a root
 # picks the mode; PRESETS: the sound meter and another timbre; ALGORITHM: the bass on, a bass note on part 1;
-# Esc: PANIC (the red screen); idle 3 s: the stripes; after every release, parts 0 and 1 silent within 2 s.
+# End: PANIC (the red screen); idle 3 s: the stripes; after every release, parts 0 and 1 silent within 2 s.
 # Screenshots: build/emu/test/cr_*.ppm (and the logs).
 set -u
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -153,7 +153,7 @@ has '^bass: behaviour Chords Only' "$L" && [ "$(pv 0 6)" = 3 ] && [ "$(pv 1 6)" 
     ok "Chords Only again (D4 in the layer): both parts sound" || bad "Chords Only: part 0 $(pv 0 6) part 1 $(pv 1 6)"
 silent_end cr_bass_both
 
-echo "Esc: PANIC; idle: the stripes"
+echo "End: PANIC; idle: the stripes"
 run cr_panic
 p=$(pixel "$OUT/cr_panic.ppm" 120 200); set -- $p
 [ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 90 ] && [ "${3:-255}" -lt 90 ] && ok "the red PANIC screen ($p): $OUT/cr_panic.ppm" \

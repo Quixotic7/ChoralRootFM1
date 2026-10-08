@@ -6,20 +6,21 @@
  * Firmware note keys: index = MIDI note - 53 (0 = F3 .. 26 = G5).
  *
  *   note keys, white   A  S  D  F  G  H  J  K  L  ;  '  ]   = C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 (keys 7 ..)
- *   note keys, black   W  E  T  Y  U  O  P  [                = C#4 D#4 F#4 G#4 A#4 C#5 D#5 F#5   (Ableton Live's)
+ *   note keys, black   W  E  T  Y  U  O  P                   = C#4 D#4 F#4 G#4 A#4 C#5 D#5   (Ableton Live's;
+ *                      R and I, in the gaps, are unmapped; F#5 has no key: the mouse)
  *   chord block        F1 F2 F3 F4                       = F#3 G#3 A#3 C#4 (keys 1 3 5 8)
  *                      2  3  4  5                        = F3  G3  A3  C4  (keys 0 2 4 7)
  *                      Tab                               = B3 (key 6: ChoralRoot's LOCK, the chord mod key)
- *   octave             Z C (and Left Right)              = OCT- OCT+;  Esc (or Z + C together) = panic
+ *   octave             Z X (and Esc Return)              = OCT- OCT+;  End = both = panic
  *   buttons, top row   F5 F6 F7 F8 F9 F10                = FX SEL ENV LFO EDIT GLO
  *            bottom    7  8  9  0  -  =                  = HOME SAVE ARP SEQ PLAY REC
- *   knobs              Q = MASTER (pot)  R = SELECT  M = PRESETS  , = ALGORITHM  X V B N = KNOB 1..4:
- *                      select the knob; Up / Down turn the selected one (one detent per press, repeats)
- *                      mouse: wheel over a knob turns it, click selects it, vertical drag turns it
+ *   knobs              Page Down / Page Up: select the next / previous of SELECT KNOB1..KNOB4 (wraps);
+ *                      Up / Down turn the selected one (one detent per press, repeats); MASTER, PRESETS,
+ *                      ALGORITHM: mouse (wheel over a knob turns it, click selects it, vertical drag turns it)
  *   tools              ` show / hide the big LCD view above the panel (window)
- *                      F11 LCD screenshot (build/emu/shot_NNN.png)
- *                      F12 record every LCD frame (build/emu/rec/NNNN.ppm), again to stop
- *                      End print the fm1_in state
+ *                      PrintScreen (F13 on a Mac keyboard) LCD screenshot (build/emu/shot_NNN.png)
+ *                      Insert record every LCD frame (build/emu/rec/NNNN.ppm), again to stop
+ *                      F12 print the fm1_in state
  * (On a Mac keyboard the F keys may need fn.)
  * =========================================================================================== */
 #include <stdio.h>
@@ -60,13 +61,12 @@ const keymap_t KEYMAP[] = {
     {SDL_SCANCODE_U, KM_KEY, 17, "U"},
     {SDL_SCANCODE_O, KM_KEY, 20, "O"},
     {SDL_SCANCODE_P, KM_KEY, 22, "P"},
-    {SDL_SCANCODE_LEFTBRACKET, KM_KEY, 25, "["},
-    /* octave: Z / C (first: the panel hint), the arrows too; both together (Z + C, Esc) = panic */
+    /* octave: Z / X (first: the panel hint), Esc / Return too; End = both = panic */
     {SDL_SCANCODE_Z, KM_BTN, EMU_B_OCTDN, "Z"},
-    {SDL_SCANCODE_C, KM_BTN, EMU_B_OCTUP, "C"},
-    {SDL_SCANCODE_LEFT, KM_BTN, EMU_B_OCTDN, "LEFT"},
-    {SDL_SCANCODE_RIGHT, KM_BTN, EMU_B_OCTUP, "RIGHT"},
-    {SDL_SCANCODE_ESCAPE, KM_OCTBOTH, 0, "ESC"},
+    {SDL_SCANCODE_X, KM_BTN, EMU_B_OCTUP, "X"},
+    {SDL_SCANCODE_ESCAPE, KM_BTN, EMU_B_OCTDN, "ESC"},
+    {SDL_SCANCODE_RETURN, KM_BTN, EMU_B_OCTUP, "RETURN"},
+    {SDL_SCANCODE_END, KM_OCTBOTH, 0, "END"},
     /* buttons, the FM-1's two rows */
     {SDL_SCANCODE_F5, KM_BTN, EMU_B_FX, "F5"},
     {SDL_SCANCODE_F6, KM_BTN, EMU_B_SEL, "F6"},
@@ -80,22 +80,17 @@ const keymap_t KEYMAP[] = {
     {SDL_SCANCODE_0, KM_BTN, EMU_B_SEQ, "0"},
     {SDL_SCANCODE_MINUS, KM_BTN, EMU_B_PLAY, "-"},
     {SDL_SCANCODE_EQUALS, KM_BTN, EMU_B_REC, "="},
-    /* knobs */
-    {SDL_SCANCODE_Q, KM_SELECT, EMU_E_MASTER, "Q"},
-    {SDL_SCANCODE_R, KM_SELECT, EMU_E_SELECT, "R"},
-    {SDL_SCANCODE_M, KM_SELECT, EMU_E_PRESETS, "M"},
-    {SDL_SCANCODE_COMMA, KM_SELECT, EMU_E_ALGO, ","},
-    {SDL_SCANCODE_X, KM_SELECT, EMU_E_K1, "X"},
-    {SDL_SCANCODE_V, KM_SELECT, EMU_E_K2, "V"},
-    {SDL_SCANCODE_B, KM_SELECT, EMU_E_K3, "B"},
-    {SDL_SCANCODE_N, KM_SELECT, EMU_E_K4, "N"},
+    /* knobs: Page Down / Up cycle SELECT KNOB1..KNOB4; MASTER, PRESETS, ALGORITHM: the mouse */
+    {SDL_SCANCODE_PAGEDOWN, KM_CYCLE, +1, "PGDN"},
+    {SDL_SCANCODE_PAGEUP, KM_CYCLE, -1, "PGUP"},
     {SDL_SCANCODE_UP, KM_TURN, +1, "UP"},
     {SDL_SCANCODE_DOWN, KM_TURN, -1, "DOWN"},
     /* tools */
     {SDL_SCANCODE_GRAVE, KM_LCDVIEW, 0, "`"},
-    {SDL_SCANCODE_F11, KM_SHOT, 0, "F11"},
-    {SDL_SCANCODE_F12, KM_RECORD, 0, "F12"},
-    {SDL_SCANCODE_END, KM_DUMP, 0, "END"},
+    {SDL_SCANCODE_PRINTSCREEN, KM_SHOT, 0, "PRTSC"},
+    {SDL_SCANCODE_F13, KM_SHOT, 0, "F13"},
+    {SDL_SCANCODE_INSERT, KM_RECORD, 0, "INSERT"},
+    {SDL_SCANCODE_F12, KM_DUMP, 0, "F12"},
 };
 const int KEYMAP_N = (int)(sizeof KEYMAP / sizeof KEYMAP[0]);
 
@@ -157,6 +152,7 @@ void keymap_help(void)
             break;
         case KM_BTN: printf("button %s\n", EMU_BTN_NAME[k->idx]); break;
         case KM_OCTBOTH: printf("OCT- and OCT+ together\n"); break;
+        case KM_CYCLE: printf("select the %s knob of SELECT KNOB1..KNOB4 (Up / Down turn it)\n", k->idx > 0 ? "next" : "previous"); break;
         case KM_SELECT: printf("select knob %s (Up / Down turn it)\n", EMU_ENC_NAME[k->idx]); break;
         case KM_TURN: printf("turn the selected knob %s\n", k->idx > 0 ? "clockwise (+1)" : "counter-clockwise (-1)"); break;
         case KM_SHOT: printf("screenshot of the LCD -> build/emu/shot_NNN.png\n"); break;

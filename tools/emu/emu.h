@@ -10,6 +10,7 @@ enum {
     KM_BTN,        /* idx: button label (EMU_B_*) */
     KM_OCTBOTH,    /* OCT- and OCT+ together */
     KM_SELECT,     /* idx: knob (EMU_E_*): the one Up / Down turn */
+    KM_CYCLE,      /* idx: +1 / -1: select the next / previous of SELECT KNOB1..KNOB4 (wraps) */
     KM_TURN,       /* idx: +1 clockwise, -1 counter-clockwise, the selected knob (repeats while held) */
     KM_SHOT,       /* LCD screenshot */
     KM_RECORD,     /* toggle recording every LCD frame */

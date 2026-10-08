@@ -75,7 +75,7 @@
     el("circle", { cx, cy, r: 12, fill: "#3A393A" }, g);
     const ptr = el("line", { x1: cx, y1: cy - 4, x2: cx, y2: cy - 11, stroke: i === 7 ? "#fff" : C.cream, "stroke-width": 2.4, "stroke-linecap": "round" }, g);
     text(cx, cy - 28, ENC_ROLE[i], 9, ENC_COL[i], g, 900);
-    text(cx, cy + 35, hint("sel", i), 8, C.hint, g, 700);
+    text(cx, cy + 35, hint("sel", i) || "", 8, C.hint, g, 700);
     encEl.push({ sel, ptr, a: 0 });
   }
 
@@ -223,6 +223,10 @@
     else if (m.kind === "btn") hold("b" + m.idx, "kb" + m.code, true);
     else if (m.kind === "both") { hold("b12", "esc", true); hold("b13", "esc", true); }
     else if (m.kind === "sel") { selKnob = m.idx; drawKnobs(); }
+    else if (m.kind === "cycle") {
+      const C5 = [0, 3, 4, 5, 6], at = C5.indexOf(selKnob);
+      selKnob = C5[(((at < 0 ? (m.idx > 0 ? -1 : 0) : at) + m.idx) % 5 + 5) % 5]; drawKnobs();
+    }
     else if (m.kind === "turn") turn(selKnob, selKnob === 7 ? 2 * m.idx : m.idx);
   });
   addEventListener("keyup", (e) => {
