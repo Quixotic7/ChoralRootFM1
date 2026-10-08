@@ -32,7 +32,7 @@
    "KNOB4": "FX"
   }
  },
- "notes": "QUAD, a Digitone-style four-operator FM engine (docs/QUAD.md), the user's page layout: SYN1 under the algorithm diagram with numbers for the ratios (B a fraction) and glyphs for Harm and Dtune (1), the ratio offsets (2), the operator envelopes A and B under a two-envelope band (3), their delays / trigs / resets (4), the multimode filter with its envelope (5), the base-width filter (6), the amp envelope (7), the LFOs (8), the preset pool (9).",
+ "notes": "QUAD, a Digitone-style four-operator FM engine (docs/QUAD.md), the user's page layout: SYN1 under the algorithm diagram with numbers for the ratios (B a fraction) and glyphs for Harm and Dtune (1), the ratio offsets (2), the operator envelopes A and B under a two-envelope band (3), their delays / trigs / resets (4), the multimode filter with its envelope (5), the base-width filter (6), the amp envelope (7), the three LFOs (8), the preset pool (9).",
  "states": [
   {
    "name": "1 \u00b7 QUAD \u00b7 OSC 1: the SYN1 page under the algorithm diagram",
@@ -190,9 +190,9 @@
        },
        {
         "label": "Dtune",
-        "value": "12",
+        "value": "40",
         "glyph": "detune",
-        "pct": 0.094
+        "pct": 0.315
        },
        {
         "label": "Feedback",
@@ -1233,8 +1233,8 @@
    }
   },
   {
-   "name": "8 \u00b7 QUAD \u00b7 LFO 1 (and LFO 2 the same)",
-   "notes": "Two LFOs, a screen each: Speed \u00b7 Mult \u00b7 Fade \u00b7 Dest (an enum over QUAD's parameters: Harm, Dtune, Feedback, Mix, the ratios, the filter's Freq and Reso, Level, Pan) / Wave \u00b7 Phase \u00b7 Mode (free / trig / hold) \u00b7 Depth. The lfo glyph: density = speed, height = depth.",
+   "name": "8 \u00b7 QUAD \u00b7 LFO 1 (LFO 2 and LFO 3 the same, a screen each)",
+   "notes": "Three LFOs, a screen each (the Digitone's): Speed \u00b7 Multiplier \u00b7 Fade \u00b7 Dest (an enum over QUAD's parameters: Harm, Dtune, Feedback, Mix, the ratios, the filter's Freq and Reso, Level, Pan) / Wave \u00b7 Start phase \u00b7 Trig mode (free / trig / hold / one / half) \u00b7 Depth. The lfo glyph: density = speed, height = depth.",
    "export": true,
    "keys": [
     1,

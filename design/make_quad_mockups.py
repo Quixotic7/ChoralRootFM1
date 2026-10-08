@@ -6,7 +6,7 @@
 docs/QUAD.md is the plan; the page layout is the user's (2026-10-07): ratios as plain numbers (B as a fraction B1 over
 B2), Algo a big number, glyphs for Harm and Dtune; the operator envelopes A and B on one screen under a two-envelope
 band with level bars; the filter's two screens (multimode with its envelope; the base-width filter); the amp
-envelope; two LFOs. The designer draws them with: `algo` and `ade2` wide bands, the `filter` band's `bw` window,
+envelope; three LFOs. The designer draws them with: `algo` and `ade2` wide bands, the `filter` band's `bw` window,
 the `harm`, `detune`, `ratio` glyphs and `big` cells.
 """
 import json
@@ -47,7 +47,7 @@ S.append(state(
     encoders={"SELECT": ("SYN 1", "A"), "KNOB1": ("ALGO", "3"), "KNOB2": ("RATIO C", "1.00"), "KNOB3": ("RATIO A", "2.00"), "KNOB4": ("RATIO B", "0.50/1.00")},
     screen=editor_screen(edit8("GLASS EP", "SYN 1 · A", [
         [big("Algo", "3"), big("Ratio C", "1.00"), big("Ratio A", "2.00"), g("Ratio B", "0.50/1.00", "ratio")],
-        [g("Harm", "+8", "harm", 0.5 + 8 / 52), g("Dtune", "12", "detune", 12 / 127), g("Feedback", "40", "bar", 40 / 127), g("Mix", "+12", bipolar=True, pct=0.5 + 12 / 126)]], 0,
+        [g("Harm", "+8", "harm", 0.5 + 8 / 52), g("Dtune", "40", "detune", 40 / 127), g("Feedback", "40", "bar", 40 / 127), g("Mix", "+12", bipolar=True, pct=0.5 + 12 / 126)]], 0,
         wide={"type": "algo", "algo": 3, "fdbk": 0.3, "mix": 0.6}),
         note="SYN1: the diagram; Algo and the ratios as numbers, B a fraction; harm and detune glyphs."),
 ))
@@ -136,9 +136,9 @@ S.append(state(
 
 # 8 ---------------------------------------------------------------- LFO 1
 S.append(state(
-    "8 · QUAD · LFO 1 (and LFO 2 the same)",
-    "Two LFOs, a screen each: Speed · Mult · Fade · Dest (an enum over QUAD's parameters: Harm, Dtune, Feedback, Mix, "
-    "the ratios, the filter's Freq and Reso, Level, Pan) / Wave · Phase · Mode (free / trig / hold) · Depth. The lfo "
+    "8 · QUAD · LFO 1 (LFO 2 and LFO 3 the same, a screen each)",
+    "Three LFOs, a screen each (the Digitone's): Speed · Multiplier · Fade · Dest (an enum over QUAD's parameters: Harm, Dtune, Feedback, Mix, "
+    "the ratios, the filter's Freq and Reso, Level, Pan) / Wave · Start phase · Trig mode (free / trig / hold / one / half) · Depth. The lfo "
     "glyph: density = speed, height = depth.",
     held=["MAJ"], lit=["D4", "F#4", "A4"], buttons=ED | {"LFO": LIT}, button_labels=EDITOR_BUTTON_LABELS,
     encoders={"SELECT": ("LFO", "1"), "KNOB1": ("SPEED", "24"), "KNOB2": ("MULT", "x2"), "KNOB3": ("FADE", "0"), "KNOB4": ("DEST", "HARM")},
@@ -171,7 +171,7 @@ design = {
     "notes": "QUAD, a Digitone-style four-operator FM engine (docs/QUAD.md), the user's page layout: SYN1 under the algorithm "
              "diagram with numbers for the ratios (B a fraction) and glyphs for Harm and Dtune (1), the ratio offsets (2), the "
              "operator envelopes A and B under a two-envelope band (3), their delays / trigs / resets (4), the multimode filter "
-             "with its envelope (5), the base-width filter (6), the amp envelope (7), the LFOs (8), the preset pool (9).",
+             "with its envelope (5), the base-width filter (6), the amp envelope (7), the three LFOs (8), the preset pool (9).",
     "states": S,
 }
 
