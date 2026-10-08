@@ -1,0 +1,806 @@
+{
+ "format": "fm1-panel-design",
+ "version": 1,
+ "device": "M-VAVE FM-1",
+ "name": "ChoralRoot FM-1 preset model mockups",
+ "palette": "MOD",
+ "labels": {
+  "buttons": {
+   "FX": "FX",
+   "SEL": "KEY",
+   "ENV": "BASS",
+   "LFO": "LATCH",
+   "EDIT": "EDIT",
+   "GLO": "OPT",
+   "HOME": "HOME",
+   "SAVE": "SAVE",
+   "ARP": "PERF",
+   "SEQ": "METRO",
+   "PLAY": "LOOP",
+   "REC": "REC",
+   "OCT-": "OCT-",
+   "OCT+": "OCT+"
+  },
+  "encoders": {
+   "MASTER": "VOLUME",
+   "SELECT": "BPM",
+   "PRESETS": "SOUND",
+   "ALGORITHM": "BASS SND",
+   "KNOB1": "VOICING",
+   "KNOB2": "BASS VOICE",
+   "KNOB3": "PERFORM",
+   "KNOB4": "FX"
+  }
+ },
+ "notes": "Presets per engine, one editable pool each: PRESETS turns inside the current engine's pool (1), OPT + PRESETS changes the engine (2), SAVE offers Overwrite or Save as new (3) then the name (4), an overwritten factory preset carries a mark (5), SAVE held in the dialog resets it to factory or deletes a user preset (6).",
+ "states": [
+  {
+   "name": "1 \u00b7 PRESETS turned: the next preset of the current engine",
+   "notes": "PRESETS steps through the presets of the engine the chord part plays, and nothing else: here FM6, preset 05 of 26 (00 INIT, 01..24 the factory presets, then the 2 the user saved; INIT cannot be overwritten). The popup: the number big, the name, 'FM6 \u00b7 05/26' as the label, the stripe meter over the pool. A preset the user overwrote carries a small square mark after its name (state 5). It loads at once, as today.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "SOUND",
+     "value": "05"
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "meter",
+     "value": "05",
+     "sub": "FM PAD",
+     "label": "FM6 \u00b7 05/26",
+     "col": "white",
+     "pct": 0.19230769230769232,
+     "segments": 26
+    },
+    "footer": null,
+    "note": "PRESETS: the preset number big, its name, the engine and the place in its pool."
+   }
+  },
+  {
+   "name": "2 \u00b7 OPT held + PRESETS turned: change the engine",
+   "notes": "OPT (GLO) held while PRESETS turns steps the engine, as a picker: the engine big in white, the neighbours peeking (the firmware's order: ANALOG FM6 VA PHASE CZ-1 LOFI VOICE TRIO WHEEL PHYS NOISE), the pool's size under it. The part switches to that engine's first preset (or the one it was on last in that pool: remembered per engine) when OPT is released. The editor's EDIT-held picker stays for the editor; this is the quick way outside it.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 2,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "ENGINE",
+     "value": "VA"
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "picker",
+     "items": [
+      "ANALOG",
+      "FM6",
+      "VA",
+      "PHASE",
+      "CZ-1",
+      "LOFI",
+      "VOICE",
+      "TRIO",
+      "WHEEL",
+      "PHYS",
+      "NOISE"
+     ],
+     "sel": 2,
+     "label": "engine \u00b7 OPT + PRESETS",
+     "col": "white",
+     "value": "25 presets",
+     "orient": "h"
+    },
+    "footer": null,
+    "note": "OPT + PRESETS: the engine picker, horizontal, the pool size as the value."
+   }
+  },
+  {
+   "name": "3 \u00b7 SAVE tapped: overwrite the current preset, or save as new",
+   "notes": "SAVE tap (on the view or in the editor): two choices, one at a time in the picker: 'Overwrite' (the current preset, named under it: FM PAD, factory or not) and 'Save as new' (the pool's next free place, U27 here). OCT+ takes the choice: Overwrite saves at once and keeps the name; Save as new opens the naming screen (state 4). The default choice is Overwrite when the sound is a user preset or an edited one, Save as new otherwise. OCT- cancels. SAVE held (loops) is unchanged.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 2,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 2,
+    "OCT+": 3
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "SAVE": "tap: the save dialog; held: the loops' save / load / delete",
+    "OCT+": "takes the choice"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "CHOICE",
+     "value": "OVERWRITE"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "picker",
+     "items": [
+      "Overwrite",
+      "Save as new"
+     ],
+     "sel": 0,
+     "label": "save \u00b7 FM6",
+     "col": "white",
+     "value": "FM PAD *"
+    },
+    "footer": {
+     "text": "OCT+: save \u00b7 OCT-: cancel"
+    },
+    "note": "the save dialog: Overwrite (the current preset's name under it) or Save as new."
+   }
+  },
+  {
+   "name": "4 \u00b7 Save as new: the naming screen",
+   "notes": "After 'Save as new': today's naming screen, prefilled with the current name (grey) and the new place (FM6 \u00b7 27); the white roots type, D#4 space, F#4 deletes, KNOB 2 the last letter, SAVE again or OCT+ saves, OCT- cancels.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "A",
+    "11": "B",
+    "12": "C",
+    "14": "D",
+    "16": "E",
+    "18": "F",
+    "19": "G",
+    "21": "H",
+    "23": "I",
+    "24": "J",
+    "26": "K"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 2,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 2,
+    "OCT+": 3
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "SLOT",
+     "value": "FM6 \u00b7 27"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "text",
+     "title": "save sound",
+     "col": "white",
+     "lines": [
+      {
+       "t": "FM6 \u00b7 27",
+       "px": 15,
+       "col": "grey"
+      },
+      {
+       "t": "WARM EP_",
+       "px": 36,
+       "w": 700,
+       "col": "white"
+      },
+      "",
+      {
+       "t": "keys: letters \u00b7 OCT-: delete",
+       "col": "grey"
+      },
+      {
+       "t": "OCT+: save",
+       "col": "grey"
+      }
+     ]
+    },
+    "footer": {
+     "text": "SAVE again: cancel"
+    },
+    "note": "SAVE: the slot and the name being typed; each letter slides in, the cursor blinks."
+   }
+  },
+  {
+   "name": "5 \u00b7 PRESETS on a factory preset the user overwrote",
+   "notes": "The pool is one list: factory preset 02 FM BELL was overwritten by the user; it shows with a small square mark after the name. Turning PRESETS passes through it like any other. There is no separate user bank.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "SOUND",
+     "value": "02"
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "meter",
+     "value": "02",
+     "sub": "MY BELL \u25aa",
+     "label": "FM6 \u00b7 02/26",
+     "col": "white",
+     "pct": 0.07692307692307693,
+     "segments": 26
+    },
+    "footer": null,
+    "note": "an overwritten factory preset: the user's name with the square mark."
+   }
+  },
+  {
+   "name": "6 \u00b7 SAVE held 1 s in the dialog: reset to factory (or delete)",
+   "notes": "SAVE held 1 s inside the save dialog: on an overwritten factory preset the question is 'reset to factory?' (the number huge in red, the factory name under it); on a preset the user added, 'delete?'. OCT+ does it, OCT- keeps.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 2,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 2,
+    "OCT+": 3
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "big",
+     "value": "02",
+     "label": "reset to factory?",
+     "sub": "FM BELL",
+     "col": "red",
+     "size": 96
+    },
+    "footer": {
+     "text": "OCT+: reset \u00b7 OCT-: keep"
+    },
+    "note": "the red question, as today's delete."
+   }
+  }
+ ]
+}
