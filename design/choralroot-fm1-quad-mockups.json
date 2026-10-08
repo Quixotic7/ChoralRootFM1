@@ -1,0 +1,894 @@
+{
+ "format": "fm1-panel-design",
+ "version": 1,
+ "device": "M-VAVE FM-1",
+ "name": "ChoralRoot FM-1 QUAD engine mockups",
+ "palette": "MOD",
+ "labels": {
+  "buttons": {
+   "FX": "FX",
+   "SEL": "KEY",
+   "ENV": "BASS",
+   "LFO": "LATCH",
+   "EDIT": "EDIT",
+   "GLO": "OPT",
+   "HOME": "HOME",
+   "SAVE": "SAVE",
+   "ARP": "PERF",
+   "SEQ": "METRO",
+   "PLAY": "LOOP",
+   "REC": "REC",
+   "OCT-": "OCT-",
+   "OCT+": "OCT+"
+  },
+  "encoders": {
+   "MASTER": "VOLUME",
+   "SELECT": "BPM",
+   "PRESETS": "SOUND",
+   "ALGORITHM": "BASS SND",
+   "KNOB1": "VOICING",
+   "KNOB2": "BASS VOICE",
+   "KNOB3": "PERFORM",
+   "KNOB4": "FX"
+  }
+ },
+ "notes": "QUAD, a Digitone-style four-operator FM engine (docs/QUAD.md): the OSC stack of C A B1 B2 with the harm glyph (1), the ALGO screen with the algorithm diagram band (2), the operator envelopes under the ADE band (3), the preset pool (4), the harm glyph at four values (5).",
+ "states": [
+  {
+   "name": "1 \u00b7 QUAD \u00b7 OSC: the four operators",
+   "notes": "The OSC group is a stack of the four operators C, A, B1, B2 (the Digitone's): Ratio (C fixed at 1.00, dim), Offset (a fine ratio offset), Level (A and B: the modulation ceiling; C: \u2013), Harm (the carriers' waveshape: the harm glyph shows the sine growing harmonics). KNOB 1-4 edit the active row (A here); a tap on OSC steps the row.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 2,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "OP",
+     "value": "A"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "RATIO",
+     "value": "2.00"
+    },
+    "KNOB2": {
+     "note": "OFFSET",
+     "value": "+0.00"
+    },
+    "KNOB3": {
+     "note": "LEVEL",
+     "value": "80"
+    },
+    "KNOB4": {
+     "note": "HARM",
+     "value": "+8"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "stack",
+     "title": "GLASS EP",
+     "right": "OP A \u00b7 A",
+     "cols": [
+      "Ratio",
+      "Offset",
+      "Level",
+      "Harm"
+     ],
+     "rows": [
+      {
+       "label": "C",
+       "cells": [
+        {
+         "label": "Ratio",
+         "value": "1.00",
+         "dim": true
+        },
+        {
+         "label": "Offset",
+         "value": "+0.00"
+        },
+        null,
+        {
+         "label": "Harm",
+         "value": "+8",
+         "glyph": "harm",
+         "pct": 0.654
+        }
+       ]
+      },
+      {
+       "label": "A",
+       "cells": [
+        {
+         "label": "Ratio",
+         "value": "2.00",
+         "pct": 0.3
+        },
+        {
+         "label": "Offset",
+         "value": "+0.00",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "80",
+         "glyph": "bar",
+         "pct": 0.63
+        },
+        {
+         "label": "Harm",
+         "value": "+8",
+         "glyph": "harm",
+         "pct": 0.654
+        }
+       ]
+      },
+      {
+       "label": "B1",
+       "cells": [
+        {
+         "label": "Ratio",
+         "value": "0.50",
+         "pct": 0.1
+        },
+        {
+         "label": "Offset",
+         "value": "+0.00",
+         "pct": 0.5
+        },
+        {
+         "label": "Level",
+         "value": "60",
+         "glyph": "bar",
+         "pct": 0.472
+        },
+        null
+       ]
+      },
+      {
+       "label": "B2",
+       "cells": [
+        {
+         "label": "Ratio",
+         "value": "0.50",
+         "pct": 0.1
+        },
+        {
+         "label": "Offset",
+         "value": "+0.01",
+         "pct": 0.51
+        },
+        {
+         "label": "Level",
+         "value": "60",
+         "glyph": "bar",
+         "pct": 0.472
+        },
+        null
+       ]
+      }
+     ],
+     "active": 1,
+     "hot": null
+    },
+    "footer": null,
+    "note": "QUAD's OSC stack: C A B1 B2; the harm glyph on the carriers; the active row A on the knobs."
+   }
+  },
+  {
+   "name": "2 \u00b7 QUAD \u00b7 ALGO: the algorithm diagram over Algo \u00b7 Feedback \u00b7 Mix \u00b7 Phase",
+   "notes": "OSC's last screen: ALGO. The wide band draws the algorithm: the four operators as boxes, modulators above carriers with arrows, the feedback loop on its operator, the X and Y outputs at the bottom (the MIX cell's value tilts toward X or Y). Turning KNOB 1 redraws the diagram for algorithms 1..8.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 2,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "OSC",
+     "value": "ALGO"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "ALGO",
+     "value": "3"
+    },
+    "KNOB2": {
+     "note": "FEEDBACK",
+     "value": "40"
+    },
+    "KNOB3": {
+     "note": "MIX",
+     "value": "+12"
+    },
+    "KNOB4": {
+     "note": "PHASE",
+     "value": "RESET"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "GLASS EP",
+     "right": "ALGO",
+     "wide": {
+      "type": "algo",
+      "algo": 3,
+      "fdbk": 0.3,
+      "mix": 0.6
+     },
+     "rows": [
+      [
+       {
+        "label": "Algo",
+        "value": "3",
+        "pct": 0.286
+       },
+       {
+        "label": "Feedback",
+        "value": "40",
+        "glyph": "bar",
+        "pct": 0.315
+       },
+       {
+        "label": "Mix",
+        "value": "+12",
+        "pct": 0.595,
+        "bipolar": true
+       },
+       {
+        "label": "Phase",
+        "value": "Reset"
+       }
+      ]
+     ],
+     "active": 0,
+     "hot": null
+    },
+    "footer": null,
+    "note": "the ALGO screen: the diagram of algorithm 3 redraws as KNOB 1 turns."
+   }
+  },
+  {
+   "name": "3 \u00b7 QUAD \u00b7 ENV A: the operator envelope (attack \u00b7 decay \u00b7 end \u00b7 level)",
+   "notes": "The ENV group: after the platform's amp ADSR, QUAD's two operator envelopes. ENV A is an edit8 under the ADE band: the modulation index rises to LEVEL over ATTACK, falls to END over DECAY, then holds; row B: Delay (the envelope starts late), Reset (restart on every note), Key trk, Vel. The band's segment being turned is thick in its knob's colour.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 2,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "ENV",
+     "value": "A"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "ATTACK",
+     "value": "12"
+    },
+    "KNOB2": {
+     "note": "DECAY",
+     "value": "60"
+    },
+    "KNOB3": {
+     "note": "END",
+     "value": "20"
+    },
+    "KNOB4": {
+     "note": "LEVEL",
+     "value": "90"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "GLASS EP",
+     "right": "ENV A \u00b7 mod",
+     "wide": {
+      "type": "ade",
+      "a": 0.1,
+      "d": 0.47,
+      "end": 0.16,
+      "lev": 0.71,
+      "seg": 1
+     },
+     "rows": [
+      [
+       {
+        "label": "Attack",
+        "value": "12",
+        "pct": 0.1
+       },
+       {
+        "label": "Decay",
+        "value": "60",
+        "pct": 0.47
+       },
+       {
+        "label": "End",
+        "value": "20",
+        "pct": 0.16
+       },
+       {
+        "label": "Level",
+        "value": "90",
+        "pct": 0.71
+       }
+      ],
+      [
+       {
+        "label": "Delay",
+        "value": "0",
+        "pct": 0.0
+       },
+       {
+        "label": "Reset",
+        "value": "On"
+       },
+       {
+        "label": "Key trk",
+        "value": "40",
+        "pct": 0.31
+       },
+       {
+        "label": "Vel",
+        "value": "50",
+        "pct": 0.39
+       }
+      ]
+     ],
+     "active": 0,
+     "hot": null
+    },
+    "footer": null,
+    "note": "ENV A: the ADE band (rise to LEVEL, fall to END, hold), the Decay segment thick (KNOB 2)."
+   }
+  },
+  {
+   "name": "4 \u00b7 PRESETS on QUAD: the pool",
+   "notes": "QUAD in the preset model: PRESETS turns inside its pool (00 INIT, the factory presets, yours); the popup names it like every engine. OPT + PRESETS reaches QUAD between FM6 and VA in the engine order.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "SOUND",
+     "value": "03"
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "",
+     "right": "",
+     "batt": false,
+     "usb": false
+    },
+    "cards": null,
+    "panel": {
+     "kind": "meter",
+     "value": "03",
+     "sub": "GLASS EP",
+     "label": "QUAD \u00b7 03/17",
+     "col": "white",
+     "pct": 0.17647058823529413,
+     "segments": 17
+    },
+    "footer": null,
+    "note": "PRESETS on QUAD: 03 GLASS EP of 17."
+   }
+  },
+  {
+   "name": "5 \u00b7 the harm glyph: HARM from -26 to +26",
+   "notes": "The carriers' waveshape control as a picture: HARM 0 is a sine; positive values add the odd series (toward a square), negative values add every harmonic (toward a saw). Four values on one row (the editor's two-row kind used for the study).",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB2": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB4": {
+     "note": "",
+     "value": ""
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "glyph study",
+     "right": "harm",
+     "wide": null,
+     "rows": [
+      [
+       {
+        "label": "Harm",
+        "value": "-26",
+        "glyph": "harm",
+        "pct": 0.0
+       },
+       {
+        "label": "Harm",
+        "value": "-10",
+        "glyph": "harm",
+        "pct": 0.308
+       },
+       {
+        "label": "Harm",
+        "value": "+10",
+        "glyph": "harm",
+        "pct": 0.692
+       },
+       {
+        "label": "Harm",
+        "value": "+26",
+        "glyph": "harm",
+        "pct": 1.0
+       }
+      ],
+      [
+       {
+        "label": "Algo",
+        "value": "1",
+        "pct": 0.0
+       },
+       {
+        "label": "Algo",
+        "value": "4",
+        "pct": 0.429
+       },
+       {
+        "label": "Algo",
+        "value": "6",
+        "pct": 0.714
+       },
+       {
+        "label": "Algo",
+        "value": "8",
+        "pct": 1.0
+       }
+      ]
+     ],
+     "active": 0,
+     "hot": null
+    },
+    "footer": null,
+    "note": "harm at four values; (row B: algorithm numbers, their diagrams are state 2's band)."
+   }
+  }
+ ]
+}
