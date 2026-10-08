@@ -1,7 +1,7 @@
 # ChoralRoot (test_cr.sh): BASS (printed ENV) with the chord part. MAJ + D4 held: part 0 sounds (the reference); BASS
 # tapped: the bass meter popup (cr_bass_both_pop), its LED, then "Bass" in orange top right once the popup has gone
-# (cr_bass_both_on); MAJ + D4 again: part 0 AND part 1 sound (Chords Only, the default Bass Behaviour); ALGORITHM +1
-# with the chord held (another bass sound): part 0 still sounds; BASS tapped off: its LED off, a chord on part 0 only.
+# (cr_bass_both_on); MAJ + D4 again: part 0 AND part 1 sound (Chords Only, the default Bass Behaviour); ALGORITHM -5
+# with the chord held (another bass sound: ANALOG 03 SQR BASS): part 0 still sounds; BASS tapped off: its LED off, a chord on part 0 only.
 # Then Bass Behaviour Solo (the BASS layer locked, G4 = Solo, HOME): the bass on silences part 0 by design (the
 # device report "the bass stops the main synth": Solo stored in the settings), shown as "Bass Solo" top right
 # (cr_bass_both_solo) and "bass . solo" on the meter; D4 in the layer puts Chords Only back: both parts again.
@@ -27,7 +27,7 @@ btn D4 down
 wait 500
 expect sound
 dump
-knob ALGORITHM +1
+knob ALGORITHM -5
 wait 500
 dump
 btn D4 up

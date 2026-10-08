@@ -1,9 +1,9 @@
-# All-synth (docs/INTEGRATION.md "All-synth"): the bank rows that were sample-based play synth sounds now. PRESETS +2
-# -> row 3, PIANO (FM6: TINE EP's patch through the macros); +12 -> row 15, CLOUD PAD (VA); +1 -> row 16, SHIMMER
-# (VA). Each: a 4-note chord (MAJ + M7 on D4) held 1.2 s, the sound checked, released; SHIMMER's long release
+# All-synth (docs/INTEGRATION.md "All-synth"): the sounds that were sample-based are synth sounds now. PRESETS +24
+# -> FM6 25, PIANO (TINE EP's patch through the macros); OPT + PRESETS +1 (the VA) then PRESETS +23 -> VA 24, CLOUD
+# PAD; +1 -> VA 25, SHIMMER. Each: a 4-note chord (MAJ + M7 on D4) held 1.2 s, the sound checked, released; SHIMMER's long release
 # and the reverb still sound 13 s after (about 12 s), then silence (no voice left)
 wait 500
-knob PRESETS +2
+knob PRESETS +24
 wait 600
 dump
 key F3 down
@@ -18,8 +18,14 @@ btn D4 up
 key F3 up
 key 4 up
 key 5 up
-wait 300
-knob PRESETS +12
+wait 50
+btn GLO down
+wait 100
+knob PRESETS +1               # OPT + PRESETS: the engine (FM6 -> VA), on OPT's release
+wait 100
+btn GLO up
+wait 50
+knob PRESETS +23              # VA 24 CLOUD PAD
 wait 600
 dump
 key F3 down

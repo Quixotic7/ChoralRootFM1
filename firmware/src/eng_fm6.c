@@ -33,8 +33,9 @@
  * the sound editor (eng_deep_t FM6_DEEP: the operators, ALGO, the operator envelopes and the pitch EG, the LFO, the
  * function settings), and the patch blob (fm6_blob_*: the voice 7-bit packed with the function settings, 128
  * bytes) that a user slot keeps (fm6_ustore.c, as the VA's va_store.c). The function settings are the patch's here:
- * a factory sound loads Dexed's, a user sound its own. ChoralRoot's PIANO (FELUCCA_SAMPLE 0) stays a preset of F1
- * through the macros. No web editor (editor_fm6.c is Felucca's, not in ChoralRoot's unit), no STORE page. */
+ * a factory sound loads Dexed's, a user sound its own. ChoralRoot's PIANO (FELUCCA_SAMPLE 0) is factory preset 25
+ * (F1 through the macros: the pool's 25, docs/PRESETS.md), and its presets 2, 5, 7, 8 take the names the curated bank
+ * showed (FM BELL, FM PAD, FM ORGAN, FM PLUCK). No web editor (editor_fm6.c is Felucca's, not in ChoralRoot's unit), no STORE page. */
 #include "fm6_core.c"
 #include "felucca_fm6.h"         /* tools/gen_fm6_patches.py: FM6_INIT, FM6_FACTORY[FM6_NFACTORY] (F1..F8) */
 
@@ -1053,15 +1054,20 @@ _Static_assert(NELEM(N_FM6_PATCH) == FM6_NSLOT + 1u, "a PTCH name per slot");
 /* {ALG, FB, MLVL, MRAT, MEG, VMOD, DTUN, PTCH}: F1..F8 (Felucca's) as they are, DTUN on the pad; F9..F24
  * (Melodee's) as they are */
 #define FM6_PR(name, ptch, mono, fx) {name, {0, 0, 0, 0, 0, 0, 0, ptch}, {0, 0, 127, 0}, 0, mono, fx}
+#if FELUCCA_SAMPLE
+#define FM6_NM(felucca, choralroot) felucca
+#else                                    /* ChoralRoot (docs/PRESETS.md): the names its curated bank showed, now the pool's */
+#define FM6_NM(felucca, choralroot) choralroot
+#endif
 static const preset_t FM6_PRESETS[] = {
     {"TINE EP", {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 127, 0}, 0, 0, FX(0, 45, 25, 35), PAT(6)},
-    {"BELL", {0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 127, 0}, 0, 0, FX(0, 10, 30, 70), PAT(7)},
+    {FM6_NM("BELL", "FM BELL"), {0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 127, 0}, 0, 0, FX(0, 10, 30, 70), PAT(7)},
     {"FM BASS", {0, 0, 0, 0, 0, 0, 0, 2}, {0, 0, 127, 0}, 0, 1, FX(0, 0, 10, 10), PAT(2)},
     {"BRASS", {0, 0, 0, 0, 0, 0, 0, 3}, {0, 0, 127, 0}, 0, 0, FX(0, 25, 20, 40), PAT(4)},
-    {"PAD", {0, 0, 0, 0, 0, 0, 30, 4}, {0, 0, 127, 0}, 0, 0, FX(0, 60, 30, 70), PAT(5)},
+    {FM6_NM("PAD", "FM PAD"), {0, 0, 0, 0, 0, 0, 30, 4}, {0, 0, 127, 0}, 0, 0, FX(0, 60, 30, 70), PAT(5)},
     {"MARIMBA", {0, 0, 0, 0, 0, 0, 0, 5}, {0, 0, 127, 0}, 0, 0, FX(0, 0, 25, 40), PAT(3)},
-    {"ORGAN", {0, 0, 0, 0, 0, 0, 0, 6}, {0, 0, 127, 0}, 0, 0, FX(10, 40, 0, 30), PAT(6)},
-    {"PLUCK", {0, 0, 0, 0, 0, 0, 0, 7}, {0, 0, 127, 0}, 0, 0, FX(0, 20, 35, 30), PAT(13)},
+    {FM6_NM("ORGAN", "FM ORGAN"), {0, 0, 0, 0, 0, 0, 0, 6}, {0, 0, 127, 0}, 0, 0, FX(10, 40, 0, 30), PAT(6)},
+    {FM6_NM("PLUCK", "FM PLUCK"), {0, 0, 0, 0, 0, 0, 0, 7}, {0, 0, 127, 0}, 0, 0, FX(0, 20, 35, 30), PAT(13)},
     FM6_PR("DX TINE", 8, 0, FX(0, 50, 25, 35)),
     FM6_PR("BRASS SECT", 9, 0, FX(0, 20, 20, 40)),
     FM6_PR("SOLID BASS", 10, 1, FX(0, 0, 10, 10)),
@@ -1079,7 +1085,7 @@ static const preset_t FM6_PRESETS[] = {
     FM6_PR("SAW BASS", 22, 1, FX(20, 0, 10, 10)),
     FM6_PR("TUBULAR", 23, 0, FX(0, 0, 30, 80)),
 #if !FELUCCA_SAMPLE
-    /* PIANO (ChoralRoot's all-synth bank, cr_bank.c: SAMPLE's PIANO retired): TINE EP's patch (F1) as a piano hybrid,
+    /* PIANO (ChoralRoot: F25, the FM6 pool's 25, docs/PRESETS.md; SAMPLE's PIANO retired): TINE EP's patch (F1) as a piano hybrid,
      * through the macros only: the modulators an octave up (MRAT +1: the even partials of a struck string instead of
      * the tine's), brighter (MLVL +10), their envelopes faster (MEG -16: a hammer transient that mellows), more
      * velocity on the brightness (VMOD +2), a little feedback grit (FB +1) and the carriers slightly apart (DTUN 12:
@@ -1088,6 +1094,7 @@ static const preset_t FM6_PRESETS[] = {
 #endif
 };
 #undef FM6_PR
+#undef FM6_NM
 _Static_assert(FM6_NROM == 16u, "FM6: the presets name F9..F24");
 
 /* ------------------------------------------------ ChoralRoot: the patch blob --- */

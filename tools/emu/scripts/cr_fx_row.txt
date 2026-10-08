@@ -1,8 +1,9 @@
 # ChoralRoot: the fx layer is a knob row (cr_screen.h CR_K_KNOBROW): FX held and released locks it open on Reverb
 # (Size / Damp / Type / Amount with their glyphs); KNOB 2 turned: the Damp cell hot (its value on an orange block),
-# no popup (run with EMU_UI_LOG=0: every UI frame stays "knobrow"); 900 ms later the hot block is gone; F4 picks
-# Delay (Time / Feedback / Colour / Amount); KNOB 4: the amount cell hot; E4: Chorus (Rate / Depth / - / Amount);
-# G4: Drive (- - - Amount); FX tap: off (the amount reads "off"); OCT- closes the layer.
+# no popup (run with EMU_UI_LOG=0: every UI frame stays "knobrow"); 900 ms later the hot block is gone; SELECT +2
+# picks Delay (Time / Feedback / Colour / Amount; the roots play the chord in FX); KNOB 4: the amount cell hot; SELECT
+# -1: Chorus (Rate / Depth / - / Amount); +2: Drive (- - - Amount); D4 + MAJ: the chord sounds in the layer; FX tap:
+# off (the amount reads "off"); OCT- closes the layer.
 wait 300
 btn FX down
 wait 500
@@ -14,17 +15,26 @@ wait 100
 shot build/emu/test/cr_fx_row_hot.ppm
 wait 900
 shot build/emu/test/cr_fx_row_cool.ppm
-btn F4
-wait 300
+knob SELECT +2
+wait 400
 shot build/emu/test/cr_fx_row_delay.ppm
 knob KNOB4 +3
 wait 100
 shot build/emu/test/cr_fx_row_amount.ppm
 wait 900
-btn E4
-wait 300
+knob SELECT -1
+wait 400
 shot build/emu/test/cr_fx_row_chorus.ppm
-btn G4
+knob SELECT +2
+wait 400
+key F3 down
+wait 40
+btn D4 down
+wait 300
+expect sound
+expect led D4 on
+btn D4 up
+key F3 up
 wait 300
 btn FX
 wait 300

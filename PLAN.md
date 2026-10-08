@@ -73,13 +73,13 @@ layer or out, is always the button's on/off action.
 | Printed | ChoralRoot | Tap | Hold (opens and stays; OCT− / HOME closes) |
 | --- | --- | --- | --- |
 | SEL | **KEY** | Key Mode on/off (LED lit when on) | key layer, a **knob row** whose band is the keyboard (the tonic lit yellow): root keys = tonic (MIN held too = minor key), KNOB 1–4 = TONIC / SCALE / TRANSPOSE (shift glyph) / SINGLE NOTES as cells, no popups, the turned cell hot |
-| ARP | **PERF** | performance on/off | perform layer: white root keys D4–C5 = STRUM, STRUM 2, SLOP, ARP, ARP 2, PATTERN, HARP (press = selected and on); KNOB 1–4 = the mode's parameters, a **knob row** (the mode on top, its four parameters as cells: rate / division echoes, direction arrow, range, gate, slop amount bar; no popup, the turned cell hot) |
-| FX | **FX** | the sound's main effect on/off | fx layer, a **knob row**: white root keys pick the effect (the picker on top), KNOB 1–3 its parameters, KNOB 4 the amount, all four shown as cells with their glyphs under it (no popup; the turned cell hot) |
+| ARP | **PERF** | performance on/off | perform layer: SELECT picks STRUM, STRUM 2, SLOP, ARP, ARP 2, PATTERN, HARP (picked = on); the root keys play the chord, so a mode is heard at once (their LEDs the chord's); KNOB 1–4 = the mode's parameters, a **knob row** (the mode on top, its four parameters as cells: rate / division echoes, direction arrow, range, gate, slop amount bar; no popup, the turned cell hot) |
+| FX | **FX** | the sound's main effect on/off | fx layer, a **knob row**: SELECT picks the effect (the picker on top; the root keys play the chord), KNOB 1–3 its parameters, KNOB 4 the amount, all four shown as cells with their glyphs under it (no popup; the turned cell hot) |
 | ENV | **BASS** | bass on/off | bass layer, a **knob row**: KNOB 1–4 = BEHAVIOUR (Chords Only / Unison / Single Notes / Solo; text) / REGISTER (shift glyph) / SOUND (text) / LEVEL (bar), no popups, the turned cell hot; root keys preview the bass; **BASS held + EDIT** = the bass sound's editor |
 | LFO | **LATCH** | Sticky keys / arp hold on/off | — |
-| GLO | **OPT** | Options menu open/close | held + a knob = that knob's second function (Orchid's press+turn): KNOB 1 split point, SELECT metronome level, ALGORITHM bass volume. In the editor: SHIFT |
+| GLO | **OPT** | Options menu open/close | held + a knob = that knob's second function (Orchid's press+turn): KNOB 1 split point, SELECT metronome level, ALGORITHM bass volume, **PRESETS the chord part's engine** (a horizontal picker while OPT is held; on release the part lands on its last place in that engine's pool, docs/PRESETS.md). In the editor: SHIFT |
 | HOME | **HOME** | back to the view from any page, menu, layer or the editor; tapped again on the view: next View (CHORD / KEYBOARD / NOTES / GEEK OUT / SCOPE) | — |
-| SAVE | **SAVE** | save the sound to one of 32 user slots, named with the keys (Orchid's Sound long press); the same dialog in the editor | save / load / delete loops (Orchid's Loop long press; a plain picker, no ring) |
+| SAVE | **SAVE** | the save dialog (docs/PRESETS.md): **Overwrite** the current preset (saved at once, its name kept; a factory preset is overwritten by a user record bound to it) or **Save as new** (the pool's next place, then the name typed with the keys); OCT+ / SAVE takes it, OCT− cancels; SAVE held 1 s in the dialog: reset to factory / delete; the same dialog in the editor | save / load / delete loops (Orchid's Loop long press; a plain picker, no ring) |
 | SEQ | **METRO** | metronome / beat on-off (Orchid's BPM press) | metronome layer, a **knob row**: the time signature (4/4 3/4 6/8) over CLICK (KNOB 1, bar) and three empty cells; no popup |
 | PLAY | **LOOP** | play / stop the loop (green LED = playing) | loop layer, a **knob row** with no ring: white root keys = slots 1–10, D#4 = CLEAR (hold 1 s), F#4 = UNDO; the length picker over SYNC (range) / QUANTIZE (echoes) / COUNT-IN (gate) / LEVEL (bar), KNOB 1 = the picker, no popups; while playing, the Overdub / Pause / Undo / Clear picker (OCT+ does it), SYNC dim, the corner dial in the top line |
 | REC | **REC** | record (count-in, then the sync length) / overdub arm; red LED blinks while recording | undo the last layer |
@@ -95,8 +95,8 @@ says so).
 | --- | --- | --- | --- |
 | MASTER | VOLUME | the pot | — |
 | SELECT | BPM | tempo 20–300 (in menus and pickers: scroll; in the editor: what the section's tap steps) | metronome volume |
-| PRESETS | SOUND | browse the chord/perform sound (popup list, loads at once) | — |
-| ALGORITHM | BASS SOUND | browse the bass sounds (Orchid's Bass Dial turn) | bass volume |
+| PRESETS | SOUND | the chord part's engine's **pool** (docs/PRESETS.md): 00 INIT, the factory presets, the user's; wraps, loads at once, popup "05 / FM PAD / FM6 · 05/26" | OPT held: the engine |
+| ALGORITHM | BASS SOUND | the bass part's engine's pool, 00 = OFF before it (Orchid's Bass Dial turn); the bass engine: BASS held + EDIT, the editor's EDIT-held picker | bass volume |
 | KNOB 1 | **VOICING** | Orchid's Chord Voicing: lowest note up an octave / highest down, one click = one note; **never reassigned** outside the layers and the editor | single-note split point |
 | KNOB 2 | BASS VOICE | bass register, octaves | — |
 | KNOB 3 | PERFORM | the selected mode's main parameter (strum speed, slop amount, arp rate, pattern number, harp speed) | — |
@@ -126,7 +126,7 @@ is displayed permanently for the knobs. In a layer KNOB 1–4 are the layer's; i
   there).
 - **Menus**: OPT tap opens the Options (one setting per screen); SELECT scrolls, KNOB 1 sets, OCT− back, OCT+
   enters, HOME or OPT leaves.
-- **Popups** (stock FM-1 / Felucca): turning PRESETS or ALGORITHM shows the list for a second; turning SELECT shows
+- **Popups** (stock FM-1 / Felucca): turning PRESETS or ALGORITHM shows the place in the engine's pool for a second; turning SELECT shows
   the BPM meter; a knob turn shows its meter briefly.
 - **Panic**: OCT− + OCT+ pressed together — a chord nothing else uses, so it can never fire while OPT
   is held as a shift; LEDs flash, screen message, CC 123 on all three channels, octave reset, LOCK latch cleared,
@@ -135,8 +135,9 @@ is displayed permanently for the knobs. In a layer KNOB 1–4 are the layer's; i
   SHIFT + EDIT inside switches part). The function buttons become seven sections — OSC FILT ENV LFO on the top row
   (the signal flow), MOD FX MIX on the bottom (the output stage) — each one view on the full screen; a section tap
   steps the active row, a hold swaps to its B bank, KNOB 1–4 edit the active row, OPT is SHIFT (fine steps). EDIT
-  tap or HOME leaves; every section remembers its row and bank. SAVE stores the result in one of 32 user slots,
-  named with the keys, listed after the factory bank on PRESETS (user bass sounds the same on ALGORITHM). The whole
+  tap or HOME leaves; every section remembers its row and bank. SAVE stores the result (docs/PRESETS.md): Overwrite
+  (over the current preset, a factory one included: a user record bound to it, resettable) or Save as new (the
+  engine's pool's next place, named with the keys); each user preset is one of the 32 user slots. The whole
   spec: [`docs/EDITOR.md`](docs/EDITOR.md). Felucca's web editor stays for deep FM6 patches, backup and restore.
 - **MIDI**: USB MIDI in and out and TRS MIDI in (Felucca's `usb.c`, `midi_uart.c`; ChoralRoot's `cr_midi.c`). Out:
   the three streams on channels 1 / 2 / 3 (each on/off in Options), 24-PPQN clock out, start/stop with the loop.
@@ -305,8 +306,9 @@ firmware/src/
                     view-models  [being built]
     cr_pages.c      the parameter catalogue the editor draws from: the platform pages, the engines' EDIT 1/2,
                     deep pages, labels, glyphs, value text
-    cr_bank.c       the factory bank (24 chord sounds, 8 basses, trims; all synth: PIANO on FM6, CLOUD PAD and
-                    SHIMMER on the VA) and the user slots (wraps upreset.c)
+    cr_bank.c       the pools (docs/PRESETS.md: one per engine, INIT, the factory presets each replaced by the
+                    user's record bound to it, the added ones), the loud presets' trims, the save with the
+                    binding (wraps upreset.c's 32 slots)
     cr_name.c       naming with the root keys (SAVE)
     cr_settings.c/.h  the settings record in Felucca's settings_persist.c (docs/SETTINGS.md)
     cr_screen.h, cr_draw.c, cr_gfx.c   the screens (CR_SCREENS.md): the view-model and its drawing, scalable text
@@ -330,7 +332,8 @@ and its tests (each behind its flag, default 1 there).
   arps are sample-stable; the UI polls edges from the main loop.
 - **Sound**: two Felucca *parts* — CHORD (POLY, the chord / performance notes) and BASS (MONO) — each
   with its own engine + preset; the raw-chord stream is MIDI-only by default (Orchid defaults it off).
-  ChoralRoot ships its own preset bank (`cr_bank.c`) and keeps Felucca's engines and user slots.
+  ChoralRoot keeps Felucca's engines, their factory presets and user slots, as one editable pool per engine
+  (`cr_bank.c`, docs/PRESETS.md; FM6 gains PIANO as F25).
 - **Polyphony**: Melodee's voice model: 16 budget units shared, an FM6 voice one (FM6, Melodee's Dexed-exact engine:
   8 a part here, `FM6_POLY`), any other two (the VA's `poly` is 8); docs/FM6.md. A 6-note chord + bass fits; chord
   changes steal the old chord's releasing voices, now with a one-block fade (§9).

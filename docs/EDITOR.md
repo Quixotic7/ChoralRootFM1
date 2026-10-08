@@ -214,13 +214,15 @@ While the editor is open the edit wins over OPT's outside knob functions (split 
 ## 7. The engine picker: a preview (EDIT held, or PRESETS in the editor; main walk-through state 22)
 
 On opening, the picker **snapshots** the part's sound: every parameter, the engine, the deep patch (`deep->blob_get`,
-the VA's), the `edited` flag and the user slot link. Then, as before:
+the VA's), the `edited` flag and the pool entry it came from (its place in the pool). Then, as before:
 
 - the white root keys are the engines in the firmware's order (ANALOG, FM6, VA, PHASE, CZ-1, LOFI, VOICE, TRIO,
   WHEEL, PHYS, NOISE: D4..G5; SAMPLE, GRAIN and DRUM are not in the all-synth firmware). A root switches the sound's engine, keeping its envelope and sends;
-- KNOB 1 (and PRESETS) steps the engine's factory presets, loaded for preview. The preset meter's bar **jumps** to the
-  value (no fill animation, that popup only);
-- KNOB 2 inits the sound;
+- KNOB 1 (and PRESETS) steps the engine's **pool**, the same list PRESETS turns outside the editor (docs/PRESETS.md: 00
+  INIT, the factory presets, each replaced by the user's record bound to it, the user's added presets), loaded for
+  preview; the meter is PRESETS' ("05 / FM PAD / FM6 · 05/26"), its bar **jumps** to the value (no fill animation,
+  that popup only). There are no separate "templates": the factory presets are the pool's;
+- KNOB 2 inits the sound (the pool's 00);
 - **KNOB 4** switches the roots' job: `roots: engines` (they pick engines) or `roots: play` (they play the previewed
   sound; engines are then chosen with SELECT only). The footer shows it. The choice is a setting (`pick_roots`,
   docs/SETTINGS.md), default engines.
@@ -238,11 +240,19 @@ Traces: `picker: open part 0 LUSH PAD crc 1a2b roots engines`, `picker: cancel p
 
 ## 8. Save (SAVE tap; main walk-through state 23)
 
-The same dialog as outside: KNOB 1 picks the user slot (U01–U32; a used one shows its name), the white roots type the
-name (phone style), D#4 a space, **F#4 deletes** the last letter, KNOB 2 the last letter. **SAVE again or OCT+ saves**;
-**OCT− or HOME cancels**. SAVE held 1 s on a used slot asks "delete?" (OCT+ yes, OCT− no). EDIT keeps blinking; the
-dialog returns to the editor view. On the bass part it saves the bass sound (listed on ALGORITHM); on the chord part
-the chord sound (listed after the factory bank on PRESETS). A VA sound saves its patch with it (`va_store.c`), an FM6
+The same dialog as outside (docs/PRESETS.md; preset sheet 3, 4, 6). First a two-item picker (KNOB 1 or SELECT):
+**Overwrite** (the current preset; its name under it, `*` when edited) or **Save as new**; the default is Overwrite on a
+user preset or an edited sound, Save as new otherwise. **SAVE again or OCT+ takes it**, **OCT− or HOME cancels**.
+Overwrite saves at once and keeps the name: over a factory preset it writes a user record bound to it (the factory
+one stays recoverable), over a user preset its slot, on INIT (which cannot be overwritten) it is Save as new.
+Overwrite never renames (a new name: Save as new, then delete the old one). Save as new takes the first free user slot,
+which is the engine's pool's next place ("FM6 · 27"), then the naming page: the white roots type the name (phone
+style, prefilled with the current one), D#4 a space, **F#4 deletes** the last letter, KNOB 2 the last letter, SAVE or
+OCT+ saves. No free slot (32 user presets): "no free slot". **SAVE held 1 s in the dialog**: "reset to factory?" on an
+overwritten factory preset, "delete?" on an added one, the place huge in red (OCT+ does it, OCT− keeps); after a reset
+the factory preset is back at its place, after a delete the pool closes up. EDIT keeps blinking; the dialog returns to
+the editor view. On the bass part it saves the bass sound (into the bass part's engine's pool, on ALGORITHM); on the
+chord part the chord sound (PRESETS). A VA sound saves its patch with it (`va_store.c`), an FM6
 sound its voice and function settings (`fm6_ustore.c`, docs/FM6.md), a CZ-1 sound its tone (`cz_ustore.c`, docs/CZ1.md).
 
 ## 9. Screens

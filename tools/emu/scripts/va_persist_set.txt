@@ -1,8 +1,13 @@
-# test_persist.sh, VA run 1: PRESETS +24 (LUSH PAD, the VA), EDIT (B): the sound editor; FILT (printed SEL, X):
+# test_persist.sh, VA run 1: OPT + PRESETS (the VA: LUSH PAD), EDIT (B): the sound editor; FILT (printed SEL, X):
 # the filter, KNOB 2 +9: the cutoff (the patch changes), HOME; SAVE, OCT+ (U01): the trace "va: save slot 1 .. patch
-# crc XXXX"; the settings record saved (the chord sound: U01's place on PRESETS) past the quiet time; quit
-wait 500
-knob PRESETS +24
+# crc XXXX"; SAVE's default on an edited
+# sound: Overwrite, a record bound to LUSH PAD in U01 (VA 01); the settings record saved (the chord sound: VA 01) past the quiet time; quit
+wait 300                      # (+ 200 ms of the engine change below: the same timeline)
+btn GLO down
+wait 100
+knob PRESETS +1               # OPT + PRESETS: the engine (FM6 -> VA, LUSH PAD: its pool position 01), on OPT's release
+wait 100
+btn GLO up
 wait 400
 btn EDIT 100
 wait 300

@@ -1,8 +1,27 @@
 # tools/emu/perf.sh (g): a 6-note CZ-1 chord (CZ STRINGS 2, Casio's A-5: both lines) + the CZ-1 bass (CZ BASS) held 3 s, a chord change, 3 s more, released (docs/CZ1.md)
-wait 500
-knob PRESETS +45
 wait 300
-knob ALGORITHM +13
+btn ENV down                  # the bass part's engine (docs/PRESETS.md: BASS held + EDIT, the editor's EDIT-held picker):
+wait 50
+btn EDIT                      # BASS held + EDIT: the bass sound's editor
+btn ENV up
+wait 300
+btn EDIT 600                  # EDIT held: the engine picker (the bass part)
+wait 200
+btn A4                        # the fifth white root: CZ-1
+wait 200
+btn OCT+                      # kept
+wait 200
+btn EDIT                      # the editor closed
+wait 200
+btn GLO down
+wait 100
+knob PRESETS +3               # OPT + PRESETS: the chord part to the CZ-1 (01 BRASS 1), on OPT's release
+wait 100
+btn GLO up
+wait 50
+knob PRESETS +4               # CZ-1 05 STRINGS 2
+wait 300
+knob ALGORITHM +14            # OFF -> CZ-1 13 SYNTH.BASS
 wait 300
 dump
 key F3 down

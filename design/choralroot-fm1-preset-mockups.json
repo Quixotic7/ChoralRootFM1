@@ -500,11 +500,11 @@
      "value": ""
     },
     "KNOB1": {
-     "note": "SLOT",
-     "value": "FM6 \u00b7 27"
+     "note": "",
+     "value": ""
     },
     "KNOB2": {
-     "note": "",
+     "note": "LETTER",
      "value": ""
     },
     "KNOB3": {
@@ -556,7 +556,7 @@
     "footer": {
      "text": "SAVE again: cancel"
     },
-    "note": "SAVE: the slot and the name being typed; each letter slides in, the cursor blinks."
+    "note": "Save as new: the place it takes in the engine's pool and the name being typed; each letter slides in, the cursor blinks."
    }
   },
   {

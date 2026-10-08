@@ -16,8 +16,10 @@
  * sends, levels: written as Felucca's UI writes them), fm1_led / fm1_led_dim, and one cr_screen_t per frame for
  * cr_draw.c.
  *
- * Sounds: PRESETS / ALGORITHM browse cr_bank.c's lists (the ChoralRoot bank, then the user slots of upreset.c); EDIT
- * opens the sound pages (cr_pages.c), EDIT held the engine picker, SAVE the naming screen (cr_name.c) into a slot.
+ * Sounds (docs/PRESETS.md): PRESETS / ALGORITHM turn through the pool of the part's engine (cr_bank.c: INIT, the
+ * engine's factory presets, each replaced by the user's record bound to it, the presets the user added; the records are
+ * upreset.c's 32 slots); OPT + PRESETS changes the chord part's engine; EDIT opens the sound pages (cr_pages.c), EDIT
+ * held the engine picker, SAVE the save dialog (Overwrite / Save as new, then the naming screen, cr_name.c).
  * The looper (cr_loop.c, docs/LOOPER.md): LOOP / REC / METRO and their layers, SAVE held (the loop slots in flash),
  * the ring and the transport's top line.
  * Included after cr_out.c, cr_anim.c, gfx.c, cr_gfx.c, cr_draw.c, panel.c, cr_bank.c, cr_pages.c and cr_name.c. */
@@ -144,10 +146,20 @@ static int cu_has(const char *s, const char *w)                /* w occurs in s 
 static const char *const CU_NOTE[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
 /* --------------------------------------------------------------- sounds --- */
-/* PRESETS browses the chord sounds: the ChoralRoot bank (cr_bank.c CB_CHORD), then the user slots; ALGORITHM the
- * basses (CB_BASS, then the user basses), position 0 = OFF. Each part remembers its sound's name, whether it was
- * edited since (the sound pages, the engine picker) and the user slot it came from (trk[].user, 0 none). */
-static struct { char name[13]; uint8_t edited; } psnd[2];
+/* PRESETS turns through the pool of the chord part's engine (cr_bank.c pool_*), ALGORITHM the bass part's (position 0
+ * = OFF, then the pool). Each part remembers its sound's name, whether it was edited since (the sound pages, the
+ * engine picker, a SysEx patch), and the pool entry it came from (kind PK_INIT / PK_FACTORY / PK_USER, the factory
+ * preset fk, the user slot): its place in the pool follows from it (cu_part_pos), and SAVE's Overwrite writes over it
+ * even once edited (trk[].user, the slot the sound is as stored, is 0 then). */
+typedef struct { char name[13]; uint8_t edited, kind, fk, slot; } cu_snd_t;
+static cu_snd_t psnd[2];
+static void cu_snd_set(uint32_t part, uint32_t kind, uint32_t fk, uint32_t slot)
+{
+    psnd[part].kind = (uint8_t)kind;
+    psnd[part].fk = (uint8_t)fk;
+    psnd[part].slot = (uint8_t)slot;
+    psnd[part].edited = 0;
+}
 
 static uint32_t cu_preset_orig(const engine_t *e, uint32_t k)  /* ui.c preset_orig: a retired alias -> the original */
 {
@@ -190,7 +202,7 @@ static void cu_load(track_t *t, uint32_t e, uint32_t pi, int bass)
     t->eng_req = (uint8_t)(e % NENGINES);
     t->preset = (uint8_t)pi;
     t->user = 0;
-    t->trim = 0;                                  /* (the bank's: cu_list_load) */
+    t->trim = 0;                                  /* (a loud preset's: cu_pool_load, cr_bank.c cb_trim) */
     for (i = 0; i < P_E0; i++)
         if (!cu_kept(i))
             t->p[i] = TP[i].def;
@@ -209,7 +221,7 @@ static void cu_load(track_t *t, uint32_t e, uint32_t pi, int bass)
     fm1_irq_on();
     if (t - trk < 2) {
         str_cpy(psnd[t - trk].name, pr->name, sizeof psnd[0].name);
-        psnd[t - trk].edited = 0;
+        cu_snd_set((uint32_t)(t - trk), pool_f0(e % NENGINES) > pi ? PK_INIT : PK_FACTORY, pi, PF_NONE);
     }
 }
 
@@ -268,28 +280,77 @@ static void cu_load_user(track_t *t, uint32_t k, int bass)
         fm6_track_loaded(t);
     }
     t->user = (uint8_t)(k + 1u);
-    t->trim = 0;                                  /* a user sound: no trim (cr_bank.c) */
+    t->trim = 0;                                  /* an added user preset: no trim (a bound one: cu_pool_load) */
     if (t - trk < 2) {
         up_name(k, psnd[t - trk].name);
-        psnd[t - trk].edited = 0;
+        cu_snd_set((uint32_t)(t - trk), PK_USER, cb_bound(k), k);
     }
 }
 
-/* list position pos of PRESETS (bass 0) / ALGORITHM's bass list (bass 1, pos 0-based) into its part */
+/* the init sound of engine e into the part (the pool's position 0): the engine's parameter defaults, the part's own
+ * kept (cu_kept), MONO on the bass, POLY on the chord part, no trim */
+static void cu_init_load(uint32_t part, uint32_t e)
+{
+    track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
+    const engine_t *en = ENGINES[e % NENGINES];
+    uint32_t i;
+    fm1_irq_off();
+    t->eng_req = (uint8_t)(e % NENGINES);
+    t->preset = 0;
+    t->user = 0;
+    for (i = 0; i < P_E0; i++)
+        if (!cu_kept(i))
+            t->p[i] = TP[i].def;
+    for (i = 0; i < 8u; i++)
+        t->p[P_E0 + i] = en->edit[i].def;
+    t->p[P_VOICE] = part ? V_MONO : V_POLY;
+    t->trim = 0;
+    panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
+    fm1_irq_on();
+    fm6_track_loaded(t);
+    str_cpy(psnd[part].name, "INIT", sizeof psnd[0].name);
+    cu_snd_set(part, PK_INIT, PF_NONE, PF_NONE);
+}
+
+/* the part's place in its engine's pool (cr_bank.c), from the entry its sound came from (0: INIT, or a user preset
+ * no longer in the pool) */
+static uint32_t cu_part_pos(uint32_t part)
+{
+    uint32_t e = trk[part ? CR_PART_BASS : CR_PART_CHORD].eng_req % NENGINES;
+    switch (psnd[part].kind) {
+    case PK_USER: return pool_pos_slot(e, psnd[part].slot);
+    case PK_FACTORY: return pool_pos_factory(e, psnd[part].fk);
+    default: return 0u;
+    }
+}
+/* PRESETS' and ALGORITHM's positions from the parts' sounds (after a load, a save, a delete: the pools moved), and the
+ * per-engine memory of each part (cs.pool_pos: OPT + PRESETS lands there). (cs is defined below) */
+static void cu_pos_sync(void);
+
+/* pool position pos of engine e into the part (0 chord, 1 bass): INIT, a factory preset (its trim), or a user preset
+ * (a bound one: its factory preset's trim) */
+static void cu_pool_load(uint32_t part, uint32_t e, uint32_t pos)
+{
+    track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
+    pool_ent_t en;
+    e %= NENGINES;
+    en = pool_entry(e, pos);
+    if (en.kind == PK_USER) {
+        cu_load_user(t, en.slot, (int)part);
+        if (en.fk != PF_NONE)
+            t->trim = cb_trim(e, en.fk);
+    } else if (en.kind == PK_FACTORY) {
+        cu_load(t, e, en.fk, (int)part);
+        t->trim = cb_trim(e, en.fk);
+    } else {
+        cu_init_load(part, e);
+    }
+    cu_pos_sync();
+}
+/* position pos of the part's own pool (PRESETS: the chord part, bass 0; ALGORITHM's: bass 1, pos 0-based) */
 static void cu_list_load(int bass, uint32_t pos)
 {
-    track_t *t = &trk[bass ? CR_PART_BASS : CR_PART_CHORD];
-    uint32_t k;
-    if (pos < (bass ? CB_NBASS : CB_NCHORD)) {
-        const cb_entry_t *en = &(bass ? CB_BASS : CB_CHORD)[pos];
-        cu_load(t, en->engine, (bass ? cb_bass_p : cb_chord_p)[pos], bass);
-        t->trim = en->trim;                       /* the bank sound's trim after LEVEL (cr_bank.c) */
-        str_cpy(psnd[bass].name, en->name, sizeof psnd[0].name);
-        return;
-    }
-    k = cb_slot_at(bass, pos);
-    if (k < UP_SLOTS)
-        cu_load_user(t, k, bass);
+    cu_pool_load(bass ? 1u : 0u, trk[bass ? CR_PART_BASS : CR_PART_CHORD].eng_req, pos);
 }
 
 /* ------------------------------------------------------------- settings --- */
@@ -337,8 +398,9 @@ static struct {
     uint16_t bpm;
     int16_t par[CR_PM_COUNT][CR_P_COUNT];
     uint8_t fx_on, fx_sel, fx_amt[CU_NFX];
-    uint16_t sound, bass_sound;           /* list positions (bass 0 = OFF) */
-    uint16_t bass_default;                /* BASS tapped with the bass OFF: this one */
+    uint16_t sound, bass_sound;           /* pool positions: PRESETS (the chord part's), ALGORITHM (0 = OFF, pos + 1) */
+    uint8_t pool_pos[2][NENG_SHOWN];      /* per part, per engine (ENGINE_ORDER rank): the pool position last played
+                                           * (OPT + PRESETS lands there; Settings v6) */
     uint8_t view, leds;
     uint8_t ch[CR_NSTREAM];               /* MIDI channel 1..16, 0 = off */
     uint8_t raw_sound;                    /* RAW also plays part 0 */
@@ -360,6 +422,16 @@ static uint8_t cr_restore_lock;            /* cr_backup.c: a settings record was
                                             * older, so no settings save until the restart (RESTART, or a power cycle) */
 #define CR_SETTINGS_BUSY() (cr_snap.lstate == CRL_PLAYING || cr_restore_lock)   /* cr_settings.c: no flash erase while a
                                                                                  * loop plays (nor over a restore) */
+
+static void cu_pos_sync(void)
+{
+    uint32_t p0 = cu_part_pos(0), p1 = cu_part_pos(1);
+    cs.sound = (uint16_t)p0;
+    if (cs.bass_sound)
+        cs.bass_sound = (uint16_t)(p1 + 1u);
+    cs.pool_pos[0][eng_rank(trk[CR_PART_CHORD].eng_req % NENGINES)] = (uint8_t)p0;
+    cs.pool_pos[1][eng_rank(trk[CR_PART_BASS].eng_req % NENGINES)] = (uint8_t)p1;
+}
 
 static void cu_post_key(void) { cr_post(CRE_KEYMODE, cs.key_on, cs.tonic, cs.scale); }
 static void cu_post_single(void) { cr_post(CRE_SINGLE, cs.single, 0, cs.split); }
@@ -495,19 +567,16 @@ static void cu_fx_cells(cr_screen_t *s)
     }
     cu_hot_row(s, L_FX);
 }
-static void cu_sound_go(uint32_t pos)             /* PRESETS: the bank, then the user slots */
+static void cu_sound_go(uint32_t pos)             /* PRESETS: position pos of the chord part's pool */
 {
-    uint32_t n = cb_count(0);
-    if (!n)
-        return;
-    cs.sound = (uint16_t)(pos % n);
-    cu_list_load(0, cs.sound);
+    uint32_t n = pool_count(trk[CR_PART_CHORD].eng_req % NENGINES);
+    cu_list_load(0, pos % n);
     cu_sends_to_fx();
 }
-static void cu_bass_go(uint32_t pos)              /* ALGORITHM: 0 OFF, 1.. the bank, then the user basses */
+static void cu_bass_go(uint32_t v)                /* ALGORITHM: 0 OFF, 1.. the bass part's pool (position v - 1) */
 {
-    uint32_t n = cb_count(1);
-    cs.bass_sound = (uint16_t)(pos > n ? n : pos);
+    uint32_t n = pool_count(trk[CR_PART_BASS].eng_req % NENGINES);
+    cs.bass_sound = (uint16_t)(v > n ? n : v);
     if (cs.bass_sound)
         cu_list_load(1, cs.bass_sound - 1u);
     cs.bass_on = cs.bass_sound != 0u;
@@ -667,8 +736,10 @@ static struct {
     uint8_t opt_open, opt_sel;
     uint8_t page;                         /* PG_* */
     uint32_t last_sound;                  /* the last time a chord sounded or a key was held */
-    struct { uint32_t until; uint8_t kind, col, segs, jump; uint16_t pct; char value[8], sub[12], label[24]; } pop;
-                                          /* jump: the meter's bar jumps to the value (no fill: the picker's preview) */
+    struct { uint32_t until; uint8_t kind, col, segs, jump, mark; uint16_t pct; char value[8], sub[12], label[24]; } pop;
+                                          /* jump: the meter's bar jumps to the value (no fill: the picker's preview);
+                                           * mark: the square after the name (an overwritten factory preset) */
+    uint8_t epk_on, epk_rank;             /* OPT held + PRESETS: the engine picker, the engine (ENGINE_ORDER rank) */
     struct { uint32_t until; uint8_t big, col; char text[24], label[32]; } msg;   /* big: 1 PANIC, 2 red type */
 } cu;
 
@@ -681,8 +752,11 @@ static struct {
     uint32_t t0;                          /* .. when */
     uint16_t from_pct, shown_pct[4];      /* the turned glyph's tween: from, and what each column last showed */
     uint8_t from_env[4], shown_env[4][4];
-    uint8_t save_part, slot, save_from_edit;
-    uint8_t del_ask;                      /* naming: SAVE held 1 s on a used slot: "delete?" (OCT+ yes, OCT- no) */
+    uint8_t save_part, slot, save_from_edit;   /* SAVE: the part saved, the slot written (Save as new: the free one) */
+    uint8_t save_step, save_choice;       /* 0 the choice (save_choice 0 Overwrite, 1 Save as new), 1 the naming page */
+    uint8_t save_pos;                     /* Save as new: the place in the pool it takes ("FM6 \267 27") */
+    uint8_t del_ask;                      /* SAVE held 1 s in the dialog on a user preset: 1 "delete?", 2 "reset to
+                                           * factory?" (an overwritten factory preset); OCT+ does it, OCT- keeps */
 } ce;
 #define CU_GLYPH_MS 220u                  /* a turned column's glyph eases to its new value */
 #ifdef CR_TRACE                           /* the emulator's headless logs (tools/emu/emu_firmware.h) */
@@ -706,6 +780,7 @@ static void cu_save_commit(void);
 static void cu_save_delete(void);
 static void cu_pick_begin(void);
 static void cu_pick_end(int keep);
+static void cu_epk_commit(void);
 static uint32_t cu_layer(void);
 static uint32_t cu_now(void) { return fm1_ms; }
 
@@ -724,6 +799,7 @@ static void cu_popup(const char *value, const char *sub, const char *label, uint
     cu.pop.until = cu_now() + CR_POPUP_MS;
     cu.pop.kind = PU_METER;
     cu.pop.jump = 0;
+    cu.pop.mark = 0;
     cu_cpy(cu.pop.value, value, sizeof cu.pop.value);
     cu_cpy(cu.pop.sub, sub, sizeof cu.pop.sub);
     cu_cpy(cu.pop.label, label, sizeof cu.pop.label);
@@ -742,22 +818,54 @@ static void cu_popup_num(int32_t v, int plus, const char *sub, const char *label
     cu_popup(b, sub, label, col, v, lo, hi, segs);
 }
 
-/* PRESETS / ALGORITHM's meter: the bank number (a user sound: its slot number) and the name */
+/* the emulator's trace of a text with the middle dot (Latin-1 0xB7) as UTF-8 */
+static void cu_trace_txt(const char *t)
+{
+#ifdef CR_TRACE
+    for (; *t; t++) {
+        if ((uint8_t)*t == 0xB7u)
+            printf("\xc2\xb7");
+        else
+            putchar(*t);
+    }
+#else
+    (void)t;
+#endif
+}
+/* a pool's meter (mock-up: design/choralroot-fm1-preset-screens.png 1, 5): the position big ("05"), the name (an
+ * overwritten factory preset: a square mark after it), "FM6 \267 05/26" (the engine, the position, the pool's size;
+ * the bass: in orange, " \267 solo" with Bass Behaviour Solo), the stripes over the pool (at most 32) */
+static void cu_pool_popup(uint32_t part, uint32_t pos)
+{
+    char b[8], nm[13], lb[24], c[8];
+    uint32_t e = trk[part ? CR_PART_BASS : CR_PART_CHORD].eng_req % NENGINES, n = pool_count(e);
+    pool_ent_t en = pool_entry(e, pos);
+    cu_2d(b, pos, sizeof b);
+    pool_name(e, pos, nm);
+    cu_cpy(lb, ENGINES[e]->name, sizeof lb);
+    cu_cat(lb, " \267 ", sizeof lb);
+    cu_2d(c, pos, sizeof c);
+    cu_cat(lb, c, sizeof lb);
+    cu_cat(lb, "/", sizeof lb);
+    cu_2d(c, n, sizeof c);
+    cu_cat(lb, c, sizeof lb);
+    if (part && cs.bass_mode == CR_BASS_SOLO)     /* Bass Behaviour Solo: the chord part is silent while it is on */
+        cu_cat(lb, " \267 solo", sizeof lb);
+    cu_popup(b, nm, lb, part ? CR_COL_ORANGE : CR_COL_WHITE, (int32_t)pos, 0, (int32_t)n, n > 32u ? 32u : n);
+    cu.pop.mark = en.kind == PK_USER && en.fk != PF_NONE;
+    cu_trace("popup: part %u %s / %s%s / ", (unsigned)part, b, nm, cu.pop.mark ? " (mark)" : "");
+    cu_trace_txt(lb);
+    cu_trace("\n");
+}
+/* PRESETS / ALGORITHM's meter: the part's place in its pool (the bass OFF: "00 off") */
 static void cu_sound_popup(int bass)
 {
-    char b[8], nm[13], lb[24];
-    uint32_t pos = bass ? (cs.bass_sound ? cs.bass_sound - 1u : 0u) : cs.sound, k = cb_slot_at(bass, pos);
-    uint32_t n = cb_count(bass);
     if (bass && (!cs.bass_sound || !cs.bass_on)) {   /* (BASS tapped off: its sound kept for the next tap) */
-        cu_popup("00", "off", "bass", CR_COL_ORANGE, 0, 0, (int32_t)n, 12);
+        cu_popup("00", "off", "bass", CR_COL_ORANGE, 0, 0, 12, 12);
+        cu_trace("popup: part 1 00 / off / bass\n");
         return;
     }
-    cu_2d(b, k < UP_SLOTS ? k + 1u : pos + 1u, sizeof b);
-    cb_name(bass, pos, nm);
-    cu_cpy(lb, k < UP_SLOTS ? (bass ? "user bass" : "user sound") : bass ? "bass" : "sound", sizeof lb);
-    if (bass && cs.bass_mode == CR_BASS_SOLO)     /* Bass Behaviour Solo: the chord part is silent while it is on */
-        cu_cat(lb, " \267 solo", sizeof lb);
-    cu_popup(b, nm, lb, bass ? CR_COL_ORANGE : CR_COL_WHITE, (int32_t)pos, 0, (int32_t)n - 1, bass ? 12 : 16);
+    cu_pool_popup(bass ? 1u : 0u, bass ? cs.bass_sound - 1u : cs.sound);
 }
 /* upreset.c's messages (cr_bank.c declares them) */
 static void ui_say(const char *a, const char *b)
@@ -1137,9 +1245,12 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
         cu_fx_apply();
         break;
     case BT_BASS:
-        if (!cs.bass_on && !cs.bass_sound)
-            cu_bass_go(cs.bass_default);
-        else {
+        if (!cs.bass_on && !cs.bass_sound) {      /* ALGORITHM at OFF: the bass part's sound (the last one, the
+                                                   * stored one at power-on) at its place in its pool */
+            cs.bass_sound = (uint16_t)(cu_part_pos(1) + 1u);
+            cs.bass_on = 1;
+            cr_post(CRE_BASS, 0, 0, 1);
+        } else {
             cs.bass_on ^= 1u;
             cr_post(CRE_BASS, 0, 0, cs.bass_on);
         }
@@ -1343,62 +1454,43 @@ static void cu_engine_switch(uint32_t part, uint32_t e)
     fm1_irq_on();
     fm6_track_loaded(t);
     str_cpy(psnd[part].name, en->npresets ? en->presets[p0].name : en->name, sizeof psnd[0].name);
+    cu_snd_set(part, pool_f0(e) > p0 || !en->npresets ? PK_INIT : PK_FACTORY, p0, PF_NONE);   /* (its first preset) */
     cu_edited(part);
+    cu_pos_sync();
     cu_trace("engine: part %u -> %s\n", (unsigned)part, en->name);
 }
 static void cu_engine_pick(uint32_t i) { cu_engine_switch(ce.part, cu_engine_at(i, 0)); }   /* EDIT held: a root */
 
-/* EDIT held + KNOB 1 (or the ENGINE page's PRESET): the part's engine's next factory preset, loaded whole */
-static void cu_engine_preset_step(int32_t s)
+/* EDIT held + KNOB 1 (PRESETS in the editor): the next place in the pool of the part's engine, loaded whole (the
+ * pool PRESETS turns: docs/PRESETS.md) */
+static void cu_pool_step(int32_t s)
 {
-    track_t *t = cu_edit_trk();
-    const engine_t *en = ENGINES[t->eng_req % NENGINES];
-    uint32_t n = en->npresets, k = t->preset, i;
-    if (!n)
-        return;
-    for (i = 0; i < n; i++) {                      /* past the retired aliases */
-        k = (k + (s > 0 ? 1u : n - 1u)) % n;
-        if (cu_preset_orig(en, k) == k)
-            break;
-    }
-    cu_load(t, t->eng_req, k, ce.part);
-    if (!ce.part)
+    uint32_t part = ce.part, e = cu_edit_trk()->eng_req % NENGINES, n = pool_count(e), pos;
+    pos = (cu_part_pos(part) + (uint32_t)(s % (int32_t)n + (int32_t)n)) % n;
+    cu_pool_load(part, e, pos);
+    if (!part)
         cu_sends_to_fx();
-    cu_trace("preset: part %u -> %s / %s\n", (unsigned)ce.part, en->name, en->presets[k].name);
+    cu_trace("preset: part %u -> %s / %s (%u)\n", (unsigned)part, ENGINES[e]->name, psnd[part].name, (unsigned)pos);
 }
 
-/* EDIT held + KNOB 2 (or the ENGINE page's INIT): the init sound of the part's engine */
+/* EDIT held + KNOB 2 (or the ENGINE page's INIT): the init sound of the part's engine (its pool's position 0) */
 static void cu_sound_init(uint32_t part)
 {
     track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
-    const engine_t *en = ENGINES[t->eng_req % NENGINES];
-    uint32_t i;
-    fm1_irq_off();
-    for (i = 0; i < P_E0; i++)
-        if (!cu_kept(i))
-            t->p[i] = TP[i].def;
-    for (i = 0; i < 8u; i++)
-        t->p[P_E0 + i] = en->edit[i].def;
-    t->p[P_VOICE] = part ? V_MONO : V_POLY;
-    t->trim = 0;
-    panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
-    fm1_irq_on();
-    fm6_track_loaded(t);
+    cu_pool_load(part, t->eng_req, 0);
     if (!part)
         cu_sends_to_fx();
-    str_cpy(psnd[part].name, "INIT", sizeof psnd[0].name);
-    cu_edited(part);
     cu_message("init sound", CR_COL_WHITE);
-    cu_trace("init: part %u %s\n", (unsigned)part, en->name);
+    cu_trace("init: part %u %s\n", (unsigned)part, ENGINES[t->eng_req % NENGINES]->name);
 }
 
 /* the engine picker as a PREVIEW (EDIT held; PRESETS turned in the editor): the part's sound as it was at its opening
  * (every parameter, the engine, the deep patch, the flags and the user slot); OCT- / HOME put it back, OCT+ / EDIT
  * keep what was loaded (a fresh load: not edited). Main loop only */
 static struct {
-    uint8_t on, part, eng, preset, user, trim, edited, changed, fx_on, fx_amt[CU_NFX], has_blob;
+    uint8_t on, part, eng, preset, user, trim, changed, fx_on, fx_amt[CU_NFX], has_blob;
     int16_t p[P_COUNT];
-    char name[13];
+    cu_snd_t snd;                                 /* the part's sound: its name, edited, its pool entry */
     uint8_t blob[ENG_BLOB_MAX];
 } cpk __attribute__((section(".pool")));
 
@@ -1432,18 +1524,17 @@ static void cu_pick_begin(void)
     cpk.preset = t->preset;
     cpk.user = t->user;
     cpk.trim = (uint8_t)t->trim;
-    cpk.edited = psnd[ce.part].edited;
     cpk.changed = 0;
     cpk.fx_on = cs.fx_on;
     for (i = 0; i < CU_NFX; i++)
         cpk.fx_amt[i] = cs.fx_amt[i];
     for (i = 0; i < P_COUNT; i++)
         cpk.p[i] = t->p[i];
-    cu_cpy(cpk.name, psnd[ce.part].name, sizeof cpk.name);
+    cpk.snd = psnd[ce.part];
     cpk.has_blob = d && d->blob_get && d->blob_set && d->blob_size && d->blob_size <= sizeof cpk.blob;
     if (cpk.has_blob)
         d->blob_get(t, cpk.blob);
-    cu_trace("picker: open part %u %s crc %04x roots %s\n", (unsigned)cpk.part, cpk.name, (unsigned)cu_snd_crc(t),
+    cu_trace("picker: open part %u %s crc %04x roots %s\n", (unsigned)cpk.part, cpk.snd.name, (unsigned)cu_snd_crc(t),
              cs.pick_roots ? "engines" : "play");
 }
 
@@ -1481,8 +1572,8 @@ static void cu_pick_end(int keep)
             for (i = 0; i < CU_NFX; i++)
                 cs.fx_amt[i] = cpk.fx_amt[i];
         }
-        cu_cpy(psnd[cpk.part].name, cpk.name, sizeof psnd[0].name);
-        psnd[cpk.part].edited = cpk.edited;
+        psnd[cpk.part] = cpk.snd;                 /* (its name, edited, its place in the pool) */
+        cu_pos_sync();
     }
     cu_trace("picker: cancel part %u -> %s crc %04x\n", (unsigned)cpk.part, psnd[cpk.part].name, (unsigned)cu_snd_crc(t));
 }
@@ -1497,114 +1588,193 @@ static void cu_pick_open(void)                     /* PRESETS turned in the edit
 #include "cr_edit.c"                       /* the sound editor: its state, input and screen */
 static void cu_edit_open(uint32_t part) { ce_open(part); }
 
+/* SAVE (docs/PRESETS.md; mock-ups design/choralroot-fm1-preset-screens.png 3, 4, 6): a tap opens the dialog, two
+ * choices: Overwrite (the current preset: saved at once, its name kept) and Save as new (the next free slot: the
+ * pool's next place, then the naming page prefilled with the current name). The default: Overwrite on a user preset
+ * or an edited sound, Save as new otherwise. OCT+ (or SAVE again) takes the choice, OCT- cancels. Overwrite on a
+ * factory preset saves a record bound to it (into the first free slot), on a user preset rewrites its slot (its
+ * binding and name kept), on INIT (which cannot be overwritten) is Save as new. Overwrite never renames: a new name
+ * is a Save as new (and the old one deleted). SAVE held 1 s in the dialog: "reset to factory?" on an overwritten
+ * factory preset, "delete?" on an added one; OCT+ does it. No free slot: "no free slot". Every user preset is one of
+ * upreset.c's 32 records (cr_bank.c cb_store writes the binding) */
 static void cu_save_open(uint32_t part)
 {
     if (cr_safe) {                                 /* SAFE MODE: the user sounds are neither read nor written */
         cu_message("safe mode: no saving", CR_COL_RED);
         return;
     }
-    track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
-    uint32_t k;
     ce.save_part = (uint8_t)part;
     ce.save_from_edit = cu.page == PG_EDIT;
-    if (t->user && t->user <= UP_SLOTS)            /* the slot the sound came from, else the first empty one */
-        ce.slot = (uint8_t)(t->user - 1u);
-    else {
-        for (k = 0; k < UP_SLOTS && up_used(k); k++)
-            ;
-        ce.slot = (uint8_t)(k < UP_SLOTS ? k : 0u);
-    }
-    cn_open(psnd[part].name);
+    ce.save_step = 0;
+    ce.save_choice = psnd[part].kind == PK_USER || psnd[part].edited ? 0u : 1u;
     ce.del_ask = 0;
     cu.opt_open = 0;
     cu.lock = L_NONE;
     cu.page = PG_SAVE;
+    cu.pop.until = 0;                              /* (a PRESETS meter would hide the dialog) */
+    cu_trace("save: dialog part %u %s%s (%s)\n", (unsigned)part, psnd[part].name, psnd[part].edited ? "*" : "",
+             ce.save_choice ? "save as new" : "overwrite");
 }
 static void cu_save_close(void) { cu.page = ce.save_from_edit ? PG_EDIT : PG_NONE; }
 
-/* OCT+ on the naming screen: the part's sound -> slot ce.slot (every parameter, no pattern) */
-static void cu_save_commit(void)
+/* "FM6 27": the engine and a place of its pool (b holds 24) */
+static void cu_place(char *b, uint32_t e, uint32_t pos, const char *sep)
 {
-    uint32_t part = ce.save_part, k = ce.slot, i;
+    char n[8];
+    cu_cpy(b, ENGINES[e % NENGINES]->name, 24);
+    cu_cat(b, sep, 24);
+    cu_2d(n, pos, sizeof n);
+    cu_cat(b, n, 24);
+}
+static void cu_save_done(uint32_t part, uint32_t k, int rc, const char *what)   /* after cb_store: the message */
+{
     track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
-    up_rec_t r;
-    char name[16], l[4], b[24];
-    int rc;
-    cn_result(name);
-    if (up_used(k) && t->user == k + 1u && !psnd[part].edited) {   /* its own slot, not edited: a rename */
-        rc = up_rename(k, name);
-        up_slot_label(l, k);
-        cu_trace("save: part %u slot %s rename %s rc %d\n", (unsigned)part, l, name, rc);
-        if (rc == 0 || rc == 3) {
-            up_name(k, psnd[part].name);
-            cu_cpy(b, "renamed ", sizeof b);
-            cu_cat(b, l, sizeof b);
-            cu_message(b, CR_COL_GREEN);
-            cu.page = ce.save_from_edit ? PG_EDIT : PG_NONE;   /* (the editor behind it: back to it) */
-        } else {
-            cu_message("save error", CR_COL_RED);
-        }
+    char b[24], l[24];
+    if (rc != 0 && rc != 3) {
+        cu_message(rc == 2 ? "save error" : "bad slot", CR_COL_RED);
         return;
     }
-    memset(&r, 0, sizeof r);
-    r.used = UP_USED;
-    r.ver = UP_VER;
-    r.engine = t->eng_req;
-    r.np = P_COUNT;
-    up_set_name(&r, k, name);
-    for (i = 0; i < P_COUNT; i++) {
-        int16_t v = t->p[i];
-        if (i == P_VOICE && part && v != V_MONO && v != V_LEGATO)
-            v = V_MONO;                            /* a bass is listed on ALGORITHM by its MONO */
-        up_set_value(&r, i, (int16_t)clamp(v, -64, 127));
-    }
-    rc = up_put(k, &r);
-    up_slot_label(l, k);
-    cu_trace("save: part %u slot %s name %s rc %d\n", (unsigned)part, l, r.name, rc);
-    if (rc == 0 || rc == 3) {
-        t->user = (uint8_t)(k + 1u);
-        up_name(k, psnd[part].name);
-        psnd[part].edited = 0;
-        if (part)
-            cs.bass_sound = (uint16_t)(cb_user_bass(k) ? cb_pos_of_slot(1, k) + 1u : cs.bass_sound);
-        else
-            cs.sound = (uint16_t)cb_pos_of_slot(0, k);
-        cu_cpy(b, "saved ", sizeof b);
-        cu_cat(b, l, sizeof b);
-        cu_message(b, CR_COL_GREEN);
-        cu.page = ce.save_from_edit ? PG_EDIT : PG_NONE;
-    } else {
-        cu_message(rc == 2 ? "save error" : "bad slot", CR_COL_RED);
-    }
+    t->user = (uint8_t)(k + 1u);
+    up_name(k, psnd[part].name);
+    cu_snd_set(part, PK_USER, cb_bound(k), k);
+    cu_pos_sync();
+    cb_pool_check();
+    cu_place(l, t->eng_req, cu_part_pos(part), " ");
+    cu_cpy(b, what, sizeof b);
+    cu_cat(b, l, sizeof b);
+    cu_message(b, CR_COL_GREEN);
+    cu_save_close();
 }
 
-/* SAVE held 1 s on the naming screen, OCT+: user slot ce.slot emptied (upreset.c up_put(k, 0), as Felucca's ERASE) */
+/* OCT+ (or SAVE) on the choice */
+static void cu_save_take(void)
+{
+    uint32_t part = ce.save_part, k, f;
+    track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
+    uint32_t e = t->eng_req % NENGINES;
+    int rc;
+    char l[4], nm[13];
+    if (ce.save_choice == 0u && psnd[part].kind != PK_INIT) {     /* Overwrite */
+        cu_cpy(nm, psnd[part].name, sizeof nm);
+        if (psnd[part].kind == PK_USER && up_used(psnd[part].slot)) {
+            k = psnd[part].slot;
+            f = cb_bind_raw(k);                    /* (its binding as it is) */
+            memcpy(nm, up_rec(k)->name, 12);      /* (its name as stored, case and all) */
+            nm[12] = 0;
+        } else {
+            f = psnd[part].kind == PK_FACTORY ? psnd[part].fk : PF_NONE;
+            k = f != PF_NONE ? pool_bound_slot(e, f) : UP_SLOTS;
+            if (k >= UP_SLOTS)
+                k = cb_free_slot();
+        }
+        if (k >= UP_SLOTS) {
+            cu_message("no free slot", CR_COL_RED);
+            cu_trace("save: no free slot\n");
+            return;
+        }
+        rc = cb_store(t, part, k, nm, f != PF_NONE ? f + 1u : 0u);
+        up_slot_label(l, k);
+        cu_trace("save: part %u overwrite slot %s %s %02u %s rc %d\n", (unsigned)part, l, ENGINES[e]->name,
+                 (unsigned)(f != PF_NONE ? pool_pos_factory(e, f) : pool_pos_slot(e, k)), nm, rc);
+        cu_save_done(part, k, rc, "saved ");
+        return;
+    }
+    k = cb_free_slot();                            /* Save as new: the next free slot, the pool's next place */
+    if (k >= UP_SLOTS) {
+        cu_message("no free slot", CR_COL_RED);
+        cu_trace("save: no free slot\n");
+        return;
+    }
+    ce.slot = (uint8_t)k;
+    ce.save_pos = (uint8_t)pool_pos_new(e, k);
+    ce.save_step = 1;
+    cn_open(psnd[part].name);
+    up_slot_label(l, k);
+    cu_trace("save: new part %u %s %02u (slot %s)\n", (unsigned)part, ENGINES[e]->name, (unsigned)ce.save_pos, l);
+}
+
+/* OCT+ (or SAVE) on the naming page: the part's sound -> slot ce.slot, added to the pool, named */
+static void cu_save_commit(void)
+{
+    uint32_t part = ce.save_part, k = ce.slot;
+    track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
+    char name[16], l[4];
+    int rc;
+    if (ce.save_step == 0u) {
+        cu_save_take();
+        return;
+    }
+    cn_result(name);
+    if (up_used(k)) {                              /* (taken meanwhile: a SysEx, the backup) */
+        k = cb_free_slot();
+        if (k >= UP_SLOTS) {
+            cu_message("no free slot", CR_COL_RED);
+            return;
+        }
+    }
+    rc = cb_store(t, part, k, name, 0);
+    up_slot_label(l, k);
+    cu_trace("save: part %u slot %s name %s rc %d\n", (unsigned)part, l, name, rc);
+    cu_save_done(part, k, rc, "saved ");
+}
+
+/* SAVE held 1 s in the dialog: the question about the current preset (none for INIT or a factory preset) */
+static void cu_save_ask(void)
+{
+    uint32_t part = ce.save_part;
+    if (psnd[part].kind != PK_USER || !up_used(psnd[part].slot)) {
+        cu_message(psnd[part].kind == PK_INIT ? "INIT: nothing to delete" : "factory: nothing to reset", CR_COL_RED);
+        cu_trace("save: nothing to delete\n");
+        return;
+    }
+    ce.del_ask = cb_bound(psnd[part].slot) != PF_NONE ? 2u : 1u;
+    cu_trace("save: %s %s?\n", ce.del_ask == 2u ? "reset" : "delete", psnd[part].name);
+}
+
+/* OCT+ on the question: the record deleted (upreset.c up_put(k, 0), as Felucca's ERASE). Reset: the factory preset
+ * back at its place (loaded); delete: the pool closes up, the part loads what is now at its place (the one before at
+ * the end). The other part, if it played that record: its sound stays, unsaved (edited, no place: INIT's) */
 static void cu_save_delete(void)
 {
-    uint32_t k = ce.slot, n;
-    char l[4], b[24];
-    int rc;
+    uint32_t part = ce.save_part, k = psnd[part].slot, other = part ^ 1u, f, pos, n;
+    track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
+    uint32_t e = t->eng_req % NENGINES;
+    char l[4], b[24], pl[24];
+    int rc, reset = ce.del_ask == 2u;
     ce.del_ask = 0;
+    if (psnd[part].kind != PK_USER || k >= UP_SLOTS)
+        return;
+    f = cb_bound(k);
+    pos = cu_part_pos(part);
     rc = up_put(k, 0);
     up_slot_label(l, k);
-    cu_trace("save: delete slot %s rc %d\n", l, rc);
+    cu_trace("save: %s slot %s rc %d\n", reset ? "reset" : "delete", l, rc);
     if (rc != 0 && rc != 3) {
         cu_message("delete error", CR_COL_RED);
         return;
     }
-    n = cb_count(0);                               /* the lists lost a user slot: their positions follow */
-    if (trk[CR_PART_CHORD].user)
-        cs.sound = (uint16_t)cb_pos_of_slot(0, trk[CR_PART_CHORD].user - 1u);
-    else if (cs.sound >= n)
-        cs.sound = (uint16_t)(n ? n - 1u : 0u);
-    n = cb_count(1);
-    if (trk[CR_PART_BASS].user && cb_user_bass(trk[CR_PART_BASS].user - 1u))
-        cs.bass_sound = (uint16_t)(cb_pos_of_slot(1, trk[CR_PART_BASS].user - 1u) + 1u);
-    else if (cs.bass_sound > n)
-        cs.bass_sound = (uint16_t)n;
-    cu_cpy(b, "deleted ", sizeof b);
-    cu_cat(b, l, sizeof b);
-    cu_message(b, CR_COL_RED);
+    if (psnd[other].kind == PK_USER && psnd[other].slot == k) {
+        if (f != PF_NONE)
+            psnd[other].kind = PK_FACTORY;
+        else
+            psnd[other].kind = PK_INIT;
+        psnd[other].edited = 1;
+    }
+    n = pool_count(e);
+    if (reset)
+        pos = pool_pos_factory(e, f);
+    else if (pos >= n)
+        pos = n - 1u;
+    cu_pool_load(part, e, pos);
+    if (!part)
+        cu_sends_to_fx();
+    cb_pool_check();
+    cu_place(pl, e, pos, " ");
+    cu_cpy(b, reset ? "reset " : "deleted ", sizeof b);
+    cu_cat(b, reset ? pl : l, sizeof b);
+    cu_message(b, reset ? CR_COL_GREEN : CR_COL_RED);
+    cu_trace("save: now part %u %s %s\n", (unsigned)part, pl, psnd[part].name);
+    cu_save_close();
 }
 
 static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the picker's item i */
@@ -1731,7 +1901,6 @@ static void cu_layer_key(uint32_t l, uint32_t k)   /* a root key while layer l i
 
 static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (0..3) while layer l is open */
 {
-    char b[8];
     int32_t v;
     switch (l) {
     case L_KEY:
@@ -1796,12 +1965,10 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         cu_hot_set(L_BASS, knob);                 /* (no popup: the knob row is the readout, its cell turns hot) */
         break;
     case L_EDIT:
-        if (knob == 0) {                           /* the engine's factory presets (a preview: the bar jumps) */
-            cu_engine_preset_step(s);
+        if (knob == 0) {                           /* the engine's pool, as PRESETS (a preview: the bar jumps) */
+            cu_pool_step(s);
             cpk.changed = 1;
-            cu_2d(b, cu_edit_trk()->preset + 1u, sizeof b);
-            cu_popup(b, psnd[ce.part].name, "preset", CR_COL_WHITE, cu_edit_trk()->preset, 0,
-                     ENGINES[cu_edit_trk()->eng_req % NENGINES]->npresets - 1, 16);
+            cu_pool_popup(ce.part, cu_part_pos(ce.part));
             cu.pop.jump = 1;
         } else if (knob == 1) {                    /* INIT */
             cu_sound_init(ce.part);
@@ -1947,6 +2114,11 @@ static void cu_mod_release(uint32_t k)
     cr_post(CRE_MOD, m, 0, 0);
 }
 
+/* the root keys belong to layer l (its map), else they play: PERF and FX play the chord so a mode or an effect is
+ * heard at once (SELECT picks there: docs/PRESETS.md "Also in this pass"), the engine picker with its roots off
+ * plays the preview */
+static int cu_layer_keys(uint32_t l) { return l && l != L_PERF && l != L_FX && !(l == L_EDIT && !cs.pick_roots); }
+
 static void cu_key_press(uint32_t k)
 {
     uint32_t l;
@@ -1961,12 +2133,13 @@ static void cu_key_press(uint32_t k)
         return;
     }
     l = cu_layer();
-    if (l && !(l == L_EDIT && !cs.pick_roots)) {   /* (the picker with its roots off: they play the preview) */
+    if (cu_layer_keys(l)) {                        /* (PERF, FX, the picker with its roots off: they play) */
         cu_layer_key(l, k);
         cu.key_note[k] = 0xFFu;
         return;
     }
-    if (cu.page == PG_SAVE) {                      /* naming: the roots type, D#4 a space, F#4 deletes */
+    if (cu.page == PG_SAVE && ce.save_step) {      /* naming: the roots type, D#4 a space, F#4 deletes (the
+                                                    * choice before it: they play) */
         int32_t wi = cu_white_idx(k);
         if (wi >= 0)
             cn_white((uint32_t)wi, cu_now());
@@ -2076,12 +2249,58 @@ static void cu_btn_release(uint32_t b)
         return;
     }
     if (b == cu.armed) {
+        if (b == BT_OPT)
+            cu_epk_commit();                       /* OPT + PRESETS: the engine picked */
         if (!cu.open && !cu.combo)
             cu_tap(b);
         cu.armed = NB;
         cu.open = cu.combo = 0;
     }
 }
+
+/* OPT held + PRESETS (docs/PRESETS.md; mock-up design/choralroot-fm1-preset-screens.png 2): the chord part's engine,
+ * a horizontal picker shown while OPT is held (each detent an engine, wrapping); on OPT's release the part switches to
+ * it and lands on the place it last had in that engine's pool (cs.pool_pos; the first preset before that). Not in the
+ * editor (its EDIT-held picker) nor on the save dialog */
+static void cu_epk_step(int32_t s)
+{
+    uint32_t n;
+    int32_t r;
+    cu_engine_at(0, &n);
+    if (!n)
+        return;
+    if (!cu.epk_on) {
+        r = cu_engine_rank(trk[CR_PART_CHORD].eng_req % NENGINES);
+        cu.epk_on = 1;
+        cu.epk_rank = (uint8_t)(r < 0 ? 0 : r);
+        cu.pop.until = 0;
+    }
+    cu.epk_rank = (uint8_t)(((int32_t)cu.epk_rank + s % (int32_t)n + (int32_t)n) % (int32_t)n);
+    cu_trace("engine pick: %s (%u presets)\n", ENGINES[cu_engine_at(cu.epk_rank, 0)]->name,
+             (unsigned)pool_count(cu_engine_at(cu.epk_rank, 0)) - 1u);
+}
+static void cu_epk_commit(void)                   /* OPT released: the engine picked */
+{
+    uint32_t e, pos, n;
+    if (!cu.epk_on)
+        return;
+    cu.epk_on = 0;
+    e = cu_engine_at(cu.epk_rank, 0);
+    if (e == trk[CR_PART_CHORD].eng_req % NENGINES) {
+        cu_trace("sound: part 0 engine %s kept\n", ENGINES[e]->name);
+        return;
+    }
+    cu_pos_sync();                                 /* (the place in the engine left: remembered) */
+    n = pool_count(e);
+    pos = cs.pool_pos[0][eng_rank(e)];
+    if (pos >= n)
+        pos = n > 1u ? 1u : 0u;
+    cu_pool_load(0, e, pos);
+    cu_sends_to_fx();
+    cu_sound_popup(0);
+    cu_trace("sound: part 0 engine %s pos %u %s\n", ENGINES[e]->name, (unsigned)cs.sound, psnd[0].name);
+}
+static void cu_epk_screen(cr_screen_t *s);
 
 static void cu_knob(uint32_t role, int32_t s)
 {
@@ -2093,6 +2312,10 @@ static void cu_knob(uint32_t role, int32_t s)
             ce_select(s);
         else                                       /* .. SHIFT + a knob: fine (one step) */
             ce_knob(role - EN_K1, s, 1);
+        return;
+    }
+    if (cu_shift() && role == EN_PRESET && cu.page != PG_EDIT && cu.page != PG_SAVE && !cu_layer()) {
+        cu_epk_step(s);                            /* OPT held + PRESETS: the chord part's engine (on OPT's release) */
         return;
     }
     if (cu_shift() && (role == EN_ALGO || role == EN_K1 || role == EN_SELECT)) {   /* OPT held: second functions
@@ -2149,13 +2372,14 @@ static void cu_knob(uint32_t role, int32_t s)
             ce_knob(role - EN_K1, s, 0);
         return;
     }
-    if (cu.page == PG_SAVE && (role == EN_K1 || role == EN_K2)) {        /* naming: the slot, the last letter */
-        if (role == EN_K1) {
-            ce.slot = (uint8_t)((ce.slot + UP_SLOTS + (uint32_t)(s % (int32_t)UP_SLOTS)) % UP_SLOTS);
-            ce.del_ask = 0;
-        }
-        else
-            cn_knob(s);
+    if (cu.page == PG_SAVE && !ce.save_step && (role == EN_K1 || role == EN_SELECT)) {   /* the choice */
+        ce.save_choice = s > 0 ? 1u : 0u;
+        ce.del_ask = 0;
+        cu_trace("save: choice %s\n", ce.save_choice ? "save as new" : "overwrite");
+        return;
+    }
+    if (cu.page == PG_SAVE && ce.save_step && role == EN_K2) {            /* naming: the last letter */
+        cn_knob(s);
         return;
     }
     switch (role) {
@@ -2184,19 +2408,20 @@ static void cu_knob(uint32_t role, int32_t s)
             cu_popup_num(cs.fx_amt[cs.fx_sel] * 99 / 127, 0, "", lb, CR_COL_GREEN, 0, 99, 12);
         }
         break;
-    case EN_PRESET:
+    case EN_PRESET:                                /* the chord part's engine's pool, wrapping */
         {
-            uint32_t n = cb_count(0);
-            if (!n)
-                break;
+            uint32_t n = pool_count(trk[CR_PART_CHORD].eng_req % NENGINES);
             cu_sound_go((cs.sound + (uint32_t)(s % (int32_t)n + (int32_t)n)) % n);
             cu_sound_popup(0);
             cu_trace("sound: part 0 pos %u %s\n", (unsigned)cs.sound, psnd[0].name);
         }
         break;
-    case EN_ALGO:
-        v = (int32_t)cs.bass_sound + s;
-        cu_bass_go((uint32_t)(v < 0 ? 0 : v));
+    case EN_ALGO:                                  /* OFF, then the bass part's engine's pool, wrapping */
+        {
+            int32_t n = (int32_t)pool_count(trk[CR_PART_BASS].eng_req % NENGINES) + 1;
+            v = ((int32_t)cs.bass_sound + s % n + n) % n;
+        }
+        cu_bass_go((uint32_t)v);
         cu_sound_popup(1);
         cu_trace("sound: part 1 pos %u %s\n", (unsigned)cs.bass_sound, cs.bass_sound ? psnd[1].name : "off");
         break;
@@ -2411,12 +2636,7 @@ static void cr_ui_input(void)
     if (cu.armed == BT_SAVE && cu.page == PG_SAVE && !cu.open && !cu.combo && ((cu.bheld >> BT_SAVE) & 1u) &&
         now - cu.t0 >= 1000u) {                    /* naming: SAVE held 1 s asks to delete the slot (no loop layer) */
         cu.combo = 1;                              /* (its release: no cancel) */
-        if (up_used(ce.slot)) {
-            ce.del_ask = 1;
-            cu_trace("save: delete slot %u?\n", (unsigned)ce.slot + 1u);
-        } else {
-            cu_message("empty slot", CR_COL_RED);
-        }
+        cu_save_ask();
     }
     if (cu.armed != NB && !cu.open && ((cu.bheld >> cu.armed) & 1u) && !(cu.armed == BT_SAVE && cu.page == PG_SAVE) &&
         now - cu.t0 >= (uint32_t)HOLD_MS[settings_hold % 4u]) {
@@ -2562,7 +2782,7 @@ static void cr_leds(void)
             if ((uint32_t)wi == sel ? blink : (cs.loop_used >> wi) & 1u)
                 cu_led(own, 14u + k, 1);
         }
-    } else if (l && l != L_KEY && !(l == L_EDIT && !cs.pick_roots)) {
+    } else if (cu_layer_keys(l) && l != L_KEY) {
         int32_t sel = cu_layer_sel(l), n = cu_layer_count(l);
         for (k = CU_ROOT0; k < CU_NKEY; k++) {
             int32_t wi = cu_white_idx(k);
@@ -2572,7 +2792,7 @@ static void cr_leds(void)
     } else if (l == L_KEY) {
         for (k = CU_ROOT0; k < CU_NKEY; k++)
             cu_led(cs.key_on && (53u + k) % 12u == cs.tonic ? own : nd, 14u + k, 1);
-    } else if (cu.page == PG_SAVE) {                     /* naming: the keys that type lit (the letters, D#4 space) */
+    } else if (cu.page == PG_SAVE && ce.save_step) {     /* naming: the keys that type lit (the letters, D#4 space) */
         for (k = CU_ROOT0; k < CU_NKEY; k++)
             if (cu_white_idx(k) >= 0 || k == 10u || k == 13u)
                 cu_led(own, 14u + k, 1);
@@ -3033,10 +3253,10 @@ static void cu_bass_cells(cr_screen_t *s)
     if (!cs.bass_sound || !cs.bass_on) {
         cu_cpy(s->cell[0][2].value, "off", sizeof s->cell[0][2].value);
     } else {
-        uint32_t pos = cs.bass_sound - 1u, slot = cb_slot_at(1, pos);
+        uint32_t pos = cs.bass_sound - 1u;
         char nm[13];
-        cu_2d(s->cell[0][2].value, slot < UP_SLOTS ? slot + 1u : pos + 1u, sizeof s->cell[0][2].value);
-        cb_name(1, pos, nm);
+        cu_2d(s->cell[0][2].value, pos, sizeof s->cell[0][2].value);
+        pool_name(trk[CR_PART_BASS].eng_req % NENGINES, pos, nm);
         cu_cat(s->cell[0][2].value, " ", sizeof s->cell[0][2].value);
         cu_cat(s->cell[0][2].value, nm, sizeof s->cell[0][2].value);
         {   /* a name cut short ends at a word: "01 SUB" for SUB BASS, not "01 SUB B" */
@@ -3087,9 +3307,10 @@ static void cu_loop_cells(cr_screen_t *s)
     s->cell[0][0].glyph = CR_G_RANGE;
     s->cell[0][0].pct = (uint8_t)(len * 255u / (CRL_NSYNC - 1u));
     cu_cpy(s->cell[0][1].value, CU_QUANT[q], sizeof s->cell[0][1].value);
-    s->cell[0][1].glyph = CR_G_ECHOES;
+    s->cell[0][1].glyph = CR_G_ECHOES;              /* "none": no grid (pct 0, pct2 0: the baseline alone, cr_draw.c);
+                                                     * 1/4 .. 1/32 the repeats, the spacing growing as before */
     s->cell[0][1].pct = (uint8_t)(q * 255u / (CRL_NQUANT - 1u));
-    s->cell[0][1].pct2 = 255;
+    s->cell[0][1].pct2 = q ? 255u : 0u;
     cu_cpy(s->cell[0][2].value, cs.loop_count_in ? "On" : "Off", sizeof s->cell[0][2].value);
     s->cell[0][2].glyph = CR_G_GATE;
     s->cell[0][2].pct = cs.loop_count_in ? 255 : 26;
@@ -3131,7 +3352,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     case L_PERF: {
         static char seen[48];
         cu_picker(s, PERF_ITEMS, 7, cs.perf_sel, CR_COL_WHITE, "perform",
-                  "a root: mode \267 OCT-: back \267 HOME: home");
+                  "SELECT: mode \267 OCT-: back \267 HOME: home");
         s->kind = CR_K_KNOBROW;
         s->orient = 1;
         cu_perf_cells(s);
@@ -3140,7 +3361,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_FX: {                                   /* the knob row: the effect over KNOB 1..4's cells */
         static char seen[48];                      /* (the trace: the row's labels when they change) */
-        cu_picker(s, FX_ITEMS, CU_NFX, cs.fx_sel, CR_COL_GREEN, "fx", "a root: effect \267 OCT-: back \267 HOME: home");
+        cu_picker(s, FX_ITEMS, CU_NFX, cs.fx_sel, CR_COL_GREEN, "fx", "SELECT: effect \267 OCT-: back \267 HOME: home");
         s->kind = CR_K_KNOBROW;
         s->orient = 1;
         cu_fx_cells(s);
@@ -3236,36 +3457,55 @@ static void cu_options_screen(cr_screen_t *s)
 /* the sound editor (design/choralroot-fm1-sound-editor-mockups.json): cr_edit.c */
 static void cu_edit_screen(cr_screen_t *s, uint32_t now) { ce_screen(s, now); }
 
-/* SAVE (mock-up 23): the slot, the name being typed */
+/* OPT + PRESETS (preset sheet 2): the engines, the one picked big, its neighbours peeking, the pool's size under it */
+static void cu_epk_screen(cr_screen_t *s)
+{
+    const char *eng[NENGINES];
+    uint32_t k, n, e = cu_engine_at(cu.epk_rank, 0);
+    cu_engine_at(0, &n);
+    for (k = 0; k < n && k < NENGINES; k++)
+        eng[k] = ENGINES[cu_engine_at(k, 0)]->name;
+    cu_picker(s, eng, n, cu.epk_rank, CR_COL_WHITE, "engine \267 OPT + PRESETS", "");
+    s->orient = 1;
+    cu_int(s->value, (int32_t)pool_count(e) - 1, 0, sizeof s->value);
+    cu_cat(s->value, " presets", sizeof s->value);
+}
+
+/* SAVE (preset sheet 3, 4, 6): the choice (Overwrite / Save as new, the current name under it, "*" when edited), the
+ * naming page (the place it takes, "FM6 \267 27", the name being typed), the red question */
 static void cu_save_screen(cr_screen_t *s, uint32_t now)
 {
-    char l[4], nm[13];
-    if (ce.del_ask) {                              /* "delete?": the slot's number huge in red, its name */
+    static const char *const CHOICE[2] = {"Overwrite", "Save as new"};
+    uint32_t part = ce.save_part, e = trk[part ? CR_PART_BASS : CR_PART_CHORD].eng_req % NENGINES, col;
+    char b[24];
+    col = part ? CR_COL_ORANGE : CR_COL_WHITE;
+    if (ce.del_ask) {                              /* the place huge in red, the name (reset: the factory one's) */
         s->kind = CR_K_BIG;
-        cu_2d(s->value, ce.slot + 1u, sizeof s->value);
-        up_name(ce.slot, nm);
-        cu_cpy(s->sub, nm, sizeof s->sub);
-        cu_cpy(s->label, "delete? OCT+ yes \267 OCT- no", sizeof s->label);
+        cu_2d(s->value, cu_part_pos(part), sizeof s->value);
+        if (ce.del_ask == 2u && psnd[part].kind == PK_USER && cb_bound(psnd[part].slot) != PF_NONE)
+            cu_cpy(s->sub, ENGINES[e]->presets[cb_bound(psnd[part].slot)].name, sizeof s->sub);
+        else
+            cu_cpy(s->sub, psnd[part].name, sizeof s->sub);
+        cu_cpy(s->label, ce.del_ask == 2u ? "reset to factory?" : "delete?", sizeof s->label);
+        cu_cpy(s->footer, ce.del_ask == 2u ? "OCT+: reset \267 OCT-: keep" : "OCT+: delete \267 OCT-: keep",
+               sizeof s->footer);
         s->col = CR_COL_RED;
-        s->size = 104;
-        up_slot_label(l, ce.slot);
-        cu_cpy(s->mid, "Delete ", sizeof s->mid);
-        cu_cat(s->mid, l, sizeof s->mid);
-        s->mid_col = CR_COL_RED;
+        s->size = 96;
+        return;
+    }
+    if (!ce.save_step) {                           /* the choice */
+        cu_cpy(b, part ? "save bass \267 " : "save \267 ", sizeof b);
+        cu_cat(b, ENGINES[e]->name, sizeof b);
+        cu_picker(s, CHOICE, 2, ce.save_choice, col, b, "OCT+: save \267 OCT-: cancel");
+        cu_cpy(s->value, psnd[part].name, sizeof s->value);
+        if (psnd[part].edited)
+            cu_cat(s->value, " *", sizeof s->value);
         return;
     }
     s->kind = CR_K_TEXT;
-    cu_cpy(s->title, ce.save_part ? "save bass" : "save sound", sizeof s->title);
-    s->title_col = ce.save_part ? CR_COL_ORANGE : CR_COL_RED;
-    up_slot_label(l, ce.slot);
-    cu_cpy(s->lines[0].t, l, sizeof s->lines[0].t);
-    if (up_used(ce.slot)) {
-        up_name(ce.slot, nm);
-        cu_cat(s->lines[0].t, " \267 replaces ", sizeof s->lines[0].t);
-        cu_cat(s->lines[0].t, nm, sizeof s->lines[0].t);
-    } else {
-        cu_cat(s->lines[0].t, " \267 empty", sizeof s->lines[0].t);
-    }
+    cu_cpy(s->title, part ? "save bass" : "save sound", sizeof s->title);
+    s->title_col = part ? CR_COL_ORANGE : CR_COL_RED;
+    cu_place(s->lines[0].t, e, ce.save_pos, " \267 ");
     s->lines[0].px = 15;
     s->lines[0].col = CR_COL_GREY;
     cn_line(s->lines[1].t, sizeof s->lines[1].t, now);
@@ -3276,7 +3516,7 @@ static void cu_save_screen(cr_screen_t *s, uint32_t now)
     cu_cpy(s->lines[3].t, "keys: letters \267 F#4: delete", sizeof s->lines[3].t);
     s->lines[3].px = 12;
     s->lines[3].col = CR_COL_GREY;
-    cu_cpy(s->lines[4].t, "SAVE: save \267 KNOB 1: slot", sizeof s->lines[4].t);
+    cu_cpy(s->lines[4].t, "SAVE: save \267 KNOB 2: letter", sizeof s->lines[4].t);
     s->lines[4].px = 12;
     s->lines[4].col = CR_COL_GREY;
     s->n_lines = 5;
@@ -3463,6 +3703,12 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         cu_cpy(s->message, cu.msg.text, sizeof s->message);
         s->message_col = cu.msg.col;
     }
+    /* 1d. OPT held + PRESETS: the engine picker (over popups and layers, while OPT is held) */
+    if (cu.epk_on) {
+        cu_epk_screen(s);
+        cu_dial(s, now);
+        return;
+    }
     /* 2. a knob's meter (the voicing: the chord with its voicing line while one is shown) */
     if ((int32_t)(cu.pop.until - now) > 0) {
         char b[8];
@@ -3487,6 +3733,7 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
             cu_meter(s, b, "oct", "bass register", CR_COL_ORANGE, (uint32_t)(sn->bass_voicing + 2) * 256u / 6u, 6);
         } else {
             cu_meter(s, cu.pop.value, cu.pop.sub, cu.pop.label, cu.pop.col, cu.pop.pct, cu.pop.segs);
+            s->sub_mark = cu.pop.mark;
         }
         cu_dial(s, now);
         return;
@@ -3667,14 +3914,14 @@ static void cu_midi_poll(void)
     while (cr_min_take(&a)) {
         uint32_t p = a.part ? CR_PART_BASS : CR_PART_CHORD, i;
         if (a.kind == CRM_PROGRAM) {
-            if (!p) {
-                if (a.v >= cb_count(0))
+            if (!p) {                             /* the chord part's pool position (0 INIT) */
+                if (a.v >= pool_count(trk[CR_PART_CHORD].eng_req % NENGINES))
                     continue;
                 cu_sound_go(a.v);
                 cu_sound_popup(0);
                 cu_trace("sound: part 0 pos %u %s (program change)\n", (unsigned)cs.sound, psnd[0].name);
             } else {
-                if (a.v > cb_count(1))
+                if (a.v > pool_count(trk[CR_PART_BASS].eng_req % NENGINES))   /* 0 OFF, then the pool */
                     continue;
                 cu_bass_go(a.v);
                 cu_sound_popup(1);
@@ -3717,6 +3964,8 @@ static void cr_ui_frame(void)                      /* after the scan: the engine
     cpu_window(fm1_ms);                            /* audio.c: the last second's ISR load (console `cpu`, GEEK OUT) */
     if (cpk.on && cu.lock != L_EDIT)               /* the picker closed another way (OPT, SAVE, BASS + EDIT): kept */
         cu_pick_end(1);
+    if (cu.epk_on && !cu_shift())                  /* OPT + PRESETS: OPT let go another way */
+        cu_epk_commit();
     cu_midi_poll();
     cr_snapshot();
 #ifdef CR_TRACE
@@ -3746,6 +3995,17 @@ static void cr_ui_draw(void)
     cr_build_screen(&cu_scr, now);
     cu_animate(&cu_scr, now);
     cr_draw(&cu_scr, cr_anim_ms(&cu_anim, now));
+}
+
+/* the pool position of engine e's factory preset named so (none: 1, the first) */
+static uint32_t cu_pool_find(uint32_t e, const char *name)
+{
+    const engine_t *en = ENGINES[e % NENGINES];
+    uint32_t k;
+    for (k = pool_f0(e); k < en->npresets; k++)
+        if (cu_eq(en->presets[k].name, name))
+            return pool_pos_factory(e, k);
+    return 1u;
 }
 
 /* power-on: the engine, the two parts' sounds, the settings mirror (the engine's defaults), the LED map */
@@ -3803,9 +4063,12 @@ static void cr_ui_init(void)
     trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)(TP[P_LEVEL].def - 12);
     for (k = 2; k < NPART; k++)                   /* parts 3 and 4: unused, silent */
         trk[k].p[P_MUTE] = 1;
-    cu_sound_go(cb_find(0, "TINE EP"));
-    cs.bass_default = (uint16_t)(cb_find(1, "SUB BASS") + 1u);
-    cu_list_load(1, cs.bass_default - 1u);
+    for (k = 0; k < (uint32_t)NENG_SHOWN; k++)      /* each engine's pool: its first preset until played */
+        cs.pool_pos[0][k] = cs.pool_pos[1][k] = 1;
+    cu_pool_load(0, ENGI_FM6, cu_pool_find(ENGI_FM6, "TINE EP"));   /* the power-on sounds: FM6 TINE EP, the bass ANALOG
+                                                                    * SUB BASS (ALGORITHM at OFF: BASS tap brings it) */
+    cu_sends_to_fx();
+    cu_pool_load(1, 0, cu_pool_find(0, "SUB BASS"));
     ce.page = CP_ENV;
     ce.col = -1;
     for (k = 0; k < 2u; k++)

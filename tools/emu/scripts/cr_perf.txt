@@ -1,12 +1,13 @@
-# ChoralRoot: hold PERF (/ = ARP): the Perform picker (locked open; OCT- closes it); a root (G4 = F, the 4th white
-# root): Arpeggiate;
+# ChoralRoot: hold PERF (/ = ARP): the Perform picker (locked open; OCT- closes it); SELECT +3 (the roots play the
+# chord in PERF): Arpeggiate;
 # then Am7 (MIN = F2, m7 = 3, A4 = G) arpeggiated; released, the arp's Hold keeps it going; PERF tapped off:
 # silent within 2 s
 wait 300
 btn ARP down
 wait 500
 shot build/emu/test/cr_perf_picker.ppm
-btn G4 100
+knob SELECT +3
+wait 100
 wait 250
 shot build/emu/test/cr_perf_arp.ppm
 btn ARP up

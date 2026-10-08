@@ -44,7 +44,7 @@ enum { CR_G_NONE, CR_G_KNOB, CR_G_BAR, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_ST
        CR_G_ROOM,                   /* a room in one-point perspective: the far wall 70 % (pct 0) .. 22 % (1) of the box */
        CR_G_MOON,                   /* a moon phase: lit 8 % (pct 0, a thin crescent) .. full (1) */
        CR_G_ECHOES,                 /* a bar and its repeats: pct the spacing, pct2 the feedback (each 0.2 + 0.75 pct2 of
-                                     * the one before) */
+                                     * the one before); pct and pct2 both 0: the baseline alone (no grid) */
        CR_G_LFO,                    /* a sine: pct the rate (1 .. 5 cycles), pct2 the depth (nearly flat .. full) */
        CR_G_CLIP,                   /* one sine cycle driven into a clipper (gain 1 .. 10), dashed clip lines */
        CR_G_SPRING,                 /* a coil (6.5 zigzag turns between two short ends); pct ignored */
@@ -144,6 +144,7 @@ typedef struct {
     char sub[12];                   /* under the value, in its colour */
     uint16_t pct, pct_from;         /* Q8: the stripes filled; CR_A_FILL: from */
     uint8_t segments, thick;        /* stripes (0 = 12), their height (0 = 14) */
+    uint8_t sub_mark;               /* a small square after `sub` (an overwritten factory preset, docs/PRESETS.md) */
 
     /* panel: stripes */
     uint8_t bands[4], n_bands, band, gap;   /* colours (top first), band height, the gap between */

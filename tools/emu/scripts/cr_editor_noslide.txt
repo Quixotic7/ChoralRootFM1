@@ -1,8 +1,12 @@
 # ChoralRoot: no slide in the editor (docs/EDITOR.md "Motion"): the first frames after a group tap (FILT), a SELECT
 # (row B) and a screen tap (OSC, OSC again) equal the settled screen 600 ms later. LUSH PAD (the VA), no knob turned
 # (no hot cell).
-wait 300
-knob PRESETS +24
+wait 100                      # (+ 200 ms of the engine change below: the same timeline)
+btn GLO down
+wait 100
+knob PRESETS +1               # OPT + PRESETS: the engine (FM6 -> VA, LUSH PAD: its pool position 01), on OPT's release
+wait 100
+btn GLO up
 wait 1500
 btn EDIT
 wait 400

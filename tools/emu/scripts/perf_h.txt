@@ -1,5 +1,5 @@
 # tools/emu/perf.sh (h): the FX layer (FX held, locked open) with a D major chord held, KNOB 1..4 turned one detent every 30 ms
-# for 2 s (the knob row's cells and its hot cell; no popup), then Delay picked and turned the same for 1 s
+# for 2 s (the knob row's cells and its hot cell; no popup), then Delay picked (SELECT +2) and turned the same for 1 s
 wait 300
 key F3 down
 wait 40
@@ -141,8 +141,8 @@ knob KNOB1 +1
 wait 30
 knob KNOB2 +1
 wait 30
-btn F4
-wait 200
+knob SELECT +2                # Delay (SELECT picks: the roots play the chord in FX)
+wait 300
 knob KNOB1 +1
 wait 30
 knob KNOB2 +1

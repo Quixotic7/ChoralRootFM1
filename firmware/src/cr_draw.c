@@ -476,7 +476,13 @@ static void cr_p_meter(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
     int32_t gap = 4 * 16, sw = (224 * 16 - gap * (int32_t)(n - 1u)) / (int32_t)n, my = CR_PY0 + ph - 46;
     int32_t mh = s->thick ? s->thick : 14;
     cr_text(P8(120), vy, s->value, size, 1, CR_C, sx, col, T_BG, 0);
-    if (s->sub[0]) cr_text(P8(120), vy + P8(22), s->sub, 15, 1, CR_C, 4096, col, T_BG, 0);
+    if (s->sub[0] && s->sub_mark) {      /* the name and a 5 px square after it, centred together */
+        int32_t tw = cr_tw(s->sub, 15, 1), x0 = P8(120) - (tw + P8(9)) / 2;
+        cr_text(x0, vy + P8(22), s->sub, 15, 1, CR_L, 4096, col, T_BG, 0);
+        cr_frect((x0 + tw + P8(4)) >> 4, ((vy + P8(22)) >> 4) - 6 * 16, 5 * 16, 5 * 16, col);
+    } else if (s->sub[0]) {
+        cr_text(P8(120), vy + P8(22), s->sub, 15, 1, CR_C, 4096, col, T_BG, 0);
+    }
     for (i = 0; i < n; i++)
         cr_frect(8 * 16 + (int32_t)i * (sw + gap), my * 16, sw, mh * 16, i < fr->filled ? col : T_LINE);
     if (s->label[0]) cr_text(P8(120), P8(CR_PY0 + ph - 10), s->label, 14, 0, CR_C, 4096, T_MID, T_BG, 0);
@@ -648,6 +654,11 @@ static void cr_picto(uint32_t g, int32_t x, int32_t y, int32_t w, int32_t h, uin
     }
     case CR_G_ECHOES: {                             /* a struck bar and its repeats: spacing pct, feedback pct2 */
         int32_t bw = 48, sp = 80 + ((W - bw) / 2 - 80) * pct / 256, d = 819 + 3072 * pct2 / 256, bh = H, bx;
+        if (!pct && !pct2) {                        /* both 0: nothing struck (the loop's Quantize "none"): the
+                                                     * baseline alone */
+            cr_frect(x0, y1, W, 16, col);
+            break;
+        }
         if (sp < 64) sp = 64;
         cr_frect(x0, y1 - H, bw, H, col);
         for (bx = x0 + sp; bx + bw <= x1; bx += sp) {

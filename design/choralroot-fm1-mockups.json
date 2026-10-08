@@ -2447,8 +2447,8 @@
    }
   },
   {
-   "name": "18 \u00b7 PRESETS turned: browsing sounds",
-   "notes": "Turning PRESETS pops the sound list over the panel (as the stock firmware and Felucca do), the sound loads at once and the popup fades after a second. Sounds come from Felucca's engines (FM6, ANALOG, WHEEL, PHYS\u2026) and the VA, with ChoralRoot's own bank of chord-friendly presets; bass sounds are a separate bank on ALGORITHM. SAVE stores an edited sound to a user slot.",
+   "name": "18 \u00b7 PRESETS turned: the presets of the engine",
+   "notes": "Turning PRESETS steps through the presets of the engine the chord part plays (docs/PRESETS.md): its pool, 00 INIT, the engine's factory presets, then the ones the user saved into it; the sound loads at once and the popup fades after a second. OPT + PRESETS changes the engine (FM6, ANALOG, VA, PHASE, CZ-1, WHEEL, PHYS\u2026); ALGORITHM does the same for the bass part's engine (00 = OFF before its pool). SAVE: Overwrite or Save as new.",
    "export": true,
    "keys": [
     1,
@@ -2521,7 +2521,7 @@
     },
     "PRESETS": {
      "note": "",
-     "value": "13 EP"
+     "value": "05 FM PAD"
     },
     "ALGORITHM": {
      "note": "",
@@ -2556,15 +2556,15 @@
     "cards": null,
     "panel": {
      "kind": "meter",
-     "value": "13",
-     "sub": "EP",
-     "label": "sound",
+     "value": "05",
+     "sub": "FM PAD",
+     "label": "FM6 \u00b7 05/26",
      "col": "white",
-     "pct": 0.2708333333333333,
-     "segments": 16
+     "pct": 0.19230769230769232,
+     "segments": 26
     },
     "footer": null,
-    "note": "PRESETS turned: the sound's number huge, its name under it, the stripe meter is the place in the bank."
+    "note": "PRESETS turned: the place in the engine's pool huge, the preset's name under it, the engine and the place over the pool's size; the stripe meter is the pool."
    }
   },
   {
@@ -3181,8 +3181,8 @@
    }
   },
   {
-   "name": "23 \u00b7 SAVE tapped: name and save the sound",
-   "notes": "SAVE tapped (on the view or in the editor: the same dialog; EDIT keeps blinking in the editor): pick a user slot with KNOB 1, name it with the keys (Felucca's naming: the keys type letters, OCT- deletes, OCT+ confirms), and the sound lands in one of 32 user slots, listed after the factory bank on PRESETS. SAVE held: the loop's save / load / delete.",
+   "name": "23 \u00b7 SAVE, Save as new: name the preset",
+   "notes": "SAVE tapped (on the view or in the editor: the same dialog; EDIT keeps blinking in the editor): Overwrite (the current preset, saved at once, its name kept) or Save as new (docs/PRESETS.md). Save as new: this screen, the place it takes in the engine's pool (FM6 \u00b7 27, after the factory presets and the ones saved before), the name prefilled, typed with the keys; OCT+ saves it there (one of the 32 user slots). SAVE held: the loop's save / load / delete; SAVE held 1 s in the dialog: reset to factory / delete.",
    "export": true,
    "keys": [
     0,
@@ -3264,11 +3264,11 @@
      "value": ""
     },
     "KNOB1": {
-     "note": "SLOT",
-     "value": "U03"
+     "note": "",
+     "value": ""
     },
     "KNOB2": {
-     "note": "",
+     "note": "LETTER",
      "value": ""
     },
     "KNOB3": {
@@ -3296,7 +3296,7 @@
      "col": "white",
      "lines": [
       {
-       "t": "U03",
+       "t": "FM6 \u00b7 27",
        "px": 15,
        "col": "grey"
       },
@@ -3320,7 +3320,7 @@
     "footer": {
      "text": "SAVE again: cancel"
     },
-    "note": "SAVE: the slot and the name being typed; each letter slides in, the cursor blinks."
+    "note": "Save as new: the place it takes in the engine's pool and the name being typed; each letter slides in, the cursor blinks."
    }
   },
   {

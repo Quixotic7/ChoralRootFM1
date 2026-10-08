@@ -280,17 +280,18 @@ def engine_picker_state(name_, notes, sel, preset, part="chord", buttons=None, b
 
 
 def save_state(name_, notes, slot, typed, buttons=None, button_labels=None):
-    """SAVE tapped: the slot and the name typed on the keys (the same dialog in and out of the editor)"""
+    """Save as new: the place in the engine's pool ("FM6 · 27") and the name typed on the keys (the same dialog in and
+    out of the editor; docs/PRESETS.md)"""
     return state(
         name_, notes,
         keys=[OFF] * 27, buttons={"SAVE": LIT, "OCT-": LIT, "OCT+": BLINK} | (buttons or {}),
         key_labels={ROOT_WHITE[i]: c for i, c in enumerate(list("ABCDEFGHIJK"))},
         button_labels=button_labels,
-        encoders={"KNOB1": ("SLOT", slot), "KNOB2": "", "KNOB3": "", "KNOB4": ""},
+        encoders={"KNOB1": "", "KNOB2": ("LETTER", ""), "KNOB3": "", "KNOB4": ""},
         screen=scr({"kind": "text", "title": "save sound", "col": C_CHORD,
                     "lines": [{"t": slot, "px": 15, "col": "grey"}, {"t": typed, "px": 36, "w": 700, "col": "white"}, "",
                               {"t": "keys: letters · OCT-: delete", "col": "grey"}, {"t": "OCT+: save", "col": "grey"}]},
-                   foot="SAVE again: cancel", note="SAVE: the slot and the name being typed; each letter slides in, the cursor blinks."),
+                   foot="SAVE again: cancel", note="Save as new: the place it takes in the engine's pool and the name being typed; each letter slides in, the cursor blinks."),
         chord_block=False,
     )
 
@@ -571,14 +572,14 @@ S.append(state(
 
 # 18 ------------------------------------------------------------------------------ sound browse popup
 S.append(state(
-    "18 · PRESETS turned: browsing sounds",
-    "Turning PRESETS pops the sound list over the panel (as the stock firmware and Felucca do), the sound "
-    "loads at once and the popup fades after a second. Sounds come from Felucca's engines (FM6, ANALOG, "
-    "WHEEL, PHYS…) and the VA, with ChoralRoot's own bank of chord-friendly presets; bass sounds are a separate bank "
-    "on ALGORITHM. SAVE stores an edited sound to a user slot.",
+    "18 · PRESETS turned: the presets of the engine",
+    "Turning PRESETS steps through the presets of the engine the chord part plays (docs/PRESETS.md): its pool, 00 "
+    "INIT, the engine's factory presets, then the ones the user saved into it; the sound loads at once and the popup "
+    "fades after a second. OPT + PRESETS changes the engine (FM6, ANALOG, VA, PHASE, CZ-1, WHEEL, PHYS…); ALGORITHM "
+    "does the same for the bass part's engine (00 = OFF before its pool). SAVE: Overwrite or Save as new.",
     held=["MAJ"], lit=["E4", "G#4", "B4"],
-    encoders=IDLE_ENC | {"PRESETS": "13 EP", "KNOB4": "40"},
-    screen=scr({"kind": "meter", "value": "13", "sub": "EP", "label": "sound", "col": C_CHORD, "pct": 13 / 48, "segments": 16}, note="PRESETS turned: the sound's number huge, its name under it, the stripe meter is the place in the bank."),
+    encoders=IDLE_ENC | {"PRESETS": "05 FM PAD", "KNOB4": "40"},
+    screen=scr({"kind": "meter", "value": "05", "sub": "FM PAD", "label": "FM6 · 05/26", "col": C_CHORD, "pct": 5 / 26, "segments": 26}, note="PRESETS turned: the place in the engine's pool huge, the preset's name under it, the engine and the place over the pool's size; the stripe meter is the pool."),
 ))
 
 # 19 ------------------------------------------------------------------------------ panic
@@ -639,11 +640,13 @@ S.append(engine_picker_state(
 
 # 23 ------------------------------------------------------------------------------ save a sound
 S.append(save_state(
-    "23 · SAVE tapped: name and save the sound",
-    "SAVE tapped (on the view or in the editor: the same dialog; EDIT keeps blinking in the editor): pick a user slot with "
-    "KNOB 1, name it with the keys (Felucca's naming: the keys type letters, OCT- deletes, OCT+ confirms), and the sound "
-    "lands in one of 32 user slots, listed after the factory bank on PRESETS. SAVE held: the loop's save / load / delete.",
-    "U03", "WARM EP_",
+    "23 · SAVE, Save as new: name the preset",
+    "SAVE tapped (on the view or in the editor: the same dialog; EDIT keeps blinking in the editor): Overwrite (the "
+    "current preset, saved at once, its name kept) or Save as new (docs/PRESETS.md). Save as new: this screen, the "
+    "place it takes in the engine's pool (FM6 · 27, after the factory presets and the ones saved before), the name "
+    "prefilled, typed with the keys; OCT+ saves it there (one of the 32 user slots). SAVE held: the loop's save / load "
+    "/ delete; SAVE held 1 s in the dialog: reset to factory / delete.",
+    "FM6 · 27", "WARM EP_",
 ))
 
 # 24 ------------------------------------------------------------------------------ the squeeze

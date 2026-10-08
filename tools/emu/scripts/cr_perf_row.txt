@@ -1,33 +1,43 @@
 # ChoralRoot: the perform layer is a knob row (CR_K_KNOBROW): PERF (ARP) held and released locks it open on the
-# current mode; G4 picks Arpeggiate (Division / Direction / Gate / Swing); KNOB 1 turned: the Division cell hot, no
-# popup (run with EMU_UI_LOG=0: every UI frame stays "knobrow"); 900 ms later the hot block is gone; D4: Strum
-# (Rate / Direction / Range / Hold); F4: Slop (Amount / Rate / Direction / Range); KNOB 3: Slop's direction hot;
-# B4: Pattern (Pattern / Division / Gate / Swing); OCT- closes the layer.
+# current mode; SELECT +3 picks Arpeggiate (Division / Direction / Gate / Swing; the roots play the chord in PERF);
+# KNOB 1 turned: the Division cell hot, no popup (run with EMU_UI_LOG=0: every UI frame stays "knobrow"); 900 ms later
+# the hot block is gone; SELECT -3: Strum (Rate / Direction / Range / Hold); +2: Slop (Amount / Rate / Direction /
+# Range); KNOB 3: Slop's direction hot; +3: Pattern (Pattern / Division / Gate / Swing); D4 + MAJ: the chord sounds in
+# the layer; OCT- closes the layer.
 wait 300
 btn ARP down
 wait 500
 btn ARP up
 wait 300
-btn G4
-wait 300
+knob SELECT +3
+wait 400
 shot build/emu/test/cr_perf_row.ppm
 knob KNOB1 +2
 wait 100
 shot build/emu/test/cr_perf_row_hot.ppm
 wait 900
 shot build/emu/test/cr_perf_row_cool.ppm
-btn D4
-wait 300
+knob SELECT -3
+wait 400
 shot build/emu/test/cr_perf_row_strum.ppm
-btn F4
-wait 300
+knob SELECT +2
+wait 400
 knob KNOB3 +1
 wait 100
 shot build/emu/test/cr_perf_row_slop.ppm
 wait 900
-btn B4
-wait 300
+knob SELECT +3
+wait 400
 shot build/emu/test/cr_perf_row_pattern.ppm
+key F3 down
+wait 40
+btn D4 down
+wait 300
+expect sound
+shot build/emu/test/cr_perf_row_keys.ppm
+btn D4 up
+key F3 up
+wait 300
 btn OCT-
 wait 300
 dump

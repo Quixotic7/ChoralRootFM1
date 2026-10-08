@@ -9,11 +9,11 @@ wait 100
 btn HOME
 wait 100
 wait 300
-knob PRESETS +3
+knob PRESETS +4               # FM6 05 FM PAD
 wait 200
 knob SELECT +80
 wait 200
-knob ALGORITHM +1
+knob ALGORITHM +9             # OFF -> ANALOG 08 SUB BASS (the bass part's pool, after OFF)
 wait 300
 btn REC
 wait 300
@@ -37,7 +37,8 @@ btn REC
 wait 300
 btn ARP down
 wait 400
-btn G4 100
+knob SELECT +3                # Arpeggiate (SELECT picks: the roots play in PERF)
+wait 100
 wait 200
 btn ARP up
 btn OCT-                      # the layer stays open after a hold: OCT- closes it

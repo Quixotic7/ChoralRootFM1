@@ -13,11 +13,13 @@
 #include <stdint.h>
 
 #define CRS_MAGIC 0x31535243u           /* "CRS1" */
-#define CRS_VERSION 5u
+#define CRS_VERSION 6u
 #define CRS_SIZE 192u                   /* bytes, header included; never changes (fields come out of rsv) */
 #define CRS_NPM 5                       /* perform modes (cr_engine.h CR_PM_COUNT) */
 #define CRS_NPAR 11                     /* parameters per mode (CR_P_COUNT) */
-#define CRS_SOUND_DEFAULT 0xFFFFu       /* chord_sound: the UI's own default (TINE EP) */
+#define CRS_SOUND_DEFAULT 0xFFFFu       /* chord_sound / bass_sound: the UI's own default (FM6 TINE EP, ANALOG SUB BASS) */
+#define CRS_NENG 11                     /* the engines shown (core.h NENG_SHOWN: cr_settings.c checks) */
+#define CRS_POOL_DEFAULT 1u             /* pool_pos: an engine not played yet lands on its first preset */
 #define CRS_PALETTE_MOD 0xFFu           /* palette: MOD, ChoralRoot's (gfx.c: the last palette) */
 enum { CRS_CLOCK_OFF, CRS_CLOCK_OUT, CRS_CLOCK_IN };
 enum { CRS_NONE = 0xFF };               /* out part: no part */
@@ -37,21 +39,30 @@ typedef struct {
     uint8_t split_pc, vel, bass_on, bass_mode;       /* 0..11; key velocity 1..127; (0 at power-on); cr_bassmode_t */
     int8_t bass_voicing;                             /* bass register, octaves -2..4 */
     uint8_t perform_on, perform_mode, perf_sel;      /* on, cr_pmode_t, the PERF layer's entry 0..6 (Strum 2 ...) */
-    uint8_t sticky, rsv0;                            /* latch */
+    uint8_t sticky, pool_pos10_chord;                /* latch; v6: pool_pos of engine rank 10 for the chord part
+                                                      * (crs_pool_get; was rsv0) */
     uint16_t bpm;                                    /* 20..300 */
     int16_t par[CRS_NPM][CRS_NPAR];                  /* per-mode perform parameters (cr_engine.h cr_param_t) */
     uint8_t loop_sync, loop_quant, loop_count_in, loop_level;   /* 0..5 (Free, 1..16 bars), 0..6, 0/1, 0..100 */
     uint8_t midi_en[3], midi_ch[3];                  /* per stream (MAIN BASS RAW): MIDI out on, channel 0..15 */
     uint8_t clock_mode, raw_sound, view, motion;     /* CRS_CLOCK_*, RAW also plays part 0, View 0..4, Motion 0..2 */
-    uint8_t palette, leds, fx_on, rsv1;              /* palette index (CRS_PALETTE_MOD), LEDs Glow / Stock, FX on */
-    uint16_t chord_sound, bass_sound;                /* list positions: PRESETS (CRS_SOUND_DEFAULT), ALGORITHM (BASS tap's, 1..; 0 = UI default) */
+    uint8_t palette, leds, fx_on, pool_pos10_bass;   /* palette index (CRS_PALETTE_MOD), LEDs Glow / Stock, FX on; v6: the
+                                                      * bass part's pool_pos of engine rank 10 (was rsv1) */
+    uint16_t chord_sound, bass_sound;                /* v6: the chord part's sound and the bass part's (what BASS tap
+                                                      * brings) as (engine << 8) | pool position (docs/PRESETS.md);
+                                                      * CRS_SOUND_DEFAULT the UI's. v1..5: positions in the old bank
+                                                      * list, read as CRS_SOUND_DEFAULT */
     /* version 2 */
     uint8_t metro_on, metro_sig, metro_vol, loop_slot;   /* the click, 4/4 3/4 6/8, its level 0..100, slot 0..9 */
     /* version 3 */
     uint8_t pick_roots;                              /* the engine picker's white roots: 1 engines, 0 they play */
     /* version 4 (rsv_usb: v4's usb_out, Options > USB Audio Out, the playback removed in v5: always 0 since) */
     uint8_t rsv_usb, usb_in, usb_level;              /* -, Options > USB Record (on), USB Level (CRS_USB_*) */
-    uint8_t rsv[20];                                 /* new fields come out of here */
+    /* version 6 */
+    uint8_t pool_pos[2][10];                         /* per part (chord, bass), per engine (ENGINE_ORDER rank 0..9; rank
+                                                      * 10's: pool_pos10_*): the pool position last played there, where
+                                                      * OPT + PRESETS lands (CRS_POOL_DEFAULT before). The reserve is
+                                                      * used up: a new field needs a longer record (docs/SETTINGS.md) */
 } cr_settings_t;
 
 /* what cr_out.c's routing takes (cr_route_t, written field by field by the unit's glue) */
@@ -68,6 +79,24 @@ void cr_settings_defaults(cr_settings_t *s);
 int  cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n);
 void cr_settings_seal(cr_settings_t *s);         /* header + checksum, before it is stored */
 int  cr_settings_equal(const cr_settings_t *a, const cr_settings_t *b);   /* the payloads */
+/* the pool position of part (0 chord, 1 bass) on the engine of ENGINE_ORDER rank r (0..CRS_NENG-1) */
+static inline uint8_t crs_pool_get(const cr_settings_t *s, unsigned part, unsigned r)
+{
+    part &= 1u;
+    if (r < 10u)
+        return s->pool_pos[part][r];
+    return part ? s->pool_pos10_bass : s->pool_pos10_chord;
+}
+static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uint8_t v)
+{
+    part &= 1u;
+    if (r < 10u)
+        s->pool_pos[part][r] = v;
+    else if (part)
+        s->pool_pos10_bass = v;
+    else
+        s->pool_pos10_chord = v;
+}
 
 #ifdef CR_ENGINE_H
 /* the record -> the engine's setters (call with the engine idle / the audio IRQ off) and the routing */

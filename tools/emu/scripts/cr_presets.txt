@@ -1,0 +1,355 @@
+# ChoralRoot: presets per engine (docs/PRESETS.md; design/choralroot-fm1-preset-screens.png). tools/emu/test_cr.sh reads
+# the "popup:", "sound:", "engine pick:" and "save:" lines.
+# 1. PRESETS turns inside the chord part's engine's pool only, INIT at 00, wrapping: from TINE EP (FM6 01) -1: 00 INIT,
+#    -1: 25 PIANO (the end), +6: 05 FM PAD ("05" / "FM PAD" / "FM6 . 05/26").
+# 2. OPT held + PRESETS +1: the engine picker (VA, "25 presets"); OPT released: VA 01 LUSH PAD; PRESETS +3: VA 04; OPT +
+#    PRESETS -1: FM6, back on 05 FM PAD (remembered per engine); +1: the VA, back on 04; -1: FM6 05 again.
+# 3. SAVE on FM PAD (factory, not edited): the dialog, Save as new by default; OCT+: the naming screen (FM6 26, the
+#    pool's next place); A D G, OCT+: U01, FM6 26; PRESETS -1 +1: 25 PIANO, 26 ADG (the pool has 27 now).
+# 4. PRESETS +3: 02 FM BELL; SAVE, KNOB 1 -1: Overwrite, OCT+: a record bound to FM BELL (U02), the number and the
+#    name kept; PRESETS +1 -1: 02 FM BELL with the mark.
+# 5. SAVE, SAVE held 1 s: "reset to factory?", OCT+: U02 deleted, the factory FM BELL back at 02 (no mark).
+# 6. 31 Saves as new fill the 32 slots; the next one: "no free slot".
+wait 500
+knob PRESETS -1
+wait 300
+shot build/emu/test/cr_presets_init.ppm
+knob PRESETS -1
+wait 300
+knob PRESETS +6
+wait 300
+shot build/emu/test/cr_presets_meter.ppm
+wait 1000
+btn GLO down
+wait 100
+knob PRESETS +1
+wait 200
+shot build/emu/test/cr_presets_engine.ppm
+btn GLO up
+wait 300
+knob PRESETS +3
+wait 300
+btn GLO down
+wait 100
+knob PRESETS -1
+wait 100
+btn GLO up
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +1
+wait 100
+btn GLO up
+wait 300
+btn GLO down
+wait 100
+knob PRESETS -1
+wait 100
+btn GLO up
+wait 1200
+btn SAVE
+wait 300
+shot build/emu/test/cr_presets_dialog.ppm
+btn OCT+
+wait 300
+shot build/emu/test/cr_presets_naming.ppm
+btn D4
+wait 200
+btn E4
+wait 200
+btn F4
+wait 300
+btn OCT+
+wait 1500
+knob PRESETS -1
+wait 300
+knob PRESETS +1
+wait 300
+shot build/emu/test/cr_presets_new.ppm
+knob PRESETS +3
+wait 1500
+btn SAVE
+wait 300
+knob KNOB1 -1
+wait 200
+shot build/emu/test/cr_presets_overwrite.ppm
+btn OCT+
+wait 1500
+knob PRESETS +1
+wait 300
+knob PRESETS -1
+wait 300
+shot build/emu/test/cr_presets_mark.ppm
+wait 1500
+btn SAVE
+wait 300
+btn SAVE 1200
+wait 100
+shot build/emu/test/cr_presets_reset.ppm
+btn OCT+
+wait 1500
+knob PRESETS +1
+wait 300
+knob PRESETS -1
+wait 300
+shot build/emu/test/cr_presets_factory.ppm
+wait 1500
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 150
+btn OCT+
+wait 300
+btn SAVE
+wait 150
+knob KNOB1 +1
+wait 100
+btn OCT+
+wait 100
+shot build/emu/test/cr_presets_full.ppm
+btn OCT-
+wait 300
+dump
+quit

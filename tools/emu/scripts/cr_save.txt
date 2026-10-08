@@ -1,9 +1,14 @@
-# ChoralRoot: SAVE tap: the naming screen; D4 E4 F4 type A D G; OCT+ saves to U01; PRESETS -1 +1 reaches it (after
-# the bank sounds); BASS held (ENV) + EDIT: the bass sound's pages; KNOB 1 there edits part 1
+# ChoralRoot (docs/PRESETS.md): SAVE tap on TINE EP (a factory preset, not edited): the save dialog, Save as new by
+# default; OCT+: the naming screen (FM6 26, the pool's next place, prefilled TINE EP); D4 E4 F4 type A D G; OCT+
+# saves to U01; PRESETS -1 +1 reaches it (FM6 26, after the 25 factory presets); BASS held (ENV) + EDIT: the bass
+# sound's pages; KNOB 1 there edits part 1
 wait 300
 btn SAVE
 wait 300
 shot build/emu/test/cr_save_open.ppm
+btn OCT+
+wait 300
+shot build/emu/test/cr_save_naming.ppm
 btn D4
 wait 200
 btn E4

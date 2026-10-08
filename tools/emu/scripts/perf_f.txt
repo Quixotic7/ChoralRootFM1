@@ -1,8 +1,27 @@
 # tools/emu/perf.sh (f): a 6-note VA chord (ENSEMBLE STR, four saws; MORPH PAD, WIDE STRINGS: docs/VA.md) + the VA bass (PUNCH BASS) held 3 s, a chord change, 3 s more, released
-wait 500
-knob PRESETS +28
 wait 300
-knob ALGORITHM +10
+btn ENV down                  # the bass part's engine (docs/PRESETS.md: BASS held + EDIT, the editor's EDIT-held picker):
+wait 50
+btn EDIT                      # BASS held + EDIT: the bass sound's editor
+btn ENV up
+wait 300
+btn EDIT 600                  # EDIT held: the engine picker (the bass part)
+wait 200
+btn F4                        # the third white root: VA
+wait 200
+btn OCT+                      # kept
+wait 200
+btn EDIT                      # the editor closed
+wait 200
+btn GLO down
+wait 100
+knob PRESETS +1               # OPT + PRESETS: the chord part to the VA (01 LUSH PAD), on OPT's release
+wait 100
+btn GLO up
+wait 50
+knob PRESETS +4               # VA 05 ENSEMBLE STR
+wait 300
+knob ALGORITHM +19            # OFF -> VA 18 PUNCH BASS
 wait 300
 key F3 down
 key 2 down

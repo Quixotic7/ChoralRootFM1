@@ -1,5 +1,12 @@
 # Presets: one pool per engine (the user's model, 2026-10-07)
 
+**Status: done in the firmware 2026-10-07** (`cr_bank.c` the pools and the binding, `cr_ui.c` PRESETS / ALGORITHM /
+OPT + PRESETS / the save dialog, settings v6, `tools/emu/scripts/cr_presets.txt`; docs/HANDOFF.md 3e). Decided on the
+way: Overwrite never renames; Overwrite on a user preset keeps its binding; the bound record of a loud factory preset
+keeps that preset's trim; a delete loads what is then at the deleted place (the one before at the end); the CZ-1's
+INIT TONE is the pool's INIT (its pool: INIT + Casio's 64); an engine not played yet lands on its first preset.
+Not yet: the Sounds page / CLI showing the binding.
+
 Replaces the sound model of PLAN.md §3 / §7 and docs/INTEGRATION.md §7 ("Sounds"): the curated 48-row ChoralRoot
 bank on PRESETS followed by 32 user slots, with the engines' own factory presets reachable only inside the editor
 (EDIT held, KNOB 1). The user found it confusing (three lists, a saved sound landing at position 49 with no sign of

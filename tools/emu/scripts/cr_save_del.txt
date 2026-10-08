@@ -1,8 +1,12 @@
-# ChoralRoot: user sound slots. SAVE tap: the naming screen, the typing keys lit (white roots, D#4 space, F#4 delete),
-# the other black roots dark; D4 E4 F4 + OCT+: U01 "ADG". SAVE again (U01, not edited) + G4 (J) + OCT+: a rename (the
-# sound kept). SAVE again, SAVE held 1 s: "delete?" (the slot huge in red); OCT- keeps it; held again, OCT+ deletes it.
+# ChoralRoot: user presets (docs/PRESETS.md). SAVE tap (TINE EP, a factory preset): the dialog, Save as new; OCT+: the
+# naming screen, the typing keys lit (white roots, D#4 space, F#4 delete), the other black roots dark; D4 E4 F4 +
+# OCT+: U01 "ADG", FM6 26. SAVE again (a user preset: Overwrite by default) + OCT+: U01 rewritten, its name and place
+# kept (Overwrite never renames). SAVE, SAVE held 1 s: "delete?" (the place huge in red); OCT- keeps it; held again,
+# OCT+ deletes it: the pool closes up, the part on FM6 25 PIANO (the one before it at the end).
 wait 300
 btn SAVE
+wait 300
+btn OCT+
 wait 300
 expect led D4 on
 expect led G5 on
@@ -21,8 +25,7 @@ btn OCT+
 wait 1500
 btn SAVE
 wait 300
-btn G4
-wait 300
+shot build/emu/test/cr_save_overwrite.ppm
 btn OCT+
 wait 300
 shot build/emu/test/cr_save_renamed.ppm

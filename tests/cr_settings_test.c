@@ -247,6 +247,63 @@ static void t_version(void)
        "USB settings out of range: their defaults (Record on, Master)");
 }
 
+/* version 6 (docs/PRESETS.md): the parts' sounds as (engine << 8) | pool position, each part's place per engine */
+static void t_presets(void)
+{
+    cr_settings_t s, r, d;
+    unsigned i, part, all = 1;
+    cr_settings_defaults(&d);
+    for (part = 0; part < 2u; part++)
+        for (i = 0; i < (unsigned)CRS_NENG; i++)
+            all &= crs_pool_get(&d, part, i) == CRS_POOL_DEFAULT;
+    ok(all && d.chord_sound == CRS_SOUND_DEFAULT && d.bass_sound == CRS_SOUND_DEFAULT && d.version == 6u,
+       "v6 defaults: the UI's sounds (TINE EP, SUB BASS), every engine's first preset for both parts");
+    s = d;
+    s.chord_sound = (uint16_t)(13u << 8 | 4u);     /* VA 04 */
+    s.bass_sound = (uint16_t)(0u << 8 | 8u);        /* ANALOG 08 */
+    crs_pool_set(&s, 0, 2, 4);
+    crs_pool_set(&s, 0, 10, 3);                    /* rank 10: the byte that was rsv0 */
+    crs_pool_set(&s, 1, 10, 0);                    /* .. rsv1 (0: INIT) */
+    crs_pool_set(&s, 1, 0, 8);
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && cr_settings_equal(&r, &s) && crs_pool_get(&r, 0, 10) == 3 &&
+       r.pool_pos10_chord == 3 && crs_pool_get(&r, 1, 10) == 0 && crs_pool_get(&r, 0, 2) == 4 &&
+       crs_pool_get(&r, 1, 0) == 8 && r.chord_sound == (13u << 8 | 4u), "v6: the sounds and the places per engine round-trip");
+    s.pool_pos[1][3] = 200;                        /* (no pool is that long) */
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && crs_pool_get(&r, 1, 3) == CRS_POOL_DEFAULT &&
+       crs_pool_get(&r, 0, 2) == 4, "v6: a place out of range takes its default, the others kept");
+    /* a version-5 record: list positions of the old bank (17, 4) and zeros where the places are now */
+    s = d;
+    s.chord_sound = 17;
+    s.bass_sound = 4;
+    for (i = 0; i < (unsigned)CRS_NENG; i++) {
+        crs_pool_set(&s, 0, i, 0);
+        crs_pool_set(&s, 1, i, 0);
+    }
+    s.bpm = 95;
+    cr_settings_seal(&s);
+    s.version = 5;
+    s.check = 0;
+    {
+        const uint8_t *b = (const uint8_t *)&s;
+        uint32_t h = 2166136261u;
+        for (i = 12u; i < CRS_SIZE; i++) {
+            h ^= b[i];
+            h *= 16777619u;
+        }
+        s.check = h;
+    }
+    all = 1;
+    ok(cr_settings_import(&r, &s, sizeof s) == 2, "version 5: migrated");
+    for (part = 0; part < 2u; part++)
+        for (i = 0; i < (unsigned)CRS_NENG; i++)
+            all &= crs_pool_get(&r, part, i) == CRS_POOL_DEFAULT;
+    ok(all && r.chord_sound == CRS_SOUND_DEFAULT && r.bass_sound == CRS_SOUND_DEFAULT && r.bpm == 95 &&
+       r.version == CRS_VERSION, "version 5 -> 6: the old list positions read as the defaults (TINE EP, SUB BASS), every "
+       "engine's first preset, the rest kept");
+}
+
 static void t_flash(void)
 {
     cr_settings_t s, r;
@@ -277,6 +334,7 @@ int main(void)
     t_roundtrip();
     t_corruption();
     t_version();
+    t_presets();
     t_flash();
     printf("cr_settings: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;

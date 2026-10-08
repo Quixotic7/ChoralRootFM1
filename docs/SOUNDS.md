@@ -57,6 +57,17 @@ A record is **valid** (`up_valid`) when used == 0xA5, 1 <= ver <= 5, engine < 15
 name[0] != 0 and, for ver >= 4, every packed[i] for i < np is <= 191. The page and the CLI apply the same test: an
 invalid record reads as an empty slot and is never written.
 
+**The binding** (docs/PRESETS.md, firmware 0.14): ChoralRoot has no sequencer, so a record's pattern bytes are free;
+two of them place the preset in its engine's pool. `note[15]` (byte 175) = **0xA6** marks a record the FM-1 saved
+with a binding, and `flags[15]` (byte 191) is then the **index + 1 of the factory preset it overwrites** (the engine's
+`presets[]`, FM6 1..25, CZ-1 2..65: its INIT TONE is the pool's INIT) or **0 for a preset added to the pool**. A record
+without the mark (older firmware, a client's, a restore) is an added preset of its engine; so is a mark naming no
+factory preset of the engine, or one an earlier slot already binds (the first bound slot wins). The pool of an engine:
+00 INIT, its factory presets (each replaced by the slot bound to it), then the added records in slot order; so a
+client can say "FM6 02 (over FM BELL)" or "FM6 +1". Older firmware reads a bound record as an ordinary one (a note 38
+on step 16 of a pattern it never plays here); `up_valid` is unchanged. Clients that rewrite a record should keep these
+two bytes (the JSON's `record` carries them already); the Sounds page and the CLI do not show the binding yet.
+
 Engines (`ENGINES[]`, append-only; the retired ones are never produced by this firmware but a record may carry them):
 
 | engine | name | patch kind | engine | name | patch kind |

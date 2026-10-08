@@ -118,8 +118,8 @@ Off: ignored) are heard:
   kept), CC 123 all notes off (the pedal honoured). Felucca's chords (CHRD), arpeggiator and live recording were the
   sequencer's and are gone; a MIDI note and the engine's stream share the part's voices as before.
 - CC 7 → the part's LEVEL, CC 91 / 93 / 94 → its reverb / chorus / delay send (part 0's are the FX amounts), program
-  change → the chord sound (PRESETS list position: factory bank, then user slots) or the bass sound (ALGORITHM list
-  position, 0 = off); out of range ignored. The ISR posts these to a small ring (`cr_min_q`) and the UI frame
+  change → the chord sound (its position in the chord part's engine's pool, 0 = INIT) or the bass sound (ALGORITHM's
+  position: 0 = off, then the bass part's engine's pool); out of range ignored. The ISR posts these to a small ring (`cr_min_q`) and the UI frame
   (`cu_midi_poll`) applies them with the knob's meter popup.
 - Options > MIDI Clock = **In**: 0xF8 feeds the follower (24 pulses averaged, a window restarts on a gap > 150 ms,
   BPM 20..300, a change under 0.8 BPM ignored so the ms stamps never reset the clock) → `cr_set_tempo` in the ISR
@@ -251,14 +251,19 @@ Felucca's settings record (`settings_persist.c`) grows a ChoralRoot block: play 
 addition, secret scope, key mode + tonic + scale, transpose, single notes, velocity, bass
 behaviour + register + sound, perform mode + params, latch, tempo, loop sync/quant/count-in/level,
 MIDI channels/enables/clock mode, view, motion, palette (MOD default), LEDs. Saved on change,
-deferred while a loop plays (Felucca's `settings_poll`). Sounds: Felucca's factory presets per
-engine + a ChoralRoot bank (`cr_bank.c`: chord-friendly presets in PRESETS order, basses for
-ALGORITHM) + the 32 user slots (`upreset.c`), named with the root keys as Felucca's `ui_name.c`.
+deferred while a loop plays (Felucca's `settings_poll`). Sounds (docs/PRESETS.md, 2026-10-07): **one editable pool per
+engine** (`cr_bank.c`): 00 INIT, the engine's factory presets (each replaced by the user's record bound to it: an
+overwritten factory preset, resettable), then the presets the user added; PRESETS turns the chord part's engine's
+pool, ALGORITHM the bass part's (00 OFF before it), OPT + PRESETS changes the chord part's engine (each part remembers
+its place per engine: settings v6), SAVE offers Overwrite / Save as new. The user presets are the 32 slots of
+`upreset.c`; a record's binding is two of its pattern bytes (`note[15] = 0xA6`, `flags[15]` = factory index + 1 or 0;
+docs/SOUNDS.md). Names typed with the root keys as Felucca's `ui_name.c`. The curated 48-row bank of before is gone;
+its trims stay as a table by (engine, preset), its PIANO is FM6's F25.
 
 - **VA** (engine 13, `eng_va.c`, `FELUCCA_VA`; docs/VA.md): a four-oscillator virtual analog with deep pages
   (`eng_deep_t`: OSC / FILTER / ENV / LFO / MOD, 32 pages; oscillator MODE BASIC / MORPH / NOISE, FILTER MORPH and
   a stereo SPREAD, UNISON's USPREAD), its own patch per part (P_E0..P_E7 are macros into it, blob version 2), 19
-  chord sounds at the end of PRESETS (25..43) and 4 basses at the end of ALGORITHM (9..12), levels set in the
+  presets in its pool (docs/PRESETS.md; before: 19 chord sounds and 4 basses of the curated bank), levels set in the
   presets (trim 0). A user slot saved from a VA sound keeps its patch in `va_store.c` (one per slot, on the unused
   project sectors 0x97000 / 0x98000; a version-1 store is imported at boot). The VA is the one engine with a stereo
   voice path (`engine_t.render2`: a mid + side per part, `fx.c mix_part`).
@@ -354,10 +359,10 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
   move); OPT + ALGORITHM bass level. Options: a picker of 18 settings (USB Record and USB Level since 0.14, docs/USB-AUDIO.md), KNOB 1 sets. `cr_build_screen` in the order
   of section 5 (PANIC / message, knob meter 900 ms, layer, page, Options, idle stripes after 3 s, the View: CHORD,
   ARP in motion, KEYBOARD, NOTES, GEEK OUT); `cr_leds` as section 6.
-- **Sounds** (`cr_bank.c`, `cr_pages.c`, `cr_name.c`; section 7): PRESETS browses the ChoralRoot bank (24 chord
-  sounds: EPs, piano, pads, strings, organs, choir, brass, mallets, plucks), ALGORITHM 8 basses, each a table row
-  (engine, Felucca preset name, display name; the name resolves to the index at boot), then the used user slots
-  (ALGORITHM: the slots saved MONO / LEGATO). The meter shows the bank number (a user sound: its slot) and the name.
+- **Sounds** (`cr_bank.c`, `cr_pages.c`, `cr_name.c`; section 7, docs/PRESETS.md): PRESETS turns the pool of the
+  chord part's engine, ALGORITHM the bass part's (after OFF); OPT + PRESETS the chord part's engine (a horizontal
+  picker while OPT is held, applied on release). The meter: the place big, the name (a square after an overwritten
+  factory preset's), "FM6 · 05/26".
   **EDIT tap**: the sound editor (`cr_edit.c`, docs/EDITOR.md; BASS held + EDIT: the bass sound's, SHIFT + EDIT inside
   switches part). Groups -> screens -> lanes: the function buttons become group buttons (FX = OSC, SEL = FILT, ENV,
   LFO, SEQ = MOD, PLAY = FX sends, REC = MIX; HOME or EDIT leaves); a group's tap opens it, tapped again it cycles its
@@ -373,10 +378,11 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
   pages (FM6: "own envelopes" on ENV). A layer opened over the editor (PERF held, the engine picker) closes back to
   it. **EDIT held** (or PRESETS turned inside the editor): the engine picker as a **preview** of the part's sound
   (snapshot: every parameter, the engine, the VA patch blob, `edited`, the user slot); the white roots switch the
-  engine (keeping the envelope, filter, LFO, sends and mix), KNOB 1 / PRESETS the engine's factory presets (the meter
+  engine (keeping the envelope, filter, LFO, sends and mix), KNOB 1 / PRESETS the engine's pool (the meter
   jumps, no fill), KNOB 2 init, KNOB 4 the roots' job: engines / play (Settings `pick_roots`); OCT− / HOME cancel (the
   snapshot back), OCT+ / EDIT keep (a fresh load). Outside the editor PRESETS loads at once. **SAVE tap** (from a
-  bass page or BASS held + SAVE: the bass): KNOB 1 the slot U01-U32 (a used one shows its name), the white roots type
+  bass page or BASS held + SAVE: the bass): Overwrite / Save as new (docs/EDITOR.md section 8); Save as new's naming
+  page shows the pool's place it takes ("FM6 · 27"), the white roots type
   (phone style: ABC DEF GHI JKL MNO PQRS TUV WXYZ 0123 4567 89-.), D#4 a space, F#4 deletes, KNOB 2 the last letter,
   SAVE again or OCT+ saves, OCT− or HOME cancels (back to the editor when it came from it);
   the prefilled name (grey) is replaced by the first letter typed. `upreset.c` is back (its Felucca-UI names in
@@ -409,10 +415,12 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
   92 (-10 dB: Felucca's default 104, -4 dB, trimmed by 6 dB), the bass 92 too (-10 dB: trimmed by 6 dB; 98 until
   2026-10-06), so a 6-note chord stays out of the master limiter (Performance, item 2). A sound's load keeps the
   part's level (the rule above); MASTER makes up the loudness (about 4 dB quieter than before on a held chord).
-  **Per-sound trims**: the bank's loud sounds carry a trim (`cr_bank.c` `cb_entry_t.trim`, signed 0.5 dB steps), a
+  **Per-sound trims**: the loud factory presets carry a trim (`cr_bank.c` `CB_TRIM`, by engine and preset name: ANALOG
+  STRINGS -1 dB, PHASE STRING / ORGAN -8 dB, PHASE BRASS -3 dB, VOICE CHOIR AAH -3 dB, CZ-1 BRASS 1 -5 dB, STRINGS 2
+  -3 dB, PIPE ORGAN 1 -6 dB; since docs/PRESETS.md also a user record bound to one of them), signed 0.5 dB steps, a
   gain after LEVEL (`track_t.trim`, applied in `fx.c` `mix_part` as LEVEL + trim steps of `LEVEL_Q12`, LEVEL 0 still
-  OFF), set by `cu_list_load` when a bank sound loads; 0 for a user sound, an engine preset (EDIT + KNOB 1), INIT, an
-  engine switch, and on Felucca (its renders unchanged). LEVEL is never touched. Trims (measured as Performance item 2:
+  OFF), set by `cu_pool_load` when such a preset loads from its pool; 0 for an added user preset, INIT, an engine
+  switch, and on Felucca (its renders unchanged). LEVEL is never touched. Trims (measured as Performance item 2:
   the share of the held 6-note chord of scenario (a), 0.3-5.9 s, under the limiter's gain, chord alone / with SUB
   BASS, both parts at 92): CZ STRINGS -8 dB (56 / 86 % -> 0 / 0 %), CZ ORGAN -8 dB (100 / 100 % -> 0 / 2.1 %),
   CZ BRASS -3 dB (81 / 97 % -> 0.6 / 8.8 %), CHOIR -3 dB (55 / 91 % -> 0.9 / 6.7 %), STRINGS -1 dB (1.6 / 13.3 % ->
@@ -499,7 +507,7 @@ Felucca's tests). Total: flash 493280 -> 273488 B of the XIP slot (84.8 -> 47.0 
 85.7 %. The audio of what remains is bit for bit the same: `tools/emu/perf.sh`'s six WAVs (FM6, VA, ANALOG sounds,
 the bass, the loop, the arp) are identical to b32e83f's.
 
-The bank keeps its rows: PRESETS 03 PIANO (was SAMPLE's) is FM6's PIANO, TINE EP's patch through the macros (MRAT +1,
+(Since docs/PRESETS.md there is no bank: these are FM6 25 and VA 24 / 25 in their pools.) The bank kept its rows: PRESETS 03 PIANO (was SAMPLE's) is FM6's PIANO, TINE EP's patch through the macros (MRAT +1,
 MLVL +10, MEG -16, VMOD +2, FB +1, DTUN 12: an EP-piano hybrid; no new factory patch; since Melodee's FM6, PTCH's F1..F24
 come before B1..B32, docs/FM6.md);
 15 CLOUD PAD and 16 SHIMMER (were GRAIN's) are VA presets 23 / 24 (docs/VA.md). Levels with `tests/va_levels.c`

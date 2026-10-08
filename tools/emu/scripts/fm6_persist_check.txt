@@ -1,6 +1,6 @@
 # test_persist.sh, FM6 run 2 (the same flash file): the power-on sound is U01: the trace "fm6: load slot 1 patch crc
 # XXXX" (the patch and function settings as saved); EDIT, SELECT +1: OP 2's LEVEL reads 0 (KNOB 1 +1: "LEVEL 0 -> 5");
-# a chord on it sounds
+# a chord on it sounds; PRESETS +1 -1: FM6 01 is U01, bound to TINE EP (docs/PRESETS.md: the mark on the meter)
 wait 500
 btn EDIT
 wait 400
@@ -17,6 +17,10 @@ wait 600
 expect sound
 btn D4 up
 key F3 up
+wait 300
+knob PRESETS +1               # the pool: 02 FM BELL, then back on 01, U01 bound to TINE EP (the mark)
+wait 300
+knob PRESETS -1
 wait 300
 dump
 quit

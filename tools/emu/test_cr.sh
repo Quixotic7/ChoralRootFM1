@@ -4,8 +4,9 @@
 #   sh tools/emu/test_cr.sh        builds build/host/emu when a source is newer, runs tools/emu/scripts/cr_*.txt
 # Checks (docs/INTEGRATION.md section 9, steps 1-2): MAJ + D4 sounds D major on part 0 with the D4 F#4 A4 LEDs lit
 # and the chord screen; KNOB 1 +2 revoices it (A4 D5 F#5) with the voicing line; KEY tap: Key Mode, its LED,
-# "Key: C", D4 alone -> Dm; KEY held: select-key, a root sets the tonic; PERF held: the Perform picker, a root
-# picks the mode; PRESETS: the sound meter and another timbre; ALGORITHM: the bass on, a bass note on part 1;
+# "Key: C", D4 alone -> Dm; KEY held: select-key, a root sets the tonic; PERF held: the Perform picker, SELECT
+# picks the mode (the roots play there); PRESETS: the sound meter and another timbre; ALGORITHM: the bass on, a bass
+# note on part 1; presets per engine (cr_presets: docs/PRESETS.md);
 # End: PANIC (the red screen); idle 3 s: the stripes; after every release, parts 0 and 1 silent within 2 s.
 # Screenshots: build/emu/test/cr_*.ppm (and the logs).
 set -u
@@ -83,15 +84,15 @@ silent_end cr_key
 
 echo "PERF held: the Perform picker"
 run cr_perf
-differ cr_perf_picker cr_perf_arp "a root moved the picker: $OUT/cr_perf_picker.ppm -> cr_perf_arp.ppm"
-has 'perform 1 mode 2' "$OUT/cr_perf.log" && ok "G4 in the layer: Arpeggiate, performance on" || bad "mode not chosen"
+differ cr_perf_picker cr_perf_arp "SELECT moved the picker: $OUT/cr_perf_picker.ppm -> cr_perf_arp.ppm"
+has 'perform 1 mode 2' "$OUT/cr_perf.log" && ok "SELECT +3 in the layer: Arpeggiate, performance on" || bad "mode not chosen"
 has 'chord Am7 sounding 1' "$OUT/cr_perf.log" && ok "Am7 arpeggiated (MIN + m7 + A4)" || bad "no Am7"
 silent_end cr_perf
 
 echo "PRESETS: the sound"
 run cr_sound --wav "$OUT/cr_sound.wav"
 run cr_sound_ref --wav "$OUT/cr_sound_ref.wav"
-has 'part 0: FM6 / BELL' "$OUT/cr_sound.log" && ok "PRESETS +1: part 0 loads the next sound (TINE EP -> BELL)" \
+has 'part 0: FM6 / FM BELL' "$OUT/cr_sound.log" && ok "PRESETS +1: part 0 loads the next preset of FM6's pool (TINE EP -> FM BELL)" \
                                                 || bad "no sound change"
 [ -s "$OUT/cr_sound_meter.ppm" ] && ok "the sound meter: $OUT/cr_sound_meter.ppm" || bad "no meter screenshot"
 a=$(num "non-zero samples" "$OUT/cr_sound.log"); b=$(num "non-zero samples" "$OUT/cr_sound_ref.log")
@@ -100,7 +101,8 @@ cmp -s "$OUT/cr_sound.wav" "$OUT/cr_sound_ref.wav" && bad "the same audio with a
 
 echo "ALGORITHM: the bass"
 run cr_bass
-has 'bass 1 (sound 1)' "$OUT/cr_bass.log" && ok "ALGORITHM +1: bass on (sound 01)" || bad "bass not on"
+has 'bass 1 (sound 9)' "$OUT/cr_bass.log" && has 'part 1: ANALOG / SUB BASS' "$OUT/cr_bass.log" &&
+    ok "ALGORITHM +9: bass on (OFF, then ANALOG's pool: 08 SUB BASS)" || bad "bass not on"
 has 'part 1: .* voices 1' "$OUT/cr_bass.log" && ok "a bass note on part 1" || bad "no bass note on part 1"
 silent_end cr_bass
 
@@ -132,17 +134,17 @@ orange_in() {    # orange_in FILE: ChoralRoot's orange pixels in the status slot
         od -An -tu1 -v -j $((15 + ($row * 240 + 150) * 3)) -N$((88 * 3)) "$1" | tr -s ' \n' '\n\n' | grep -v '^$'
     done | awk '{ v[n++] = $1 } END { c = 0; for (i = 0; i + 2 < n; i += 3) if (v[i] > 200 && v[i+1] > 80 && v[i+1] < 170 && v[i+2] < 90) c++; print c }'
 }
-has '^bass: on (sound 1, Chords Only)' "$L" && has 'expect led ENV on .*: ok' "$L" &&
+has '^bass: on (sound 9, Chords Only)' "$L" && has 'expect led ENV on .*: ok' "$L" &&
     ok "BASS tapped: the bass on (SUB BASS, Chords Only), its LED lit" || bad "BASS tap: $(grep '^bass:' "$L" | head -1)"
 [ "$(pv 0 1)" = 3 ] && [ "$(pv 1 1)" = 0 ] && ok "before: MAJ + D4 on part 0 only (3 voices)" || bad "before: part 0 $(pv 0 1) part 1 $(pv 1 1)"
 [ "$(pv 0 2)" = 3 ] && [ "$(pv 1 2)" = 1 ] && ok "bass on: MAJ + D4 sounds on part 0 (3 voices) AND part 1 (the bass note)" \
     || bad "bass on: part 0 $(pv 0 2) part 1 $(pv 1 2) voices (the chord part must keep sounding)"
-[ "$(pv 0 3)" = 3 ] && has 'part 1: ANALOG / SQR BASS' "$L" && ok "ALGORITHM +1 with the chord held: another bass sound, part 0 still 3 voices" \
+[ "$(pv 0 3)" = 3 ] && has 'part 1: ANALOG / SQR BASS' "$L" && ok "ALGORITHM -5 with the chord held: another bass sound, part 0 still 3 voices" \
     || bad "a bass sound change with the chord held: part 0 $(pv 0 3)"
 has '^bass: off' "$L" && has 'expect led ENV dim .*: ok' "$L" && [ "$(pv 0 4)" = 3 ] && [ "$(pv 1 4)" = 0 ] &&
     ok "BASS tapped off: its LED back to the glow, the chord on part 0 only" || bad "bass off: part 0 $(pv 0 4) part 1 $(pv 1 4)"
 o=$(orange_in "$OUT/cr_bass_both_pop.ppm"); n=$(orange_in "$OUT/cr_bass_both_on.ppm"); f=$(orange_in "$OUT/cr_bass_both_off.ppm")
-differ cr_bass_both_pop cr_bass_both_on "BASS tap: the bass meter popup (01 SUB BASS, orange): $OUT/cr_bass_both_pop.ppm"
+differ cr_bass_both_pop cr_bass_both_on "BASS tap: the bass meter popup (08 SUB BASS, orange): $OUT/cr_bass_both_pop.ppm"
 [ "$n" -gt 40 ] && [ "$f" = 0 ] && ok "\"Bass\" in orange top right while the bass is on ($n px; off: $f): $OUT/cr_bass_both_on.ppm" \
     || bad "the Bass status: on $n off $f orange px"
 has '^bass: behaviour Solo' "$L" && [ "$(pv 0 5)" = 0 ] && [ "$(pv 1 5)" = 1 ] &&
@@ -189,7 +191,9 @@ h=$(px_count "$OUT/cr_fx_row_hot.ppm" 64 176 116 196 ink); c=$(px_count "$OUT/cr
 [ "$h" -gt $((c + 300)) ] && ok "the hot block behind Damp's value ($h ink px), gone 900 ms later ($c): $OUT/cr_fx_row_hot.ppm" \
     || bad "hot block: $h px hot, $c after"
 has '^fx: cells Time Feedback Colour Amount' "$L" && has '^fx: cells Rate Depth - Amount' "$L" && has '^fx: cells - - - Amount' "$L" &&
-    ok "a root picks the effect, the cells follow (Delay, Chorus with a dash, Drive the amount only): $OUT/cr_fx_row_delay.ppm" || bad "the cells did not follow the effect"
+    ok "SELECT picks the effect, the cells follow (Delay, Chorus with a dash, Drive the amount only): $OUT/cr_fx_row_delay.ppm" || bad "the cells did not follow the effect"
+has '^expect sound .*: ok' "$L" && has '^expect led D4 on .*: ok' "$L" &&
+    ok "MAJ + D4 in the fx layer: the chord sounds, its LEDs are the chord's (the roots play there)" || bad "the roots in the fx layer: $(grep '^expect' "$L")"
 differ cr_fx_row cr_fx_row_delay "Reverb / Delay rows differ"
 has '^fx: knob 4 Delay amount' "$L" && differ cr_fx_row_delay cr_fx_row_amount "KNOB 4: Delay's amount cell changed (hot): $OUT/cr_fx_row_amount.ppm"
 differ cr_fx_row_chorus cr_fx_row_drive_off "Drive with FX off (the amount reads off): $OUT/cr_fx_row_drive_off.ppm"
@@ -208,7 +212,8 @@ grep -q '^ui: frame.*device): knobrow .*hot 1\.0$' "$L" && grep -q '^ui: frame.*
     ok "the turned cell hot (KNOB 1: cell 0, KNOB 3: cell 2)" || bad "no hot cell in the trace"
 differ cr_perf_row_hot cr_perf_row_cool "the hot block gone 900 ms later: $OUT/cr_perf_row_hot.ppm"
 has '^perf: cells Rate Direction Range Hold' "$L" && has '^perf: cells Amount Rate Direction Range' "$L" && has '^perf: cells Pattern Division Gate Swing' "$L" &&
-    ok "a root picks the mode, the cells follow (Strum, Slop, Pattern): $OUT/cr_perf_row_strum.ppm" || bad "the cells did not follow the mode"
+    ok "SELECT picks the mode, the cells follow (Strum, Slop, Pattern): $OUT/cr_perf_row_strum.ppm" || bad "the cells did not follow the mode"
+has '^expect sound .*: ok' "$L" && ok "MAJ + D4 in the perform layer: the chord sounds (performed): $OUT/cr_perf_row_keys.ppm" || bad "the roots in the perform layer"
 has '^perf: knob Slop direction' "$L" && ok "KNOB 3 in Slop: its direction" || bad "KNOB 3: no Slop direction"
 differ cr_perf_row cr_perf_row_strum "Arpeggiate / Strum rows differ"
 
@@ -314,12 +319,12 @@ has '^edit: part 1' "$L" && has '^edit: group OSC screen 1 lane 1 part 1' "$L" &
     cmp -s "$OUT/cr_editor_pre_perf.ppm" "$OUT/cr_editor_perf_back.ppm" && cmp -s "$OUT/cr_editor_pre_perf.ppm" "$OUT/cr_editor_perf_home.ppm" &&
     ok "PERF held from the editor: the perform layer ($OUT/cr_editor_perf.ppm); OCT- and HOME: back to the editor as it was" \
     || bad "PERF from the editor: $OUT/cr_editor_pre_perf.ppm / cr_editor_perf_back / cr_editor_perf_home"
-differ cr_editor_save cr_editor_back "SAVE: the naming screen over the editor ($OUT/cr_editor_save.ppm), OCT-: cancelled back to it"
+differ cr_editor_save cr_editor_back "SAVE: the save dialog over the editor ($OUT/cr_editor_save.ppm), OCT-: cancelled back to it"
 cmp -s "$OUT/cr_editor_back.ppm" "$OUT/cr_editor_again.ppm" && ok "OCT-, HOME, EDIT: back in MIX row B (the group, screen and lane remembered)" \
     || bad "the editor not as left: $OUT/cr_editor_back.ppm / $OUT/cr_editor_again.ppm"
 [ "$(grep -c '^edit: group MIX screen 1 lane 2 part 0' "$L")" -ge 3 ] && ok "the trace: MIX row B after SHIFT + EDIT and after EDIT again" || bad "group memory"
 has '^edit: close' "$L" && differ cr_editor_home cr_editor_again "HOME left the editor: $OUT/cr_editor_home.ppm"
-has '^save: part 0 slot U01 name LUSH PAD rc 0' "$L" && ok "SAVE SAVE: saved to U01 from the editor: $OUT/cr_editor_saved.ppm" || bad "SAVE SAVE: $(grep '^save:' "$L")"
+has '^save: part 0 overwrite slot U01 VA 01 LUSH PAD rc 0' "$L" && ok "SAVE SAVE (edited: Overwrite): LUSH PAD bound in U01 from the editor: $OUT/cr_editor_saved.ppm" || bad "SAVE SAVE: $(grep '^save:' "$L")"
 has '^expect sound .*: ok' "$L" && ok "the root keys audition in the editor" || bad "no audition"
 has '^expect led FX on .*: ok' "$L" && has '^expect led SEL dim .*: ok' "$L" && has '^expect led REC on .*: ok' "$L" &&
     ok "LEDs: the group's button lit, the others dim" || bad "editor LEDs"
@@ -441,7 +446,7 @@ has '^picker: roots play' "$L" && has '^expect sound .*: ok' "$L" && has '^picke
     || bad "picker roots / engine cancel (crc '$c2')"
 [ "$(grep -c '^engine: part 0' "$L")" = 1 ] && ok "the roots off: no engine switched by D4" || bad "roots off switched an engine"
 grep '^layer: open 5' "$L" | sed -n 3p | grep -q . && has '^picker: keep part 0 ' "$L" &&
-    ok "PRESETS in the editor: the picker previewing the next preset, OCT+ kept it: $OUT/cr_pick_presets.ppm $OUT/cr_pick_kept.ppm" || bad "PRESETS in the editor"
+    ok "PRESETS in the editor: the picker previewing the next place of the pool, OCT+ kept it: $OUT/cr_pick_presets.ppm $OUT/cr_pick_kept.ppm" || bad "PRESETS in the editor"
 grep '^picker: keep' "$L" | grep -qv 'LUSH PAD' && ok "kept: $(grep '^picker: keep' "$L" | sed 's/^picker: //')" || bad "kept the old sound"
 silent_end cr_editor_pick
 
@@ -449,14 +454,16 @@ echo "EDIT held: the engine picker"
 run cr_engine --wav "$OUT/cr_engine.wav"
 has '^engine: part 0 -> ANALOG' "$OUT/cr_engine.log" && has 'part 0: ANALOG /' "$OUT/cr_engine.log" &&
     ok "EDIT held + D4: part 0 FM6 -> ANALOG: $OUT/cr_engine_switched.ppm" || bad "the engine did not switch"
-has '^preset: part 0 -> ANALOG / ' "$OUT/cr_engine.log" && ok "EDIT held + KNOB 1: the engine's next preset" || bad "KNOB 1: no preset step"
+has '^preset: part 0 -> ANALOG / ' "$OUT/cr_engine.log" && ok "EDIT held + KNOB 1: the next place of the engine's pool" || bad "KNOB 1: no preset step"
 silent_end cr_engine
 
-echo "SAVE: naming, the user slot"
+echo "SAVE: the dialog, Save as new, naming, the user slot"
 run cr_save
-has '^save: part 0 slot U01 name ADG' "$OUT/cr_save.log" && ok "SAVE, D4 E4 F4, OCT+: U01 \"ADG\": $OUT/cr_save_typed.ppm" || bad "not saved"
-has '^sound: part 0 pos [0-9]* ADG' "$OUT/cr_save.log" && ok "PRESETS reaches U01 after the bank sounds ($(sed -n 's/^sound: part 0 pos \([0-9]*\) ADG.*/\1/p' "$OUT/cr_save.log" | head -1) of them): $OUT/cr_save_preset.ppm" \
-    || bad "U01 not on PRESETS"
+has '^save: dialog part 0 TINE EP (save as new)' "$OUT/cr_save.log" && has '^save: new part 0 FM6 26 (slot U01)' "$OUT/cr_save.log" &&
+    ok "SAVE on TINE EP: the dialog, Save as new by default; OCT+: the naming screen at FM6 26: $OUT/cr_save_open.ppm $OUT/cr_save_naming.ppm" || bad "the dialog: $(grep '^save:' "$OUT/cr_save.log" | head -2)"
+has '^save: part 0 slot U01 name ADG' "$OUT/cr_save.log" && ok "D4 E4 F4, OCT+: U01 \"ADG\": $OUT/cr_save_typed.ppm" || bad "not saved"
+has '^sound: part 0 pos 26 ADG' "$OUT/cr_save.log" && ok "PRESETS reaches it at FM6 26, after the 25 factory presets: $OUT/cr_save_preset.ppm" \
+    || bad "U01 not at FM6 26: $(grep 'ADG' "$OUT/cr_save.log" | tail -1)"
 grep -q '^edit: .*part 1' "$OUT/cr_save.log" && has '^param: part 1 ' "$OUT/cr_save.log" &&
     ok "BASS held + EDIT: the bass sound's pages, KNOB 1 edits part 1: $OUT/cr_edit_bass.ppm" || bad "BASS + EDIT"
 
@@ -552,12 +559,35 @@ grep 'octave' "$L" | grep -v 'octave 0' | grep -q . && bad "OCT- in a layer move
 grep -q 'fx_on\|layer 4' "$L" && ok "screens: $OUT/cr_lock_fx.ppm, cr_lock_bass.ppm, cr_lock_key.ppm" || bad "no bass layer in the dump"
 differ cr_lock_fx cr_lock_bass "the bass layer replaced the fx layer"
 
-echo "user sound slots: rename, delete, the naming keys"
+echo "user presets: Overwrite, delete, the naming keys"
 run cr_save_del
-has '^save: part 0 slot U01 rename J' "$OUT/cr_save_del.log" && ok "saving over its own unedited slot renames it: $OUT/cr_save_renamed.ppm" || bad "rename"
-[ "$(grep -c '^save: delete slot 1?' "$OUT/cr_save_del.log")" = 2 ] && has '^save: delete slot U01 rc 0' "$OUT/cr_save_del.log" &&
-    ok "SAVE held 1 s: delete? (OCT- kept it), OCT+ deleted U01: $OUT/cr_save_delete.ppm" || bad "delete"
+has '^save: dialog part 0 ADG (overwrite)' "$OUT/cr_save_del.log" && has '^save: part 0 overwrite slot U01 FM6 26 ADG rc 0' "$OUT/cr_save_del.log" &&
+    ok "SAVE on a user preset: Overwrite by default, U01 rewritten, its name and place kept: $OUT/cr_save_overwrite.ppm" || bad "overwrite: $(grep '^save:' "$OUT/cr_save_del.log" | tr '\n' ' ')"
+[ "$(grep -c '^save: delete ADG?' "$OUT/cr_save_del.log")" = 2 ] && has '^save: delete slot U01 rc 0' "$OUT/cr_save_del.log" &&
+    has '^save: now part 0 FM6 25 PIANO' "$OUT/cr_save_del.log" &&
+    ok "SAVE held 1 s in the dialog: delete? (OCT- kept it), OCT+ deleted U01, the part on FM6 25: $OUT/cr_save_delete.ppm" || bad "delete"
 [ "$(grep -c '^expect led .*: ok' "$OUT/cr_save_del.log")" = 6 ] && ok "naming: the typing keys lit (F#4: delete), G#4 dark, OCT- lit" || bad "naming LEDs"
+
+echo "presets per engine (docs/PRESETS.md): PRESETS in the engine's pool, OPT + PRESETS the engine, Save as new, Overwrite, reset"
+run cr_presets
+PL="$OUT/cr_presets.log"
+pop() { grep -q "^popup: part 0 $1\$" "$PL"; }
+pop '00 / INIT / FM6 · 00/26' && pop '25 / PIANO / FM6 · 25/26' && pop '05 / FM PAD / FM6 · 05/26' &&
+    ok "PRESETS turns inside FM6's pool, INIT at 00, wrapping (00 INIT, 25 PIANO, 05 \"FM PAD\" \"FM6 · 05/26\"): $OUT/cr_presets_init.ppm $OUT/cr_presets_meter.ppm" \
+    || bad "the FM6 pool: $(grep '^popup:' "$PL" | head -3 | tr '\n' ' ')"
+[ "$(grep -c '^sound: part 0 engine' "$PL")" = 4 ] && has '^engine pick: VA (25 presets)' "$PL" && has '^sound: part 0 engine VA pos 1 LUSH PAD' "$PL" &&
+    ok "OPT + PRESETS: the engine picker (VA, 25 presets), OPT released: VA 01 LUSH PAD: $OUT/cr_presets_engine.ppm" || bad "OPT + PRESETS: $(grep '^sound: part 0 engine' "$PL" | head -1)"
+[ "$(grep -c '^sound: part 0 engine FM6 pos 5 FM PAD' "$PL")" = 2 ] && has '^sound: part 0 engine VA pos 4 SLOW STRINGS' "$PL" &&
+    ok "each engine remembers its place: FM6 back on 05 FM PAD, the VA on 04 SLOW STRINGS" || bad "the per-engine memory: $(grep '^sound: part 0 engine' "$PL" | tr '\n' ' ')"
+has '^save: dialog part 0 FM PAD (save as new)' "$PL" && has '^save: new part 0 FM6 26 (slot U01)' "$PL" && has '^save: part 0 slot U01 name ADG rc 0' "$PL" &&
+    pop '26 / ADG / FM6 · 26/27' && ok "Save as new: the next place (FM6 26), PRESETS sits on it: $OUT/cr_presets_dialog.ppm $OUT/cr_presets_naming.ppm $OUT/cr_presets_new.ppm" \
+    || bad "Save as new: $(grep '^save:' "$PL" | head -3 | tr '\n' ' ')"
+has '^save: part 0 overwrite slot U02 FM6 02 FM BELL rc 0' "$PL" && pop '02 / FM BELL (mark) / FM6 · 02/27' &&
+    ok "Overwrite on a factory preset: bound in U02, the number and the name kept, the mark: $OUT/cr_presets_overwrite.ppm $OUT/cr_presets_mark.ppm" || bad "Overwrite: $(grep 'overwrite' "$PL")"
+has '^save: reset FM BELL?' "$PL" && has '^save: reset slot U02 rc 0' "$PL" && has '^save: now part 0 FM6 02 FM BELL' "$PL" && pop '02 / FM BELL / FM6 · 02/27' &&
+    ok "SAVE held 1 s: reset to factory?, OCT+: the factory FM BELL back at 02 (no mark): $OUT/cr_presets_reset.ppm $OUT/cr_presets_factory.ppm" || bad "reset: $(grep '^save: reset' "$PL")"
+[ "$(grep -c '^save: part 0 slot U[0-9]* name .* rc 0' "$PL")" = 32 ] && has '^save: no free slot' "$PL" &&
+    ok "32 user presets fill the slots; the next Save as new: \"no free slot\": $OUT/cr_presets_full.ppm" || bad "no free slot: $(grep -c 'name .* rc 0' "$PL") saves"
 
 echo "the power-on splash: the idle stripes slide in, the name lands, the version under them"
 run cr_splash
@@ -620,21 +650,21 @@ ML="$OUT/cr_midi_transport.log"
     bad "MIDI transport in: $(grep -c '^expect led GREEN .*: ok' "$ML") of 9 GREEN checks"
 silent_end cr_midi_transport
 
-echo "VA (eng_va.c, docs/VA.md): a bank row, a held 6-note chord, a chord change"
+echo "VA (eng_va.c, docs/VA.md): its first preset, a held 6-note chord, a chord change"
 rm -f "$OUT"/va_chord*
 run va_chord --wav "$OUT/va_chord.wav"
-has 'part 0: VA / LUSH PAD' "$OUT/va_chord.log" && ok "PRESETS +24: LUSH PAD on the VA" || bad "va_chord: not the VA's LUSH PAD"
+has 'part 0: VA / LUSH PAD' "$OUT/va_chord.log" && ok "OPT + PRESETS: the VA, its pool's 01 LUSH PAD" || bad "va_chord: not the VA's LUSH PAD"
 [ "$(grep -c '^expect .*: ok' "$OUT/va_chord.log")" = 3 ] && ok "va_chord: sound held, the tails, then silence" ||
     bad "va_chord: $(grep -c '^expect .*: ok' "$OUT/va_chord.log") of 3 expectations"
 wc=$(python3 tools/emu/wavclicks.py "$OUT/va_chord.wav" --from 0.4 | tail -1)
 echo "$wc" | grep -q ': 0 jumps > 0.5 FS, 0 silent holes mid-sound, 0 clicks' && ok "va_chord: $wc" || bad "va_chord: $wc"
 [ -s "$OUT/va_chord_held.ppm" ] && ok "screenshot: $OUT/va_chord_held.ppm" || bad "no va_chord_held.ppm"
 
-echo "all-synth: the rows that were sample-based (PIANO, CLOUD PAD, SHIMMER) are synth sounds and play"
+echo "all-synth: the sounds that were sample-based (PIANO, CLOUD PAD, SHIMMER) are synth sounds and play"
 run cr_allsynth
 AL="$OUT/cr_allsynth.log"
 has 'part 0: FM6 / PIANO' "$AL" && has 'part 0: VA / CLOUD PAD' "$AL" && has 'part 0: VA / SHIMMER' "$AL" &&
-    ok "PRESETS 03 PIANO on FM6, 15 CLOUD PAD and 16 SHIMMER on the VA" || bad "all-synth rows: $(grep 'part 0:' "$AL" | tr '\n' ' ')"
+    ok "FM6 25 PIANO, VA 24 CLOUD PAD and VA 25 SHIMMER" || bad "all-synth sounds: $(grep 'part 0:' "$AL" | tr '\n' ' ')"
 [ "$(grep -c '^expect .*: ok' "$AL")" = 5 ] && ok "all-synth: each sounds, SHIMMER's long tail, then silence: $OUT/cr_allsynth_piano.ppm" ||
     bad "all-synth: $(grep -c '^expect .*: ok' "$AL") of 5 expectations"
 
@@ -675,7 +705,7 @@ has '^deep: part 0 page 19 ENV 1 col 1 R2 ' "$FL" && has '^edit: group ENV scree
 echo "CZ-1: Melodee's engine, Casio's tones, the deep pages, the cz band"
 run cr_cz --wav "$OUT/cr_cz.wav"
 ZL="$OUT/cr_cz.log"
-has 'part 0: CZ-1 / BRASS 1' "$ZL" && ok "PRESETS +43: CZ BRASS 1 (Casio's A-1) on the CZ-1" || bad "not CZ-1 BRASS 1: $(grep -m1 'part 0:' "$ZL")"
+has 'part 0: CZ-1 / BRASS 1' "$ZL" && ok "OPT + PRESETS +3: the CZ-1's 01 BRASS 1 (Casio's A-1)" || bad "not CZ-1 BRASS 1: $(grep -m1 'part 0:' "$ZL")"
 has '^deep: part 0 page 11 DCW 1+ col 0 L1 [0-9]* -> 0 ' "$ZL" && ok "ENV screen 4 (DCW 1), SELECT +1, KNOB 1: $(grep -m1 '^deep: part 0 page 11' "$ZL")" ||
     bad "no DCW 1 L1 edit: $(grep -m1 '^deep:' "$ZL")"
 [ "$(grep -c '^expect sound .*: ok' "$ZL")" = 2 ] && ok "the chord sounds before and after the edit" || bad "CZ-1 chord: $(grep -c '^expect sound .*: ok' "$ZL") of 2"
