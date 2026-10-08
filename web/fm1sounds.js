@@ -1,25 +1,28 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca)
 // ChoralRoot's user sounds as files (docs/SOUNDS.md): the 32 slots U01..U32 read from the backup objects that hold
-// them (6 7 the banks, 9 the VA patch store, 10 11 the FM6 patch store, 12 13 the CZ-1 tone store), one slot exported
+// them (6 7 the banks, 9 the VA patch store, 10 11 the FM6 patch store, 12 13 the CZ-1 tone store, 22 the QUAD patch
+// store: firmware 0.14 on, read when the FM-1 lists it), one slot exported
 // to a "choralroot-sound" file, a file imported into a slot, a slot renamed or deleted, as new object bytes; only the
 // objects that changed are written back (the stores first, the bank last), each as a restore writes it (fm1backup.js).
 // Pure: no DOM, no MIDI (the requests go through the caller's request function, as captureBackup's).
 import { BACKUP_CMD, bkU32, bkR32, bkPack, bkUnpack, bkCrc, bkManifest, objectName } from "./fm1backup.js";
 
-export const SOUND_IDS = [6, 7, 9, 10, 11, 12, 13];
+export const SOUND_IDS = [6, 7, 9, 10, 11, 12, 13, 22];
+const SOUND_IDS_OPTIONAL = [22];                 // (an older ChoralRoot has no QUAD store: read as empty)
 export const SOUND_SLOTS = 32;
 export const ENGINE_NAMES = ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "PHYS",
-  "DRUM", "NOISE", "FM6", "VA", "CZ-1"];
-export const PATCH_SIZE = { va: 110, fm6: 128, cz: 144 };
+  "DRUM", "NOISE", "FM6", "VA", "CZ-1", "QUAD"];
+export const PATCH_SIZE = { va: 110, fm6: 128, cz: 144, quad: 80 };
 export const SOUND_FORMAT = "choralroot-sound";
-export const patchKindOf = (engine) => (engine === 13 ? "va" : engine === 12 ? "fm6" : engine === 14 ? "cz" : null);
+export const patchKindOf = (engine) =>
+  (engine === 13 ? "va" : engine === 12 ? "fm6" : engine === 14 ? "cz" : engine === 15 ? "quad" : null);
 
 // the factory presets of each engine (ENGINES[e]->presets[k].name) and the first of them in the engine's pool (the
 // CZ-1's preset 0, INIT TONE, is the pool's INIT): tests/sound_templates.c prints both from the firmware, and its
 // --check fails until the two lines below hold its strings verbatim (docs/SOUNDS.md "The binding")
-export const FACTORY_PRESETS = {"0":["SAW LEAD","SOFT PAD","SQR BASS","PWM STR","ACID","SINE KEY","RAVE","SUB BASS","PLUCK","BRASS","WIND","STRINGS"],"2":["BRASS","ORGAN","STRING","RESO","BELL","WIRE"],"3":["PULSE LD","WAVE BASS","ARP 8BIT","WAVE LEAD","STEP LEAD"],"5":["CHOIR AAH","VOX LEAD","WOW BASS","WHISPER"],"6":["FAT BASS","ARP LEAD","SYNC LEAD","RING BELL","CHIP CHOIR"],"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"9":["BELL TREE","MARIMBA","PLUCK","BOWED METAL","KALIMBA","HAND DRUM","TOMS","DRONE STRING","HARP"],"11":["WIND","RAIN","ARCADE","METAL"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"]};
-export const FACTORY_FIRST = {"0":0,"2":0,"3":0,"5":0,"6":0,"7":0,"9":0,"11":0,"12":0,"13":0,"14":1};
+export const FACTORY_PRESETS = {"0":["SAW LEAD","SOFT PAD","SQR BASS","PWM STR","ACID","SINE KEY","RAVE","SUB BASS","PLUCK","BRASS","WIND","STRINGS"],"2":["BRASS","ORGAN","STRING","RESO","BELL","WIRE"],"3":["PULSE LD","WAVE BASS","ARP 8BIT","WAVE LEAD","STEP LEAD"],"5":["CHOIR AAH","VOX LEAD","WOW BASS","WHISPER"],"6":["FAT BASS","ARP LEAD","SYNC LEAD","RING BELL","CHIP CHOIR"],"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"9":["BELL TREE","MARIMBA","PLUCK","BOWED METAL","KALIMBA","HAND DRUM","TOMS","DRONE STRING","HARP"],"11":["WIND","RAIN","ARCADE","METAL"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"],"15":["EP","BELL","BASS","PLUCK","BRASS","GLASS PAD","HOLLOW","SQUARE LEAD","METAL","WOBBLE","CLAV","STRINGS","MARIMBA","DRONE","FEEDBACK","NOISE-ISH"]};
+export const FACTORY_FIRST = {"0":0,"2":0,"3":0,"5":0,"6":0,"7":0,"9":0,"11":0,"12":0,"13":0,"14":1,"15":0};
 const SND_BIND_MARK = 0xA6, SND_BIND_NOTE = 160 + 15, SND_BIND_FLAGS = 176 + 15;
 // the pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, DIGITAL's FM6, another retired one ANALOG
 export const poolOf = (engine) => (FACTORY_PRESETS[engine] ? engine : engine === 1 ? 12 : 0);
@@ -49,12 +52,14 @@ export const bindingOf = (bound) => (bound ? { overwrites: bound.pos, name: boun
 // the layouts (docs/SOUNDS.md "The objects that hold the user sounds")
 const SND_REC = 192, SND_PER_BANK = 16, SND_BANK_SIZE = 8 + SND_PER_BANK * SND_REC, SND_BANK_MAGIC = 0x31425055;
 const SND_USED = 0xA5, SND_NAME = 12;
-const SND_STORE = {   // per kind: the object ids (VA: one store of 32, FM6 / CZ-1: two halves of 16), header, size
+const SND_STORE = {   // per kind: the object ids (VA, QUAD: one store of 32, FM6 / CZ-1: two halves of 16), header, size
   va: { ids: [9], magic: 0x31534156, ver: 3, nslot: 32, size: 16 + 32 * 110 },
   fm6: { ids: [10, 11], magic: 0x55364D46, ver: 1, nslot: 16, size: 16 + 16 * 128 },
   cz: { ids: [12, 13], magic: 0x55315A43, ver: 1, nslot: 16, size: 16 + 16 * 144 },
+  quad: { ids: [22], magic: 0x53445551, ver: 1, nslot: 32, size: 16 + 32 * 80 },
 };
-const SND_KINDS = ["va", "fm6", "cz"];
+const SND_KINDS = ["va", "fm6", "cz", "quad"];
+const sndWhole = (kind) => kind === "va" || kind === "quad";   // one store of 32: the used mask at 8, the blob size at 12
 const sndView = (b) => new DataView(b.buffer, b.byteOffset, b.byteLength);
 const sndSlotOk = (slot) => Number.isInteger(slot) && slot >= 1 && slot <= SOUND_SLOTS;
 const sndLabel = (slot) => `U${String(slot).padStart(2, "0")}`;
@@ -62,7 +67,7 @@ export const slotLabel = sndLabel;
 function sndCheckSlot(slot) {
   if (!sndSlotOk(slot)) throw new Error(`Slot ${slot} is not a user slot (1..32)`);
 }
-// objs: a Map or an object id -> Uint8Array (a missing id = size 0) -> a Map of the seven ids
+// objs: a Map or an object id -> Uint8Array (a missing id = size 0) -> a Map of the eight ids
 function sndMap(objs) {
   const get = (id) => (objs instanceof Map ? objs.get(id) : objs && objs[id]);
   return new Map(SOUND_IDS.map((id) => [id, get(id) instanceof Uint8Array ? get(id) : new Uint8Array(0)]));
@@ -72,7 +77,7 @@ function sndMap(objs) {
 export function recordValid(r) {
   if (!r || r.length !== SND_REC) return false;
   const ver = r[1], np = r[3];
-  if (r[0] !== SND_USED || ver < 1 || ver > 5 || r[2] >= 15 || np < 8 || np > (ver >= 4 ? 144 : 72) || !r[4]) return false;
+  if (r[0] !== SND_USED || ver < 1 || ver > 5 || r[2] >= ENGINE_NAMES.length || np < 8 || np > (ver >= 4 ? 144 : 72) || !r[4]) return false;
   if (ver >= 4) for (let i = 0; i < np; i++) if (r[16 + i] > 191) return false;
   return true;
 }
@@ -86,7 +91,7 @@ function sndRecord(m, slot) {           // the slot's record bytes, or null (the
 }
 // the store object of a kind that holds `slot`, its blob offset and its used bit
 function sndPlace(kind, slot) {
-  const s = SND_STORE[kind], h = kind === "va" ? 0 : slot > 16 ? 1 : 0, k = kind === "va" ? slot - 1 : (slot - 1) % 16;
+  const s = SND_STORE[kind], h = sndWhole(kind) ? 0 : slot > 16 ? 1 : 0, k = sndWhole(kind) ? slot - 1 : (slot - 1) % 16;
   return { id: s.ids[h], half: h, bit: k, off: 16 + k * PATCH_SIZE[kind] };
 }
 function sndStoreOk(kind, b, half) {
@@ -95,9 +100,10 @@ function sndStoreOk(kind, b, half) {
   const v = sndView(b), ver = v.getUint16(4, true);
   if (v.getUint32(0, true) !== s.magic || v.getUint16(6, true) !== s.nslot) return false;
   if (kind === "va") return (ver === 3 || ver === 2) && v.getUint16(12, true) === PATCH_SIZE.va;
+  if (kind === "quad") return ver === 1 && v.getUint16(12, true) === PATCH_SIZE.quad;
   return ver === 1 && v.getUint16(8, true) === half * 16 && v.getUint16(10, true) === PATCH_SIZE[kind] && v.getUint32(12, true) >>> 16 === 0;
 }
-const sndUsedOff = (kind) => (kind === "va" ? 8 : 12);
+const sndUsedOff = (kind) => (sndWhole(kind) ? 8 : 12);
 function sndBlob(m, kind, slot) {        // the slot's blob in the store of that kind, or null (no store, bit clear)
   const p = sndPlace(kind, slot), b = m.get(p.id);
   if (!sndStoreOk(kind, b, p.half) || !(sndView(b).getUint32(sndUsedOff(kind), true) >>> p.bit & 1)) return null;
@@ -106,7 +112,7 @@ function sndBlob(m, kind, slot) {        // the slot's blob in the store of that
 const sndDecodeName = (r) => { let s = ""; for (let i = 4; i < 4 + SND_NAME && r[i]; i++) s += String.fromCharCode(r[i]); return s; };
 export const nameValid = (name) => typeof name === "string" && /^[\x20-\x7e]{1,12}$/.test(name);
 
-// the seven objects -> the slot table (docs/SOUNDS.md "The slot table")
+// the eight objects -> the slot table (docs/SOUNDS.md "The slot table")
 // bound: null, or the factory preset the slot overwrites ({index, pos, label, name}: "over FM6 02 FM BELL");
 // added: a used slot that is not bound (it follows the factory presets in its engine's pool)
 export function parseSoundObjects(objs) {
@@ -176,6 +182,7 @@ export function readSoundFile(file) {
     if (patch.length !== PATCH_SIZE[kind]) throw new Error(`The sound file's ${kind} patch is ${patch.length} bytes, not ${PATCH_SIZE[kind]}`);
     if (kind === "va" && (patch[0] !== 0x56 || patch[1] < 1 || patch[1] > 3)) throw new Error("The sound file's VA patch is not a VA patch (magic or version)");
     if (kind === "fm6" && (patch[112] !== 0x46 || patch[113] !== 1)) throw new Error("The sound file's FM6 patch is not an FM6 patch (magic)");
+    if (kind === "quad" && (patch[0] !== 0x51 || patch[1] !== 1)) throw new Error("The sound file's QUAD patch is not a QUAD patch (magic or version)");
   }
   return { record, name, engine, engineName: ENGINE_NAMES[engine], kind, patch };
 }
@@ -189,7 +196,7 @@ function sndNewBank() {
 function sndNewStore(kind, half) {
   const s = SND_STORE[kind], b = new Uint8Array(s.size), v = sndView(b);
   v.setUint32(0, s.magic, true); v.setUint16(4, s.ver, true); v.setUint16(6, s.nslot, true);
-  if (kind === "va") v.setUint16(12, PATCH_SIZE.va, true);
+  if (sndWhole(kind)) v.setUint16(12, PATCH_SIZE[kind], true);
   else { v.setUint16(8, half * 16, true); v.setUint16(10, PATCH_SIZE[kind], true); }
   return b;
 }
@@ -219,7 +226,7 @@ function sndPutRecord(m, slot, rec) {   // rec null: the record zeroed (an empty
 }
 function sndResult(before, m) {
   const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
-  const ids = [9, 10, 11, 12, 13, 6, 7].filter((id) => !same(before.get(id), m.get(id)));
+  const ids = [9, 10, 11, 12, 13, 22, 6, 7].filter((id) => !same(before.get(id), m.get(id)));
   return { changed: ids.map((id) => ({ id, bytes: m.get(id) })), objs: m };
 }
 const sndWriteName = (rec, name) => { rec.fill(0, 4, 4 + SND_NAME); for (let i = 0; i < name.length; i++) rec[4 + i] = name.charCodeAt(i); };
@@ -258,7 +265,7 @@ export function deleteSound(objs, slot) {
   return sndResult(before, m);
 }
 
-// ---- the FM-1: read the seven objects, write the changed ones (the backup protocol, as captureBackup / restoreBackup)
+// ---- the FM-1: read the eight objects (22 when listed), write the changed ones (the backup protocol, as captureBackup / restoreBackup)
 const SND_RC = { 1: "invalid object", 2: "the content failed the FM-1's check", 3: "busy: stop the loop on the FM-1",
   4: "flash write failed", 5: "the session ended: try again" };
 function sndRcError(rc, what) {
@@ -273,10 +280,12 @@ export async function readSounds(request, onProgress = () => {}) {
   for (let attempt = 0; ; attempt++) {
     const manifest = bkManifest(await request([BACKUP_CMD.LIST, []], { timeout: 3000, retries: 0 }));
     const listed = new Map(manifest.map((o) => [o.id, o]));
-    if (SOUND_IDS.some((id) => !listed.has(id))) throw new Error("This firmware does not hold the user sounds' patch stores (ChoralRoot needed)");
-    const total = SOUND_IDS.reduce((n, id) => n + listed.get(id).size, 0), objs = new Map();
+    if (SOUND_IDS.some((id) => !listed.has(id) && !SOUND_IDS_OPTIONAL.includes(id)))
+      throw new Error("This firmware does not hold the user sounds' patch stores (ChoralRoot needed)");
+    const ids = SOUND_IDS.filter((id) => listed.has(id));
+    const total = ids.reduce((n, id) => n + listed.get(id).size, 0), objs = new Map();
     let done = 0, changed = false;
-    for (const id of SOUND_IDS) {
+    for (const id of ids) {
       const o = listed.get(id), bytes = new Uint8Array(o.size);
       for (let off = 0; off < o.size; off += SND_CHUNK) {
         const size = Math.min(SND_CHUNK, o.size - off);
@@ -289,7 +298,10 @@ export async function readSounds(request, onProgress = () => {}) {
       if ((o.size ? bkCrc(bytes) : 0) !== o.crc) { changed = true; break; }
       objs.set(id, bytes);
     }
-    if (!changed) return { objs };
+    if (!changed) {
+      for (const id of SOUND_IDS) if (!objs.has(id)) objs.set(id, new Uint8Array(0));   // (an unlisted optional store)
+      return { objs };
+    }
     if (attempt) throw new Error("The FM-1 changed during the read. Try again (stop the loop if one is saving).");
   }
 }

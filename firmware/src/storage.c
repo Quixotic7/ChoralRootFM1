@@ -25,9 +25,12 @@
  * (fm6_ustore.c), 0x9D000 the CZ-1 tone store's slots 1..16 (cz_ustore.c, OBJ_PROJECT0 + 3). FELUCCA_CZ: on the user
  * sample slot 1's flash (unused since the all-synth change, FELUCCA_SAMPLE 0): 0xA0000 / 0xA1000 the CZ-1 tone store's
  * slots 17..32 (OBJ_CZSTORE1), 0xA2000..0xB1FFF the eight CZ-1 banks A..H (cz_bank.c, OBJ_CZBANK0 + k: an A/B pair
- * each); 0xB2000..0xC7FFF stays free */
+ * each). FELUCCA_QUAD: 0xB2000 / 0xB3000 the QUAD patch store (quad_store.c, OBJ_QUADSTORE: the user sample slot 2's
+ * flash); 0xB4000..0xC7FFF stays free */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_FM6BANK = OBJ_UPRESET0 + 2,
-#if FELUCCA_CZ
+#if FELUCCA_CZ && FELUCCA_QUAD
+       OBJ_CZSTORE1, OBJ_CZBANK0, OBJ_QUADSTORE = OBJ_CZBANK0 + 8, OBJ_COUNT
+#elif FELUCCA_CZ
        OBJ_CZSTORE1, OBJ_CZBANK0, OBJ_COUNT = OBJ_CZBANK0 + 8
 #else
        OBJ_COUNT
@@ -70,6 +73,10 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return 0xFC000u + copy * ST_SECTOR;
     if (obj == OBJ_FM6BANK)
         return copy ? 0xFE000u : 0x9F000u;
+#if FELUCCA_CZ && FELUCCA_QUAD
+    if (obj == OBJ_QUADSTORE)
+        return 0xB2000u + copy * ST_SECTOR;
+#endif
 #if FELUCCA_CZ
     if (obj == OBJ_CZSTORE1)
         return 0xA0000u + copy * ST_SECTOR;

@@ -73,6 +73,21 @@ the tone store `cz_ustore.c` (`OBJ_PROJECT0 + 3` and `OBJ_CZSTORE1`, backup ids 
 band (`cr_draw.c`, `cr_edit.c`), five chord rows and a bass in `cr_bank.c`. The other engines render bit for bit as
 before (`tests/regress.c`: goldens added, none changed).
 
+**QUAD (2026-10-08, docs/QUAD.md).** Engine 15 (`ENGI_QUAD`, `FELUCCA_QUAD` 1 in this unit and the emulator, default 0;
+it needs `FELUCCA_CZ`): a Digitone-style four-operator FM voice (`eng_quad.c`, `quad_tables.h`), its state its own pool
+arrays (no `eng_state` member). Kept files touched: `core.h` (`FELUCCA_QUAD`, `NENGINES`, `ENGI_QUAD`; the editor's
+`eng_screen_t` and `eng_deep_t.screens`), `engines.c` (the include, `ENGINES[15]`, `ENGINE_ORDER` after FM6),
+`eng_fm6.c` (`fm6_track_loaded` calls `quad_track_loaded`), `fx.c` (`quad_pan`), `storage.c` (`OBJ_QUADSTORE` on
+0xB2000 / 0xB3000), `upreset.c` (the store's hooks beside the CZ-1's), `tools/build.py` (the flag). ChoralRoot's
+additions: the patch store `quad_store.c` (backup id 22), the screen plan in `cr_edit.c` (a MOD-less engine accepted:
+MOD = the platform's routes), `cr_settings.c crs_slot` (the settings record's eleven engine slots kept, QUAD's chord
+place in `rsv_usb`), SAFE MODE's erase of the new pair. Memory (`./build.sh` 2026-10-08, with the DC blocker): XIP 413760 B of 581564 (71.1 %), RAM 79900 B of 98304
+(81.3 %), POOL 322608 B of 344064 (93.8 %: + 2576 B the store mirror + ~2.2 KB `quad_patch`, `quad_mlast`, `quad_lfo`,
+`quad_vs`), NOINIT 216 B; the target budget (`tests/target_budget.txt`) `quad_render` 6089, `quad_block` 43.
+The same build recorded `fm1_timer5_irq` 50160 (was 32275): the USB audio service (`ua_service`, a6d3553) runs in that
+ISR and the budget had not been re-recorded since; not QUAD's doing. The other
+engines render bit for bit as before (`tests/golden.txt`: 16 QUAD renders added, none changed).
+
 Build flags stay Felucca's; `FELUCCA_SLICE=0`, `FELUCCA_SLICER=0`, `FELUCCA_FM4=0`, `FELUCCA_UAC=1` (since 0.14 Melodee's
 USB audio recording: ChoralRoot In, docs/USB-AUDIO.md), `FELUCCA_UART=1`,
 and the all-synth set `FELUCCA_SEQ=0`, `FELUCCA_SAMPLE=0`, `FELUCCA_GRAIN=0`, `FELUCCA_DRUM=0`, `FELUCCA_ICONS=0`,

@@ -29,6 +29,9 @@
 #ifndef FELUCCA_CZ
 #define FELUCCA_CZ 1             /* ChoralRoot's CZ-1 engine (Melodee's): its presets get renders and costs too */
 #endif
+#ifndef FELUCCA_QUAD
+#define FELUCCA_QUAD 1           /* ChoralRoot's QUAD engine (docs/QUAD.md): its presets get renders and costs too */
+#endif
 #ifndef FM6_POLY
 #define FM6_POLY 8               /* as choralroot.c: FM6 at ChoralRoot's 8 voices (eng_fm6.c; Melodee: 16) */
 #endif

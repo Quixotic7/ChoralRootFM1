@@ -92,6 +92,20 @@ grep -q "^deep: part 0 page 11 DCW 1+ col 0 L1 [0-9]* -> 0 " "$OUT/persist_cz_1.
 grep -q "^deep: part 0 page 11 DCW 1+ col 0 L1 0 -> " "$OUT/persist_cz_2.log" && grep -q '^expect sound .*: ok' "$OUT/persist_cz_2.log" &&
     ok "CZ-1 run 2: DCW 1's L1 is 0 as saved, the sound plays" || bad "CZ-1 run 2: $(grep -m1 '^deep:' "$OUT/persist_cz_2.log")"
 
+# QUAD (docs/QUAD.md): run 1 edits QUAD's EP (Ratio A, KNOB 3 +5 on SYN 1) and saves it in U01: the patch into the QUAD
+# patch store (quad_store.c, 0xB2000 / 0xB3000); run 2 (the same file) powers on with U01: the same patch back
+QFLASH=$OUT/persist_quad_flash.bin
+rm -f "$QFLASH" "$OUT"/persist_quad_1.log "$OUT"/persist_quad_2.log
+"$EMU" --headless --flash "$QFLASH" --script "$S/quad_persist_set.txt" >"$OUT/persist_quad_1.log" 2>&1 || bad "QUAD run 1: exit status"
+"$EMU" --headless --flash "$QFLASH" --script "$S/quad_persist_check.txt" >"$OUT/persist_quad_2.log" 2>&1 || bad "QUAD run 2: exit status"
+qs=$(sed -n 's/^quad: save slot 1 .*patch crc \([0-9a-f]*\)$/\1/p' "$OUT/persist_quad_1.log" | tail -1)
+ql=$(sed -n 's/^quad: load slot 1 patch crc \([0-9a-f]*\)$/\1/p' "$OUT/persist_quad_2.log" | tail -1)
+grep -q "^deep: part 0 page 0 SYN 1 col 2 RATIO A 3 -> 8 .* edited" "$OUT/persist_quad_1.log" &&
+    ok "QUAD run 1: Ratio A edited on SYN 1 (3 -> 8, one step a detent)" || bad "QUAD run 1: $(grep -m1 '^deep:' "$OUT/persist_quad_1.log")"
+[ -n "$qs" ] && [ "$qs" = "$ql" ] && ok "QUAD run 2: U01's patch after a relaunch (crc $ql)" || bad "QUAD: patch crc saved '${qs}' loaded '${ql}'"
+grep -q "^deep: part 0 page 0 SYN 1 col 2 RATIO A 8 -> 9 " "$OUT/persist_quad_2.log" && grep -q '^expect sound .*: ok' "$OUT/persist_quad_2.log" &&
+    ok "QUAD run 2: Ratio A is 8 as saved, the sound plays" || bad "QUAD run 2: $(grep -m1 '^deep:' "$OUT/persist_quad_2.log")"
+
 # the engine picker's roots (Settings pick_roots, docs/SETTINGS.md): run 1 turns them to "play" in the picker (KNOB 4);
 # run 2 (the same file) opens the picker with them playing
 RFLASH=$OUT/persist_roots_flash.bin

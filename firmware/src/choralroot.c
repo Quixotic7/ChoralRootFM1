@@ -66,6 +66,10 @@
 #ifndef FELUCCA_CZ
 #define FELUCCA_CZ 1             /* Melodee's CZ-1 engine (eng_cz.c, engine 14), its tone store and banks (docs/CZ1.md) */
 #endif
+#ifndef FELUCCA_QUAD
+#define FELUCCA_QUAD 1           /* the QUAD engine (eng_quad.c, engine 15: four-operator FM) and its patch store (quad_store.c,
+                                  * docs/QUAD.md) */
+#endif
 #ifndef FM6_POLY
 #define FM6_POLY 8               /* FM6's voices per part (eng_fm6.c; Melodee plays Dexed's 16): ChoralRoot's chords use <= 7,
                                   * and at 16 the release tails of perf.sh (c) / (e) cost up to 59 / 62 % of a block

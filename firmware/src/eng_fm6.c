@@ -290,6 +290,9 @@ static void va_track_loaded(const track_t *t);   /* eng_va.c: VA's patch on the 
 static void cz_track_loaded(track_t *t);         /* eng_cz.c: CZ-1's tone on the same load paths */
 static void cz_init(void);
 #endif
+#if FELUCCA_QUAD
+static void quad_track_loaded(const track_t *t); /* eng_quad.c: QUAD's patch on the same load paths */
+#endif
 
 /* a sound load put a PTCH value in (a preset, a user preset, undo, an engine change): its patch. ChoralRoot: a user
  * slot's own patch and function settings (its blob), else the PTCH slot's with Dexed's function settings; a user slot
@@ -304,6 +307,9 @@ static void fm6_track_loaded(const track_t *ct)
 #endif
 #if FELUCCA_CZ
     cz_track_loaded(t);
+#endif
+#if FELUCCA_QUAD
+    quad_track_loaded(t);
 #endif
     fm6_user_pending = 0;
     if (tr >= NTRK || t->eng_req != ENGI_FM6)

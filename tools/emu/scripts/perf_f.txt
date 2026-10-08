@@ -7,7 +7,7 @@ btn ENV up
 wait 300
 btn EDIT 600                  # EDIT held: the engine picker (the bass part)
 wait 200
-btn F4                        # the third white root: VA
+btn G4                        # the fourth white root: VA (ANALOG FM6 QUAD VA)
 wait 200
 btn OCT+                      # kept
 wait 200
@@ -15,7 +15,7 @@ btn EDIT                      # the editor closed
 wait 200
 btn GLO down
 wait 100
-knob PRESETS +1               # OPT + PRESETS: the chord part to the VA (01 LUSH PAD), on OPT's release
+knob PRESETS +2               # OPT + PRESETS: the chord part (FM6 -> QUAD) to the VA (01 LUSH PAD), on OPT's release
 wait 100
 btn GLO up
 wait 50

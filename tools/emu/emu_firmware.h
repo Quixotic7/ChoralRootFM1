@@ -24,6 +24,9 @@
 #ifndef FELUCCA_CZ
 #define FELUCCA_CZ 1                                  /* as choralroot.c: the CZ-1 engine (14), its tone store and banks */
 #endif
+#ifndef FELUCCA_QUAD
+#define FELUCCA_QUAD 1                                /* as choralroot.c: the QUAD engine (15), its patch store */
+#endif
 #ifndef FELUCCA_SAMPLE
 #define FELUCCA_SAMPLE 0                              /* as choralroot.c: SAMPLE, GRAIN, DRUM retired */
 #endif

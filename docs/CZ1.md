@@ -63,10 +63,11 @@ mirrored in the pool.
 | the tone store, slots 1..16 | `OBJ_CZSTORE0` = `OBJ_PROJECT0 + 3` | 0x9D000 / 0x9E000 (the last project pair; 0x97000 VA store, 0x99000 / 0x9B000 FM6 store) | 12 |
 | the tone store, slots 17..32 | `OBJ_CZSTORE1` | 0xA0000 / 0xA1000 | 13 |
 | the CZ-1 bank A..H | `OBJ_CZBANK0 + k` | 0xA2000 + k x 0x2000 / + 0x1000 (to 0xB1FFF) | 14 + k |
+| (QUAD's patch store, docs/QUAD.md) | `OBJ_QUADSTORE` = `OBJ_CZBANK0 + 8` | 0xB2000 / 0xB3000 | 22 |
 
 0xA0000..0xB1FFF is the user sample slot 1's flash, unused since the all-synth change (`FELUCCA_SAMPLE` 0; storage.c's
-map); 0xB2000..0xC7FFF stays free, 0xC8000.. holds the loops. SAFE MODE's Flash Data erase covers 0xA0000..0xB1FFF too
-(`cr_ui.c` `cu_flash_erase`: 54 sectors).
+map); 0xB2000 / 0xB3000 hold QUAD's patch store (0.14), 0xB4000..0xC7FFF stays free, 0xC8000.. holds the loops. SAFE
+MODE's Flash Data erase covers 0xA0000..0xB3FFF too (`cr_ui.c` `cu_flash_erase`: 56 sectors with QUAD's pair).
 
 ## The banks (cz_bank.c)
 

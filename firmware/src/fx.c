@@ -416,6 +416,9 @@ static void mix_part(track_t *t, uint32_t n)
 #if FELUCCA_VA
         pan = va_pan(t, pan);                           /* eng_va.c: VA's matrix PAN */
 #endif
+#if FELUCCA_QUAD
+        pan = quad_pan(t, pan);                         /* eng_quad.c: QUAD's LFO -> PAN */
+#endif
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
         int32_t c = t->p[P_CHOR] * 258, d = t->p[P_DLY] * 258, r = t->p[P_REV] * 258, pk = t->peak;
         int32_t xmax = c > d ? c : d;

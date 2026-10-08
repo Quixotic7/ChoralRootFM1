@@ -93,7 +93,14 @@ stage (MOD FX MIX).
 ## 4. Groups per engine class
 
 The screens are built from the engine's deep pages (`eng_deep_t`, docs/VA.md): its five sections (OSC FILTER ENV
-LFO MOD) and the page titles, never the column names, so a column or a page the engine adds shows up by itself:
+LFO MOD; or the first four: an engine without a MOD section, QUAD, has the platform's MOD routes) and the page titles,
+never the column names, so a column or a page the engine adds shows up by itself, unless the engine gives a **screen
+plan** (`eng_deep_t.screens`, `eng_screen_t` in core.h: QUAD's, below): then each of its groups is the plan's screens
+in order, each one or two pages (rows A, B) under a band (`ENG_B_*`: none, the AHDSR, the filter, the filter with the
+base-width window, the algorithm, two attack-decay-end envelopes), with its title (and the active row's letter: `SYN 1 ·
+A`), each cell's label and style (`ENG_C_*`: the rule below, a big number, a ratio fraction, the harm / detune glyphs, a
+number with a small bar, the text, a knob, a bar, a wave + phase span cell). The plan only adds: VA, FM6 and CZ-1 have
+none and keep the title rules:
 
 - a page titled with an instance number (`OSC 2`, `OSC 2+`, `ENV 3`, `LFO 1`) belongs to that instance; pages whose
   titles differ only in the number are one **kind** (`OSC n`, `OSC n+`; FM6's `OP n` and `SCALE n` are two kinds);
@@ -187,6 +194,28 @@ The **cz** band (`CR_W_CZ`, cr_draw.c): the eight steps from 0 to L1 at R1 .. L 
 hold after the SUS step, nothing after END; the step of the turned cell (R k / L k; SUS / END: their step) thick in its
 knob's colour, digits 1–8 (and S) under the steps. No matrix (`not modulatable`). Melodee's CZ TOOLS page (NAME, 1 > 2,
 2 > 1, COMPARE) is not ported. Tests: `tools/emu/scripts/cr_cz.txt`.
+
+### QUAD (docs/QUAD.md; the user-approved screens design/choralroot-fm1-quad-screens.png)
+
+Built from QUAD's screen plan (`eng_quad.c` `QUAD_SCREENS`), not from the title rules:
+
+| Group | Screen | Kind | Lanes | KNOB 1–4 | Top-right text |
+| --- | --- | --- | --- | --- | --- |
+| OSC | 1 | `edit8`, the **algo** band (`CR_W_ALGO`: algorithm, feedback, mix) | A, B | A: Algo · Ratio C · Ratio A (big numbers) · Ratio B (the fraction B1/B2); B: Harm (harm glyph) · Dtune (detune glyph) · Feedback (bar) · Mix (bipolar) (`SYN 1`, `SYN 1+`) | `SYN 1 · A` |
+| OSC | 2 | `edit8`, one row | one | Offset C · Offset A · Offset B1 · Offset B2 (`SYN 2`) | `SYN 2` |
+| FILT | 1 | `edit8`, the filter band | A, B | A: Attack · Decay · Sustain · Release (the filter envelope); B: Freq · Reso · Type · Env depth | `FILTER · B` |
+| FILT | 2 | `edit8`, the filter band with the base-width window | A, B | A: Env delay · Key track; B: Base · Width | `FILTER 2 · A` |
+| ENV | 1 | `edit8`, the **ade2** band (`CR_W_ADE2`: A's and B's curves, level bars; the turned cell's segment lit) | A, B | A: A Attack · A Decay · A End · A Level; B: the same for B | `ENV A/B` |
+| ENV | 2 | `edit8`, no band | A, B | A: A Delay · A Trig · A Reset · Phase; B: B Delay · B Trig · B Reset · Velocity | `ENV 2` |
+| ENV | 3 | `edit8`, one row | one | A Key · B Key (the operator envelopes' key tracks) | `ENV 3` |
+| ENV | 4 | `edit8`, the AHDSR band (QUAD's own amp envelope) | A, B | A: Attack · Decay · Sustain · Release; B: Level · Pan · Drive (the part's P_PAN and P_DIST) | `AMP · A` |
+| LFO | 1–3 | `edit8`, no band, one screen an LFO | A, B | A: Speed (a bipolar knob) · Mult · Fade · Dest; B: **Wave · Phase** (one span cell: the wave drawn from its start phase, "Tri · 90", degrees; KNOB 1 the wave, KNOB 2 the phase) · Trig · Depth | `LFO 1 · A` |
+| MOD | 1 | the platform's routes (as an engine without deep pages) | 4 | | `MOD n` |
+
+The numbers are the values as stored (Attack "12", Reso "30"), as the mock-ups write them; Freq "2.1k"; on / off and
+the enums title-cased ("On", "Free", "Harm"; "LP" stays). The ratios step one value a detent (Ratio A 0.25, Ratio B the
+next pair). The cells after a span cell move a place left (`CR_CF_SPAN2`: the hot cell is the cell's index). No matrix:
+the quick mapping says "not modulatable". Tests: `tools/emu/scripts/cr_quad.txt`.
 
 ENGINE, the factory presets and INIT are **not groups**: they are the engine picker (§7).
 

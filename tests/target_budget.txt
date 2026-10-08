@@ -7,7 +7,7 @@ lofi_render 123
 formant_render 312
 trio_render 341
 trio_pass 175
-wheel_render 267
+wheel_render 265
 wheel_block 102
 phys_render 61
 noise_render 259
@@ -23,9 +23,11 @@ va_block 108
 cz_native_render 528
 cz_native_wave 0
 cz_env_tick 34
-fm1_alnk0_irq 43986
-fm1_timer5_irq 32275
-mod_begin 163
+quad_render 6089
+quad_block 43
+fm1_alnk0_irq 46077
+fm1_timer5_irq 50160
+mod_begin 158
 mod_voice 30
 mod_end 7
 perf_begin 34

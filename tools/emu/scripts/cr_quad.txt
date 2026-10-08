@@ -1,0 +1,78 @@
+# QUAD (docs/QUAD.md; the user-approved screens design/choralroot-fm1-quad-screens.png): EDIT held + F4 (the third white
+# root: ANALOG FM6 QUAD ..) picks QUAD from the engine picker, OCT+ keeps it (01 EP); PRESETS +2: 03 BASS ("QUAD .
+# 03/17": the meter, shot); PRESETS -1: 02 BELL; MAJ + D4 held 1.5 s (a chord on QUAD: three voices), released. EDIT: OSC, SYN 1 under
+# the algorithm (shot); KNOB 1 +1: BELL's Algo 4 -> 5 (the band redraws: shot); OSC again: SYN 2 (shot); FILT (SEL): FILTER,
+# FILT again: FILTER 2 (shots); ENV: ENV A/B (shot), ENV 2, ENV 3, AMP (shots); LFO: LFO 1 (shot), SELECT +1: row B,
+# KNOB 2 +3: the start phase (the span cell slides, hot: shot); LFO: LFO 2; MOD (SEQ): the platform's routes (shot);
+# EDIT leaves; 2 s later every part silent
+wait 300
+btn EDIT down
+wait 400
+btn F4
+wait 300
+btn EDIT up
+btn OCT+                      # the picker stays open after a hold: OCT+ keeps the sound
+wait 300
+dump
+knob PRESETS +2
+wait 300
+shot build/emu/test/cr_quad_pool.ppm
+knob PRESETS -1
+wait 600
+key F3 down
+wait 60
+btn D4 down
+wait 700
+dump
+wait 800
+expect sound
+btn D4 up
+key F3 up
+wait 1500
+btn EDIT
+wait 400
+shot build/emu/test/cr_quad_syn1.ppm
+knob KNOB1 +1
+wait 300
+shot build/emu/test/cr_quad_syn1_algo.ppm
+wait 900
+btn FX
+wait 400
+shot build/emu/test/cr_quad_syn2.ppm
+btn SEL
+wait 400
+shot build/emu/test/cr_quad_filter.ppm
+btn SEL
+wait 400
+shot build/emu/test/cr_quad_filter2.ppm
+btn ENV
+wait 400
+shot build/emu/test/cr_quad_envab.ppm
+btn ENV
+wait 400
+shot build/emu/test/cr_quad_env2.ppm
+btn ENV
+wait 400
+shot build/emu/test/cr_quad_env3.ppm
+btn ENV
+wait 400
+shot build/emu/test/cr_quad_amp.ppm
+btn LFO
+wait 400
+shot build/emu/test/cr_quad_lfo1.ppm
+knob SELECT +1
+wait 300
+knob KNOB2 +3
+wait 200
+shot build/emu/test/cr_quad_lfo1_phase.ppm
+wait 900
+btn LFO
+wait 400
+shot build/emu/test/cr_quad_lfo2.ppm
+btn SEQ
+wait 400
+shot build/emu/test/cr_quad_mod.ppm
+btn EDIT
+wait 2000
+dump
+quit

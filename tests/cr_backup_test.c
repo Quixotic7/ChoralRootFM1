@@ -5,7 +5,8 @@
  * side, the ChoralRoot UI, storage.c on emu_hal_fw.h's RAM NOR), requests fed to crb_handle as the main loop would,
  * the replies taken at CRB_SEND.
  *   sh tests/run_cr_tests.sh
- * Checks: INFO; LIST of every object (settings, banks, FM6 bank, VA, FM6 patches, 10 loops; no sample slots) with sizes
+ * Checks: INFO; LIST of every object (settings, banks, FM6 bank, VA, FM6 patches, CZ-1 tones and banks, the QUAD
+ * store (22), 10 loops; no sample slots) with sizes
  * and CRCs; GET of
  * all of them in 256-byte pieces; a restore of everything onto an erased flash (PUT) gives a LIST and bytes
  * identical to the backup and reloads the mirrors; a CRC error, a short object, a malformed record are refused
@@ -242,7 +243,7 @@ int main(void)
     CHECK(!t_send(&n), "an editor command (GET 2) gets no reply");
 
     /* ---- an empty device: every object listed, sizes 0 but the settings ---- */
-    CHECK(t_list() == 0 && nman == 27, "LIST on a fresh flash: 27 objects");
+    CHECK(t_list() == 0 && nman == 28, "LIST on a fresh flash: 28 objects");
     for (i = 0, k = 0; i < nman; i++) k += man[i].size != 0;
     CHECK(k <= 1, "fresh flash: nothing stored (the settings at most)");
 
@@ -311,6 +312,17 @@ int main(void)
             memcpy(cb.name, "MY CZ BANK", 10);
             CHECK(cz_bank_valid(&cb) && st_save(OBJ_CZBANK0 + 2, &cb, sizeof cb) == 0, "setup: CZ-1 bank C");
         }
+        {                                            /* QUAD: U06 holds the BELL preset's patch */
+            static quad_store_t qs;
+            uint8_t qb[QUAD_BLOB];
+            trk[0].eng_req = ENGI_QUAD;
+            quad_blob_preset(&trk[0], 1);
+            quad_blob_get(&trk[0], qb);
+            memset(&qs, 0, sizeof qs);
+            qs.magic = QUAD_STORE_MAGIC; qs.ver = QUAD_STORE_VER; qs.nslot = UP_SLOTS; qs.blob = QUAD_BLOB; qs.used = 1u << 5;
+            memcpy(qs.p[5], qb, QUAD_BLOB);
+            CHECK(quad_blob_ok(qb) && quad_store_valid(&qs) && st_save(OBJ_QUADSTORE, &qs, sizeof qs) == 0, "setup: QUAD store");
+        }
     }
     make_loop(0, 4);
     make_loop(4, 300);
@@ -321,17 +333,18 @@ int main(void)
     /* ---- backup: LIST, GET everything, CRCs ---- */
     CHECK(t_capture() == 0, "backup: LIST + GET of every object, each CRC as listed");
     {
-        static const uint8_t ids[27] = {1, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+        static const uint8_t ids[28] = {1, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                                         40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
-        int same = nman == 27;
-        for (i = 0; same && i < 27; i++) same = man[i].id == ids[i];
-        CHECK(same, "LIST: ids 1 6..21 (12 13 the CZ-1 tones, 14..21 its banks) 40..49 in order (no sample slots)");
+        int same = nman == 28;
+        for (i = 0; same && i < 28; i++) same = man[i].id == ids[i];
+        CHECK(same, "LIST: ids 1 6..22 (12 13 the CZ-1 tones, 14..21 its banks, 22 QUAD's patches) 40..49 in order (no sample slots)");
     }
     CHECK(find(man, nman, 1)->size == sizeof(persist_t) && find(man, nman, 6)->size == sizeof(up_bank_t) &&
           find(man, nman, 8)->size == sizeof(fm6_bank_t) && find(man, nman, 9)->size == sizeof(va_store_t) &&
           find(man, nman, 10)->size == sizeof(fm6u_t) && find(man, nman, 11)->size == sizeof(fm6u_t) &&
           find(man, nman, 12)->size == sizeof(czu_t) && find(man, nman, 13)->size == sizeof(czu_t) &&
           find(man, nman, 16)->size == sizeof(cz_bank_t) && find(man, nman, 14)->size == 0 &&
+          find(man, nman, 22)->size == sizeof(quad_store_t) && sizeof(quad_store_t) == 2576u &&
           find(man, nman, 40)->size > 16 && find(man, nman, 41)->size == 0 && find(man, nman, 49)->size == CRL_REC_HDR + 2u + 7u * CRL_MAX_EV,
           "LIST: the sizes (settings PER5, banks, FM6, VA, FM6 patches, loops; empty slots 0)");
     {
@@ -371,8 +384,9 @@ int main(void)
         CHECK(rc == 0 && cr_restore_lock && CR_SETTINGS_BUSY(), "restore: settings committed, the settings saves held until the restart");
     }
     CHECK(up_used(3) && up_used(16 + 4) && cs.loop_used == (1u | 1u << 4 | 1u << 9) &&
-          fm6_bank.used == 5u && va_store.used == (1u << 3 | 1u << 19) && fm6u[0].used == 1u << 3 && fm6u[1].used == 1u << 3,
-          "restore: the mirrors reloaded (user sounds, loops, FM6, VA, FM6 patches)");
+          fm6_bank.used == 5u && va_store.used == (1u << 3 | 1u << 19) && fm6u[0].used == 1u << 3 && fm6u[1].used == 1u << 3 &&
+          quad_store.used == 1u << 5,
+          "restore: the mirrors reloaded (user sounds, loops, FM6, VA, FM6 patches, QUAD patches)");
     CHECK(t_capture() == 0 && nman == nref, "restore: LIST + GET again");
     {
         int same = 1;
@@ -574,6 +588,32 @@ int main(void)
               !memcmp(out, CZ_FACTORY[24], CZ_BYTES), "sounds: CZ-1: U20 used, its tone reads back (%s)", nm);
         CHECK(czu_get(3, out) != 0, "sounds: CZ-1: half 0 empty");
 #endif
+        /* d2: a QUAD sound in U07 (bank 0, the QUAD store: object 22) */
+        {
+            static quad_store_t q, bad_q;
+            uint8_t qb[QUAD_BLOB];
+            trk[0].eng_req = ENGI_QUAD;
+            quad_blob_preset(&trk[0], 11);           /* (STRINGS) */
+            quad_blob_get(&trk[0], qb);
+            memset(&q, 0, sizeof q);
+            q.magic = QUAD_STORE_MAGIC; q.ver = QUAD_STORE_VER; q.nslot = UP_SLOTS; q.blob = QUAD_BLOB; q.used = 1u << 6;
+            memcpy(q.p[6], qb, QUAD_BLOB);
+            b0.r[6] = b0.r[4];
+            b0.r[6].engine = ENGI_QUAD;
+            memset(b0.r[6].name, 0, 12);
+            memcpy(b0.r[6].name, "MY QUAD", 7);
+            CHECK(sizeof q == 2576u && t_put(22, (uint8_t *)&q, sizeof q) == 0 && t_put(6, (uint8_t *)&b0, sizeof b0) == 0,
+                  "sounds: QUAD: store (22) + bank 0 PUT");
+            up_name(6, nm);
+            CHECK(up_used(6) && up_rec(6)->engine == ENGI_QUAD && !strcmp(nm, "MY QUAD") && quad_store_get(6, out) == 0 &&
+                  !memcmp(out, qb, QUAD_BLOB), "sounds: QUAD: U07 used, its patch reads back (%s)", nm);
+            memcpy(&bad_q, &q, sizeof q);
+            bad_q.p[6][1] = 2;                       /* the blob's version */
+            CHECK(t_put(22, (uint8_t *)&bad_q, sizeof bad_q) == 2 && t_put_begin(22, 100, 0) == 1 &&
+                  quad_store_get(6, out) == 0 && !memcmp(out, qb, QUAD_BLOB), "sounds: QUAD: a bad blob / a wrong size refused, the patch kept");
+            CHECK(t_list() == 0 && find(man, nman, 22)->size == 2576u && find(man, nman, 22)->crc == st_crc32((uint8_t *)&q, sizeof q),
+                  "sounds: LIST: the QUAD store as written");
+        }
         /* e: refusals */
         memcpy(&bad_v, &vs, sizeof vs);
         bad_v.p[4][0] = 'X';                         /* U05's blob: a wrong magic byte */
@@ -605,9 +645,10 @@ int main(void)
     a = t_send(&n);
     CHECK(a && n == 1 && a[0] == 0 && crb.reboot, "RESTART: rc 0, the restart scheduled");
 
-    printf("objects: settings %u (PER4 %u), bank %u, FM6 %u, VA %u, FM6 patches 2 x %u, loop <= %u bytes\n",
+    printf("objects: settings %u (PER4 %u), bank %u, FM6 %u, VA %u, FM6 patches 2 x %u, QUAD %u, loop <= %u bytes\n",
            (unsigned)sizeof(persist_t), (unsigned)(sizeof(persist_t) - sizeof(cr_settings_t)), (unsigned)sizeof(up_bank_t),
-           (unsigned)sizeof(fm6_bank_t), (unsigned)sizeof(va_store_t), (unsigned)sizeof(fm6u_t), (unsigned)CRL_REC_MAX);
+           (unsigned)sizeof(fm6_bank_t), (unsigned)sizeof(va_store_t), (unsigned)sizeof(fm6u_t), (unsigned)sizeof(quad_store_t),
+           (unsigned)CRL_REC_MAX);
     printf("%s: %d checks, %d failed\n", fails ? "CR BACKUP TESTS FAILED" : "cr backup tests passed", checks, fails);
     return fails ? 1 : 0;
 }

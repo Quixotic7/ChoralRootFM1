@@ -28,6 +28,10 @@
  *   envelope (an engine with its own envelopes, FM6: a message, the group stays), LFO = the platform LFO, MOD = the
  *   platform MOD page as a stack of 4 slots (source and destination fixed, the amount on KNOB 3);
  *   every engine: FX = the sends (one lane), MIX = level pan voice glide | transpose detune priority glide mode.
+ * An engine with a screen plan (eng_deep_t.screens, core.h eng_screen_t: QUAD's) has its groups built from the plan
+ * instead: each screen one or two pages under a band (ENG_B_*), its title, each cell's label and style (ENG_C_*: big
+ * numbers, the ratio fraction, harm / detune glyphs, a wave + phase span cell); an engine without a MOD section (QUAD)
+ * has the platform's MOD routes. VA, FM6 and CZ-1 have no plan: their screens are as before.
  *
  * No motion (the user's feedback, 2026-10-06: responsiveness first; Options > Motion does not apply here): a screen,
  * a lane, a value and the wide band are drawn as they are, in the frame after the detent; only the hot cell (the one
@@ -57,7 +61,7 @@ enum { CE_S_PLAT,                         /* the platform's pages (an engine wit
        CE_S_MIXER,                        /* one lane: the LEVEL column of the pages pg[0..n) */
        CE_S_EDIT,                         /* edit8: lane i = deep page pg[i] (n <= 2) */
        CE_S_PAGE };                       /* edit8: one lane, the page pg[0] (a page of no instance: "VOICE") */
-typedef struct { uint8_t type, n, pg[CR_ED_ROWS]; } ce_scr_t;
+typedef struct { uint8_t type, n, pg[CR_ED_ROWS], hs; } ce_scr_t;   /* hs: the plan's screen + 1 (eng_deep_t.screens) */
 
 typedef struct {
     uint8_t kind, n, active, wide, tall;  /* CR_K_EDIT8 / STACK, rows, the row on the knobs, CR_W_*, the mixer */
@@ -65,6 +69,7 @@ typedef struct {
     char head[4][10];                     /* stack: the column headings */
     char right[16];                       /* the title line's right text */
     uint8_t dp0, np, row0;                /* the band's pages (env: dp0 .. + np; filter: dp0); the first row's number */
+    uint8_t hs;                           /* a screen of the engine's plan: its index + 1 (0: the title rules) */
 } ce_view_t;
 
 static struct {
@@ -78,17 +83,28 @@ static struct {
 
 static track_t *ce_trk(void) { return &trk[ce.part ? CR_PART_BASS : CR_PART_CHORD]; }
 
-/* the engine's deep pages when it has the five sections (eng_deep_t.section: OSC FILTER ENV LFO MOD, ascending) */
+/* the engine's deep pages when it has the sections OSC FILTER ENV LFO and MOD, or the first four (no MOD: QUAD's;
+ * the MOD group is then the platform's routes, as for an engine without deep pages), ascending (eng_deep_t.section) */
 static const eng_deep_t *ce_deep(const track_t *t)
 {
     const eng_deep_t *d = cp_deep(t);
     uint32_t i;
     if (!d)
         return 0;
-    for (i = 0; i < 5u; i++)
+    for (i = 0; i < 5u; i++) {
+        if (i == 4u && d->section[4] == 0xFFu)
+            break;
         if (d->section[i] >= d->npages || (i && d->section[i] <= d->section[i - 1u]))
             return 0;
+    }
     return d;
+}
+/* the engine's MOD group is its own pages (else the platform's routes) */
+static int ce_has_mod(const eng_deep_t *d) { return d && d->section[4] != 0xFFu; }
+/* the plan's screen of a view / a scan, 0 none */
+static const eng_screen_t *ce_plan(const eng_deep_t *d, uint32_t hs)
+{
+    return d && d->screens && hs && hs <= d->nscreens ? &d->screens[hs - 1u] : 0;
 }
 /* the pages of section g (CE_OSC..CE_MOD): a .. b - 1 */
 static void ce_range(const eng_deep_t *d, uint32_t g, uint32_t *a, uint32_t *b)
@@ -199,8 +215,25 @@ static uint32_t ce_scr(const track_t *t, uint32_t g, uint32_t k, ce_scr_t *o)
     uint32_t a, b, p, q, e, n = 0;
     o->type = CE_S_PLAT;
     o->n = 0;
-    if (!d || g > CE_MOD)
+    o->hs = 0;
+    if (!d || g > CE_MOD || (g == CE_MOD && !ce_has_mod(d)))
         return 1;
+    if (d->screens) {                             /* the engine's screen plan for this group (QUAD's) */
+        for (p = 0; p < d->nscreens; p++)
+            if (d->screens[p].sec == g) {
+                const eng_screen_t *h = &d->screens[p];
+                if (n == k && h->pg[0] < d->npages) {
+                    o->type = CE_S_EDIT;
+                    o->hs = (uint8_t)(p + 1u);
+                    o->pg[0] = h->pg[0];
+                    o->pg[1] = h->pg[1];
+                    o->n = (uint8_t)(h->pg[1] < d->npages ? 2u : 1u);
+                }
+                n++;
+            }
+        if (n)
+            return n;
+    }
     ce_range(d, g, &a, &b);
     if (g == CE_OSC || g == CE_LFO) {             /* stacks: a screen per kind of page */
         for (p = a; p < b; p++) {
@@ -277,7 +310,7 @@ static uint32_t ce_lanes(const track_t *t, uint32_t g, const ce_scr_t *s)
         return 1u;
     if (s->type != CE_S_PLAT)
         return s->n ? s->n : 1u;
-    return g == CE_MOD && !ce_deep(t) ? 4u : g == CE_MIX ? 2u : 1u;
+    return g == CE_MOD && !ce_has_mod(ce_deep(t)) ? 4u : g == CE_MIX ? 2u : 1u;
 }
 /* part p's group, screen and lane brought into range (an engine change, a shorter group): *s its screen */
 static uint32_t ce_fix(const track_t *t, uint32_t p, ce_scr_t *s)
@@ -322,6 +355,7 @@ static void ce_cat_num(char *d, uint32_t n, uint32_t sz)
 }
 static void ce_label(const track_t *t, ce_ref_t r, const param_desc_t *d, char *out, uint32_t n);
 static const param_desc_t *ce_param(const track_t *t, ce_ref_t r, int32_t *v);
+static uint32_t ce_cstyle(const track_t *t, const ce_view_t *vw, uint32_t r, uint32_t c);
 /* a stack's column heading: the long label of what the lanes have in column c ("Wave"; two kinds: "Sync/Ring"), its
  * trailing digits cut ("SYNC1" -> "Sync") */
 static void ce_head(const track_t *t, const eng_deep_t *d, const ce_view_t *v, uint32_t c, char *out, uint32_t n)
@@ -438,7 +472,17 @@ static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
         for (i = 0; i < sc.n; i++)
             for (c = 0; c < 4u; c++)
                 v->ref[i][c] = d->pages[sc.pg[i]].col[c].label ? ce_r(CE_R_DEEP, sc.pg[i], c) : ce_r(CE_R_NONE, 0, 0);
-        if (g == CE_ENV && ce_is_cz(d, sc.pg[0], &c, &i)) {   /* CZ-1: a step envelope under the "cz" band */
+        if (ce_plan(d, sc.hs)) {                  /* the engine's plan: its band and title ("SYN 1 \267 A") */
+            static const uint8_t W[6] = {CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_FILTER, CR_W_ALGO, CR_W_ADE2};
+            const eng_screen_t *h = ce_plan(d, sc.hs);
+            v->hs = sc.hs;
+            v->wide = h->band < 6u ? W[h->band] : (uint8_t)CR_W_NONE;
+            v->dp0 = sc.pg[0];
+            v->np = sc.n;
+            cu_cpy(v->right, h->title ? h->title : d->pages[sc.pg[0]].title, sizeof v->right);
+            if (h->letter && sc.n > 1u)
+                cu_cat(v->right, ln ? " \267 B" : " \267 A", sizeof v->right);
+        } else if (g == CE_ENV && ce_is_cz(d, sc.pg[0], &c, &i)) {   /* CZ-1: a step envelope under the "cz" band */
             static const char *const PART[3] = {" \267 1-4", " \267 5-8", " \267 END"};
             v->wide = CR_W_CZ;
             v->dp0 = (uint8_t)c;
@@ -1077,6 +1121,9 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
     if (!(d = ce_param(t, r, &v0)))
         return;
     v = cp_dstep(d, v0, s, fine || cx.shift);
+    if (r.k == CE_R_DEEP && d->names && (ce_cstyle(t, &vw, vw.active, knob & 3u) == ENG_C_RATIO ||
+                                         ce_cstyle(t, &vw, vw.active, knob & 3u) == ENG_C_BIG))
+        v = clamp(v0 + s, d->min, d->max);        /* (a ratio: one step a detent, as the Digitone's) */
     cx.hot_slot = 0;
     cx.hot_r = (uint8_t)(vw.active + 1u);
     cx.hot_c = (uint8_t)(knob & 3u);
@@ -1253,6 +1300,183 @@ static void ce_marks(const track_t *t, uint8_t *mc)
     }
 }
 
+/* ------------------------------------------------- the engine's screen plan --- */
+/* the plan's band values (eng_screen_t.band): algo fdbk mix; A's attack decay end level, B's; the filter cut res
+ * ftype drive (+ shown, base, width: the window), from the screen's / the FILTER section's columns by label. The
+ * number of wv values, 0: not a plan band (the AHDSR: ce_band) */
+static int32_t ce_dget(const track_t *t, const eng_deep_t *d, uint32_t a, uint32_t b, const char *l, int32_t *v)
+{
+    uint32_t pg;
+    int32_t k;
+    for (pg = a; pg < b && pg < d->npages; pg++)
+        if ((k = cp_dcol(&d->pages[pg], l)) >= 0) {
+            *v = d->get(t, pg, (uint32_t)k);
+            return (int32_t)ce_pct(&d->pages[pg].col[k], *v);
+        }
+    *v = 0;
+    return -1;
+}
+static uint32_t ce_band_plan(const track_t *t, const ce_view_t *vw, uint8_t *o)
+{
+    const eng_deep_t *d = ce_deep(t);
+    const eng_screen_t *h = ce_plan(d, vw->hs);
+    uint32_t i, a, b;
+    int32_t v, q;
+    if (!h)
+        return 0;
+    if (h->band == ENG_B_ALGO) {
+        a = vw->dp0;
+        b = vw->dp0 + vw->np;
+        ce_dget(t, d, a, b, "ALGO", &v);
+        o[0] = (uint8_t)clamp(v, 1, 8);
+        o[1] = (uint8_t)clamp(ce_dget(t, d, a, b, "FDBK", &v), 0, 255);
+        q = ce_dget(t, d, a, b, "MIX", &v);
+        o[2] = (uint8_t)(q < 0 ? 128 : clamp(q, 0, 255));
+        return 3;
+    }
+    if (h->band == ENG_B_ADE2) {                  /* rows A and B: their four columns each */
+        for (i = 0; i < 8u; i++) {
+            uint32_t pg = vw->dp0 + i / 4u;
+            const param_desc_t *c = pg < d->npages && i / 4u < vw->np ? &d->pages[pg].col[i & 3u] : 0;
+            o[i] = c && c->label ? ce_pct(c, d->get(t, pg, i & 3u)) : 0u;
+        }
+        return 9;
+    }
+    if (h->band == ENG_B_FILTER || h->band == ENG_B_WINDOW) {
+        ce_range(d, CE_FILT, &a, &b);
+        q = ce_dget(t, d, a, b, "FREQ", &v);
+        o[0] = (uint8_t)clamp(q >= 0 ? q : ce_dget(t, d, a, b, "CUT", &v), 0, 255);
+        q = ce_dget(t, d, a, b, "RESO", &v);
+        o[1] = (uint8_t)clamp(q >= 0 ? q : ce_dget(t, d, a, b, "RES", &v), 0, 255);
+        o[2] = 0;
+        for (i = a; i < b; i++) {                 /* the type by its name: LP 0, BP 32, HP 64 (the band's positions) */
+            int32_t k = cp_dcol(&d->pages[i], "TYPE");
+            if (k >= 0) {
+                const param_desc_t *c = &d->pages[i].col[k];
+                v = d->get(t, i, (uint32_t)k);
+                if (c->names && v >= c->min && v <= c->max)
+                    o[2] = (uint8_t)(cp_eq(c->names[v - c->min], "HP") ? 64 : cp_eq(c->names[v - c->min], "BP") ? 32 : 0);
+                break;
+            }
+        }
+        o[3] = (uint8_t)clamp(ce_dget(t, d, a, b, "DRIVE", &v), 0, 255);
+        if (h->band != ENG_B_WINDOW)
+            return 4;
+        o[4] = 1;
+        o[5] = (uint8_t)clamp(ce_dget(t, d, a, b, "BASE", &v), 0, 255);
+        o[6] = (uint8_t)clamp(ce_dget(t, d, a, b, "WIDTH", &v), 0, 255);
+        return 7;
+    }
+    return 0;
+}
+/* the plan's style of the cell on row r, column c (ENG_C_*) */
+static uint32_t ce_cstyle(const track_t *t, const ce_view_t *vw, uint32_t r, uint32_t c)
+{
+    const eng_screen_t *h = ce_plan(ce_deep(t), vw->hs);
+    return h && r < 2u && c < 4u ? h->cell[r][c] : ENG_C_RULE;
+}
+/* "TRI" -> "Tri", "RAT A" -> "Rat A" (words of min or more capitals; "LP", "x16" stay at 3) */
+static void ce_title_case(char *s, uint32_t min)
+{
+    uint32_t i = 0, j, n;
+    while (s[i]) {
+        for (n = 0; s[i + n] && s[i + n] != ' '; n++)
+            ;
+        for (j = 0; j < n && s[i + j] >= 'A' && s[i + j] <= 'Z'; j++)
+            ;
+        if (n >= min && j == n)
+            for (j = 1; j < n; j++)
+                s[i + j] = (char)(s[i + j] + 32);
+        i += n;
+        while (s[i] == ' ')
+            i++;
+    }
+}
+/* a value's text as the plan's styles show it: the number (signed), the text without the unit, the whole name */
+static void ce_ptext(const param_desc_t *d, int32_t v, uint32_t style, char *out, uint32_t n)
+{
+    char val[12];
+    const char *unit;
+    if ((style == ENG_C_BIG || style == ENG_C_RATIO || style == ENG_C_TEXT) && d->fmt == F_INT && d->names) {
+        uint32_t k = 0;                           /* (one name a value: the whole name, params.c cuts it at 5) */
+        while (d->names[k])
+            k++;
+        if (k == (uint32_t)(d->max - d->min + 1)) {
+            cu_cpy(out, d->names[clamp(v, d->min, d->max) - d->min], n);
+            return;
+        }
+    }
+    if (style == ENG_C_NUM || style == ENG_C_BAR || style == ENG_C_DETUNE ||
+        (style == ENG_C_BIG && d->fmt != F_INT && d->fmt != F_OFS)) {
+        cu_int(out, v, d->min < 0, n);
+        return;
+    }
+    param_format(d, v, val, &unit);
+    cu_cpy(out, val, n);
+    if (d->fmt == F_CUTOFF && unit[0] == 'k')
+        cu_cat(out, "k", n);                      /* "2.1k" */
+    if (style == ENG_C_TEXT)
+        ce_title_case(out, d->fmt == F_ONOFF ? 2u : 3u);   /* ("ON" -> "On"; "LP" stays) */
+}
+/* cell c of row r (of ref rf) restyled by the plan; a label of the plan's */
+static void ce_cell_plan(const track_t *t, const ce_view_t *vw, uint32_t r, uint32_t c, cr_cell_t *cl)
+{
+    const eng_screen_t *h = ce_plan(ce_deep(t), vw->hs);
+    uint32_t st = ce_cstyle(t, vw, r, c);
+    ce_ref_t rf = vw->ref[r][c];
+    const param_desc_t *d;
+    int32_t v = 0;
+    if (!h || !(cl->flags & CR_CF_ON) || rf.k != CE_R_DEEP || !(d = ce_param(t, rf, &v)))
+        return;
+    if (r < 2u && h->label[r][c])
+        cu_cpy(cl->label, h->label[r][c], sizeof cl->label);
+    if (st == ENG_C_RULE)
+        return;
+    cl->flags = CR_CF_ON;
+    cl->glyph = CR_G_NONE;
+    cl->pct = ce_pct(d, v);
+    ce_ptext(d, v, st, cl->value, sizeof cl->value);
+    switch (st) {
+    case ENG_C_BIG: cl->flags |= CR_CF_BIG; break;
+    case ENG_C_RATIO: cl->glyph = CR_G_RATIO; break;
+    case ENG_C_HARM: cl->glyph = CR_G_HARM; cl->flags |= CR_CF_PCT; break;
+    case ENG_C_DETUNE: cl->glyph = CR_G_DETUNE; cl->flags |= CR_CF_PCT; break;
+    case ENG_C_KNOB: cl->glyph = CR_G_KNOB; cl->flags |= CR_CF_PCT | (d->min < 0 ? CR_CF_BIPOLAR : 0u); break;
+    case ENG_C_BAR: cl->glyph = CR_G_BAR; cl->flags |= CR_CF_PCT | (d->min < 0 ? CR_CF_BIP : 0u); break;
+    case ENG_C_NUM:
+    case ENG_C_VAL: cl->flags |= CR_CF_PCT | (d->min < 0 ? CR_CF_BIP : 0u); break;
+    case ENG_C_WAVEPH: {                          /* the wave (CR_LW_* order) and the next column's phase: one cell */
+        const param_desc_t *pd;
+        int32_t ph = 0;
+        char w[8], b[6];
+        ce_ref_t r2 = c < 3u ? vw->ref[r][c + 1u] : ce_r(CE_R_NONE, 0, 0);
+        pd = r2.k == CE_R_DEEP ? ce_param(t, r2, &ph) : 0;
+        cl->glyph = CR_G_LFOWAVE;
+        cl->flags |= CR_CF_SPAN2;
+        cl->wave = (uint8_t)clamp(v - d->min, 0, CR_LW_N - 1);
+        cl->pct = (uint8_t)(pd ? clamp(ph - pd->min, 0, 127) * 2 : 0);   /* (0..127 a cycle: Q8 of it) */
+        ce_ptext(d, v, ENG_C_TEXT, w, sizeof w);
+        cu_int(b, pd ? (ph - pd->min) * 360 / (pd->max - pd->min + 1) : 0, 0, sizeof b);   /* (degrees, as the mock-up) */
+        cu_cpy(cl->value, w, sizeof cl->value);
+        cu_cat(cl->value, str_len(w) + str_len(b) + 3u < sizeof cl->value ? " \267 " : "\267", sizeof cl->value);
+        cu_cat(cl->value, b, sizeof cl->value);
+        break;
+    }
+    default:
+        break;
+    }
+}
+/* a plan row's span cell (ENG_C_WAVEPH at column c) takes two columns: the cells after it move a place left (the
+ * cell index is not the column: cr_screen.h CR_CF_SPAN2); the column it spans; 4 none */
+static uint32_t ce_span_col(const track_t *t, const ce_view_t *vw, uint32_t r)
+{
+    uint32_t c;
+    for (c = 0; c < 3u; c++)
+        if (ce_cstyle(t, vw, r, c) == ENG_C_WAVEPH)
+            return c;
+    return 4u;
+}
+
 static void ce_screen(cr_screen_t *s, uint32_t now)
 {
     track_t *t = ce_trk();
@@ -1286,8 +1510,17 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
         for (c = 0; c < 4u; c++) {
             int32_t ds;
             ce_cell(t, &vw, vw.ref[r][c], &s->cell[r][c]);
+            if (vw.hs)
+                ce_cell_plan(t, &vw, r, c, &s->cell[r][c]);
             if ((s->cell[r][c].flags & CR_CF_ON) && (ds = ce_dst(t, vw.ref[r][c])) > 0 && ds < (int32_t)CE_NDST && mc[ds])
                 s->cell[r][c].flags |= CR_CF_MARK(mc[ds]);
+        }
+        if (vw.hs && (c = ce_span_col(t, &vw, r)) < 3u) {   /* a span cell: the next column is in it */
+            uint32_t j;
+            for (j = c + 1u; j < 3u; j++)
+                s->cell[r][j] = s->cell[r][j + 1u];
+            for (j = 0; j < sizeof s->cell[r][3]; j++)
+                ((uint8_t *)&s->cell[r][3])[j] = 0;
         }
     }
     if (vw.tall)                                  /* the mixer: "OSC n" over each level's bar */
@@ -1301,6 +1534,8 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     if (cx.hot_r && now - cx.hot_t0 < CE_HOT_MS && cx.hot_r == vw.active + 1u) {
         s->hot_r = cx.hot_r;
         s->hot_c = cx.hot_c;
+        if (vw.hs && (c = ce_span_col(t, &vw, (cx.hot_r - 1u) % CR_ED_ROWS)) < 3u && cx.hot_c > c)
+            s->hot_c = (uint8_t)(cx.hot_c - 1u);  /* (a knob past a span cell: the cell index, not the column) */
         if (cx.hot_slot) {                        /* a quick mapping: "LFO1 +24" in the source's colour */
             const eng_deep_t *d = ce_deep(t);
             ce_slot_t sl;
@@ -1312,7 +1547,13 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
             }
         }
     }
-    if (vw.wide) {                                /* the band: its values as they are (no tween: the knob leads) */
+    if (vw.wide && vw.hs && (c = ce_band_plan(t, &vw, band)) > 0) {   /* the plan's algo, ade2, filter (+ window) */
+        uint32_t j;
+        for (j = 0; j < c; j++)
+            s->wv[j] = band[j];
+        if (vw.wide == CR_W_ADE2)                 /* the segment the cell turned: A's a d end lev 1..4, B's 5..8 */
+            s->wv[8] = (uint8_t)(s->hot_r ? ((s->hot_r - 1u) % 2u) * 4u + (cx.hot_c & 3u) + 1u : 0u);
+    } else if (vw.wide) {                         /* the band: its values as they are (no tween: the knob leads) */
         ce_band(t, &vw, band);
         for (c = 0; c < (vw.wide == CR_W_CZ ? 18u : vw.wide == CR_W_DX ? 10u : vw.wide == CR_W_ENV ? 5u : 4u); c++)
             s->wv[c] = band[c];

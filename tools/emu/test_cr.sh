@@ -736,6 +736,32 @@ has '^edit: group ENV screen 6 ' "$ZL" && has '^edit: group FILT screen 1 ' "$ZL
     has '^edit: group MOD screen 1 ' "$ZL" && ok "CZ-1's groups: ENV DCW 1 (1-4, 5-8, END), FILT (DCW), LFO (VIB), MOD (TONE)" ||
     bad "CZ-1 groups: $(grep -c '^edit: group' "$ZL")"
 
+echo "QUAD: the engine picker, the pool, a chord, the editor's screens (docs/QUAD.md)"
+run cr_quad --wav "$OUT/cr_quad.wav"
+QL="$OUT/cr_quad.log"
+has '^engine: part 0 -> QUAD' "$QL" && has 'part 0: QUAD / EP' "$QL" && ok "EDIT held + F4 (the third white root): QUAD, 01 EP" ||
+    bad "not QUAD from the picker: $(grep -m1 '^engine:' "$QL")"
+has '^popup: part 0 03 / BASS / QUAD · 03/17$' "$QL" && ok "PRESETS +2: the pool, QUAD · 03/17 (INIT + 16 presets): $OUT/cr_quad_pool.ppm" ||
+    bad "pool: $(grep -m1 '^popup:' "$QL")"
+has 'part 0: QUAD / BELL, voices 3' "$QL" && has '^expect sound .*: ok' "$QL" && ok "MAJ + D4 on 02 BELL: a chord of three QUAD voices sounds" ||
+    bad "QUAD chord: $(grep 'part 0: QUAD / BELL' "$QL" | head -1)"
+has '^deep: part 0 page 0 SYN 1 col 0 ALGO 4 -> 5 ' "$QL" && ok "SYN 1 on BELL, KNOB 1: Algo 4 -> 5 (one step a detent)" || bad "no Algo edit: $(grep -m1 '^deep:' "$QL")"
+band=$(python3 -c "
+import sys; a, b = (open(f, 'rb').read() for f in sys.argv[1:3]); o = 15 + 30 * 240 * 3; n = 90 * 240 * 3
+print(sum(x != y for x, y in zip(a[o:o + n], b[o:o + n])))" "$OUT/cr_quad_syn1.ppm" "$OUT/cr_quad_syn1_algo.ppm")
+[ "${band:-0}" -gt 300 ] && ok "the algorithm band redrawn for Algo 5 ($band bytes differ): $OUT/cr_quad_syn1_algo.ppm" || bad "the band did not change: $band"
+for n in syn2 filter filter2 envab env2 env3 amp lfo1 lfo2 mod; do [ -s "$OUT/cr_quad_$n.ppm" ] || bad "no shot cr_quad_$n"; done
+has '^edit: group OSC screen 2 ' "$QL" && has '^edit: group FILT screen 2 ' "$QL" && has '^edit: group ENV screen 4 ' "$QL" &&
+    has '^edit: group LFO screen 2 ' "$QL" && has '^edit: group MOD screen 1 ' "$QL" &&
+    ok "QUAD's groups: OSC SYN 1 / SYN 2, FILT FILTER / FILTER 2, ENV A/B, 2, 3, AMP, LFO 1..3 a screen each, MOD the platform's" ||
+    bad "QUAD groups: $(grep -c '^edit: group' "$QL")"
+has '^deep: part 0 page 15 LFO 1+ col 1 PHASE 0 -> ' "$QL" && ok "LFO 1 row B, KNOB 2: the start phase in the Wave · Phase cell: $OUT/cr_quad_lfo1_phase.ppm" ||
+    bad "no phase edit"
+blue_q=$(od -An -tu1 -v -j $((15 + 180 * 240 * 3)) -N$((240 * 40 * 3)) "$OUT/cr_quad_lfo1_phase.ppm" | tr -s ' \n' '\n\n' | grep -v '^$' |
+    awk '{ v[n++] = $1 } END { c = 0; for (i = 0; i + 2 < n; i += 3) if (v[i] < 110 && v[i+1] < 160 && v[i+2] > 200) c++; print c }')
+[ "${blue_q:-0}" -gt 2000 ] && ok "the span cell hot over two columns (KNOB 2 -> its cell 0, $blue_q blue pixels)" || bad "span cell not hot: $blue_q"
+silent_end cr_quad
+
 echo "SAFE MODE: the boot guard (firmware/src/cr_bootguard.h)"
 SF="$OUT/cr_safe_flash.bin"
 rm -f "$SF"
@@ -761,12 +787,12 @@ differ cr_safe_options cr_safe_erase_entry "Options opens on Safe Mode; SELECT +
 differ cr_safe_erase_entry cr_safe_erase_ask "OCT+ once: the confirmation (OCT+ again): $OUT/cr_safe_erase_ask.ppm"
 "$EMU" --headless --flash "$SF" --script "$S/cr_safe_erase.txt" --boot-fail 1 --reset-reason wdt >"$OUT/cr_safe_erase.log" 2>&1
 st=$?
-[ $st = 0 ] && has '^safe: flash data erased, 54 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
+[ $st = 0 ] && has '^safe: flash data erased, 56 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
     has '^reboot: guard failed 0 pending 0' "$OUT/cr_safe_erase.log" &&
-    ok "OCT+ twice: 54 data sectors erased (36 + the CZ-1's 18), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
+    ok "OCT+ twice: 56 data sectors erased (36 + the CZ-1's 18 + QUAD's 2), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
 ff=$(python3 -c "
 import sys; d = open(sys.argv[1], 'rb').read()
-r = [(0x97000, 9), (0xC8000, 20), (0xDC000, 4), (0xFC000, 3)]
+r = [(0x97000, 9), (0xA0000, 20), (0xC8000, 20), (0xDC000, 4), (0xFC000, 3)]
 print(int(all(d[a:a + n * 4096] == b'\xff' * (n * 4096) for a, n in r) and d[:0x93000] == open(sys.argv[2], 'rb').read()[:0x93000]))" "$SF" "$OUT/cr_safe_flash_before.bin")
 [ "$ff" = 1 ] && ok "the data regions read erased, the firmware area as before" || bad "flash after the erase"
 "$EMU" --headless --flash "$SF" --script "$S/persist_check.txt" >"$OUT/cr_safe_after.log" 2>&1

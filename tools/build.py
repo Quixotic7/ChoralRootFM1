@@ -189,7 +189,7 @@ def build_app():
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_OTA_RAMONLY", "FELUCCA_CDC",
                  "FELUCCA_UART", "FELUCCA_UAC", "FELUCCA_ICONS", "FELUCCA_KEYCAPS", "FELUCCA_SLICE",
                  "FELUCCA_SLICER", "FELUCCA_FM4", "FELUCCA_SAMPLE", "FELUCCA_GRAIN", "FELUCCA_DRUM", "FELUCCA_SEQ",
-                 "FELUCCA_CZ"):
+                 "FELUCCA_CZ", "FELUCCA_QUAD"):
         v = os.environ.get(flag)    # unset: the default in firmware/src/choralroot.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")

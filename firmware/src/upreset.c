@@ -211,6 +211,9 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
 #if FELUCCA_CZ
 #include "cz_ustore.c"                         /* ChoralRoot: the CZ-1 tones, one per slot */
 #endif
+#if FELUCCA_QUAD
+#include "quad_store.c"                        /* ChoralRoot: the QUAD patches, one per slot */
+#endif
 static uint8_t up_va_keep;                     /* up_rename: the slot's stored VA / FM6 patch stays */
 #endif
 static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for its engine */
@@ -222,6 +225,9 @@ static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for
     fm6u_loading(r);                           /* an FM6 record: its slot's blob on the load (fm6_track_loaded) */
 #if FELUCCA_CZ
     czu_loading(r);                            /* a CZ-1 record: its slot's tone on the load (cz_track_loaded) */
+#endif
+#if FELUCCA_QUAD
+    quad_store_loading(r);                     /* a QUAD record: its slot's patch on the load (quad_track_loaded) */
 #endif
 #endif
     for (i = 0; i < P_COUNT; i++)
@@ -260,6 +266,9 @@ static void up_boot(void)                      /* persist_boot: the banks from f
 #if FELUCCA_CZ
     czu_boot();                                /* the CZ-1 tone store and banks (no breadcrumb of their own) */
     cz_bank_boot();
+#endif
+#if FELUCCA_QUAD
+    quad_store_boot();                         /* the QUAD patch store (no breadcrumb of its own) */
 #endif
 #ifdef FELUCCA_FAVORITES
     for (uint32_t k = 0; k < UP_SLOTS; k++)
@@ -323,6 +332,9 @@ static int up_put(uint32_t k, const up_rec_t *r)
         fm6u_saved(k, r);
 #if FELUCCA_CZ
         czu_saved(k, r);
+#endif
+#if FELUCCA_QUAD
+        quad_store_saved(k, r);
 #endif
     }
 #endif
@@ -504,6 +516,9 @@ static void up_pat_load(track_t *t, uint32_t k)
     va_user_pending = 0;                               /* (a pattern only: no sound load follows) */
 #if FELUCCA_CZ
     cz_user_pending = 0;
+#endif
+#if FELUCCA_QUAD
+    quad_user_pending = 0;
 #endif
 #endif
     for (i = P_SDIV; i <= P_SGATE; i++)

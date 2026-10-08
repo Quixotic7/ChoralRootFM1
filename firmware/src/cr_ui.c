@@ -3071,11 +3071,12 @@ static void cu_safe_screen(cr_screen_t *s)
 }
 
 /* Options > Flash Data (SAFE MODE, OCT+ twice): erase every data object ChoralRoot keeps (not the firmware, not the
- * update area, not the free sample sectors 0xB2000..0xC7FFF) and reboot; the boot after it loads nothing (an
+ * update area, not the free sample sectors 0xB4000..0xC7FFF) and reboot; the boot after it loads nothing (an
  * erased flash: factory sounds, default settings, calibration from RAM or the default). The regions: the stores and
  * FM6 bank copy A 0x97000..0x9FFFF (storage.c st_sector: VA store, FM6 stores, the project slots, 0x9F000), the loop
  * slots 0xC8000..0xDBFFF (CRL_FL_BASE), the user sound banks 0xDC000..0xDFFFF, the settings A / B and FM6 bank
- * copy B 0xFC000..0xFEFFF; FELUCCA_CZ: the CZ-1 tone store's second half and the eight CZ-1 banks 0xA0000..0xB1FFF */
+ * copy B 0xFC000..0xFEFFF; FELUCCA_CZ: the CZ-1 tone store's second half and the eight CZ-1 banks 0xA0000..0xB1FFF;
+ * FELUCCA_QUAD: the QUAD patch store 0xB2000..0xB3FFF */
 #ifndef CR_REBOOT
 #define CR_REBOOT() do { bootguard_settled(&bootguard); usb_detach(); fm1_delay_ms(30); fm1_reboot(); } while (0)
 #endif
@@ -3084,6 +3085,9 @@ static void cu_flash_erase(void)
     static const uint32_t R[][2] = {{0x97000u, 9u}, {CRL_FL_BASE, 2u * CRL_SLOTS}, {0xDC000u, 4u}, {0xFC000u, 3u},
 #if FELUCCA_CZ
                                     {0xA0000u, 18u},   /* (storage.c: OBJ_CZSTORE1, OBJ_CZBANK0..+7) */
+#endif
+#if FELUCCA_QUAD
+                                    {0xB2000u, 2u},    /* (storage.c: OBJ_QUADSTORE) */
 #endif
     };
     static cr_screen_t es;                         /* (static: off the stack) */

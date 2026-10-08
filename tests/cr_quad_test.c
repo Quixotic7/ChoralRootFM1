@@ -11,7 +11,8 @@
  * every 10 ms block's RMS within 1.5 dB over 0.3 s); the envelopes' times (ATK, DEC to END, DELAY, LEV, TRIG, RESET,
  * the amp's release); the filter types and the base-width window; the LFOs' rates (within 2 %), direction, start
  * phase, ONE / HALF, waves; no int32 wrap at full feedback / levels / LFOs on every algorithm; voices end after the
- * release; a 6-note chord for 1.4 s on every preset: peak < 0.9 FS at LEVEL 92. */
+ * release; a 6-note chord for 1.4 s on every preset: peak < 0.9 FS at LEVEL 92; no DC (every preset held 1 s, a plain
+ * feedback operator at FDBK 0..127: the mean of 0.3..1 s under 2 % / 1 % of the RMS; regress's limit is 1.2 % FS). */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -815,6 +816,49 @@ static void t_render(void)
     }
 }
 
+/* the mean and the RMS (AC) of 0.3..1 s of one note (60, velocity 100) held 1 s on patch p */
+static void held_dc(const int8_t *p, double *mean, double *rms)
+{
+    track_t *t = &trk[0];
+    int32_t out[CTL];
+    uint32_t n, i, cnt = 0, nt = FS / CTL;
+    double s = 0, s2 = 0;
+    drv_reset(t);
+    drv_patch(t, p);
+    drv_on(t, 0, 60, 100);
+    for (n = 0; n < nt; n++) {
+        drv_tick(t, out);
+        if (n >= nt * 3 / 10)
+            for (i = 0; i < CTL; i++, cnt++)
+                s += out[i], s2 += (double)out[i] * out[i];
+    }
+    *mean = s / cnt;
+    *rms = sqrt(s2 / cnt - *mean * *mean);
+}
+
+/* the operators are not DC-free (the feedback's lagged average skews its saw; at 1:1 a modulator's phase offset or
+ * DTUNE's drift is 0 Hz in the carrier): the DC blocker after them (QUAD_DC_K). Without it BRASS held +57 % of its RMS,
+ * FEEDBACK -44 %, EP +13 %, a plain sine at FDBK 100 -61 % */
+static void t_dc(void)
+{
+    uint32_t k;
+    double m, r;
+    int8_t p[QP_NP];
+    for (k = 0; k < QUAD_NPRESETS; k++) {
+        quad_preset_patch(k, p);
+        held_dc(p, &m, &r);
+        if (getenv("VERBOSE"))
+            printf("  %-12s DC %7.1f RMS %8.1f (%.2f %%)\n", QUAD_PRESETS[k].name, m, r, 100.0 * m / (r + 1e-9));
+        CHECK(r < 100 || fabs(m) < 0.02 * r, "%s: DC %.1f, RMS %.1f", QUAD_PRESETS[k].name, m, r);
+    }
+    for (k = 0; k <= 127u; k += 8u + (k == 120u ? 7u - 8u : 0u)) {
+        quad_init_patch(p);
+        p[QP_ALGO] = 8, p[QP_MIX] = 63, p[QP_ALEV] = 0, p[QP_BLEV] = p[QP_BEND] = 127, p[QP_FDBK] = (int8_t)k;
+        held_dc(p, &m, &r);
+        CHECK(fabs(m) < 0.01 * r, "plain feedback operator at FDBK %u: DC %.1f, RMS %.1f", k, m, r);
+    }
+}
+
 /* ----------------------------------------------------------------- CPU --- */
 #ifdef __APPLE__
 static uint64_t instr_now(void)
@@ -933,6 +977,7 @@ int main(int argc, char **argv)
     t_filters();
     t_lfo();
     t_render();
+    t_dc();
     if (argc > 1 && !strcmp(argv[1], "cpu"))
         t_cpu();
     printf("cr_quad_test: %d checks, %d failed\n", checks, fails);

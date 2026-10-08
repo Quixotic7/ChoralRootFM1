@@ -363,7 +363,21 @@ static void cr_settings_boot(void)                 /* persist_boot (flash_ok kno
     crs_usb_apply(&crs_rec.cr);                    /* (before usb_start: the configuration the host first reads) */
 }
 
+/* the record's pool_pos slot of the engine of ENGINE_ORDER rank r: CRS_NENG = 11 slots, the engines shown in version 6's
+ * order. QUAD (FELUCCA_QUAD, rank 2 since 0.14: after FM6) has none (-1; the record has no room left and the other
+ * engines keep their slots, so a 0.13 record means what it meant): the chord part's place in QUAD's pool is kept in
+ * the retired byte rsv_usb (0: none yet), the bass part's in bass_sound while the bass plays QUAD */
+#if FELUCCA_QUAD
+typedef char crs_neng_ok[CRS_NENG + 1 == NENG_SHOWN ? 1 : -1];   /* (pool_pos: one per engine shown but QUAD) */
+static int32_t crs_slot(uint32_t r)
+{
+    uint32_t q = eng_rank(ENGI_QUAD);
+    return r == q ? -1 : (int32_t)(r < q ? r : r - 1u);
+}
+#else
 typedef char crs_neng_ok[CRS_NENG == NENG_SHOWN ? 1 : -1];   /* (pool_pos: one per engine shown) */
+static int32_t crs_slot(uint32_t r) { return (int32_t)r; }
+#endif
 
 /* a stored sound (engine << 8 | pool position) into the part, if it is one of a pool today; 1 loaded */
 static int crs_sound(uint32_t part, uint16_t v)
@@ -435,9 +449,14 @@ static void crs_capture(cr_settings_t *s)
     s->chord_sound = (uint16_t)((trk[CR_PART_CHORD].eng_req % NENGINES) << 8 | (cs.sound & 0xFFu));
     s->bass_sound = (uint16_t)((trk[CR_PART_BASS].eng_req % NENGINES) << 8 |
                                cs.pool_pos[1][eng_rank(trk[CR_PART_BASS].eng_req % NENGINES)]);
-    for (i = 0; i < (uint32_t)CRS_NENG; i++) {
-        crs_pool_set(s, 0, i, cs.pool_pos[0][i]);
-        crs_pool_set(s, 1, i, cs.pool_pos[1][i]);
+    for (i = 0; i < (uint32_t)NENG_SHOWN; i++) {
+        int32_t k = crs_slot(i);
+        if (k < 0) {                                /* QUAD: the chord part's place (crs_slot) */
+            s->rsv_usb = cs.pool_pos[0][i];
+            continue;
+        }
+        crs_pool_set(s, 0, (unsigned)k, cs.pool_pos[0][i]);
+        crs_pool_set(s, 1, (unsigned)k, cs.pool_pos[1][i]);
     }
     cr_settings_seal(s);
 }
@@ -491,9 +510,16 @@ static void cr_settings_load(void)
     cr_motion = s->motion;
     cs.leds = s->leds;
     palette_set(s->palette < NPALETTES ? s->palette : NPALETTES - 1u);
-    for (i = 0; i < (uint32_t)CRS_NENG; i++) {      /* each part's place per engine (the pools: checked on use) */
-        cs.pool_pos[0][i] = crs_pool_get(s, 0, i);
-        cs.pool_pos[1][i] = crs_pool_get(s, 1, i);
+    for (i = 0; i < (uint32_t)NENG_SHOWN; i++) {    /* each part's place per engine (the pools: checked on use) */
+        int32_t k = crs_slot(i);
+        if (k < 0) {                                /* QUAD: rsv_usb, the bass's sound (crs_slot) */
+            cs.pool_pos[0][i] = (uint8_t)(s->rsv_usb && s->rsv_usb <= 127u ? s->rsv_usb : CRS_POOL_DEFAULT);
+            cs.pool_pos[1][i] = (uint8_t)(s->bass_sound != CRS_SOUND_DEFAULT && (s->bass_sound >> 8) == eng_vis(i) ?
+                                          s->bass_sound & 0xFFu : CRS_POOL_DEFAULT);
+            continue;
+        }
+        cs.pool_pos[0][i] = crs_pool_get(s, 0, (unsigned)k);
+        cs.pool_pos[1][i] = crs_pool_get(s, 1, (unsigned)k);
     }
     if (crs_sound(0, s->chord_sound))              /* the chord part's sound (its own sends become the FX amounts) */
         cu_sends_to_fx();

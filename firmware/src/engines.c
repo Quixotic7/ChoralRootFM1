@@ -31,6 +31,12 @@
 #endif
 #include "eng_cz.c"             /* CZ-1: native Casio CZ-1 tones (cz_native.c; Melodee's, Kerem Kilic) */
 #endif
+#if FELUCCA_QUAD
+#if !FELUCCA_CZ
+#error "FELUCCA_QUAD: engine 15 and its patch store's flash pair follow the CZ-1's (core.h ENGI_QUAD, storage.c): FELUCCA_CZ 1"
+#endif
+#include "eng_quad.c"           /* QUAD: a Digitone-style four-operator FM voice (docs/QUAD.md; its state is its own pool) */
+#endif
 
 /* the engines' runtime state of a part (Melodee's voice model). A part renders one engine at a time (an engine switch
  * fades the old one out first, voice.c engine_block), so their states share one block per part, cleared at every
@@ -142,6 +148,9 @@ static const engine_t *const ENGINES[NENGINES] = {
 #if FELUCCA_CZ
     &ENG_CZ,                     /* 13 + FELUCCA_SLICE + FELUCCA_VA (ENGI_CZ; ChoralRoot: 14) */
 #endif
+#if FELUCCA_QUAD
+    &ENG_QUAD,                   /* 13 + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ (ENGI_QUAD; ChoralRoot: 15) */
+#endif
 };
 
 /* a track's engine number as an index (the audio paths: a compare, cheaper than % NENGINES; a bad number: 0) */
@@ -153,6 +162,9 @@ static inline uint32_t eng_idx(uint32_t e) { return e < NENGINES ? e : 0u; }
 static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
     0,                           /* ANALOG */
     12,                          /* FM6 */
+#if FELUCCA_QUAD
+    ENGI_QUAD,                   /* QUAD (after FM6: the other FM engine) */
+#endif
 #if FELUCCA_VA
     ENGI_VA,                     /* VA */
 #endif

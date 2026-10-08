@@ -132,7 +132,7 @@ int main(void)
     for (k = 0, bad = 1; k < NENG_SHOWN; k++)
         if (ENGINE_ORDER[k] == 2u)
             bad = !(k + 1u < NENG_SHOWN && ENGINE_ORDER[k + 1u] == ENGI_CZ);
-    OK(ENGI_CZ == 14u && NENGINES == 15u && ENGINES[ENGI_CZ] == &ENG_CZ && !strcmp(ENG_CZ.name, "CZ-1") && eng_ok(ENGI_CZ) &&
+    OK(ENGI_CZ == 14u && NENGINES == 15u + FELUCCA_QUAD && ENGINES[ENGI_CZ] == &ENG_CZ && !strcmp(ENG_CZ.name, "CZ-1") && eng_ok(ENGI_CZ) &&
        !bad, "engine: CZ-1 is 14 (after VA's 13; Melodee: 15), shown after PHASE");
     for (k = 0, bad = 0; k < CZ_FACTORY_N; k++)
         bad += !cz_patch_valid(CZ_FACTORY[k]);

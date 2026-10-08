@@ -767,7 +767,7 @@ static void cr_picto(uint32_t g, int32_t x, int32_t y, int32_t w, int32_t h, uin
             v[k] = a;
             if ((a < 0 ? -a : a) > mx) mx = a < 0 ? -a : a;
         }
-        for (k = 0; k <= 40; k++) CR_PT(x0 + k * W / 40, cy - (int32_t)((int64_t)v[k] * (H / 2) / mx));
+        for (k = 0; k <= 40; k++) CR_PT(x0 + k * W / 40, cy - v[k] * (H / 2) / mx);
         cr_poly(p, np, lw, 0, 0, col);
         break;
     }
@@ -855,7 +855,7 @@ static void cr_lfowave(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t col,
             u[j - 1] = t; jmp[j - 1] = q;
         }
     for (i = 0; i < n && np + 2u <= 48u; i++) {
-        int32_t t = (u[i] + ph) & 4095, px = wx0 + (int32_t)((int64_t)u[i] * WW / U);
+        int32_t t = (u[i] + ph) & 4095, px = wx0 + u[i] * WW / U;
         if (i + 1 < n && u[i + 1] == u[i] && !jmp[i]) continue;   /* (a sample under a jump: the jump draws it) */
         if (jmp[i] || i == n - 1)                   /* the value from the left (at the end: the cycle's last value) */
             CR_PT2(px, cy - cr_lfo_y(k, t ? t - 1 : 4096) * (H / 2) / 16384);

@@ -7,9 +7,10 @@
  * the modulator -> target pairs, the feedback operator, the X and Y outputs), the feedback operator modulating itself
  * by the average of its last two outputs (the DX7 family's), the carriers' wave a morph of 15 harmonic tables (HARM:
  * sine, 7 odd-series steps on the + side, 7 all-series steps on the - side, two neighbours crossfaded), the outputs
- * mixed X .. Y (MIX), then a multimode SVF (LP HP BP: dsp.c's trapezoidal one, as the VA's) with its own ADSR
- * envelope (depth, delay, key track), then the base-width filter (a one-pole high-pass at BASE, a one-pole low-pass
- * at BASE + WIDTH), then QUAD's own amp envelope (engine_t.ownenv / done, as FM6 and the VA) and LEVEL.
+ * mixed X .. Y (MIX), a DC blocker (QUAD_DC_K), then a multimode SVF (LP HP BP: dsp.c's trapezoidal one, as the
+ * VA's) with its own ADSR envelope (depth, delay, key track), then the base-width filter (a one-pole high-pass at
+ * BASE, a one-pole low-pass at BASE + WIDTH), then QUAD's own amp envelope (engine_t.ownenv / done, as FM6 and the
+ * VA) and LEVEL.
  * Operator envelopes A (operator A's level) and B (B1's and B2's): ATK to LEV, DEC to END, held (attack-decay-end:
  * the gate does not release them), each with a DELAY, a TRIG mode, a RESET, a key track; VEL scales LEV. Three LFOs
  * per voice (FREE / HOLD run on the part's phase; TRIG / ONE / HALF on the voice's), at control rate (every CTL = 32
@@ -198,6 +199,7 @@ typedef struct {
     int32_t amp;                                 /* .. the amplitude, Q15 */
     int32_t f1, f2;                              /* the SVF */
     int32_t bh, bl;                              /* the base-width one-poles, Q8 */
+    int32_t dc;                                  /* the DC blocker's one-pole (the operators' mean), Q12 */
     uint32_t lph[3], lrnd[3], ltr[3];            /* the LFOs' own phases (TRIG ONE HALF HOLD), random, travel */
     uint16_t ticks;                              /* control ticks since the note-on (LFO FADE) */
     uint8_t lstop;                               /* bit k: LFO k (ONE / HALF) has stopped */
@@ -586,6 +588,7 @@ static void quad_note_on(track_t *t, voice_t *v)
         s->amp = 0;
         s->f1 = s->f2 = 0;
         s->bh = s->bl = 0;
+        s->dc = 0;
         quad_env_start(s, 0, p[QP_ADLY], 1);
         quad_env_start(s, 1, p[QP_BDLY], 1);
     } else {                                     /* a retrigger: TRIG restarts the operator envelopes (RESET: from
@@ -695,6 +698,14 @@ static inline int32_t quad_hw(const int16_t *a, const int16_t *b, int32_t f, uin
     y = y0 + (((b[i + 1u] - y0) * fr) >> 15);
     return x + (((y - x) * f) >> 15);
 }
+
+/* the DC blocker after the operators: a one-pole high-pass at ~8 Hz (Q16: 65536 (1 - exp(-2 pi 8 / FS))). The
+ * operators are not DC-free: the DX7-style feedback (its average lags 1.5 samples) skews the feedback operator's saw,
+ * its mean -12 % of its RMS at FDBK 60 (-61 % at 100) on a plain sine, and at near-unison ratios (1:1) a modulator's
+ * phase offset (that mean, or DTUNE's slow drift: 0.06..0.5 Hz at DTUNE 8) puts J1(I) sin(offset) into the carrier at
+ * 0 Hz (BRASS: +57 % of its RMS). A DX7 / Digitone AC-couples its output; here every voice does, before the SVF and its
+ * knee */
+#define QUAD_DC_K 75
 
 /* the operator outputs: QW a modulator's sine, QCW a carrier's (HARM: defined per loop), QM a modulator's output as a
  * phase offset (Q15 -> 2 cycles at full level), QFB the feedback operator's self-modulation (its wave's last two
@@ -905,6 +916,16 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         QUAD_ALGOS
 #undef QCW
     }
+    /* the DC blocker (QUAD_DC_K) */
+    {
+        int32_t d = s->dc;
+        for (i = 0; i < n; i++) {
+            x = acc[i];
+            d += (int32_t)(((((int64_t)x << 12) - d) * QUAD_DC_K) >> 16);
+            acc[i] = x - ((d + 2048) >> 12);
+        }
+        s->dc = d;
+    }
     /* the SVF, a loop per type (LP v2, HP x - kd v1 - v2, BP kd v1), the soft knee after it */
     if (svf) {
         ic1 = s->f1, ic2 = s->f2;
@@ -968,6 +989,39 @@ static int32_t quad_pan(const track_t *t, int32_t pan)
 }
 
 /* --------------------------------------------------------- the engine --- */
+/* the editor's screens (cr_edit.c's screen plan, docs/EDITOR.md §4; the user-approved mock-ups
+ * design/choralroot-fm1-quad-screens.png): OSC SYN 1 (+ SYN 1+) under the algorithm, SYN 2; FILT the filter and its
+ * envelope, the base-width window; ENV the operator envelopes A / B, their delays and modes, the key tracks, the amp
+ * envelope; LFO one screen an LFO (Wave + Phase one double cell). Labels are the mock-ups' */
+#define QS_N ENG_C_NUM
+#define QS_T ENG_C_TEXT
+#define QUAD_LSCR(k)                                                                                               \
+    {3, {QUAD_PG_LFO + 2 * ((k) - 1), QUAD_PG_LFO + 2 * ((k) - 1) + 1}, ENG_B_NONE, 1, "LFO " #k,                              \
+     {{ENG_C_KNOB, QS_T, QS_N, QS_T}, {ENG_C_WAVEPH, 0, QS_T, QS_N}},                                              \
+     {{"Speed", "Mult", "Fade", "Dest"}, {"Wave \267 Phase", 0, "Trig", "Depth"}}}
+static const eng_screen_t QUAD_SCREENS[] = {
+    {0, {0, 1}, ENG_B_ALGO, 1, "SYN 1", {{ENG_C_BIG, ENG_C_BIG, ENG_C_BIG, ENG_C_RATIO},
+                                         {ENG_C_HARM, ENG_C_DETUNE, ENG_C_BAR, QS_N}},
+     {{"Algo", "Ratio C", "Ratio A", "Ratio B"}, {"Harm", "Dtune", "Feedback", "Mix"}}},
+    {0, {2, 0xFF}, ENG_B_NONE, 0, "SYN 2", {{QS_T, QS_T, QS_T, QS_T}},
+     {{"Offset C", "Offset A", "Offset B1", "Offset B2"}}},
+    {1, {3, 4}, ENG_B_FILTER, 1, "FILTER", {{QS_N, QS_N, QS_N, QS_N}, {ENG_C_VAL, QS_N, QS_T, QS_N}},
+     {{"Attack", "Decay", "Sustain", "Release"}, {"Freq", "Reso", "Type", "Env depth"}}},
+    {1, {5, 6}, ENG_B_WINDOW, 1, "FILTER 2", {{QS_N, QS_N}, {QS_N, QS_N}},
+     {{"Env delay", "Key track"}, {"Base", "Width"}}},
+    {2, {7, 8}, ENG_B_ADE2, 0, "ENV A/B", {{QS_N, QS_N, QS_N, QS_N}, {QS_N, QS_N, QS_N, QS_N}},
+     {{"A Attack", "A Decay", "A End", "A Level"}, {"B Attack", "B Decay", "B End", "B Level"}}},
+    {2, {9, 10}, ENG_B_NONE, 0, "ENV 2", {{QS_N, QS_T, QS_T, QS_T}, {QS_N, QS_T, QS_T, QS_N}},
+     {{"A Delay", "A Trig", "A Reset", "Phase"}, {"B Delay", "B Trig", "B Reset", "Velocity"}}},
+    {2, {11, 0xFF}, ENG_B_NONE, 0, "ENV 3", {{QS_N, QS_N}}, {{"A Key", "B Key"}}},
+    {2, {12, 13}, ENG_B_ENV, 1, "AMP", {{QS_N, QS_N, QS_N, QS_N}, {QS_N, QS_N, QS_N}},
+     {{"Attack", "Decay", "Sustain", "Release"}, {"Level", "Pan", "Drive"}}},
+    QUAD_LSCR(1), QUAD_LSCR(2), QUAD_LSCR(3),
+};
+#undef QS_N
+#undef QS_T
+#undef QUAD_LSCR
+
 static const eng_deep_t QUAD_DEEP = {
     .npages = NELEM(QUAD_PAGES),
     .pages = QUAD_PAGES,
@@ -978,6 +1032,8 @@ static const eng_deep_t QUAD_DEEP = {
     .blob_get = quad_blob_get,
     .blob_set = quad_blob_set,
     .blob_preset = quad_blob_preset,
+    .screens = QUAD_SCREENS,
+    .nscreens = NELEM(QUAD_SCREENS),
 };
 
 static const engine_t ENG_QUAD = {

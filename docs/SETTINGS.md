@@ -56,10 +56,10 @@ The block has its own header:
 | bass_sound | v6: the bass part's sound (what BASS tap brings), (engine << 8) \| pool position; 0xFFFF = the UI's default (v1..5: read as the default) | ANALOG SUB BASS |
 | metro_on, metro_sig, metro_vol, loop_slot (v2) | the click, 4/4 3/4 6/8, 0..100, 0..9 | off, 4/4, 70, 0 |
 | pick_roots (v3) | the engine picker's white roots: 1 choose engines, 0 play (KNOB 4 in the picker) | **1** (engines) |
-| rsv_usb (v4: usb_out) | retired in v5: v4's Options > USB Audio Out (the playback device, removed: docs/USB-AUDIO.md) | 0; a v4 record's byte (1 by default there) is cleared on import |
+| rsv_usb (v4: usb_out) | retired in v5: v4's Options > USB Audio Out (the playback device, removed: docs/USB-AUDIO.md). Since 0.14 (QUAD, still v6): the chord part's pool position on QUAD (0 = none yet: its first preset), written by the UI glue (`cr_settings.c crs_slot`) | 0; a v4 record's byte (1 by default there) is cleared on import |
 | usb_in (v4) | Options > **USB Record**: ChoralRoot In is presented to the computer (docs/USB-AUDIO.md); Off: the serial console instead | **1** (on); a v1..v3 record takes it (its zero would mean off) |
 | usb_level (v4) | Options > USB Level: `CRS_USB_MASTER` (the recording follows MASTER) / `CRS_USB_FIXED` (recorded at the full level, MASTER after) | Master |
-| pool_pos[2][10], pool_pos10_chord, pool_pos10_bass (v6) | per part (chord, bass), per engine (`ENGINE_ORDER` rank 0..9 in `pool_pos`, rank 10 in the two bytes that were `rsv0` / `rsv1`; `crs_pool_get` / `crs_pool_set`): the pool position last played there, where OPT + PRESETS lands; 0..127, checked against the pool by the glue | 1 (each engine's first preset); a v1..v5 record takes the defaults |
+| pool_pos[2][10], pool_pos10_chord, pool_pos10_bass (v6) | per part (chord, bass), per engine (`ENGINE_ORDER` rank 0..9 in `pool_pos`, rank 10 in the two bytes that were `rsv0` / `rsv1`; `crs_pool_get` / `crs_pool_set`; since 0.14 the ranks of the eleven engines shown without QUAD, so a 0.13 record keeps its meaning: QUAD's chord place is in `rsv_usb`, its bass place in `bass_sound` while the bass plays QUAD): the pool position last played there, where OPT + PRESETS lands; 0..127, checked against the pool by the glue | 1 (each engine's first preset); a v1..v5 record takes the defaults |
 
 The reserve is used up by v6 (`rsv[20]` became `pool_pos`): the next field needs a longer record (a new PER magic or
 a larger `CRS_SIZE` with the import rules for a shorter one).

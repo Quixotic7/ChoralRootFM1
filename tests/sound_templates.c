@@ -9,9 +9,11 @@
  *                                                and the two factory-table strings below, verbatim
  *                                                (tests/run_cr_tests.sh runs it on the two clients)
  *
- * JSON: { "templates": { "fm6": <base64 up_rec_t>, "cz": <base64 up_rec_t> },
+ * JSON: { "templates": { "fm6": <base64 up_rec_t>, "cz": <base64 up_rec_t>, "quad": <base64 up_rec_t> },
  *         "fixtures": { "fm6_blob": <base64 128>, "fm6_vced": <base64 155>, "fm6_fn": <base64 8: the packed
- *                       function defaults, blob bytes 114..121>, "cz_tone": <base64 144> } }
+ *                       function defaults, blob bytes 114..121>, "cz_tone": <base64 144>, "quad_blob": <base64 80:
+ *                       QUAD's first factory preset, EP> } }
+ * (QUAD has no .syx: its template and blob are the test fixtures of the "quad" patch kind, not pinned in the clients) 
  * A template is a valid record (up_valid) of the engine with every parameter at its default (param_desc_of), np =
  * P_COUNT, ver UP_VER, the name "SYX IMPORT" (the importer replaces it with the voice's name), no pattern. The
  * firmware maps a record's values by count, so a template stays valid when P_COUNT grows (upreset.c). The fixtures:
@@ -100,15 +102,26 @@ static void factory_json(char *fac, size_t nf, char *first, size_t n1)
 
 int main(int argc, char **argv)
 {
-    static char t_fm6[400], t_cz[400], f_blob[200], f_vced[240], f_fn[20], f_tone[200], fac[16384], first[512];
+    static char t_fm6[400], t_cz[400], t_quad[400], f_blob[200], f_vced[240], f_fn[20], f_tone[200], f_quad[200],
+        fac[16384], first[512];
     up_rec_t r;
-    uint8_t blob[FM6_BLOB], v[FP_SIZE + 1u], fn[FM6_NFN];
+    uint8_t blob[FM6_BLOB], v[FP_SIZE + 1u], fn[FM6_NFN], qb[QUAD_BLOB];
     up_boot();                                   /* (as tests/cr_backup_test.c power_on: the mirrors, no UI) */
     cr_settings_boot();
     template_of(ENGI_FM6, &r);
     b64((const uint8_t *)&r, sizeof r, t_fm6);
     template_of(ENGI_CZ, &r);
     b64((const uint8_t *)&r, sizeof r, t_cz);
+    template_of(ENGI_QUAD, &r);
+    b64((const uint8_t *)&r, sizeof r, t_quad);
+    trk[1].eng_req = ENGI_QUAD;                      /* (QUAD's EP on part 1: its blob) */
+    quad_blob_preset(&trk[1], 0);
+    quad_blob_get(&trk[1], qb);
+    if (!quad_blob_ok(qb)) {
+        fprintf(stderr, "QUAD's EP blob is not valid\n");
+        return 2;
+    }
+    b64(qb, QUAD_BLOB, f_quad);
     /* the fixtures: factory voice F1 on part 0 */
     trk[0].eng_req = ENGI_FM6;
     memcpy(fm6_fn[0], FM6_FNDEF, FM6_NFN);           /* the part's function settings at Dexed's defaults (fm6_init) */
@@ -152,8 +165,9 @@ int main(int argc, char **argv)
         printf("sound_templates: %s\n", bad ? "FAIL" : "ok");
         return bad;
     }
-    printf("{\n \"templates\": {\"fm6\": \"%s\", \"cz\": \"%s\"},\n \"fixtures\": {\"fm6_blob\": \"%s\", \"fm6_vced\": \"%s\", \"fm6_fn\": \"%s\", \"cz_tone\": \"%s\"},\n"
+    printf("{\n \"templates\": {\"fm6\": \"%s\", \"cz\": \"%s\", \"quad\": \"%s\"},\n \"fixtures\": {\"fm6_blob\": \"%s\", \"fm6_vced\": \"%s\", \"fm6_fn\": \"%s\", \"cz_tone\": \"%s\", \"quad_blob\": \"%s\"},\n"
            " \"p_count\": %u, \"fm6_name\": \"%.10s\", \"cz_name\": \"%.16s\",\n \"factory\": %s,\n \"factory_first\": %s\n}\n",
-           t_fm6, t_cz, f_blob, f_vced, f_fn, f_tone, (unsigned)P_COUNT, (const char *)(v + 145), (const char *)(CZ_FACTORY[0] + 128), fac, first);
+           t_fm6, t_cz, t_quad, f_blob, f_vced, f_fn, f_tone, f_quad, (unsigned)P_COUNT, (const char *)(v + 145),
+           (const char *)(CZ_FACTORY[0] + 128), fac, first);
     return 0;
 }

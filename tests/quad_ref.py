@@ -11,8 +11,8 @@ offset columns, the base-width filter's one-pole coefficients, the LFO rate cons
 
 The model: pure Python (no numpy), the same equations as eng_quad.c. The control path (phase increments, the four
 envelopes, the LFOs, the level / amplitude ramps, the filter coefficients) is integer, as the firmware's; the signal
-path (the operators, feedback, the mix, the SVF, the base-width filter, the amplitude) is float. The goldens: 0.3 s of
-two notes (C4 and G4, velocity 100, released at 0.2 s) on eight test patches (one per algorithm) and four presets:
+path (the operators, feedback, the mix, the DC blocker, the SVF, the base-width filter, the amplitude) is float. The
+goldens: 0.3 s of two notes (C4 and G4, velocity 100, released at 0.2 s) on eight test patches (one per algorithm) and four presets:
 the first 2048 output samples and the RMS of each 10 ms block. tests/cr_quad_test.c renders the same and compares.
 Needs build/gen/felucca_tables.h (Felucca's tables: sine, pitch, envelope times, SVF g, tanh).
 """
@@ -86,6 +86,7 @@ def cutoff_hz(v):
     return 30.0 * ((16000 / 30) ** (v / 127))
 
 
+DC_K = 75 / 65536.0     # eng_quad.c QUAD_DC_K: the DC blocker after the operators, a one-pole high-pass at ~8 Hz
 BW_K = [min(65535, int(round(65536 * (1 - math.exp(-2 * math.pi * cutoff_hz(v) / FS))))) for v in range(128)]
 
 
@@ -386,6 +387,7 @@ class Voice:
         self.amp = 0
         self.f1 = self.f2 = 0.0
         self.bh = self.bl = 0.0
+        self.dc = 0.0
         self.lph = [0] * 3
         self.lrnd = [0] * 3
         self.ltr = [0] * 3
@@ -421,6 +423,7 @@ class Voice:
             self.amp = 0
             self.f1 = self.f2 = 0.0
             self.bh = self.bl = 0.0
+            self.dc = 0.0
             self.env_start(0, p[Q["ADLY"]], 1)
             self.env_start(1, p[Q["BDLY"]], 1)
         else:
@@ -590,7 +593,7 @@ class Voice:
             self.part.pan = clamp((dst[10] * 64) >> 15, -64, 63)
         p0, p1, p2, p3 = self.ph
         fb1, fb2 = self.fb1, self.fb2
-        ic1, ic2, bh, bl = self.f1, self.f2, self.bh, self.bl
+        ic1, ic2, bh, bl, dc = self.f1, self.f2, self.bh, self.bl, self.dc
         S = SINE
         W = lambda ph: tab_f(S, ph)
         if hm:
@@ -655,6 +658,8 @@ class Voice:
             p2 += inc[2]
             p3 += inc[3]
             x = (X * gx + Y * gy) / 32768.0 / 2.0
+            dc += (x - dc) * DC_K
+            x -= dc
             if svf:
                 v3 = x - ic2
                 v1 = (a1 * ic1 + a2 * v3) / 8192.0
@@ -676,7 +681,7 @@ class Voice:
             out[i] += y * a / 32768.0 * 6000 / 2048.0
         self.ph = [p0 % 4294967296.0, p1 % 4294967296.0, p2 % 4294967296.0, p3 % 4294967296.0]
         self.fb1, self.fb2 = fb1, fb2
-        self.f1, self.f2, self.bh, self.bl = ic1, ic2, bh, bl
+        self.f1, self.f2, self.bh, self.bl, self.dc = ic1, ic2, bh, bl, dc
         self.lv = [tl[0], tl[1]]
         self.amp = A1
 

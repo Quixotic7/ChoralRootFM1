@@ -1,4 +1,4 @@
-# CZ-1 (docs/CZ1.md): OPT + PRESETS +3 -> the CZ-1 pool, 01 BRASS 1 (Casio's A-1 on Melodee's CZ-1 engine). MAJ + D4 held
+# CZ-1 (docs/CZ1.md): OPT + PRESETS +4 -> the CZ-1 pool, 01 BRASS 1 (Casio's A-1 on Melodee's CZ-1 engine). MAJ + D4 held
 # 1.5 s from 1000 ms (the "before" window of tools/emu/test_cr.sh: 1.2..2.4 s), released. EDIT, then ENV four times:
 # the ENV group's screen 4, DCW 1 (steps 1-4) under the "cz" band (shot); SELECT +1: its levels (L1..L4), KNOB 1 -20:
 # DCW 1's L1 down to 0 ("deep: part 0 page 11 DCW 1+ col 0 L1 .. -> 0", step 1 lit: shot); the same chord again from
@@ -7,7 +7,7 @@
 wait 300                      # (+ 200 ms of the engine change below: the same timeline)
 btn GLO down
 wait 100
-knob PRESETS +3               # OPT + PRESETS: the engine (FM6 -> CZ-1, BRASS 1: its pool position 01), on OPT's release
+knob PRESETS +4               # OPT + PRESETS: the engine (FM6 -> QUAD -> VA -> PHASE -> CZ-1, BRASS 1: its pool position 01), on OPT's release
 wait 100
 btn GLO up
 wait 500

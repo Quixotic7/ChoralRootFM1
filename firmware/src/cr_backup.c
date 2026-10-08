@@ -16,11 +16,13 @@
  *   Felucca 1.0's 27 and Melodee's earlier bank restore too, converted at the next boot as at power-on), 9 the VA patch
  *   store (va_store.c), 10, 11 the FM6 patch store (fm6_ustore.c: user slots 1..16, 17..32), 12, 13 the CZ-1 tone store
  *   (cz_ustore.c: user slots 1..16, 17..32), 14..21 the CZ-1 banks A..H (cz_bank.c: one object a bank, as Melodee's
- *   backup ids 9..16; a bank never saved has no object: its default, Casio's tones or empty), 40..49 loop slots 1..10
+ *   backup ids 9..16; a bank never saved has no object: its default, Casio's tones or empty), 22 the QUAD patch store
+ *   (quad_store.c, FELUCCA_QUAD), 40..49 loop slots 1..10
  *   (cr_ui.c's flash records, docs/LOOPER.md). No sample objects: ChoralRoot has
  *   no SAMPLE engine (FELUCCA_SAMPLE 0); Felucca's 32..34 and SMP_BEGIN .. SMP_ERASE (11..14) are not answered, so the
  *   installer page reports a Felucca archive's samples (and a ChoralRoot 0.1 archive's 32 / 33) skipped. The flash of
- *   user sample slots 1 and 2 holds the CZ-1 objects 13..21 (0xA0000..0xB1FFF), the rest stays free (storage.c's map); slot 3's the loops.
+ *   user sample slots 1 and 2 holds the CZ-1 objects 13..21 (0xA0000..0xB1FFF) and QUAD's 22 (0xB2000 / 0xB3000), the
+ *   rest stays free (storage.c's map); slot 3's the loops.
  *
  * Reads come from flash (the current copy of each A/B pair, checked at LIST) in 256-byte st_read windows: no RAM
  * copy, the audio keeps running (a loop may play). LIST first saves a pending settings change (cr_settings_save,
@@ -49,8 +51,15 @@ enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72 };
 #if FELUCCA_CZ
 #define CRB_CZS 12u                                  /* 12, 13: the CZ-1 tone store's halves */
 #define CRB_CZB 14u                                  /* 14..21: the CZ-1 banks A..H */
+#if FELUCCA_QUAD
+#define CRB_QUAD 22u                                 /* 22: the QUAD patch store */
+static const uint8_t CRB_IDS[] = {1, 6, 7, 8, CRB_VA, CRB_FM6S, CRB_FM6S + 1u, CRB_CZS, CRB_CZS + 1u, 14, 15, 16, 17, 18, 19,
+                                  20, 21, CRB_QUAD, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+_Static_assert(sizeof(quad_store_t) <= CRL_REC_MAX, "backup: the QUAD store stages too");
+#else
 static const uint8_t CRB_IDS[] = {1, 6, 7, 8, CRB_VA, CRB_FM6S, CRB_FM6S + 1u, CRB_CZS, CRB_CZS + 1u, 14, 15, 16, 17, 18, 19,
                                   20, 21, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+#endif
 _Static_assert(sizeof(czu_t) <= CRL_REC_MAX && sizeof(cz_bank_t) <= CRL_REC_MAX, "backup: the CZ-1 objects stage too");
 static int crb_is_cz(uint32_t id) { return id >= CRB_CZS && id < CRB_CZB + CZ_BANK_N; }
 #else
@@ -145,8 +154,12 @@ static int crb_index(uint32_t id)
     return -1;
 }
 static int crb_is_loop(uint32_t id) { return id >= CRB_LOOP0 && id < CRB_LOOP0 + CRL_SLOTS; }
-static uint32_t crb_obj(uint32_t id)                 /* storage.c's object of ids 1, 6..21 */
+static uint32_t crb_obj(uint32_t id)                 /* storage.c's object of ids 1, 6..22 */
 {
+#if FELUCCA_QUAD
+    if (id == CRB_QUAD)
+        return OBJ_QUADSTORE;
+#endif
 #if FELUCCA_CZ
     if (crb_is_cz(id))
         return id >= CRB_CZB ? (uint32_t)OBJ_CZBANK0 + id - CRB_CZB : czu_obj(id - CRB_CZS);
@@ -287,6 +300,10 @@ static int crb_size_ok(uint32_t id, uint32_t len)   /* a begin's size for this i
     if (crb_is_cz(id))
         return !len || len == (id >= CRB_CZB ? sizeof(cz_bank_t) : sizeof(czu_t));
 #endif
+#if FELUCCA_QUAD
+    if (id == CRB_QUAD)
+        return !len || len == sizeof(quad_store_t);
+#endif
     if (id == CRB_VA)                                /* version 3 / 2, or version 1's 104-byte blobs */
         return !len || len == sizeof(va_store_t) || len == 16u + UP_SLOTS * VA_BLOB1;
     if (crb_is_loop(id))
@@ -331,6 +348,11 @@ static uint32_t crb_commit(void)
         if (len && !(id >= CRB_CZB ? cz_bank_valid((const cz_bank_t *)raw) : czu_valid((const czu_t *)raw, id - CRB_CZS)))
             return 2;
 #endif
+#if FELUCCA_QUAD
+    } else if (id == CRB_QUAD) {
+        if (len && !quad_store_valid((const quad_store_t *)raw))
+            return 2;
+#endif
     } else if (id == CRB_VA) {
         const va_store_t *s = (const va_store_t *)raw;
         if (len && (s->magic != VA_STORE_MAGIC || s->nslot != UP_SLOTS ||
@@ -362,7 +384,8 @@ static uint32_t crb_commit(void)
             if (fm6_slot[t] >= FM6_NFAC)
                 fm6_slot[t] = 0xFFu;
     } else {
-        up_boot();                                   /* both banks, the FM6 bank, the VA, FM6 and CZ-1 stores from flash */
+        up_boot();                                   /* both banks, the FM6 bank, the VA, FM6, CZ-1 and QUAD stores from
+                                                      * flash */
         up_gen++;
 #if FELUCCA_CZ
         if (id >= CRB_CZB && id < CRB_CZB + CZ_BANK_N)

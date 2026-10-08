@@ -1,6 +1,6 @@
 # QUAD: a Digitone-style four-operator FM engine (plan, 2026-10-07)
 
-The user's ask: a new FM engine modelled on Elektron's Digitone. This is the plan and the screens. **Building since 2026-10-07** (the user approved the UI design): milestone 1 (the core) and the draw primitives first, then the wiring.
+The user's ask: a new FM engine modelled on Elektron's Digitone. This is the plan and the screens. **Building since 2026-10-07** (the user approved the UI design): milestone 1 (the core) and the draw primitives, then the wiring (milestone 2, done 2026-10-08: "Status" at the end).
 Mock-ups: `design/choralroot-fm1-quad-screens.png` (`design/make_quad_mockups.py`). The name on the device is
 **QUAD** (four operators; "Digitone" is Elektron's name and "DIGITAL" is Felucca's retired engine 1).
 
@@ -143,7 +143,12 @@ offset of `o << 18` (full level = 2 cycles, index ~12.6 rad). Feedback: the feed
 level), `(y[n-1] + y[n-2]) x FDBK^2 x 2 << 1` (FDBK 127 = one cycle of the average: saw-like near 64, noise above
 ~90). Levels: operator A = ENV A x LEV^2 (C is always at full level: the amp envelope shapes it), B1 and B2 = ENV B x B
 LEV^2; ramped per sample. MIX: `X x (63 - MIX) / 126 + Y x (63 + MIX) / 126` (equal sum: algorithms 1-3, X = Y = C,
-do not change level with MIX). Then the SVF (dsp.c's, LP / HP / BP as the VA's switch, bypassed when LP, FREQ 127 and no
+do not change level with MIX). Then a DC blocker (a one-pole high-pass at ~8 Hz, `QUAD_DC_K` 75 Q16, Q12 state): the
+operators are not DC-free. The feedback's average lags 1.5 samples, which skews the feedback operator's saw (on a plain
+sine its mean is -12 % of its RMS at FDBK 60, -61 % at 100; a float model of the same loop gives the same), and at
+near-unison ratios a modulator's phase offset (that mean, or DTUNE's drift of 0.06..0.5 Hz) is `J1(I) sin(offset)` at
+0 Hz in the carrier (BRASS held: +57 % of its RMS). The Digitone and the DX7 AC-couple their outputs; QUAD does it per
+voice, before the SVF and its knee. Then the SVF (dsp.c's, LP / HP / BP as the VA's switch, bypassed when LP, FREQ 127 and no
 resonance), the soft knee, the base-width filter, the amp. The routings mirror the designer's `ALGOS` (`QUAD_ALGO` in
 eng_quad.c; the test checks it against a transcription of `index.html`):
 
@@ -271,3 +276,41 @@ so it must accept a missing MOD section; the LFO screens are "LFO n" + "LFO n+" 
 mock-up, where ce_scr's OSC / LFO stacks would put the three "LFO n" in one stack); SYN 1 / SYN 1+ likewise one edit8
 screen. tests/regress.c enumerates `ENGINES[]`: with `FELUCCA_QUAD 1` there, its `preset/QUAD/*` goldens and `cpu/QUAD/*`
 baselines are new entries to record (`tests/golden.txt`, `tests/cpu_baseline.txt`) once QUAD is registered.
+
+## Status (milestone 2: wired, 2026-10-08)
+
+QUAD is engine 15 of ChoralRoot (`FELUCCA_QUAD` 1 in `choralroot.c`, the emulator and `tests/regress.c`; 0 by default:
+Felucca's unit builds as before). Where:
+
+- **Registration**: `core.h` (`FELUCCA_QUAD`, `NENGINES` += 1, `ENGI_QUAD` = 13 + SLICE + VA + CZ = 15; it needs
+  `FELUCCA_CZ`: engines.c errors without it), `engines.c` (the include, `ENGINES[15]`, `ENGINE_ORDER` ANALOG FM6 **QUAD**
+  VA PHASE CZ-1 ..: the third white root of the engine picker, OPT + PRESETS +1 from FM6), `eng_fm6.c fm6_track_loaded`
+  calls `quad_track_loaded`, `fx.c mix_part` `quad_pan`. `tools/build.py` passes `FELUCCA_QUAD` from the environment.
+- **The settings record** has no room for a twelfth engine's pool places (docs/SETTINGS.md): `cr_settings.c crs_slot`
+  keeps the eleven v6 slots for the other engines (a 0.13 record means what it meant), the chord part's QUAD place in
+  the retired byte `rsv_usb` (0: none yet), the bass part's from `bass_sound` when the bass plays QUAD. NOISE, now the
+  twelfth melodic engine, has no white root in the picker (eleven roots D4..G5); KNOB 1 still reaches it.
+- **The patch store** `quad_store.c` (included by `upreset.c` after `cz_ustore.c`): one storage object `OBJ_QUADSTORE`
+  (= `OBJ_CZBANK0 + 8`) on the A/B pair 0xB2000 / 0xB3000 (the user sample slot 2's flash), 16-byte header "QUDS"
+  version 1, 32 slots, blob 80, the used mask + 32 x 80 = 2576 bytes, mirrored in the pool; `quad_store_saved /
+  _loading / _boot / _get / _put / _valid` as the VA's; backup object **22** (`cr_backup.c`: LIST / GET / PUT, a PUT
+  validated by `quad_store_valid`); SAFE MODE's Flash Data erases the pair (56 sectors). Clients: `web/fm1backup.js`
+  `CR_BACKUP_IDS`, `tools/fm1_install.py` `CR_IDS` ("QUAD patches").
+- **The Sounds tools**: patch kind `quad` (80 bytes, 'Q' 1) in `web/fm1sounds.js` and `tools/fm1_install.py` (object
+  22 read when listed); no .syx for QUAD (docs/SOUNDS.md). `tests/sound_templates.c` prints QUAD's factory names (pinned
+  in both clients) and a `quad` template and `quad_blob` fixture (EP).
+- **The editor**: QUAD's screen plan (`QUAD_SCREENS`, `eng_deep_t.screens`; docs/EDITOR.md §4 "QUAD"): the mock-ups'
+  eight screens (OSC SYN 1 under the algorithm, SYN 2; FILT FILTER, FILTER 2 with the window; ENV A/B, ENV 2, ENV 3,
+  AMP; LFO 1..3 a screen each, Wave · Phase one span cell); MOD is the platform's routes (QUAD has no MOD section; the
+  quick mapping says "not modulatable"). Ratios step one value a detent.
+- **Tests**: `tools/emu/scripts/cr_quad.txt` (test_cr.sh "QUAD"), `quad_persist_set/check.txt` (test_persist.sh), perf.sh
+  scenario (i); `tests/cr_backup_test.c` (object 22, a QUAD sound through PUT), `tests/golden.txt` and
+  `tests/cpu_baseline.txt` (the 16 presets), `tests/target_budget.py` lists `quad_render` / `quad_block` (their budget
+  lines: the next device build, `BUDGET_UPDATE=1`).
+- **DC**: `preset/QUAD/04_BRASS` failed regress's health check (DC -752, limit 400; FEEDBACK 389, EP -93): fixed in
+  the engine by the DC blocker after the operators (above; regress DC now within +-17 on all 16, cr_quad_test checks
+  every preset held and a plain feedback operator over FDBK 0..127). The presets are to be tuned by ear anyway
+  (milestone 4). A QUAD voice takes two budget units (the default; FM6 takes one): perf (i) gives up 70 voices to the budget
+  (budget fades, no clicks). Device build 2026-10-08: XIP 71.1 %, RAM 81.3 %, POOL 93.8 % (docs/INTEGRATION.md); `quad_render` costs 6089
+  in the target budget (the VA's `va_render` for comparison: see `tests/target_budget.txt`); the draw code's HARM and LFOWAVE
+  glyphs lost two 64-bit divisions the pi32v2 linker has no `__divdi3` for.

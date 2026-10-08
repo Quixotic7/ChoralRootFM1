@@ -46,9 +46,17 @@
 #define FELUCCA_CZ 0             /* Melodee's CZ-1 engine (eng_cz.c, docs/CZ1.md): engine 13 + FELUCCA_SLICE + FELUCCA_VA (14 on
                                   * ChoralRoot); Felucca builds without it (choralroot.c, the emulator and tests/regress.c set 1) */
 #endif
-#define NENGINES (13 + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ)   /* SLICE (13), VA and CZ-1 come last: the other engines
-                                                                   * keep their numbers */
+#ifndef FELUCCA_QUAD
+#define FELUCCA_QUAD 0           /* ChoralRoot's QUAD engine (eng_quad.c, docs/QUAD.md): engine 13 + FELUCCA_SLICE + FELUCCA_VA +
+                                  * FELUCCA_CZ (15 on ChoralRoot); Felucca builds without it (choralroot.c, the emulator and
+                                  * tests/regress.c set 1) */
+#endif
+#define NENGINES (13 + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ + FELUCCA_QUAD)   /* SLICE (13), VA, CZ-1 and QUAD come last:
+                                                                                  * the other engines keep their numbers */
 #define ENGI_CZ (13u + FELUCCA_SLICE + FELUCCA_VA)   /* engines.c ENGINES[] (append-only): 14 on ChoralRoot (Melodee: 15) */
+#if FELUCCA_QUAD
+#define ENGI_QUAD (13u + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ)   /* engines.c ENGINES[]: 15 on ChoralRoot */
+#endif
 #define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
 #define NENG_SHOWN (NENGINES - !FELUCCA_FM4 - !FELUCCA_SAMPLE - !FELUCCA_GRAIN - !FELUCCA_DRUM)
                                  /* the engines one can pick: PRESETS, the EDIT layer, the editor, in the display order
@@ -200,6 +208,33 @@ typedef struct {
     const char *title;           /* "OSC 1" (<= 7 chars) */
     param_desc_t col[4];         /* KNOB 1..4; label 0 = an empty column */
 } eng_page_t;
+/* ChoralRoot's editor (cr_edit.c, docs/EDITOR.md §4): an engine's screen plan (eng_deep_t.screens), in place of the
+ * title rules for the groups it has screens for: a screen is one or two pages (rows A, B) under a band, its title and
+ * each cell's style */
+enum { ENG_B_NONE, ENG_B_ENV, ENG_B_FILTER, ENG_B_WINDOW, ENG_B_ALGO, ENG_B_ADE2 };   /* the band: none, the AHDSR
+                                    * (ATK DEC SUS REL), the filter's response (FREQ / CUT RESO / RES TYPE), the same
+                                    * with the base-width window (BASE WIDTH), the algorithm (ALGO FDBK MIX), two
+                                    * attack-decay-end envelopes (rows A and B: ATK DEC END LEV each) */
+enum { ENG_C_RULE,               /* the editor's rule (the kind of the value: a bar, a wave, text ..) */
+       ENG_C_BIG,                /* a number only, large (its whole name: "16.00") */
+       ENG_C_RATIO,              /* a fraction "0.50/1.00" (its whole name) */
+       ENG_C_HARM, ENG_C_DETUNE, /* the harmonics / detune glyph, pct the value */
+       ENG_C_NUM,                /* the value as a number (signed when the range is), a small bar (centre-zero) */
+       ENG_C_VAL,                /* the value's text without its unit ("2.1k"), a small bar */
+       ENG_C_TEXT,               /* the value's text ("Free", "x16", "LP"), no bar */
+       ENG_C_KNOB,               /* a knob (bipolar when the range is), the value's text */
+       ENG_C_BAR,                /* a bar glyph, the number */
+       ENG_C_WAVEPH };           /* this column (an LFO wave, CR_LW_* order) and the next (its start phase, its range a
+                                  * cycle) as one double-width cell: the wave drawn from the phase, "Tri \267 90" (degrees) */
+typedef struct {
+    uint8_t sec;                 /* the group: eng_deep_t.section's index (0 OSC, 1 FILTER, 2 ENV, 3 LFO, 4 MOD) */
+    uint8_t pg[2];               /* row A's page, row B's (0xFF: one row) */
+    uint8_t band;                /* ENG_B_* */
+    uint8_t letter;              /* 1: the active row's letter after the title ("SYN 1 \267 A") */
+    const char *title;           /* the title line's right text, 0 = row A's page title */
+    uint8_t cell[2][4];          /* ENG_C_* of each row's columns */
+    const char *label[2][4];     /* the cells' labels, 0 = the editor's (cr_pages.c CP_DLABEL) */
+} eng_screen_t;
 #define ENG_BLOB_MAX 160u       /* the largest blob (CZ-1: 144; the VA's 110 and FM6's 128 keep their store records) */
 typedef struct {
     uint32_t npages;
@@ -218,6 +253,9 @@ typedef struct {
      * (its value), -1 = not a destination; page ENG_MOD_TRK: a track parameter, col = its P_ id (the editor's quick
      * mapping, docs/EDITOR.md) */
     int32_t (*mod_dst)(const struct track *t, uint32_t page, uint32_t col);
+    /* optional (0 = none): the editor's screen plan (eng_screen_t above; QUAD's), nscreens of them in group order */
+    const eng_screen_t *screens;
+    uint32_t nscreens;
 } eng_deep_t;
 #define ENG_MOD_TRK 0xFFu
 typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c files) */

@@ -70,12 +70,14 @@ const source = () => new Map([
   [9, vaStore({ 1: blobs.va1, 7: blobs.staleVa7 })],                         // U07's blob is stale (empty slot)
   [10, half("fm6", 0, { 2: blobs.fm2, 1: blobs.staleFm1 })], [11, new Uint8Array(0)],   // U01's FM6 blob is stale (VA)
   [12, half("cz", 0, { 3: blobs.cz3 })], [13, half("cz", 1, { 17: blobs.cz17 })],
+  [22, new Uint8Array(0)],                                                   // (the QUAD store: never written)
 ]);
 
 /* ------------------------------------------------------------------------ the table --- */
-ok(SOUND_IDS.join() === "6,7,9,10,11,12,13" && ENGINE_NAMES.length === 15 && ENGINE_NAMES[13] === "VA" && ENGINE_NAMES[14] === "CZ-1" &&
-   patchKindOf(13) === "va" && patchKindOf(12) === "fm6" && patchKindOf(14) === "cz" && patchKindOf(0) === null && patchKindOf(1) === null,
-   "constants: ids, 15 engines, patch kinds");
+ok(SOUND_IDS.join() === "6,7,9,10,11,12,13,22" && ENGINE_NAMES.length === 16 && ENGINE_NAMES[13] === "VA" && ENGINE_NAMES[14] === "CZ-1" &&
+   ENGINE_NAMES[15] === "QUAD" && patchKindOf(13) === "va" && patchKindOf(12) === "fm6" && patchKindOf(14) === "cz" &&
+   patchKindOf(15) === "quad" && PATCH_SIZE.quad === 80 && patchKindOf(0) === null && patchKindOf(1) === null,
+   "constants: ids, 16 engines, patch kinds (QUAD: quad, 80 bytes)");
 const src = source();
 const { slots } = parseSoundObjects(src);
 const S = (n) => slots[n - 1];
@@ -94,9 +96,9 @@ ok(parseSoundObjects({}).slots.every((s) => !s.used) && parseSoundObjects({ 6: n
   const bad = bank(recs6); view(bad).setUint16(6, 15, true);
   ok(parseSoundObjects({ 6: bad }).slots.every((s) => !s.used), "parse: a bank with another slot count reads as empty");
   const r = rec(13, "X", { np: 20 }); r[16 + 5] = 192;
-  ok(!recordValid(r) && recordValid(rec(13, "X", { np: 20 })) && !recordValid(rec(15, "X")) && !recordValid(rec(1, "")) &&
+  ok(!recordValid(r) && recordValid(rec(13, "X", { np: 20 })) && recordValid(rec(15, "X")) && !recordValid(rec(16, "X")) && !recordValid(rec(1, "")) &&
      !recordValid(rec(1, "X", { ver: 3, np: 73 })) && recordValid(rec(1, "X", { ver: 3, np: 72 })) && !recordValid(rec(1, "X", { np: 7 })),
-     "parse: the validity test (packed > 191, engine 15, no name, np range)");
+     "parse: the validity test (packed > 191, engine 16, no name, np range)");
 }
 
 /* ---------------------------------------------------------------- export / file --- */
@@ -274,7 +276,7 @@ const crExtra = [[1, Uint8Array.from({ length: 764 }, (_, i) => i & 255)], [40, 
   let prog = 0;
   const { objs } = await readSounds(dev.request, (d, total) => { prog = d / total; });
   ok(SOUND_IDS.every((id) => same(objs.get(id), source().get(id))) && objs.get(11).length === 0 && !objs.has(1) && !objs.has(40) && prog === 1,
-     "read: LIST + GET of the seven objects (an empty one as 0 bytes), nothing else");
+     "read: LIST + GET of the eight objects (an empty one as 0 bytes), nothing else");
   ok(dev.gets === Math.ceil(3080 / 256) * 2 + Math.ceil(3536 / 256) + Math.ceil(2064 / 256) + 2 * Math.ceil(2320 / 256), "read: 256-byte pieces");
   const once = device([...source()], { changeOnGet: { id: 9, times: 1 } });
   await readSounds(once.request);
@@ -459,6 +461,43 @@ const FX = {
   const page = readFileSync(new URL("./index_pkg.html", import.meta.url), "utf8");
   ok(/sndOver: "over \{at\} \{name\}"/.test(page) && /sndAdded: "added"/.test(page) && page.includes("s.bound.label") && page.includes('data-t="sndColPool"'),
      "binding: the page shows over FM6 02 FM BELL / added");
+}
+
+/* ------------------------------------------------------- QUAD (the "quad" patch kind) --- */
+// the fixture of tests/sound_templates.c: QUAD's EP preset as the firmware packs it ('Q', version 1, 80 bytes)
+const QUAD_FX = "UQEBAwMjGgoAP2RkZGQAUBhIAC4ALAABAQEAAQFkACgAQAAofwAAQAAAAH8AYCg+SFADAAAAAABAUAMAAAAAAEBQAwAAAAAAQAAAAAAAAAA=";
+{
+  const qb = Uint8Array.from(Buffer.from(QUAD_FX, "base64")), rq = rec(15, "MY QUAD", { seed: 12 });
+  ok(qb.length === 80 && qb[0] === 0x51 && qb[1] === 1, "quad: the fixture is an 80-byte 'Q' 1 blob");
+  const blank = new Map(SOUND_IDS.map((id) => [id, new Uint8Array(0)]));
+  const f = { format: "choralroot-sound", version: 1, slot: 10, name: "MY QUAD", engine: 15, record: b64(rq), patch: { kind: "quad", data: QUAD_FX } };
+  const r = importSound(blank, 10, readSoundFile(JSON.stringify(f))), q = r.objs.get(22);
+  ok(r.changed.map((c) => c.id).join() === "22,6" && q.length === 2576 && view(q).getUint32(0, true) === 0x53445551 &&
+     view(q).getUint16(4, true) === 1 && view(q).getUint16(6, true) === 32 && view(q).getUint32(8, true) === 1 << 9 &&
+     view(q).getUint16(12, true) === 80 && view(q).getUint16(14, true) === 0 && same(q.subarray(16 + 9 * 80, 16 + 10 * 80), qb),
+     "quad: an import into a blank FM-1 creates the QUAD store (QUDS, ver 1, 32 slots, used bit 9, blob 80), 2576 bytes; store first");
+  const t = parseSoundObjects(r.objs).slots[9];
+  ok(t.used && t.engineName === "QUAD" && t.kind === "quad" && t.patch === "quad", "quad: U10 reads as QUAD with its patch");
+  const e = exportSound(r.objs, 10, { created });
+  ok(e.engine === 15 && e.engineName === "QUAD" && e.patch.kind === "quad" && e.patch.data === QUAD_FX, "quad: export -> patch.kind quad, the blob");
+  ok(throwsMsg(() => exportSyx(r.objs, 10), /only FM6 and CZ-1/), "quad: no .syx (exportSyx refuses a QUAD slot)");
+  const bad = (m) => { const b = qb.slice(); m(b); return { ...f, patch: { kind: "quad", data: b64(b) } }; };
+  ok(throwsMsg(() => readSoundFile(bad((b) => { b[0] = 0x52; })), /QUAD patch is not/) && throwsMsg(() => readSoundFile(bad((b) => { b[1] = 2; })), /QUAD patch is not/) &&
+     throwsMsg(() => readSoundFile({ ...f, patch: { kind: "quad", data: b64(qb.subarray(0, 79)) } }), /79 bytes, not 80/) &&
+     throwsMsg(() => readSoundFile({ ...f, patch: { kind: "va", data: b64(blobs.va1) } }), /not the kind of its engine QUAD/),
+     "quad: file checks (magic, version, length, another kind)");
+  const over = importSound(r.objs, 10, exportSound(src, 1));
+  ok(over.changed.map((c) => c.id).join() === "9,22,6" && !(view(over.objs.get(22)).getUint32(8, true) >>> 9 & 1) &&
+     over.objs.get(22).subarray(16 + 9 * 80, 16 + 10 * 80).every((x) => !x), "quad: a VA sound over U10 clears its QUAD bit and bytes");
+  const d = deleteSound(r.objs, 10);
+  ok(d.changed.map((c) => c.id).join() === "22,6" && !parseSoundObjects(d.objs).slots[9].used, "quad: delete clears the QUAD store's bit, then the bank");
+  // an older ChoralRoot (no object 22): read, the QUAD store empty
+  const old = device([...source()], { ids: CR_BACKUP_IDS.filter((id) => id !== 22) });
+  const { objs: oo } = await readSounds(old.request);
+  ok(oo.get(22).length === 0 && parseSoundObjects(oo).slots[0].name === "MY PAD", "quad: a firmware without object 22 reads (no QUAD store)");
+  const dq = device([...source()].map(([id, b]) => [id, id === 22 ? q : b]));
+  const { objs: oq } = await readSounds(dq.request);
+  ok(same(oq.get(22), q), "quad: the QUAD store read from the FM-1 (object 22)");
 }
 
 console.log(fails ? `SOUNDS TESTS FAILED (${fails})` : "sounds tests passed");
