@@ -36,7 +36,7 @@ Mock-ups: `design/choralroot-fm1-quad-screens.png` (`design/make_quad_mockups.py
    LEVEL  A B               operator output levels (the modulation depth ceiling the envelopes scale)
 ```
 
-The carriers' amplitude is the platform's ADSR (QUAD is **not** `ownenv`: unlike FM6 and CZ-1 the amp envelope is
+The amp envelope is QUAD's own (`ownenv`, the Digitone's AMP page; decided by the user's page layout: unlike FM6 and CZ-1 the amp envelope is
 the platform's, as the Digitone's AMP page is separate from its FM core), so the ENV group in the editor shows the
 platform ADSR as for ANALOG, and QUAD's own two envelopes are deep pages under OSC / its own section (below).
 Velocity scales the operator envelopes' LEV (a VEL amount, default 50 %).
@@ -59,29 +59,38 @@ The Digitone's SYN1 page, one for one (the user, 2026-10-07):
 RATIO C is a real ratio (0.25..16, as the Digitone's), not fixed. HOME's four knobs: RATIO A, HARM, FDBK, MIX. These are macros into the patch as the VA's are (a deep edit writes the
 macro back).
 
-## The deep pages (`eng_deep_t`), the editor's groups
+## The deep pages (`eng_deep_t`), the editor's groups (the user's layout, 2026-10-07)
 
-| section (editor group) | pages | KNOB 1..4 | screen |
+Values are shown as the Digitone shows them: **ratios are numbers, no bars** (Ratio C and B step 0.25 below 1 and 1
+above 1, Ratio A 0.25 steps; **Ratio B is one knob over the pair B1 / B2**: it cycles B1 through its steps, then
+increments B2 and B1 starts again, drawn as a fraction B1 over B2 with a horizontal divider); **Algo is a big
+number**; Harm and Dtune have their own glyphs (the harm wave; two beating waves for detune).
+
+| group | screen | KNOB 1..4 (row A / row B) | band / glyphs |
 | --- | --- | --- | --- |
-| OSC (FX) | `SYN 1`, `SYN 1+` (the two macro rows) | Algo · Ratio C · Ratio A · Ratio B / Harm · Dtune · Feedback · Mix | one `edit8` of two rows (the Digitone's SYN1 page) under the **algorithm diagram** as the wide band: the four operators as boxes with their routing arrows, the feedback loop, X and Y outputs, redrawn as ALGO turns; the Harm cell carries the `harm` glyph, Mix a bipolar bar |
-| | `OP C`, `OP A`, `OP B1`, `OP B2` | Offset · Level (C: –) · (B2: Ratio x, B2's multiple of B) · – | the second OSC screen, a `stack` of the four operators (the Digitone's SYN2 ratio offsets and levels); Phase reset lives on `SYN 2+` with A/B Delay and the Trig resets |
-| | `SYN 2`, `SYN 2+` | A Delay · B Delay · A Reset · B Reset / Phase reset · Key trk A · Key trk B · Vel | an `edit8` of two rows |
-| FILT (SEL) | the platform's CUT / RES page (no deep filter) | | as ANALOG |
-| ENV (ENV) | the platform ADSR, then `ENV A`, `ENV A+`, `ENV B`, `ENV B+` | Attack · Decay · End · Level / Delay · Reset · Key trk · Vel | `edit8` with the **ADE band** (attack to LEV, decay to END, the held level), as the AHDSR band draws |
-| LFO (LFO) | the platform's LFO page | | as ANALOG |
-| MOD (SEQ) | the platform's four routes | | as ANALOG |
+| OSC | 1 `SYN 1` | Algo · Ratio C · Ratio A · Ratio B / Harm · Dtune · Feedback · Mix | the algorithm diagram; Algo big number; ratios as numbers (B a fraction); harm and detune glyphs; Feedback a bar; Mix bipolar |
+| | 2 `SYN 2` | Offset C · Offset A · Offset B1 · Offset B2 | one row: the fine ratio offsets, numbers |
+| ENV (the operators) | 1 `ENV A/B` | A: Attack · Decay · End · Level / B: Attack · Decay · End · Level | a two-envelope band: A's and B's rise-fall-hold curves side by side, each with its level bar |
+| | 2 `ENV 2` | A Delay · A Trig · A Reset · Phase reset / B Delay · B Trig · B Reset · – | no band |
+| FILT | 1 `FILTER` | Attack · Decay · Sustain · Release (the filter envelope) / Freq · Reso · Type · Env depth | the filter response band (multimode: LP HP BP, as the VA's) |
+| | 2 `FILTER 2` | Env delay · Key track · – · – / Base · Width · – · – | the base-width filter drawn as a window (two edges) on the response band |
+| AMP ("master envelope") | `AMP` | Attack · Decay · Sustain · Release / Level · Pan · Drive · – | the AHDSR band (QUAD is `ownenv`: its own amp envelope, as the Digitone's AMP page; velocity to level) |
+| LFO | 1 `LFO 1`, 2 `LFO 2` | Speed · Mult · Fade · Dest / Wave · Phase · Mode · Depth | the lfo glyph (density = speed, height = depth); Dest an enum over QUAD's parameters (the Digitone's list: the SYN and FILT pages' values, amp level, pan) |
+| MOD | the platform's routes | | as every engine (QUAD's two LFOs are its own; the platform's matrix still reaches the P_E macros) |
 | FX, MIX | as every engine | | |
 
-`mod_dst`: none (QUAD has no matrix of its own; the platform's four routes and ENV / LFO -> the P_E macros apply as
-for ANALOG, so the quick mapping says "not modulatable" for deep columns, and the P_E macros are modulatable through
-the platform's ENV / LFO depths as any engine's EDIT parameters are).
+So QUAD implements, beside the FM core: a **multimode SVF** per voice (the VA's `dsp.c` primitives) with its ADSR
+filter envelope (depth, delay, key track), a **base-width filter** (a high-pass at BASE and a low-pass at BASE +
+WIDTH, both one-pole, per voice), its **amp envelope** (`ownenv`), and **two LFOs** with destinations (at control
+rate, as the VA's). The eight P_E macros are the SYN 1 page's eight values; HOME's knobs: Ratio A, Harm, Feedback,
+Mix. `mod_dst`: none (the platform's matrix reaches the macros only).
 
 ## The patch and the blob
 
-About 40 values: ALGO (3 bits), RATIO A, RATIO B (7 bits each, a table of the Digitone's ratio steps), HARM (6 + sign),
+About 70 values (the SYN pages, the two operator envelopes, the filter section, the amp envelope, two LFOs): ALGO (3 bits), RATIO A, RATIO B (7 bits each, a table of the Digitone's ratio steps), HARM (6 + sign),
 DTUN, FDBK, MIX, LEVEL A, LEVEL B, 2 x (ATK DEC END LEV DELAY RESET KEYTRK), VEL, PHASE RESET, 4 ratio offsets, BR
-(B2's ratio multiplier). Blob: `'Q'`, version 1, then one byte a value (all 7-bit-clean), ~48 bytes. A **patch store**
-per user slot as `va_store.c` (one object: 16 + 32 x 48 = 1552 bytes in POOL; backup object id 22; the flash pair:
+(B2's ratio multiplier). Blob: `'Q'`, version 1, then one byte a value (all 7-bit-clean), ~80 bytes. A **patch store**
+per user slot as `va_store.c` (one object: 16 + 32 x 80 = 2576 bytes in POOL; backup object id 22; the flash pair:
 the free project sector pair 0x97000's neighbours are taken: use the free user-sample-slot-2 flash 0xB2000 / 0xB3000).
 
 ## Factory presets (the pool, after INIT)
@@ -94,7 +103,7 @@ list of (value index, value) edits over the init patch, as the VA's `VA_PRESET_E
 
 | | estimate |
 | --- | --- |
-| CPU, 8 voices | 12-18 % of the 2.9 ms block (4 ops x table lookups + 2 envelopes; FM6 at 8 voices: 25-30 %) |
+| CPU, 8 voices | 16-24 % of the 2.9 ms block (4 ops x table lookups, 2 operator envelopes, an SVF + a base-width filter per voice, the amp envelope, 2 LFOs; FM6 at 8 voices: 25-30 %) |
 | RAM | per-voice state ~56 B x 8 = 448 B in `eng_state` (the union does not grow: FM6's member is larger); the part's patch 2 x 48 B |
 | POOL | the patch store 1552 B (POOL is at 92.3 %: 26 KB spare) |
 | flash | the 15 harmonic tables 15 x 4096 x 2 B = 120 KB? **too much**: use 2^10 tables (30 KB) or compute the odd / all series as a sum of 8 sines at init into RAM? No RAM for that. Decision: 2^10-point tables, 15 of them, 30 KB of flash (XIP at 60.6 %: fine), interpolated |
