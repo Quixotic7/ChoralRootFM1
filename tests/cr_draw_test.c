@@ -540,6 +540,241 @@ int main(int argc, char **argv)
         check(name, grey > grey0 + 30u);
     }
 
+    {   /* QUAD's primitives (docs/QUAD.md, design/choralroot-fm1-quad-mockups.json): the algo band, the ade2 band, the
+         * filter's base-width window, the harm / detune / lfowave glyphs, big / ratio / span-2 cells, the bipolar knob */
+        uint16_t bg = swap16(T_BG), orange = swap16(CR_NAMED[CR_COL_ORANGE]), blue = swap16(CR_NAMED[CR_COL_BLUE]);
+        uint16_t mid = swap16(T_MID), line = swap16(T_LINE);
+        int32_t ia = -1, id = -1, ib = -1, ir = -1;
+        uint32_t x, y, k;
+#define HS(x_, y_) host_screen[(uint32_t)(y_) * 240u + (uint32_t)(x_)]
+#define COUNT(n_, x0_, y0_, x1_, y1_, cond_) do { n_ = 0; for (y = (y0_); y < (uint32_t)(y1_); y++) \
+            for (x = (x0_); x < (uint32_t)(x1_); x++) n_ += (cond_); } while (0)
+        for (k = 0; k < CR_NSCREENS; k++) {
+            if (CR_SCREENS[k].kind != CR_K_EDIT8) continue;
+            if (CR_SCREENS[k].wide == CR_W_ALGO && ia < 0) ia = (int32_t)k;
+            if (CR_SCREENS[k].wide == CR_W_ADE2 && id < 0) id = (int32_t)k;
+            if (CR_SCREENS[k].wide == CR_W_FILTER && CR_SCREENS[k].wv[4] && ib < 0) ib = (int32_t)k;
+            if (CR_SCREENS[k].cell[0][3].glyph == CR_G_RATIO && ir < 0) ir = (int32_t)k;
+        }
+        check("QUAD: the algo, ade2, base-width and ratio states are in the table", ia >= 0 && id >= 0 && ib >= 0 && ir >= 0);
+        if (ia >= 0) {   /* algo: four boxes where the table puts them (outline columns inked, the letter inside), 8 pictures */
+            static uint16_t pic[8][240 * 100];
+            cr_screen_t s = CR_SCREENS[ia];
+            uint32_t n, boxes4 = 1, differ = 1, j, thin, thick;
+            for (n = 1; n <= 8u; n++) {
+                uint32_t found = 0;
+                s.wv[0] = (uint8_t)n;
+                render(&s, 0);
+                memcpy(pic[n - 1], host_screen + 22u * 240u, sizeof pic[0]);
+                for (k = 0; k < 4u; k++) {
+                    uint32_t ox = 60u + CR_ALGOS[n - 1].pos[k][1] * 154u / 100u, oy = 24u + 13u + 24u * CR_ALGOS[n - 1].pos[k][0];
+                    uint32_t el, er, in;
+                    COUNT(el, ox - 8u, oy - 6u, ox - 6u, oy + 7u, HS(x, y) != bg);
+                    COUNT(er, ox + 6u, oy - 6u, ox + 8u, oy + 7u, HS(x, y) != bg);
+                    COUNT(in, ox - 4u, oy - 4u, ox + 5u, oy + 5u, HS(x, y) != bg);
+                    found += el >= 13u && er >= 13u && in >= 8u;
+                }
+                if (found != 4u) {
+                    boxes4 = 0;
+                    fprintf(rep, "algo %u: %u of 4 boxes found\n", n, found);
+                }
+            }
+            for (n = 0; n < 8u; n++)
+                for (j = n + 1u; j < 8u; j++) differ &= memcmp(pic[n], pic[j], sizeof pic[0]) != 0;
+            check("algo band: four operator boxes (outlines and letters) in every algorithm", boxes4);
+            check("algo band: the eight algorithms draw eight different diagrams", differ);
+            s.wv[0] = 3;                                         /* B2's loop at the right of its box */
+            s.wv[1] = 0;
+            render(&s, 0);
+            COUNT(thin, 60u + 70u * 154u / 100u + 7u, 30u, 60u + 70u * 154u / 100u + 15u, 45u, HS(x, y) != bg);
+            s.wv[1] = 255;
+            render(&s, 0);
+            COUNT(thick, 60u + 70u * 154u / 100u + 7u, 30u, 60u + 70u * 154u / 100u + 15u, 45u, HS(x, y) != bg);
+            snprintf(name, sizeof name, "algo band: the feedback loop's stroke grows with fdbk (%u ink px at 0, %u at 255)", thin, thick);
+            check(name, thick > thin + 10u);
+            s.wv[1] = 77;
+            render(&s, 0);
+            s.wv[0] = 5;
+            cr_draw(&s, 0);
+            snprintf(name, sizeof name, "algo band: a new algorithm composes the band's strips only (%u)", cr_dc.drawn);
+            check(name, cr_dc.drawn == 4u);
+            memcpy(a, host_screen, sizeof a);
+            render(&s, 0);
+            check("algo band: the partial draw equals a full one", !memcmp(a, host_screen, sizeof a));
+        }
+        if (id >= 0) {   /* ade2: a curve in each half, a level bar at each half's right, filled to its level */
+            cr_screen_t s = CR_SCREENS[id];
+            uint32_t ca, cb, ba, bb, fa, fb2;
+            render(&s, 0);
+            COUNT(ca, 10u, 42u, 100u, 110u, HS(x, y) != bg);
+            COUNT(cb, 130u, 42u, 220u, 110u, HS(x, y) != bg);
+            COUNT(ba, 108u, 42u, 109u, 108u, HS(x, y) != bg);
+            COUNT(bb, 228u, 42u, 229u, 108u, HS(x, y) != bg);
+            COUNT(fa, 109u, 42u, 110u, 108u, HS(x, y) == orange);        /* A: a segment lit (decay): its colour */
+            COUNT(fb2, 229u, 42u, 230u, 108u, HS(x, y) == mid);          /* B: MID */
+            snprintf(name, sizeof name, "ade2 band: two curves (%u, %u ink px), two bars (%u, %u rows), filled to A %u / B %u rows",
+                     ca, cb, ba, bb, fa, fb2);
+            check(name, ca > 150u && cb > 150u && ba >= 60u && bb >= 60u && fa > fb2 + 5u && fb2 > 20u);
+        }
+        if (ib >= 0) {   /* the base-width window: two dashed orange edges and the dim fill between them; none when off */
+            cr_screen_t s = CR_SCREENS[ib];
+            uint32_t bx = (128u + 3584u * s.wv[5] / 255u) >> 4, e = s.wv[5] + s.wv[6] > 255u ? 255u : s.wv[5] + s.wv[6];
+            uint32_t ex = (128u + 3584u * e / 255u) >> 4, eb, ee, eb0, fill = swap16(ux_mix(T_BG, CR_NAMED[CR_COL_ORANGE], 12));
+            int fill_on, fill_off;
+            render(&s, 0);
+            COUNT(eb, bx, 28u, bx + 1u, 114u, HS(x, y) != bg);
+            COUNT(ee, ex, 28u, ex + 1u, 114u, HS(x, y) != bg);
+            fill_on = HS(bx + 6u, 100u) == fill;
+            s.wv[4] = 0;
+            render(&s, 0);
+            COUNT(eb0, bx, 28u, bx + 1u, 114u, HS(x, y) != bg);
+            fill_off = HS(bx + 6u, 100u) == bg;
+            snprintf(name, sizeof name, "filter band, base-width window: dashed edges at %u and %u (%u, %u px; %u off), the dim fill",
+                     bx, ex, eb, ee, eb0);
+            check(name, eb >= 35u && ee >= 35u && eb0 < 12u && fill_on && fill_off);
+        }
+        if (ir >= 0) {   /* ratio: the numerator over the denominator in its cell */
+            cr_screen_t s = CR_SCREENS[ir];
+            int32_t yn = -1, yd = -1, xn = 0;
+            render(&s, 0);
+            for (k = 0; k < nbox; k++) {
+                if (!strcmp(boxes[k].s, "0.50")) yn = boxes[k].y1, xn = boxes[k].x0;
+                if (!strcmp(boxes[k].s, "1.00") && boxes[k].x0 >= 180) yd = boxes[k].y0;
+            }
+            check("ratio cell: the numerator above the denominator, in the fourth column", yn > 0 && yd > yn && xn >= 180);
+        }
+        {   /* the new glyphs: ink, and a change with pct (and the wave) */
+            static uint16_t g0[240 * 40];
+            static const uint8_t NG[3] = {CR_G_HARM, CR_G_DETUNE, CR_G_LFOWAVE};
+            int ok = 1;
+            uint32_t gi, w, w2, ink0, ink1;
+            cr_cell_t c;
+#define GL(gl_, p1_, wv_, fl_) do { memset(&c, 0, sizeof c); c.flags = (uint16_t)(CR_CF_ON | (fl_)); c.glyph = (gl_); \
+            c.pct = (uint8_t)(p1_); c.wave = (uint8_t)(wv_); cr_cv_begin(); cv_oy = 0; cr_clip_all(); \
+            cr_cglyph(&c, 20 * 16, 2 * 16, 48 * 16, 36 * 16, CR_NAMED[CR_COL_GREEN]); } while (0)
+            for (gi = 0; gi < 3u; gi++) {
+                uint32_t out;
+                GL(NG[gi], 128, 0, 0);
+                COUNT(ink0, 20u, 2u, 68u, 38u, cv_px[y * 240u + x] != bg);
+                COUNT(out, 0u, 0u, 240u, 40u, cv_px[y * 240u + x] != bg && !(x >= 20u && x < 68u && y >= 2u && y < 38u));
+                memcpy(g0, cv_px, sizeof g0);
+                GL(NG[gi], 250, 0, 0);
+                COUNT(ink1, 20u, 2u, 68u, 38u, cv_px[y * 240u + x] != bg);
+                if (ink0 < 40u || ink1 < 40u || out || !memcmp(g0, cv_px, sizeof g0)) {
+                    ok = 0;
+                    fprintf(rep, "glyph %u: ink %u / %u, %u outside, %s with pct\n", NG[gi], ink0, ink1, out,
+                            memcmp(g0, cv_px, sizeof g0) ? "changes" : "SAME");
+                }
+            }
+            check("harm, detune, lfowave: ink in their box, none outside, a change with pct", ok);
+            GL(CR_G_DETUNE, 0, 0, 0);                            /* detune at 0: one flat line (2 px + its edges) */
+            for (y = 0, w = 0; y < 40u; y++) {
+                uint32_t r = 0;
+                for (x = 20; x < 68u; x++) r += cv_px[y * 240u + x] != bg;
+                w += r > 0u;
+            }
+            GL(CR_G_DETUNE, 255, 0, 0);
+            for (y = 0, w2 = 0; y < 40u; y++) {
+                uint32_t r = 0;
+                for (x = 20; x < 68u; x++) r += cv_px[y * 240u + x] != bg;
+                w2 += r > 0u;
+            }
+            snprintf(name, sizeof name, "detune: flat at 0 (%u rows inked), broken up at 1 (%u rows)", w, w2);
+            check(name, w <= 4u && w2 >= 12u);
+            {   /* lfowave: seven different waves; the phase slides the shape; a span-2 cell draws two cycles */
+                static uint16_t wv7[7][240 * 40];
+                uint32_t i2, j2, diff = 1;
+                for (i2 = 0; i2 < 7u; i2++) {
+                    GL(CR_G_LFOWAVE, 0, i2, 0);
+                    memcpy(wv7[i2], cv_px, sizeof wv7[0]);
+                }
+                for (i2 = 0; i2 < 7u; i2++)
+                    for (j2 = i2 + 1u; j2 < 7u; j2++) diff &= memcmp(wv7[i2], wv7[j2], sizeof wv7[0]) != 0;
+                check("lfowave: tri, sine, square, saw, ramp, exp, random: seven different pictures", diff);
+                GL(CR_G_LFOWAVE, 64, CR_LW_SAW, 0);
+                check("lfowave: the start phase slides the shape", memcmp(wv7[CR_LW_SAW], cv_px, sizeof wv7[0]) != 0);
+                {   /* square, one cycle vs two: the vertical edges (columns inked over most of the height) double */
+                    uint32_t e1 = 0, e2 = 0, r, xc;
+                    GL(CR_G_LFOWAVE, 0, CR_LW_SQUARE, 0);
+                    for (xc = 26; xc < 68u; xc++) { COUNT(r, xc, 6u, xc + 1u, 34u, cv_px[y * 240u + x] != bg); e1 += r >= 24u; }
+                    GL(CR_G_LFOWAVE, 0, CR_LW_SQUARE, CR_CF_SPAN2);
+                    for (xc = 26; xc < 68u; xc++) { COUNT(r, xc, 6u, xc + 1u, 34u, cv_px[y * 240u + x] != bg); e2 += r >= 24u; }
+                    snprintf(name, sizeof name, "lfowave: a span-2 cell draws two cycles (%u edge columns, %u with one)", e2, e1);
+                    check(name, e2 > e1);
+                }
+            }
+#undef GL
+        }
+        {   /* cells: big (no bar, a larger value), span 2 (two columns, the cells after it shift), the bipolar knob */
+            cr_screen_t s;
+            int32_t h0 = 0, h1 = 0, xt = -1, xd = -1;
+            uint32_t bar0, bar1, gl, gr, run, lb, rb, lb2, rb2;
+            cr_screen_clear(&s);
+            s.kind = CR_K_EDIT8;
+            s.n_rows = 1;
+            snprintf(s.title, sizeof s.title, "QUAD TEST");
+            s.cell[0][0].flags = CR_CF_ON | CR_CF_PCT;
+            s.cell[0][0].pct = 128;
+            snprintf(s.cell[0][0].label, sizeof s.cell[0][0].label, "Algo");
+            snprintf(s.cell[0][0].value, sizeof s.cell[0][0].value, "3");
+            render(&s, 0);
+            for (k = 0; k < nbox; k++) if (!strcmp(boxes[k].s, "3")) h0 = boxes[k].y1 - boxes[k].y0;
+            COUNT(bar0, 8u, 30u + 26u + 17u - 3u, 52u, 30u + 26u + 17u + 3u, HS(x, y) == line || HS(x, y) == blue);
+            s.cell[0][0].flags |= CR_CF_BIG;
+            render(&s, 0);
+            write_ppm(dir, "quad_big_cell");
+            for (k = 0; k < nbox; k++) if (!strcmp(boxes[k].s, "3")) h1 = boxes[k].y1 - boxes[k].y0;
+            COUNT(bar1, 8u, 30u + 26u + 17u - 3u, 52u, 30u + 26u + 17u + 3u, HS(x, y) == line);
+            snprintf(name, sizeof name, "big cell: no bar (%u px, %u without big), a larger value (%d px tall, %d)", bar1, bar0, h1, h0);
+            check(name, bar0 > 60u && bar1 == 0u && h1 > h0 + 3);
+            memset(s.cell, 0, sizeof s.cell);
+            s.cell[0][0].flags = CR_CF_ON | CR_CF_SPAN2 | CR_CF_PCT;
+            s.cell[0][0].glyph = CR_G_LFOWAVE;
+            s.cell[0][0].wave = CR_LW_TRI;
+            s.cell[0][0].pct = 64;
+            snprintf(s.cell[0][0].label, sizeof s.cell[0][0].label, "Wave \267 Phase");
+            snprintf(s.cell[0][0].value, sizeof s.cell[0][0].value, "Tri \267 90");
+            s.cell[0][1].flags = CR_CF_ON;
+            snprintf(s.cell[0][1].label, sizeof s.cell[0][1].label, "Trig");
+            snprintf(s.cell[0][1].value, sizeof s.cell[0][1].value, "Free");
+            s.cell[0][2].flags = CR_CF_ON | CR_CF_PCT | CR_CF_BIP;
+            s.cell[0][2].pct = 188;
+            snprintf(s.cell[0][2].label, sizeof s.cell[0][2].label, "Depth");
+            snprintf(s.cell[0][2].value, sizeof s.cell[0][2].value, "+30");
+            render(&s, 0);
+            write_ppm(dir, "quad_span_cell");
+            for (k = 0; k < nbox; k++) {
+                if (!strcmp(boxes[k].s, "Trig")) xt = boxes[k].x0;
+                if (!strcmp(boxes[k].s, "Depth")) xd = boxes[k].x0;
+            }
+            COUNT(gl, 6u, 56u, 58u, 90u, HS(x, y) == blue);
+            COUNT(gr, 62u, 56u, 114u, 90u, HS(x, y) == blue);
+            COUNT(run, 4u, 128u, 116u, 130u, HS(x, y) == blue);
+            snprintf(name, sizeof name, "span cell: the wave over both columns (%u, %u px), its bar across (%u px), Trig at %d, Depth at %d",
+                     gl, gr, run, xt, xd);
+            check(name, gl > 40u && gr > 40u && run >= 220u && xt >= 120 && xt < 180 && xd >= 180);
+            memset(s.cell, 0, sizeof s.cell);
+            s.cell[0][0].flags = CR_CF_ON | CR_CF_PCT | CR_CF_BIPOLAR;
+            s.cell[0][0].glyph = CR_G_KNOB;
+            s.cell[0][0].pct = 179;                              /* +0.2: the arc right of 12 o'clock */
+            snprintf(s.cell[0][0].label, sizeof s.cell[0][0].label, "Speed");
+            snprintf(s.cell[0][0].value, sizeof s.cell[0][0].value, "+24");
+            render(&s, 0);
+            write_ppm(dir, "quad_bipolar_knob");
+            COUNT(lb, 5u, 56u, 30u, 90u, HS(x, y) == blue);
+            COUNT(rb, 30u, 56u, 55u, 90u, HS(x, y) == blue);
+            s.cell[0][0].pct = 77;                               /* -0.2: left of it */
+            render(&s, 0);
+            COUNT(lb2, 5u, 56u, 30u, 90u, HS(x, y) == blue);
+            COUNT(rb2, 30u, 56u, 55u, 90u, HS(x, y) == blue);
+            snprintf(name, sizeof name, "bipolar knob: the arc from 12 o'clock flips across 0.5 (left / right %u / %u, then %u / %u)",
+                     lb, rb, lb2, rb2);
+            check(name, rb > lb + 10u && lb2 > rb2 + 10u);
+        }
+#undef COUNT
+#undef HS
+    }
+
     {   /* animations: pure and settling */
         int pure = 1, settle = 1, moving = 1;
         for (i = 0; i < CR_NSCREENS; i++) {

@@ -53,19 +53,39 @@ enum { CR_G_NONE, CR_G_KNOB, CR_G_BAR, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_ST
        CR_G_RANGE,                  /* a line with end stops, a thick segment over 10 .. 100 % of it */
        CR_G_ARROW,                  /* pct < 1/4 up, < 1/2 down, < 3/4 up and down, else three dots (random) */
        CR_G_SHIFT,                  /* five staff lines, a square on line round(4 pct) from the bottom */
+       /* QUAD's (docs/QUAD.md): */
+       CR_G_HARM,                   /* one cycle of the carriers' wave: pct 0.5 a sine, -> 1 the odd series (square-ish),
+                                     * -> 0 all harmonics (saw-ish): harmonics 2..7 at 1/k, normalised */
+       CR_G_DETUNE,                 /* a flat line breaking up: 16 segments, the joints jittered by pct (a fixed table),
+                                     * past 0.3 every third segment gone, past 0.7 every other */
+       CR_G_LFOWAVE,                /* one LFO cycle of `wave` (CR_LW_*; two cycles in a CR_CF_SPAN2 cell), started pct of
+                                     * a cycle later (the start phase), a tick at its start */
+       CR_G_RATIO,                  /* not a picture: the value "B1/B2" drawn as a fraction (numerator over a divider over
+                                     * the denominator, 13 px); a value without '/' is drawn as CR_CF_BIG */
        CR_G_N };
 
+/* CR_G_LFOWAVE's wave (cr_cell_t.wave) */
+enum { CR_LW_TRI, CR_LW_SINE, CR_LW_SQUARE, CR_LW_SAW, CR_LW_RAMP, CR_LW_EXP, CR_LW_RANDOM, CR_LW_N };
+
 /* the editor's wide band (CR_K_EDIT8) */
-enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_DX, CR_W_CZ };   /* CR_W_DX: a DX7 envelope (FM6), 4 rates / 4 levels;
+enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_DX, CR_W_CZ,     /* CR_W_DX: a DX7 envelope (FM6), 4 rates / 4 levels;
                                                                 * CR_W_CZ: a CZ-1 envelope, 8 steps, SUS, END */
+       CR_W_ALGO,                   /* QUAD: the algorithm diagram (operators C A B1 B2, the arrows, feedback, X / Y) */
+       CR_W_ADE2 };                 /* QUAD: the operator envelopes A and B side by side, each with its level bar */
 #define CR_ED_ROWS 8u               /* a stack's rows at most (the mod matrix) */
 #define CR_CF_ON 1u                 /* a cell: shown (an empty cell draws nothing) */
 #define CR_CF_PCT 2u                /* .. pct is shown (a text cell: a small bar) */
-#define CR_CF_BIP 4u                /* .. pct is centre-zero (128 = 0) */
+#define CR_CF_BIP 4u                /* .. pct is centre-zero (128 = 0); a CR_G_KNOB: the arc from 12 o'clock, a centre mark */
+#define CR_CF_BIPOLAR CR_CF_BIP
 #define CR_CF_DIM 8u                /* .. dim: drawn in the grey (knobrow: a value that cannot change now) */
 #define CR_CF_MARK(c) ((uint8_t)((c) << 4))   /* .. a modulation mark, a 4 px square at its top right in colour c
                                      * (a named CR_COL_*, 0 none): the matrix modulates its parameter */
-#define CR_CF_MARKCOL(f) ((uint32_t)(f) >> 4)
+#define CR_CF_MARKCOL(f) (((uint32_t)(f) >> 4) & 15u)
+#define CR_CF_BIG 0x100u            /* .. edit8 / stack: a number-only cell: the value 7 px larger where glyph and value
+                                     * would be, no glyph, no bar (too wide: 2 px smaller at a time, never ellipsised) */
+#define CR_CF_SPAN2 0x200u          /* .. edit8 / stack: two columns wide (from a cell in column 0..2): the cells after it
+                                     * in the row shift a column right (cell index != column then; hot_c is the cell's
+                                     * index, the colour its first column's) */
 
 /* animations in progress (cr_screen_t.anim); each is a pure function of the fields and cr_draw's anim_ms, the time
  * since the change that started it (cr_draw.c CR_*_MS: the durations) */
@@ -85,12 +105,14 @@ enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_DX, CR_W_CZ };   /* CR_W_DX: a DX7
 typedef struct { char root[4], quality[6], sup[8]; uint8_t col_root, col_quality, col_sup; } cr_name_t;
 typedef struct { char t[6]; uint8_t col, mark; } cr_note_t;                    /* "C#5", its colour, a block under it */
 typedef struct {                                                                /* an editor cell (KNOB 1..4) */
-    char label[10], value[9];       /* label: edit8 only (a stack's columns have headings) */
-    uint8_t flags;                  /* CR_CF_*, the mark's colour in the high nibble */
+    char label[14], value[10];      /* label: edit8 only (a stack's columns have headings), "Wave \267 Phase" fits;
+                                     * value: "0.50/1.00" fits */
+    uint16_t flags;                 /* CR_CF_*, the mark's colour in bits 4..7 */
     uint8_t glyph;                  /* CR_G_* */
     uint8_t pct;                    /* Q8 of 255: the glyph's / bar's fill (square: the duty) */
     uint8_t pct2;                   /* Q8 of 255: a pictogram's second value (echoes: feedback, lfo: depth) */
-} cr_cell_t;
+    uint8_t wave;                   /* CR_G_LFOWAVE: CR_LW_* */
+} cr_cell_t;                        /* 30 bytes, no padding */
 typedef struct { char t[32]; uint8_t px, col, bold, center; } cr_line_t;       /* a text line (px 0 = 12) */
 
 typedef struct {
@@ -183,7 +205,13 @@ typedef struct {
                                      * dx: R1..R4, L1..L4 (0..99, the DX7's), the lit segment (1..4, 0 none), 1 = a
                                      * pitch EG (levels round 50: a centre line);
                                      * cz: R1..R8 (0..7), L1..L8 (8..15) (0..99, the CZ-1's panel values), SUS (16: the
-                                     * step 0..7, 8 none), END (17: 0..7), the lit step (18: 1..8, 0 none) */
+                                     * step 0..7, 8 none), END (17: 0..7), the lit step (18: 1..8, 0 none);
+                                     * filter (QUAD's base-width window, 4..6): shown (4: 1, 0 none), base (5), width
+                                     * (6) (Q8 of 255 of the band's width; the window runs base .. base + width);
+                                     * algo: the algorithm (0: 1..8), feedback (1: 0..255, the loop's stroke 1..3 px),
+                                     * mix (2: 0..255, 128 = X and Y alike, below X brighter, above Y);
+                                     * ade2: A's attack decay end level (0..3), B's (4..7) (0..255), the lit segment
+                                     * (8: 1..8 = A's attack decay end level, B's; 0 none) */
     char foot[48];                  /* stripes: the bottom line */
 
     /* panel: text, geek (lines: geek's status lines are lines[0..1].t) */

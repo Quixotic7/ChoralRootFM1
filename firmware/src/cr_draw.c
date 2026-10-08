@@ -755,9 +755,116 @@ static void cr_picto(uint32_t g, int32_t x, int32_t y, int32_t w, int32_t h, uin
         cr_frect(cx - sq / 2, yy - sq / 2, sq, sq, col);
         break;
     }
+    case CR_G_HARM: {                               /* one cycle: a sine at 0.5, + the odd series -> 1, + all -> 0 */
+        int32_t so = 2 * pct - 256, sa = 256 - 2 * pct, v[41], mx = 1, j;   /* (Q8) */
+        if (so < 0) so = 0;
+        if (sa < 0) sa = 0;
+        for (k = 0; k <= 40; k++) {
+            uint32_t ph = (uint32_t)(k * 65536 / 40);
+            int32_t a = cr_sin(ph);                                  /* Q14 */
+            for (j = 2; j <= 7; j++)
+                a += cr_sin(ph * (uint32_t)j) * ((j & 1 ? so : 0) + sa) / (256 * j);
+            v[k] = a;
+            if ((a < 0 ? -a : a) > mx) mx = a < 0 ? -a : a;
+        }
+        for (k = 0; k <= 40; k++) CR_PT(x0 + k * W / 40, cy - (int32_t)((int64_t)v[k] * (H / 2) / mx));
+        cr_poly(p, np, lw, 0, 0, col);
+        break;
+    }
+    case CR_G_DETUNE: {                             /* a 16-segment line, the joints jittered by pct, segments dropped */
+        /* the designer's sin(i 78.233 + 1.7), Q8: a fixed jitter, the same every frame */
+        static const int16_t JT[17] = {254, -252, 227, -180, 117, -42, -36, 111, -175, 223, -251, 255, -235, 193, -133,
+                                       61, 17};
+        int32_t a = H * 115 / 256 * pct / 256;                       /* 0.45 H pct */
+        for (k = 0; k < 16; k++) {
+            int skip = pct > 179 ? (k & 1) : pct > 76 ? k % 3 == 2 : 0;
+            if (skip) {
+                if (np >= 2u) cr_poly(p, np, lw, 0, 0, col);
+                np = 0;
+                continue;
+            }
+            if (!np) CR_PT(x0 + W * k / 16, cy + JT[k] * a / 256);
+            CR_PT(x0 + W * (k + 1) / 16, cy + JT[k + 1] * a / 256);
+        }
+        if (np >= 2u) cr_poly(p, np, lw, 0, 0, col);
+        break;
+    }
     default: break;
     }
 #undef CR_PT
+}
+
+/* the LFO wave k (CR_LW_*) at t (Q12 of a cycle, 0..4096), -16384..16384 (up +): the designer's lfowave */
+static int32_t cr_lfo_y(uint32_t k, int32_t t)
+{
+    static const int16_t EX[17] = {16384, 7530, 1052, -3687, -7154, -9691, -11547, -12905, -13898, -14625, -15157,
+                                   -15546, -15830, -16039, -16191, -16302, -16384};   /* 2 (e^-5t - e^-5) / (1 - e^-5) - 1 */
+    static const int16_t RN[8] = {59, 78, -149, -155, -76, 73, -201, 254};           /* the random steps, Q8 */
+    switch (k) {
+    case CR_LW_TRI: return t < 1024 ? 16 * t : t < 3072 ? 32768 - 16 * t : 16 * t - 65536;
+    case CR_LW_SQUARE: return t < 2048 ? 16384 : -16384;
+    case CR_LW_SAW: return 8 * t - 16384;
+    case CR_LW_RAMP: return 16384 - 8 * t;
+    case CR_LW_EXP: {
+        int32_t i = t >> 8, f = t & 255;
+        return i >= 16 ? EX[16] : EX[i] + (EX[i + 1] - EX[i]) * f / 256;
+    }
+    case CR_LW_RANDOM: return RN[(t >> 9) > 7 ? 7 : t >> 9] * 64;
+    default: return cr_sin((uint32_t)t << 4);
+    }
+}
+
+/* CR_G_LFOWAVE in the box x, y, w, h (Q4): cyc cycles (1, or 2 in a span-2 cell) of wave k from pct (Q8) of a cycle on,
+ * 2 px strokes 2 px inside the box; a 1.5 px tick at the left marks the start. The points: the breakpoints (corners,
+ * both sides of a jump) and, for the smooth waves, 16 samples a cycle: <= 37 */
+static void cr_lfowave(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t col, int32_t pct, uint32_t k, int32_t cyc)
+{
+    static const int16_t B_TRI[2] = {1024, 3072}, B_SQ[2] = {0, 2048}, B_0[1] = {0},
+                         B_RN[8] = {0, 512, 1024, 1536, 2048, 2560, 3072, 3584};
+    int32_t lw = 32, x0 = x + lw, x1 = x + w - lw, cy = y + h / 2, H = h - 2 * lw, wx0 = x0 + 64, WW = x1 - wx0;
+    int32_t U = cyc * 4096, ph = pct * 16, n = 0, i, j, c;
+    int32_t u[48];
+    uint8_t jmp[48];
+    const int16_t *B = B_0;
+    int32_t nb = 1, smooth = 0, jumps = 1;
+    int16_t p[48 * 2];
+    uint32_t np = 0;
+#define CR_PT2(px16, py16) (p[2 * np] = (int16_t)(px16), p[2 * np + 1] = (int16_t)(py16), np++)
+    if (k >= CR_LW_N) k = CR_LW_SINE;
+    switch (k) {
+    case CR_LW_TRI: B = B_TRI; nb = 2; jumps = 0; break;
+    case CR_LW_SQUARE: B = B_SQ; nb = 2; break;
+    case CR_LW_RANDOM: B = B_RN; nb = 8; break;
+    case CR_LW_SINE: nb = 0; smooth = 1; break;
+    case CR_LW_EXP: smooth = 1; break;
+    default: break;                                  /* saw, ramp: the jump at 0 */
+    }
+    u[n] = 0; jmp[n++] = 0;
+    u[n] = U; jmp[n++] = 0;
+    if (smooth)
+        for (i = 1; i < cyc * 16; i++) u[n] = i * 256, jmp[n++] = 0;
+    for (c = -1; c <= cyc; c++)
+        for (j = 0; j < nb; j++) {
+            int32_t v = c * 4096 + B[j] - ph;
+            if (v > 0 && v < U && n < 46) u[n] = v, jmp[n++] = (uint8_t)jumps;
+        }
+    for (i = 1; i < n; i++)                           /* sort by position (a jump after a sample at the same place) */
+        for (j = i; j && (u[j - 1] > u[j] || (u[j - 1] == u[j] && jmp[j - 1] > jmp[j])); j--) {
+            int32_t t = u[j]; uint8_t q = jmp[j];
+            u[j] = u[j - 1]; jmp[j] = jmp[j - 1];
+            u[j - 1] = t; jmp[j - 1] = q;
+        }
+    for (i = 0; i < n && np + 2u <= 48u; i++) {
+        int32_t t = (u[i] + ph) & 4095, px = wx0 + (int32_t)((int64_t)u[i] * WW / U);
+        if (i + 1 < n && u[i + 1] == u[i] && !jmp[i]) continue;   /* (a sample under a jump: the jump draws it) */
+        if (jmp[i] || i == n - 1)                   /* the value from the left (at the end: the cycle's last value) */
+            CR_PT2(px, cy - cr_lfo_y(k, t ? t - 1 : 4096) * (H / 2) / 16384);
+        if (i < n - 1)
+            CR_PT2(px, cy - cr_lfo_y(k, t) * (H / 2) / 16384);
+    }
+    cr_poly(p, np, lw, 0, 0, col);
+    if (np) cr_frect(x0 - 12, p[1] - 64, 24, 128, col);   /* the start tick, 1.5 px, 8 px tall */
+#undef CR_PT2
 }
 
 /* a cell's glyph in the box x .. x + w, y .. y + h (Q4): the designer's drawGlyph scaled by h / 64 */
@@ -879,12 +986,23 @@ static void cr_cglyph(const cr_cell_t *c, int32_t x, int32_t y, int32_t w, int32
         uint32_t a0 = 24576u, sweep = 49152u, a = a0 + sweep * (uint32_t)pct / 256u;
         int32_t r = CR_GU(320), cy = y + h / 2;
         cr_arc(cx, cy, r, 51, a0, sweep, 1, 0, 0, T_LINE);
-        if (pct) cr_arc(cx, cy, r, 51, a0, sweep * (uint32_t)pct / 256u, 1, 0, 0, col);
+        if (c->flags & CR_CF_BIP) {                  /* centre-zero: from 12 o'clock to the value, a mark over 12 */
+            uint32_t top = 49152u;
+            if (a > top) cr_arc(cx, cy, r, 51, top, a - top, 1, 0, 0, col);
+            else if (a < top) cr_arc(cx, cy, r, 51, a, top - a, 1, 0, 0, col);
+            cr_frect(cx - 13, cy - CR_GU(456), 26, CR_GU(64), col);
+        } else if (pct) {
+            cr_arc(cx, cy, r, 51, a0, sweep * (uint32_t)pct / 256u, 1, 0, 0, col);
+        }
         CR_PT(cx + ((CR_GU(96) * cr_cos(a)) >> 14), cy + ((CR_GU(96) * cr_sin(a)) >> 14));
         CR_PT(cx + ((CR_GU(224) * cr_cos(a)) >> 14), cy + ((CR_GU(224) * cr_sin(a)) >> 14));
         cr_poly(p, np, 38, 0, 0, col);
         break;
     }
+    case CR_G_LFOWAVE:                               /* the wave and its start phase (two cycles in a span-2 cell) */
+        cr_lfowave(x, y, w, h, col, pct, c->wave, c->flags & CR_CF_SPAN2 ? 2 : 1);
+        break;
+    case CR_G_RATIO: break;                          /* (the cell draws it: a fraction) */
     default:                                         /* the pictograms: drawn at true size (2 px strokes) in the box */
         if (c->glyph >= CR_G_ROOM && c->glyph < CR_G_N)
             cr_picto(c->glyph, x, y, w, h, col, pct, c->pct2 >= 255 ? 256 : c->pct2);
@@ -936,6 +1054,50 @@ static void cr_cvalue(const cr_cell_t *c, int32_t cx, int32_t vy, int32_t w, uin
     cr_text(cx, vy, b, vpx, 1, CR_C, 4096, hot ? T_BG : col, hot ? col : T_BG, (cut ? 9u : 0u) | flags);
 }
 
+/* a number centred at cx (Q8) on baseline vy (Q8) in a cell w (Q8) wide at px: too wide, 2 px smaller at a time (to
+ * 7 px), never ellipsised; hot: on a block of its colour */
+static void cr_cnum(const char *v, int32_t cx, int32_t vy, int32_t w, uint32_t px, uint16_t col, int hot)
+{
+    uint32_t bpx = px;
+    while (px > 7u && cr_tw(v, px, 1) > w - P8(6)) px -= 2u;
+    if (hot) {
+        int32_t x0 = (cx - w / 2 + P8(3) + 128) >> 8, x1 = (cx + w / 2 - P8(3) + 128) >> 8, y0 = ((vy + 128) >> 8) - (int32_t)bpx - 1;
+        cv_rrect(x0, y0, x1 - x0, (int32_t)bpx + 5, 2, col, T_BG);
+    }
+    cr_text(cx, vy, v, px, 1, CR_C, 4096, hot ? T_BG : col, hot ? col : T_BG, 0);
+}
+
+/* CR_G_RATIO: "B1/B2" as a fraction round mid (Q8): the numerator 13 px over a 1.5 px divider (w - 14 wide) over the
+ * denominator 13 px; hot: the whole on a block */
+static void cr_cratio(const cr_cell_t *c, int32_t cx, int32_t mid, int32_t w, uint16_t col, int hot)
+{
+    char nu[sizeof c->value], de[sizeof c->value];
+    uint32_t i = 0, j = 0;
+    int32_t dw = w - P8(14);
+    uint16_t tc = hot ? T_BG : col;
+    while (c->value[i] && c->value[i] != '/') i++;
+    for (j = 0; j < i; j++) nu[j] = c->value[j];
+    nu[j] = 0;
+    for (j = 0; c->value[i] && c->value[i + 1u]; i++) de[j++] = c->value[i + 1u];
+    de[j] = 0;
+    if (hot) {
+        int32_t x0 = (cx - w / 2 + P8(3) + 128) >> 8, x1 = (cx + w / 2 - P8(3) + 128) >> 8, y0 = ((mid + 128) >> 8) - 18;
+        cv_rrect(x0, y0, x1 - x0, 36, 2, col, T_BG);
+    }
+    cr_cnum(nu, cx, mid - P8(4), dw + P8(6), 13, tc, 0);
+    cr_frect((cx - dw / 2) >> 4, (mid >> 4) - 12, dw >> 4, 24, tc);
+    cr_cnum(de, cx, mid + P8(15), dw + P8(6), 13, tc, 0);
+}
+
+static int cr_has_slash(const char *v)
+{
+    while (*v && *v != '/') v++;
+    return *v == '/';
+}
+
+/* a cell's columns: 2 for a CR_CF_SPAN2 cell starting in column 0..2, else 1 */
+static int32_t cr_span(const cr_cell_t *c, int32_t col0) { return (c->flags & CR_CF_ON) && (c->flags & CR_CF_SPAN2) && col0 < 3 ? 2 : 1; }
+
 static void cr_ed_title(const cr_screen_t *s)
 {
     int32_t rx = 232, rw;
@@ -985,6 +1147,140 @@ static int32_t cr_fdb(int32_t lp, int32_t bp, int32_t hp, int32_t q, int32_t res
     return l * 3011 / 256000;                                        /* 10 log10 = 3.0103 log2: dB x 16 */
 }
 
+/* QUAD's eight algorithms (the designer's ALGOS, ../ChoralRootFM1Designer/index.html, copied exactly): operators
+ * C A B1 B2 (0..3); mod: up to three [source, target] arrows; fb: the feedback operator; x / y: the carriers summed
+ * into each output (bit per operator); pos: [row 0 top .. 2 bottom (carriers), x in hundredths of the diagram] */
+typedef struct { uint8_t nmod, mod[3][2], fb, x, y, pos[4][2]; } cr_algo_t;
+static const cr_algo_t CR_ALGOS[8] = {
+    {3, {{1, 0}, {2, 1}, {3, 2}}, 3, 1, 1, {{2, 40}, {1, 40}, {0, 40}, {0, 75}}},
+    {3, {{1, 0}, {2, 0}, {3, 2}}, 3, 1, 1, {{2, 45}, {1, 20}, {1, 70}, {0, 70}}},
+    {3, {{1, 0}, {2, 1}, {3, 1}}, 3, 1, 1, {{2, 45}, {1, 45}, {0, 20}, {0, 70}}},
+    {2, {{1, 0}, {3, 2}}, 3, 1, 4, {{2, 25}, {1, 25}, {2, 70}, {1, 70}}},
+    {2, {{1, 0}, {2, 1}}, 3, 1, 8, {{2, 25}, {1, 25}, {0, 25}, {2, 70}}},
+    {3, {{1, 0}, {1, 2}, {3, 2}}, 3, 1, 4, {{2, 25}, {1, 25}, {2, 70}, {1, 70}}},
+    {1, {{3, 2}}, 1, 3, 4, {{2, 10}, {2, 40}, {2, 75}, {1, 75}}},
+    {0, {{0, 0}}, 3, 3, 12, {{2, 5}, {2, 30}, {2, 60}, {2, 85}}},
+};
+static const char *const CR_OPS[4] = {"C", "A", "B1", "B2"};
+
+/* the algo band (wv: algo 1..8, fdbk, mix): "ALGO" and the number at the left, the modulation arrows (box edge to box
+ * edge, a filled head), the carriers down to the X / Y buses (the stronger output by mix in TEXT, the other DIM; both
+ * when mix is centred), the four boxes with their letters, the feedback loop at its operator's right (1..3 px with
+ * fdbk). Bounded: <= 3 arrows, 4 boxes, 2 buses, one arc */
+static void cr_algo_band(const cr_screen_t *s)
+{
+    const int32_t y0 = 24 * 16, hs = 7 * 16, DX0 = 60 * 16, DW = 154 * 16, busY = y0 + 76 * 16, labY = 24 + 92;
+    static const int32_t ROWY[3] = {(24 + 13) * 16, (24 + 37) * 16, (24 + 61) * 16};
+    int32_t n = s->wv[0] < 1u ? 1 : s->wv[0] > 8u ? 8 : s->wv[0], fb = s->wv[1], mix = s->wv[2], ox[4], oy[4], k, j;
+    const cr_algo_t *al = &CR_ALGOS[n - 1];
+    char num[2] = {(char)('0' + n), 0};
+    int16_t p[4];
+    for (k = 0; k < 4; k++) {
+        ox[k] = DX0 + al->pos[k][1] * DW / 100;
+        oy[k] = ROWY[al->pos[k][0]];
+    }
+    cr_text(P8(8), P8(24 + 12), "ALGO", 10, 1, CR_L, 4096, T_MID, T_BG, 0);
+    cr_text(P8(8), P8(24 + 40), num, 24, 1, CR_L, 4096, T_TEXT, T_BG, 0);
+    for (k = 0; k < al->nmod; k++) {                 /* the arrows: 1.5 px, MID, a 4.5 x 5 px head at the target */
+        int32_t sx = ox[al->mod[k][0]], sy = oy[al->mod[k][0]], tx = ox[al->mod[k][1]], ty = oy[al->mod[k][1]];
+        int32_t dx = tx - sx, dy = ty - sy, len = (int32_t)cr_isqrt((uint32_t)(dx * dx + dy * dy)), vx, vy, m, e, bx, by;
+        if (!len) continue;
+        vx = dx * 4096 / len;                        /* (Q12) */
+        vy = dy * 4096 / len;
+        m = (vx < 0 ? -vx : vx) > (vy < 0 ? -vy : vy) ? (vx < 0 ? -vx : vx) : (vy < 0 ? -vy : vy);
+        e = hs * 4096 / (m ? m : 1) + 16;            /* (Q4) the box edge, +1 px */
+        bx = tx - vx * e / 4096;
+        by = ty - vy * e / 4096;
+        p[0] = (int16_t)(sx + vx * e / 4096); p[1] = (int16_t)(sy + vy * e / 4096);
+        p[2] = (int16_t)(bx - vx * 48 / 4096); p[3] = (int16_t)(by - vy * 48 / 4096);
+        cr_poly(p, 2, 24, 0, 0, T_MID);
+        cr_tri(bx, by, bx - (vx * 72 + vy * 40) / 4096, by - (vy * 72 - vx * 40) / 4096,
+               bx - (vx * 72 - vy * 40) / 4096, by - (vy * 72 + vx * 40) / 4096, T_MID);
+    }
+    {                                                /* the outputs: each carrier down to its bus, a stub to X / Y */
+        int32_t lx[2], sum, cnt, o;
+        for (o = 0; o < 2; o++) {
+            uint32_t msk = o ? al->y : al->x;
+            for (sum = cnt = k = 0; k < 4; k++)
+                if (msk >> k & 1u) sum += ox[k], cnt++;
+            lx[o] = sum / (cnt ? cnt : 1);
+        }
+        if ((lx[0] > lx[1] ? lx[0] - lx[1] : lx[1] - lx[0]) < 16 * 16) {
+            int32_t m = (lx[0] + lx[1]) / 2;
+            lx[0] = m - 12 * 16;
+            lx[1] = m + 12 * 16;
+        }
+        for (o = 0; o < 2; o++) {
+            uint32_t msk = o ? al->y : al->x;
+            int strong = o ? mix >= 128 : mix <= 128;
+            uint16_t c = strong ? T_TEXT : T_DIM;
+            int32_t mn = lx[o], mxx = lx[o];
+            for (k = 0; k < 4; k++)
+                if (msk >> k & 1u) {
+                    cr_frect(ox[k] - 12, ROWY[2] + hs + 16 - 12, 24, busY - (ROWY[2] + hs + 16) + 24, c);
+                    if (ox[k] < mn) mn = ox[k];
+                    if (ox[k] > mxx) mxx = ox[k];
+                }
+            cr_frect(mn - 12, busY - 12, mxx - mn + 24, 24, c);
+            cr_frect(lx[o] - 12, busY - 12, 24, (labY - 10) * 16 - busY + 24, c);
+            cr_text(lx[o] * 16, P8(labY), o ? "Y" : "X", 11, 1, CR_C, 4096, c, T_BG, 0);
+        }
+    }
+    for (k = 0; k < 4; k++) {                        /* the boxes: 14 px, a 1.5 px outline, the letter 9 px */
+        cr_frect(ox[k] - hs, oy[k] - hs, 2 * hs, 2 * hs, T_BG);
+        cr_srect(ox[k] - hs, oy[k] - hs, 2 * hs, 2 * hs, 24, T_TEXT);
+        cr_text(ox[k] * 16, oy[k] * 16 + 819, CR_OPS[k], 9, 1, CR_C, 4096, T_TEXT, T_BG, 0);
+    }
+    j = al->fb;                                      /* the feedback loop: a half circle r 5 at the box's right */
+    cr_arc(ox[j] + hs + 16, oy[j], 80, 16 + 32 * fb / 255, 49152u, 32768u, 1, 0, 0, T_TEXT);
+    cr_tri(ox[j] + hs + 8, oy[j] + 80, ox[j] + hs + 80, oy[j] + 80 - 48, ox[j] + hs + 80, oy[j] + 80 + 48, T_TEXT);
+}
+
+/* the ade2 band (wv: A's a d end lev, B's, the lit segment 1..8): A's envelope in x 8..112, B's in 128..232, each a
+ * rise to its level over 40 % of its room at a = 1, a fall to its end over 40 % at d = 1, then held; a 4 px level bar
+ * at its right (the lit colour when a segment of that half is lit, else MID), its letter top left; the lit segment
+ * 4 px in segcol with dots at its ends; a 1 px divider between the halves */
+static void cr_ade2_band(const cr_screen_t *s, uint16_t segcol)
+{
+    const int32_t y0 = 24 * 16, yT = y0 + 18 * 16, yB = y0 + 84 * 16;
+    int32_t seg = (int32_t)s->wv[8] - 1, hi;
+    cr_frect(8 * 16, yB + 16, 224 * 16, 16, T_LINE);
+    for (hi = 0; hi < 2; hi++) {
+        const uint8_t *e = s->wv + 4 * hi;
+        int32_t hx0 = (hi ? 128 : 8) * 16, hx1 = (hi ? 232 : 112) * 16, barX = hx1 - 64, ex1 = barX - 96, EW = ex1 - hx0;
+        int32_t sg = seg >= hi * 4 && seg < hi * 4 + 4 ? seg - hi * 4 : -1;
+        int32_t yP = yB - (yB - yT) * e[3] / 255, yE = yB - (yB - yT) * e[2] / 255;
+        int32_t xA = hx0 + EW * 2 * e[0] / (5 * 255), xD = xA + EW * 2 * e[1] / (5 * 255);
+        int32_t xs[4] = {hx0, xA, xD, ex1}, py[4] = {yB, yP, yE, yE}, i;
+        int16_t p[16 * 2];
+        uint32_t np = 0, vi[4];
+        for (i = 0; i < 4; i++) {                    /* steep runs in pieces <= 26 px tall: small boxes for cr_poly */
+            if (i) {
+                int32_t dy = py[i] - py[i - 1], m = (dy < 0 ? -dy : dy) / (26 * 16) + 1, k2;
+                for (k2 = 1; k2 < m; k2++) {
+                    p[2 * np] = (int16_t)(xs[i - 1] + (xs[i] - xs[i - 1]) * k2 / m);
+                    p[2 * np + 1] = (int16_t)(py[i - 1] + dy * k2 / m);
+                    np++;
+                }
+            }
+            vi[i] = np;
+            p[2 * np] = (int16_t)xs[i];
+            p[2 * np + 1] = (int16_t)py[i];
+            np++;
+        }
+        cr_poly(p, np, 48, 0, 0, T_TEXT);
+        if (sg >= 0 && sg <= 2) {                    /* 0 attack, 1 decay, 2 the hold at the end level */
+            cr_poly(p + 2 * vi[sg], vi[sg + 1] - vi[sg] + 1u, 64, 0, 0, segcol);
+            cr_disc(xs[sg], py[sg], 56, segcol);
+            cr_disc(xs[sg + 1], py[sg + 1], 56, segcol);
+        }
+        cr_frect(barX, yT, 64, yB - yT, T_LINE);
+        if (yB > yP) cr_frect(barX, yP, 64, yB - yP, sg >= 0 ? segcol : T_MID);
+        cr_text(hx0 * 16, P8(24 + 10), hi ? "B" : "A", 10, 1, CR_L, 4096, sg >= 0 ? segcol : T_MID, T_BG, 0);
+    }
+    cr_frect(1912, y0 + 4 * 16, 16, yB - y0 - 4 * 16, T_LINE);
+}
+
 /* the wide band: the AHDSR with its lit segment, or the filter's response over a dashed 0 dB line */
 static void cr_wide(const cr_screen_t *s, uint16_t segcol)
 {
@@ -992,7 +1288,11 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
     int16_t p[40 * 2];          /* (filter: <= 7 segments + 4 crossings + 1 = 13 points; cz: <= 9 segments of <= 4) */
     uint32_t np = 0, i;
 #define CR_PT(px16, py16) (p[2 * np] = (int16_t)(px16), p[2 * np + 1] = (int16_t)(py16), np++)
-    if (s->wide == CR_W_ENV) {
+    if (s->wide == CR_W_ALGO) {
+        cr_algo_band(s);
+    } else if (s->wide == CR_W_ADE2) {
+        cr_ade2_band(s, segcol);
+    } else if (s->wide == CR_W_ENV) {
         static const char *const LET[5] = {"A", "H", "D", "S", "R"};
         int32_t u[5], xs[6], sum = 0, yT = y0 + 8 * 16, yB = y0 + 84 * 16, yS = yB - (yB - yT) * s->wv[3] / 255;
         int32_t seg = (int32_t)s->wv[5] - 1;
@@ -1176,9 +1476,26 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
             else
                 CR_PT(xb, yb);
         }
+        if (s->wv[4]) {                              /* QUAD's base-width window: a dim region (the orange at 12 % over
+                                                      * the background: the designer's alpha, as a solid colour) */
+            int32_t b = s->wv[5], e = b + s->wv[6] > 255 ? 255 : b + s->wv[6], bx = L + W * b / 255, ex = L + W * e / 255;
+            if (ex > bx) cr_frect(bx, ymin, ex - bx, ymax - ymin, ux_mix(T_BG, CR_NAMED[CR_COL_ORANGE], 12));
+        }
         {
             int16_t d[4] = {(int16_t)L, (int16_t)y0db, (int16_t)R, (int16_t)y0db};
             cr_poly(d, 2, 16, 48, 112, T_MID);
+        }
+        if (s->wv[4]) {                              /* .. its edges dashed 1.5 px (3 on, 3 off), B and W under them */
+            int32_t b = s->wv[5], e = b + s->wv[6] > 255 ? 255 : b + s->wv[6], bx = L + W * b / 255, ex = L + W * e / 255;
+            int32_t close = ex - bx < 12 * 16, xx, yy, k2;
+            uint16_t oc = CR_NAMED[CR_COL_ORANGE];
+            for (k2 = 0; k2 < 2; k2++)
+                for (xx = k2 ? ex : bx, yy = ymin; yy < ymax; yy += 96)
+                    cr_frect(xx - 12, yy, 24, ymax - yy < 48 ? ymax - yy : 48, oc);
+            xx = bx - (close ? 80 : 0);
+            cr_text((xx > L + 48 ? xx : L + 48) * 16, P8(24 + 96), "B", 9, 1, CR_C, 4096, oc, T_BG, 0);
+            xx = ex + (close ? 80 : 0);
+            cr_text((xx < R - 64 ? xx : R - 64) * 16, P8(24 + 96), "W", 9, 1, CR_C, 4096, oc, T_BG, 0);
         }
         cr_poly(p, np, 48, 0, 0, CR_NAMED[CR_COL_ORANGE]);
         cr_text(P8(8), P8(24 + 12), cr_ftype_name((uint32_t)ft), 10, 1, CR_L, 4096, T_MID, T_BG, 0);
@@ -1249,34 +1566,51 @@ static void cr_p_edit8(const cr_screen_t *s)
         return;
     }
     if (wide && cr_in_strip(22, 124)) {
-        uint32_t lit = s->wide == CR_W_DX ? s->wv[8] : s->wv[5];
+        uint32_t lit = s->wide == CR_W_DX || s->wide == CR_W_ADE2 ? s->wv[8] : s->wide == CR_W_CZ ? s->wv[18] : s->wv[5];
         uint16_t sc = s->hot_r ? cr_ccol(s->hot_c, 1) : CR_NAMED[CR_KC[(lit ? lit - 1u : 0u) % 4u]];
         cr_wide(s, sc);
     }
     for (ri = 0; ri < (int32_t)s->n_rows && ri < 2; ri++) {
         int on = ri == s->active, y = rowy[ri];
+        int32_t col0 = 0, mid = y + (gyo + vyo) / 2;                 /* (mid: the glyph and value's space) */
         if (!cr_in_strip(y - 2, y + rowh + 2)) continue;
-        for (ci = 0; ci < 4; ci++) {
+        for (ci = 0; ci < 4 && col0 < 4; ci++) {
             const cr_cell_t *c = &s->cell[ri][ci];
-            int32_t x = ci * 60, cx = P8(x + 30);
-            uint16_t col = cr_ccol((uint32_t)ci, on);
-            int hot = s->hot_r == ri + 1 && s->hot_c == ci;
+            int32_t sp = cr_span(c, col0), x = col0 * 60, w = 60 * sp, cx = P8(x) + P8(w) / 2;
+            uint16_t col = cr_ccol((uint32_t)col0, on), vcol;
+            int hot = s->hot_r == ri + 1 && s->hot_c == ci, ratio, bigv;
+            col0 += sp;
             if (!(c->flags & CR_CF_ON)) continue;
+            vcol = hot ? cr_hcol(s, col) : col;
+            ratio = c->glyph == CR_G_RATIO && cr_has_slash(c->value);
+            bigv = !ratio && ((c->flags & CR_CF_BIG) || c->glyph == CR_G_RATIO);
             if (c->label[0]) {
                 char b[16];
-                int cut = cr_fit(b, sizeof b, c->label, lpx, 1, CR_CF_MARKCOL(c->flags) && !big ? P8(46) : P8(56));
+                int cut = cr_fit(b, sizeof b, c->label, lpx, 1, CR_CF_MARKCOL(c->flags) && !big ? P8(w - 14) : P8(w - 4));
                 cr_text(cx, P8(y + ly), b, lpx, 1, CR_C, 4096, col, T_BG, cut ? 9u : 0u);
             }
-            cr_mark(c, x + 58, y + 1);
-            if (c->glyph != CR_G_NONE) cr_cglyph(c, (x + 5) * 16, (y + gyo) * 16, 50 * 16, gh * 16, col);
-            else cr_hbar(c, (x + 8) * 16, 44 * 16, (y + gyo + gh / 2 - 2) * 16, 64, col);
-            cr_cvalue(c, cx, P8(y + vyo), P8(60), vpx, hot ? cr_hcol(s, col) : col, hot, 0);
+            cr_mark(c, x + w - 2, y + 1);
+            if (ratio) {
+                cr_cratio(c, cx, P8(mid), P8(w), vcol, hot);
+            } else if (bigv) {                                       /* the value 7 px larger, centred in the space */
+                cr_cnum(c->value, cx, P8(mid) + (int32_t)(vpx + 7u) * 92, P8(w), vpx + 7u, vcol, hot);
+            } else {
+                if (c->glyph != CR_G_NONE) cr_cglyph(c, (x + 30 * sp - 25 * sp) * 16, (y + gyo) * 16, 50 * sp * 16, gh * 16, col);
+                else cr_hbar(c, (x + 8) * 16, (w - 16) * 16, (y + gyo + gh / 2 - 2) * 16, 64, col);
+                cr_cvalue(c, cx, P8(y + vyo), P8(w), vpx, vcol, hot, 0);
+            }
         }
     }
-    if (s->active < s->n_rows && s->active < 2u)                 /* the active row's bars */
-        for (ci = 0; ci < 4; ci++)
-            if (s->cell[s->active][ci].flags & CR_CF_ON)
-                cr_fill(ci * 60 + 4, rowy[s->active] + rowh - 2, 52, 2, cr_ccol((uint32_t)ci, 1));
+    if (s->active < s->n_rows && s->active < 2u) {               /* the active row's bars (a span's: both columns) */
+        int32_t col0 = 0;
+        for (ci = 0; ci < 4 && col0 < 4; ci++) {
+            const cr_cell_t *c = &s->cell[s->active][ci];
+            int32_t sp = cr_span(c, col0);
+            if (c->flags & CR_CF_ON)
+                cr_fill(col0 * 60 + 4, rowy[s->active] + rowh - 2, 60 * sp - 8, 2, cr_ccol((uint32_t)col0, 1));
+            col0 += sp;
+        }
+    }
 }
 
 static void cr_p_stack(const cr_screen_t *s)
@@ -1306,18 +1640,22 @@ static void cr_p_stack(const cr_screen_t *s)
         if (ri) cr_frect(4 * 16, (y >> 4) - 8, 232 * 16, 16, T_LINE);
         if (s->rlabel[ri][0])
             cr_text_fit(P8(6), y + rh / 2 + P8(4), s->rlabel[ri], 11, 1, CR_L, on ? T_TEXT : T_DIM, T_BG, lw - P8(6));
-        for (ci = 0; ci < 4; ci++) {
+        int32_t col0 = 0;
+        for (ci = 0; ci < 4 && col0 < 4; ci++) {
             const cr_cell_t *c = &s->cell[ri][ci];
-            int32_t x = lw + ci * cw, cx = x + cw / 2;
-            uint16_t col = cr_ccol((uint32_t)ci, on), vcol;
+            int32_t sp = cr_span(c, col0), x = lw + col0 * cw, cw1 = cw, cx;
+            uint16_t col = cr_ccol((uint32_t)col0, on), vcol;
             int hot = s->hot_r == ri + 1 && s->hot_c == ci;
+            int32_t cw = cw1 * sp;                                   /* (this cell's width: a span's two columns) */
+            col0 += sp;
+            cx = x + cw / 2;
             if (!(c->flags & CR_CF_ON)) continue;
             vcol = hot ? cr_hcol(s, col) : col;
             cr_mark(c, (x + cw) >> 8, (y >> 8) + 2);
             if (compact) {                                           /* ~24 px rows (the mod matrix): text, a thin bar */
                 cr_cvalue(c, cx, y + P8(14), cw, 12, vcol, hot, 0);
                 cr_hbar(c, (x + P8(6)) >> 4, (cw - P8(12)) >> 4, (y + P8(17) + 128) >> 4, 32, col);
-            } else if (c->glyph != CR_G_NONE && c->glyph != CR_G_BAR) {   /* a glyph over its value */
+            } else if (c->glyph != CR_G_NONE && c->glyph != CR_G_BAR && c->glyph != CR_G_RATIO) {   /* a glyph over its value */
                 int showv = rh >= P8(44) && c->value[0];
                 int32_t gh = showv ? rh - P8(24) : rh - P8(10);
                 if (gh > P8(40)) gh = P8(40);
@@ -1334,12 +1672,15 @@ static void cr_p_stack(const cr_screen_t *s)
             }
         }
     }
-    if (s->active < n)                                               /* the active row's bars */
-        for (ci = 0; ci < 4; ci++)
-            if (s->cell[s->active][ci].flags & CR_CF_ON) {
-                int32_t x = lw + ci * cw, y = r0 + (int32_t)s->active * rh + rh - P8(3);
-                cr_frect((x + P8(4)) >> 4, y >> 4, (cw - P8(8)) >> 4, 32, cr_ccol((uint32_t)ci, 1));
-            }
+    if (s->active < n) {                                             /* the active row's bars */
+        int32_t col0 = 0;
+        for (ci = 0; ci < 4 && col0 < 4; ci++) {
+            const cr_cell_t *c = &s->cell[s->active][ci];
+            int32_t sp = cr_span(c, col0), x = lw + col0 * cw, y = r0 + (int32_t)s->active * rh + rh - P8(3);
+            if (c->flags & CR_CF_ON) cr_frect((x + P8(4)) >> 4, y >> 4, (cw * sp - P8(8)) >> 4, 32, cr_ccol((uint32_t)col0, 1));
+            col0 += sp;
+        }
+    }
 }
 
 /* CR_K_KNOBROW (FORMAT.md "knobrow"): a layer screen. The panel above the lowest 72 px is a horizontal picker band

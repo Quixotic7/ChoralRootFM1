@@ -166,12 +166,12 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
   1 3 4 6 8 9 11 15 16, the FILTER state mapped onto the device's column order CUT RES FTYPE FENV / KTRK - SPREAD
   DRIVE and the MIX ones given the battery; 39-42 device-only: the mixer, the OSC modes (MORPH / NOISE / TRI glyphs)
   and the FILTER morphing at FTYPE 16). Full screen (`header` 0): the title line (`title` in `title_col`, `page` right), then edit8:
-  an optional wide band (`wide` `CR_W_ENV`: `wv` a h d s r + the lit segment, the AHDSR as one 3 px polyline, its
+  an optional wide band (QUAD's `CR_W_ALGO`, `CR_W_ADE2` and the filter's base-width window: below; `wide` `CR_W_ENV`: `wv` a h d s r + the lit segment, the AHDSR as one 3 px polyline, its
   steep runs cut into pieces <= 26 px tall so cr_poly's boxes stay small, the lit segment 4 px in the hot cell's
   colour, A H D S R under it; `CR_W_FILTER`: `wv` cut res ftype (0..127) drive, the 2nd-order response of
   the LP / BP / HP mix crossfaded at the FTYPE position (0 LP, 32 BP, 64 HP, 96 NOTCH = LP + HP, back to LP;
   the type word its name, `cr_ftype_name`) sampled at 7 quarter-octave offsets from the cutoff in 32-bit log2 arithmetic, the edges extrapolated, clamped to the band
-  with the crossings: <= 12 segments, over a dashed 0 dB line) over two rows of four `cell`s (each `cr_cell_t` carries its label, value, `CR_CF_*` flags, glyph, pct, pct2: 23 bytes); stack: `head` column headings at y 36 over
+  with the crossings: <= 12 segments, over a dashed 0 dB line) over two rows of four `cell`s (each `cr_cell_t` carries its label, value, `CR_CF_*` flags, glyph, pct, pct2, wave: 30 bytes); stack: `head` column headings at y 36 over
   `n_rows` rows sharing 41..239 with `rlabel`s (N >= 7: text only). The `active` row in the knob colours (blue
   orange white green) with 2 px bars, the others DIM; `hot_r` (row + 1) / `hot_c`: the value on a block of its
   colour. Glyphs (`CR_G_KNOB BAR WAVE SAW SQUARE STEPS DOTS`, a bipolar BAR centre-zero) are the designer's
@@ -207,6 +207,55 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
   by pct, on a 1 px baseline; lfo 1–5 cycles (<= 44 segments), depth by pct2; clip one cycle at gain 1–10, dashed clip
   lines past 0.1; spring 13 zigzags; mix an outlined square behind one filled to pct; gate, range, arrow, shift as
   FORMAT.md. tests/cr_draw_test.c checks each one's ink stays in its box and changes with pct.
+- **QUAD's primitives** (docs/QUAD.md; design/choralroot-fm1-quad-mockups.json, the user-approved sheet
+  design/choralroot-fm1-quad-screens.png; the designer's drawWide `algo` / `ade2` / the filter's `bw`, drawPicto `harm`
+  `detune` `lfowave`, cellRow's `big`, `ratio`, `span`, the bipolar knob). States 63–70 of `tests/gen_cr_screens.py`
+  are that file's states 1–8 (`QUAD_PICK`).
+  - `CR_W_ALGO`: `wv` = algo (0: 1..8), fdbk (1: 0..255), mix (2: 0..255, 128 = X and Y alike). "ALGO" 10 px MID and
+    the number 24 px at the left; the diagram is the designer's `ALGOS` table copied (`CR_ALGOS`: per algorithm up to
+    three modulation arrows, the feedback operator, the X / Y carriers, the boxes' row and x in hundredths of the 154 px
+    diagram from x 60): the 1.5 px MID arrows box edge to box edge with a filled 4.5 × 5 px head (`cr_tri`, new in
+    cr_gfx.c: a 4 × 4-sample triangle), the carriers down to an X and a Y bus (the output mix favours in TEXT, the other
+    DIM, both TEXT at 128), the 14 px boxes (BG filled, 1.5 px outline, the letter 9 px), the feedback loop a half
+    circle r 5 at its box's right, 1..3 px with fdbk, its arrowhead back into the box. Bounded: <= 3 arrows, 4 boxes,
+    2 buses, one arc.
+  - `CR_W_ADE2`: `wv` = A's attack decay end level (0..3), B's (4..7) (0..255), the lit segment (8: 1..8 = A's attack
+    decay end level, B's; 0 none). A in x 8..112, B in 128..232: each a 3 px TEXT polyline (rise to its level over 40 %
+    of its room at attack 1, fall to its end over 40 % at decay 1, held; steep runs cut <= 26 px as the env band), a
+    4 px level bar at its right (a LINE track filled to the level: the lit colour when a segment of that half is lit,
+    else MID), its letter 10 px top left; the lit attack / decay / hold 4 px in the knob colour of (seg - 1) % 4 with
+    dots at its ends (a lit level: the bar and letter only); a 1 px LINE divider at x 119.5.
+  - `CR_W_FILTER`'s base-width window: `wv` 4 = shown (0 none: a cleared struct draws no window), 5 = base, 6 = width
+    (Q8 of 255 of the band; the window base .. base + width, clipped at 255). The designer's lit region is the orange at
+    12 % alpha; with no alpha here it is that composite as a **solid dim fill** (`ux_mix(T_BG, orange, 12)`, a dark
+    brown, recomputed per palette) under the dashed 0 dB line and the curve — at 240 px a solid fill reads as the
+    mock-up does, where a sparse dot pattern shimmered against the dashed lines. Its edges dashed 1.5 px (3 on 3 off)
+    orange, `B` / `W` 9 px under them (pushed apart when closer than 12 px).
+  - Glyphs: `CR_G_HARM` (pct: one cycle of sin + harmonics 2..7 at 1/k, the odd ones by 2 pct − 1, all by 1 − 2 pct,
+    normalised: 40 segments), `CR_G_DETUNE` (pct: 16 segments, the joints jittered by 0.45 H pct from the designer's
+    sin(i 78.233 + 1.7) table, every third segment dropped past 0.3, every other past 0.7), `CR_G_LFOWAVE` (`cr_cell_t.wave`
+    = `CR_LW_TRI SINE SQUARE SAW RAMP EXP RANDOM`, pct = the start phase: one cycle, two in a span-2 cell, from pct of a
+    cycle on; the points are the wave's breakpoints, both sides of each jump, and for sine / exp 16 samples a cycle:
+    <= 37; a 1.5 px tick at the left at the start value), `CR_G_RATIO` (not a picture: the value "0.50/1.00" as a
+    fraction, both numbers 13 px bold over / under a 1.5 px divider w − 14 wide, centred in the glyph-and-value space; a
+    value without '/' draws as a big cell). Harm, detune, lfowave are 2 px strokes at true size, as the pictograms.
+  - Cell flags (`flags` is 16 bits now; the mark's colour stays in bits 4..7): `CR_CF_BIG` (the value 7 px larger,
+    20 px under a band / 24 px without, centred where glyph and value would be, no glyph, no bar; too wide: 2 px smaller
+    at a time to 7 px, never ellipsised), `CR_CF_SPAN2` (edit8 and stack: the cell takes two columns from a column
+    0..2, its label fits 116 px, its glyph box doubles, its bar spans both columns in its first column's colour; **the
+    cells after it in the row shift a column right**, so cell index != column: `hot_c` is the cell's index, as the
+    designer's), `CR_CF_BIPOLAR` (= `CR_CF_BIP`; on a `CR_G_KNOB`: the arc from 12 o'clock to the value, a 1.6 px mark
+    over 12 o'clock). `cr_cell_t` is 30 bytes (label 14 for "Wave · Phase", value 10 for "0.50/1.00", flags 16 bits,
+    the `wave` byte): + 7 bytes a cell, + 224 bytes a `cr_screen_t` (three in the firmware: `cu_scr` in the POOL, two
+    statics).
+  - Cache: the bands are hashed with the editor's `wv` as the others (a new algorithm composes strips 0–3 only, the
+    partial draw equal to a full one: tested). `tests/cr_draw_test.c` checks the four boxes of every algorithm and the
+    eight diagrams differing, the loop thickening with fdbk, ade2's two curves and bars filled to their levels, the
+    window's edges and fill (none when off), the fraction, the three glyphs' ink and change with pct, lfowave's seven
+    waves, phase and two cycles, a big cell's missing bar and larger value, a span cell over two columns with the next
+    cells shifted, the bipolar knob's arc flipping across 0.5. `gen_cr_screens.py` refuses a row whose spans pass the
+    fourth column. Not done: span on the knob row (`CR_K_KNOBROW` draws cell[0][k] at column k), the single-envelope
+    `ade` band.
 - Not implemented (not on the device): the designer kinds `tiles list scope dial roundel splash loop notes`, `big`
   with `pct` (the inverted fill), knob cards, keycap footers, `bubbleStyle: "disc"`, the chord panel's `key`/`trans`.
 
@@ -219,5 +268,6 @@ device | mid-animation per state). Lint (gfx.c `GFX_HOOK_TEXT`, boxes in screen 
 no text off the screen, no two texts overlapping, no text on the ring's band. Checks: glyphs fit the buffer, the CRX
 charset, the cache (0 / 1 / 6 strips), animations pure and settling. States 45–53 are design/choralroot-fm1-fx-mockups.json's 2 3 4 5 5b (knob rows), 6 7 (the
 glyph studies, edit8) and 10 11 (the perform and bass layers); states 54–57 the layers sheet's 1 3 (KEY, the keyboard band), 6 (LOOP, no
-ring), 7 (METRO); state 16 is the main sheet's fx layer, a knob row. The pictograms and the knob row's hot
+ring), 7 (METRO); states 58–62 the preset sheet's 1 2 3 5 6; states 63–70 QUAD's 1–8 (compare.png cuts them from
+design/choralroot-fm1-quad-screens.png); state 16 is the main sheet's fx layer, a knob row. The pictograms and the knob row's hot
 block and strips are checked too. Report: `build/cr_screens/report.txt`.

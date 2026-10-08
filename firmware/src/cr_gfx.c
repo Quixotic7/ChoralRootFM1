@@ -173,6 +173,38 @@ static void cr_disc(int32_t cx, int32_t cy, int32_t r, uint16_t c)
         }
 }
 
+/* a filled triangle (Q4 corners, either winding), 4 x 4 samples a pixel: arrowheads (small: its box is all it costs) */
+static void cr_tri(int32_t ax, int32_t ay, int32_t bx, int32_t by, int32_t qx, int32_t qy, uint16_t c)
+{
+    int32_t x0 = ax, x1 = ax, y0 = ay, y1 = ay, i, j;
+    int32_t ar = (bx - ax) * (qy - ay) - (by - ay) * (qx - ax), sg = ar < 0 ? -1 : 1;
+    if (!ar) return;
+    x0 = bx < x0 ? bx : x0;
+    x0 = qx < x0 ? qx : x0;
+    x1 = bx > x1 ? bx : x1;
+    x1 = qx > x1 ? qx : x1;
+    y0 = by < y0 ? by : y0;
+    y0 = qy < y0 ? qy : y0;
+    y1 = by > y1 ? by : y1;
+    y1 = qy > y1 ? qy : y1;
+    x0 >>= 4; y0 >>= 4; x1 = (x1 + 15) >> 4; y1 = (y1 + 15) >> 4;
+    if (y0 < cr_row0()) y0 = cr_row0();
+    if (y1 > cr_row1()) y1 = cr_row1();
+    for (j = y0; j < y1; j++)
+        for (i = x0; i < x1; i++) {
+            uint32_t n = 0, a, b;
+            for (b = 0; b < 4u; b++)
+                for (a = 0; a < 4u; a++) {
+                    int32_t px = i * 16 + CR_SS[a], py = j * 16 + CR_SS[b];
+                    int32_t e0 = ((bx - ax) * (py - ay) - (by - ay) * (px - ax)) * sg;
+                    int32_t e1 = ((qx - bx) * (py - by) - (qy - by) * (px - bx)) * sg;
+                    int32_t e2 = ((ax - qx) * (py - qy) - (ay - qy) * (px - qx)) * sg;
+                    n += e0 >= 0 && e1 >= 0 && e2 >= 0;
+                }
+            cr_blend(i, j, c, n * 16u);
+        }
+}
+
 /* an arc: centre (cx, cy), radius r and width w (Q4), from angle a0 for `sweep` (65536 = the whole circle),
  * round end caps (caps), dashes along it (dash_on of every dash_per, Q4 px of the arc at radius r; 0 = solid) */
 typedef struct {

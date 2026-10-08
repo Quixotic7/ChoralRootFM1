@@ -38,7 +38,11 @@ CELL_GLYPH = {"knob": "KNOB", "bar": "BAR", "wave": "WAVE", "saw": "SAW", "squar
               "dots": "DOTS", "morph": "MORPH", "noise": "NOISE",
               # the parameter pictograms (FORMAT.md "cell glyphs")
               "room": "ROOM", "moon": "MOON", "echoes": "ECHOES", "lfo": "LFO", "clip": "CLIP", "spring": "SPRING",
-              "mix": "MIX", "gate": "GATE", "range": "RANGE", "arrow": "ARROW", "shift": "SHIFT"}
+              "mix": "MIX", "gate": "GATE", "range": "RANGE", "arrow": "ARROW", "shift": "SHIFT",
+              # QUAD's (design/choralroot-fm1-quad-mockups.json)
+              "harm": "HARM", "detune": "DETUNE", "lfowave": "LFOWAVE", "ratio": "RATIO"}
+LFO_WAVE = {"tri": "TRI", "sine": "SINE", "sin": "SINE", "square": "SQUARE", "saw": "SAW", "ramp": "RAMP", "exp": "EXP",
+            "random": "RANDOM"}
 FTYPE = {"LP": 0, "BP": 32, "HP": 64, "NOTCH": 96}      # the band's FTYPE position (0..127) of the designer's names
 
 
@@ -345,9 +349,9 @@ def q8c(v):
 
 
 def cell_init(c):
-    """an edit8 / stack / knobrow cell -> cr_cell_t {label, value, flags, glyph, pct, pct2}"""
+    """an edit8 / stack / knobrow cell -> cr_cell_t {label, value, flags, glyph, pct, pct2, wave}"""
     if not c:
-        return "{\"\", \"\", 0, CR_G_NONE, 0, 0}"
+        return "{\"\", \"\", 0, CR_G_NONE, 0, 0, 0}"
     flags = ["CR_CF_ON"]
     if c.get("pct") is not None:
         flags.append("CR_CF_PCT")
@@ -357,12 +361,29 @@ def cell_init(c):
         flags.append("CR_CF_DIM")
     if c.get("mark"):                                   # (device: the matrix modulates it, the source's colour)
         flags.append(f"CR_CF_MARK(CR_COL_{c['mark'].upper()})")
+    if c.get("big"):                                    # (QUAD: a number-only cell, the value larger)
+        flags.append("CR_CF_BIG")
+    if int(c.get("span") or 1) >= 2:                    # (QUAD's LFO: Wave + Phase, two columns)
+        flags.append("CR_CF_SPAN2")
     g = c.get("glyph")
     glyph = CELL_GLYPH[g] if g and g != "none" else "NONE"
+    wave = f"CR_LW_{LFO_WAVE[str(c.get('wave') or 'sine').lower()]}" if glyph == "LFOWAVE" else "0"
     value = str(c.get("value") or "").replace("\u2013", "-")
-    return (f"{{{cstr(c.get('label'), 10)}, {cstr(value, 9)}, {' | '.join(flags)}, CR_G_{glyph}, "
+    return (f"{{{cstr(c.get('label'), 14)}, {cstr(value, 10)}, {' | '.join(flags)}, CR_G_{glyph}, "
             f"{q8c(c.get('pct') if c.get('pct') is not None else 0.5)}, "
-            f"{q8c(c.get('pct2') if c.get('pct2') is not None else 0.5)}}}")
+            f"{q8c(c.get('pct2') if c.get('pct2') is not None else 0.5)}, {wave}}}")
+
+
+def row_columns(row):
+    """the columns a row's cells take (a span-2 cell from column 0..2 takes two): <= 4, or the row does not fit"""
+    col0 = 0
+    for c in row:
+        if col0 >= 4:
+            if c:
+                raise SystemExit(f"gen_cr_screens: a cell past the fourth column: {c.get('label')!r}")
+            continue
+        col0 += 2 if c and int(c.get("span") or 1) >= 2 and col0 < 3 else 1
+    return col0
 
 
 def editor_fields(p, kind):
@@ -377,6 +398,8 @@ def editor_fields(p, kind):
                   for i in range(4)] for r in rows]
         f.append(".head = {" + ", ".join(cstr(h, 10) for h in ((p.get("cols") or []) + [""] * 4)[:4]) + "}")
         f.append(".rlabel = {" + ", ".join(cstr((r or {}).get("label"), 3) for r in rows) + "}")
+    for r in rows:                                      # (a span shifts the cells after it: none past column 4)
+        row_columns(r if kind == "edit8" else ((r or {}).get("cells") or []))
     f.append(".cell = {" + ", ".join("{" + ", ".join(cell_init(c) for c in row) + "}" for row in cells) + "}")
     f.append(f".n_rows = {len(cells)}")
     f.append(f".active = {int(p.get('active') or 0)}")
@@ -404,8 +427,26 @@ def editor_fields(p, kind):
     elif w and w.get("type") == "filter":
         vals = [q8c(w.get("cut", 0.5)), q8c(w.get("res", 0)), ftype_pos(w.get("ftype", "LP")),
                 q8c(w.get("drive", 0))]
+        bw = w.get("bw")
+        if isinstance(bw, dict):                        # QUAD's base-width window: shown, base, width
+            vals += [1, q8c(bw.get("base", 0)), q8c(bw.get("width", 0))]
         f.append(".wide = CR_W_FILTER")
         f.append(".wv = {" + ", ".join(str(v) for v in vals) + "}")
+    elif w and w.get("type") == "algo":                 # QUAD: the algorithm, feedback, mix (128 = X and Y alike)
+        vals = [min(8, max(1, int(round(float(w.get("algo") or 1))))), q8c(w.get("fdbk", 0)), q8c(w.get("mix", 0.5))]
+        f.append(".wide = CR_W_ALGO")
+        f.append(".wv = {" + ", ".join(str(v) for v in vals) + "}")
+    elif w and w.get("type") == "ade2":                 # QUAD: A's a d end lev, B's, the lit segment + 1
+        vals = []
+        for e in (w.get("a"), w.get("b")):
+            e = e if isinstance(e, dict) else {}
+            vals += [q8c(e.get("a", 0.2)), q8c(e.get("d", 0.4)), q8c(e.get("end", 0)), q8c(e.get("lev", 1))]
+        seg = w.get("seg")
+        vals.append(0 if seg is None else int(round(float(seg))) + 1)
+        f.append(".wide = CR_W_ADE2")
+        f.append(".wv = {" + ", ".join(str(v) for v in vals) + "}")
+    elif w:
+        raise SystemExit(f"gen_cr_screens: wide band {w.get('type')!r} is not on the device")
     return f
 
 
@@ -624,6 +665,23 @@ def presets_states():
     return out
 
 
+# .. and QUAD's editor screens (design/choralroot-fm1-quad-mockups.json, docs/QUAD.md, the user-approved sheet
+# design/choralroot-fm1-quad-screens.png): states 1..8 (the algo band, big and ratio cells, harm and detune glyphs, the
+# ade2 band, the filter's base-width window, the bipolar knob, the lfowave span-2 cell)
+QUAD_SRC = ROOT / "design" / "choralroot-fm1-quad-mockups.json"
+QUAD_PICK = [1, 2, 3, 4, 5, 6, 7, 8]
+
+
+def quad_states():
+    e = json.loads(QUAD_SRC.read_text())["states"]
+    out = []
+    for k in QUAD_PICK:
+        st = json.loads(json.dumps(e[k - 1]))
+        st["name"] = "QUAD " + st.get("name", "")
+        out.append(st)
+    return out
+
+
 def slug(name):
     name = name.split("·", 1)[-1]
     words = re.findall(r"[a-z0-9]+", name.lower())
@@ -637,7 +695,8 @@ def slug(name):
 
 def main():
     d = json.loads(SRC.read_text())
-    d["states"] = list(d["states"]) + DEVICE_STATES + editor_states() + fx_states() + layers_states() + presets_states()
+    d["states"] = (list(d["states"]) + DEVICE_STATES + editor_states() + fx_states() + layers_states() + presets_states()
+                   + quad_states())
     if d.get("palette") not in (None, "MOD"):
         print(f"gen_cr_screens: note: the design's palette is {d.get('palette')}; the device draws MOD")
     out = ["/* generated by tests/gen_cr_screens.py from design/choralroot-fm1-mockups.json: the mock-up states as",
