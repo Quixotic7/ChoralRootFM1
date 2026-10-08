@@ -418,6 +418,13 @@ cmp -s "$OUT/cr_editor_steps.wav" "$OUT/cr_editor_ref.wav" && bad "the same audi
     || ok "the same chord with ATK 122 / DEC 127: the audio differs ($(num "non-zero samples" "$L") / $(num "non-zero samples" "$OUT/cr_editor_ref.log") non-zero samples)"
 silent_end cr_editor_steps
 
+echo "Shift + Up / Down: the firmware's fine mode (GLO held around the detent), Page Down to KNOB 1"
+run cr_fine
+L="$OUT/cr_fine.log"
+d=$(grep '^deep: .* CUT ' "$L" | sed -E 's/.* CUT ([0-9]+) -> ([0-9]+).*/\1 \2/' | awk '{printf "%d ", $2 - $1}')
+[ "$d" = "6 6 1 1 6 " ] && ok "CUT steps plain / Shift / plain: $d(fine = 1, the SHIFT latch untouched)" \
+    || bad "fine steps: CUT deltas '$d' (want 6 6 1 1 6)"
+
 echo "EDIT held: the engine picker as a preview (cancel / keep), its roots, PRESETS in the editor"
 run cr_editor_pick --wav "$OUT/cr_editor_pick.wav"
 L="$OUT/cr_editor_pick.log"

@@ -371,7 +371,7 @@ number row are the chord block.
 | `2 3 4 5` | 6 m7 M7 9 (the white chord keys) · `Tab` = B3 LOCK (the chord mod key) |
 | `F5`–`F10` / `7 8 9 0 - =` (the panel's two rows) | printed FX SEL ENV LFO EDIT GLO / HOME SAVE ARP SEQ PLAY REC = FX KEY BASS LATCH EDIT OPT / HOME SAVE PERF METRO LOOP REC (in the editor: OSC FILT ENV LFO EDIT SHIFT / HOME SAVE PERF MOD FX MIX) |
 | `Z` `X` (also `Esc` `⏎`) | OCT− OCT+ · `End` both = panic |
-| mouse wheel over a knob, or `↑ ↓` with a knob selected (`Page Down` / `Page Up` cycle SELECT, KNOB 1–4; MASTER, PRESETS, ALGORITHM by mouse) | the eight rotaries |
+| mouse wheel over a knob, or `↑ ↓` with a knob selected (`Page Down` / `Page Up` cycle SELECT, KNOB 1–4; MASTER, PRESETS, ALGORITHM by mouse; Shift + `↑ ↓`: fine steps in the editor (GLO held), OPT's second function outside it) | the eight rotaries |
 | click | any button or key on the drawn panel |
 | `` ` `` · PrintScreen (F13) · Insert · F12 | big LCD view · LCD screenshot · record frames · print the state |
 

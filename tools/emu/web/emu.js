@@ -227,6 +227,12 @@
       const C5 = [0, 3, 4, 5, 6], at = C5.indexOf(selKnob);
       selKnob = C5[(((at < 0 ? (m.idx > 0 ? -1 : 0) : at) + m.idx) % 5 + 5) % 5]; drawKnobs();
     }
+    else if (m.kind === "turn" && e.shiftKey && selKnob !== 7) {
+      // the firmware's fine mode (emu.c fine_turn): GLO (SHIFT) down, the detent a UI frame later, GLO up after another
+      const k = selKnob, n = m.idx;
+      hold("b5", "fine", true);
+      setTimeout(() => { turn(k, n); setTimeout(() => hold("b5", "fine", false), 20); }, 20);
+    }
     else if (m.kind === "turn") turn(selKnob, selKnob === 7 ? 2 * m.idx : m.idx);
   });
   addEventListener("keyup", (e) => {
@@ -236,7 +242,7 @@
     else if (m.kind === "btn") hold("b" + m.idx, "kb" + m.code, false);
     else if (m.kind === "both") { hold("b12", "esc", false); hold("b13", "esc", false); }
   });
-  addEventListener("blur", () => releaseSrc((s) => s.startsWith("kb") || s === "esc"));   // no stuck notes
+  addEventListener("blur", () => releaseSrc((s) => s.startsWith("kb") || s === "esc" || s === "fine"));   // no stuck notes
 
   // ------------------------------------------------------------------------- the flash (IndexedDB) ---
   const db = () => new Promise((ok, no) => {

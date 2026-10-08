@@ -72,6 +72,7 @@ Firmware key index = MIDI note - 53 (0 = F3 .. 26 = G5).
 | End | OCT- and OCT+ together (panic) |
 | F5 F6 F7 F8 F9 F10 | the top button row: FX SEL ENV LFO EDIT GLO (ChoralRoot: FX KEY BASS LATCH EDIT OPT; in the editor: OSC FILT ENV LFO EDIT SHIFT) |
 | `7 8 9 0 - =` | the bottom button row: HOME SAVE ARP SEQ PLAY REC (ChoralRoot: HOME SAVE PERF METRO LOOP REC; in the editor: HOME SAVE PERF MOD FX MIX) |
+| Shift + Up / Down | fine steps in the editor (the firmware's SHIFT: GLO held); outside it, OPT's second function (OPT + KNOB 1 = split point, OPT + SELECT = metronome level) |
 | Page Down / Page Up | select the next / previous knob of SELECT, KNOB1 .. KNOB4 (wraps; the selected knob has a ring) |
 | Up / Down | turn the selected knob one detent clockwise / counter-clockwise (repeats while held; MASTER: 32 of 1023) |
 | mouse wheel over a knob | turn that knob (MASTER, PRESETS, ALGORITHM: the mouse only; a click selects a knob for Up / Down) |

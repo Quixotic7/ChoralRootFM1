@@ -15,7 +15,8 @@
  *   buttons, top row   F5 F6 F7 F8 F9 F10                = FX SEL ENV LFO EDIT GLO
  *            bottom    7  8  9  0  -  =                  = HOME SAVE ARP SEQ PLAY REC
  *   knobs              Page Down / Page Up: select the next / previous of SELECT KNOB1..KNOB4 (wraps);
- *                      Up / Down turn the selected one (one detent per press, repeats); MASTER, PRESETS,
+ *                      Up / Down turn the selected one (one detent per press, repeats; Shift held: GLO held around
+ *                      each detent = fine steps in the editor, OPT's second function outside it); MASTER, PRESETS,
  *                      ALGORITHM: mouse (wheel over a knob turns it, click selects it, vertical drag turns it)
  *   tools              ` show / hide the big LCD view above the panel (window)
  *                      PrintScreen (F13 on a Mac keyboard) LCD screenshot (build/emu/shot_NNN.png)
@@ -83,6 +84,8 @@ const keymap_t KEYMAP[] = {
     /* knobs: Page Down / Up cycle SELECT KNOB1..KNOB4; MASTER, PRESETS, ALGORITHM: the mouse */
     {SDL_SCANCODE_PAGEDOWN, KM_CYCLE, +1, "PGDN"},
     {SDL_SCANCODE_PAGEUP, KM_CYCLE, -1, "PGUP"},
+    {SDL_SCANCODE_LSHIFT, KM_SHIFT, 0, "LSHIFT"},
+    {SDL_SCANCODE_RSHIFT, KM_SHIFT, 0, "RSHIFT"},
     {SDL_SCANCODE_UP, KM_TURN, +1, "UP"},
     {SDL_SCANCODE_DOWN, KM_TURN, -1, "DOWN"},
     /* tools */
@@ -154,6 +157,7 @@ void keymap_help(void)
         case KM_OCTBOTH: printf("OCT- and OCT+ together\n"); break;
         case KM_CYCLE: printf("select the %s knob of SELECT KNOB1..KNOB4 (Up / Down turn it)\n", k->idx > 0 ? "next" : "previous"); break;
         case KM_SELECT: printf("select knob %s (Up / Down turn it)\n", EMU_ENC_NAME[k->idx]); break;
+        case KM_SHIFT: printf("Shift + Up / Down: fine steps in the editor (the firmware's SHIFT: GLO held); outside it, OPT's second function\n"); break;
         case KM_TURN: printf("turn the selected knob %s\n", k->idx > 0 ? "clockwise (+1)" : "counter-clockwise (-1)"); break;
         case KM_SHOT: printf("screenshot of the LCD -> build/emu/shot_NNN.png\n"); break;
         case KM_RECORD: printf("record every LCD frame -> build/emu/rec/NNNN.ppm (toggle)\n"); break;

@@ -201,7 +201,7 @@ static void text(canvas_t *c, float cx, float y, float size, const char *s, uint
 }
 
 /* ============================================================== panel state === */
-enum { SRC_KEY = 1, SRC_ESC = 2, SRC_MOUSE = 4, SRC_LATCH = 8, SRC_SCRIPT = 16 };
+enum { SRC_KEY = 1, SRC_ESC = 2, SRC_MOUSE = 4, SRC_LATCH = 8, SRC_SCRIPT = 16, SRC_FINE = 32 };
 static uint8_t key_src[EMU_NKEY], btn_src[EMU_NB];
 static int sel_knob = EMU_E_PRESETS;
 static float knob_angle[EMU_NE];
@@ -258,6 +258,33 @@ static void turn(int role, int steps)
     }
     __atomic_fetch_add(&emu_hal.enc[emu_hal.enc_id[role]], steps * emu_hal.enc_dir[role], __ATOMIC_SEQ_CST);
     knob_angle[role] += steps * (float)(2 * M_PI / 24);
+}
+/* Shift + Up / Down: the firmware's fine mode (GLO = SHIFT held around the detent; outside the editor, GLO + a
+ * knob is OPT's second function). GLO goes down now, the detent arrives at the next UI frame (GLO already seen
+ * down: cr_ui.c counts it a combo, so the GLO release does not toggle the latched SHIFT), GLO up one frame later. */
+static int shift_held, fine_steps, fine_role, fine_stage;    /* stage 0 idle, 1 GLO down, 2 stepped */
+static void fine_turn(int role, int steps)
+{
+    if (fine_stage && role != fine_role)
+        return;
+    fine_role = role;
+    fine_steps += steps;
+    if (!fine_stage) {
+        hold_btn(EMU_B_GLO, SRC_FINE, 1);
+        fine_stage = 1;
+    } else if (fine_stage == 2)
+        fine_stage = 1;                          /* another detent: step it in the next frame, GLO kept down */
+}
+static void fine_frame(void)                     /* before each UI frame */
+{
+    if (fine_stage == 1) {
+        turn(fine_role, fine_steps);
+        fine_steps = 0;
+        fine_stage = 2;
+    } else if (fine_stage == 2) {
+        hold_btn(EMU_B_GLO, SRC_FINE, 0);
+        fine_stage = 0;
+    }
 }
 static int led_state(int id)                     /* 0 off, 1 dim, 2 lit */
 {
@@ -515,6 +542,7 @@ static void ui_frame(double now_us)
 {
     double t0 = perf_us(), d;
     uint64_t i0 = instr_now();
+    fine_frame();
     emu_fw_frame();
     d = perf_us() - t0;
     if (i0 && ust.frames > 20u) {
@@ -895,7 +923,13 @@ static void key_action(const keymap_t *m, int down, int src)
             sel_knob = CYC[((at + m->idx) % 5 + 5) % 5];
         }
         break;
-    case KM_TURN: if (down) turn(sel_knob, sel_knob == EMU_E_MASTER ? 2 * m->idx : m->idx); break;
+    case KM_SHIFT: shift_held = down; break;
+    case KM_TURN:
+        if (down && shift_held && sel_knob != EMU_E_MASTER)
+            fine_turn(sel_knob, m->idx);
+        else if (down)
+            turn(sel_knob, sel_knob == EMU_E_MASTER ? 2 * m->idx : m->idx);
+        break;
     case KM_SHOT: if (down) shot(NULL); break;
     case KM_RECORD: if (down) toggle_record(); break;
     case KM_DUMP: if (down) emu_fw_dump(); break;
@@ -1562,7 +1596,7 @@ int main(int argc, char **argv)
                     break;
                 case SDL_WINDOWEVENT:
                     if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
-                        release_src(SRC_KEY | SRC_ESC | SRC_MOUSE);    /* no stuck notes */
+                        release_src(SRC_KEY | SRC_ESC | SRC_MOUSE), shift_held = 0;    /* no stuck notes */
                     else if (e.window.event == SDL_WINDOWEVENT_EXPOSED)
                         panel_seen = 1;
                     else if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)

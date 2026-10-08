@@ -1,0 +1,29 @@
+# ChoralRoot: Shift + Up / Down = the firmware's fine mode (GLO = SHIFT held around each detent). LUSH PAD (the VA),
+# EDIT, FILT (SEL): KNOB 1 (the cutoff) selected with Page Down x2; two plain Up steps (coarse), then two Shift + Up
+# steps (one unit each), then Shift released and one plain Up step: the SHIFT latch must not have toggled.
+# tools/emu/test_cr.sh reads the "deep: ... CUT a -> b" lines.
+wait 300
+knob PRESETS +24
+wait 1500
+btn EDIT
+wait 400
+btn SEL
+wait 400
+key PGDN
+key PGDN
+key UP
+wait 200
+key UP
+wait 200
+key LSHIFT down
+wait 50
+key UP
+wait 200
+key UP
+wait 200
+key LSHIFT up
+wait 100
+key UP
+wait 300
+shot build/emu/test/cr_fine.ppm
+quit
