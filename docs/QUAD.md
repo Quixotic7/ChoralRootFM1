@@ -1,6 +1,6 @@
 # QUAD: a Digitone-style four-operator FM engine (plan, 2026-10-07)
 
-The user's ask: a new FM engine modelled on Elektron's Digitone. This is the plan and the screens; nothing is built.
+The user's ask: a new FM engine modelled on Elektron's Digitone. This is the plan and the screens. **Building since 2026-10-07** (the user approved the UI design): milestone 1 (the core) and the draw primitives first, then the wiring.
 Mock-ups: `design/choralroot-fm1-quad-screens.png` (`design/make_quad_mockups.py`). The name on the device is
 **QUAD** (four operators; "Digitone" is Elektron's name and "DIGITAL" is Felucca's retired engine 1).
 
