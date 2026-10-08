@@ -93,9 +93,10 @@ stage (MOD FX MIX).
 ## 4. Groups per engine class
 
 The screens are built from the engine's deep pages (`eng_deep_t`, docs/VA.md): its five sections (OSC FILTER ENV
-LFO MOD; or the first four: an engine without a MOD section, QUAD, has the platform's MOD routes) and the page titles,
+LFO MOD; or the first four: an engine without a MOD section, FM TONE (engine 15, `eng_quad.c`, code name QUAD), has
+the platform's MOD routes) and the page titles,
 never the column names, so a column or a page the engine adds shows up by itself, unless the engine gives a **screen
-plan** (`eng_deep_t.screens`, `eng_screen_t` in core.h: QUAD's, below): then each of its groups is the plan's screens
+plan** (`eng_deep_t.screens`, `eng_screen_t` in core.h: FM TONE's, below): then each of its groups is the plan's screens
 in order, each one or two pages (rows A, B) under a band (`ENG_B_*`: none, the AHDSR, the filter, the filter with the
 base-width window, the algorithm, two attack-decay-end envelopes), with its title (and the active row's letter: `SYN 1 ·
 A`), each cell's label and style (`ENG_C_*`: the rule below, a big number, a ratio fraction, the harm / detune glyphs, a
@@ -141,11 +142,11 @@ With Sync on, an LFO's Rate reads as a division of the BPM (`1/8`). The VA's EDI
 the deep values are the truth and a deep edit writes the macro back. Unused matrix slots read `–` (the active one
 shows its source, to turn).
 
-### Engines without deep pages (ANALOG, PHASE, LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE)
+### Engines without deep pages (PHASE, LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE)
 
 | Group | Screen | Lanes | KNOB 1–4 | Top-right text |
 | --- | --- | --- | --- | --- |
-| OSC | `edit8`, one row | one | EDIT 1: `P_E0`–`P_E3` | the engine's `page_title[0]` (`OSC` on ANALOG, `OPS` on FM6) |
+| OSC | `edit8`, one row | one | EDIT 1: `P_E0`–`P_E3` | the engine's `page_title[0]` (`OSC` on TRIO, `OPS` on FM6) |
 | FILT | `edit8`, one row | one | EDIT 2: `P_E4`–`P_E7` | `page_title[1]` (`FLT`, `PATCH`) |
 | ENV | `edit8`, one row under the wide AHDSR | one | Attack · Decay · Sustain · Release (`P_ATK P_DEC P_SUS P_REL`) | `ENV` |
 | LFO | `edit8`, one row | one | Rate · Wave · Vibrato · Wah (`P_LRATE P_LWAVE P_LD_PIT P_LD_FLT`) | `LFO` |
@@ -195,9 +196,9 @@ hold after the SUS step, nothing after END; the step of the turned cell (R k / L
 knob's colour, digits 1–8 (and S) under the steps. No matrix (`not modulatable`). Melodee's CZ TOOLS page (NAME, 1 > 2,
 2 > 1, COMPARE) is not ported. Tests: `tools/emu/scripts/cr_cz.txt`.
 
-### QUAD (docs/QUAD.md; the user-approved screens design/choralroot-fm1-quad-screens.png)
+### FM TONE (docs/QUAD.md; the user-approved screens design/choralroot-fm1-quad-screens.png)
 
-Built from QUAD's screen plan (`eng_quad.c` `QUAD_SCREENS`), not from the title rules:
+Built from FM TONE's screen plan (`eng_quad.c` `QUAD_SCREENS`), not from the title rules:
 
 | Group | Screen | Kind | Lanes | KNOB 1–4 | Top-right text |
 | --- | --- | --- | --- | --- | --- |
@@ -208,7 +209,7 @@ Built from QUAD's screen plan (`eng_quad.c` `QUAD_SCREENS`), not from the title 
 | ENV | 1 | `edit8`, the **ade2** band (`CR_W_ADE2`: A's and B's curves, level bars; the turned cell's segment lit) | A, B | A: A Attack · A Decay · A End · A Level; B: the same for B | `ENV A/B` |
 | ENV | 2 | `edit8`, no band | A, B | A: A Delay · A Trig · A Reset · Phase; B: B Delay · B Trig · B Reset · Velocity | `ENV 2` |
 | ENV | 3 | `edit8`, one row | one | A Key · B Key (the operator envelopes' key tracks) | `ENV 3` |
-| ENV | 4 | `edit8`, the AHDSR band (QUAD's own amp envelope) | A, B | A: Attack · Decay · Sustain · Release; B: Level · Pan · Drive (the part's P_PAN and P_DIST) | `AMP · A` |
+| ENV | 4 | `edit8`, the AHDSR band (FM TONE's own amp envelope) | A, B | A: Attack · Decay · Sustain · Release; B: Level · Pan · Drive (the part's P_PAN and P_DIST) | `AMP · A` |
 | LFO | 1–3 | `edit8`, no band, one screen an LFO | A, B | A: Speed (a bipolar knob) · Mult · Fade · Dest; B: **Wave · Phase** (one span cell: the wave drawn from its start phase, "Tri · 90", degrees; KNOB 1 the wave, KNOB 2 the phase) · Trig · Depth | `LFO 1 · A` |
 | MOD | 1 | the platform's routes (as an engine without deep pages) | 4 | | `MOD n` |
 
@@ -245,8 +246,9 @@ While the editor is open the edit wins over OPT's outside knob functions (split 
 On opening, the picker **snapshots** the part's sound: every parameter, the engine, the deep patch (`deep->blob_get`,
 the VA's), the `edited` flag and the pool entry it came from (its place in the pool). Then, as before:
 
-- the white root keys are the engines in the firmware's order (ANALOG, FM6, VA, PHASE, CZ-1, LOFI, VOICE, TRIO,
-  WHEEL, PHYS, NOISE: D4..G5; SAMPLE, GRAIN and DRUM are not in the all-synth firmware). A root switches the sound's engine, keeping its envelope and sends;
+- the white root keys are the engines in the firmware's order (FM6, FM TONE, VA, CZ-1, PHASE, LOFI, VOICE, TRIO,
+  WHEEL, PHYS, NOISE: D4..G5, eleven engines, a root each; ANALOG (retired in 0.14), SAMPLE, GRAIN and DRUM are not in
+  the all-synth firmware). A root switches the sound's engine, keeping its envelope and sends;
 - KNOB 1 (and PRESETS) steps the engine's **pool**, the same list PRESETS turns outside the editor (docs/PRESETS.md: 00
   INIT, the factory presets, each replaced by the user's record bound to it, the user's added presets), loaded for
   preview; the meter is PRESETS' ("05 / FM PAD / FM6 · 05/26"), its bar **jumps** to the value (no fill animation,
@@ -449,6 +451,6 @@ screens. Every cell whose parameter is modulated carries the mark of §9. The VA
 (appended, docs/VA.md): DRIVE, SPRD (SPREAD), FENV, DEP1..DEP4 (the LFOs' DEPTH).
 
 Tests: `tools/emu/scripts/cr_editor_map.txt` (tools/emu/test_cr.sh: the traces above, the marks' pixels yellow / red /
-white, `cleared` with no octave step, the taps kept, the matrix filled to `matrix full`, ANALOG `not modulatable`;
+white, `cleared` with no octave step, the taps kept, the matrix filled to `matrix full`, PHASE (A4) `not modulatable`;
 shots `build/emu/test/cr_map_*.ppm`), tests/gen_cr_screens.py's two modulated states (`43_filter_modulated_*`,
 `44_osc_stack_modulated_*` in build/cr_screens/).

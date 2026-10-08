@@ -1,13 +1,13 @@
 # ChoralRoot: the engine picker as a preview (cr_ui.c cu_pick_*, docs/EDITOR.md) over the editor on LUSH PAD (the VA: OPT + PRESETS).
 # EDIT held: the picker (a snapshot: "picker: open .. crc"); KNOB 1 +1: the next preset (the meter's bar jumps);
 # OCT-: cancelled, LUSH PAD back (the same crc), the editor again. EDIT held, KNOB 4 +1: the roots play (D4 sounds,
-# no engine change); KNOB 4 +1: the roots choose engines again, D4: ANALOG; OCT-: cancelled, the VA patch back (the
+# no engine change); KNOB 4 +1: the roots choose engines again, D4: FM6; OCT-: cancelled, the VA patch back (the
 # same crc). PRESETS +1 in the editor: the picker opens, previewing the next place of the pool; OCT+ keeps it (not edited); EDIT
 # tap leaves.
 wait 100                      # (+ 200 ms of the engine change below: the same timeline)
 btn GLO down
 wait 100
-knob PRESETS +2               # OPT + PRESETS: the engine (FM6 -> QUAD -> VA, LUSH PAD: its pool position 01), on OPT's release
+knob PRESETS +2               # OPT + PRESETS: the engine (FM6 -> FM TONE -> VA, LUSH PAD: its pool position 01), on OPT's release
 wait 100
 btn GLO up
 wait 1500

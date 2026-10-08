@@ -448,7 +448,7 @@ BK_INFO, BK_LIST, BK_GET, BK_PUT, BK_RESTART = 1, 65, 66, 67, 72
 BK_CHUNK = 256
 FELUCCA_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34]
 CR_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13] + list(range(14, 22)) + [22] + list(range(40, 50))   # fm1backup.js CR_BACKUP_IDS
-# (9 the VA patches, 10 11 the FM6 patches, 12 13 the CZ-1 tones, 14..21 the CZ-1 banks, 22 the QUAD patches, 40..49
+# (9 the VA patches, 10 11 the FM6 patches, 12 13 the CZ-1 tones, 14..21 the CZ-1 banks, 22 the FM TONE patches, 40..49
 # loops; no samples)
 KNOWN_IDS = set(FELUCCA_IDS) | set(CR_IDS)
 BK_RC = {1: "invalid object, size or request", 2: "the data failed validation", 3: "busy: stop the loop on the FM-1",
@@ -534,7 +534,7 @@ def object_name(i):
     if 14 <= i <= 21:
         return "CZ-1 bank " + chr(ord("A") + i - 14)
     if i == 22:
-        return "QUAD patches"
+        return "FM TONE patches"
     if is_sample(i):
         return f"sample slot {i - 31}"
     if 40 <= i <= 49:
@@ -840,15 +840,16 @@ def run_restore(up, path, out, ask, yes):
 
 # ------------------------------------------------------------ user sounds ---
 # docs/SOUNDS.md (the page's web/fm1sounds.js in Python): one user sound (slot U01..U32: its record and, for a VA /
-# FM6 / CZ-1 / QUAD sound, its patch) to and from a small JSON file ("choralroot-sound" version 1), renamed or deleted, on
+# FM6 / CZ-1 / FM TONE sound, its patch) to and from a small JSON file ("choralroot-sound" version 1), renamed or deleted, on
 # the backup protocol's whole-object reads and writes. Only the objects whose bytes change are written, the stores
 # first and the bank last (a refused patch leaves the slot's record as it was).
 
-SOUND_IDS = (6, 7, 9, 10, 11, 12, 13, 22)        # the banks, the VA store, the FM6 halves, the CZ-1 halves, the QUAD
+SOUND_IDS = (6, 7, 9, 10, 11, 12, 13, 22)        # the banks, the VA store, the FM6 halves, the CZ-1 halves, the FM TONE
                                                  # store (22: firmware 0.14 on; read when the FM-1 lists it)
 SOUND_SLOTS, SOUND_PER_BANK, SOUND_REC = 32, 16, 192
 ENGINE_NAMES = ("ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "PHYS", "DRUM",
-                "NOISE", "FM6", "VA", "CZ-1", "QUAD")   # ENGINES[] (append-only; 1, 4, 8, 10 retired)
+                "NOISE", "FM6", "VA", "CZ-1", "FM TONE")   # ENGINES[] (append-only; 0, 1, 4, 8, 10 retired: ANALOG
+                                                          # since 0.14). 15: FM TONE (eng_quad.c, code name QUAD)
 ENGINE_PATCH = {12: "fm6", 13: "va", 14: "cz", 15: "quad"}  # engine -> its patch kind
 PATCH_KINDS = ("va", "fm6", "cz", "quad")
 PATCH_SIZE = {"va": 110, "fm6": 128, "cz": 144, "quad": 80}
@@ -862,8 +863,8 @@ SOUND_FORMAT = "choralroot-sound"
 # the factory presets of each engine (ENGINES[e]->presets[k].name) and the first of them in the engine's pool (the
 # CZ-1's preset 0, INIT TONE, is the pool's INIT): tests/sound_templates.c prints both from the firmware, and its
 # --check fails until the two lines below hold its strings verbatim (docs/SOUNDS.md "The binding")
-FACTORY_PRESETS = {"0":["SAW LEAD","SOFT PAD","SQR BASS","PWM STR","ACID","SINE KEY","RAVE","SUB BASS","PLUCK","BRASS","WIND","STRINGS"],"2":["BRASS","ORGAN","STRING","RESO","BELL","WIRE"],"3":["PULSE LD","WAVE BASS","ARP 8BIT","WAVE LEAD","STEP LEAD"],"5":["CHOIR AAH","VOX LEAD","WOW BASS","WHISPER"],"6":["FAT BASS","ARP LEAD","SYNC LEAD","RING BELL","CHIP CHOIR"],"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"9":["BELL TREE","MARIMBA","PLUCK","BOWED METAL","KALIMBA","HAND DRUM","TOMS","DRONE STRING","HARP"],"11":["WIND","RAIN","ARCADE","METAL"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"],"15":["EP","BELL","BASS","PLUCK","BRASS","GLASS PAD","HOLLOW","SQUARE LEAD","METAL","WOBBLE","CLAV","STRINGS","MARIMBA","DRONE","FEEDBACK","NOISE-ISH"]}
-FACTORY_FIRST = {"0":0,"2":0,"3":0,"5":0,"6":0,"7":0,"9":0,"11":0,"12":0,"13":0,"14":1,"15":0}
+FACTORY_PRESETS = {"2":["BRASS","ORGAN","STRING","RESO","BELL","WIRE"],"3":["PULSE LD","WAVE BASS","ARP 8BIT","WAVE LEAD","STEP LEAD"],"5":["CHOIR AAH","VOX LEAD","WOW BASS","WHISPER"],"6":["FAT BASS","ARP LEAD","SYNC LEAD","RING BELL","CHIP CHOIR"],"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"9":["BELL TREE","MARIMBA","PLUCK","BOWED METAL","KALIMBA","HAND DRUM","TOMS","DRONE STRING","HARP"],"11":["WIND","RAIN","ARCADE","METAL"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"],"15":["EP","BELL","BASS","PLUCK","BRASS","GLASS PAD","HOLLOW","SQUARE LEAD","METAL","WOBBLE","CLAV","STRINGS","MARIMBA","DRONE","FEEDBACK","NOISE-ISH"]}
+FACTORY_FIRST = {"2":0,"3":0,"5":0,"6":0,"7":0,"9":0,"11":0,"12":0,"13":0,"14":1,"15":0}
 BIND_MARK, BIND_NOTE, BIND_FLAGS = 0xA6, 160 + 15, 176 + 15   # note[15] = the mark, flags[15] = factory index + 1
 
 
@@ -975,8 +976,9 @@ def _record(objs, slot):
 
 
 def pool_of(engine):
-    """the preset pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, DIGITAL's FM6, else ANALOG"""
-    return engine if str(engine) in FACTORY_PRESETS else 12 if engine == 1 else 0
+    """the preset pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, DIGITAL's FM6, another
+    retired one (ANALOG since 0.14, SAMPLE, GRAIN, DRUM) the VA's"""
+    return engine if str(engine) in FACTORY_PRESETS else 12 if engine == 1 else 13
 
 
 def _bind_raw(r):
@@ -984,6 +986,9 @@ def _bind_raw(r):
     if r[1] in (3, 5) or r[BIND_NOTE] != BIND_MARK or not r[BIND_FLAGS]:
         return None
     e, f = pool_of(r[2]), r[BIND_FLAGS] - 1
+    if e != r[2] and r[2] != 1:
+        return None                                # (ANALOG's, a retired engine's record: an added preset where it
+                                                   # plays; a DIGITAL one binds in FM6's)
     return f if FACTORY_FIRST[str(e)] <= f < len(FACTORY_PRESETS[str(e)]) else None
 
 
@@ -1122,8 +1127,8 @@ def read_sound_file(f):
             raise bad("not a VA patch (its first bytes are not 'V' and a version 1..3)")
         if kind == "fm6" and (data[112] != 0x46 or data[113] != 1):
             raise bad("not an FM6 patch (bytes 112, 113 are not 'F', 1)")
-        if kind == "quad" and (data[0] != 0x51 or data[1] != 1):
-            raise bad("not a QUAD patch (its first bytes are not 'Q' and version 1)")
+        if kind == "quad" and (data[0] != 0x51 or not 1 <= data[1] <= 2):
+            raise bad("not an FM TONE patch (its first bytes are not 'Q' and a version 1..2)")
         patch = (kind, bytes(data))
     return bytes(rec), name, engine, patch
 

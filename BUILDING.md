@@ -109,7 +109,8 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/choralroot.c`;
 
 ChoralRoot is all-synth: with the defaults the image has no samples and no Felucca sequencer (measured 2026-10-07:
 `.text` 490104 -> 270312 B, `.bss` 90512 -> 72976 B (RAM 92.4 -> 74.5 %), POOL 330116 -> 294740 B (95.9 -> 85.7 %);
-docs/INTEGRATION.md "All-synth"). A user sound saved on a retired engine (4, 8, 10) loads as the INIT sound on ANALOG.
+docs/INTEGRATION.md "All-synth"). A user sound saved on a retired engine (4, 8, 10) loads as the INIT sound on the VA; one saved on ANALOG (0,
+retired in 0.14, `FELUCCA_ANALOG` 0) plays on the VA with its macros.
 
 ## Samples
 

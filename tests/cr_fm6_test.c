@@ -130,7 +130,7 @@ int main(void)
 
     /* ---- DX7 SysEx: a voice in, the same voice out ---- */
     t->eng_req = ENGI_FM6;
-    trk[1].eng_req = 0;
+    trk[1].eng_req = 2;                              /* (PHASE: not FM6) */
     fm6_rom_patch(&FM6_ROM[5], v);                   /* F14 CLAVINET */
     v[FP_ALG] = 12;
     v[5 * FP_OP + FP_OL] = 77;
@@ -256,9 +256,27 @@ int main(void)
         up_boot();
         OK(fm6u_get(slot, b2) == 0 && !memcmp(b, b2, FM6_BLOB), "store: from flash after a reboot");
         OK(up_store(20, "UPPER") == 0 && fm6u[1].used == 1u << 4, "store: U21 in the second object");
-        cu_load(t, 0, 0, 0);                         /* ANALOG */
-        up_store(slot, "ANALOG NOW");
+        cu_load(t, 2, 0, 0);                         /* PHASE */
+        up_store(slot, "PHASE NOW");
         OK(fm6u_get(slot, b2) != 0, "store: another engine's sound over U05 clears its blob");
+        {   /* an ANALOG record (engine 0, retired in 0.14: a 0.13 slot) bound to its STRINGS: the VA's pool, added,
+             * its macros on the VA by name (cr_ui.c cu_analog_va) */
+            up_rec_t ar = *up_rec(slot);
+            ar.engine = 0;
+            up_set_value(&ar, P_E0 + 4, 50);         /* CUT */
+            up_set_value(&ar, P_E0 + 5, 100);        /* RES */
+            up_set_value(&ar, P_E0 + 2, 30);         /* MIX */
+            up_set_value(&ar, P_ATK, 7);
+            ar.note[15] = CB_BIND_MARK;
+            ar.flags[15] = 12;                       /* (ANALOG's STRINGS: the VA's 12th is HOLLOW) */
+            up_put(slot, &ar);
+            cu_load(t, ENGI_FM6, 0, 0);
+            cu_load_user(t, slot, 0);
+            OK(t->eng_req == ENGI_VA && t->p[P_E0] == 50 && t->p[P_E0 + 1] == 100 &&
+               t->p[P_E0 + 6] == 7 && cb_rec_engine(slot) == ENGI_VA && cb_bound(slot) == PF_NONE &&
+               pool_bound_slot(ENGI_VA, 11) == UP_SLOTS,
+               "an ANALOG record: on the VA with CUT RES ATK carried (MIX: the VA patch's own scale), an added preset of the VA's pool (%d %d %d %d %d, %u %u %u)", t->eng_req, t->p[P_E0], t->p[P_E0 + 1], t->p[P_E0 + 4], t->p[P_E0 + 6], (unsigned)cb_rec_engine(slot), (unsigned)cb_bound(slot), (unsigned)pool_bound_slot(ENGI_VA, 11));
+        }
         up_put(20, 0);
         OK(fm6u_get(20, b2) != 0 && !fm6u[1].used, "store: an erased slot clears its blob");
         /* a slot of before the store: Felucca's PTCH numbering (F1..F8, then B1..B27 = 8..34) */

@@ -81,7 +81,6 @@ static void cr_bank_boot(void)                    /* persist_boot (after flash_o
  * switch. The names resolve to the preset index at boot (cb_init), so a reordered engine table cannot trim the wrong
  * sound. (Before docs/PRESETS.md these were the rows of ChoralRoot's curated bank, which is gone.) */
 static const struct { uint8_t engine; const char *preset; int8_t trim; } CB_TRIM[] = {
-    {0u, "STRINGS", -2},                 /* ANALOG STRINGS -1 dB */
     {2u, "STRING", -16},                 /* PHASE STRING (the bank's CZ STRINGS) -8 dB */
     {2u, "ORGAN", -16},                  /* PHASE ORGAN (CZ ORGAN) -8 dB */
     {2u, "BRASS", -6},                   /* PHASE BRASS (CZ BRASS) -3 dB */
@@ -122,7 +121,10 @@ static int8_t cb_trim(uint32_t e, uint32_t k)     /* factory preset k of engine 
  * (cb_store writes both). A record without the mark (saved by older firmware, restored, sent by a client) is an added
  * preset of its engine; so is one whose mark names no factory preset of its pool, or one an earlier slot already
  * binds (the first bound slot wins; cb_pool_check reports the duplicate). The record's engine is its pool (a DIGITAL
- * record: FM6's, as it plays; a retired engine's: ANALOG's, where it loads as INIT). A drum grid record (UP_VER_GRID)
+ * record: FM6's, as it plays; an ANALOG record (engine 0, retired in 0.14): the VA's, where it plays its macros on the
+ * VA's init patch; another retired engine's: the VA's, where it loads as INIT: CB_RETIRED_POOL). A record whose engine
+ * is not its pool's binds no factory preset there but a DIGITAL one (an added one: an ANALOG STRINGS overwrite does
+ * not replace the VA's twelfth preset). A drum grid record (UP_VER_GRID)
  * keeps lane hits in those bytes: never bound (no DRUM in ChoralRoot). up_valid is unchanged: older firmware reads
  * a bound record as an ordinary one, whose last step holds a note of 38 (0xA6 & 127) it never plays here. */
 #define CB_BIND_MARK 0xA6u
@@ -145,12 +147,13 @@ static uint32_t pool_nf(uint32_t e)               /* the factory presets in the 
     uint32_t n = ENGINES[e % NENGINES]->npresets;
     return n > pool_f0(e) ? n - pool_f0(e) : 0u;
 }
+#define CB_RETIRED_POOL (FELUCCA_ANALOG ? 0u : ENGI_VA)   /* a retired engine's records (cr_ui.c cu_load_user) */
 static uint32_t cb_rec_engine(uint32_t k)          /* the pool a used slot's record is in */
 {
     uint32_t e = up_rec(k)->engine;
     if (eng_ok(e))
         return e;
-    return e == ENGI_DIGITAL ? ENGI_FM6 : 0u;
+    return e == ENGI_DIGITAL ? ENGI_FM6 : CB_RETIRED_POOL;
 }
 static uint32_t cb_bind_raw(uint32_t k)            /* the factory preset slot k's record names, PF_NONE */
 {
@@ -159,6 +162,9 @@ static uint32_t cb_bind_raw(uint32_t k)            /* the factory preset slot k'
     if (!up_used(k) || up_grid(r) || r->note[15] != CB_BIND_MARK || !r->flags[15])
         return PF_NONE;
     e = cb_rec_engine(k);
+    if (e != r->engine && r->engine != ENGI_DIGITAL)
+        return PF_NONE;                           /* (ANALOG's, a retired engine's record: added to the pool it plays
+                                                   * in; a DIGITAL one binds in FM6's, as it converts) */
     f = r->flags[15] - 1u;
     return f >= pool_f0(e) && f < ENGINES[e]->npresets ? f : PF_NONE;
 }

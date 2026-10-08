@@ -1,5 +1,5 @@
-# test_persist.sh, QUAD run 2 (the same flash file): the power-on sound is U01 (the settings record of run 1 holds the
-# chord part's sound: QUAD 01, the place U01 is bound to): the trace "quad: load slot 1 patch crc XXXX" (the same patch
+# test_persist.sh, FM TONE run 2 (the same flash file): the power-on sound is U01 (the settings record of run 1 holds the
+# chord part's sound: FM TONE 01, the place U01 is bound to): the trace "quad: load slot 1 patch crc XXXX" (the same patch
 # as saved); EDIT shows Ratio A as saved (KNOB 3 +1 then -1: the deep trace from it); a chord on it sounds
 wait 500
 btn EDIT 100

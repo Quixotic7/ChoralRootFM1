@@ -353,12 +353,23 @@ static void up_slot_label(char *b, uint32_t k)  /* "U07" */
     b[3] = 0;
 }
 
-/* the automatic name of engine e's sound in slot k: engine name + slot number ("ANALOG 07"); b holds 13 */
+/* the engine a record of engine e plays on: e, or a retired engine's heir (DIGITAL: FM6; ANALOG without
+ * FELUCCA_ANALOG: the VA, cr_ui.c cu_load_user) */
+static uint32_t up_heir(uint32_t e)
+{
+    e %= NENGINES;
+#if !FELUCCA_ANALOG && FELUCCA_VA
+    if (e == 0u)
+        return ENGI_VA;
+#endif
+    return eng_ok(e) ? e : ENGI_FM6;
+}
+
+/* the automatic name of engine e's sound in slot k: engine name + slot number ("FM TONE 07"); b holds 13 */
 static void up_auto_name(char *b, uint32_t e, uint32_t k)
 {
     char l[4];
-    e %= NENGINES;
-    str_cpy(b, ENGINES[eng_ok(e) ? e : ENGI_FM6]->name, 9);   /* (a DIGITAL record plays as FM6) */
+    str_cpy(b, ENGINES[up_heir(e)]->name, 9);   /* (a DIGITAL record plays as FM6) */
     up_slot_label(l, k);
     str_cpy(b + str_len(b), " ", 2);
     str_cpy(b + str_len(b), l + 1, 3);
@@ -527,7 +538,7 @@ static void up_pat_load(track_t *t, uint32_t k)
 }
 
 /* the engine a used slot's sound plays on (a DIGITAL record: FM6, without FELUCCA_FM4) */
-static uint32_t up_engine(uint32_t k) { return eng_ok(up_rec(k)->engine) ? up_rec(k)->engine : ENGI_FM6; }
+static uint32_t up_engine(uint32_t k) { return up_heir(up_rec(k)->engine); }
 
 static uint32_t up_count(void)                 /* used slots */
 {

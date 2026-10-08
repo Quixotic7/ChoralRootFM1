@@ -2,7 +2,7 @@
 # the "popup:", "sound:", "engine pick:" and "save:" lines.
 # 1. PRESETS turns inside the chord part's engine's pool only, INIT at 00, wrapping: from TINE EP (FM6 01) -1: 00 INIT,
 #    -1: 25 PIANO (the end), +6: 05 FM PAD ("05" / "FM PAD" / "FM6 . 05/26").
-# 2. OPT held + PRESETS +2 (past QUAD): the engine picker (VA, "25 presets"); OPT released: VA 01 LUSH PAD; PRESETS +3: VA 04; OPT +
+# 2. OPT held + PRESETS +2 (past FM TONE): the engine picker (VA, "25 presets"); OPT released: VA 01 LUSH PAD; PRESETS +3: VA 04; OPT +
 #    PRESETS -1: FM6, back on 05 FM PAD (remembered per engine); +1: the VA, back on 04; -1: FM6 05 again.
 # 3. SAVE on FM PAD (factory, not edited): the dialog, Save as new by default; OCT+: the naming screen (FM6 26, the
 #    pool's next place); A D G, OCT+: U01, FM6 26; PRESETS -1 +1: 25 PIANO, 26 ADG (the pool has 27 now).

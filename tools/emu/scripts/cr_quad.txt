@@ -1,6 +1,6 @@
-# QUAD (docs/QUAD.md; the user-approved screens design/choralroot-fm1-quad-screens.png): EDIT held + F4 (the third white
-# root: ANALOG FM6 QUAD ..) picks QUAD from the engine picker, OCT+ keeps it (01 EP); PRESETS +2: 03 BASS ("QUAD .
-# 03/17": the meter, shot); PRESETS -1: 02 BELL; MAJ + D4 held 1.5 s (a chord on QUAD: three voices), released. EDIT: OSC, SYN 1 under
+# FM TONE (engine 15, eng_quad.c, code name QUAD; docs/QUAD.md; the user-approved screens
+# design/choralroot-fm1-quad-screens.png): EDIT held + E4 (the second white root: FM6 FM TONE ..) picks FM TONE from the
+# engine picker, OCT+ keeps it (01 EP); PRESETS +2: 03 BASS ("FM TONE . 03/17": the meter, shot); PRESETS -1: 02 BELL; MAJ + D4 held 1.5 s (a chord on QUAD: three voices), released. EDIT: OSC, SYN 1 under
 # the algorithm (shot); KNOB 1 +1: BELL's Algo 4 -> 5 (the band redraws: shot); OSC again: SYN 2 (shot); FILT (SEL): FILTER,
 # FILT again: FILTER 2 (shots); ENV: ENV A/B (shot), ENV 2, ENV 3, AMP (shots); LFO: LFO 1 (shot), SELECT +1: row B,
 # KNOB 2 +3: the start phase (the span cell slides, hot: shot); LFO: LFO 2; MOD (SEQ): the platform's routes (shot);
@@ -8,7 +8,7 @@
 wait 300
 btn EDIT down
 wait 400
-btn F4
+btn E4
 wait 300
 btn EDIT up
 btn OCT+                      # the picker stays open after a hold: OCT+ keeps the sound

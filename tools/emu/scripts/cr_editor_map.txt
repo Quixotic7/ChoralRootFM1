@@ -6,11 +6,11 @@
 # no octave step). ENV held 600 ms, nothing turned: nothing (FILT stays). ENV tap: the ENV group (a tap is still a
 # tap): ENV 1 shown, so ENV held on FILT now maps ENV1. The matrix filled (ENV1 to CUT RES FTYPE FENV SPRD
 # DRIVE) after LFO1 -> LVL1 on the OSC stack (LFO held + KNOB 2, the Level's mark): 8 slots; LFO1 -> CUT: "matrix
-# full". Then ANALOG (the picker, D4): "not modulatable".
+# full". Then PHASE (the picker, A4): "not modulatable".
 wait 100                      # (+ 200 ms of the engine change below: the same timeline)
 btn GLO down
 wait 100
-knob PRESETS +2               # OPT + PRESETS: the engine (FM6 -> QUAD -> VA, LUSH PAD: its pool position 01), on OPT's release
+knob PRESETS +2               # OPT + PRESETS: the engine (FM6 -> FM TONE -> VA, LUSH PAD: its pool position 01), on OPT's release
 wait 100
 btn GLO up
 wait 1500
@@ -102,7 +102,7 @@ btn LFO up
 wait 1500
 btn EDIT 600
 wait 300
-btn D4
+btn A4
 wait 300
 btn OCT+
 wait 1500

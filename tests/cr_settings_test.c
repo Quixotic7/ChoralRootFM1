@@ -247,6 +247,17 @@ static void t_version(void)
        "USB settings out of range: their defaults (Record on, Master)");
 }
 
+static uint32_t crs_check(const cr_settings_t *s)   /* the header's checksum (FNV-1a over [12, CRS_SIZE)) */
+{
+    const uint8_t *b = (const uint8_t *)s;
+    uint32_t h = 2166136261u, i;
+    for (i = 12u; i < CRS_SIZE; i++) {
+        h ^= b[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
 /* version 6 (docs/PRESETS.md): the parts' sounds as (engine << 8) | pool position, each part's place per engine */
 static void t_presets(void)
 {
@@ -256,11 +267,11 @@ static void t_presets(void)
     for (part = 0; part < 2u; part++)
         for (i = 0; i < (unsigned)CRS_NENG; i++)
             all &= crs_pool_get(&d, part, i) == CRS_POOL_DEFAULT;
-    ok(all && d.chord_sound == CRS_SOUND_DEFAULT && d.bass_sound == CRS_SOUND_DEFAULT && d.version == 6u,
-       "v6 defaults: the UI's sounds (TINE EP, SUB BASS), every engine's first preset for both parts");
+    ok(all && d.chord_sound == CRS_SOUND_DEFAULT && d.bass_sound == CRS_SOUND_DEFAULT && d.version == 7u,
+       "v7 defaults: the UI's sounds (TINE EP, DEEP SUB), every engine's first preset for both parts");
     s = d;
     s.chord_sound = (uint16_t)(13u << 8 | 4u);     /* VA 04 */
-    s.bass_sound = (uint16_t)(0u << 8 | 8u);        /* ANALOG 08 */
+    s.bass_sound = (uint16_t)(CRS_ENG_QUAD << 8 | 8u);   /* FM TONE 08 */
     crs_pool_set(&s, 0, 2, 4);
     crs_pool_set(&s, 0, 10, 3);                    /* rank 10: the byte that was rsv0 */
     crs_pool_set(&s, 1, 10, 0);                    /* .. rsv1 (0: INIT) */
@@ -268,11 +279,38 @@ static void t_presets(void)
     cr_settings_seal(&s);
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && cr_settings_equal(&r, &s) && crs_pool_get(&r, 0, 10) == 3 &&
        r.pool_pos10_chord == 3 && crs_pool_get(&r, 1, 10) == 0 && crs_pool_get(&r, 0, 2) == 4 &&
-       crs_pool_get(&r, 1, 0) == 8 && r.chord_sound == (13u << 8 | 4u), "v6: the sounds and the places per engine round-trip");
+       crs_pool_get(&r, 1, 0) == 8 && r.chord_sound == (13u << 8 | 4u), "v7: the sounds and the places per engine round-trip");
     s.pool_pos[1][3] = 200;                        /* (no pool is that long) */
     cr_settings_seal(&s);
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && crs_pool_get(&r, 1, 3) == CRS_POOL_DEFAULT &&
-       crs_pool_get(&r, 0, 2) == 4, "v6: a place out of range takes its default, the others kept");
+       crs_pool_get(&r, 0, 2) == 4, "v7: a place out of range takes its default, the others kept");
+    /* version 6 -> 7 (ANALOG retired: slot 0 is FM TONE's). A 0.14 dev record: FM TONE's chord place in rsv_usb (5),
+     * slot 0 ANALOG's (9 / 6), the bass on FM TONE 04; a 0.13 record: rsv_usb 0, the parts' sounds on ANALOG */
+    s = d;
+    s.rsv_usb = 5;
+    crs_pool_set(&s, 0, 0, 9);
+    crs_pool_set(&s, 1, 0, 6);
+    crs_pool_set(&s, 0, 3, 7);
+    s.chord_sound = (uint16_t)(12u << 8 | 3u);     /* FM6 03 */
+    s.bass_sound = (uint16_t)(CRS_ENG_QUAD << 8 | 4u);
+    cr_settings_seal(&s);
+    s.version = 6;
+    s.check = crs_check(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 2 && crs_pool_get(&r, 0, 0) == 5 && crs_pool_get(&r, 1, 0) == 4 &&
+       !r.rsv_usb && crs_pool_get(&r, 0, 3) == 7 && r.chord_sound == (12u << 8 | 3u) &&
+       r.bass_sound == (CRS_ENG_QUAD << 8 | 4u) && r.version == CRS_VERSION,
+       "version 6 (0.14 dev) -> 7: FM TONE's chord place from rsv_usb into slot 0, the bass's from bass_sound, rsv_usb 0");
+    s = d;
+    crs_pool_set(&s, 0, 0, 9);
+    crs_pool_set(&s, 1, 0, 6);
+    s.chord_sound = (uint16_t)(CRS_ENG_ANALOG << 8 | 2u);
+    s.bass_sound = (uint16_t)(CRS_ENG_ANALOG << 8 | 8u);   /* ANALOG 08 SUB BASS */
+    cr_settings_seal(&s);
+    s.version = 6;
+    s.check = crs_check(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 2 && crs_pool_get(&r, 0, 0) == CRS_POOL_DEFAULT &&
+       crs_pool_get(&r, 1, 0) == CRS_POOL_DEFAULT && r.chord_sound == CRS_SOUND_DEFAULT &&
+       r.bass_sound == CRS_SOUND_DEFAULT, "version 6 (0.13) -> 7: ANALOG's slot and sounds read as the defaults (DEEP SUB)");
     /* a version-5 record: list positions of the old bank (17, 4) and zeros where the places are now */
     s = d;
     s.chord_sound = 17;
@@ -284,23 +322,14 @@ static void t_presets(void)
     s.bpm = 95;
     cr_settings_seal(&s);
     s.version = 5;
-    s.check = 0;
-    {
-        const uint8_t *b = (const uint8_t *)&s;
-        uint32_t h = 2166136261u;
-        for (i = 12u; i < CRS_SIZE; i++) {
-            h ^= b[i];
-            h *= 16777619u;
-        }
-        s.check = h;
-    }
+    s.check = crs_check(&s);
     all = 1;
     ok(cr_settings_import(&r, &s, sizeof s) == 2, "version 5: migrated");
     for (part = 0; part < 2u; part++)
         for (i = 0; i < (unsigned)CRS_NENG; i++)
             all &= crs_pool_get(&r, part, i) == CRS_POOL_DEFAULT;
     ok(all && r.chord_sound == CRS_SOUND_DEFAULT && r.bass_sound == CRS_SOUND_DEFAULT && r.bpm == 95 &&
-       r.version == CRS_VERSION, "version 5 -> 6: the old list positions read as the defaults (TINE EP, SUB BASS), every "
+       r.version == CRS_VERSION, "version 5 -> 7: the old list positions read as the defaults (TINE EP, DEEP SUB), every "
        "engine's first preset, the rest kept");
 }
 

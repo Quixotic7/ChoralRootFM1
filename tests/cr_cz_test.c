@@ -130,10 +130,10 @@ int main(void)
 
     /* ---- the engine and its tones ---- */
     for (k = 0, bad = 1; k < NENG_SHOWN; k++)
-        if (ENGINE_ORDER[k] == 2u)
+        if (ENGINE_ORDER[k] == ENGI_VA)
             bad = !(k + 1u < NENG_SHOWN && ENGINE_ORDER[k + 1u] == ENGI_CZ);
     OK(ENGI_CZ == 14u && NENGINES == 15u + FELUCCA_QUAD && ENGINES[ENGI_CZ] == &ENG_CZ && !strcmp(ENG_CZ.name, "CZ-1") && eng_ok(ENGI_CZ) &&
-       !bad, "engine: CZ-1 is 14 (after VA's 13; Melodee: 15), shown after PHASE");
+       !bad, "engine: CZ-1 is 14 (after VA's 13; Melodee: 15), shown after the VA (0.14)");
     for (k = 0, bad = 0; k < CZ_FACTORY_N; k++)
         bad += !cz_patch_valid(CZ_FACTORY[k]);
     OK(CZ_FACTORY_N == 64u && !bad && NELEM(CZ_PRESETS) == 65u && !strcmp(CZ_PRESETS[0].name, "INIT TONE") &&
@@ -346,8 +346,8 @@ int main(void)
         OK(czu_get(slot, b2) == 0 && !memcmp(raw, b2, CZ_BYTES), "store: from flash after a reboot");
         OK(up_store(20, "UPPER") == 0 && czu[1].used == 1u << 4 && st_sector(OBJ_CZSTORE0, 0) == 0x9D000u &&
            st_sector(OBJ_CZSTORE1, 0) == 0xA0000u, "store: U21 in the second object (0x9D000 / 0xA0000)");
-        cu_load(t, 0, 0, 0);                         /* ANALOG */
-        up_store(slot, "ANALOG NOW");
+        cu_load(t, 2, 0, 0);                         /* PHASE */
+        up_store(slot, "PHASE NOW");
         OK(czu_get(slot, b2) != 0, "store: another engine's sound over U05 clears its tone");
         up_put(20, 0);
         OK(czu_get(20, b2) != 0 && !czu[1].used, "store: an erased slot clears its tone");

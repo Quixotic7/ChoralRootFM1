@@ -6,7 +6,9 @@
  *   cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/sound_templates tests/sound_templates.c -lm
  *   ./build/host/sound_templates                 prints the JSON below
  *   ./build/host/sound_templates --check FILE..  exits 1 unless every FILE contains each template's base64 string
- *                                                and the two factory-table strings below, verbatim
+ *                                                and the two factory-table strings below, verbatim, and
+ *                                                every selectable engine's name in quotes ("FM TONE": the
+ *                                                clients' ENGINE_NAMES)
  *                                                (tests/run_cr_tests.sh runs it on the two clients)
  *
  * JSON: { "templates": { "fm6": <base64 up_rec_t>, "cz": <base64 up_rec_t>, "quad": <base64 up_rec_t> },
@@ -155,6 +157,19 @@ int main(int argc, char **argv)
             if (!strstr(s, t_fm6) || !strstr(s, t_cz)) {
                 fprintf(stderr, "%s: the sound templates differ from the firmware's defaults (run tests/sound_templates and paste)\n", argv[i]);
                 bad = 1;
+            }
+            {
+                uint32_t e;
+                char q[16];
+                for (e = 0; e < NENGINES; e++) {
+                    if (!eng_ok(e))
+                        continue;
+                    snprintf(q, sizeof q, "\"%s\"", ENGINES[e]->name);
+                    if (!strstr(s, q)) {
+                        fprintf(stderr, "%s: engine %u's name %s is not in its engine names\n", argv[i], (unsigned)e, q);
+                        bad = 1;
+                    }
+                }
             }
             if (!strstr(s, fac) || !strstr(s, first)) {
                 fprintf(stderr, "%s: the factory preset table differs from the firmware's (run tests/sound_templates and paste \"factory\" / \"factory_first\")\n", argv[i]);

@@ -32,6 +32,22 @@
 #ifndef FELUCCA_QUAD
 #define FELUCCA_QUAD 1           /* ChoralRoot's QUAD engine (docs/QUAD.md): its presets get renders and costs too */
 #endif
+#ifndef FELUCCA_ANALOG
+#define FELUCCA_ANALOG 0         /* as choralroot.c: ANALOG retired (engine 0 a silent slot, no renders) */
+#endif
+/* ANALOG's stand-ins (FELUCCA_ANALOG 0, ChoralRoot): the acid line of the SLICER / song renders on the VA's SYNC BASS
+ * (PAT 1, ACID), the voice / routing checks and the mode / send renders on PHASE (a platform engine, as ANALOG was) */
+#if FELUCCA_ANALOG
+#define R_ACID_E 0u
+#define R_ACID_P 4u              /* ANALOG ACID */
+#define R_ACID_NAME "ANALOG_ACID"
+#define R_PLAT 0u                /* ANALOG */
+#else
+#define R_ACID_E ENGI_VA
+#define R_ACID_P 19u             /* VA SYNC BASS */
+#define R_ACID_NAME "VA_SYNC_BASS"
+#define R_PLAT 2u                /* PHASE */
+#endif
 #ifndef FM6_POLY
 #define FM6_POLY 8               /* as choralroot.c: FM6 at ChoralRoot's 8 voices (eng_fm6.c; Melodee: 16) */
 #endif
@@ -252,7 +268,7 @@ static void job_drums(const job_t *j)           /* every GM note through SAMPLE 
     finish();
 }
 
-/* the SLICER on the phrase (its clock free-running, no transport): arg 0 GATE (ANALOG ACID,
+/* the SLICER on the phrase (its clock free-running, no transport): arg 0 GATE (ANALOG ACID / VA SYNC BASS: R_ACID_*,
  * pattern 6, 1/16), 1 STUT (DIGITAL PAD, pattern 7, 1/32, DEPTH 100 %) */
 static void job_slicer(const job_t *j)
 {
@@ -267,7 +283,7 @@ static void job_slicer(const job_t *j)
     phrase(t, 60);
 }
 
-/* the 4-track mix: T1 ANALOG ACID, T2 the power-on pad (TRK_DEF: FM6 PAD since DIGITAL was retired; DIGITAL PAD
+/* the 4-track mix: T1 ANALOG ACID (VA SYNC BASS without FELUCCA_ANALOG: R_ACID_*), T2 the power-on pad (TRK_DEF: FM6 PAD since DIGITAL was retired; DIGITAL PAD
  * before) (tied chords), T3 LOFI lead (12 steps against 16),
  * T4 SAMPLE PERC drums; 120 BPM, 4 bars (the hostsim TRACKS demo without the recording), stop, the tail.
  * arg 1: with the SLICER (GATE on the pad, STUT on the acid line and the drums, SWING 20 %) */
@@ -282,7 +298,7 @@ static void job_song(const job_t *j)
     (void)j;
     host_tracks_init();
     song.g[G_BPM] = 120;
-    host_preset(t1, 0, 4);
+    host_preset(t1, R_ACID_E, R_ACID_P);
     host_preset(t2, TRK_DEF[1][0], TRK_DEF[1][1]);
     host_preset(t3, 3, 0);
     host_legacy_sample_perc(td);
@@ -487,13 +503,13 @@ static void midi_pkt(uint32_t st, uint32_t d1, uint32_t d2)   /* as usb.c: the q
     midi_in_q[mi_w++ % MQ] = (st >> 4) | st << 8 | d1 << 16 | d2 << 24;
 }
 
-/* the shared budget: 4 POLY parts (ANALOG, DIGITAL (without FELUCCA_FM4 its BELL converted: FM6), VOICE, SAMPLE PERC)
+/* the shared budget: 4 POLY parts (ANALOG or PHASE: R_PLAT, DIGITAL (without FELUCCA_FM4 its BELL converted: FM6), VOICE, SAMPLE PERC)
  * play random notes on and off for
  * 6 s, up to 8 held each; after every block: at most 8 part voices active, none still fading (a stolen voice
  * fades within its one block), the VOICE part at most 4; then all off: every voice free */
 static int chk_budget(char *msg, uint32_t n)
 {
-    static const uint8_t E[NPART][2] = {{0, 1}, {1, 1}, {5, 1}, {4, 4}};
+    static const uint8_t E[NPART][2] = {{R_PLAT, 1}, {1, 1}, {5, 1}, {4, 4}};
     uint8_t held[NPART][128] = {{0}};
     uint32_t p, k, worst = 0, vworst = 0, fading = 0, kills0 = voice_kills;
     host_tracks_init();
@@ -595,7 +611,7 @@ static int chk_cap_mode_budget(char *msg, uint32_t n)
         host_tracks_init();
         for (p = 0; p < NPART; p++) {
             memset(trk[p].v, 0, sizeof trk[p].v);
-            host_preset(&trk[p], 0, 0);
+            host_preset(&trk[p], R_PLAT, 0);
             trk[p].p[P_VOICE] = p ? V_MONO : V_POLY;
             trk[p].p[P_AMODE] = 0;
             trk[p].p[P_SUS] = 127;
@@ -645,7 +661,7 @@ static int chk_mode_budget(char *msg, uint32_t n)
             host_tracks_init();
             for (p = 0; p < NPART; p++) {
                 memset(trk[p].v, 0, sizeof trk[p].v);
-                host_preset(&trk[p], 0, 0);
+                host_preset(&trk[p], R_PLAT, 0);
                 trk[p].p[P_VOICE] = V_MONO;
                 trk[p].p[P_AMODE] = 0;
             }
@@ -843,7 +859,7 @@ static int chk_keep(char *msg, uint32_t n, uint32_t mode)
     static const char *const MN[4] = {"POLY", "MONO", "LEGATO", "UNISON"};
     uint32_t k, lost = 0, kills0 = voice_kills;
     host_tracks_init();
-    host_preset(&trk[0], 0, 0);
+    host_preset(&trk[0], R_PLAT, 0);
     trk[0].p[P_VOICE] = (int16_t)mode;
     trk[0].p[P_AMODE] = 0;
     trk[0].p[P_SUS] = 100;
@@ -1037,8 +1053,9 @@ int main(int argc, char **argv)
     uint32_t jobs_at_once = getenv("JOBS") ? (uint32_t)atoi(getenv("JOBS")) : 8u;
     static const char *const MN[4] = {"POLY", "MONO", "LEGATO", "UNISON"};
     static const char *const SN[6] = {"dry", "chorus", "delay", "reverb", "all", "dist"};
-    static const uint8_t MODE_E[3][2] = {{0, 0}, {1, 1}, {5, 0}};   /* engine, preset (DIGITAL: FELUCCA_FM4 only) */
-    static const uint8_t SEND_E[2][2] = {{0, 3}, {1, 0}};
+    static const uint8_t MODE_E[3][2] = {{R_PLAT, 0}, {1, 1}, {5, 0}};   /* engine, preset (DIGITAL: FELUCCA_FM4 only) */
+    static const uint8_t SEND_E[2][2] = {{R_PLAT, 3}, {1, 0}};
+    char en[24];
     static uint8_t cpu_parts[MAXJ][NPART][3];
     static kv_t gold[MAXJ], cpu[MAXJ];
     uint32_t ng, nc, e, pi, i, g0, g1, c0, c1, k0, ncpu = 0;
@@ -1056,7 +1073,8 @@ int main(int argc, char **argv)
         for (pi = 0; pi < ENGINES[e]->npresets; pi++) {
             job_t *j;
             slug(s, ENGINES[e]->presets[pi].name, sizeof s);
-            snprintf(name, sizeof name, "preset/%s/%02u_%s", ENGINES[e]->name, pi, s);
+            slug(en, ENGINES[e]->name, sizeof en);   /* ("FM TONE": FM_TONE; the golden file splits at spaces) */
+            snprintf(name, sizeof name, "preset/%s/%02u_%s", en, pi, s);
             j = add(J_PRESET, name);
             j->e = (uint8_t)e;
             j->pi = (uint8_t)pi;
@@ -1065,7 +1083,8 @@ int main(int argc, char **argv)
     for (i = 0; i < 3u; i++)
         for (k0 = 0; k0 < 4u && eng_ok(MODE_E[i][0]); k0++) {
             job_t *j;
-            snprintf(name, sizeof name, "mode/%s/%s", ENGINES[MODE_E[i][0]]->name, MN[k0]);
+            slug(en, ENGINES[MODE_E[i][0]]->name, sizeof en);
+            snprintf(name, sizeof name, "mode/%s/%s", en, MN[k0]);
             j = add(J_MODE, name);
             j->e = MODE_E[i][0];
             j->pi = MODE_E[i][1];
@@ -1074,7 +1093,8 @@ int main(int argc, char **argv)
     for (i = 0; i < 2u; i++)
         for (k0 = 0; k0 < 6u && eng_ok(SEND_E[i][0]); k0++) {
             job_t *j;
-            snprintf(name, sizeof name, "sends/%s/%s", ENGINES[SEND_E[i][0]]->name, SN[k0]);
+            slug(en, ENGINES[SEND_E[i][0]]->name, sizeof en);
+            snprintf(name, sizeof name, "sends/%s/%s", en, SN[k0]);
             j = add(J_SENDS, name);
             j->e = SEND_E[i][0];
             j->pi = SEND_E[i][1];
@@ -1082,8 +1102,8 @@ int main(int argc, char **argv)
         }
     add(J_SONG, "song/4track_mix");
     {   /* the SLICER */
-        job_t *j = add(J_SLICER, "slicer/gate/ANALOG_ACID");
-        j->e = 0, j->pi = 4, j->arg = 0;
+        job_t *j = add(J_SLICER, "slicer/gate/" R_ACID_NAME);
+        j->e = R_ACID_E, j->pi = R_ACID_P, j->arg = 0;
 #if FELUCCA_FM4                                     /* (DIGITAL: retired, built with FELUCCA_FM4=1 only) */
         j = add(J_SLICER, "slicer/stut/DIGITAL_PAD");
         j->e = 1, j->pi = 5, j->arg = 1;
@@ -1119,7 +1139,8 @@ int main(int argc, char **argv)
         for (pi = 0; pi < ENGINES[e]->npresets; pi++) {
             job_t *j;
             slug(s, ENGINES[e]->presets[pi].name, sizeof s);
-            snprintf(name, sizeof name, "cpu/%s/%02u_%s", ENGINES[e]->name, pi, s);
+            slug(en, ENGINES[e]->name, sizeof en);
+            snprintf(name, sizeof name, "cpu/%s/%02u_%s", en, pi, s);
             j = add(J_CPU, name);
             memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
             cpu_parts[ncpu][0][0] = (uint8_t)e;

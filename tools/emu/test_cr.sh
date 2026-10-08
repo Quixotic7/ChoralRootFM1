@@ -101,8 +101,8 @@ cmp -s "$OUT/cr_sound.wav" "$OUT/cr_sound_ref.wav" && bad "the same audio with a
 
 echo "ALGORITHM: the bass"
 run cr_bass
-has 'bass 1 (sound 9)' "$OUT/cr_bass.log" && has 'part 1: ANALOG / SUB BASS' "$OUT/cr_bass.log" &&
-    ok "ALGORITHM +9: bass on (OFF, then ANALOG's pool: 08 SUB BASS)" || bad "bass not on"
+has 'bass 1 (sound 18)' "$OUT/cr_bass.log" && has 'part 1: VA / DEEP SUB' "$OUT/cr_bass.log" &&
+    ok "ALGORITHM +18: bass on (OFF, then the VA's pool: 17 DEEP SUB)" || bad "bass not on"
 has 'part 1: .* voices 1' "$OUT/cr_bass.log" && ok "a bass note on part 1" || bad "no bass note on part 1"
 silent_end cr_bass
 
@@ -134,17 +134,17 @@ orange_in() {    # orange_in FILE: ChoralRoot's orange pixels in the status slot
         od -An -tu1 -v -j $((15 + ($row * 240 + 150) * 3)) -N$((88 * 3)) "$1" | tr -s ' \n' '\n\n' | grep -v '^$'
     done | awk '{ v[n++] = $1 } END { c = 0; for (i = 0; i + 2 < n; i += 3) if (v[i] > 200 && v[i+1] > 80 && v[i+1] < 170 && v[i+2] < 90) c++; print c }'
 }
-has '^bass: on (sound 9, Chords Only)' "$L" && has 'expect led ENV on .*: ok' "$L" &&
-    ok "BASS tapped: the bass on (SUB BASS, Chords Only), its LED lit" || bad "BASS tap: $(grep '^bass:' "$L" | head -1)"
+has '^bass: on (sound 18, Chords Only)' "$L" && has 'expect led ENV on .*: ok' "$L" &&
+    ok "BASS tapped: the bass on (DEEP SUB, Chords Only), its LED lit" || bad "BASS tap: $(grep '^bass:' "$L" | head -1)"
 [ "$(pv 0 1)" = 3 ] && [ "$(pv 1 1)" = 0 ] && ok "before: MAJ + D4 on part 0 only (3 voices)" || bad "before: part 0 $(pv 0 1) part 1 $(pv 1 1)"
 [ "$(pv 0 2)" = 3 ] && [ "$(pv 1 2)" = 1 ] && ok "bass on: MAJ + D4 sounds on part 0 (3 voices) AND part 1 (the bass note)" \
     || bad "bass on: part 0 $(pv 0 2) part 1 $(pv 1 2) voices (the chord part must keep sounding)"
-[ "$(pv 0 3)" = 3 ] && has 'part 1: ANALOG / SQR BASS' "$L" && ok "ALGORITHM -5 with the chord held: another bass sound, part 0 still 3 voices" \
+[ "$(pv 0 3)" = 3 ] && has 'part 1: VA / PUNCH BASS' "$L" && ok "ALGORITHM +1 with the chord held: another bass sound, part 0 still 3 voices" \
     || bad "a bass sound change with the chord held: part 0 $(pv 0 3)"
 has '^bass: off' "$L" && has 'expect led ENV dim .*: ok' "$L" && [ "$(pv 0 4)" = 3 ] && [ "$(pv 1 4)" = 0 ] &&
     ok "BASS tapped off: its LED back to the glow, the chord on part 0 only" || bad "bass off: part 0 $(pv 0 4) part 1 $(pv 1 4)"
 o=$(orange_in "$OUT/cr_bass_both_pop.ppm"); n=$(orange_in "$OUT/cr_bass_both_on.ppm"); f=$(orange_in "$OUT/cr_bass_both_off.ppm")
-differ cr_bass_both_pop cr_bass_both_on "BASS tap: the bass meter popup (08 SUB BASS, orange): $OUT/cr_bass_both_pop.ppm"
+differ cr_bass_both_pop cr_bass_both_on "BASS tap: the bass meter popup (17 DEEP SUB, orange): $OUT/cr_bass_both_pop.ppm"
 [ "$n" -gt 40 ] && [ "$f" = 0 ] && ok "\"Bass\" in orange top right while the bass is on ($n px; off: $f): $OUT/cr_bass_both_on.ppm" \
     || bad "the Bass status: on $n off $f orange px"
 has '^bass: behaviour Solo' "$L" && [ "$(pv 0 5)" = 0 ] && [ "$(pv 1 5)" = 1 ] &&
@@ -377,7 +377,7 @@ has '^mod: clear CUT, 2 slots$' "$L" && has '^expect led OCT- dim .*: ok' "$L" &
 has '^mod: LFO1 -> LVL1 +6 slot 1$' "$L" && ok "on the OSC stack: LFO held + KNOB 2 (Level): LFO1 -> LVL1, its mark: $OUT/cr_map_stack.ppm" || bad "stack mapping"
 has '^mod: ENV1 -> CUT +6 slot 3$' "$L" && has '^mod: ENV1 -> DRIVE +6 slot 8$' "$L" && ok "ENV 1 shown last: ENV held maps ENV1 (CUT .. DRIVE, slots 3..8)" || bad "ENV1 mapping"
 has '^mod: LFO1 -> CUT matrix full$' "$L" && ok "the ninth: \"matrix full\": $OUT/cr_map_full.ppm" || bad "matrix full"
-has '^mod: not modulatable$' "$L" && ok "a platform engine (ANALOG): \"not modulatable\"" || bad "not modulatable"
+has '^mod: not modulatable$' "$L" && ok "a platform engine (PHASE): \"not modulatable\"" || bad "not modulatable"
 export EMU_UI_LOG=5
 run cr_editor_modes --wav "$OUT/cr_editor_modes.wav"
 unset EMU_UI_LOG
@@ -414,13 +414,13 @@ L="$OUT/cr_editor_steps.log"
 has '^param: part 0 ENV DEC 90 -> 96 ' "$L" && ok "a platform engine's ENV: a detent: DEC 90 -> 96 (5% of 0..127): $OUT/cr_editor_p_env.ppm" || bad "coarse step: $(grep -m1 '^param:' "$L")"
 has '^param: part 0 ENV DEC 96 -> 97 ' "$L" && ok "SHIFT held + KNOB 2: DEC 96 -> 97 (fine)" || bad "fine step"
 grep '^param: part 0 ENV DEC' "$L" | tail -1 | grep -q -- '-> 127 ' && ok "KNOB 2 +30: DEC clamps at 127" || bad "no clamp at 127"
-has '^param: part 0 ENV ATK 80 -> 122 ' "$L" && ok "KNOB 1 +7 (6 a detent): ATK 80 -> 122" || bad "KNOB 1: ATK not changed"
+has '^param: part 0 ENV ATK 70 -> 112 ' "$L" && ok "KNOB 1 +7 (6 a detent): ATK 70 -> 112" || bad "KNOB 1: ATK not changed"
 grep -q '^split\|split point' "$L" && bad "SHIFT + KNOB reached the split point" || true
 has '^param: part 0 LFO WAVE 0 -> 1 ' "$L" && ok "LFO WAVE steps by one" || bad "WAVE: $(grep 'LFO WAVE' "$L")"
 has '^param: part 0 MOD FLT ' "$L" && ok "the platform MOD (4 slots): KNOB 3 the amount: $OUT/cr_editor_p_mod.ppm" || bad "platform MOD"
 grep '^param: part 0 MIX VCE' "$L" | grep -q -- '\([0-9]*\) -> ' && ok "MIX VOICE: $(grep '^param: part 0 MIX VCE' "$L" | head -1 | sed 's/^param: //')" || bad "no VOICE step"
 cmp -s "$OUT/cr_editor_steps.wav" "$OUT/cr_editor_ref.wav" && bad "the same audio with another envelope" \
-    || ok "the same chord with ATK 122 / DEC 127: the audio differs ($(num "non-zero samples" "$L") / $(num "non-zero samples" "$OUT/cr_editor_ref.log") non-zero samples)"
+    || ok "the same chord with ATK 112 / DEC 127: the audio differs ($(num "non-zero samples" "$L") / $(num "non-zero samples" "$OUT/cr_editor_ref.log") non-zero samples)"
 silent_end cr_editor_steps
 
 echo "Shift + Up / Down: the firmware's fine mode (GLO held around the detent), Page Down to KNOB 1"
@@ -441,8 +441,8 @@ has '^preset: part 0 -> VA / ' "$L" && [ -n "$o1" ] && [ "$o1" = "$c1" ] &&
 cmp -s "$OUT/cr_pick_editor.ppm" "$OUT/cr_pick_cancel.ppm" && ok "OCT-: back in the editor as it was" || bad "not back in the editor: $OUT/cr_pick_cancel.ppm"
 c2=$(sed -n 's/^picker: cancel part 0 -> LUSH PAD crc \([0-9a-f]*\)$/\1/p' "$L" | sed -n 2p)
 has '^picker: roots play' "$L" && has '^expect sound .*: ok' "$L" && has '^picker: roots engines' "$L" &&
-    has '^engine: part 0 -> ANALOG' "$L" && [ "$c2" = "$o1" ] &&
-    ok "KNOB 4: the roots play (D4 sounded, no engine), again: engines (D4: ANALOG); OCT-: the VA patch back (crc $c2): $OUT/cr_pick_roots_play.ppm" \
+    has '^engine: part 0 -> FM6' "$L" && [ "$c2" = "$o1" ] &&
+    ok "KNOB 4: the roots play (D4 sounded, no engine), again: engines (D4: FM6); OCT-: the VA patch back (crc $c2): $OUT/cr_pick_roots_play.ppm" \
     || bad "picker roots / engine cancel (crc '$c2')"
 [ "$(grep -c '^engine: part 0' "$L")" = 1 ] && ok "the roots off: no engine switched by D4" || bad "roots off switched an engine"
 grep '^layer: open 5' "$L" | sed -n 3p | grep -q . && has '^picker: keep part 0 ' "$L" &&
@@ -452,9 +452,9 @@ silent_end cr_editor_pick
 
 echo "EDIT held: the engine picker"
 run cr_engine --wav "$OUT/cr_engine.wav"
-has '^engine: part 0 -> ANALOG' "$OUT/cr_engine.log" && has 'part 0: ANALOG /' "$OUT/cr_engine.log" &&
-    ok "EDIT held + D4: part 0 FM6 -> ANALOG: $OUT/cr_engine_switched.ppm" || bad "the engine did not switch"
-has '^preset: part 0 -> ANALOG / ' "$OUT/cr_engine.log" && ok "EDIT held + KNOB 1: the next place of the engine's pool" || bad "KNOB 1: no preset step"
+has '^engine: part 0 -> PHASE' "$OUT/cr_engine.log" && has 'part 0: PHASE /' "$OUT/cr_engine.log" &&
+    ok "EDIT held + A4: part 0 FM6 -> PHASE: $OUT/cr_engine_switched.ppm" || bad "the engine did not switch"
+has '^preset: part 0 -> PHASE / ' "$OUT/cr_engine.log" && ok "EDIT held + KNOB 1: the next place of the engine's pool" || bad "KNOB 1: no preset step"
 silent_end cr_engine
 
 echo "SAVE: the dialog, Save as new, naming, the user slot"
@@ -464,8 +464,8 @@ has '^save: dialog part 0 TINE EP (save as new)' "$OUT/cr_save.log" && has '^sav
 has '^save: part 0 slot U01 name ADG' "$OUT/cr_save.log" && ok "D4 E4 F4, OCT+: U01 \"ADG\": $OUT/cr_save_typed.ppm" || bad "not saved"
 has '^sound: part 0 pos 26 ADG' "$OUT/cr_save.log" && ok "PRESETS reaches it at FM6 26, after the 25 factory presets: $OUT/cr_save_preset.ppm" \
     || bad "U01 not at FM6 26: $(grep 'ADG' "$OUT/cr_save.log" | tail -1)"
-grep -q '^edit: .*part 1' "$OUT/cr_save.log" && has '^param: part 1 ' "$OUT/cr_save.log" &&
-    ok "BASS held + EDIT: the bass sound's pages, KNOB 1 edits part 1: $OUT/cr_edit_bass.ppm" || bad "BASS + EDIT"
+grep -q '^edit: .*part 1' "$OUT/cr_save.log" && has '^deep: part 1 ' "$OUT/cr_save.log" &&
+    ok "BASS held + EDIT: the bass sound's pages (VA DEEP SUB: its OSC stack), KNOB 1 edits part 1: $OUT/cr_edit_bass.ppm" || bad "BASS + EDIT"
 
 mkdir -p "$OUT/cr_again"
 echo "LOOP / REC: the looper"
@@ -736,15 +736,15 @@ has '^edit: group ENV screen 6 ' "$ZL" && has '^edit: group FILT screen 1 ' "$ZL
     has '^edit: group MOD screen 1 ' "$ZL" && ok "CZ-1's groups: ENV DCW 1 (1-4, 5-8, END), FILT (DCW), LFO (VIB), MOD (TONE)" ||
     bad "CZ-1 groups: $(grep -c '^edit: group' "$ZL")"
 
-echo "QUAD: the engine picker, the pool, a chord, the editor's screens (docs/QUAD.md)"
+echo "FM TONE (code name QUAD): the engine picker, the pool, a chord, the editor's screens (docs/QUAD.md)"
 run cr_quad --wav "$OUT/cr_quad.wav"
 QL="$OUT/cr_quad.log"
-has '^engine: part 0 -> QUAD' "$QL" && has 'part 0: QUAD / EP' "$QL" && ok "EDIT held + F4 (the third white root): QUAD, 01 EP" ||
-    bad "not QUAD from the picker: $(grep -m1 '^engine:' "$QL")"
-has '^popup: part 0 03 / BASS / QUAD · 03/17$' "$QL" && ok "PRESETS +2: the pool, QUAD · 03/17 (INIT + 16 presets): $OUT/cr_quad_pool.ppm" ||
+has '^engine: part 0 -> FM TONE' "$QL" && has 'part 0: FM TONE / EP' "$QL" && ok "EDIT held + E4 (the second white root): FM TONE, 01 EP" ||
+    bad "not FM TONE from the picker: $(grep -m1 '^engine:' "$QL")"
+has '^popup: part 0 03 / BASS / FM TONE · 03/17$' "$QL" && ok "PRESETS +2: the pool, FM TONE · 03/17 (INIT + 16 presets): $OUT/cr_quad_pool.ppm" ||
     bad "pool: $(grep -m1 '^popup:' "$QL")"
-has 'part 0: QUAD / BELL, voices 3' "$QL" && has '^expect sound .*: ok' "$QL" && ok "MAJ + D4 on 02 BELL: a chord of three QUAD voices sounds" ||
-    bad "QUAD chord: $(grep 'part 0: QUAD / BELL' "$QL" | head -1)"
+has 'part 0: FM TONE / BELL, voices 3' "$QL" && has '^expect sound .*: ok' "$QL" && ok "MAJ + D4 on 02 BELL: a chord of three FM TONE voices sounds" ||
+    bad "FM TONE chord: $(grep 'part 0: FM TONE / BELL' "$QL" | head -1)"
 has '^deep: part 0 page 0 SYN 1 col 0 ALGO 4 -> 5 ' "$QL" && ok "SYN 1 on BELL, KNOB 1: Algo 4 -> 5 (one step a detent)" || bad "no Algo edit: $(grep -m1 '^deep:' "$QL")"
 band=$(python3 -c "
 import sys; a, b = (open(f, 'rb').read() for f in sys.argv[1:3]); o = 15 + 30 * 240 * 3; n = 90 * 240 * 3
@@ -753,8 +753,8 @@ print(sum(x != y for x, y in zip(a[o:o + n], b[o:o + n])))" "$OUT/cr_quad_syn1.p
 for n in syn2 filter filter2 envab env2 env3 amp lfo1 lfo2 mod; do [ -s "$OUT/cr_quad_$n.ppm" ] || bad "no shot cr_quad_$n"; done
 has '^edit: group OSC screen 2 ' "$QL" && has '^edit: group FILT screen 2 ' "$QL" && has '^edit: group ENV screen 4 ' "$QL" &&
     has '^edit: group LFO screen 2 ' "$QL" && has '^edit: group MOD screen 1 ' "$QL" &&
-    ok "QUAD's groups: OSC SYN 1 / SYN 2, FILT FILTER / FILTER 2, ENV A/B, 2, 3, AMP, LFO 1..3 a screen each, MOD the platform's" ||
-    bad "QUAD groups: $(grep -c '^edit: group' "$QL")"
+    ok "FM TONE's groups: OSC SYN 1 / SYN 2, FILT FILTER / FILTER 2, ENV A/B, 2, 3, AMP, LFO 1..3 a screen each, MOD the platform's" ||
+    bad "FM TONE groups: $(grep -c '^edit: group' "$QL")"
 has '^deep: part 0 page 15 LFO 1+ col 1 PHASE 0 -> ' "$QL" && ok "LFO 1 row B, KNOB 2: the start phase in the Wave · Phase cell: $OUT/cr_quad_lfo1_phase.ppm" ||
     bad "no phase edit"
 blue_q=$(od -An -tu1 -v -j $((15 + 180 * 240 * 3)) -N$((240 * 40 * 3)) "$OUT/cr_quad_lfo1_phase.ppm" | tr -s ' \n' '\n\n' | grep -v '^$' |
@@ -789,7 +789,7 @@ differ cr_safe_erase_entry cr_safe_erase_ask "OCT+ once: the confirmation (OCT+ 
 st=$?
 [ $st = 0 ] && has '^safe: flash data erased, 56 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
     has '^reboot: guard failed 0 pending 0' "$OUT/cr_safe_erase.log" &&
-    ok "OCT+ twice: 56 data sectors erased (36 + the CZ-1's 18 + QUAD's 2), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
+    ok "OCT+ twice: 56 data sectors erased (36 + the CZ-1's 18 + FM TONE's 2), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
 ff=$(python3 -c "
 import sys; d = open(sys.argv[1], 'rb').read()
 r = [(0x97000, 9), (0xA0000, 20), (0xC8000, 20), (0xDC000, 4), (0xFC000, 3)]

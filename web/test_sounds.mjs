@@ -75,9 +75,9 @@ const source = () => new Map([
 
 /* ------------------------------------------------------------------------ the table --- */
 ok(SOUND_IDS.join() === "6,7,9,10,11,12,13,22" && ENGINE_NAMES.length === 16 && ENGINE_NAMES[13] === "VA" && ENGINE_NAMES[14] === "CZ-1" &&
-   ENGINE_NAMES[15] === "QUAD" && patchKindOf(13) === "va" && patchKindOf(12) === "fm6" && patchKindOf(14) === "cz" &&
+   ENGINE_NAMES[15] === "FM TONE" && patchKindOf(13) === "va" && patchKindOf(12) === "fm6" && patchKindOf(14) === "cz" &&
    patchKindOf(15) === "quad" && PATCH_SIZE.quad === 80 && patchKindOf(0) === null && patchKindOf(1) === null,
-   "constants: ids, 16 engines, patch kinds (QUAD: quad, 80 bytes)");
+   "constants: ids, 16 engines, patch kinds (FM TONE: quad, 80 bytes)");
 const src = source();
 const { slots } = parseSoundObjects(src);
 const S = (n) => slots[n - 1];
@@ -412,8 +412,9 @@ const FX = {
   const bind = (r, f) => { r = r.slice(); r[175] = 0xA6; r[191] = f; return r; };
   ok(FACTORY_PRESETS[12][1] === "FM BELL" && FACTORY_PRESETS[12].length === 25 && FACTORY_PRESETS[14][0] === "INIT TONE" &&
      FACTORY_PRESETS[14].length === 65 && FACTORY_FIRST[14] === 1 && FACTORY_FIRST[12] === 0 &&
-     ["1", "4", "8", "10"].every((e) => !(e in FACTORY_PRESETS)) && poolOf(1) === 12 && poolOf(4) === 0 && poolOf(13) === 13,
-     "binding: the factory table (the firmware's, --check), the pools of retired engines");
+     ["0", "1", "4", "8", "10"].every((e) => !(e in FACTORY_PRESETS)) && poolOf(1) === 12 && poolOf(0) === 13 &&
+     poolOf(4) === 13 && poolOf(13) === 13,
+     "binding: the factory table (the firmware's, --check), the pools of retired engines (ANALOG's: the VA's)");
   // the table both clients embed is one string (tests/sound_templates.c --check looks for it in each)
   const line = (f, re) => (readFileSync(new URL(f, import.meta.url), "utf8").match(re) || [])[1];
   const jsF = line("./fm1sounds.js", /^export const FACTORY_PRESETS = (.*);$/m), pyF = line("../tools/fm1_install.py", /^FACTORY_PRESETS = (.*)$/m);
@@ -430,7 +431,8 @@ const FX = {
     7: bind(rec(1, "DIGI", { seed: 9 }), 3),              // U08 DIGITAL: FM6's pool, over FM BASS
     8: bind(rec(0, "GRID", { ver: 5, seed: 10 }), 1),     // U09 a drum grid record: never bound
     9: bind(rec(13, "VA PAD", { seed: 11 }), 25),         // U10 VA over its last preset, SHIMMER
-  };
+    10: bind(rec(0, "ANA STR", { seed: 13 }), 12),        // U11 ANALOG (retired in 0.14) over its STRINGS: the VA's
+  };                                                      //     pool, an added preset (not the VA's 12th)
   b6[2][191] = 4;
   const bo = new Map(source()); bo.set(6, bank(b6));
   const T = parseSoundObjects(bo).slots;
@@ -442,6 +444,8 @@ const FX = {
      "binding: CZ-1 over BRASS 1 = pool 01; INIT TONE and an index past the presets -> added");
   ok(T[7].bound && T[7].bound.label === "FM6 03" && T[7].bound.name === "FM BASS" && T[8].added && T[9].bound.label === "VA 25" &&
      T[9].bound.name === "SHIMMER", "binding: DIGITAL binds in FM6's pool, a grid record never, VA 25 SHIMMER");
+  ok(T[10].used && T[10].bound === null && T[10].added && T[10].engineName === "ANALOG",
+     "binding: an ANALOG record (retired) binds nothing: an added preset of the VA's pool");
   ok(T.filter((t) => !t.used).every((t) => t.bound === null && !t.added) && soundBindings([null, b6[0], b6[3]]).map((x) => x && x.pos).join() === ",2,",
      "binding: empty slots neither; soundBindings: the first of two wins");
   // the JSON field: written, informative; the record's bytes are the truth
@@ -477,14 +481,14 @@ const QUAD_FX = "UQEBAwMjGgoAP2RkZGQAUBhIAC4ALAABAQEAAQFkACgAQAAofwAAQAAAAH8AYCg
      view(q).getUint16(12, true) === 80 && view(q).getUint16(14, true) === 0 && same(q.subarray(16 + 9 * 80, 16 + 10 * 80), qb),
      "quad: an import into a blank FM-1 creates the QUAD store (QUDS, ver 1, 32 slots, used bit 9, blob 80), 2576 bytes; store first");
   const t = parseSoundObjects(r.objs).slots[9];
-  ok(t.used && t.engineName === "QUAD" && t.kind === "quad" && t.patch === "quad", "quad: U10 reads as QUAD with its patch");
+  ok(t.used && t.engineName === "FM TONE" && t.kind === "quad" && t.patch === "quad", "quad: U10 reads as QUAD with its patch");
   const e = exportSound(r.objs, 10, { created });
-  ok(e.engine === 15 && e.engineName === "QUAD" && e.patch.kind === "quad" && e.patch.data === QUAD_FX, "quad: export -> patch.kind quad, the blob");
+  ok(e.engine === 15 && e.engineName === "FM TONE" && e.patch.kind === "quad" && e.patch.data === QUAD_FX, "quad: export -> patch.kind quad, the blob");
   ok(throwsMsg(() => exportSyx(r.objs, 10), /only FM6 and CZ-1/), "quad: no .syx (exportSyx refuses a QUAD slot)");
   const bad = (m) => { const b = qb.slice(); m(b); return { ...f, patch: { kind: "quad", data: b64(b) } }; };
-  ok(throwsMsg(() => readSoundFile(bad((b) => { b[0] = 0x52; })), /QUAD patch is not/) && throwsMsg(() => readSoundFile(bad((b) => { b[1] = 2; })), /QUAD patch is not/) &&
+  ok(throwsMsg(() => readSoundFile(bad((b) => { b[0] = 0x52; })), /FM TONE patch is not/) && throwsMsg(() => readSoundFile(bad((b) => { b[1] = 3; })), /FM TONE patch is not/) &&
      throwsMsg(() => readSoundFile({ ...f, patch: { kind: "quad", data: b64(qb.subarray(0, 79)) } }), /79 bytes, not 80/) &&
-     throwsMsg(() => readSoundFile({ ...f, patch: { kind: "va", data: b64(blobs.va1) } }), /not the kind of its engine QUAD/),
+     throwsMsg(() => readSoundFile({ ...f, patch: { kind: "va", data: b64(blobs.va1) } }), /not the kind of its engine FM TONE/),
      "quad: file checks (magic, version, length, another kind)");
   const over = importSound(r.objs, 10, exportSound(src, 1));
   ok(over.changed.map((c) => c.id).join() === "9,22,6" && !(view(over.objs.get(22)).getUint32(8, true) >>> 9 & 1) &&

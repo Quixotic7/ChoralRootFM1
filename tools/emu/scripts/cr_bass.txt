@@ -1,6 +1,6 @@
-# ChoralRoot: ALGORITHM +9: the bass on (SUB BASS: ANALOG 08, after OFF and INIT), its meter; a chord: a bass note on part 1
+# ChoralRoot: ALGORITHM +18: the bass on (DEEP SUB: VA 17, after OFF and INIT), its meter; a chord: a bass note on part 1
 wait 300
-knob ALGORITHM +9
+knob ALGORITHM +18
 wait 300
 shot build/emu/test/cr_bass_meter.ppm
 expect led ENV on

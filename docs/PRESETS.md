@@ -15,8 +15,13 @@ it, no way to save over a factory sound). Mock-ups: `design/choralroot-fm1-prese
 
 ## The model
 
-- **A pool per engine.** Each engine's pool starts with **INIT** at position 00 (the engine's init sound, `cu_sound_init`; it cannot be overwritten: Overwrite on it is Save as new), then its factory presets (`engine_t.presets`: ANALOG 12, PHASE 6, LOFI 5,
-  VOICE, TRIO 5, WHEEL 5, PHYS 9, NOISE 4, FM6 24 (F1..F24), VA 25, CZ-1 64) followed by the presets the user added.
+- **A pool per engine.** Each engine's pool starts with **INIT** at position 00 (the engine's init sound, `cu_sound_init`; it cannot be overwritten: Overwrite on it is Save as new), then its factory presets (`engine_t.presets`: FM6 25 (F1..F24, PIANO),
+  FM TONE 16 (engine 15, `eng_quad.c`, code name QUAD), VA 25, CZ-1 64, PHASE 6, LOFI 5, VOICE, TRIO 5, WHEEL 5, PHYS 9,
+  NOISE 4: the picker's order since 0.14) followed by the presets the user added. ANALOG (engine 0, 12 presets) is retired
+  since 0.14 (`FELUCCA_ANALOG` 0): no pool; a user record of ANALOG is an added preset of the VA's pool and plays there
+  with its CUT / RES / DRIVE / MIX / DTN, filter envelope and ATK / REL on the VA's macros of the same name (`cr_ui.c`
+  `cu_analog_va`; its binding to an ANALOG factory preset is dropped), another retired engine's record (SAMPLE, GRAIN,
+  DRUM) the VA's init sound.
   Every entry is editable: **saving over a factory preset is allowed** and the factory one stays recoverable (reset).
 - **PRESETS turns inside the current engine's pool only** (the chord part's engine; ALGORITHM the bass part's). The
   popup: the number big, the name, `FM6 · 05/26` (00 = INIT, 01.. the factory presets, then the user's), the stripe meter over the pool; an overwritten factory preset
@@ -46,10 +51,10 @@ it, no way to save over a factory sound). Mock-ups: `design/choralroot-fm1-prese
   order. The list is built on demand from the 32 records (cheap: 32 comparisons).
 - "Reset to factory" deletes the bound record (the factory preset reappears). "Delete" deletes an added record.
 - The curated bank (`cr_bank.c` `CB_CHORD` / `CB_BASS`): its **trims** survive as a lookup by (engine, factory
-  preset) applied when that factory preset loads (the loud CZ-1 and ANALOG presets); its PIANO hybrid (FM6 TINE EP
+  preset) applied when that factory preset loads (the loud CZ-1 presets; ANALOG's STRINGS row went with ANALOG in 0.14); its PIANO hybrid (FM6 TINE EP
   through the macros) becomes a factory-shipped **bound record**? No: ship it as a real FM6 factory preset entry
   (`FM6_PRESETS` gains PIANO as F25 with its macro values), so the pool stays pure. The bank's row order, names and
-  the 48-row list go away; the default sound at power-on is FM6 TINE EP (F1).
+  the 48-row list go away; the default sound at power-on is FM6 TINE EP (F1); the bass's, VA DEEP SUB (ANALOG SUB BASS until 0.14).
 - Settings (`cr_settings.h`, add-a-field procedure of docs/SETTINGS.md): `chord_sound` becomes (engine, pool index)
   and the per-engine last preset per part (11 bytes x 2) joins the record (version 6); `bass_sound` the same.
 - The emulator's test_persist scripts and the Sounds page / CLI (docs/SOUNDS.md) need their expectations updated

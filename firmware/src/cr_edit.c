@@ -1097,6 +1097,25 @@ static uint32_t ce_kmod(void)
     return 0;
 }
 
+/* a value's whole text for the "deep:" trace line: a name of a name list uncut (param_format stops at 5 characters:
+ * "3.00/" for RATIO B's 3.00/6.00; the longest, "16.00/16.00", is 11), else as the cell shows it */
+static void ce_trace_value(const param_desc_t *d, int32_t v, char *b, uint32_t n)
+{
+    if (d->names && (d->fmt == F_ENUM || d->fmt == F_INT) && d->max >= d->min) {
+        uint32_t c = (uint32_t)(clamp(v, d->min, d->max) - d->min), k = 0;
+        if (d->fmt == F_INT) {                     /* (a 0-terminated list: the range split evenly over it) */
+            while (d->names[k])
+                k++;
+            c = k ? c * k / (uint32_t)(d->max - d->min + 1) : 0u;
+        }
+        if (d->fmt == F_ENUM || k) {
+            str_cpy(b, d->names[d->fmt == F_ENUM ? c + (uint32_t)d->min : c], n);
+            return;
+        }
+    }
+    cp_value(d, v, b, n);
+}
+
 /* KNOB 1..4 on the active lane's cell (fine: SHIFT latched or held, one step) */
 static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
 {
@@ -1106,7 +1125,7 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
     const param_desc_t *d;
     int32_t v0 = 0, v;
     uint32_t i, m = ce_kmod();
-    char b[12];
+    char b[16];                                    /* (the trace's value: up to 11 characters, ce_trace_value) */
     if (m == 3u) {                                 /* OCT- held: clear the parameter's modulation */
         cu.oct_mod = 1;                            /* (its release: no octave step) */
         ce_unmap(knob);
@@ -1135,7 +1154,7 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
             v = dd->get(t, r.a, r.b);
             cu_edited(ce.part);
         }
-        cp_value(d, v, b, sizeof b);
+        ce_trace_value(d, v, b, sizeof b);
         cu_trace("deep: part %u page %u %s col %u %s %d -> %d (%s)%s\n", (unsigned)ce.part, (unsigned)r.a,
                  dd->pages[r.a].title, (unsigned)r.b, d->label, (int)v0, (int)v, b, psnd[ce.part].edited ? " edited" : "");
         return;

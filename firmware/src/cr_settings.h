@@ -13,12 +13,14 @@
 #include <stdint.h>
 
 #define CRS_MAGIC 0x31535243u           /* "CRS1" */
-#define CRS_VERSION 6u
+#define CRS_VERSION 7u
 #define CRS_SIZE 192u                   /* bytes, header included; never changes (fields come out of rsv) */
 #define CRS_NPM 5                       /* perform modes (cr_engine.h CR_PM_COUNT) */
 #define CRS_NPAR 11                     /* parameters per mode (CR_P_COUNT) */
-#define CRS_SOUND_DEFAULT 0xFFFFu       /* chord_sound / bass_sound: the UI's own default (FM6 TINE EP, ANALOG SUB BASS) */
-#define CRS_NENG 11                     /* the engines shown (core.h NENG_SHOWN: cr_settings.c checks) */
+#define CRS_SOUND_DEFAULT 0xFFFFu       /* chord_sound / bass_sound: the UI's own default (FM6 TINE EP, VA DEEP SUB) */
+#define CRS_NENG 11                     /* the engines shown (core.h NENG_SHOWN: cr_settings.c checks), a pool_pos slot each */
+#define CRS_ENG_ANALOG 0u               /* engine numbers the record's migrations know (core.h): ANALOG (retired in 0.14), */
+#define CRS_ENG_QUAD 15u                /* FM TONE (ENGI_QUAD, code name QUAD): pool_pos slot 0 since version 7 */
 #define CRS_POOL_DEFAULT 1u             /* pool_pos: an engine not played yet lands on its first preset */
 #define CRS_PALETTE_MOD 0xFFu           /* palette: MOD, ChoralRoot's (gfx.c: the last palette) */
 enum { CRS_CLOCK_OFF, CRS_CLOCK_OUT, CRS_CLOCK_IN };
@@ -56,13 +58,17 @@ typedef struct {
     uint8_t metro_on, metro_sig, metro_vol, loop_slot;   /* the click, 4/4 3/4 6/8, its level 0..100, slot 0..9 */
     /* version 3 */
     uint8_t pick_roots;                              /* the engine picker's white roots: 1 engines, 0 they play */
-    /* version 4 (rsv_usb: v4's usb_out, Options > USB Audio Out, the playback removed in v5: always 0 since) */
+    /* version 4 (rsv_usb: v4's usb_out, Options > USB Audio Out, the playback removed in v5: 0 since; a 0.14 dev build's
+     * version-6 record kept FM TONE's chord place there, read once by the version-7 migration, then 0) */
     uint8_t rsv_usb, usb_in, usb_level;              /* -, Options > USB Record (on), USB Level (CRS_USB_*) */
     /* version 6 */
-    uint8_t pool_pos[2][10];                         /* per part (chord, bass), per engine (ENGINE_ORDER rank 0..9; rank
-                                                      * 10's: pool_pos10_*): the pool position last played there, where
-                                                      * OPT + PRESETS lands (CRS_POOL_DEFAULT before). The reserve is
-                                                      * used up: a new field needs a longer record (docs/SETTINGS.md) */
+    uint8_t pool_pos[2][10];                         /* per part (chord, bass), per engine slot 0..9 (slot 10's:
+                                                      * pool_pos10_*): the pool position last played there, where
+                                                      * OPT + PRESETS lands (CRS_POOL_DEFAULT before). The slots are
+                                                      * 0.13's display order, fixed: 0 FM TONE (ANALOG's until version
+                                                      * 7), 1 FM6, 2 VA, 3 PHASE, 4 CZ-1, 5 LOFI, 6 VOICE, 7 TRIO,
+                                                      * 8 WHEEL, 9 PHYS, 10 NOISE (cr_settings.c crs_slot). The reserve
+                                                      * is used up: a new field needs a longer record (docs/SETTINGS.md) */
 } cr_settings_t;
 
 /* what cr_out.c's routing takes (cr_route_t, written field by field by the unit's glue) */
@@ -79,7 +85,7 @@ void cr_settings_defaults(cr_settings_t *s);
 int  cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n);
 void cr_settings_seal(cr_settings_t *s);         /* header + checksum, before it is stored */
 int  cr_settings_equal(const cr_settings_t *a, const cr_settings_t *b);   /* the payloads */
-/* the pool position of part (0 chord, 1 bass) on the engine of ENGINE_ORDER rank r (0..CRS_NENG-1) */
+/* the pool position of part (0 chord, 1 bass) on the engine of pool_pos slot r (0..CRS_NENG-1) */
 static inline uint8_t crs_pool_get(const cr_settings_t *s, unsigned part, unsigned r)
 {
     part &= 1u;

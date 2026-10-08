@@ -22,6 +22,12 @@
 #define memset felucca_memset
 #define memcpy felucca_memcpy
 #define memcmp felucca_memcmp
+#if !defined(FELUCCA_ANALOG) && defined(FELUCCA_SEQ)
+#if !FELUCCA_SEQ
+#define FELUCCA_ANALOG 0         /* ChoralRoot's host units (FELUCCA_SEQ 0): ANALOG retired, as choralroot.c; Felucca's
+                                  * renders (run_tests.sh) keep it */
+#endif
+#endif
 #include "felucca_tables.h"
 #include "../firmware/src/libc.c"
 #undef memset

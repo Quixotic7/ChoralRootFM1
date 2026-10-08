@@ -35,8 +35,14 @@ not edited:
   SAMPLE's alias table (`SMP_ALL_NAMES`, `SMP_SET_ORIG`, `SMP_NSETS` 0: no alias).
 A retired engine keeps its number (the stores and the protocol hold numbers: `ENGINES[]` is append-only): its slot is
 `engines.c`'s `ENG_GONE` (no DSP, no presets, `eng_ok` false: the pickers and PRESETS never offer it). A user sound
-saved on engine 4, 8 or 10 (a Felucca slot, a restored bank) loads as the INIT sound on ANALOG under its name, with
-the message "engine retired: init sound" (and the trace line `load: slot N engine E retired -> INIT on ANALOG`).
+saved on engine 4, 8 or 10 (a Felucca slot, a restored bank) loads as the INIT sound on the VA under its name, with
+the message "engine retired: init sound" (and the trace line `load: slot N engine E retired -> INIT on VA`). ANALOG
+(engine 0) is retired too since 0.14 (`FELUCCA_ANALOG` 0 here, in the emulator, `tests/regress.c` and ChoralRoot's host
+units through `tests/hostsim.c`; default 1, so Felucca's unit keeps it): its code, presets and pool are out of the
+image; a user sound saved on ANALOG (a 0.13 slot) loads on the VA with its macros carried by name (CUT RES DRIVE MIX
+DTN, the filter envelope to FENV, ATK / REL; `cr_ui.c cu_analog_va`, the VA's init patch under them), an added preset
+of the VA's pool (`cr_bank.c cb_rec_engine`; its binding to an ANALOG factory preset is dropped), with the message
+"ANALOG retired: on the VA" (trace `load: slot N engine 0 (ANALOG) retired -> VA, its macros`).
 Felucca's own unit (`felucca.c`) and its host suites (`tests/hostsim.c`, `regress.c`) keep every flag at its default
 (1): nothing of Felucca changes. Felucca files touched only for the flags: `core.h` (the defaults, `NENG_SHOWN`),
 `engines.c` (the includes, `ENGINES[]`, `ENGINE_ORDER`, `eng_ok`, `TRK_DEF`, the retired slot and the shims above),
@@ -73,20 +79,29 @@ the tone store `cz_ustore.c` (`OBJ_PROJECT0 + 3` and `OBJ_CZSTORE1`, backup ids 
 band (`cr_draw.c`, `cr_edit.c`), five chord rows and a bass in `cr_bank.c`. The other engines render bit for bit as
 before (`tests/regress.c`: goldens added, none changed).
 
-**QUAD (2026-10-08, docs/QUAD.md).** Engine 15 (`ENGI_QUAD`, `FELUCCA_QUAD` 1 in this unit and the emulator, default 0;
+**FM TONE (engine 15, `eng_quad.c`, code name QUAD; 2026-10-08, docs/QUAD.md).** Engine 15 (`ENGI_QUAD`, `FELUCCA_QUAD` 1 in this unit and the emulator, default 0;
 it needs `FELUCCA_CZ`): a Digitone-style four-operator FM voice (`eng_quad.c`, `quad_tables.h`), its state its own pool
 arrays (no `eng_state` member). Kept files touched: `core.h` (`FELUCCA_QUAD`, `NENGINES`, `ENGI_QUAD`; the editor's
 `eng_screen_t` and `eng_deep_t.screens`), `engines.c` (the include, `ENGINES[15]`, `ENGINE_ORDER` after FM6),
 `eng_fm6.c` (`fm6_track_loaded` calls `quad_track_loaded`), `fx.c` (`quad_pan`), `storage.c` (`OBJ_QUADSTORE` on
 0xB2000 / 0xB3000), `upreset.c` (the store's hooks beside the CZ-1's), `tools/build.py` (the flag). ChoralRoot's
 additions: the patch store `quad_store.c` (backup id 22), the screen plan in `cr_edit.c` (a MOD-less engine accepted:
-MOD = the platform's routes), `cr_settings.c crs_slot` (the settings record's eleven engine slots kept, QUAD's chord
-place in `rsv_usb`), SAFE MODE's erase of the new pair. Memory (`./build.sh` 2026-10-08, with the DC blocker): XIP 413760 B of 581564 (71.1 %), RAM 79900 B of 98304
+MOD = the platform's routes), `cr_settings.c crs_slot` (the settings record's eleven engine slots kept, FM TONE's chord
+place in `rsv_usb` until ANALOG left: since settings version 7 FM TONE has ANALOG's slot 0, docs/SETTINGS.md), SAFE MODE's erase of the new pair. Memory (`./build.sh` 2026-10-08, with the DC blocker): XIP 413760 B of 581564 (71.1 %), RAM 79900 B of 98304
 (81.3 %), POOL 322608 B of 344064 (93.8 %: + 2576 B the store mirror + ~2.2 KB `quad_patch`, `quad_mlast`, `quad_lfo`,
 `quad_vs`), NOINIT 216 B; the target budget (`tests/target_budget.txt`) `quad_render` 6089, `quad_block` 43.
 The same build recorded `fm1_timer5_irq` 50160 (was 32275): the USB audio service (`ua_service`, a6d3553) runs in that
 ISR and the budget had not been re-recorded since; not QUAD's doing. The other
 engines render bit for bit as before (`tests/golden.txt`: 16 QUAD renders added, none changed).
+
+**0.14: FM TONE, ANALOG retired, the engine order (2026-10-08).** QUAD shows as **FM TONE** everywhere the user sees
+it (the engine picker, the popups "FM TONE · 03/17", the save page "FM TONE · 17", the Sounds page / CLI, backup
+object 22 "FM TONE patches"); the code name, files, flags and the patch kind `quad` stay. ANALOG retired (above;
+`ENGINES[0]` is `ENG_GONE`, `cr_bank.c`'s ANALOG trim row dropped, `tests/target_budget.txt`'s `analog_render` an
+optional entry). `ENGINE_ORDER`: FM6, FM TONE, VA, CZ-1, PHASE, LOFI, VOICE, TRIO, WHEEL, PHYS, NOISE: eleven engines, a
+white root each in the pickers (D4..G5). The bass at power-on (and for a settings record whose bass was ANALOG's) is VA
+DEEP SUB. perf.sh (c) / (i) now run on the VA bass DEEP SUB (ALGORITHM +18): (c) ISR 30 / 41 % (device est. avg / max),
+(i) 29 / 42 %, no holes, no clicks, no erase under sound.
 
 Build flags stay Felucca's; `FELUCCA_SLICE=0`, `FELUCCA_SLICER=0`, `FELUCCA_FM4=0`, `FELUCCA_UAC=1` (since 0.14 Melodee's
 USB audio recording: ChoralRoot In, docs/USB-AUDIO.md), `FELUCCA_UART=1`,
@@ -430,9 +445,8 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
   92 (-10 dB: Felucca's default 104, -4 dB, trimmed by 6 dB), the bass 92 too (-10 dB: trimmed by 6 dB; 98 until
   2026-10-06), so a 6-note chord stays out of the master limiter (Performance, item 2). A sound's load keeps the
   part's level (the rule above); MASTER makes up the loudness (about 4 dB quieter than before on a held chord).
-  **Per-sound trims**: the loud factory presets carry a trim (`cr_bank.c` `CB_TRIM`, by engine and preset name: ANALOG
-  STRINGS -1 dB, PHASE STRING / ORGAN -8 dB, PHASE BRASS -3 dB, VOICE CHOIR AAH -3 dB, CZ-1 BRASS 1 -5 dB, STRINGS 2
-  -3 dB, PIPE ORGAN 1 -6 dB; since docs/PRESETS.md also a user record bound to one of them), signed 0.5 dB steps, a
+  **Per-sound trims**: the loud factory presets carry a trim (`cr_bank.c` `CB_TRIM`, by engine and preset name: PHASE STRING / ORGAN -8 dB, PHASE BRASS -3 dB, VOICE CHOIR AAH -3 dB, CZ-1 BRASS 1 -5 dB, STRINGS 2
+  -3 dB, PIPE ORGAN 1 -6 dB; ANALOG STRINGS -1 dB until ANALOG was retired in 0.14; since docs/PRESETS.md also a user record bound to one of them), signed 0.5 dB steps, a
   gain after LEVEL (`track_t.trim`, applied in `fx.c` `mix_part` as LEVEL + trim steps of `LEVEL_Q12`, LEVEL 0 still
   OFF), set by `cu_pool_load` when such a preset loads from its pool; 0 for an added user preset, INIT, an engine
   switch, and on Felucca (its renders unchanged). LEVEL is never touched. Trims (measured as Performance item 2:
@@ -527,8 +541,8 @@ MLVL +10, MEG -16, VMOD +2, FB +1, DTUN 12: an EP-piano hybrid; no new factory p
 come before B1..B32, docs/FM6.md);
 15 CLOUD PAD and 16 SHIMMER (were GRAIN's) are VA presets 23 / 24 (docs/VA.md). Levels with `tests/va_levels.c`
 (chord alone / with SUB BASS, the share under the limiter): PIANO 0 / 0 %, CLOUD PAD 0 / 1.4 %, SHIMMER 0 / 0 %;
-trims 0. The emulator's `cr_allsynth.txt` plays the three. A user sound on a retired engine loads as INIT on ANALOG
-(section 1). The flash of user sample slots 1-2 (0xA0000..0xC7FFF): 0xA0000..0xB1FFF holds the CZ-1 tone store's second half and the eight CZ-1 banks (docs/CZ1.md), the rest stays free; slot 3's holds the loops.
+trims 0. The emulator's `cr_allsynth.txt` plays the three. A user sound on a retired engine loads as INIT on the VA
+(section 1; an ANALOG one with its macros). The flash of user sample slots 1-2 (0xA0000..0xC7FFF): 0xA0000..0xB1FFF holds the CZ-1 tone store's second half and the eight CZ-1 banks (docs/CZ1.md), the rest stays free; slot 3's holds the loops.
 
 ### Stubbed (screens and gestures only; TODO in the code)
 

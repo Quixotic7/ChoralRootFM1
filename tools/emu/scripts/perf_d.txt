@@ -13,7 +13,7 @@ knob PRESETS +4               # FM6 05 FM PAD
 wait 200
 knob SELECT +80
 wait 200
-knob ALGORITHM +9             # OFF -> ANALOG 08 SUB BASS (the bass part's pool, after OFF)
+knob ALGORITHM +18            # OFF -> VA 17 DEEP SUB (the bass part's pool, after OFF; ANALOG SUB BASS until 0.14)
 wait 300
 btn REC
 wait 300

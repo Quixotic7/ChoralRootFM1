@@ -242,6 +242,21 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
                 crs_pool_set(s, 1, i, crs_pool_get(&d, 1, i));
             }
         }
+        if (in.version < 7u) {                     /* version 7 (0.14): ANALOG retired; its pool_pos slot 0 is FM
+                                                    * TONE's. The chord part's place there: rsv_usb, where a 0.14 dev
+                                                    * build kept it (0 in a 0.13 record: the first preset); the bass
+                                                    * part's: bass_sound's when the bass played FM TONE. A part's sound
+                                                    * on ANALOG: the default (TINE EP, DEEP SUB) */
+            uint8_t q = s->rsv_usb;
+            crs_pool_set(s, 0, 0, q && q <= 127u ? q : CRS_POOL_DEFAULT);
+            crs_pool_set(s, 1, 0, s->bass_sound != CRS_SOUND_DEFAULT && (s->bass_sound >> 8) == CRS_ENG_QUAD ?
+                                      (uint8_t)(s->bass_sound & 0xFFu) : CRS_POOL_DEFAULT);
+            s->rsv_usb = 0;
+            if (s->chord_sound != CRS_SOUND_DEFAULT && (s->chord_sound >> 8) == CRS_ENG_ANALOG)
+                s->chord_sound = CRS_SOUND_DEFAULT;
+            if (s->bass_sound != CRS_SOUND_DEFAULT && (s->bass_sound >> 8) == CRS_ENG_ANALOG)
+                s->bass_sound = CRS_SOUND_DEFAULT;
+        }
     }
     crs_sanitize(s);
     cr_settings_seal(s);
@@ -363,21 +378,22 @@ static void cr_settings_boot(void)                 /* persist_boot (flash_ok kno
     crs_usb_apply(&crs_rec.cr);                    /* (before usb_start: the configuration the host first reads) */
 }
 
-/* the record's pool_pos slot of the engine of ENGINE_ORDER rank r: CRS_NENG = 11 slots, the engines shown in version 6's
- * order. QUAD (FELUCCA_QUAD, rank 2 since 0.14: after FM6) has none (-1; the record has no room left and the other
- * engines keep their slots, so a 0.13 record means what it meant): the chord part's place in QUAD's pool is kept in
- * the retired byte rsv_usb (0: none yet), the bass part's in bass_sound while the bass plays QUAD */
-#if FELUCCA_QUAD
-typedef char crs_neng_ok[CRS_NENG + 1 == NENG_SHOWN ? 1 : -1];   /* (pool_pos: one per engine shown but QUAD) */
+/* the record's pool_pos slot of the engine of ENGINE_ORDER rank r (cr_settings.h): CRS_NENG = 11 slots, fixed per engine
+ * in 0.13's display order, so a 0.13 record means what it meant whatever the order shown today; ANALOG's slot 0 is FM
+ * TONE's since version 7 (ANALOG retired, FELUCCA_ANALOG 0). -1: an engine with no slot (none on ChoralRoot) */
+#if FELUCCA_ANALOG || !FELUCCA_VA || !FELUCCA_CZ || !FELUCCA_QUAD
+#error "cr_settings.c: the record's engine slots are ChoralRoot's (FELUCCA_ANALOG 0, FELUCCA_VA / CZ / QUAD 1)"
+#endif
+typedef char crs_neng_ok[CRS_NENG == NENG_SHOWN && CRS_ENG_QUAD == ENGI_QUAD ? 1 : -1];   /* (one per engine shown) */
+static const uint8_t CRS_SLOT_ENG[CRS_NENG] = {ENGI_QUAD, ENGI_FM6, ENGI_VA, 2, ENGI_CZ, 3, 5, 6, 7, ENGI_PHYS, 11};
 static int32_t crs_slot(uint32_t r)
 {
-    uint32_t q = eng_rank(ENGI_QUAD);
-    return r == q ? -1 : (int32_t)(r < q ? r : r - 1u);
+    uint32_t e = eng_vis(r), k;
+    for (k = 0; k < (uint32_t)CRS_NENG; k++)
+        if (CRS_SLOT_ENG[k] == e)
+            return (int32_t)k;
+    return -1;
 }
-#else
-typedef char crs_neng_ok[CRS_NENG == NENG_SHOWN ? 1 : -1];   /* (pool_pos: one per engine shown) */
-static int32_t crs_slot(uint32_t r) { return (int32_t)r; }
-#endif
 
 /* a stored sound (engine << 8 | pool position) into the part, if it is one of a pool today; 1 loaded */
 static int crs_sound(uint32_t part, uint16_t v)
@@ -451,10 +467,8 @@ static void crs_capture(cr_settings_t *s)
                                cs.pool_pos[1][eng_rank(trk[CR_PART_BASS].eng_req % NENGINES)]);
     for (i = 0; i < (uint32_t)NENG_SHOWN; i++) {
         int32_t k = crs_slot(i);
-        if (k < 0) {                                /* QUAD: the chord part's place (crs_slot) */
-            s->rsv_usb = cs.pool_pos[0][i];
+        if (k < 0)
             continue;
-        }
         crs_pool_set(s, 0, (unsigned)k, cs.pool_pos[0][i]);
         crs_pool_set(s, 1, (unsigned)k, cs.pool_pos[1][i]);
     }
@@ -512,10 +526,8 @@ static void cr_settings_load(void)
     palette_set(s->palette < NPALETTES ? s->palette : NPALETTES - 1u);
     for (i = 0; i < (uint32_t)NENG_SHOWN; i++) {    /* each part's place per engine (the pools: checked on use) */
         int32_t k = crs_slot(i);
-        if (k < 0) {                                /* QUAD: rsv_usb, the bass's sound (crs_slot) */
-            cs.pool_pos[0][i] = (uint8_t)(s->rsv_usb && s->rsv_usb <= 127u ? s->rsv_usb : CRS_POOL_DEFAULT);
-            cs.pool_pos[1][i] = (uint8_t)(s->bass_sound != CRS_SOUND_DEFAULT && (s->bass_sound >> 8) == eng_vis(i) ?
-                                          s->bass_sound & 0xFFu : CRS_POOL_DEFAULT);
+        if (k < 0) {                                /* (an engine with no slot: its first preset) */
+            cs.pool_pos[0][i] = cs.pool_pos[1][i] = CRS_POOL_DEFAULT;
             continue;
         }
         cs.pool_pos[0][i] = crs_pool_get(s, 0, (unsigned)k);

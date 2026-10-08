@@ -57,6 +57,9 @@
 #ifndef FELUCCA_DRUM
 #define FELUCCA_DRUM 0           /* no DRUM engine (engine 10: a retired slot; frees its kit's POOL) */
 #endif
+#ifndef FELUCCA_ANALOG
+#define FELUCCA_ANALOG 0         /* no ANALOG engine (engine 0: a retired slot; the VA replaces it, its records load there) */
+#endif
 #ifndef FELUCCA_SEQ
 #define FELUCCA_SEQ 0            /* no Felucca sequencer (seq.c and its satellites): cr_out.c's events_block, midi_event */
 #endif

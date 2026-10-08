@@ -28,10 +28,10 @@ the writer creates it with the header below). Multi-byte fields are little-endia
 | 9 | the VA patch store (`va_store.c` `va_store_t`) | 3536 | one 110-byte VA blob per slot 1..32 |
 | 10, 11 | the FM6 patch store, halves 0 / 1 (`fm6_ustore.c` `fm6u_t`) | 2064 | one 128-byte FM6 blob per slot 1..16 / 17..32 |
 | 12, 13 | the CZ-1 tone store, halves 0 / 1 (`cz_ustore.c` `czu_t`) | 2320 | one 144-byte CZ-1 tone per slot 1..16 / 17..32 |
-| 22 | the QUAD patch store (`quad_store.c` `quad_store_t`; firmware 0.14 on) | 2576 | one 80-byte QUAD blob per slot 1..32 |
+| 22 | the FM TONE patch store ("FM TONE patches": FM TONE is engine 15, `eng_quad.c`, code name QUAD; `quad_store.c` `quad_store_t`; firmware 0.14 on) | 2576 | one 80-byte FM TONE blob per slot 1..32 |
 
-Object 22 is read when the FM-1 lists it: an older ChoralRoot (no QUAD) is read as before, its QUAD store empty (a QUAD
-sound cannot be imported there: the write of object 22 is refused, rc 1).
+Object 22 is read when the FM-1 lists it: an older ChoralRoot (no FM TONE) is read as before, its FM TONE store empty (an
+FM TONE sound cannot be imported there: the write of object 22 is refused, rc 1).
 
 ### A bank (`up_bank_t`, 3080 bytes)
 
@@ -68,8 +68,9 @@ with a binding, and `flags[15]` (byte 191) is then the **index + 1 of the factor
 without the mark (older firmware, a client's, a restore) is an added preset of its engine; so is a mark naming no
 factory preset of the engine, or one an earlier slot already binds (the first bound slot wins). The pool of an engine:
 00 INIT, its factory presets (each replaced by the slot bound to it), then the added records in slot order. The pool
-of a record is its engine; a DIGITAL record (1) is in FM6's, another retired engine's in ANALOG's; a drum grid record
-(ver 3 or 5) is never bound. Older firmware reads a bound record as an ordinary one (a note 38 on step 16 of a pattern
+of a record is its engine; a DIGITAL record (1) is in FM6's (and binds there), another retired engine's in the VA's
+(ANALOG, 0, retired in 0.14, plays there with its macros; SAMPLE GRAIN DRUM as the VA's INIT), never bound; a drum grid
+record (ver 3 or 5) is never bound. Older firmware reads a bound record as an ordinary one (a note 38 on step 16 of a pattern
 it never plays here); `up_valid` is unchanged.
 
 **What the clients show** (`web/fm1sounds.js` `parseSoundObjects` / `soundBindings`, `tools/fm1_install.py`
@@ -94,14 +95,14 @@ Engines (`ENGINES[]`, append-only; the retired ones are never produced by this f
 
 | engine | name | patch kind | engine | name | patch kind |
 | --- | --- | --- | --- | --- | --- |
-| 0 | ANALOG | – | 8 | GRAIN (retired) | – |
+| 0 | ANALOG (retired in 0.14: loads on the VA) | – | 8 | GRAIN (retired) | – |
 | 1 | DIGITAL (retired: loads as FM6) | – | 9 | PHYS | – |
 | 2 | PHASE | – | 10 | DRUM (retired) | – |
 | 3 | LOFI | – | 11 | NOISE | – |
 | 4 | SAMPLE (retired) | – | 12 | FM6 | `fm6` (128 bytes) |
 | 5 | VOICE | – | 13 | VA | `va` (110 bytes) |
 | 6 | TRIO | – | 14 | CZ-1 | `cz` (144 bytes) |
-| 7 | WHEEL | – | 15 | QUAD | `quad` (80 bytes) |
+| 7 | WHEEL | – | 15 | FM TONE | `quad` (80 bytes) |
 
 ### The VA store (`va_store_t`, 3536 bytes)
 
@@ -134,7 +135,7 @@ full check (rc 2: nothing written).
 An FM6 blob: 128 bytes, bytes 112, 113 = 'F' (0x46), 1 (the FM-1 checks the voice, `fm6_blob_ok`). A CZ-1 tone: 144
 bytes (the FM-1 checks it, `cz_patch_valid`). The clients check the lengths and FM6's magic only.
 
-### The QUAD store (`quad_store_t`, 2576 bytes; docs/QUAD.md)
+### The FM TONE store (`quad_store_t`, 2576 bytes; docs/QUAD.md)
 
 ```
 0   u32  magic   0x53445551  "QUDS"
@@ -146,16 +147,18 @@ bytes (the FM-1 checks it, `cz_patch_valid`). The clients check the lengths and 
 16  32 x 80 bytes: patch k
 ```
 
-A QUAD blob (`eng_quad.c` `quad_pack`): byte 0 = 'Q' (0x51), byte 1 = the version 1, then a byte per value (the value
-minus its minimum: 0..200, so **not 7-bit clean**: the backup protocol's pack7 carries it), zeros to 80. The FM-1 checks
-every byte (`quad_blob_ok`: the ranges, the zero padding); the clients check the magic, the version and the length. A
-QUAD sound's PAN and DRIVE are the record's track parameters, not in the blob. **No .syx** for QUAD (no standard
-format): the page shows no Export .syx button on a QUAD row (it offers one for FM6 / CZ-1 patches only) and
+An FM TONE blob (`eng_quad.c` `quad_pack`): byte 0 = 'Q' (0x51), byte 1 = the version 2 (0.14: 72 values, RATIO B's B1
+and B2 two values), then a byte per value (the value minus its minimum: 0..200, so **not 7-bit clean**: the backup
+protocol's pack7 carries it), then 6 zero bytes to 80. Version 1 (a 0.14 dev build's) is still read: the FM-1 converts
+it. The FM-1 checks every byte (`quad_blob_ok`: the ranges, the zero padding); the clients check the magic, the version
+(1 or 2) and the length. A
+FM TONE sound's PAN and DRIVE are the record's track parameters, not in the blob. **No .syx** for FM TONE (no standard
+format): the page shows no Export .syx button on an FM TONE row (it offers one for FM6 / CZ-1 patches only) and
 `exportSyx` / `--export-syx` refuse the slot.
 
 ## The slot table
 
-From the seven objects (eight with the QUAD store), 32 slots (1..32). A slot is **used** when its record is valid. Its patch is the blob of the
+From the seven objects (eight with the FM TONE store), 32 slots (1..32). A slot is **used** when its record is valid. Its patch is the blob of the
 store that matches its engine (VA 13 -> store 9, FM6 12 -> store 10 / 11, CZ-1 14 -> 12 / 13) when that store's `used`
 bit is set; a used slot of such an engine without its blob plays with the engine's defaults (the FM-1 loads the init
 patch or its PTCH / BANK slot: a sound saved before the store existed, or restored without it). A blob in a store whose
@@ -208,7 +211,7 @@ reads. **Order: the stores first, the bank last**, so a refused patch leaves the
 | **export** slot k | the record | the blob of the slot's engine kind, if its bit is set |
 | **import** file into slot k | the file's record (name from the JSON if given), `used` 0xA5 | the file's patch into the store of the engine's kind at slot k (bit set); the other kinds' bit k cleared and their bytes zeroed (as `va_store_saved` / `fm6u_saved` / `czu_saved` / `quad_store_saved` do on the FM-1); the stores in the order 9 10 11 12 13 22, the bank last |
 | **rename** slot k | `name` rewritten (zero-padded), nothing else | – |
-| **delete** slot k | the record zeroed (192 x 0) | bit k cleared and the bytes zeroed in all four kinds (VA FM6 CZ-1 QUAD) |
+| **delete** slot k | the record zeroed (192 x 0) | bit k cleared and the bytes zeroed in all four kinds (VA FM6 CZ-1 FM TONE) |
 
 An empty bank or store object (size 0) that needs a slot written is created from the header above with every other
 slot empty. A bank is written whole (3080 bytes, one sector erase on the FM-1, ~45 ms of silence); so is a store.
@@ -339,7 +342,7 @@ other engine's kind or of an engine the slot is not is simply the file's engine:
 
 ## Not done
 
-- **More than 32 slots.** 152 KiB of flash is free (0xB4000..0xC7FFF; 0xB2000 / 0xB3000 hold the QUAD store), but the stores are mirrored in the pool
+- **More than 32 slots.** 152 KiB of flash is free (0xB4000..0xC7FFF; 0xB2000 / 0xB3000 hold the FM TONE store), but the stores are mirrored in the pool
   (`va_store` 3536, `fm6u` 2 x 2064, `czu` 2 x 2320 bytes) and the banks in RAM (2 x 3080); POOL is at 92 % and RAM at
   80 %. 64 slots would need a second VA store object (64 x 110 bytes exceed one object's 3840-byte payload), new halves
   for FM6 and CZ-1, wider `used` masks, the UI's `U01..U32` picker, new backup ids, and about 12 KB of POOL. Possible

@@ -697,15 +697,15 @@ def sounds():
     q = side.objs.get(22, b"")
     ok(rc == 0 and len(qb) == 80 and side.log == [22, 6] and len(q) == 2576 and q[:4] == b"QUDS" and q[4:8] == bytes([1, 0, 32, 0])
        and int.from_bytes(q[8:12], "little") == 1 << 9 and q[12:16] == bytes([80, 0, 0, 0]) and q[16 + 9 * 80:16 + 10 * 80] == qb
-       and "U10  MY QUAD" in out and "QUAD" in out, "--import-sound of a QUAD sound: the QUAD store (22) created, then the bank")
+       and "U10  MY QUAD" in out and "FM TONE" in out, "--import-sound of a QUAD sound: the QUAD store (22) created, then the bank")
     rc, out, err = cli(["--export-sound", "10", str(TMP / "quad2.json")], dev)
     e = json.loads((TMP / "quad2.json").read_text()) if (TMP / "quad2.json").exists() else {}
-    ok(rc == 0 and e.get("engineName") == "QUAD" and e.get("patch", {}).get("kind") == "quad" and
+    ok(rc == 0 and e.get("engineName") == "FM TONE" and e.get("patch", {}).get("kind") == "quad" and
        base64.b64decode(e["patch"]["data"]) == qb, "--export-sound of a QUAD sound: patch kind quad, its 80 bytes")
     rc, out, err = cli(["--delete-sound", "10", "--yes"], dev)
     ok(rc == 0 and side.log[2:] == [22, 6] and not int.from_bytes(side.objs[22][8:12], "little"), "--delete-sound of a QUAD sound: its bit cleared, the bank last")
     badq = []
-    for data, word in ((b"R" + qb[1:], "QUAD"), (qb[:1] + b"\x02" + qb[2:], "QUAD"), (qb[:79], "bytes, not 80")):
+    for data, word in ((b"R" + qb[1:], "FM TONE"), (qb[:1] + b"\x03" + qb[2:], "FM TONE"), (qb[:79], "bytes, not 80")):
         try:
             I.read_sound_file({**json.loads(fq.read_text()), "patch": {"kind": "quad", "data": base64.b64encode(data).decode()}})
             badq.append((word, "accepted"))
@@ -869,8 +869,9 @@ def bindings():
         return bytes(r)
     fp, ff = I.FACTORY_PRESETS, I.FACTORY_FIRST
     ok(fp["12"][1] == "FM BELL" and len(fp["12"]) == 25 and fp["14"][0] == "INIT TONE" and len(fp["14"]) == 65 and
-       ff["14"] == 1 and ff["12"] == 0 and not any(e in fp for e in ("1", "4", "8", "10")) and I.pool_of(1) == 12 and
-       I.pool_of(8) == 0 and I.pool_of(14) == 14, "binding: the factory table (the firmware's, --check), retired engines' pools")
+       ff["14"] == 1 and ff["12"] == 0 and not any(e in fp for e in ("0", "1", "4", "8", "10")) and I.pool_of(1) == 12 and
+       I.pool_of(0) == 13 and I.pool_of(8) == 13 and I.pool_of(14) == 14,
+       "binding: the factory table (the firmware's, --check), retired engines' pools (ANALOG's: the VA's)")
     js = (ROOT / "web" / "fm1sounds.js").read_text()
     jf = re.search(r"^export const FACTORY_PRESETS = (.*);$", js, re.M)
     js1 = re.search(r"^export const FACTORY_FIRST = (.*);$", js, re.M)

@@ -19,7 +19,8 @@
  *
  * The patch is the sound: QP_NP signed bytes per part (quad_patch), the deep pages edit it (eng_deep_t get / set from
  * the main loop), a factory preset (blob_preset), a user slot (the blob) or the init patch load it. The eight P_E0..P_E7
- * are macros into the patch (the SYN 1 page: ALGO RATIO C RATIO A RATIO B | HARM DTUNE FDBK MIX, patch values 0..7);
+ * are macros into the patch (the SYN 1 page: ALGO RATIO C RATIO A RATIO B | HARM DTUNE FDBK MIX, patch values 0..7;
+ * RATIO B's macro is B1's step, the deep column the pair: B2 x QUAD_NRCB + B1, 0..360, B2 in the patch after the LFOs);
  * quad_block picks a macro change up, a deep set writes the macro back, as the VA. AMP's PAN and DRIVE are the part's
  * P_PAN and P_DIST (not in the patch: the deep page reads and writes the track parameters).
  *
@@ -34,12 +35,13 @@
 #define QUAD_POLY 8              /* engine_t.poly (docs/QUAD.md: CPU) */
 #define QUAD_BLOB 80u            /* packed patch: 2 bytes magic / version, QP_NP values, zero padding */
 #define QUAD_MAGIC 0x51u         /* 'Q' */
-#define QUAD_VER 1u
+#define QUAD_VER 2u              /* 2: B1 and B2 two values (QP_RB1, QP_RB2); 1 (read): RATIO B one value, BR x 19 + B1 */
+#define QUAD_NP_V1 71u           /* version 1's values (no QP_RB2) */
 
 /* --------------------------------------------------------- the patch --- */
 enum { QL_SPEED, QL_MULT, QL_FADE, QL_DEST, QL_WAVE, QL_PHASE, QL_TRIG, QL_DEPTH, QL_N };   /* per LFO */
 enum {
-    QP_ALGO, QP_RC, QP_RA, QP_RB, QP_HARM, QP_DTUN, QP_FDBK, QP_MIX,       /* 0..7: the macros (SYN 1) */
+    QP_ALGO, QP_RC, QP_RA, QP_RB1, QP_HARM, QP_DTUN, QP_FDBK, QP_MIX,      /* 0..7: the macros (SYN 1) */
     QP_OFSC, QP_OFSA, QP_OFSB1, QP_OFSB2,                                  /* SYN 2 */
     QP_AATK, QP_ADEC, QP_AEND, QP_ALEV,                                    /* ENV A */
     QP_BATK, QP_BDEC, QP_BEND, QP_BLEV,                                    /* ENV B */
@@ -51,10 +53,11 @@ enum {
     QP_FDLY, QP_FKTRK, QP_BASE, QP_WIDTH,                                  /* FILT 2, FILT 2+ */
     QP_EATK, QP_EDEC, QP_ESUS, QP_EREL, QP_LEVEL,                          /* AMP, AMP+ */
     QP_LFO0,
-    QP_NP = QP_LFO0 + 3 * QL_N
+    QP_RB2 = QP_LFO0 + 3 * QL_N,                                           /* B2's step (version 2) */
+    QP_NP
 };
 #define QP_LFO(k, f) (QP_LFO0 + (k) * QL_N + (f))
-_Static_assert(QP_NP == 71 && QP_NP + 2u + 2u <= QUAD_BLOB && QUAD_BLOB <= ENG_BLOB_MAX, "QUAD patch layout");
+_Static_assert(QP_NP == 72 && QP_RB2 == QUAD_NP_V1 && QP_NP + 2u + 2u <= QUAD_BLOB && QUAD_BLOB <= ENG_BLOB_MAX, "QUAD patch layout");
 
 enum { QF_LP, QF_HP, QF_BP, QF_N };                                        /* FTYPE */
 enum { QW_TRI, QW_SINE, QW_SQR, QW_SAW, QW_RAMP, QW_EXP, QW_RAND, QW_N };   /* LFO WAVE */
@@ -90,7 +93,8 @@ static const quad_algo_t QUAD_ALGO[8] = {
 #define QC_ALGO {"ALGO", F_INT, 1, 8, 1, 0, 0}
 #define QC_RC {"RATIO C", F_INT, 0, QUAD_NRCB - 1, 3, N_QUAD_RCB, 0}
 #define QC_RA {"RATIO A", F_INT, 0, QUAD_NRA - 1, 3, N_QUAD_RA, 0}
-#define QC_RB {"RATIO B", F_INT, 0, QUAD_NRB - 1, QUAD_RB_DEF, N_QUAD_RB, 0}
+#define QC_RB {"RATIO B", F_INT, 0, QUAD_NRB - 1, QUAD_RB_DEF, N_QUAD_RB, 0}   /* the pair (deep: one per detent) */
+#define QC_RB1 {"RATIO B", F_INT, 0, QUAD_NRCB - 1, 3, N_QUAD_RCB, 0}             /* the macro P_E3: B1's step */
 #define QC_HARM {"HARM", F_OFS, -26, 26, 0, 0, 0}
 #define QC_DTUN {"DTUNE", F_INT, 0, 127, 0, 0, 0}
 #define QC_FDBK {"FDBK", F_INT, 0, 127, 0, 0, 0}
@@ -145,7 +149,7 @@ _Static_assert(NELEM(QUAD_PAGES) == 20, "QUAD pages");
 #define QUAD_LPG(k) {QP_LFO(k, QL_SPEED), QP_LFO(k, QL_MULT), QP_LFO(k, QL_FADE), QP_LFO(k, QL_DEST)}, \
                     {QP_LFO(k, QL_WAVE), QP_LFO(k, QL_PHASE), QP_LFO(k, QL_TRIG), QP_LFO(k, QL_DEPTH)}
 static const uint8_t QUAD_MAP[NELEM(QUAD_PAGES)][4] = {
-    {QP_ALGO, QP_RC, QP_RA, QP_RB},
+    {QP_ALGO, QP_RC, QP_RA, QP_RB1},             /* (RATIO B: the pair, B1 and QP_RB2: quad_get / quad_set) */
     {QP_HARM, QP_DTUN, QP_FDBK, QP_MIX},
     {QP_OFSC, QP_OFSA, QP_OFSB1, QP_OFSB2},
     {QP_FATK, QP_FDEC, QP_FSUS, QP_FREL},
@@ -162,12 +166,18 @@ static const uint8_t QUAD_MAP[NELEM(QUAD_PAGES)][4] = {
     QUAD_LPG(0), QUAD_LPG(1), QUAD_LPG(2),
 };
 
-/* the range and the init value of patch value i: the page column that shows it (every value is on one page) */
+/* the range and the init value of patch value i: the page column that shows it (every value is on one page; B1 and
+ * B2 share RATIO B's: a C/B step each) */
 typedef struct { int8_t min, max, def; } quad_rng_t;
 static quad_rng_t quad_range(uint32_t i)
 {
     quad_rng_t r = {0, 0, 0};
     uint32_t pg, c;
+    if (i == QP_RB1 || i == QP_RB2) {
+        r.max = (int8_t)(QUAD_NRCB - 1u);
+        r.def = 3;                               /* 1.00 */
+        return r;
+    }
     for (pg = 0; pg < QUAD_NPAGES; pg++)
         for (c = 0; c < 4u; c++)
             if (QUAD_MAP[pg][c] == i) {
@@ -234,20 +244,40 @@ static void quad_pack(const int8_t *p, uint8_t *b)
         b[i] = 0;
 }
 
+/* a valid blob: version 2, or version 1 (QUAD_NP_V1 values, RATIO B 0..QUAD_NRB_V1 - 1: quad_unpack converts it) */
 static int quad_blob_ok(const uint8_t *b)
 {
-    uint32_t i;
-    if (!b || b[0] != QUAD_MAGIC || b[1] != QUAD_VER)
+    uint32_t i, np;
+    if (!b || b[0] != QUAD_MAGIC || (b[1] != QUAD_VER && b[1] != 1u))
         return 0;
-    for (i = 0; i < QP_NP; i++) {
+    np = b[1] == 1u ? QUAD_NP_V1 : QP_NP;
+    for (i = 0; i < np; i++) {
         quad_rng_t r = quad_range(i);
-        if (b[2 + i] > (uint32_t)(r.max - r.min))
+        if (b[2 + i] > (b[1] == 1u && i == QP_RB1 ? QUAD_NRB_V1 - 1u : (uint32_t)(r.max - r.min)))
             return 0;
     }
-    for (i = 2 + QP_NP; i < QUAD_BLOB; i++)
+    for (i = 2 + np; i < QUAD_BLOB; i++)
         if (b[i])
             return 0;
     return 1;
+}
+
+/* version 1's RATIO B (BR index x 19 + B1 index, B2 = B1 x BR) as B1, B2 and OFS B2: B2 the nearest step to B1 x BR
+ * (the lower one when halfway), the rest in OFS B2 (1/100, clamped at +-1.00: exact for the halves, 1.5 = 1 + 0.50) */
+static void quad_rb_v1(int32_t v, int8_t *p)
+{
+    int32_t b1 = v % (int32_t)QUAD_NRCB, br = v / (int32_t)QUAD_NRCB, k, b2 = 0, d, o;
+    int32_t want = (int32_t)(((int64_t)QUAD_RCB_Q16[b1] * QUAD_BR_Q16[br]) >> 16);
+    for (k = 1; k < (int32_t)QUAD_NRCB; k++) {
+        int32_t e = QUAD_RCB_Q16[k] - want, e0 = QUAD_RCB_Q16[b2] - want;
+        if ((e < 0 ? -e : e) < (e0 < 0 ? -e0 : e0))
+            b2 = k;
+    }
+    d = want - QUAD_RCB_Q16[b2];                 /* Q16, the rounding below: to 1/100 */
+    o = p[QP_OFSB2] + (d >= 0 ? (d * 100 + 32768) >> 16 : -((-d * 100 + 32768) >> 16));
+    p[QP_RB1] = (int8_t)b1;
+    p[QP_RB2] = (int8_t)b2;
+    p[QP_OFSB2] = (int8_t)clamp(o, -100, 100);
 }
 
 /* blob -> patch; 0 or a bad blob: the init patch. 1 = the blob was taken */
@@ -257,6 +287,13 @@ static int quad_unpack(const uint8_t *b, int8_t *p)
     quad_init_patch(p);
     if (!quad_blob_ok(b))
         return 0;
+    if (b[1] == 1u) {                            /* version 1: its values, RATIO B converted */
+        for (i = 0; i < QUAD_NP_V1; i++)
+            if (i != QP_RB1)
+                p[i] = (int8_t)(b[2 + i] + quad_range(i).min);
+        quad_rb_v1(b[2 + QP_RB1], p);
+        return 1;
+    }
     for (i = 0; i < QP_NP; i++)
         p[i] = (int8_t)(b[2 + i] + quad_range(i).min);
     return 1;
@@ -276,15 +313,16 @@ static void quad_macros_out(track_t *t)
 }
 
 /* ------------------------------------------------------------ presets --- */
-/* a preset: the init patch with these (index, value) pairs, 0xFF ends. The ratio indices: RC / RA / RB (quad_tables.h;
- * QRC(r): C/B's step of ratio r (x4: 1 = 0.25 .. 4 = 1.00, then 8 = 2.00 ..), QRA(r): A's (x4), QRB(b1, br): the pair
- * B1 step (x4) and BR's index (0.5 1 1.5 2 3 4) */
+/* a preset: the init patch with these (index, value) pairs, 0xFF ends. The ratio indices: RC / RA / RB1 / RB2
+ * (quad_tables.h; QRC(r): C/B's step of ratio r (x4: 1 = 0.25 .. 4 = 1.00, then 8 = 2.00 ..), QRA(r): A's (x4),
+ * QRB(b1, b2): RATIO B's pair index (B1 and B2 x4: QRB(4, 8) = 1.00/2.00). Two of version 1's pairs were not on the
+ * grid (B2 = B1 x 1.5): METAL 7/10.5 and DRONE 1/1.5 are B2 10 and 1 with OFS B2 +0.50 (the same increments) */
 #define S8(v) (uint8_t)(int8_t)(v)
 #define QRC(q) ((q) <= 4 ? (q) - 1 : (q) / 4 + 2)
 #define QRA(q) ((q) - 1)
-#define QRB(q, br) ((br) * QUAD_NRCB + QRC(q))
-#define SYN(al, rc, ra, rb, h, dt, fb, mx) QP_ALGO, al, QP_RC, rc, QP_RA, ra, QP_RB, rb, QP_HARM, S8(h), QP_DTUN, dt, \
-                                           QP_FDBK, fb, QP_MIX, S8(mx)
+#define QRB(b1, b2) (QRC(b2) * QUAD_NRCB + QRC(b1))
+#define SYN(al, rc, ra, b1, b2, h, dt, fb, mx) QP_ALGO, al, QP_RC, rc, QP_RA, ra, QP_RB1, QRC(b1), QP_RB2, QRC(b2), \
+                                               QP_HARM, S8(h), QP_DTUN, dt, QP_FDBK, fb, QP_MIX, S8(mx)
 #define ENVA(a, d, e, l) QP_AATK, a, QP_ADEC, d, QP_AEND, e, QP_ALEV, l
 #define ENVB(a, d, e, l) QP_BATK, a, QP_BDEC, d, QP_BEND, e, QP_BLEV, l
 #define AMP(a, d, s, r, l) QP_EATK, a, QP_EDEC, d, QP_ESUS, s, QP_EREL, r, QP_LEVEL, l
@@ -292,60 +330,60 @@ static void quad_macros_out(track_t *t)
 #define FENV(a, d, s, r) QP_FATK, a, QP_FDEC, d, QP_FSUS, s, QP_FREL, r
 #define LFO(k, sp, mu, de, w, dp) QP_LFO(k, QL_SPEED), S8(sp), QP_LFO(k, QL_MULT), mu, QP_LFO(k, QL_DEST), QD_##de, \
                                   QP_LFO(k, QL_WAVE), QW_##w, QP_LFO(k, QL_DEPTH), S8(dp)
-static const uint8_t QUADP_EP[] = {SYN(2, QRC(4), QRA(4), QRB(56, 1), 0, 10, 0, 0), ENVA(0, 80, 24, 72),
+static const uint8_t QUADP_EP[] = {SYN(2, QRC(4), QRA(4), 56, 56, 0, 10, 0, 0), ENVA(0, 80, 24, 72),
     ENVB(0, 46, 0, 44), QP_VEL, 100, QP_BKTRK, 40, AMP(0, 96, 40, 62, 72), 0xFF};
-static const uint8_t QUADP_BELL[] = {SYN(4, QRC(4), QRA(14), QRB(8, 4), 0, 20, 0, 0), ENVA(0, 92, 30, 80),
+static const uint8_t QUADP_BELL[] = {SYN(4, QRC(4), QRA(14), 8, 24, 0, 20, 0, 0), ENVA(0, 92, 30, 80),
     ENVB(0, 96, 20, 72), QP_VEL, 90, AMP(0, 106, 0, 100, 88), 0xFF};
-static const uint8_t QUADP_BASS[] = {SYN(1, QRC(4), QRA(4), QRB(4, 1), 0, 0, 30, 0), ENVA(0, 62, 30, 86),
+static const uint8_t QUADP_BASS[] = {SYN(1, QRC(4), QRA(4), 4, 4, 0, 0, 30, 0), ENVA(0, 62, 30, 86),
     ENVB(0, 50, 0, 40), FLT(LP, 92, 10, 20), FENV(0, 60, 0, 40), AMP(0, 80, 100, 30, 110), 0xFF};
-static const uint8_t QUADP_PLUCK[] = {SYN(3, QRC(4), QRA(8), QRB(12, 1), 0, 6, 0, 0), ENVA(0, 56, 0, 90),
+static const uint8_t QUADP_PLUCK[] = {SYN(3, QRC(4), QRA(8), 12, 12, 0, 6, 0, 0), ENVA(0, 56, 0, 90),
     ENVB(0, 42, 0, 60), AMP(0, 76, 0, 60, 72), 0xFF};
-static const uint8_t QUADP_BRASS[] = {SYN(1, QRC(4), QRA(4), QRB(4, 1), 0, 8, 60, 0), ENVA(50, 80, 60, 76),
+static const uint8_t QUADP_BRASS[] = {SYN(1, QRC(4), QRA(4), 4, 4, 0, 8, 60, 0), ENVA(50, 80, 60, 76),
     ENVB(40, 80, 50, 50), FLT(LP, 80, 12, 30), FENV(50, 86, 60, 60), AMP(40, 80, 110, 60, 70), 0xFF};
-static const uint8_t QUADP_GLASS[] = {SYN(7, QRC(4), QRA(8), QRB(16, 1), 8, 40, 0, 0), ENVA(70, 90, 100, 60),
+static const uint8_t QUADP_GLASS[] = {SYN(7, QRC(4), QRA(8), 16, 16, 8, 40, 0, 0), ENVA(70, 90, 100, 60),
     ENVB(80, 96, 60, 40), AMP(70, 90, 120, 100, 92), LFO(0, 8, 3, HARM, SINE, 30), 0xFF};
-static const uint8_t QUADP_HOLLOW[] = {SYN(4, QRC(4), QRA(8), QRB(4, 1), 12, 0, 0, -20), ENVA(20, 90, 80, 50),
+static const uint8_t QUADP_HOLLOW[] = {SYN(4, QRC(4), QRA(8), 4, 4, 12, 0, 0, -20), ENVA(20, 90, 80, 50),
     ENVB(0, 80, 40, 30), AMP(30, 80, 110, 70, 88), 0xFF};
-static const uint8_t QUADP_SQLEAD[] = {SYN(1, QRC(4), QRA(8), QRB(4, 1), 26, 0, 20, 0), ENVA(0, 80, 60, 40),
+static const uint8_t QUADP_SQLEAD[] = {SYN(1, QRC(4), QRA(8), 4, 4, 26, 0, 20, 0), ENVA(0, 80, 60, 40),
     ENVB(0, 70, 20, 20), AMP(5, 70, 110, 50, 120), 0xFF};
-static const uint8_t QUADP_METAL[] = {SYN(3, QRC(4), QRA(6), QRB(28, 2), 0, 60, 50, 0), ENVA(0, 96, 40, 100),
+static const uint8_t QUADP_METAL[] = {SYN(3, QRC(4), QRA(6), 28, 40, 0, 60, 50, 0), QP_OFSB2, 50, ENVA(0, 96, 40, 100),
     ENVB(0, 90, 30, 80), AMP(0, 100, 30, 90, 70), 0xFF};
-static const uint8_t QUADP_WOBBLE[] = {SYN(1, QRC(4), QRA(4), QRB(4, 1), 0, 0, 20, 0), ENVA(0, 64, 127, 60),
+static const uint8_t QUADP_WOBBLE[] = {SYN(1, QRC(4), QRA(4), 4, 4, 0, 0, 20, 0), ENVA(0, 64, 127, 60),
     ENVB(0, 60, 40, 30), FLT(LP, 70, 60, 0), AMP(0, 80, 110, 40, 115), LFO(0, 32, 4, ALEV, TRI, 50),
     LFO(1, 32, 4, FREQ, TRI, 40), QP_LFO(0, QL_TRIG), QT_TRIG, QP_LFO(1, QL_TRIG), QT_TRIG, 0xFF};
-static const uint8_t QUADP_CLAV[] = {SYN(4, QRC(4), QRA(12), QRB(4, 5), 4, 0, 10, 0), ENVA(0, 50, 10, 96),
+static const uint8_t QUADP_CLAV[] = {SYN(4, QRC(4), QRA(12), 4, 16, 4, 0, 10, 0), ENVA(0, 50, 10, 96),
     ENVB(0, 46, 0, 80), FLT(HP, 30, 20, 0), AMP(0, 70, 0, 45, 96), 0xFF};
-static const uint8_t QUADP_STRINGS[] = {SYN(8, QRC(4), QRA(4), QRB(4, 1), -20, 70, 0, 0), ENVA(0, 60, 127, 100),
+static const uint8_t QUADP_STRINGS[] = {SYN(8, QRC(4), QRA(4), 4, 4, -20, 70, 0, 0), ENVA(0, 60, 127, 100),
     ENVB(0, 60, 127, 100), FLT(LP, 86, 8, 0), AMP(70, 90, 115, 96, 90), LFO(0, 6, 3, DTUN, SINE, 30), 0xFF};
-static const uint8_t QUADP_MARIMBA[] = {SYN(2, QRC(4), QRA(16), QRB(40, 1), 0, 0, 0, 0), ENVA(0, 50, 0, 64),
+static const uint8_t QUADP_MARIMBA[] = {SYN(2, QRC(4), QRA(16), 40, 40, 0, 0, 0, 0), ENVA(0, 50, 0, 64),
     ENVB(0, 30, 0, 40), AMP(0, 80, 0, 70, 78), 0xFF};
-static const uint8_t QUADP_DRONE[] = {SYN(6, QRC(2), QRA(4), QRB(4, 2), 0, 50, 40, 0), ENVA(100, 100, 90, 70),
+static const uint8_t QUADP_DRONE[] = {SYN(6, QRC(2), QRA(4), 4, 4, 0, 50, 40, 0), QP_OFSB2, 50, ENVA(100, 100, 90, 70),
     ENVB(110, 100, 80, 60), AMP(64, 100, 127, 110, 110), LFO(0, 4, 3, HARM, SINE, 40), LFO(1, 5, 3, MIX, TRI, 50),
     LFO(2, 3, 3, FDBK, SINE, 30), 0xFF};
-static const uint8_t QUADP_FEEDBACK[] = {SYN(5, QRC(4), QRA(4), QRB(4, 1), 0, 0, 90, 40), ENVA(0, 80, 40, 60),
+static const uint8_t QUADP_FEEDBACK[] = {SYN(5, QRC(4), QRA(4), 4, 4, 0, 0, 90, 40), ENVA(0, 80, 40, 60),
     ENVB(0, 80, 70, 100), AMP(0, 90, 100, 70, 88), 0xFF};
-static const uint8_t QUADP_NOISE[] = {SYN(7, QRC(4), QRA(4), QRB(4, 1), 0, 0, 127, -63), ENVA(0, 60, 127, 127),
+static const uint8_t QUADP_NOISE[] = {SYN(7, QRC(4), QRA(4), 4, 4, 0, 0, 127, -63), ENVA(0, 60, 127, 127),
     ENVB(0, 60, 0, 0), FLT(BP, 90, 40, 0), AMP(0, 90, 60, 80, 84), 0xFF};
 
-/* {ALGO, RATIO C, RATIO A, RATIO B, HARM, DTUNE, FDBK, MIX}: the macros as the patch has them (cr_quad_test checks);
- * env: the amp envelope (QUAD's own: the platform ADSR is not used) */
+/* {ALGO, RATIO C, RATIO A, RATIO B (B1's step), HARM, DTUNE, FDBK, MIX}: the macros as the patch has them (cr_quad_test
+ * checks); env: the amp envelope (QUAD's own: the platform ADSR is not used) */
 static const preset_t QUAD_PRESETS[] = {
-    {"EP", {2, QRC(4), QRA(4), QRB(56, 1), 0, 10, 0, 0}, {0, 96, 40, 62}, 0, 0, FX(0, 30, 20, 40), PAT(6)},
-    {"BELL", {4, QRC(4), QRA(14), QRB(8, 4), 0, 20, 0, 0}, {0, 106, 0, 100}, 0, 0, FX(0, 20, 35, 60), PAT(7)},
-    {"BASS", {1, QRC(4), QRA(4), QRB(4, 1), 0, 0, 30, 0}, {0, 80, 100, 30}, 0, 1, FX(0, 0, 10, 10), PAT(2)},
-    {"PLUCK", {3, QRC(4), QRA(8), QRB(12, 1), 0, 6, 0, 0}, {0, 76, 0, 60}, 0, 0, FX(0, 20, 30, 40), PAT(6)},
-    {"BRASS", {1, QRC(4), QRA(4), QRB(4, 1), 0, 8, 60, 0}, {40, 80, 110, 60}, 0, 0, FX(0, 25, 20, 40), PAT(6)},
-    {"GLASS PAD", {7, QRC(4), QRA(8), QRB(16, 1), 8, 40, 0, 0}, {70, 90, 120, 100}, 0, 0, FX(0, 50, 25, 70), PAT(5)},
-    {"HOLLOW", {4, QRC(4), QRA(8), QRB(4, 1), 12, 0, 0, -20}, {30, 80, 110, 70}, 0, 0, FX(0, 35, 25, 50), PAT(6)},
-    {"SQUARE LEAD", {1, QRC(4), QRA(8), QRB(4, 1), 26, 0, 20, 0}, {5, 70, 110, 50}, 0, 1, FX(0, 25, 40, 40), PAT(4)},
-    {"METAL", {3, QRC(4), QRA(6), QRB(28, 2), 0, 60, 50, 0}, {0, 100, 30, 90}, 0, 0, FX(0, 20, 30, 50), PAT(7)},
-    {"WOBBLE", {1, QRC(4), QRA(4), QRB(4, 1), 0, 0, 20, 0}, {0, 80, 110, 40}, 0, 1, FX(10, 0, 15, 10), PAT(2)},
-    {"CLAV", {4, QRC(4), QRA(12), QRB(4, 5), 4, 0, 10, 0}, {0, 70, 0, 45}, 0, 0, FX(0, 15, 20, 25), PAT(6)},
-    {"STRINGS", {8, QRC(4), QRA(4), QRB(4, 1), -20, 70, 0, 0}, {70, 90, 115, 96}, 0, 0, FX(0, 55, 15, 65), PAT(5)},
-    {"MARIMBA", {2, QRC(4), QRA(16), QRB(40, 1), 0, 0, 0, 0}, {0, 80, 0, 70}, 0, 0, FX(0, 15, 25, 40), PAT(7)},
-    {"DRONE", {6, QRC(2), QRA(4), QRB(4, 2), 0, 50, 40, 0}, {64, 100, 127, 110}, 0, 0, FX(0, 50, 30, 80), PAT(5)},
-    {"FEEDBACK", {5, QRC(4), QRA(4), QRB(4, 1), 0, 0, 90, 40}, {0, 90, 100, 70}, 0, 0, FX(0, 25, 30, 40), PAT(4)},
-    {"NOISE-ISH", {7, QRC(4), QRA(4), QRB(4, 1), 0, 0, 127, -63}, {0, 90, 60, 80}, 0, 0, FX(0, 20, 30, 50), PAT(7)},
+    {"EP", {2, QRC(4), QRA(4), QRC(56), 0, 10, 0, 0}, {0, 96, 40, 62}, 0, 0, FX(0, 30, 20, 40), PAT(6)},
+    {"BELL", {4, QRC(4), QRA(14), QRC(8), 0, 20, 0, 0}, {0, 106, 0, 100}, 0, 0, FX(0, 20, 35, 60), PAT(7)},
+    {"BASS", {1, QRC(4), QRA(4), QRC(4), 0, 0, 30, 0}, {0, 80, 100, 30}, 0, 1, FX(0, 0, 10, 10), PAT(2)},
+    {"PLUCK", {3, QRC(4), QRA(8), QRC(12), 0, 6, 0, 0}, {0, 76, 0, 60}, 0, 0, FX(0, 20, 30, 40), PAT(6)},
+    {"BRASS", {1, QRC(4), QRA(4), QRC(4), 0, 8, 60, 0}, {40, 80, 110, 60}, 0, 0, FX(0, 25, 20, 40), PAT(6)},
+    {"GLASS PAD", {7, QRC(4), QRA(8), QRC(16), 8, 40, 0, 0}, {70, 90, 120, 100}, 0, 0, FX(0, 50, 25, 70), PAT(5)},
+    {"HOLLOW", {4, QRC(4), QRA(8), QRC(4), 12, 0, 0, -20}, {30, 80, 110, 70}, 0, 0, FX(0, 35, 25, 50), PAT(6)},
+    {"SQUARE LEAD", {1, QRC(4), QRA(8), QRC(4), 26, 0, 20, 0}, {5, 70, 110, 50}, 0, 1, FX(0, 25, 40, 40), PAT(4)},
+    {"METAL", {3, QRC(4), QRA(6), QRC(28), 0, 60, 50, 0}, {0, 100, 30, 90}, 0, 0, FX(0, 20, 30, 50), PAT(7)},
+    {"WOBBLE", {1, QRC(4), QRA(4), QRC(4), 0, 0, 20, 0}, {0, 80, 110, 40}, 0, 1, FX(10, 0, 15, 10), PAT(2)},
+    {"CLAV", {4, QRC(4), QRA(12), QRC(4), 4, 0, 10, 0}, {0, 70, 0, 45}, 0, 0, FX(0, 15, 20, 25), PAT(6)},
+    {"STRINGS", {8, QRC(4), QRA(4), QRC(4), -20, 70, 0, 0}, {70, 90, 115, 96}, 0, 0, FX(0, 55, 15, 65), PAT(5)},
+    {"MARIMBA", {2, QRC(4), QRA(16), QRC(40), 0, 0, 0, 0}, {0, 80, 0, 70}, 0, 0, FX(0, 15, 25, 40), PAT(7)},
+    {"DRONE", {6, QRC(2), QRA(4), QRC(4), 0, 50, 40, 0}, {64, 100, 127, 110}, 0, 0, FX(0, 50, 30, 80), PAT(5)},
+    {"FEEDBACK", {5, QRC(4), QRA(4), QRC(4), 0, 0, 90, 40}, {0, 90, 100, 70}, 0, 0, FX(0, 25, 30, 40), PAT(4)},
+    {"NOISE-ISH", {7, QRC(4), QRA(4), QRC(4), 0, 0, 127, -63}, {0, 90, 60, 80}, 0, 0, FX(0, 20, 30, 50), PAT(7)},
 };
 static const uint8_t *const QUAD_PRESET_EDITS[] = {QUADP_EP, QUADP_BELL, QUADP_BASS, QUADP_PLUCK, QUADP_BRASS,
     QUADP_GLASS, QUADP_HOLLOW, QUADP_SQLEAD, QUADP_METAL, QUADP_WOBBLE, QUADP_CLAV, QUADP_STRINGS, QUADP_MARIMBA,
@@ -386,6 +424,8 @@ static int32_t quad_get(const track_t *t, uint32_t page, uint32_t col)
         return t->p[P_PAN];
     if (i == QUAD_XDIST)
         return t->p[P_DIST];
+    if (i == QP_RB1)                             /* RATIO B: the pair, B2 x QUAD_NRCB + B1 */
+        return tr >= QUAD_NPART ? QUAD_RB_DEF : quad_patch[tr][QP_RB2] * (int32_t)QUAD_NRCB + quad_patch[tr][QP_RB1];
     if (tr >= QUAD_NPART)
         return quad_range(i).def;
     return quad_patch[tr][i];
@@ -403,6 +443,11 @@ static void quad_set(track_t *t, uint32_t page, uint32_t col, int32_t v)
     }
     if (tr >= QUAD_NPART)
         return;
+    if (i == QP_RB1) {                           /* RATIO B: the pair -> B1 (the macro) and B2 */
+        v = clamp(v, 0, QUAD_NRB - 1);
+        quad_patch[tr][QP_RB2] = (int8_t)(v / (int32_t)QUAD_NRCB);
+        v %= (int32_t)QUAD_NRCB;
+    }
     quad_patch[tr][i] = quad_clampv(i, v);
     if (i < 8u) {                                /* a macro's value: the track's P_E too (quad_block sees no change) */
         t->p[P_E0 + i] = quad_patch[tr][i];
@@ -454,9 +499,15 @@ static void quad_track_loaded(const track_t *ct)
     uint32_t tr = quad_tr(t), pend = quad_user_pending, k;
     uint8_t b[QUAD_BLOB];
     int8_t p[QP_NP];
+    int32_t rb = -1;
     quad_user_pending = 0;
     if (tr >= QUAD_NPART || t->eng_req != ENGI_QUAD)
         return;
+    if (t->p[P_E3] >= (int32_t)QUAD_NRCB && t->p[P_E3] < (int32_t)QUAD_NRB_V1) {   /* a version-1 RATIO B macro (a
+                                                  * project or a record from before: BR x 19 + B1, BR > 0.5): B1 */
+        rb = t->p[P_E3];
+        t->p[P_E3] = (int16_t)(rb % (int32_t)QUAD_NRCB);
+    }
     if (pend && quad_store_read && !quad_store_read(pend - 1u, b) && quad_unpack(b, p)) {
         memcpy(quad_patch[tr], p, QP_NP);
         quad_macros_out(t);
@@ -473,6 +524,8 @@ static void quad_track_loaded(const track_t *ct)
     quad_init_patch(p);
     for (k = 0; k < 8u; k++)
         p[k] = quad_clampv(k, t->p[P_E0 + k]);
+    if (rb >= 0)                                 /* (its B2 as a version-1 blob's) */
+        quad_rb_v1(rb, p);
     memcpy(quad_patch[tr], p, QP_NP);
     quad_macros_out(t);
 }
@@ -776,7 +829,7 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     uint32_t tr = quad_tr(t), k, i, alg, inc[4];
     const int8_t *p;
     int32_t eA, eB, eF, eE, dst[QD_N], A0, A1, dA, a, x, y;
-    int32_t harm, dt, fdbk, mix, ra, rb1i, br, cut, kd, reso, gx, gy, fbq, hm, hf;
+    int32_t harm, dt, fdbk, mix, ra, rb1i, rb2i, cut, kd, reso, gx, gy, fbq, hm, hf;
     int32_t la, lb, dla, dlb, tl[2], hpk, lpk, svf, fty, ic1, ic2, fb1, fb2, bh, bl;
     const int16_t *ha_t = QUAD_HARM[0], *hb_t = QUAD_HARM[0];
     uint32_t p0, p1, p2, p3, i0, i1, i2, i3;
@@ -834,14 +887,14 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     alg = (uint32_t)clamp(p[QP_ALGO], 1, 8) - 1u;
     dt = clamp(p[QP_DTUN] + ((dst[QD_DTUN] * 127) >> 15), 0, 127);
     ra = clamp(p[QP_RA] + ((dst[QD_RA] * 32) >> 15), 0, QUAD_NRA - 1);
-    rb1i = clamp(p[QP_RB], 0, QUAD_NRB - 1);
-    br = rb1i / QUAD_NRCB;
-    rb1i = clamp(rb1i % QUAD_NRCB + ((dst[QD_RB] * 18) >> 15), 0, QUAD_NRCB - 1);
+    rb1i = (dst[QD_RB] * 18) >> 15;              /* LFO RAT B: B1 and B2 the same steps up / down */
+    rb2i = clamp(p[QP_RB2] + rb1i, 0, QUAD_NRCB - 1);
+    rb1i = clamp(p[QP_RB1] + rb1i, 0, QUAD_NRCB - 1);
     {
         int32_t rc = quad_ratio(QUAD_RCB_Q16[clamp(p[QP_RC], 0, QUAD_NRCB - 1)], p[QP_OFSC]);
         int32_t rA = quad_ratio(QUAD_RA_Q16[ra], p[QP_OFSA]);
         int32_t rB1 = quad_ratio(QUAD_RCB_Q16[rb1i], p[QP_OFSB1]);
-        int32_t rB2 = quad_ratio((int32_t)(((int64_t)QUAD_RCB_Q16[rb1i] * QUAD_BR_Q16[br]) >> 16), p[QP_OFSB2]);
+        int32_t rB2 = quad_ratio(QUAD_RCB_Q16[rb2i], p[QP_OFSB2]);
         int32_t db = (dt * 15) >> 1, da = (dt * 15) >> 3;   /* B1 / B2 +-25 cents at 127, A +6 cents */
         inc[0] = quad_inc(m->inc, rc, 0);
         inc[1] = quad_inc(m->inc, rA, da);
@@ -1037,9 +1090,9 @@ static const eng_deep_t QUAD_DEEP = {
 };
 
 static const engine_t ENG_QUAD = {
-    .name = "QUAD",
+    .name = "FM TONE",
     .page_title = {"SYN 1", "SYN 1+"},
-    .edit = {QC_ALGO, QC_RC, QC_RA, QC_RB, QC_HARM, QC_DTUN, QC_FDBK, QC_MIX},
+    .edit = {QC_ALGO, QC_RC, QC_RA, QC_RB1, QC_HARM, QC_DTUN, QC_FDBK, QC_MIX},
     .presets = QUAD_PRESETS,
     .npresets = NELEM(QUAD_PRESETS),
     .knob = {P_E2, P_E4, P_E6, P_E7},            /* HOME: RATIO A, HARM, FDBK, MIX */

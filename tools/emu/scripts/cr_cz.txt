@@ -7,7 +7,7 @@
 wait 300                      # (+ 200 ms of the engine change below: the same timeline)
 btn GLO down
 wait 100
-knob PRESETS +4               # OPT + PRESETS: the engine (FM6 -> QUAD -> VA -> PHASE -> CZ-1, BRASS 1: its pool position 01), on OPT's release
+knob PRESETS +3               # OPT + PRESETS: the engine (FM6 -> FM TONE -> VA -> CZ-1, BRASS 1: its pool position 01), on OPT's release
 wait 100
 btn GLO up
 wait 500

@@ -42,6 +42,10 @@
 #ifndef FELUCCA_DRUM
 #define FELUCCA_DRUM 1           /* the DRUM engine (eng_drum.c, drum_voice.c); ChoralRoot: 0, engine 10 retired */
 #endif
+#ifndef FELUCCA_ANALOG
+#define FELUCCA_ANALOG 1         /* the ANALOG engine (eng_analog.c), engine 0; ChoralRoot: 0, engine 0 retired (the VA
+                                  * replaces it: its records load on the VA, cr_ui.c cu_load_user) */
+#endif
 #ifndef FELUCCA_CZ
 #define FELUCCA_CZ 0             /* Melodee's CZ-1 engine (eng_cz.c, docs/CZ1.md): engine 13 + FELUCCA_SLICE + FELUCCA_VA (14 on
                                   * ChoralRoot); Felucca builds without it (choralroot.c, the emulator and tests/regress.c set 1) */
@@ -58,7 +62,7 @@
 #define ENGI_QUAD (13u + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ)   /* engines.c ENGINES[]: 15 on ChoralRoot */
 #endif
 #define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
-#define NENG_SHOWN (NENGINES - !FELUCCA_FM4 - !FELUCCA_SAMPLE - !FELUCCA_GRAIN - !FELUCCA_DRUM)
+#define NENG_SHOWN (NENGINES - !FELUCCA_FM4 - !FELUCCA_SAMPLE - !FELUCCA_GRAIN - !FELUCCA_DRUM - !FELUCCA_ANALOG)
                                  /* the engines one can pick: PRESETS, the EDIT layer, the editor, in the display order
                                   * of engines.c ENGINE_ORDER (the retired slots are not among them) */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */

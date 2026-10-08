@@ -6,12 +6,12 @@
 # them, see emu.c), the UI frame's, the voices given up / restarted, the flash erases, and tools/emu/wavclicks.py
 # on its WAV (jumps, silent holes, high-frequency bursts). Outputs in build/emu/perf/.
 #   (a) a 6-note chord held 6 s on TINE EP        (b) the same on FM PAD (the heaviest FM6 sound of the bank)
-#   (c) FM PAD chord + bass + a playing loop + the arp at 200 BPM   (d) (c) on the SCOPE view
+#   (c) FM PAD chord + bass (VA DEEP SUB) + a playing loop + the arp at 200 BPM   (d) (c) on the SCOPE view
 #   (e) (c) while KNOB 1..4 turn on an EDIT page every 30 ms
 #   (f) a 6-note VA chord (ENSEMBLE STR) + the VA bass (PUNCH BASS), a chord change (docs/VA.md)
 #   (g) a 6-note CZ-1 chord (CZ STRINGS 2) + the CZ-1 bass (CZ BASS), a chord change (docs/CZ1.md)
 #   (h) the FX layer's knob row: a chord held, KNOB 1..4 turned every 30 ms for 2 s (Reverb), then 1 s (Delay)
-#   (i) (c) on QUAD: a 6-note STRINGS chord (the heaviest QUAD preset) + the bass + a playing loop + the arp (docs/QUAD.md)
+#   (i) (c) on FM TONE (code name QUAD): a 6-note STRINGS chord (the heaviest FM TONE preset) + the bass + a playing loop + the arp (docs/QUAD.md)
 #   (u) USB audio recording (docs/USB-AUDIO.md): the emulator has no USB, so not a scenario but what ChoralRoot In
 #       adds to a half on top of (a)..(g): tests/cr_usbaudio_test.c --bench counts the host instructions of the
 #       capture staging, the master tap and the ring copy (the audio ISR) and of the packets (TIMER5), with emu.c's

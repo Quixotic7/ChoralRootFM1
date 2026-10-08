@@ -113,7 +113,7 @@ const crObjs = [[1, per(S5, PER5, 7)], [6, rnd(3080, 8)], [8, rnd(3612, 9)], [9,
   ok(readBackup(JSON.stringify(crFile)).objects.length === 28, "choralroot: the archive reads back (28 objects)");
   ok(objectName(9) === "VA patches" && objectName(10) === "FM6 patches 1-16" && objectName(11) === "FM6 patches 17-32" &&
      objectName(12) === "CZ-1 tones 1-16" && objectName(13) === "CZ-1 tones 17-32" && objectName(14) === "CZ-1 bank A" &&
-     objectName(21) === "CZ-1 bank H" && objectName(22) === "QUAD patches" && objectName(44) === "loop slot 5" && objectName(33) === "sample slot 2", "choralroot: object names");
+     objectName(21) === "CZ-1 bank H" && objectName(22) === "FM TONE patches" && objectName(44) === "loop slot 5" && objectName(33) === "sample slot 2", "choralroot: object names");
   ok(backupFileName(info.version, new Date("2026-10-06T12:00:00Z")) === "choralroot-backup-20261006.json" &&
      backupFileName("FELUCCA 1.0", new Date("2026-10-06T12:00:00Z")) === "felucca-backup-20261006.json", "choralroot: file names");
 

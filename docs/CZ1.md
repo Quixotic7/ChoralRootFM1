@@ -26,8 +26,8 @@ Melodee's web-editor side (`editor_cz.c`, commands 75..77) is not ported: Choral
 
 `FELUCCA_CZ` (core.h, default 0: Felucca's unit; 1 in `choralroot.c`, the emulator and `tests/regress.c`). The engine
 number is `13 + FELUCCA_SLICE + FELUCCA_VA` = **14** on ChoralRoot (after the VA's 13; Melodee numbers it 15):
-`ENGINES[]` stays append-only, `ENGINE_ORDER` shows it **after PHASE** (the PRESETS browse, the engine picker's roots:
-ANALOG, FM6, VA, PHASE, CZ-1, LOFI, ..). Its per-voice state (`cz_part_t`: six envelopes, the vibrato, the noise, 8
+`ENGINES[]` stays append-only, `ENGINE_ORDER` shows it **after the VA** since 0.14 (after PHASE before; the PRESETS
+browse, the engine picker's roots: FM6, FM TONE, VA, CZ-1, PHASE, LOFI, ..). Its per-voice state (`cz_part_t`: six envelopes, the vibrato, the noise, 8
 voices) is a member of `engines.c`'s `eng_state` union (smaller than FM6's: the union does not grow); the tone of each
 part (`cz_patch[NTRK]`, 4 x 144 bytes) is in the pool.
 
@@ -63,11 +63,11 @@ mirrored in the pool.
 | the tone store, slots 1..16 | `OBJ_CZSTORE0` = `OBJ_PROJECT0 + 3` | 0x9D000 / 0x9E000 (the last project pair; 0x97000 VA store, 0x99000 / 0x9B000 FM6 store) | 12 |
 | the tone store, slots 17..32 | `OBJ_CZSTORE1` | 0xA0000 / 0xA1000 | 13 |
 | the CZ-1 bank A..H | `OBJ_CZBANK0 + k` | 0xA2000 + k x 0x2000 / + 0x1000 (to 0xB1FFF) | 14 + k |
-| (QUAD's patch store, docs/QUAD.md) | `OBJ_QUADSTORE` = `OBJ_CZBANK0 + 8` | 0xB2000 / 0xB3000 | 22 |
+| (FM TONE's patch store: engine 15, `eng_quad.c`, code name QUAD, docs/QUAD.md) | `OBJ_QUADSTORE` = `OBJ_CZBANK0 + 8` | 0xB2000 / 0xB3000 | 22 |
 
 0xA0000..0xB1FFF is the user sample slot 1's flash, unused since the all-synth change (`FELUCCA_SAMPLE` 0; storage.c's
-map); 0xB2000 / 0xB3000 hold QUAD's patch store (0.14), 0xB4000..0xC7FFF stays free, 0xC8000.. holds the loops. SAFE
-MODE's Flash Data erase covers 0xA0000..0xB3FFF too (`cr_ui.c` `cu_flash_erase`: 56 sectors with QUAD's pair).
+map); 0xB2000 / 0xB3000 hold FM TONE's patch store (0.14), 0xB4000..0xC7FFF stays free, 0xC8000.. holds the loops. SAFE
+MODE's Flash Data erase covers 0xA0000..0xB3FFF too (`cr_ui.c` `cu_flash_erase`: 56 sectors with FM TONE's pair).
 
 ## The banks (cz_bank.c)
 

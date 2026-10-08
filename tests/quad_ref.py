@@ -47,13 +47,15 @@ ENV_EXP = felucca_table("ENV_EXP")
 SVF_G = felucca_table("SVF_G")
 TANH_Q15 = felucca_table("TANH_Q15")
 
-# the ratio steps: C and B 0.25 0.5 0.75 then 1..16 (19); A 0.25..16 in 0.25 (64); the B pair: B1 a C/B step, B2 =
-# B1 x BR, BR one of six; the pair's index = BR index x 19 + B1 index (B1 cycles through its steps, then BR steps)
+# the ratio steps: C, B1 and B2 0.25 0.5 0.75 then 1..16 (19); A 0.25..16 in 0.25 (64); the B pair (RATIO B): B1 and
+# B2 each a C/B step, the pair's index = B2 index x 19 + B1 index (B1 cycles through its steps, then B2 steps on: 361
+# pairs, 0.25/0.25 .. 16/16). BR: the version-1 blob's B2 / B1 (its pair was BR index x 19 + B1 index), for its loader
 RCB = [0.25, 0.5, 0.75] + [float(n) for n in range(1, 17)]
 RA = [0.25 * (i + 1) for i in range(64)]
 BR = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0]
-NRB = len(RCB) * len(BR)
-RB_DEF = 1 * len(RCB) + 3               # 1.00 / 1.00
+NRB = len(RCB) * len(RCB)
+NRB_V1 = len(RCB) * len(BR)
+RB_DEF = 3 * len(RCB) + 3               # 1.00 / 1.00
 LFO_K = 9739                            # SPEED x MULT x LFO_K a control tick: f = SPEED x MULT / 320 Hz
 NHARM = 7
 
@@ -101,8 +103,9 @@ def write_header():
          "#include <stdint.h>",
          "#define QUAD_NRCB %du                /* RATIO C (and B1): 0.25 0.5 0.75 1 2 .. 16 */" % len(RCB),
          "#define QUAD_NRA %du                 /* RATIO A: 0.25 .. 16 in 0.25 */" % len(RA),
-         "#define QUAD_NBR %du                  /* the B pair's B2 / B1 */" % len(BR),
-         "#define QUAD_NRB %du                /* RATIO B: BR index x QUAD_NRCB + B1 index */" % NRB,
+         "#define QUAD_NBR %du                  /* the version-1 blob's B2 / B1 (its loader) */" % len(BR),
+         "#define QUAD_NRB_V1 %du             /* the version-1 blob's RATIO B: BR index x QUAD_NRCB + B1 index */" % NRB_V1,
+         "#define QUAD_NRB %du                /* RATIO B: B2 index x QUAD_NRCB + B1 index (the editor's one value) */" % NRB,
          "#define QUAD_RB_DEF %d               /* 1.00 / 1.00 */" % RB_DEF,
          "#define QUAD_LFO_K %d              /* LFO: SPEED x MULT x QUAD_LFO_K a control tick (f = SPEED x MULT / 320 Hz) */" % LFO_K]
 
@@ -125,7 +128,7 @@ def write_header():
     L.append("/* the value names (F_INT columns with a 0-terminated name list: value v - min names it) */")
     names("N_QUAD_RCB", [rtxt(r) for r in RCB])
     names("N_QUAD_RA", [rtxt(r) for r in RA])
-    names("N_QUAD_RB", ["%s/%s" % (rtxt(RCB[i % len(RCB)]), rtxt(RCB[i % len(RCB)] * BR[i // len(RCB)])) for i in range(NRB)])
+    names("N_QUAD_RB", ["%s/%s" % (rtxt(RCB[i % len(RCB)]), rtxt(RCB[i // len(RCB)])) for i in range(NRB)])
     names("N_QUAD_OFS", [("+" if o >= 0 else "-") + "%d.%02d" % (abs(o) // 100, abs(o) % 100) for o in range(-100, 101)])
     L.append("/* the base-width filter: a one-pole's coefficient (Q16) at 30 Hz x (16000 / 30)^(v / 127) (CUTOFF_HZ's scale) */")
     arr("QUAD_BW_K", "uint16_t", BW_K)
@@ -144,16 +147,17 @@ def write_header():
 
 # ------------------------------------------------------------- the patch
 LFO_F = ["SPEED", "MULT", "FADE", "DEST", "WAVE", "PHASE", "TRIG", "DEPTH"]
-NAMES = ["ALGO", "RC", "RA", "RB", "HARM", "DTUN", "FDBK", "MIX", "OFSC", "OFSA", "OFSB1", "OFSB2",
+NAMES = ["ALGO", "RC", "RA", "RB1", "HARM", "DTUN", "FDBK", "MIX", "OFSC", "OFSA", "OFSB1", "OFSB2",
          "AATK", "ADEC", "AEND", "ALEV", "BATK", "BDEC", "BEND", "BLEV", "ADLY", "ATRIG", "ARST", "PHRST",
          "BDLY", "BTRIG", "BRST", "VEL", "AKTRK", "BKTRK", "FATK", "FDEC", "FSUS", "FREL", "FREQ", "RESO", "FTYPE",
          "FDEPTH", "FDLY", "FKTRK", "BASE", "WIDTH", "EATK", "EDEC", "ESUS", "EREL", "LEVEL"]
 NAMES += ["L%d%s" % (k, f) for k in range(3) for f in LFO_F]
+NAMES += ["RB2"]                        # (version 2: B2's step, after the LFOs)
 Q = {n: i for i, n in enumerate(NAMES)}
 NP = len(NAMES)
-assert NP == 71
+assert NP == 72
 # (min, max, def), as eng_quad.c's page columns
-RNG = {"ALGO": (1, 8, 1), "RC": (0, 18, 3), "RA": (0, 63, 3), "RB": (0, NRB - 1, RB_DEF), "HARM": (-26, 26, 0),
+RNG = {"ALGO": (1, 8, 1), "RC": (0, 18, 3), "RA": (0, 63, 3), "RB1": (0, 18, 3), "RB2": (0, 18, 3), "HARM": (-26, 26, 0),
        "DTUN": (0, 127, 0), "FDBK": (0, 127, 0), "MIX": (-63, 63, 0), "OFSC": (-100, 100, 0), "OFSA": (-100, 100, 0),
        "OFSB1": (-100, 100, 0), "OFSB2": (-100, 100, 0), "AATK": (0, 127, 0), "ADEC": (0, 127, 60),
        "AEND": (0, 127, 64), "ALEV": (0, 127, 48), "BATK": (0, 127, 0), "BDEC": (0, 127, 60), "BEND": (0, 127, 0),
@@ -182,8 +186,6 @@ def QRC(q):
     return q - 1 if q <= 4 else q // 4 + 2
 
 
-def QRB(q, br):
-    return br * len(RCB) + QRC(q)
 
 
 def patch_of(**kw):
@@ -194,8 +196,8 @@ def patch_of(**kw):
     return p
 
 
-def syn(al, rc, ra, rb, h, dt, fb, mx):
-    return dict(ALGO=al, RC=rc, RA=ra, RB=rb, HARM=h, DTUN=dt, FDBK=fb, MIX=mx)
+def syn(al, rc, ra, b1, b2, h, dt, fb, mx):
+    return dict(ALGO=al, RC=rc, RA=ra, RB1=b1, RB2=b2, HARM=h, DTUN=dt, FDBK=fb, MIX=mx)
 
 
 def env(x, a, d, e, l):
@@ -228,13 +230,13 @@ def merge(*ds):
 
 # four of eng_quad.c's presets (the C test checks these patches against its own)
 PRESETS = {
-    "EP": patch_of(**merge(syn(2, QRC(4), 3, QRB(56, 1), 0, 10, 0, 0), env("A", 0, 80, 24, 72), env("B", 0, 46, 0, 44),
+    "EP": patch_of(**merge(syn(2, QRC(4), 3, QRC(56), QRC(56), 0, 10, 0, 0), env("A", 0, 80, 24, 72), env("B", 0, 46, 0, 44),
                            dict(VEL=100, BKTRK=40), amp(0, 96, 40, 62, 72))),
-    "BASS": patch_of(**merge(syn(1, QRC(4), 3, QRB(4, 1), 0, 0, 30, 0), env("A", 0, 62, 30, 86), env("B", 0, 50, 0, 40),
+    "BASS": patch_of(**merge(syn(1, QRC(4), 3, QRC(4), QRC(4), 0, 0, 30, 0), env("A", 0, 62, 30, 86), env("B", 0, 50, 0, 40),
                              flt("LP", 92, 10, 20), fenv(0, 60, 0, 40), amp(0, 80, 100, 30, 110))),
-    "GLASS PAD": patch_of(**merge(syn(7, QRC(4), 7, QRB(16, 1), 8, 40, 0, 0), env("A", 70, 90, 100, 60),
+    "GLASS PAD": patch_of(**merge(syn(7, QRC(4), 7, QRC(16), QRC(16), 8, 40, 0, 0), env("A", 70, 90, 100, 60),
                                   env("B", 80, 96, 60, 40), amp(70, 90, 120, 100, 92), lfo(0, 8, 3, "HARM", "SINE", 30))),
-    "WOBBLE": patch_of(**merge(syn(1, QRC(4), 3, QRB(4, 1), 0, 0, 20, 0), env("A", 0, 64, 127, 60),
+    "WOBBLE": patch_of(**merge(syn(1, QRC(4), 3, QRC(4), QRC(4), 0, 0, 20, 0), env("A", 0, 64, 127, 60),
                                env("B", 0, 60, 40, 30), flt("LP", 70, 60, 0), amp(0, 80, 110, 40, 115),
                                lfo(0, 32, 4, "ALEV", "TRI", 50, "TRIG"), lfo(1, 32, 4, "FREQ", "TRI", 40, "TRIG"))),
 }
@@ -243,7 +245,7 @@ PRESETS = {
 def algo_patch(al):
     """a test patch for algorithm al: every part of the voice moving (both envelopes, HARM, detune, feedback, the
     filter and its envelope, the base-width filter, an LFO on MIX)"""
-    return patch_of(**merge(syn(al, QRC(4), 7, QRB(4, 3), 8 if al % 2 else -10, 30, 40, 20),
+    return patch_of(**merge(syn(al, QRC(4), 7, QRC(4), QRC(8), 8 if al % 2 else -10, 30, 40, 20),
                             env("A", 0, 60, 40, 80), env("B", 5, 70, 30, 70), flt("LP", 100, 30, 20),
                             fenv(0, 60, 40, 40), dict(BASE=10, WIDTH=100, OFSB2=3), amp(2, 70, 100, 40, 100),
                             lfo(0, 20, 4, "MIX", "TRI", 30, "TRIG")))
@@ -524,9 +526,9 @@ class Voice:
         alg = clamp(g("ALGO"), 1, 8)
         dt = clamp(g("DTUN") + ((dst[2] * 127) >> 15), 0, 127)
         ra = clamp(g("RA") + ((dst[5] * 32) >> 15), 0, 63)
-        rbi = clamp(g("RB"), 0, NRB - 1)
-        br = rbi // 19
-        rb1i = clamp(rbi % 19 + ((dst[6] * 18) >> 15), 0, 18)
+        rbd = (dst[6] * 18) >> 15
+        rb1i = clamp(g("RB1") + rbd, 0, 18)
+        rb2i = clamp(g("RB2") + rbd, 0, 18)
 
         def ratio(r, o):
             r += cdiv(o * 65536, 100)
@@ -539,7 +541,7 @@ class Voice:
         rc = ratio(q16(RCB[clamp(g("RC"), 0, 18)]), g("OFSC"))
         rA = ratio(q16(RA[ra]), g("OFSA"))
         rB1 = ratio(q16(RCB[rb1i]), g("OFSB1"))
-        rB2 = ratio((q16(RCB[rb1i]) * q16(BR[br])) >> 16, g("OFSB2"))
+        rB2 = ratio(q16(RCB[rb2i]), g("OFSB2"))
         db, da = (dt * 15) >> 1, (dt * 15) >> 3
         inc = [opinc(rc, 0), opinc(rA, da), opinc(rB1, -db), opinc(rB2, db)]
         harm = clamp(g("HARM") + ((dst[1] * 26) >> 15), -26, 26)

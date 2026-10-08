@@ -6,7 +6,8 @@
  *   build/host/cr_quad_test cpu       (also the CPU figure against the VA's, same driver; macOS)
  * Checks: the blob round trip of 2000 random patches; bad blobs -> the init patch; the page table against the ranges
  * and sections; set() clamps; the macros both ways; every preset's blob and macros; the ratio tables (C / B steps, A
- * steps, the B pair sequence and its names); the routing table against the designer's ALGOS; every algorithm and
+ * steps, the B pair sequence and its names); RATIO B's walk (0..360 one pair a step: B1 first, the carry into B2, the
+ * ends, the texts); version-1 blobs and macros (RATIO B = BR x 19 + B1) converted; the routing table against the designer's ALGOS; every algorithm and
  * four presets against tests/quad_ref.py's renders (tests/quad_goldens: SNR over the first 2048 samples > 36 dB AND
  * every 10 ms block's RMS within 1.5 dB over 0.3 s); the envelopes' times (ATK, DEC to END, DELAY, LEV, TRIG, RESET,
  * the amp's release); the filter types and the base-width window; the LFOs' rates (within 2 %), direction, start
@@ -136,7 +137,7 @@ static void t_blob(void)
     int8_t p[QP_NP], q[QP_NP], init[QP_NP];
     uint32_t n, i;
     quad_init_patch(init);
-    CHECK(QUAD_DEEP.blob_size == QUAD_BLOB && QUAD_BLOB == 80u && QP_NP == 71, "blob %u bytes, %d values",
+    CHECK(QUAD_DEEP.blob_size == QUAD_BLOB && QUAD_BLOB == 80u && QP_NP == 72, "blob %u bytes, %d values",
           QUAD_DEEP.blob_size, QP_NP);
     for (n = 0; n < 2000u; n++) {
         rnd_patch(p);
@@ -145,7 +146,7 @@ static void t_blob(void)
         CHECK(quad_unpack(b, q) == 1 && !memcmp(p, q, QP_NP), "random patch %u: round trip differs", n);
         quad_pack(q, b2);
         CHECK(!memcmp(b, b2, QUAD_BLOB), "random patch %u: blob round trip differs", n);
-        CHECK(b[0] == 'Q' && b[1] == 1u, "magic / version");
+        CHECK(b[0] == 'Q' && b[1] == 2u, "magic / version");
         for (i = 2u + QP_NP; i < QUAD_BLOB; i++)
             CHECK(!b[i], "padding byte %u not 0", i);
     }
@@ -174,7 +175,8 @@ static void t_blob(void)
         b2[0] = 0;
         quad_blob_set(t, b2);
         CHECK(!memcmp(quad_patch[0], init, QP_NP), "blob_set(bad): not the init patch");
-        CHECK(t->p[P_E0] == 1 && t->p[P_E1] == 3 && t->p[P_E3] == QUAD_RB_DEF, "blob_set(bad): macros %d %d %d",
+        CHECK(t->p[P_E0] == 1 && t->p[P_E1] == 3 && t->p[P_E3] == 3 && quad_get(t, 0, 3) == QUAD_RB_DEF,
+              "blob_set(bad): macros %d %d %d",
               t->p[P_E0], t->p[P_E1], t->p[P_E3]);
         quad_blob_set(t, 0);
         CHECK(!memcmp(quad_patch[0], init, QP_NP), "blob_set(0): not the init patch");
@@ -226,6 +228,14 @@ static void t_pages(void)
                 continue;
             }
             used[ix]++;
+            if (ix == QP_RB1) {                  /* RATIO B: the pair (B1 and B2, a C/B step each) */
+                used[QP_RB2]++;
+                CHECK(d->min == 0 && d->max == QUAD_NRB - 1 && QUAD_NRB == 361 && d->def == QUAD_RB_DEF &&
+                          QUAD_RB_DEF == 3 * QUAD_NRCB + 3 && quad_range(QP_RB1).max == QUAD_NRCB - 1 &&
+                          quad_range(QP_RB2).max == QUAD_NRCB - 1 && quad_range(QP_RB2).def == 3 && d->names == N_QUAD_RB,
+                      "RATIO B: the pair's column");
+                continue;
+            }
             {
                 quad_rng_t r = quad_range(ix);
                 CHECK(r.min == d->min && r.max == d->max && r.def == d->def, "value %u: range", ix);
@@ -237,6 +247,11 @@ static void t_pages(void)
     for (i = 0; i < 8u; i++) {                   /* the macros = SYN 1's eight, as ENG_QUAD.edit */
         const param_desc_t *d = &QUAD_PAGES[i >> 2].col[i & 3u], *e = &ENG_QUAD.edit[i];
         CHECK(QUAD_MAP[i >> 2][i & 3u] == i, "SYN 1 column %u is not macro %u", i, i);
+        if (i == QP_RB1) {                       /* the macro: B1's step */
+            CHECK(!strcmp(e->label, d->label) && e->fmt == F_INT && e->min == 0 && e->max == QUAD_NRCB - 1 && e->def == 3 &&
+                      e->names == N_QUAD_RCB, "macro 3: B1's step");
+            continue;
+        }
         CHECK(e->min == d->min && e->max == d->max && e->def == d->def && !strcmp(e->label, d->label) && e->fmt == d->fmt,
               "macro %u: edit[] differs from its page column", i);
     }
@@ -279,10 +294,13 @@ static void t_set_macros(void)
     CHECK(t->p[P_E2] == 9 && t->p[P_E4] == -7 && quad_patch[0][QP_RA] == 9, "set -> macros");
     /* P_E -> patch in quad_block */
     t->p[P_E6] = 99;
-    t->p[P_E3] = 120;                            /* beyond RATIO B's range: clamped */
+    quad_set(t, 0, 3, 5 * QUAD_NRCB + 2);       /* RATIO B 0.75/3.00 */
+    t->p[P_E3] = 120;                            /* beyond the macro's range (B1): clamped, B2 kept */
     quad_block(t);
-    CHECK(quad_patch[0][QP_FDBK] == 99 && quad_patch[0][QP_RB] == QUAD_NRB - 1, "macros -> patch: %d %d",
-          quad_patch[0][QP_FDBK], quad_patch[0][QP_RB]);
+    CHECK(quad_patch[0][QP_FDBK] == 99 && quad_patch[0][QP_RB1] == QUAD_NRCB - 1 && quad_patch[0][QP_RB2] == 5,
+          "macros -> patch: %d %d %d", quad_patch[0][QP_FDBK], quad_patch[0][QP_RB1], quad_patch[0][QP_RB2]);
+    CHECK(quad_get(t, 0, 3) == 5 * QUAD_NRCB + 18 && !strcmp(N_QUAD_RB[quad_get(t, 0, 3)], "16.00/3.00"),
+          "the macro moved B1 only: %d", quad_get(t, 0, 3));
     quad_set(t, 0, 0, 5);
     quad_block(t);
     CHECK(quad_patch[0][QP_ALGO] == 5 && t->p[P_E0] == 5, "set then block: the macro holds");
@@ -327,20 +345,21 @@ static void t_ratios(void)
 {
     uint32_t i;
     static const double CB[19] = {0.25, 0.5, 0.75, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-    static const double BRV[6] = {0.5, 1, 1.5, 2, 3, 4};
+    static const double BRV[QUAD_NBR] = {0.5, 1, 1.5, 2, 3, 4};
     for (i = 0; i < QUAD_NRCB; i++)
         CHECK(QUAD_RCB_Q16[i] == (int32_t)(CB[i] * 65536), "C/B step %u", i);
     for (i = 0; i < QUAD_NRA; i++)
         CHECK(QUAD_RA_Q16[i] == (int32_t)((i + 1) * 16384), "A step %u", i);
+    CHECK(names_n(N_QUAD_RB) == QUAD_NRB && QUAD_NRB == QUAD_NRCB * QUAD_NRCB, "RATIO B: %u names", names_n(N_QUAD_RB));
     for (i = 0; i < QUAD_NRB; i++) {             /* the pair: B1 cycles through its steps, then B2 steps on */
         char s[24];
-        double b1 = CB[i % QUAD_NRCB], b2 = b1 * BRV[i / QUAD_NRCB];
-        snprintf(s, sizeof s, "%.2f/%.2f", b1, b2);
-        CHECK(!strcmp(s, N_QUAD_RB[i]) || (fabs(b2 - 0.125) < 1e-9 && !strcmp(N_QUAD_RB[i], "0.25/0.12")),
-              "pair %u: %s, want %s", i, N_QUAD_RB[i], s);
-        CHECK(QUAD_BR_Q16[i / QUAD_NRCB] == (int32_t)(BRV[i / QUAD_NRCB] * 65536), "BR %u", i / QUAD_NRCB);
+        snprintf(s, sizeof s, "%.2f/%.2f", CB[i % QUAD_NRCB], CB[i / QUAD_NRCB]);
+        CHECK(!strcmp(s, N_QUAD_RB[i]), "pair %u: %s, want %s", i, N_QUAD_RB[i], s);
     }
-    CHECK(QRC(1) == 0 && QRC(4) == 3 && QRC(8) == 4 && QRC(64) == 18 && QRA(64) == 63 && QRB(4, 1) == QUAD_RB_DEF,
+    for (i = 0; i < QUAD_NBR; i++)               /* (version 1's B2 / B1: its loader) */
+        CHECK(QUAD_BR_Q16[i] == (int32_t)(BRV[i] * 65536), "BR %u", i);
+    CHECK(QRC(1) == 0 && QRC(4) == 3 && QRC(8) == 4 && QRC(64) == 18 && QRA(64) == 63 && QRB(4, 4) == QUAD_RB_DEF &&
+              QRB(1, 1) == 0 && QRB(64, 64) == QUAD_NRB - 1 && QRB(4, 8) == 4 * QUAD_NRCB + 3,
           "the preset macros' ratio helpers");
     /* increments: ratio 2 = twice, an offset, the detune in cents */
     {
@@ -354,6 +373,133 @@ static void t_ratios(void)
         CHECK(fabs(c - 50.0) < 1.0, "DTUNE 127: B1 / B2 %.2f cents apart", c);
         c = 1200.0 * log2((double)quad_inc(base, 65536, (127 * 15) >> 3) / base);
         CHECK(c > 5.0 && c < 7.0, "DTUNE 127: A %.2f cents", c);
+    }
+}
+
+/* RATIO B, the pair: one step a detent walks B1 through its 19 steps, then B2 steps on (both directions); the ends
+ * hold; the texts; version-1 blobs and macros (BR x 19 + B1, B2 = B1 x BR) come in as B1, the nearest B2 and OFS B2 */
+static void t_ratio_b(void)
+{
+    static const double CB[19] = {0.25, 0.5, 0.75, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    track_t *t = &trk[0];
+    int32_t i, v, bad = 0;
+    char s[24];
+    drv_reset(t);
+    quad_blob_set(t, 0);
+    CHECK(quad_get(t, 0, 3) == QUAD_RB_DEF && !strcmp(N_QUAD_RB[QUAD_RB_DEF], "1.00/1.00"), "init: RATIO B 1.00/1.00");
+    quad_set(t, 0, 3, 0);
+    CHECK(quad_get(t, 0, 3) == 0 && !strcmp(N_QUAD_RB[0], "0.25/0.25") && quad_patch[0][QP_RB1] == 0 &&
+              quad_patch[0][QP_RB2] == 0, "the first pair 0.25/0.25");
+    for (v = 0, i = 0; i < 400; i++) {           /* up: a step a detent (cr_edit: v0 + 1), as the editor turns */
+        int32_t w = clamp(quad_get(t, 0, 3) + 1, 0, QUAD_NRB - 1), b1, b2;
+        quad_set(t, 0, 3, w);
+        v = quad_get(t, 0, 3);
+        b1 = quad_patch[0][QP_RB1], b2 = quad_patch[0][QP_RB2];
+        snprintf(s, sizeof s, "%.2f/%.2f", CB[b1], CB[b2]);
+        if (v != w || b1 != w % 19 || b2 != w / 19 || t->p[P_E3] != b1 || strcmp(N_QUAD_RB[v], s))
+            bad++;
+    }
+    CHECK(!bad && v == QUAD_NRB - 1 && !strcmp(N_QUAD_RB[v], "16.00/16.00"), "walk up: %d bad, ends at %d", bad, v);
+    quad_set(t, 0, 3, 18);                       /* the carry: 16.00/0.25 + 1 = 0.25/0.50 */
+    CHECK(!strcmp(N_QUAD_RB[quad_get(t, 0, 3)], "16.00/0.25"), "B1's last step under B2 0.25");
+    quad_set(t, 0, 3, quad_get(t, 0, 3) + 1);
+    CHECK(quad_get(t, 0, 3) == 19 && quad_patch[0][QP_RB1] == 0 && quad_patch[0][QP_RB2] == 1 &&
+              !strcmp(N_QUAD_RB[19], "0.25/0.50"), "the carry into B2");
+    quad_set(t, 0, 3, quad_get(t, 0, 3) - 1);
+    CHECK(quad_get(t, 0, 3) == 18 && quad_patch[0][QP_RB1] == 18 && quad_patch[0][QP_RB2] == 0, "the carry back");
+    for (bad = 0, i = 0; i < 400; i++) {         /* down from the top */
+        int32_t w = clamp(quad_get(t, 0, 3) - 1, 0, QUAD_NRB - 1);
+        if (i == 0)
+            quad_set(t, 0, 3, QUAD_NRB - 1), w = QUAD_NRB - 2;
+        quad_set(t, 0, 3, w);
+        v = quad_get(t, 0, 3);
+        if (v != w || quad_patch[0][QP_RB1] != w % 19 || quad_patch[0][QP_RB2] != w / 19)
+            bad++;
+    }
+    CHECK(!bad && v == 0, "walk down: %d bad, ends at %d", bad, v);
+    quad_set(t, 0, 3, -1);
+    CHECK(quad_get(t, 0, 3) == 0, "below the first pair: held");
+    quad_set(t, 0, 3, QUAD_NRB);
+    CHECK(quad_get(t, 0, 3) == QUAD_NRB - 1, "past the last pair: held (no wrap)");
+    /* the increments: B2 is its own step (2.00 under B1 0.50), OFS B2 on it */
+    quad_set(t, 0, 3, QRB(2, 8));
+    CHECK(QUAD_RCB_Q16[quad_patch[0][QP_RB2]] == 2 * 65536 && QUAD_RCB_Q16[quad_patch[0][QP_RB1]] == 32768,
+          "0.50/2.00");
+    /* version 1: a blob whose RATIO B is BR x 19 + B1 */
+    {
+        static const struct { int32_t v1, ofs, b1, b2, ofs2; } V1[] = {
+            {1 * 19 + 3, 0, 3, 3, 0},             /* 1.00 x 1 */
+            {4 * 19 + 4, 7, 4, 8, 7},             /* BELL: 2.00 x 3 = 6.00 */
+            {2 * 19 + 9, 0, 9, 12, 50},           /* METAL: 7 x 1.5 = 10.5: 10 + 0.50 */
+            {2 * 19 + 3, 0, 3, 3, 50},            /* DRONE: 1 x 1.5 = 1.5: 1 + 0.50 (halfway: the lower) */
+            {2 * 19 + 3, 80, 3, 3, 100},          /* .. OFS B2 clamped */
+            {0, 0, 0, 0, -13},                    /* 0.25 x 0.5 = 0.125: 0.25 - 0.13 */
+            {5 * 19 + 18, 0, 18, 18, 100},        /* 16 x 4 = 64: 16 + 1.00 (as far as it goes) */
+            {0 * 19 + 7, 0, 7, 4, 50},            /* 5 x 0.5 = 2.5: 2 + 0.50 */
+        };
+        uint8_t b[QUAD_BLOB];
+        int8_t p[QP_NP], q[QP_NP];
+        uint32_t k, j;
+        for (k = 0; k < NELEM(V1); k++) {
+            rnd_patch(p);
+            p[QP_OFSB2] = (int8_t)V1[k].ofs;
+            quad_pack(p, b);
+            b[1] = 1u;                           /* version 1: 71 values, RATIO B one, no B2 */
+            b[2 + QP_RB1] = (uint8_t)V1[k].v1;
+            b[2 + QP_RB2] = 0;
+            CHECK(quad_blob_ok(b), "v1 %u: not valid", k);
+            CHECK(quad_unpack(b, q) == 1 && q[QP_RB1] == V1[k].b1 && q[QP_RB2] == V1[k].b2 && q[QP_OFSB2] == V1[k].ofs2,
+                  "v1 %u (RATIO B %d): B1 %d B2 %d OFS B2 %d, want %d %d %d", k, V1[k].v1, q[QP_RB1], q[QP_RB2],
+                  q[QP_OFSB2], V1[k].b1, V1[k].b2, V1[k].ofs2);
+            for (j = 0; j < QP_NP; j++)
+                if (j != QP_RB1 && j != QP_RB2 && j != QP_OFSB2)
+                    CHECK(q[j] == p[j], "v1 %u: value %u", k, j);
+            quad_blob_set(t, b);                 /* -> the patch, the macro B1; blob_get writes version 2 */
+            quad_blob_get(t, b);
+            CHECK(t->p[P_E3] == V1[k].b1 && b[1] == 2u && quad_blob_ok(b), "v1 %u: blob_set / get", k);
+        }
+        rnd_patch(p);
+        quad_pack(p, b);
+        b[1] = 1u;
+        b[2 + QP_RB2] = 0;
+        b[2 + QP_RB1] = QUAD_NRB_V1;              /* past version 1's range */
+        CHECK(!quad_blob_ok(b), "v1: RATIO B 114 taken");
+        b[2 + QP_RB1] = 0;
+        b[2 + QP_RB2] = 1;                       /* version 1's padding starts at B2's place */
+        CHECK(!quad_blob_ok(b), "v1: padding not 0 taken");
+        /* the in-flash METAL of version 1 = today's METAL, value for value */
+        for (k = 0; k < QUAD_NPRESETS && strcmp(QUAD_PRESETS[k].name, "METAL"); k++)
+            ;
+        quad_preset_patch(k, p);
+        quad_pack(p, b);
+        b[1] = 1u;
+        b[2 + QP_RB1] = 2 * 19 + 9;              /* 7 x 1.5, OFS B2 0 */
+        b[2 + QP_RB2] = 0;
+        b[2 + QP_OFSB2] = 100;                   /* (0 - min) */
+        CHECK(k < QUAD_NPRESETS && quad_unpack(b, q) == 1 && !memcmp(p, q, QP_NP), "v1 METAL: not today's METAL");
+    }
+    /* version-1 macros (a project or record from before: P_E3 = BR x 19 + B1): B1, and a preset still matches */
+    {
+        int8_t p[QP_NP];
+        uint32_t k;
+        for (k = 0; k < QUAD_NPRESETS && strcmp(QUAD_PRESETS[k].name, "EP"); k++)
+            ;
+        drv_reset(t);
+        t->preset = (uint8_t)k;
+        for (i = 0; i < 8; i++)
+            t->p[P_E0 + i] = QUAD_PRESETS[k].e[i];
+        t->p[P_E3] = 1 * 19 + 16;                /* EP's version-1 RATIO B: 14 x 1 */
+        quad_track_loaded(t);
+        quad_preset_patch(k, p);
+        CHECK(!memcmp(p, quad_patch[0], QP_NP) && t->p[P_E3] == 16, "v1 macros: EP's patch");
+        drv_reset(t);
+        t->preset = 0xFF;
+        for (i = 0; i < 8; i++)
+            t->p[P_E0 + i] = (int16_t)quad_range((uint32_t)i).def;
+        t->p[P_E3] = 2 * 19 + 3;                 /* 1 x 1.5 */
+        quad_track_loaded(t);
+        CHECK(quad_patch[0][QP_RB1] == 3 && quad_patch[0][QP_RB2] == 3 && quad_patch[0][QP_OFSB2] == 50 &&
+                  t->p[P_E3] == 3, "v1 macros: 1.00/1.50 as 1.00/1.00 + 0.50");
     }
 }
 
@@ -793,7 +939,7 @@ static void t_render(void)
                         int8_t p[QP_NP];
                         quad_init_patch(p);
                         p[QP_ALGO] = (int8_t)a;
-                        p[QP_RC] = 18, p[QP_RA] = (int8_t)(h ? 63 : 0), p[QP_RB] = (int8_t)(QUAD_NRB - 1 - h * 40);
+                        p[QP_RC] = 18, p[QP_RA] = (int8_t)(h ? 63 : 0), p[QP_RB1] = 18, p[QP_RB2] = (int8_t)(18 - h * 2);
                         p[QP_HARM] = (int8_t)(h ? 26 : -26), p[QP_FDBK] = 127, p[QP_DTUN] = 127;
                         p[QP_MIX] = (int8_t)(mi == 0 ? -63 : mi == 1 ? 63 : 0);
                         p[QP_OFSC] = 100, p[QP_OFSB2] = -100;
@@ -971,6 +1117,7 @@ int main(int argc, char **argv)
     t_set_macros();
     t_presets();
     t_ratios();
+    t_ratio_b();
     t_algo_table();
     t_golden();
     t_env();

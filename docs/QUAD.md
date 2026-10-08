@@ -164,9 +164,16 @@ eng_quad.c; the test checks it against a transcription of `index.html`):
 | 8 | none | B2 | C + A | B1 + B2 |
 
 **Ratio tables.** RATIO C and B1: 19 steps `0.25 0.50 0.75 1 2 3 .. 16` (index 0..18, 1.00 = 3). RATIO A: 64 steps
-`0.25 .. 16.00` by 0.25 (index = ratio x 4 - 1, 1.00 = 3). **RATIO B (the pair)**: index 0..113 = `BR x 19 + B1`, B1 a
-C/B step, B2 = B1 x BR with BR in `0.5 1 1.5 2 3 4` (index 0..5): turning up, B1 cycles 0.25 .. 16 and then B2's
-multiplier steps and B1 starts again. Default 22 = 1.00/1.00; e.g. 3 x 19 + 1 = 58 = 0.50/1.00. Offsets: -100..+100 =
+`0.25 .. 16.00` by 0.25 (index = ratio x 4 - 1, 1.00 = 3). **RATIO B (the pair, version 2, 2026-10-08)**: B1 and B2 each a C/B
+step (patch values `QP_RB1`, `QP_RB2`, 0..18 each); the deep column is one value 0..360 = `B2 x 19 + B1` (`QUAD_NRB`
+361, B2-major): one detent steps B1, and past B1's last step (16) the next detent carries into B2 (B1 back to 0.25,
+B2 one step up); turning down the same backwards; 0 = 0.25/0.25 and 360 = 16.00/16.00 hold (no wrap). Default 60 =
+1.00/1.00; e.g. 3 x 19 + 1 = 58 = 0.50/1.00. `quad_get` / `quad_set` join and split the pair; the macro `P_E3`
+(`ENG_QUAD.edit[3]`, `preset_t.e[3]`) is B1's step only (0..18: the user preset record keeps a macro in one byte,
+-64..191), so a knob, the matrix or motion on `P_E3` moves B1 and leaves B2. The texts: `N_QUAD_RB`, 361 generated names
+"0.50/6.00" (cr_edit.c needs a name list to step a ratio one value a detent and to show the whole name; ~5 KB flash).
+Version 1 (until 2026-10-08) had 114 pairs `BR x 19 + B1`, B2 = B1 x BR, BR in `0.5 1 1.5 2 3 4` (`QUAD_BR_Q16`,
+kept for the loader below). Offsets: -100..+100 =
 -1.00..+1.00 added to the ratio (clamped at 0). DTUNE: B1 -, B2 + `DTUNE x 7.5 / 65536` (+-25 cents at 127, B1 / B2
 50 cents apart), A + a quarter of that (+6 cents); a factor on the ratio. Increments: `pitch inc x ratio (Q16) x
 detune (Q16)` in 64-bit, per tick.
@@ -196,24 +203,29 @@ note), HOLD (the part's phase at the note, frozen), ONE (one cycle, then stops),
 2^25. WAVE: TRI (0 at phase 0, rising), SINE, SQR, SAW (bipolar, rising through 0), RAMP (unipolar, falling), EXP
 (unipolar, `(1 - x)^4`), RAND (a new value each cycle). FADE: a fade-in over the FADE time (as the VA's). DEPTH
 -64..63: `wave x DEPTH / 64`. DEST (summed over the three, at full depth): HARM +-26, DTUNE +-127, FDBK +-127, MIX
-+-126, RATIO A +-32 steps, RATIO B +-18 B1 steps (BR kept), FREQ +-127 cutoff steps, RESO / LEVEL / A LEV / B LEV
++-126, RATIO A +-32 steps, RATIO B +-18 steps (B1 and B2 the same steps), FREQ +-127 cutoff steps, RESO / LEVEL / A LEV / B LEV
 +-127, PAN +-64 (the part's: `quad_pan` for fx.c, from the latest note's voice, as `va_pan`).
 
 **DRIVE and PAN are not in the patch**: AMP+'s PAN and DRIVE columns read and write the part's `P_PAN` and `P_DIST`
 (the platform's DIST insert is QUAD's drive), on any part. A sound's PAN and DRIVE travel as the track's parameters
 (a preset's `FX()` DIST send, a user slot's values), not in the blob.
 
-**The blob** (`QUAD_BLOB` 80 bytes): `'Q'` (0x51), version 1, then a byte per value (value - min, 0..200: the offsets
-and SPEED are not 7-bit clean), zeros to 80 (71 values + 7 zero bytes: room for version 2's additions). A bad magic,
-version, out-of-range byte or non-zero padding -> the init patch. Values (index name min..max (init)):
-0 ALGO 1..8 (1); 1 RATIO C 0..18 (3); 2 RATIO A 0..63 (3); 3 RATIO B 0..113 (22); 4 HARM -26..26 (0); 5 DTUNE 0..127
+**The blob** (`QUAD_BLOB` 80 bytes): `'Q'` (0x51), version 2, then a byte per value (value - min, 0..200: the offsets
+and SPEED are not 7-bit clean), zeros to 80 (72 values + 6 zero bytes). A bad magic, version, out-of-range byte or
+non-zero padding -> the init patch. **Version 1** (71 values, byte 3 RATIO B 0..113 = `BR x 19 + B1`, padding from
+byte 73) is still read (`quad_blob_ok`, so a v1 patch store stays valid; `quad_unpack` converts): B1 = its B1, B2 = the
+grid step nearest B1 x BR (the lower one when halfway), the rest added to OFS B2 (rounded to 1/100, clamped at +-1.00:
+exact for the half steps, e.g. 7 x 1.5 = 10 + 0.50; 0.25 x 0.5 = 0.25 - 0.13, 16 x 4 = 16 + 1.00 are not). Blobs are
+written as version 2. A version-1 macro (`P_E3` 19..113 in a project or a record from before) is taken the same way
+by `quad_track_loaded` (B1 to `P_E3`, so a factory preset still matches). Values (index name min..max (init)):
+0 ALGO 1..8 (1); 1 RATIO C 0..18 (3); 2 RATIO A 0..63 (3); 3 RATIO B1 0..18 (3); 4 HARM -26..26 (0); 5 DTUNE 0..127
 (0); 6 FDBK 0..127 (0); 7 MIX -63..63 (0) [0..7 = P_E0..P_E7]; 8..11 OFS C A B1 B2 -100..100 (0); 12..15 A ATK DEC END
 LEV (0 60 64 48); 16..19 B ATK DEC END LEV (0 60 0 0); 20 A DLY (0); 21 A TRIG 0..1 (1); 22 A RESET 0..1 (1); 23 PHASE
 RESET 0..1 (1); 24 B DLY (0); 25 B TRIG (1); 26 B RESET (1); 27 VEL (64); 28 A KTRK (0); 29 B KTRK (0); 30..33 filter
 ATK DEC SUS REL (0 64 0 40); 34 FREQ (127); 35 RESO (0); 36 TYPE 0..2 LP HP BP (0); 37 DEPTH -64..63 (0); 38 F DELAY
 (0); 39 F KTRK (0); 40 BASE (0); 41 WIDTH (127); 42..45 amp ATK DEC SUS REL (0 64 127 40); 46 LEVEL (100); 47..54,
 55..62, 63..70 LFO 1..3: SPEED -64..64 (16), MULT 0..11 (3), FADE (0), DEST 0..12 (0), WAVE 0..6 (0), PHASE (0), TRIG
-0..4 (0), DEPTH -64..63 (0). (Unlisted ranges 0..127.)
+0..4 (0), DEPTH -64..63 (0); 71 RATIO B2 0..18 (3) (version 2). (Unlisted ranges 0..127.)
 
 **The pages as implemented** (`eng_page_t`, 4 columns each; a mock-up screen = row A + row B = two pages;
 `section = {0, 3, 7, 14, 0xFF}`: OSC, FILTER, ENV, LFO, **no MOD**):
@@ -234,7 +246,7 @@ ATK DEC SUS REL (0 64 0 40); 34 FREQ (127); 35 RESO (0); 36 TYPE 0..2 LP HP BP (
 Deviations from the plan's table: FILTER comes before ENV (the sections ascend: OSC FILTER ENV LFO); ENV 2+'s empty
 column holds VEL and a one-row **ENV 3** (A KTRK, B KTRK) was added: the brief's key tracks and VEL had no place on the
 user's layout. Value formats (existing `F_*` kinds only): ALGO `F_INT` ("3"); RATIO C / A / B and the offsets `F_INT`
-with a 0-terminated name list (`N_QUAD_RCB` "2.00", `N_QUAD_RA`, `N_QUAD_RB` "0.50/1.00", `N_QUAD_OFS` "+0.01"; params.c
+with a 0-terminated name list (`N_QUAD_RCB` "2.00", `N_QUAD_RA`, `N_QUAD_RB` "0.50/1.00" (361), `N_QUAD_OFS` "+0.01"; params.c
 names value v with names[v - min]; its 5-character cut truncates "0.50/1.00", so the editor draws the pair from
 `N_QUAD_RB` itself, or splits it at the '/'); HARM, MIX, SPEED, the depths, PAN `F_OFS` ("+8"; 0 at the middle of a
 symmetric range); MULT `F_ENUM` "x16"; TYPE, WAVE, TRIG, DEST `F_ENUM`; TRIG / RESET / PHASE `F_ONOFF`; times `F_TIME`;
@@ -242,9 +254,12 @@ FREQ `F_CUTOFF`; RESO, SUS, KTRK, VEL, DRIVE `F_PCT`; BASE, WIDTH, END, LEV, LEV
 
 **Presets**: EP, BELL, BASS (MONO), PLUCK, BRASS, GLASS PAD, HOLLOW, SQUARE LEAD (MONO), METAL, WOBBLE (MONO), CLAV,
 STRINGS, MARIMBA, DRONE, FEEDBACK, NOISE-ISH: edit lists over the init patch, starting points by design (to be tuned by
-ear). A 6-note chord (D4 F#4 A4 B4 C#5 E5, one note D2 for the MONO ones) at LEVEL 92 peaks at 30-72 % FS.
+ear). A 6-note chord (D4 F#4 A4 B4 C#5 E5, one note D2 for the MONO ones) at LEVEL 92 peaks at 30-72 % FS. Version 2
+re-expressed each preset's pair as B1 / B2 steps (`QRB(b1, b2)`, x4 as `QRC`); two were not on the grid (B2 = B1 x 1.5):
+METAL 7/10.5 and DRONE 1/1.5 are now 7/10 and 1/1 with OFS B2 +0.50 (the same Q16 increments: regress's 16 renders
+unchanged).
 
-**Tests** (`cr_quad_test`, 23 990 checks, 0 failed; built with `-fsanitize=signed-integer-overflow`): blob round trip of
+**Tests** (`cr_quad_test`, 22 775 checks, 0 failed (2026-10-08: RATIO B's walk 0..360, the carry, the ends, the texts; version-1 blobs and macros); built with `-fsanitize=signed-integer-overflow`): blob round trip of
 2000 random patches, every bad blob -> init; the pages against the ranges (every value on exactly one column), the
 sections, the macros = SYN 1 = `ENG_QUAD.edit`; set clamps, PAN / DRIVE to the part; the macros both ways; the 16
 presets (blob, macros = `preset_t.e`, `env` = the amp ADSR, `quad_track_loaded`); the ratio tables and the pair's names;
@@ -267,7 +282,7 @@ carrier may miss the flash cache. Measure on the device (perf.sh) before raising
 **For the wiring (milestone 2).** core.h: `FELUCCA_QUAD` (0 by default, 1 in choralroot.c, the emulator,
 tests/regress.c), `NENGINES += FELUCCA_QUAD`, `ENGI_QUAD` = 15 (after CZ-1, 14; eng_quad.c defaults it to 15u when core.h
 does not define it). engines.c: `#include "eng_quad.c"` (it includes `quad_tables.h`), `ENGINES[15] = &ENG_QUAD`,
-`ENGINE_ORDER` ANALOG, FM6, QUAD, VA ..; no `eng_state` member (QUAD's state is its own pool arrays: `quad_patch` 2 x 71
+`ENGINE_ORDER` ANALOG, FM6, QUAD, VA ..; no `eng_state` member (QUAD's state is its own pool arrays: `quad_patch` 2 x 72
 B, `quad_mlast` 32 B, `quad_lfo` 48 B, `quad_vs` 2 x 8 x 124 B = 1.98 KB, all `.pool`). Call `quad_track_loaded(t)` from
 `fm6_track_loaded` beside `va_track_loaded`; fx.c `mix_part`: `pan = quad_pan(t, pan)` beside `va_pan`. The patch store
 (`quad_store.c` beside va_store.c): records of `QUAD_BLOB` = 80 bytes (16 + 32 x 80 = 2576 B), set `quad_store_read` and
@@ -278,6 +293,10 @@ screen. tests/regress.c enumerates `ENGINES[]`: with `FELUCCA_QUAD 1` there, its
 baselines are new entries to record (`tests/golden.txt`, `tests/cpu_baseline.txt`) once QUAD is registered.
 
 ## Status (milestone 2: wired, 2026-10-08)
+
+**2026-10-08, RATIO B as the full grid** (the user: B1 steps through 0.25 .. 16, then B2 steps, both directions): the
+pair is B2 x 19 + B1 (361), the blob version 2 with B2 at value 71, version 1 read and converted (above, "Ratio tables",
+"The blob"); the presets' sounds unchanged; the QUAD store's own header stays version 1 (its layout did not change).
 
 QUAD is engine 15 of ChoralRoot (`FELUCCA_QUAD` 1 in `choralroot.c`, the emulator and `tests/regress.c`; 0 by default:
 Felucca's unit builds as before). Where:
@@ -296,13 +315,16 @@ Felucca's unit builds as before). Where:
   _loading / _boot / _get / _put / _valid` as the VA's; backup object **22** (`cr_backup.c`: LIST / GET / PUT, a PUT
   validated by `quad_store_valid`); SAFE MODE's Flash Data erases the pair (56 sectors). Clients: `web/fm1backup.js`
   `CR_BACKUP_IDS`, `tools/fm1_install.py` `CR_IDS` ("QUAD patches").
-- **The Sounds tools**: patch kind `quad` (80 bytes, 'Q' 1) in `web/fm1sounds.js` and `tools/fm1_install.py` (object
-  22 read when listed); no .syx for QUAD (docs/SOUNDS.md). `tests/sound_templates.c` prints QUAD's factory names (pinned
+- **The Sounds tools**: patch kind `quad` (80 bytes, 'Q' 1; the firmware writes 'Q' 2 since 2026-10-08 and reads both:
+  the clients' version check must take 2 as well) in `web/fm1sounds.js` and `tools/fm1_install.py` (object 22 read when
+  listed); no .syx for QUAD (docs/SOUNDS.md). `tests/sound_templates.c` prints QUAD's factory names (pinned
   in both clients) and a `quad` template and `quad_blob` fixture (EP).
 - **The editor**: QUAD's screen plan (`QUAD_SCREENS`, `eng_deep_t.screens`; docs/EDITOR.md §4 "QUAD"): the mock-ups'
   eight screens (OSC SYN 1 under the algorithm, SYN 2; FILT FILTER, FILTER 2 with the window; ENV A/B, ENV 2, ENV 3,
   AMP; LFO 1..3 a screen each, Wave · Phase one span cell); MOD is the platform's routes (QUAD has no MOD section; the
-  quick mapping says "not modulatable"). Ratios step one value a detent.
+  quick mapping says "not modulatable"). Ratios step one value a detent (RATIO B: one pair, B1 first, then the carry into
+  B2). The engine's display name is "FM TONE" (`ENG_QUAD.name`; identifiers, files, the patch kind and the blob stay
+  QUAD).
 - **Tests**: `tools/emu/scripts/cr_quad.txt` (test_cr.sh "QUAD"), `quad_persist_set/check.txt` (test_persist.sh), perf.sh
   scenario (i); `tests/cr_backup_test.c` (object 22, a QUAD sound through PUT), `tests/golden.txt` and
   `tests/cpu_baseline.txt` (the 16 presets), `tests/target_budget.py` lists `quad_render` / `quad_block` (their budget

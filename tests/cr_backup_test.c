@@ -608,7 +608,7 @@ int main(void)
             CHECK(up_used(6) && up_rec(6)->engine == ENGI_QUAD && !strcmp(nm, "MY QUAD") && quad_store_get(6, out) == 0 &&
                   !memcmp(out, qb, QUAD_BLOB), "sounds: QUAD: U07 used, its patch reads back (%s)", nm);
             memcpy(&bad_q, &q, sizeof q);
-            bad_q.p[6][1] = 2;                       /* the blob's version */
+            bad_q.p[6][1] = QUAD_VER + 1u;           /* the blob's version (1 and 2 are read: eng_quad.c QUAD_VER) */
             CHECK(t_put(22, (uint8_t *)&bad_q, sizeof bad_q) == 2 && t_put_begin(22, 100, 0) == 1 &&
                   quad_store_get(6, out) == 0 && !memcmp(out, qb, QUAD_BLOB), "sounds: QUAD: a bad blob / a wrong size refused, the patch kept");
             CHECK(t_list() == 0 && find(man, nman, 22)->size == 2576u && find(man, nman, 22)->crc == st_crc32((uint8_t *)&q, sizeof q),

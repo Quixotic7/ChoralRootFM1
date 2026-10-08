@@ -36,6 +36,9 @@
 #ifndef FELUCCA_DRUM
 #define FELUCCA_DRUM 0
 #endif
+#ifndef FELUCCA_ANALOG
+#define FELUCCA_ANALOG 0                              /* as choralroot.c: ANALOG retired (engine 0) */
+#endif
 #ifndef FELUCCA_SLICER
 #define FELUCCA_SLICER 1                              /* (as felucca.c; the device unit has it off) */
 #endif

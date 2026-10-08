@@ -226,10 +226,35 @@ static void cu_load(track_t *t, uint32_t e, uint32_t pi, int bass)
 }
 
 /* user slot k into part t (upreset.c up_load without Felucca's undo / pattern): engine and every parameter but
- * the part's own (param_kept); a chord part plays it POLY when it was saved MONO, a bass part MONO. A sound of a
- * retired engine (SAMPLE 4, GRAIN 8, DRUM 10: a Felucca slot, a restored bank; engines.c ENG_GONE) loads as the init
- * sound on ANALOG under the slot's name, with a message (and a trace line on the emulator) */
+ * the part's own (param_kept); a chord part plays it POLY when it was saved MONO, a bass part MONO. An ANALOG sound
+ * (engine 0, retired in 0.14: a 0.13 slot, a restored bank) loads on the VA with its macros carried by name (cu_analog_va;
+ * the VA's init patch under them, eng_va.c va_track_loaded); a sound of another retired engine (SAMPLE 4, GRAIN 8,
+ * DRUM 10: a Felucca slot; engines.c ENG_GONE) loads as the VA's init sound. Both under the slot's name, with a
+ * message (and a trace line on the emulator) */
 static void cu_message(const char *t, uint32_t col);
+#if !FELUCCA_ANALOG
+/* ANALOG's values -> the VA's: CUT RES DRV MIX DTN to the VA's macros of the same name, the filter envelope (ENV
+ * DEST FLT) to FENV, the envelope's ATK / REL to the VA's ATK / REL macros (its own envelope); ANALOG's WAVE, NOIS
+ * and KTR have no VA macro (the init patch's two saws) */
+static void cu_analog_va(int16_t *v)
+{
+    int16_t a[8];
+    uint32_t i;
+    for (i = 0; i < 8u; i++)
+        a[i] = v[P_E0 + i];                       /* WAVE DTN MIX NOIS CUT RES DRV KTR */
+    v[P_E0 + 0] = a[4];                           /* CUT */
+    v[P_E0 + 1] = a[5];                           /* RES */
+    v[P_E0 + 2] = (int16_t)clamp(v[P_ED_FLT], -64, 63);   /* FENV */
+    v[P_E0 + 3] = a[6];                           /* DRIVE */
+    v[P_E0 + 4] = a[2];                           /* MIX */
+    v[P_E0 + 5] = a[1];                           /* DTN */
+    v[P_E0 + 6] = v[P_ATK];                       /* ATK */
+    v[P_E0 + 7] = v[P_REL];                       /* REL */
+    v[P_ED_FLT] = 0;                              /* (the VA's presets: FENV is the macro) */
+    for (i = 0; i < 8u; i++)
+        v[P_E0 + i] = (int16_t)clamp(v[P_E0 + i], ENG_VA.edit[i].min, ENG_VA.edit[i].max);
+}
+#endif
 static void cu_load_user(track_t *t, uint32_t k, int bass)
 {
     const up_rec_t *r;
@@ -252,13 +277,30 @@ static void cu_load_user(track_t *t, uint32_t k, int bass)
         fm4_apply(t, p);
     } else
 #endif
-    if (!eng_ok(r->engine)) {
-        const engine_t *en = ENGINES[0];
+#if !FELUCCA_ANALOG
+    if (r->engine == 0u) {                        /* ANALOG (retired): its macros on the VA */
 #if defined(CR_TRACE) && CR_TRACE
-        printf("load: slot %u engine %u retired -> INIT on ANALOG\n", (unsigned)k + 1u, (unsigned)r->engine);
+        printf("load: slot %u engine 0 (ANALOG) retired -> VA, its macros\n", (unsigned)k + 1u);
+#endif
+        cu_analog_va(v);
+        fm1_irq_off();
+        t->eng_req = ENGI_VA;
+        for (i = 0; i < P_COUNT; i++)
+            if (!cu_kept(i))
+                t->p[i] = v[i];
+        t->preset = 0;
+        fm1_irq_on();
+        fm6_track_loaded(t);                      /* (no stored VA patch: the init patch + these macros) */
+        cu_message("ANALOG retired: on the VA", CR_COL_WHITE);
+    } else
+#endif
+    if (!eng_ok(r->engine)) {
+        const engine_t *en = ENGINES[CB_RETIRED_POOL];
+#if defined(CR_TRACE) && CR_TRACE
+        printf("load: slot %u engine %u retired -> INIT on %s\n", (unsigned)k + 1u, (unsigned)r->engine, en->name);
 #endif
         fm1_irq_off();
-        t->eng_req = 0;                           /* ANALOG */
+        t->eng_req = CB_RETIRED_POOL;
         for (i = 0; i < P_E0; i++)
             if (!cu_kept(i))
                 t->p[i] = TP[i].def;
@@ -4069,10 +4111,11 @@ static void cr_ui_init(void)
         trk[k].p[P_MUTE] = 1;
     for (k = 0; k < (uint32_t)NENG_SHOWN; k++)      /* each engine's pool: its first preset until played */
         cs.pool_pos[0][k] = cs.pool_pos[1][k] = 1;
-    cu_pool_load(0, ENGI_FM6, cu_pool_find(ENGI_FM6, "TINE EP"));   /* the power-on sounds: FM6 TINE EP, the bass ANALOG
-                                                                    * SUB BASS (ALGORITHM at OFF: BASS tap brings it) */
+    cu_pool_load(0, ENGI_FM6, cu_pool_find(ENGI_FM6, "TINE EP"));   /* the power-on sounds: FM6 TINE EP, the bass VA
+                                                                    * DEEP SUB (ALGORITHM at OFF: BASS tap brings it;
+                                                                    * ANALOG SUB BASS until 0.14) */
     cu_sends_to_fx();
-    cu_pool_load(1, 0, cu_pool_find(0, "SUB BASS"));
+    cu_pool_load(1, ENGI_VA, cu_pool_find(ENGI_VA, "DEEP SUB"));
     ce.page = CP_ENV;
     ce.col = -1;
     for (k = 0; k < 2u; k++)
