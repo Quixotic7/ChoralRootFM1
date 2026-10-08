@@ -50,19 +50,22 @@ HARM, two tables crossfaded. Budget target: 8 voices <= 18 % of the block; the f
 
 ## The eight P_E macros (EDIT 1 / EDIT 2) and HOME's knobs
 
-| EDIT 1 | ALGO | RATIO A | RATIO B | HARM |
-| --- | --- | --- | --- | --- |
-| **EDIT 2** | **DTUN** | **FDBK** | **MIX** | **ENV** (one macro over both envelopes' DEC: shorter / longer) |
+The Digitone's SYN1 page, one for one (the user, 2026-10-07):
 
-HOME's four knobs: RATIO A, HARM, FDBK, MIX. These are macros into the patch as the VA's are (a deep edit writes the
+| EDIT 1 | ALGO | RATIO C | RATIO A | RATIO B |
+| --- | --- | --- | --- | --- |
+| **EDIT 2** | **HARM** | **DTUN** | **FDBK** | **MIX** |
+
+RATIO C is a real ratio (0.25..16, as the Digitone's), not fixed. HOME's four knobs: RATIO A, HARM, FDBK, MIX. These are macros into the patch as the VA's are (a deep edit writes the
 macro back).
 
 ## The deep pages (`eng_deep_t`), the editor's groups
 
 | section (editor group) | pages | KNOB 1..4 | screen |
 | --- | --- | --- | --- |
-| OSC (FX) | `OP C`, `OP A`, `OP B1`, `OP B2` | Ratio (C: 1.00 fixed, shown dim) · Offset · Level (C: –) · Harm (C, and B's share: shown on the carriers) | a `stack` of four operators; a `harm` glyph on the carriers' cells |
-| | `ALGO` | Algo 1..8 · Feedback · Mix · Phase reset | `edit8` with the **algorithm diagram** as the wide band: the four operators as boxes with their routing arrows, the feedback loop, X and Y outputs, redrawn as ALGO turns |
+| OSC (FX) | `SYN 1`, `SYN 1+` (the two macro rows) | Algo · Ratio C · Ratio A · Ratio B / Harm · Dtune · Feedback · Mix | one `edit8` of two rows (the Digitone's SYN1 page) under the **algorithm diagram** as the wide band: the four operators as boxes with their routing arrows, the feedback loop, X and Y outputs, redrawn as ALGO turns; the Harm cell carries the `harm` glyph, Mix a bipolar bar |
+| | `OP C`, `OP A`, `OP B1`, `OP B2` | Offset · Level (C: –) · (B2: Ratio x, B2's multiple of B) · – | the second OSC screen, a `stack` of the four operators (the Digitone's SYN2 ratio offsets and levels); Phase reset lives on `SYN 2+` with A/B Delay and the Trig resets |
+| | `SYN 2`, `SYN 2+` | A Delay · B Delay · A Reset · B Reset / Phase reset · Key trk A · Key trk B · Vel | an `edit8` of two rows |
 | FILT (SEL) | the platform's CUT / RES page (no deep filter) | | as ANALOG |
 | ENV (ENV) | the platform ADSR, then `ENV A`, `ENV A+`, `ENV B`, `ENV B+` | Attack · Decay · End · Level / Delay · Reset · Key trk · Vel | `edit8` with the **ADE band** (attack to LEV, decay to END, the held level), as the AHDSR band draws |
 | LFO (LFO) | the platform's LFO page | | as ANALOG |

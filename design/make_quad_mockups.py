@@ -30,33 +30,35 @@ def g(label, value, glyph=None, pct=None, pct2=None, **kw):
 ED = {"EDIT": BLINK}
 S = []
 
-# 1 ---------------------------------------------------------------- OSC: the four operators
+# 1 ---------------------------------------------------------------- OSC: the SYN1 page (the Digitone's layout)
 S.append(state(
-    "1 · QUAD · OSC: the four operators",
-    "The OSC group is a stack of the four operators C, A, B1, B2 (the Digitone's): Ratio (C fixed at 1.00, dim), "
-    "Offset (a fine ratio offset), Level (A and B: the modulation ceiling; C: –), Harm (the carriers' waveshape: the "
-    "harm glyph shows the sine growing harmonics). KNOB 1-4 edit the active row (A here); a tap on OSC steps the row.",
+    "1 · QUAD · OSC: the SYN1 page under the algorithm diagram",
+    "The OSC group's first screen is the Digitone's SYN1 page, one for one: row A Algo · Ratio C · Ratio A · Ratio B "
+    "(B1 and B2 share it), row B Harm · Dtune · Feedback · Mix, under the wide band that draws the algorithm (boxes, "
+    "arrows, the feedback loop, the X / Y outputs; it redraws as Algo turns). The eight cells are the eight EDIT macros. "
+    "Row A is on the knobs; a tap on OSC steps to row B, another to the operator stack (state 1b).",
     held=["MAJ"], lit=["D4", "F#4", "A4"], buttons=ED | {"FX": LIT}, button_labels=EDITOR_BUTTON_LABELS,
-    encoders={"SELECT": ("OP", "A"), "KNOB1": ("RATIO", "2.00"), "KNOB2": ("OFFSET", "+0.00"), "KNOB3": ("LEVEL", "80"), "KNOB4": ("HARM", "+8")},
-    screen=editor_screen(stack_panel("GLASS EP", "OP A · A", ["Ratio", "Offset", "Level", "Harm"], [
-        ("C", [g("Ratio", "1.00", dim=True), g("Offset", "+0.00"), None, g("Harm", "+8", "harm", 0.5 + 8 / 52)]),
-        ("A", [g("Ratio", "2.00", pct=0.3), g("Offset", "+0.00", pct=0.5), g("Level", "80", "bar", 80 / 127), g("Harm", "+8", "harm", 0.5 + 8 / 52)]),
-        ("B1", [g("Ratio", "0.50", pct=0.1), g("Offset", "+0.00", pct=0.5), g("Level", "60", "bar", 60 / 127), None]),
-        ("B2", [g("Ratio", "0.50", pct=0.1), g("Offset", "+0.01", pct=0.51), g("Level", "60", "bar", 60 / 127), None]),
-    ], 1), note="QUAD's OSC stack: C A B1 B2; the harm glyph on the carriers; the active row A on the knobs."),
+    encoders={"SELECT": ("SYN 1", "A"), "KNOB1": ("ALGO", "3"), "KNOB2": ("RATIO C", "1.00"), "KNOB3": ("RATIO A", "2.00"), "KNOB4": ("RATIO B", "0.50")},
+    screen=editor_screen(edit8("GLASS EP", "SYN 1 · A", [
+        [g("Algo", "3", pct=2 / 7), g("Ratio C", "1.00", pct=0.2), g("Ratio A", "2.00", pct=0.3), g("Ratio B", "0.50", pct=0.1)],
+        [g("Harm", "+8", "harm", 0.5 + 8 / 52), g("Dtune", "12", pct=12 / 127), g("Feedback", "40", pct=40 / 127), g("Mix", "+12", bipolar=True, pct=0.5 + 12 / 126)]], 0,
+        wide={"type": "algo", "algo": 3, "fdbk": 0.3, "mix": 0.6}),
+        note="the SYN1 page: the algorithm diagram over Algo Ratio C Ratio A Ratio B / Harm Dtune Feedback Mix."),
 ))
 
-# 2 ---------------------------------------------------------------- ALGO page with the diagram
 S.append(state(
-    "2 · QUAD · ALGO: the algorithm diagram over Algo · Feedback · Mix · Phase",
-    "OSC's last screen: ALGO. The wide band draws the algorithm: the four operators as boxes, modulators above "
-    "carriers with arrows, the feedback loop on its operator, the X and Y outputs at the bottom (the MIX cell's "
-    "value tilts toward X or Y). Turning KNOB 1 redraws the diagram for algorithms 1..8.",
+    "1b · QUAD · OSC: the operator stack (offsets, levels)",
+    "The OSC group's second screen: the four operators C, A, B1, B2 as rows (the Digitone's SYN2 ratio offsets and "
+    "levels): Offset (a fine ratio offset), Level (A, B1, B2: the modulation ceiling; C: –), B2's Ratio x (its "
+    "multiple of ratio B). KNOB 1-4 edit the active row.",
     held=["MAJ"], lit=["D4", "F#4", "A4"], buttons=ED | {"FX": LIT}, button_labels=EDITOR_BUTTON_LABELS,
-    encoders={"SELECT": ("OSC", "ALGO"), "KNOB1": ("ALGO", "3"), "KNOB2": ("FEEDBACK", "40"), "KNOB3": ("MIX", "+12"), "KNOB4": ("PHASE", "RESET")},
-    screen=editor_screen(edit8("GLASS EP", "ALGO", [[g("Algo", "3", pct=2 / 7), g("Feedback", "40", "bar", 40 / 127), g("Mix", "+12", bipolar=True, pct=0.5 + 12 / 126), g("Phase", "Reset")]], 0,
-                               wide={"type": "algo", "algo": 3, "fdbk": 0.3, "mix": 0.6}),
-                         note="the ALGO screen: the diagram of algorithm 3 redraws as KNOB 1 turns."),
+    encoders={"SELECT": ("OP", "A"), "KNOB1": ("OFFSET", "+0.00"), "KNOB2": ("LEVEL", "80"), "KNOB3": "", "KNOB4": ""},
+    screen=editor_screen(stack_panel("GLASS EP", "OP A · B", ["Offset", "Level", "Ratio x", ""], [
+        ("C", [g("Offset", "+0.00", pct=0.5), None, None, None]),
+        ("A", [g("Offset", "+0.00", pct=0.5), g("Level", "80", "bar", 80 / 127), None, None]),
+        ("B1", [g("Offset", "+0.00", pct=0.5), g("Level", "60", "bar", 60 / 127), None, None]),
+        ("B2", [g("Offset", "+0.01", pct=0.51), g("Level", "60", "bar", 60 / 127), g("Ratio x", "1.00", pct=0.25), None]),
+    ], 1), note="the operator stack: offsets and levels per operator, B2's ratio multiple."),
 ))
 
 # 3 ---------------------------------------------------------------- ENV A with the ADE band
@@ -108,8 +110,7 @@ design = {
     "name": "ChoralRoot FM-1 QUAD engine mockups",
     "palette": "MOD",
     "labels": {"buttons": BUTTON_LABELS, "encoders": ENCODER_LABELS},
-    "notes": "QUAD, a Digitone-style four-operator FM engine (docs/QUAD.md): the OSC stack of C A B1 B2 with the harm glyph (1), "
-             "the ALGO screen with the algorithm diagram band (2), the operator envelopes under the ADE band (3), the preset "
+    "notes": "QUAD, a Digitone-style four-operator FM engine (docs/QUAD.md): the SYN1 page under the algorithm diagram (1), the operator stack (1b),  the operator envelopes under the ADE band (3), the preset "
              "pool (4), the harm glyph at four values (5).",
     "states": S,
 }

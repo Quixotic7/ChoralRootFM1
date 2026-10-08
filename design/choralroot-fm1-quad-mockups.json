@@ -32,11 +32,190 @@
    "KNOB4": "FX"
   }
  },
- "notes": "QUAD, a Digitone-style four-operator FM engine (docs/QUAD.md): the OSC stack of C A B1 B2 with the harm glyph (1), the ALGO screen with the algorithm diagram band (2), the operator envelopes under the ADE band (3), the preset pool (4), the harm glyph at four values (5).",
+ "notes": "QUAD, a Digitone-style four-operator FM engine (docs/QUAD.md): the SYN1 page under the algorithm diagram (1), the operator stack (1b),  the operator envelopes under the ADE band (3), the preset pool (4), the harm glyph at four values (5).",
  "states": [
   {
-   "name": "1 \u00b7 QUAD \u00b7 OSC: the four operators",
-   "notes": "The OSC group is a stack of the four operators C, A, B1, B2 (the Digitone's): Ratio (C fixed at 1.00, dim), Offset (a fine ratio offset), Level (A and B: the modulation ceiling; C: \u2013), Harm (the carriers' waveshape: the harm glyph shows the sine growing harmonics). KNOB 1-4 edit the active row (A here); a tap on OSC steps the row.",
+   "name": "1 \u00b7 QUAD \u00b7 OSC: the SYN1 page under the algorithm diagram",
+   "notes": "The OSC group's first screen is the Digitone's SYN1 page, one for one: row A Algo \u00b7 Ratio C \u00b7 Ratio A \u00b7 Ratio B (B1 and B2 share it), row B Harm \u00b7 Dtune \u00b7 Feedback \u00b7 Mix, under the wide band that draws the algorithm (boxes, arrows, the feedback loop, the X / Y outputs; it redraws as Algo turns). The eight cells are the eight EDIT macros. Row A is on the knobs; a tap on OSC steps to row B, another to the operator stack (state 1b).",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 2,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 3,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {
+    "FX": "OSC",
+    "SEL": "FILT",
+    "ENV": "ENV",
+    "LFO": "LFO",
+    "EDIT": "EDIT",
+    "GLO": "SHIFT",
+    "HOME": "HOME",
+    "SAVE": "SAVE",
+    "ARP": "PERF",
+    "SEQ": "MOD",
+    "PLAY": "FX",
+    "REC": "MIX"
+   },
+   "buttonNotes": {},
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "SYN 1",
+     "value": "A"
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "ALGO",
+     "value": "3"
+    },
+    "KNOB2": {
+     "note": "RATIO C",
+     "value": "1.00"
+    },
+    "KNOB3": {
+     "note": "RATIO A",
+     "value": "2.00"
+    },
+    "KNOB4": {
+     "note": "RATIO B",
+     "value": "0.50"
+    }
+   },
+   "screen": {
+    "header": null,
+    "cards": null,
+    "panel": {
+     "kind": "edit8",
+     "title": "GLASS EP",
+     "right": "SYN 1 \u00b7 A",
+     "wide": {
+      "type": "algo",
+      "algo": 3,
+      "fdbk": 0.3,
+      "mix": 0.6
+     },
+     "rows": [
+      [
+       {
+        "label": "Algo",
+        "value": "3",
+        "pct": 0.286
+       },
+       {
+        "label": "Ratio C",
+        "value": "1.00",
+        "pct": 0.2
+       },
+       {
+        "label": "Ratio A",
+        "value": "2.00",
+        "pct": 0.3
+       },
+       {
+        "label": "Ratio B",
+        "value": "0.50",
+        "pct": 0.1
+       }
+      ],
+      [
+       {
+        "label": "Harm",
+        "value": "+8",
+        "glyph": "harm",
+        "pct": 0.654
+       },
+       {
+        "label": "Dtune",
+        "value": "12",
+        "pct": 0.094
+       },
+       {
+        "label": "Feedback",
+        "value": "40",
+        "pct": 0.315
+       },
+       {
+        "label": "Mix",
+        "value": "+12",
+        "pct": 0.595,
+        "bipolar": true
+       }
+      ]
+     ],
+     "active": 0,
+     "hot": null
+    },
+    "footer": null,
+    "note": "the SYN1 page: the algorithm diagram over Algo Ratio C Ratio A Ratio B / Harm Dtune Feedback Mix."
+   }
+  },
+  {
+   "name": "1b \u00b7 QUAD \u00b7 OSC: the operator stack (offsets, levels)",
+   "notes": "The OSC group's second screen: the four operators C, A, B1, B2 as rows (the Digitone's SYN2 ratio offsets and levels): Offset (a fine ratio offset), Level (A, B1, B2: the modulation ceiling; C: \u2013), B2's Ratio x (its multiple of ratio B). KNOB 1-4 edit the active row.",
    "export": true,
    "keys": [
     1,
@@ -129,20 +308,20 @@
      "value": ""
     },
     "KNOB1": {
-     "note": "RATIO",
-     "value": "2.00"
-    },
-    "KNOB2": {
      "note": "OFFSET",
      "value": "+0.00"
     },
-    "KNOB3": {
+    "KNOB2": {
      "note": "LEVEL",
      "value": "80"
     },
+    "KNOB3": {
+     "note": "",
+     "value": ""
+    },
     "KNOB4": {
-     "note": "HARM",
-     "value": "+8"
+     "note": "",
+     "value": ""
     }
    },
    "screen": {
@@ -151,43 +330,30 @@
     "panel": {
      "kind": "stack",
      "title": "GLASS EP",
-     "right": "OP A \u00b7 A",
+     "right": "OP A \u00b7 B",
      "cols": [
-      "Ratio",
       "Offset",
       "Level",
-      "Harm"
+      "Ratio x",
+      ""
      ],
      "rows": [
       {
        "label": "C",
        "cells": [
         {
-         "label": "Ratio",
-         "value": "1.00",
-         "dim": true
-        },
-        {
          "label": "Offset",
-         "value": "+0.00"
+         "value": "+0.00",
+         "pct": 0.5
         },
         null,
-        {
-         "label": "Harm",
-         "value": "+8",
-         "glyph": "harm",
-         "pct": 0.654
-        }
+        null,
+        null
        ]
       },
       {
        "label": "A",
        "cells": [
-        {
-         "label": "Ratio",
-         "value": "2.00",
-         "pct": 0.3
-        },
         {
          "label": "Offset",
          "value": "+0.00",
@@ -199,22 +365,13 @@
          "glyph": "bar",
          "pct": 0.63
         },
-        {
-         "label": "Harm",
-         "value": "+8",
-         "glyph": "harm",
-         "pct": 0.654
-        }
+        null,
+        null
        ]
       },
       {
        "label": "B1",
        "cells": [
-        {
-         "label": "Ratio",
-         "value": "0.50",
-         "pct": 0.1
-        },
         {
          "label": "Offset",
          "value": "+0.00",
@@ -226,17 +383,13 @@
          "glyph": "bar",
          "pct": 0.472
         },
+        null,
         null
        ]
       },
       {
        "label": "B2",
        "cells": [
-        {
-         "label": "Ratio",
-         "value": "0.50",
-         "pct": 0.1
-        },
         {
          "label": "Offset",
          "value": "+0.01",
@@ -248,6 +401,11 @@
          "glyph": "bar",
          "pct": 0.472
         },
+        {
+         "label": "Ratio x",
+         "value": "1.00",
+         "pct": 0.25
+        },
         null
        ]
       }
@@ -256,163 +414,7 @@
      "hot": null
     },
     "footer": null,
-    "note": "QUAD's OSC stack: C A B1 B2; the harm glyph on the carriers; the active row A on the knobs."
-   }
-  },
-  {
-   "name": "2 \u00b7 QUAD \u00b7 ALGO: the algorithm diagram over Algo \u00b7 Feedback \u00b7 Mix \u00b7 Phase",
-   "notes": "OSC's last screen: ALGO. The wide band draws the algorithm: the four operators as boxes, modulators above carriers with arrows, the feedback loop on its operator, the X and Y outputs at the bottom (the MIX cell's value tilts toward X or Y). Turning KNOB 1 redraws the diagram for algorithms 1..8.",
-   "export": true,
-   "keys": [
-    1,
-    1,
-    1,
-    1,
-    1,
-    2,
-    1,
-    1,
-    1,
-    2,
-    1,
-    1,
-    1,
-    2,
-    1,
-    1,
-    2,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1
-   ],
-   "keyLabels": {
-    "1": "DIM",
-    "3": "MIN",
-    "5": "MAJ",
-    "8": "SUS",
-    "0": "6",
-    "2": "m7",
-    "4": "M7",
-    "7": "9",
-    "6": "LOCK"
-   },
-   "keyNotes": {},
-   "buttons": {
-    "FX": 2,
-    "SEL": 1,
-    "ENV": 1,
-    "LFO": 1,
-    "EDIT": 3,
-    "GLO": 1,
-    "HOME": 1,
-    "SAVE": 1,
-    "ARP": 1,
-    "SEQ": 1,
-    "PLAY": 1,
-    "REC": 1,
-    "OCT-": 1,
-    "OCT+": 1
-   },
-   "playGreen": 0,
-   "buttonLabels": {
-    "FX": "OSC",
-    "SEL": "FILT",
-    "ENV": "ENV",
-    "LFO": "LFO",
-    "EDIT": "EDIT",
-    "GLO": "SHIFT",
-    "HOME": "HOME",
-    "SAVE": "SAVE",
-    "ARP": "PERF",
-    "SEQ": "MOD",
-    "PLAY": "FX",
-    "REC": "MIX"
-   },
-   "buttonNotes": {},
-   "encoders": {
-    "MASTER": {
-     "note": "",
-     "value": ""
-    },
-    "SELECT": {
-     "note": "OSC",
-     "value": "ALGO"
-    },
-    "PRESETS": {
-     "note": "",
-     "value": ""
-    },
-    "ALGORITHM": {
-     "note": "",
-     "value": ""
-    },
-    "KNOB1": {
-     "note": "ALGO",
-     "value": "3"
-    },
-    "KNOB2": {
-     "note": "FEEDBACK",
-     "value": "40"
-    },
-    "KNOB3": {
-     "note": "MIX",
-     "value": "+12"
-    },
-    "KNOB4": {
-     "note": "PHASE",
-     "value": "RESET"
-    }
-   },
-   "screen": {
-    "header": null,
-    "cards": null,
-    "panel": {
-     "kind": "edit8",
-     "title": "GLASS EP",
-     "right": "ALGO",
-     "wide": {
-      "type": "algo",
-      "algo": 3,
-      "fdbk": 0.3,
-      "mix": 0.6
-     },
-     "rows": [
-      [
-       {
-        "label": "Algo",
-        "value": "3",
-        "pct": 0.286
-       },
-       {
-        "label": "Feedback",
-        "value": "40",
-        "glyph": "bar",
-        "pct": 0.315
-       },
-       {
-        "label": "Mix",
-        "value": "+12",
-        "pct": 0.595,
-        "bipolar": true
-       },
-       {
-        "label": "Phase",
-        "value": "Reset"
-       }
-      ]
-     ],
-     "active": 0,
-     "hot": null
-    },
-    "footer": null,
-    "note": "the ALGO screen: the diagram of algorithm 3 redraws as KNOB 1 turns."
+    "note": "the operator stack: offsets and levels per operator, B2's ratio multiple."
    }
   },
   {
