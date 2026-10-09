@@ -994,6 +994,14 @@ static uint32_t cu_perf_mode(void) { return CU_PERF[cs.perf_sel].mode; }
 static uint8_t cu_loop_buf[CRL_REC_MAX] __attribute__((aligned(4)));   /* a packed record */
 static uint8_t cu_loop_gen;                        /* + 1 whenever cu_loop_buf is written here (cr_backup.c stages a
                                                     * restore in it between requests: a change ends that restore) */
+/* the loop being left, packed for its own slot (cu_loop_keep): written at once when stopped; while a loop plays (no
+ * flash erase then) it waits here for the stop. A buffer of its own: cu_loop_buf carries the slot being loaded */
+static uint8_t cu_loop_pend[CRL_REC_MAX] __attribute__((section(".pool"), aligned(4)));
+static struct {
+    uint16_t n;                                    /* cu_loop_pend's length (0: an empty loop, the slot's record goes) */
+    uint8_t slot;                                  /* its slot + 1 (0: nothing waits) */
+    uint8_t q, qfrom, qloads;                      /* a switch posted: the slot the loop in RAM belongs to, crl.loads */
+} cu_lp;
 #if FELUCCA_FLASH
 static uint32_t crl_fl_sector(uint32_t k, uint32_t copy) { return CRL_FL_BASE + (2u * k + copy) * ST_SECTOR; }
 static int crl_fl_head(uint32_t k, uint32_t copy, st_hdr_t *h)   /* 0: a valid commit record */
@@ -1075,7 +1083,9 @@ static int crl_fl_delete(uint32_t k)
         return -1;
     return st_erase(crl_fl_sector(k, 0)) || st_erase(crl_fl_sector(k, 1)) ? -1 : 0;
 }
+static int crl_fl_ready(void) { return flash_ok && !ST_BLOCKED(); }   /* the slots can be written */
 #else
+static int crl_fl_ready(void) { return 0; }
 static int crl_fl_load(uint32_t k, uint8_t *dst) { (void)k; (void)dst; return -1; }
 static int crl_fl_save(uint32_t k, const uint8_t *src, uint32_t len) { (void)k; (void)src; (void)len; return -1; }
 static int crl_fl_delete(uint32_t k) { (void)k; return -1; }
@@ -1106,28 +1116,116 @@ static void cu_slot_msg(const char *a, uint32_t k, const char *b, uint32_t col)
     cu_cat(t, b, sizeof t);
     cu_message(t, col);
 }
-/* a slot -> the loop in RAM: now when stopped, at the end of the cycle when playing */
-static void cu_loop_load(uint32_t k)
+/* the staged loop -> its slot (an empty loop deletes the slot's record). 0: written, or nothing staged; a flash
+ * error: the message, the staged copy dropped, -1 */
+static int cu_loop_flush(const char *why)
 {
-    int n, ok = 0, play = cu_playing();
+    uint32_t k, n;
+    int rc;
+    (void)why;                                     /* (the trace's) */
+    if (!cu_lp.slot)
+        return 0;
+    k = cu_lp.slot - 1u;
+    n = cu_lp.n;
+    cu_lp.slot = 0;
+    if (cu_playing())                              /* (a second switch while it plays: a hiccup, not a lost take) */
+        cu_trace("loop: pending save flushed while playing\n");
+    rc = n ? crl_fl_save(k, cu_loop_pend, n) : (cs.loop_used >> k) & 1u ? crl_fl_delete(k) : 0;
+    cu_trace("loop: auto-save slot %u %u bytes rc %d (%s)\n", (unsigned)k + 1u, (unsigned)n, rc, why);
+    if (rc) {
+        cu_message("save error", CR_COL_RED);
+        return -1;
+    }
+    if (n)
+        cs.loop_used |= (uint16_t)(1u << k);
+    else
+        cs.loop_used &= (uint16_t)~(1u << k);
+    return 0;
+}
+/* The loop in RAM is about to be replaced by slot k's: what it holds goes to its own slot first, so a slot keeps
+ * what was recorded there (docs/LOOPER.md "Slots and the record"). from: the slot it belongs to (cs.loop_slot, or
+ * the target of a SAVE held Save still waiting for the stop). Changed since its last save / load (crl.dirty, an
+ * overdub in progress, that waiting Save): packed (an overdub in progress ends, as the switch would end it), written
+ * now when stopped, staged for the stop while it plays (no flash erase then). One staged earlier and still waiting
+ * is written first, whatever plays (a second switch while playing: a hiccup rather than a lost take; and the slot
+ * about to be read may be that one). Nothing saved when revert loads from itself again (SAVE held + Load: its changes
+ * dropped on purpose), in SAFE MODE, after a restore (the flash is newer than the RAM) or without the flash.
+ * Returns 1: written now, 0: nothing to write now (or staged), -1: a flash error, the switch refused (the loop stays) */
+static int cu_loop_keep(uint32_t k, uint32_t from, int revert, int play)
+{
+    uint8_t was = cs.save_pending;
+    int need = was || crl.dirty || crl.cap == CRL_CAP_OD;
+    if (cu_loop_flush(play ? "a second switch" : "before a load"))
+        return -1;
+    cs.save_pending = 0;                           /* (taken over here, or dropped with the loop) */
+    if (!need || (revert && k == from) || cr_safe || cr_restore_lock || !crl_fl_ready())
+        return 0;
+    fm1_irq_off();
+    if (crl.cap == CRL_CAP_OD)
+        cr_loop_rec(&crl, &cr);                    /* the overdub ends, its layer kept (as cr_loop_queue ends it) */
+    cu_lp.n = (uint16_t)cr_loop_pack(&crl.d, cu_loop_pend, sizeof cu_loop_pend);
+    fm1_irq_on();
+    if (!cu_lp.n && !((cs.loop_used >> from) & 1u))
+        return 0;                                  /* empty (cleared), and so is its slot */
+    cu_lp.slot = (uint8_t)(from + 1u);
+    if (play) {
+        cu_trace("loop: slot %u staged %u bytes, saved at the stop\n", (unsigned)from + 1u, (unsigned)cu_lp.n);
+        return 0;
+    }
+    if (cu_loop_flush("leaving it")) {
+        cs.save_pending = was;
+        return -1;
+    }
+    return 1;
+}
+/* a slot -> the loop in RAM: now when stopped, at the end of the cycle when playing; the loop being left goes to its
+ * own slot first (cu_loop_keep). revert (SAVE held + Load, power-on): the slot in RAM may be loaded again, its
+ * changes dropped; LOOP held + the root of the slot it is on, changed: kept as it is (it is not being left) */
+static void cu_loop_load(uint32_t k, int revert)
+{
+    int n, ok = 0, play = cu_playing(), kept;
+    uint32_t from = cs.save_pending ? cs.save_pending - 1u : cs.loop_slot;
+    char t[24], nb[4];
     cu_loop_gen++;
     if (crl_stage_busy) {
         cu_message("a slot is on its way", CR_COL_RED);
         return;
     }
+    if (!revert && k == from && (crl.dirty || cs.save_pending || crl.cap == CRL_CAP_OD)) {
+        cu_trace("loop: slot %u kept as it is (changed since its save)\n", (unsigned)k + 1u);
+        cu_slot_msg("loop ", k, "", CR_COL_RED);
+        return;
+    }
+    kept = cu_loop_keep(k, from, revert, play);
+    if (kept < 0)
+        return;                                    /* (the message says why: the loop and its slot stay) */
     n = (cs.loop_used >> k) & 1u ? crl_fl_load(k, cu_loop_buf) : -1;
     if (n > 0)
         ok = cr_loop_unpack(cu_loop_buf, (uint32_t)n, &crl_stage);
+    cu_lp.q = 1;                                   /* (cu_loop_frame: a switch cancelled before the cycle's end) */
+    cu_lp.qfrom = (uint8_t)from;
+    cu_lp.qloads = crl.loads;
     cs.loop_slot = (uint8_t)k;
     crl_stage_busy = 1;
     cr_post(CRE_LOOP, play ? LP_QUEUE : LP_SET, ok ? 0u : 1u, 0);
     cu_trace("loop: slot %u %s%s\n", (unsigned)k + 1u, ok ? "loaded" : "empty", play ? " (next cycle)" : "");
-    cu_slot_msg("loop ", k, ok ? (play ? ": next cycle" : "") : ": empty", CR_COL_RED);
+    cu_cpy(t, "loop ", sizeof t);
+    cu_int(nb, (int32_t)k + 1, 0, sizeof nb);
+    cu_cat(t, nb, sizeof t);
+    if (kept > 0) {                                /* "loop 2 \267 saved 1" ("\267 cleared 1": its loop was cleared) */
+        cu_cat(t, cu_lp.n ? " \267 saved " : " \267 cleared ", sizeof t);
+        cu_int(nb, (int32_t)from + 1, 0, sizeof nb);
+        cu_cat(t, nb, sizeof t);
+    } else {
+        cu_cat(t, ok ? (play ? ": next cycle" : "") : ": empty", sizeof t);
+    }
+    cu_message(t, kept > 0 ? CR_COL_GREEN : CR_COL_RED);
 }
 static void cu_loop_save_now(uint32_t k)
 {
     uint32_t n;
     int rc;
+    cu_loop_flush("before a save");
     cu_loop_gen++;
     fm1_irq_off();                                 /* the ISR's loop, packed as it is now */
     n = cr_loop_pack(&crl.d, cu_loop_buf, sizeof cu_loop_buf);
@@ -1168,11 +1266,19 @@ static void cu_loop_delete(uint32_t k)
         cu_message("stop to delete", CR_COL_RED);
         return;
     }
+    cu_loop_flush("before a delete");
     if (crl_fl_delete(k)) {
         cu_message("delete error", CR_COL_RED);
         return;
     }
     cs.loop_used &= (uint16_t)~(1u << k);
+    if (cs.save_pending == k + 1u)
+        cs.save_pending = 0;
+    if (k == cs.loop_slot) {                       /* the slot in RAM: its loop stays, unsaved (leaving drops it) */
+        fm1_irq_off();
+        crl.dirty = 0;
+        fm1_irq_on();
+    }
     cu_trace("loop: delete slot %u\n", (unsigned)k + 1u);
     cu_slot_msg("slot ", k, " deleted", CR_COL_RED);
 }
@@ -1185,7 +1291,7 @@ static void cu_save_act(void)                      /* SAVE held + OCT+: the acti
     if (cs.save_act == 0)
         cu_loop_save(cs.loop_target);
     else if (cs.save_act == 1)
-        cu_loop_load(cs.loop_target);
+        cu_loop_load(cs.loop_target, 1);           /* (the slot in RAM: reverted to its save) */
     else
         cu_loop_delete(cs.loop_target);
 }
@@ -1228,6 +1334,20 @@ static void cu_loop_frame(void)
             rt_seen = rn;
             cu_trace("midi: %02X %s\n", (unsigned)cr_rt_last, cr_rt_last == 0xFAu ? "start" : "stop");
         }
+    }
+    if (cu_lp.q && !crl_stage_busy) {              /* the switch posted is done: taken, or cancelled before the cycle's
+                                                    * end (a stop, a clear, a panic, an overdub armed, an undo) */
+        cu_lp.q = 0;
+        if (crl.loads == cu_lp.qloads && cs.loop_slot != cu_lp.qfrom) {
+            cu_trace("loop: switch to slot %u cancelled, slot %u stays\n", (unsigned)cs.loop_slot + 1u,
+                     (unsigned)cu_lp.qfrom + 1u);
+            cs.loop_slot = cu_lp.qfrom;            /* (the loop in RAM is still that slot's) */
+        }
+    }
+    if (cu_lp.slot && !cu_playing()) {             /* stopped: the loop left while it played, to its slot */
+        uint32_t k = cu_lp.slot - 1u;
+        if (cu_loop_flush("at the stop") == 0)
+            cu_slot_msg(cu_lp.n ? "saved to slot " : "cleared slot ", k, "", CR_COL_GREEN);
     }
     if (cs.save_pending && !cu_playing()) {
         uint32_t k = cs.save_pending - 1u;
@@ -1933,7 +2053,7 @@ static void cu_layer_key(uint32_t l, uint32_t k)   /* a root key while layer l i
     if ((l == L_LOOP || l == L_SAVE) && wi >= 0) { /* the white roots: slots 1..10 */
         if (wi < (int32_t)CRL_SLOTS) {
             if (l == L_LOOP)
-                cu_loop_load((uint32_t)wi);
+                cu_loop_load((uint32_t)wi, 0);
             else
                 cs.loop_target = (uint8_t)wi;
         }
@@ -4152,7 +4272,7 @@ static void cr_ui_init(void)
     cu_loop_conf();
     cu_loop_scan();                               /* (SAFE MODE: no slot read, core.h ST_BLOCKED) */                               /* the slots in flash; the last one used back in RAM (stopped) */
     if ((cs.loop_used >> cs.loop_slot) & 1u)
-        cu_loop_load(cs.loop_slot);
+        cu_loop_load(cs.loop_slot, 1);            /* (a load only: nothing in RAM to keep yet) */
     cu.msg.until = 0;
 #if FELUCCA_SEQ
     song.grid = 2;                                /* seq.c's keyboard never plays (keyboard_block: every key silent) */

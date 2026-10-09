@@ -92,10 +92,31 @@ ignores them, and nothing is sent out.
 
 ## Slots and the record
 
-Ten slots; only the selected one lives in RAM. LOOP held + a white root D4..F5 selects a slot (load when stopped,
-at the end of the cycle when playing). SAVE held: Save / Load / Delete on the root-chosen slot, OCT+ does it. No
-flash erase while a loop plays (Felucca's rule): a save then waits for the stop. The selected slot is a setting
-(record v2) and comes back at power-on.
+Ten slots, and a slot keeps its loop: only the selected one lives in RAM, and the loop being left is saved to its own
+slot first. LOOP held + a white root D4..F5 selects a slot (load when stopped, at the end of the cycle when playing).
+If the loop in RAM changed since its last save or load (a take, an overdub, an undo, a clear: `crl.dirty`; an overdub
+in progress ends at the switch, its layer kept), it goes to its slot before the other slot is loaded:
+
+- stopped: written at once, the message folds both: "loop 2 · saved 1" (green);
+- playing: no flash erase while a loop plays (Felucca's rule), so it is packed into a buffer of its own (`cr_ui.c
+  cu_loop_pend`) as a pending save for its slot, the switch happens at the end of the cycle as before ("loop 2: next
+  cycle"), and the pending save is written when the loop next stops ("saved to slot 1"), before any other write to
+  the loop slots, and before a second switch while it still plays: then at once, a one-off audio hiccup rather than
+  a lost take (traced "loop: pending save flushed while playing"); the slot about to be loaded may be that one;
+- a cleared loop deletes its slot's record (the slot comes back empty: "loop 2 · cleared 1");
+- a flash error on that save refuses the switch ("save error"): the loop stays in RAM, its slot selected.
+
+Before the end of the cycle, a stop, a clear, a panic or an edit of the loop still playing (an overdub armed, an
+undo) cancels a queued switch: the slot it was leaving stays selected, its loop still in RAM (`cr_loop_t.loads`
+tells a switch taken from one cancelled), and a pending save is still written at the stop. LOOP held + the root of the slot it is on keeps its
+loop as it is. Nothing is saved at power-off: changes to a slot never left are lost, as before. No save in SAFE
+MODE, after a backup restore (the flash is newer than the RAM) or without the flash: the loop left is dropped.
+
+SAVE held: Save / Load / Delete on the root-chosen slot, OCT+ does it. Save is rarely needed now (a copy into
+another slot, which becomes the selected one; while a loop plays it waits for the stop, and a switch before then
+saves the loop there). Load of the slot in RAM reverts it to its saved loop (nothing asked: it is explicit); Load of
+another slot is a switch. Delete of the slot in RAM leaves its loop in RAM, unsaved (leaving drops it). The selected
+slot is a setting (record v2) and comes back at power-on (a load only).
 
 Flash: storage.c's commit record and A/B copies (its hooks, header and CRC; `storage.c` unedited), on user
 sample slot 3's 80 KiB (0xC8000..0xDBFFF; ChoralRoot has no SAMPLE engine (`FELUCCA_SAMPLE 0`) and its backup no
@@ -112,5 +133,6 @@ newer version or garbage never loads half a loop.
 
 ## Caps
 
-512 events per loop (all layers; 4 KiB in RAM + a 4 KiB staging copy for slot switches; 3.6 KiB record),
+512 events per loop (all layers; 4 KiB in RAM + a 4 KiB staging copy for slot switches; 3.6 KiB record, and
+3664 bytes in the POOL for the loop being left, packed),
 32 layers, 16 open gestures, 8 loop voices, 65535 ticks. Reaching the event cap ends the take ("loop full").

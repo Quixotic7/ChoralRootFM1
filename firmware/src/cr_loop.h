@@ -61,6 +61,9 @@ typedef struct {
     struct { uint32_t off; uint8_t used; } pv[CR_MAX_LOOPV];
     const crl_data_t *next;                    /* a slot switch waiting for the end of the cycle (0: empty) */
     uint8_t next_on, dirty;                    /* a switch is queued; the content changed since loaded / saved */
+    uint8_t loads;                             /* + 1 whenever a slot's data replaces the loop: the UI tells a queued
+                                                * switch taken from one cancelled (a stop, a clear, a panic, or an edit
+                                                * of the loop still playing: an overdub armed, an undo) */
     /* out: the click (the audio side takes it), diagnostics */
     uint8_t click;                             /* 0 none, 1 beat, 2 the bar's first beat */
     uint32_t played;                           /* events played (diagnostics) */
@@ -81,7 +84,9 @@ int  cr_loop_clear(cr_loop_t *lp, cr_t *c);    /* D#4 held 1 s */
 void cr_loop_stop(cr_loop_t *lp, cr_t *c);     /* stop playing (loop voices end), capture ends */
 void cr_loop_panic(cr_loop_t *lp);             /* after cr_panic: stopped, content kept (a fresh take dropped) */
 void cr_loop_set(cr_loop_t *lp, cr_t *c, const crl_data_t *d);    /* load now (stops): d = 0 empties */
-void cr_loop_queue(cr_loop_t *lp, cr_t *c, const crl_data_t *d);  /* playing: at the end of the cycle; else now */
+void cr_loop_queue(cr_loop_t *lp, cr_t *c, const crl_data_t *d);  /* playing: at the end of the cycle; else now.
+                                                * An overdub armed or an undo before then cancels it (the loop
+                                                * being edited stays), as a stop or a clear does */
 void cr_loop_metro(cr_loop_t *lp, int on);     /* the click on / off (its grid restarts) */
 
 /* queries */

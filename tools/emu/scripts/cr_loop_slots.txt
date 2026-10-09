@@ -1,0 +1,146 @@
+# ChoralRoot looper: a slot keeps its loop (docs/LOOPER.md "Slots and the record"): the loop being left is saved to its
+# own slot first. 1: a Free take in slot 1 (D, Em: 2 events) plays; LOOP held + E4 while it plays: slot 2 at the
+# cycle's end, slot 1 staged and written once the loop stops (slot 2 is empty: the loop ends there).
+# 2: a take in slot 2 (G); LOOP held + D4 while it plays: slot 1 at the cycle's end (playing on), slot 2 staged; LOOP
+# tap stops it: slot 2 written. 3: an overdub (Am) on slot 1, stopped; LOOP held + E4: slot 1 saved now ("loop 2 -
+# saved 1"), slot 2 loaded; LOOP held + D4: slot 1 back with 3 events, LOOP plays it. 4: a second switch while
+# playing: an overdub (Bm) on slot 1, LOOP held + E4 (slot 1 staged), slot 2 plays; LOOP held + D4 before any stop:
+# the staged save is written at once (a hiccup, not a lost take): slot 1 comes back with 4 events. 5: an overdub (F),
+# LOOP held + E4 while it plays, then LOOP stops it before the cycle's end: the switch is cancelled, slot 1 stays
+# selected (its loop is still in RAM) and is written at the stop with 5 events.
+wait 300
+btn REC
+wait 300
+btn A#3 down
+btn D4 down
+wait 500
+btn D4 up
+btn A#3 up
+wait 500
+btn G#3 down
+btn E4 down
+wait 500
+btn E4 up
+btn G#3 up
+wait 300
+wait 100
+btn REC                       # a 1-bar loop (2 s), playing
+wait 400
+dump                          # 1: slot 1, 2 events, playing; nothing in the flash
+btn PLAY down
+wait 400
+btn E4                        # slot 2 at the cycle's end; slot 1 staged
+wait 100
+btn PLAY up
+btn OCT-                      # the layer stays open after a hold: OCT- closes it
+wait 100
+shot build/emu/test/cr_loop_slots_next.ppm
+wait 2500
+dump                          # 2: slot 2 (empty: the loop ended), slot 1 written at the stop: used 001
+btn REC
+wait 300
+btn A#3 down
+btn G4 down
+wait 500
+btn G4 up
+btn A#3 up
+wait 1400
+btn REC                       # slot 2: a 2 s take of G, playing
+wait 400
+dump                          # 3: slot 2, 1 event, playing
+btn PLAY down
+wait 400
+btn D4                        # slot 1 at the cycle's end; slot 2 staged
+wait 100
+btn PLAY up
+btn OCT-
+wait 2000
+dump                          # 4: slot 1 (2 events) playing; slot 2 not written yet: used 001
+btn PLAY                      # stop: slot 2 written
+wait 300
+dump                          # 5: used 003, stopped
+btn REC                       # overdub armed (it plays)
+wait 300
+btn G#3 down
+btn A4 down
+wait 400
+btn A4 up
+btn G#3 up
+wait 200
+btn REC                       # the overdub ends: 3 events, slot 1 changed
+wait 300
+btn PLAY                      # stop
+wait 1000
+expect sound
+dump                          # 6: slot 1, 3 events, 2 layers, stopped
+btn PLAY down
+wait 400
+btn E4                        # stopped: slot 1 saved now, slot 2 loaded
+wait 100
+btn PLAY up
+btn OCT-
+wait 100
+shot build/emu/test/cr_loop_slots_saved.ppm   # the message "loop 2 - saved 1" (a middle dot), green
+wait 200
+dump                          # 7: slot 2 (1 event), stopped
+btn PLAY down
+wait 400
+btn D4                        # slot 1 back
+wait 100
+btn PLAY up
+btn OCT-
+wait 300
+dump                          # 8: slot 1, 3 events
+btn PLAY                      # it plays
+wait 1500
+expect sound
+dump                          # 9: slot 1 playing
+btn REC                       # overdub armed
+wait 200
+btn G#3 down
+btn B4 down
+wait 300
+btn B4 up
+btn G#3 up
+wait 200
+btn REC                       # the overdub ends: 4 events, 3 layers
+wait 200
+btn PLAY down
+wait 400
+btn E4                        # slot 2 at the cycle's end; slot 1 staged
+wait 100
+btn PLAY up
+btn OCT-
+wait 2200
+dump                          # 10: slot 2 playing; slot 1's 4 events staged
+btn PLAY down
+wait 400
+btn D4                        # a second switch while playing: the staged save written now
+wait 100
+btn PLAY up
+btn OCT-
+wait 2200
+dump                          # 11: slot 1 playing, 4 events
+btn PLAY
+wait 300
+dump                          # 12: stopped
+btn PLAY                      # slot 1 plays again
+wait 100
+btn REC                       # overdub armed
+btn A#3 down
+btn F4 down
+wait 200
+btn F4 up
+btn A#3 up
+btn REC                       # the overdub ends: 5 events, 4 layers
+btn PLAY down
+wait 400
+btn E4                        # slot 2 at the cycle's end; slot 1 staged
+btn PLAY up
+btn OCT-
+btn PLAY                      # stop before the cycle's end: the switch cancelled, slot 1 stays (and is written)
+wait 300
+dump                          # 13: slot 1, 5 events, stopped
+key END 100
+wait 2000
+dump

@@ -97,6 +97,7 @@ static void crl_take_next(cr_loop_t *lp)            /* a queued slot replaces th
     if (n && n->len && n->nev) crl_copy(&lp->d, n, crl_data_size(n->nev));
     else crl_zero(&lp->d, crl_data_size(0));
     lp->dirty = 0;
+    lp->loads++;
     if (!lp->d.len) lp->state = CRL_EMPTY;
 }
 
@@ -364,6 +365,7 @@ int cr_loop_rec(cr_loop_t *lp, cr_t *c)
             return CRL_DID_NOTHING;
         }
         if (lp->state == CRL_STOPPED) crl_start(lp, c);
+        lp->next_on = 0;                             /* a queued switch: cancelled, this loop is being edited */
         lp->cap = CRL_CAP_OD_ARMED;
         return CRL_DID_OD_ARM;
     case CRL_CAP_REC:
@@ -422,6 +424,7 @@ int cr_loop_undo(cr_loop_t *lp, cr_t *c)
     lp->d.nlayers--;
     lp->full = 0;
     lp->dirty = 1;
+    lp->next_on = 0;                                 /* a queued switch: cancelled, this loop is being edited */
     return CRL_DID_UNDO;
 }
 

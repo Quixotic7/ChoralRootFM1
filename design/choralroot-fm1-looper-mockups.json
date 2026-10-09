@@ -1,0 +1,2333 @@
+{
+ "format": "fm1-panel-design",
+ "version": 1,
+ "device": "M-VAVE FM-1",
+ "name": "ChoralRoot FM-1 looper mockups",
+ "palette": "MOD",
+ "labels": {
+  "buttons": {
+   "FX": "FX",
+   "SEL": "KEY",
+   "ENV": "BASS",
+   "LFO": "LATCH",
+   "EDIT": "EDIT",
+   "GLO": "OPT",
+   "HOME": "HOME",
+   "SAVE": "SAVE",
+   "ARP": "PERF",
+   "SEQ": "METRO",
+   "PLAY": "LOOP",
+   "REC": "REC",
+   "OCT-": "OCT-",
+   "OCT+": "OCT+"
+  },
+  "encoders": {
+   "MASTER": "VOLUME",
+   "SELECT": "BPM",
+   "PRESETS": "SOUND",
+   "ALGORITHM": "BASS SND",
+   "KNOB1": "VOICING",
+   "KNOB2": "BASS VOICE",
+   "KNOB3": "PERFORM",
+   "KNOB4": "FX"
+  }
+ },
+ "notes": "The looper's PLAY menu and record modes (docs/LOOPER-MODES.md, proposal 2026-10-09). LOOP held: one red screen under the top line: the slot strip (PRESETS), the record mode (ALGORITHM: Overwrite, Advance, Overdub, Replace, Step), the middle (SELECT: the length; the record timeline while recording or playing; the step grid in Step), the knob row (Quantize, Count-in, Level, Keys). GLO in the menu toggles Keys: Play (the keys play, the menu can stay open while you record) or Loops (the slot shortcuts). States: 1-4 the menu (Keys Play / Loops, the mode, an empty slot), 5-6 Overwrite armed and recording Free, 7 playing, 8 overdubbing, 9 replacing, 10 Advance's jump, 11-12 step entry.",
+ "states": [
+  {
+   "name": "1 \u00b7 PLAY menu: idle, slot 3, Overwrite, 4 bars (Keys = Play)",
+   "notes": "LOOP held past 300 ms: the PLAY menu opens and stays (LOOP blinks; OCT- or HOME closes it, a LOOP tap still plays / stops). One red screen under the top line: the SLOT STRIP (PRESETS): ten cells, filled = holds a loop (1, 3, 4), the selected one red and taller, its name 'Loop 3' in the top line; the MODE picker (ALGORITHM): Overwrite big, Advance peeking (Overwrite \u00b7 Advance \u00b7 Overdub \u00b7 Replace \u00b7 Step); the MIDDLE (SELECT): the length, '4 bars'; the KNOB ROW: QUANTIZE (pulses), COUNT-IN (a gate), LEVEL (a bar), KEYS. Keys = Play (the default, a saved setting): the roots and the chord block play as on the chord view, so the menu can stay open while you play into a take; the keys keep the chord view's LEDs and labels (no slot labels).",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {
+    "9": "Keys = Play: the roots and the chord block play as usual with the menu open"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "GLO": "OPT tapped in the menu: Keys Play / Loops (saved; KNOB 4 turns the same cell)"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LENGTH",
+     "value": "4 BARS"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "3"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "OVERWRITE"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "PLAY"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 3",
+     "right": "",
+     "batt": false,
+     "usb": false,
+     "midCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 3,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red"
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 0,
+      "col": "white"
+     },
+     "mid": {
+      "t": "4 bars",
+      "col": "red"
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Play",
+       "big": true
+      }
+     ],
+     "hot": null
+    },
+    "footer": null,
+    "note": "the PLAY menu: the slot strip, the mode, the length, the four knobs. PRESETS slides the red cell along the strip (the top line's name follows), ALGORITHM flips the mode like every picker, SELECT squeezes the next length in."
+   }
+  },
+  {
+   "name": "2 \u00b7 GLO tapped in the menu: Keys = Loops (the slot shortcuts)",
+   "notes": "GLO (OPT) tapped with the menu open toggles KEYS (KNOB 4 turns the same cell; the setting is saved, settings v8 `loop_keys`): Loops = today's shortcuts on the keys: the white roots D4..F5 are the slots 1..10 (3 blinks: selected; 1 and 4 lit: they hold loops), D#4 held 1 s clears, F#4 undoes. The chord block is off while Loops is on. GLO lit while Keys = Loops; the Keys cell says 'Loops' on its hot block for a moment.",
+   "export": true,
+   "keys": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    1,
+    0,
+    3,
+    1,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "keyLabels": {
+    "9": "1",
+    "11": "2",
+    "12": "3",
+    "14": "4",
+    "16": "5",
+    "18": "6",
+    "19": "7",
+    "21": "8",
+    "23": "9",
+    "24": "10",
+    "10": "CLEAR",
+    "13": "UNDO"
+   },
+   "keyNotes": {
+    "12": "slot 3 selected (blinks); 1 and 4 hold loops (lit)",
+    "10": "CLEAR (held 1 s) \u00b7 UNDO on F#4"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 2,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "GLO": "OPT tapped in the menu: Keys Play / Loops (saved; KNOB 4 turns the same cell)"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LENGTH",
+     "value": "4 BARS"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "3"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "OVERWRITE"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "LOOPS"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 3",
+     "right": "",
+     "batt": false,
+     "usb": false,
+     "midCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 3,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red"
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 0,
+      "col": "white"
+     },
+     "mid": {
+      "t": "4 bars",
+      "col": "red"
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Loops",
+       "big": true
+      }
+     ],
+     "hot": 3
+    },
+    "footer": null,
+    "note": "Keys = Loops: the screen is unchanged but for the Keys cell (hot); the keys show the slot map."
+   }
+  },
+  {
+   "name": "3 \u00b7 ALGORITHM turned: the record mode on Overdub",
+   "notes": "ALGORITHM turns the record mode (a saved setting, settings v8 `loop_mode`, default Overwrite): Overdub big, Advance and Replace peeking. It applies to the next REC, in and out of the menu; it is also the top line's right text while armed ('Rec \u00b7 Overdub', states 5, 10), so the mode is known without opening the menu. The old Overdub / Pause / Undo / Clear picker is gone: Pause = LOOP tap, Undo = REC held, Clear = D#4 held with Keys = Loops (or the SAVE layer's Delete).",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "GLO": "OPT tapped in the menu: Keys Play / Loops (saved; KNOB 4 turns the same cell)"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LENGTH",
+     "value": "4 BARS"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "3"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "OVERDUB"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "PLAY"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 3",
+     "right": "",
+     "batt": false,
+     "usb": false,
+     "midCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 3,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red"
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 2,
+      "col": "white"
+     },
+     "mid": {
+      "t": "4 bars",
+      "col": "red"
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Play",
+       "big": true
+      }
+     ],
+     "hot": null
+    },
+    "footer": null,
+    "note": "the mode flips like the pickers (the split-flap slide); its marks step with it."
+   }
+  },
+  {
+   "name": "4 \u00b7 PRESETS turned: slot 5 (empty)",
+   "notes": "PRESETS turns the slot: slot 5 selected (an empty cell with the red outline, '5' big), 'Loop 5' in the top line and 'empty' at its right. Leaving slot 3 saved it (a slot is its pattern, docs/LOOPER.md); stopped, the new slot loads at once (playing: at the end of the cycle). The middle keeps the length a take here will get.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "GLO": "OPT tapped in the menu: Keys Play / Loops (saved; KNOB 4 turns the same cell)"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LENGTH",
+     "value": "4 BARS"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "5"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "OVERWRITE"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "PLAY"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 5",
+     "right": "empty",
+     "batt": false,
+     "usb": false,
+     "midCol": "red",
+     "rightCol": "grey"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 5,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red"
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 0,
+      "col": "white"
+     },
+     "mid": {
+      "t": "4 bars",
+      "col": "red"
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Play",
+       "big": true
+      }
+     ],
+     "hot": null
+    },
+    "footer": null,
+    "note": "the red cell slides from 3 to 5; an empty slot is an outline, 'empty' fades in at the top right."
+   }
+  },
+  {
+   "name": "5 \u00b7 Overwrite, REC tapped (Free): armed",
+   "notes": "REC tapped in Overwrite with the length Free: armed (REC lit), the first chord starts a fresh take. Slot 3's loop is still there: it is cleared when the take starts, not on arming (REC again before the first chord cancels and the loop is back). The top line says 'Rec \u00b7 Overwrite' at the right, the dial its armed look (the grey track, the REC dot lit like the REC LED); the middle still says 'Free' (nothing recorded yet). Synced lengths start the count-in instead (its own screen with the ring).",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 2,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "GLO": "OPT tapped in the menu: Keys Play / Loops (saved; KNOB 4 turns the same cell)",
+    "REC": "lit: armed; blinks once it records"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LENGTH",
+     "value": "FREE"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "3"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "OVERWRITE"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "PLAY"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 3",
+     "right": "Rec \u00b7 Overwrite",
+     "batt": false,
+     "usb": false,
+     "midCol": "red",
+     "rightCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 3,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red"
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 0,
+      "col": "white"
+     },
+     "mid": {
+      "t": "Free",
+      "col": "red",
+      "sub": "the first chord starts the take"
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Play",
+       "big": true
+      }
+     ],
+     "hot": null
+    },
+    "footer": null,
+    "note": "armed: 'Rec \u00b7 Overwrite' left of the dial, the REC dot lit; the middle waits for the first chord.",
+    "loop": {
+     "style": "dial",
+     "pct": 0,
+     "on": false,
+     "col": "red",
+     "rec": "armed",
+     "dot": true
+    }
+   }
+  },
+  {
+   "name": "6 \u00b7 recording the first take (Free), bar 2",
+   "notes": "The first chord started the take (REC blinks): the middle becomes the RECORD TIMELINE. Free: the bars are drawn as they pass (bar 1 done, bar 2 up to the playhead; from the fifth bar the current one stays at the right edge and the earlier ones shift left), the take's chords as marks as they are played (three in bar 1), the elapsed time under it. The dial records (the track red, the arc sweeping once a bar, the dot blinking); 'Rec 2.4' at the right. Keys = Play: the take is played with the menu open.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 3,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "GLO": "OPT tapped in the menu: Keys Play / Loops (saved; KNOB 4 turns the same cell)",
+    "REC": "blinks: recording"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LENGTH",
+     "value": "FREE"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "3"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "OVERWRITE"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "PLAY"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 3",
+     "right": "Rec 2.4",
+     "batt": false,
+     "usb": false,
+     "midCol": "red",
+     "rightCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 3,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red"
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 0,
+      "col": "white"
+     },
+     "mid": {
+      "kind": "timeline",
+      "bars": 2,
+      "beats": 4,
+      "pos": 1.75,
+      "lanes": [],
+      "free": true,
+      "new": [
+       0.0,
+       0.5,
+       0.75
+      ],
+      "elapsed": "0:07"
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Play",
+       "big": true
+      }
+     ],
+     "hot": null
+    },
+    "footer": null,
+    "note": "recording Free: bar 2 grows with the playhead; each chord drops a mark where it starts.",
+    "loop": {
+     "style": "dial",
+     "pct": 0.75,
+     "on": false,
+     "col": "red",
+     "rec": "rec",
+     "dot": true
+    }
+   }
+  },
+  {
+   "name": "7 \u00b7 playing: 4 bars, two layers, bar 3",
+   "notes": "Slot 3 plays (LOOP's green LED): the timeline shows the four bar boxes with their beat ticks, a lane per layer (the first take on top, dimmer; the overdub under it, full red), the playhead in bar 3; '3.2' (bar.beat) at the top right, the dial running. The mode is Overdub here, ready for state 8.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 1,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 1,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "GLO": "OPT tapped in the menu: Keys Play / Loops (saved; KNOB 4 turns the same cell)"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LENGTH",
+     "value": "4 BARS"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "3"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "OVERDUB"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "PLAY"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 3",
+     "right": "3.2",
+     "batt": false,
+     "usb": false,
+     "midCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 3,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red"
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 2,
+      "col": "white"
+     },
+     "mid": {
+      "kind": "timeline",
+      "bars": 4,
+      "beats": 4,
+      "pos": 2.3,
+      "lanes": [
+       [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5
+       ],
+       [
+        0.25,
+        0.75,
+        1.75,
+        2.25,
+        2.375,
+        3.25,
+        3.75
+       ]
+      ],
+      "free": false
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Play",
+       "big": true
+      }
+     ],
+     "hot": null
+    },
+    "footer": null,
+    "note": "playing: the playhead sweeps the four bars and jumps back at the wrap; the marks stay.",
+    "loop": {
+     "style": "dial",
+     "pct": 0.575,
+     "on": false,
+     "col": "red"
+    }
+   }
+  },
+  {
+   "name": "8 \u00b7 Overdub: overdubbing (Am held)",
+   "notes": "REC in Overdub while it plays: armed, the first chord opened a layer (REC blinks): the new layer is a third lane, full red, its marks appearing as they are played (the two older lanes a step dimmer); 'Dub 3.2' at the right, the dial's REC dot blinking over the playing arc. REC ends the layer, LOOP ends it and stops.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {
+    "16": "Am played into the overdub with the menu open (Keys = Play)"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 3,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 1,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "GLO": "OPT tapped in the menu: Keys Play / Loops (saved; KNOB 4 turns the same cell)",
+    "REC": "blinks: overdubbing"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LENGTH",
+     "value": "4 BARS"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "3"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "OVERDUB"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "PLAY"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 3",
+     "right": "Dub 3.2",
+     "batt": false,
+     "usb": false,
+     "midCol": "red",
+     "rightCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 3,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red"
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 2,
+      "col": "white"
+     },
+     "mid": {
+      "kind": "timeline",
+      "bars": 4,
+      "beats": 4,
+      "pos": 2.3,
+      "lanes": [
+       [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5
+       ],
+       [
+        0.25,
+        0.75,
+        1.75,
+        2.25,
+        2.375,
+        3.25,
+        3.75
+       ]
+      ],
+      "free": false,
+      "new": [
+       2.0,
+       2.25
+      ]
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Play",
+       "big": true
+      }
+     ],
+     "hot": null
+    },
+    "footer": null,
+    "note": "overdubbing: a third lane, its marks dropping in as they are played.",
+    "loop": {
+     "style": "dial",
+     "pct": 0.575,
+     "on": false,
+     "col": "red",
+     "rec": "od",
+     "dot": true
+    }
+   }
+  },
+  {
+   "name": "9 \u00b7 Replace: a chord held over bar 3 (G held)",
+   "notes": "Replace while it plays: REC arms, and while a gesture is held the loop's events that start inside the held span are erased (struck: grey with a red cross, on the span's dark-red band) and an event sounding when the gesture started is cut there; the gesture is recorded as a new layer (the new lane's mark). 'Rep 3.2' at the right, the dial's REC dot blinking. REC ends it; Undo (REC held) brings the erased events back with the layer (they are kept hidden until then, inside the 512-event cap).",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {
+    "14": "G held since 3.1: what it covers is replaced"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 3,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 1,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "GLO": "OPT tapped in the menu: Keys Play / Loops (saved; KNOB 4 turns the same cell)",
+    "REC": "blinks: replacing"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LENGTH",
+     "value": "4 BARS"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "3"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "REPLACE"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "PLAY"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 3",
+     "right": "Rep 3.2",
+     "batt": false,
+     "usb": false,
+     "midCol": "red",
+     "rightCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 3,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red"
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 3,
+      "col": "white"
+     },
+     "mid": {
+      "kind": "timeline",
+      "bars": 4,
+      "beats": 4,
+      "pos": 2.4,
+      "lanes": [
+       [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5
+       ],
+       [
+        0.25,
+        0.75,
+        1.75,
+        2.25,
+        2.375,
+        3.25,
+        3.75
+       ]
+      ],
+      "free": false,
+      "new": [
+       2.1
+      ],
+      "erase": [
+       2.1,
+       2.4
+      ]
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Play",
+       "big": true
+      }
+     ],
+     "hot": null
+    },
+    "footer": null,
+    "note": "replacing: the held span widens with the playhead; each mark it reaches is struck.",
+    "loop": {
+     "style": "dial",
+     "pct": 0.6,
+     "on": false,
+     "col": "red",
+     "rec": "od",
+     "dot": true
+    }
+   }
+  },
+  {
+   "name": "10 \u00b7 Advance: REC tapped on slot 3 jumps to slot 4",
+   "notes": "Advance: REC records into the NEXT slot (10 wraps to 1). Slot 3 is saved by the slot rule (leaving a slot saves it) and the selection jumps: the strip's hop arrow from 3 to 4, 4 red and tall, 'Loop 4' in the top line, armed ('Rec \u00b7 Advance', the REC dot). Then as Overwrite: the first chord starts the take (Free), the take replaces slot 4, and the new slot stays selected and plays. Slot 4 already holds a loop here: as the doc stands, Advance overwrites it when the take starts (to decide: skip to the next empty slot instead?).",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 2,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "GLO": "OPT tapped in the menu: Keys Play / Loops (saved; KNOB 4 turns the same cell)",
+    "REC": "lit: armed into slot 4"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "LENGTH",
+     "value": "FREE"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "4"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "ADVANCE"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "PLAY"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 4",
+     "right": "Rec \u00b7 Advance",
+     "batt": false,
+     "usb": false,
+     "midCol": "red",
+     "rightCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 3,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red",
+      "jump": 4
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 1,
+      "col": "white"
+     },
+     "mid": {
+      "t": "Free",
+      "col": "red",
+      "sub": "slot 3 saved \u00b7 next: slot 4"
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Play",
+       "big": true
+      }
+     ],
+     "hot": null
+    },
+    "footer": null,
+    "note": "the red cell hops from 3 to 4 along the arrow; the name in the top line flips to Loop 4.",
+    "loop": {
+     "style": "dial",
+     "pct": 0,
+     "on": false,
+     "col": "red",
+     "rec": "armed",
+     "dot": true
+    }
+   }
+  },
+  {
+   "name": "11 \u00b7 Step: entering Dm7 at step 7 (LOCK held)",
+   "notes": "Step: REC enters step entry (the loop stops): the middle is the STEP GRID, one row per bar (four at most; more page), sixteen steps a bar (the Quantize grid; none = 1/16), the steps holding a chord filled (1-6), the cursor a blinking red outline on step 7; the cursor step's chord under it ('Dm7') and 'step 7 \u00b7 bar 1' at the right. A chord gesture writes the chord at the cursor (one step long); LOCK (B3) held keeps the keys latched so a chord is built from several presses (here MIN, m7 and the root D4); when every key is released the cursor advances. OCT+ = a rest, OCT- = back one step. REC leaves step entry, LOOP leaves it and plays.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    2,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {
+    "6": "LOCK held: the keys stay latched until all are released (a chord from several presses)",
+    "9": "the root: MIN + m7 + D4 = Dm7, written at the cursor"
+   },
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 2,
+    "OCT-": 2,
+    "OCT+": 2
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "REC": "lit: step entry (the dial's REC dot steady)",
+    "OCT-": "back one step (the steps' chords stay)",
+    "OCT+": "a rest: the cursor advances"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "STEP BARS",
+     "value": "4"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "3"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "STEP"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "PLAY"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 3",
+     "right": "Rec \u00b7 Step",
+     "batt": false,
+     "usb": false,
+     "midCol": "red",
+     "rightCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 3,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red"
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 4,
+      "col": "white"
+     },
+     "mid": {
+      "kind": "steps",
+      "bars": 4,
+      "per": 16,
+      "filled": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ],
+      "cursor": 7,
+      "name": "Dm7",
+      "right": "step 7 \u00b7 bar 1",
+      "h": 34
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Play",
+       "big": true
+      }
+     ],
+     "hot": null,
+     "foot": "OCT-: back \u00b7 OCT+: rest \u00b7 REC: done"
+    },
+    "footer": null,
+    "note": "step entry: the cursor blinks on step 7, the chord's name changes as the keys go down.",
+    "loop": {
+     "style": "dial",
+     "pct": 0,
+     "on": false,
+     "col": "red",
+     "rec": "armed",
+     "dot": true
+    }
+   }
+  },
+  {
+   "name": "12 \u00b7 Step: every key released, the cursor on step 8",
+   "notes": "Every key released: Dm7 is written into step 7 (filled) and the cursor moves on to step 8 (empty: '\u2013'). The next chord goes there; OCT+ leaves it a rest. Free: the length grows as the steps pass the last bar (REC rounds it up to the last bar used); synced (4 bars here): the cursor wraps.",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 3,
+    "REC": 2,
+    "OCT-": 2,
+    "OCT+": 2
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
+    "REC": "lit: step entry (the dial's REC dot steady)",
+    "OCT-": "back one step (the steps' chords stay)",
+    "OCT+": "a rest: the cursor advances"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "STEP BARS",
+     "value": "4"
+    },
+    "PRESETS": {
+     "note": "LOOP SLOT",
+     "value": "3"
+    },
+    "ALGORITHM": {
+     "note": "REC MODE",
+     "value": "STEP"
+    },
+    "KNOB1": {
+     "note": "QUANTIZE",
+     "value": "1/16"
+    },
+    "KNOB2": {
+     "note": "COUNT-IN",
+     "value": "ON"
+    },
+    "KNOB3": {
+     "note": "LOOP LEVEL",
+     "value": "100"
+    },
+    "KNOB4": {
+     "note": "KEYS",
+     "value": "PLAY"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Loop 3",
+     "right": "Rec \u00b7 Step",
+     "batt": false,
+     "usb": false,
+     "midCol": "red",
+     "rightCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "loopmenu",
+     "col": "red",
+     "slots": {
+      "kind": "slots",
+      "n": 10,
+      "sel": 3,
+      "used": [
+       1,
+       3,
+       4
+      ],
+      "col": "red"
+     },
+     "mode": {
+      "items": [
+       "Overwrite",
+       "Advance",
+       "Overdub",
+       "Replace",
+       "Step"
+      ],
+      "sel": 4,
+      "col": "white"
+     },
+     "mid": {
+      "kind": "steps",
+      "bars": 4,
+      "per": 16,
+      "filled": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ],
+      "cursor": 8,
+      "name": "\u2013",
+      "right": "step 8 \u00b7 bar 1",
+      "h": 34
+     },
+     "cells": [
+      {
+       "label": "Quantize",
+       "value": "1/16",
+       "glyph": "echoes",
+       "pct": 0.8,
+       "pct2": 1.0
+      },
+      {
+       "label": "Count-in",
+       "value": "On",
+       "glyph": "gate",
+       "pct": 1.0
+      },
+      {
+       "label": "Level",
+       "value": "100",
+       "glyph": "bar",
+       "pct": 1.0
+      },
+      {
+       "label": "Keys",
+       "value": "Play",
+       "big": true
+      }
+     ],
+     "hot": null,
+     "foot": "OCT-: back \u00b7 OCT+: rest \u00b7 REC: done"
+    },
+    "footer": null,
+    "note": "released: step 7 fills, the cursor slides to step 8.",
+    "loop": {
+     "style": "dial",
+     "pct": 0,
+     "on": false,
+     "col": "red",
+     "rec": "armed",
+     "dot": true
+    }
+   }
+  }
+ ]
+}

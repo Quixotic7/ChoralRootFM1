@@ -118,5 +118,21 @@ grep -q '^picker: open part 0 .* roots play' "$OUT/persist_roots_2.log" && ! gre
     grep -q '^expect sound .*: ok' "$OUT/persist_roots_2.log" &&
     ok "roots run 2: the picker's roots still play after a relaunch (D4 sounded, no engine switch): $OUT/persist_roots.ppm" \
     || bad "roots run 2: $(grep '^picker: open' "$OUT/persist_roots_2.log")"
+
+# the loop slots (docs/LOOPER.md "Slots and the record"): run 1 (tools/emu/scripts/cr_loop_slots.txt) records into
+# slots 1 and 2 and only switches between them (no SAVE held): each loop is saved to its slot as it is left (or at the
+# stop that cancelled a switch); run 2 (the same file) finds both: slot 1 with its three overdubs (5 events, 4 layers),
+# slot 2's take
+LFLASH=$OUT/persist_loop_flash.bin
+rm -f "$LFLASH" "$OUT"/persist_loop_1.log "$OUT"/persist_loop_2.log
+"$EMU" --headless --flash "$LFLASH" --script "$S/cr_loop_slots.txt" >"$OUT/persist_loop_1.log" 2>&1 || bad "loop run 1: exit status"
+"$EMU" --headless --flash "$LFLASH" --script "$S/loop_persist_check.txt" >"$OUT/persist_loop_2.log" 2>&1 || bad "loop run 2: exit status"
+lp() { grep '^  loop:' "$OUT/persist_loop_2.log" | sed -n "$1p" | sed -n "s/.* $2 \([0-9A-F]*\) .*/\1/p"; }
+grep -q '^loop: auto-save slot 1 .* rc 0' "$OUT/persist_loop_1.log" && ! grep -q '^loop: save slot' "$OUT/persist_loop_1.log" &&
+    ok "loop run 1: slots 1 and 2 recorded, saved only by leaving them (no SAVE held)" || bad "loop run 1: no auto-save"
+[ "$(lp 1 used)" = 003 ] && [ "$(lp 2 slot)" = 2 ] && [ "$(lp 2 events)" = 1 ] && [ "$(lp 3 slot)" = 1 ] &&
+    [ "$(lp 3 events)" = 5 ] && [ "$(lp 3 layers)" = 4 ] && [ "$(lp 4 state)" = 2 ] && grep -q '^expect sound .*: ok' "$OUT/persist_loop_2.log" &&
+    ok "loop run 2: both slots after a relaunch (used 003): slot 2's take, slot 1 with its overdubs (5 events, 4 layers), playing" \
+    || bad "loop run 2: $(grep '^  loop:' "$OUT/persist_loop_2.log" | head -3 | tr '\n' ' ')"
 [ $fail = 0 ] && echo PASS || echo FAIL
 exit $fail

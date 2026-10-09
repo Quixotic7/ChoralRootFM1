@@ -265,6 +265,49 @@ static void s_slots(void)
     ok(sounding() == 0 && dup_on == 0 && stray_off == 0, "slots: no stuck, double or stray note");
 }
 
+/* a queued switch is taken at the cycle's end (loads + 1) or cancelled by an edit of the loop still playing, a
+ * stop (loads unchanged): the UI keeps its slot number right by it (cr_ui.c cu_loop_frame) */
+static void s_switch(void)
+{
+    static crl_data_t b;
+    uint8_t n0;
+    reset();
+    cr_loop_rec(&L, &C);
+    chord(62, CR_MOD_MAJ, 300);
+    step(700);
+    cr_loop_rec(&L, &C);                             /* a 1 s loop of D, playing */
+    cr_loop_rec(&L, &C);
+    step(200);
+    chord(65, CR_MOD_MIN, 200);
+    cr_loop_rec(&L, &C);                             /* + an overdub of Fm: 2 layers */
+    ok(L.dirty && L.d.nlayers == 2 && L.state == CRL_PLAYING, "a take and an overdub: dirty (the UI saves it on leaving)");
+    memset(&b, 0, sizeof b);
+    b.len = 384; b.nev = 1; b.nlayers = 1; b.ev[0].t = 0; b.ev[0].dur = 96; b.ev[0].root = 60; b.ev[0].vel = 90;
+    b.ev[0].qx = CR_Q_MAJ << 4;
+    n0 = L.loads;
+    cr_loop_queue(&L, &C, &b);
+    step(100);
+    ok(cr_loop_rec(&L, &C) == CRL_DID_OD_ARM && !L.next_on, "queued, then an overdub armed: the switch cancelled");
+    step(1500);
+    ok(L.loads == n0 && L.d.nlayers == 2 && L.d.nev == 2 && L.d.len != 384, "cancelled: the loop stays (no load)");
+    cr_loop_rec(&L, &C);                             /* (the armed overdub: cancelled) */
+    cr_loop_queue(&L, &C, &b);
+    ok(cr_loop_undo(&L, &C) == CRL_DID_UNDO && !L.next_on && L.d.nlayers == 1 && L.loads == n0,
+       "queued, then an undo: the switch cancelled, the undo done");
+    cr_loop_queue(&L, &C, &b);
+    cr_loop_play(&L, &C);                            /* LOOP tap before the cycle's end: stop */
+    ok(!L.next_on && L.state == CRL_STOPPED && L.loads == n0 && L.d.nev == 1, "queued, then a stop: cancelled, kept");
+    cr_loop_play(&L, &C);
+    cr_loop_queue(&L, &C, &b);
+    step(1100);
+    ok(!L.next_on && L.loads == (uint8_t)(n0 + 1u) && L.d.len == 384 && !L.dirty && L.state == CRL_PLAYING,
+       "queued, the cycle's end: taken (loads + 1), not dirty, playing on");
+    cr_loop_set(&L, &C, 0);
+    ok(L.loads == (uint8_t)(n0 + 2u) && L.state == CRL_EMPTY, "set: a load (loads + 1)");
+    step(500);
+    ok(sounding() == 0 && dup_on == 0 && stray_off == 0, "switches: no stuck, double or stray note");
+}
+
 static void s_limits(void)
 {
     int i;
@@ -319,6 +362,7 @@ int main(void)
     s_free();
     s_sync();
     s_slots();
+    s_switch();
     s_limits();
     printf("\ncr_loop: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;

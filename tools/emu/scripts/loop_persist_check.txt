@@ -1,0 +1,28 @@
+# The loop slots after a relaunch on the flash file cr_loop_slots.txt wrote (test_persist.sh): slot 1 (its take and
+# three overdubs, saved by itself each time it was left) and slot 2 (saved at a stop) are there. LOOP held + E4, then
+# D4 load them; LOOP plays slot 1.
+wait 300
+dump                          # 1: power-on: used 003, slot 1 back in RAM (stopped)
+btn PLAY down
+wait 400
+btn E4
+wait 100
+btn PLAY up
+btn OCT-                      # the layer stays open after a hold: OCT- closes it
+wait 300
+dump                          # 2: slot 2, 1 event
+btn PLAY down
+wait 400
+btn D4
+wait 100
+btn PLAY up
+btn OCT-
+wait 300
+dump                          # 3: slot 1, 5 events, 4 layers
+btn PLAY
+wait 1500
+expect sound
+dump                          # 4: it plays
+btn PLAY
+wait 2000
+dump

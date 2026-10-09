@@ -513,6 +513,46 @@ re=$(px_count "$OUT/cr_loop_layer_dial.ppm" 2 60 14 180 ink); rd=$(px_count "$OU
 [ "$re" = 0 ] && [ "$rd" -gt 20 ] && ok "LOOP held while it plays: no ring in the loop layer, the dial in the top line ($rd red): $OUT/cr_loop_layer_dial.ppm" \
     || bad "the loop layer: $re px in the ring's left band, $rd red in the dial's box"
 silent_end cr_loop_load
+# a slot keeps its loop: the loop being left is saved to its own slot (docs/LOOPER.md "Slots and the record")
+run cr_loop_slots --wav "$OUT/cr_loop_slots.wav"
+SL="$OUT/cr_loop_slots.log"
+a=$(L cr_loop_slots 1); b=$(L cr_loop_slots 2)
+[ "$(lf "$a" slot)" = 1 ] && [ "$(lf "$a" events)" = 2 ] && [ "$(lf "$a" used)" = 000 ] && has '^loop: slot 1 staged ' "$SL" &&
+    [ "$(lf "$b" slot)" = 2 ] && [ "$(lf "$b" events)" = 0 ] && [ "$(lf "$b" used)" = 001 ] &&
+    has '^loop: auto-save slot 1 [0-9]* bytes rc 0 (at the stop)' "$SL" &&
+    ok "a take in slot 1, LOOP held + E4 while it plays: slot 1 staged, written once the loop stopped (empty slot 2): used 001" \
+    || bad "switch while playing: $a / $b"
+c=$(L cr_loop_slots 3); d=$(L cr_loop_slots 4); e=$(L cr_loop_slots 5)
+[ "$(lf "$c" slot)" = 2 ] && [ "$(lf "$c" events)" = 1 ] && [ "$(lf "$d" slot)" = 1 ] && [ "$(lf "$d" events)" = 2 ] &&
+    [ "$(lf "$d" state)" = 2 ] && [ "$(lf "$d" used)" = 001 ] && [ "$(lf "$e" used)" = 003 ] && [ "$(lf "$e" state)" = 1 ] &&
+    has '^loop: auto-save slot 2 [0-9]* bytes rc 0 (at the stop)' "$SL" &&
+    ok "a take in slot 2, LOOP held + D4 while it plays: slot 1 back (2 events) playing on; LOOP stops: slot 2 written (used 003)" \
+    || bad "the pending save at the stop: $c / $d / $e"
+f=$(L cr_loop_slots 6); g=$(L cr_loop_slots 7); h=$(L cr_loop_slots 8); i=$(L cr_loop_slots 9)
+[ "$(lf "$f" events)" = 3 ] && [ "$(lf "$g" slot)" = 2 ] && [ "$(lf "$g" events)" = 1 ] &&
+    has '^loop: auto-save slot 1 [0-9]* bytes rc 0 (leaving it)' "$SL" && [ "$(lf "$h" slot)" = 1 ] &&
+    [ "$(lf "$h" events)" = 3 ] && [ "$(lf "$h" layers)" = 2 ] &&
+    ok "stopped: an overdub on slot 1, LOOP held + E4 saves it now, D4 brings it back with its 3 events, 2 layers" \
+    || bad "switch while stopped: $f / $g / $h"
+gr=$(od -An -tu1 -v -j 15 "$OUT/cr_loop_slots_saved.ppm" | awk '{ for (k = 1; k <= NF; k++) v[n++] = $k }
+     END { c = 0; for (o = 0; o + 2 < n; o += 3) if (v[o] < 100 && v[o+1] > 140 && v[o+2] > 90 && v[o+2] < 160) c++; print c }')
+[ "$gr" -gt 1000 ] && ok "the message \"loop 2 · saved 1\" in green ($gr px): $OUT/cr_loop_slots_saved.ppm" || bad "no green message ($gr px)"
+[ "$(lf "$i" state)" = 2 ] && [ $(( $(lf "$i" played) - $(lf "$h" played) )) -ge 3 ] && grep -q '^expect sound .*: ok' "$SL" &&
+    [ "$(num "non-silent blocks" "$SL")" -gt 0 ] &&
+    ok "LOOP plays slot 1 again: its events sound ($(( $(lf "$i" played) - $(lf "$h" played) )) played in 1.5 s; the WAV: $OUT/cr_loop_slots.wav)" \
+    || bad "slot 1 replayed: $i"
+j=$(L cr_loop_slots 10); k=$(L cr_loop_slots 11)
+[ "$(lf "$j" slot)" = 2 ] && [ "$(lf "$j" state)" = 2 ] && has '^loop: pending save flushed while playing' "$SL" &&
+    has '^loop: auto-save slot 1 [0-9]* bytes rc 0 (a second switch)' "$SL" && [ "$(lf "$k" slot)" = 1 ] &&
+    [ "$(lf "$k" events)" = 4 ] && [ "$(lf "$k" layers)" = 3 ] && [ "$(lf "$k" state)" = 2 ] &&
+    ok "a second switch while playing: slot 1's staged save written at once (traced), slot 1 back with its overdub (4 events)" \
+    || bad "second switch: $j / $k"
+m=$(L cr_loop_slots 13)
+has '^loop: switch to slot 2 cancelled, slot 1 stays' "$SL" && [ "$(lf "$m" slot)" = 1 ] && [ "$(lf "$m" events)" = 5 ] &&
+    [ "$(grep -c '^loop: auto-save slot 1 [0-9]* bytes rc 0 (at the stop)' "$SL")" = 2 ] &&
+    ok "a switch cancelled by a stop before the cycle's end: slot 1 stays selected, its overdub written at the stop (5 events)" \
+    || bad "cancelled switch: $m"
+silent_end cr_loop_slots
 "$EMU" --headless --script "$S/cr_loop_free.txt" --wav "$OUT/cr_again/cr_loop_free.wav" >/dev/null 2>&1
 cmp -s "$OUT/cr_loop_free.wav" "$OUT/cr_again/cr_loop_free.wav" && ok "the looper is deterministic (the same audio twice)" || bad "looper audio differs"
 
