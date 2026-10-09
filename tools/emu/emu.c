@@ -71,12 +71,14 @@ static void geometry_init(void)
 }
 
 /* ================================================================== raster === */
-typedef struct { uint32_t *p; int w, h; float k, ox, oy; } canvas_t;   /* px = (unit - o) * k */
+typedef struct { uint32_t *p; int w, h; float k, ox, oy; int cx0, cy0, cx1, cy1; } canvas_t;   /* px = (unit - o) * k;
+                                                                  drawing clipped to [cx0, cx1) x [cy0, cy1) */
+static void clip_all(canvas_t *c) { c->cx0 = c->cy0 = 0; c->cx1 = c->w; c->cy1 = c->h; }
 static inline float clampf(float v, float a, float b) { return v < a ? a : v > b ? b : v; }
 static inline void blend(canvas_t *c, int x, int y, uint32_t rgb, float a)
 {
     uint32_t *d, s, r, g, b;
-    if (a <= 0.f || x < 0 || y < 0 || x >= c->w || y >= c->h)
+    if (a <= 0.f || x < c->cx0 || y < c->cy0 || x >= c->cx1 || y >= c->cy1)
         return;
     if (a > 1.f) a = 1.f;
     d = &c->p[y * c->w + x];
@@ -92,6 +94,10 @@ static void rrect_px(canvas_t *c, float x0, float y0, float w, float h, float r,
     int x, y, xa = (int)floorf(x0) - 1, ya = (int)floorf(y0) - 1, xb = (int)ceilf(x0 + w) + 1, yb = (int)ceilf(y0 + h) + 1;
     float cx = x0 + w / 2, cy = y0 + h / 2, hx = w / 2, hy = h / 2;
     r = clampf(r, 0, fminf(hx, hy));
+    if (xa < c->cx0) xa = c->cx0;
+    if (ya < c->cy0) ya = c->cy0;
+    if (xb >= c->cx1) xb = c->cx1 - 1;
+    if (yb >= c->cy1) yb = c->cy1 - 1;
     for (y = ya; y <= yb; y++)
         for (x = xa; x <= xb; x++) {
             float qx = fabsf(x + .5f - cx) - (hx - r), qy = fabsf(y + .5f - cy) - (hy - r);
@@ -120,9 +126,13 @@ static void circle(canvas_t *c, float cx, float cy, float r, uint32_t rgb, float
 static void ring(canvas_t *c, float cx, float cy, float r, uint32_t rgb, float a, float lw, float dash)
 {   /* a circle line (centred on r), dashed: dash units on, dash*1.1 off */
     float px = (cx - c->ox) * c->k, py = (cy - c->oy) * c->k, R = r * c->k, W = fmaxf(lw * c->k, 1.f);
-    int x, y;
-    for (y = (int)(py - R - W) - 1; y <= (int)(py + R + W) + 1; y++)
-        for (x = (int)(px - R - W) - 1; x <= (int)(px + R + W) + 1; x++) {
+    int x, y, xa = (int)(px - R - W) - 1, xb = (int)(px + R + W) + 1, ya = (int)(py - R - W) - 1, yb = (int)(py + R + W) + 1;
+    if (xa < c->cx0) xa = c->cx0;
+    if (ya < c->cy0) ya = c->cy0;
+    if (xb >= c->cx1) xb = c->cx1 - 1;
+    if (yb >= c->cy1) yb = c->cy1 - 1;
+    for (y = ya; y <= yb; y++)
+        for (x = xa; x <= xb; x++) {
             float dx = x + .5f - px, dy = y + .5f - py, d = fabsf(sqrtf(dx * dx + dy * dy) - R) - W / 2;
             float cov = clampf(.5f - d, 0, 1);
             if (cov > 0 && dash > 0) {
@@ -180,6 +190,10 @@ static void text(canvas_t *c, float cx, float y, float size, const char *s, uint
     float f = size / 7.f, w = (n * 6 - 1) * f, x0 = cx - w / 2;
     int xa = (int)((x0 - c->ox) * c->k) - 1, xb = (int)((x0 + w - c->ox) * c->k) + 1;
     int ya = (int)((y - c->oy) * c->k) - 1, yb = (int)((y + size - c->oy) * c->k) + 1;
+    if (xa < c->cx0) xa = c->cx0;
+    if (ya < c->cy0) ya = c->cy0;
+    if (xb >= c->cx1) xb = c->cx1 - 1;
+    if (yb >= c->cy1) yb = c->cy1 - 1;
     for (yy = ya; yy <= yb; yy++)
         for (x = xa; x <= xb; x++) {
             int sx, sy, hit = 0;
@@ -341,62 +355,154 @@ static void draw_base(void)
     rrect_line(c, SCREEN, 10, 0x000000, 1, 1);
 }
 
-static void draw_panel(void)
+/* the panel's live parts, each drawn alone: a key (cap, LED bar), a button (cap in its LED's colour, the green
+ * LED), a knob. The plate under them is `base` (draw_base, redrawn only on a resize). */
+enum { EL_KEY, EL_BTN = EL_KEY + EMU_NKEY, EL_KNOB = EL_BTN + EMU_NB, EL_N = EL_KNOB + EMU_NE };
+static void draw_key(canvas_t *c, int k)
 {
-    int k, i;
+    rect_t r = KEYR[k];
+    float cx = r.x + KEY_W / 2;
+    int lv = led_state(14 + k);
     char n[8];
     const char *h;
-    canvas_t *c = &cv;
-    memcpy(cv.p, base.p, (size_t)cv.w * (size_t)cv.h * 4u);
-    for (k = 0; k < EMU_NKEY; k++) {              /* keys: the cap, the LED bar */
-        rect_t r = KEYR[k];
-        float cx = r.x + KEY_W / 2;
-        int lv = led_state(14 + k);
-        rrect(c, r, 21, key_src[k] ? 0x45454Eu : C_CAP, 1);
-        rrect_line(c, r, 21, key_src[k] ? C_HINT : 0x0A0A0Cu, 1, key_src[k] ? 1.5f : 1);
-        if (lv == 2)
-            rrect(c, (rect_t){cx - 9, r.y + 9, 18, 40}, 9, C_WHITE, .16f);
-        rrect(c, (rect_t){cx - 4, r.y + 14, 8, 30}, 4, C_LEDOFF, 1);
-        if (lv)
-            rrect(c, (rect_t){cx - 4, r.y + 14, 8, 30}, 4, C_WHITE, lv == 2 ? 1.f : .38f);
-        emu_note_name(k, n);
-        text(c, cx, r.y + 50, 6.5f, n, 0x8A8A92u, 1);
-        if ((h = keymap_hint(KM_KEY, k)) != NULL)
-            text(c, cx, r.y + 61, 6.5f, h, C_HINT, .9f);
+    rrect(c, r, 21, key_src[k] ? 0x45454Eu : C_CAP, 1);
+    rrect_line(c, r, 21, key_src[k] ? C_HINT : 0x0A0A0Cu, 1, key_src[k] ? 1.5f : 1);
+    if (lv == 2)
+        rrect(c, (rect_t){cx - 9, r.y + 9, 18, 40}, 9, C_WHITE, .16f);
+    rrect(c, (rect_t){cx - 4, r.y + 14, 8, 30}, 4, C_LEDOFF, 1);
+    if (lv)
+        rrect(c, (rect_t){cx - 4, r.y + 14, 8, 30}, 4, C_WHITE, lv == 2 ? 1.f : .38f);
+    emu_note_name(k, n);
+    text(c, cx, r.y + 50, 6.5f, n, 0x8A8A92u, 1);
+    if ((h = keymap_hint(KM_KEY, k)) != NULL)
+        text(c, cx, r.y + 61, 6.5f, h, C_HINT, .9f);
+}
+static void draw_btn(canvas_t *c, int i)
+{
+    rect_t r = BTNR[i];
+    int lv = led_state(emu_hal.btn_id[i]), oct = i >= EMU_B_OCTDN;
+    uint32_t col = i == EMU_B_REC ? C_RED : i == EMU_B_PLAY ? C_ORANGE : C_WHITE;
+    const char *h = keymap_hint(KM_BTN, i);
+    rrect(c, r, oct ? 6 : 5, C_CAP, 1);
+    if (lv)
+        rrect(c, r, oct ? 6 : 5, col, lv == 2 ? 1.f : .38f);
+    rrect_line(c, r, oct ? 6 : 5, btn_src[i] ? C_HINT : 0x0A0A0Cu, 1, btn_src[i] ? 2 : 1);
+    text(c, r.x + r.w / 2, r.y + (oct ? 7.5f : 11), oct ? 6.5f : 7.5f, EMU_BTN_NAME[i], lv == 2 ? 0x111114u : 0xC8C8D0u, 1);
+    if (h && !oct)
+        text(c, r.x + r.w / 2, r.y + 25, 5, h, lv == 2 ? 0x1E3A26u : C_HINT, .9f);
+    else if (h)
+        text(c, r.x + r.w / 2, r.y + r.h + 4, 5, h, C_HINT, .9f);
+    if (i == EMU_B_PLAY) {                        /* the green LED */
+        uint8_t q = emu_hal.led_play_green;
+        int on = (emu_hal.led[q >> 3] >> (q & 7)) & 1u;
+        circle(c, r.x + 6, r.y + r.h - 6, 3.2f, on ? C_GREEN : C_LEDOFF, 1);
     }
-    for (i = 0; i < EMU_NB; i++) {                /* buttons: the cap lit in its LED's colour */
-        rect_t r = BTNR[i];
-        int lv = led_state(emu_hal.btn_id[i]), oct = i >= EMU_B_OCTDN;
-        uint32_t col = i == EMU_B_REC ? C_RED : i == EMU_B_PLAY ? C_ORANGE : C_WHITE;
-        h = keymap_hint(KM_BTN, i);
-        rrect(c, r, oct ? 6 : 5, C_CAP, 1);
-        if (lv)
-            rrect(c, r, oct ? 6 : 5, col, lv == 2 ? 1.f : .38f);
-        rrect_line(c, r, oct ? 6 : 5, btn_src[i] ? C_HINT : 0x0A0A0Cu, 1, btn_src[i] ? 2 : 1);
-        text(c, r.x + r.w / 2, r.y + (oct ? 7.5f : 11), oct ? 6.5f : 7.5f, EMU_BTN_NAME[i],
-             lv == 2 ? 0x111114u : 0xC8C8D0u, 1);
-        if (h && !oct)
-            text(c, r.x + r.w / 2, r.y + 25, 5, h, lv == 2 ? 0x1E3A26u : C_HINT, .9f);
-        else if (h)
-            text(c, r.x + r.w / 2, r.y + r.h + 4, 5, h, C_HINT, .9f);
-        if (i == EMU_B_PLAY) {                    /* the green LED */
+}
+static void draw_knob(canvas_t *c, int i)
+{
+    float cx = ENC_CX[i], cy = ENC_CY[i], a = knob_angle[i];
+    if (i == EMU_E_MASTER)
+        a = (float)((emu_hal.master / 1023.0 - .5) * 1.5 * M_PI);
+    circle(c, cx, cy, ENC_R, 0x26262Cu, 1);
+    ring(c, cx, cy, ENC_R - 3, 0x3A3A42u, 1, 2.5f, 2);
+    circle(c, cx, cy, ENC_CAP, 0x35353Cu, 1);
+    segment(c, cx + 4 * sinf(a), cy - 4 * cosf(a), cx + (ENC_CAP - 1) * sinf(a), cy - (ENC_CAP - 1) * cosf(a), 2,
+            i == EMU_E_MASTER ? 0xFFFFFFu : 0xC8C8D0u, 1);
+    if (i == sel_knob)
+        ring(c, cx, cy, ENC_R + 3, C_HINT, 1, 1.5f, 0);
+}
+static void draw_el(canvas_t *c, int e)
+{
+    if (e < EL_BTN) draw_key(c, e - EL_KEY);
+    else if (e < EL_KNOB) draw_btn(c, e - EL_BTN);
+    else draw_knob(c, e - EL_KNOB);
+}
+/* what an element shows: when it changes, only that element's box is redrawn and uploaded */
+static uint32_t el_sig(int e)
+{
+    uint32_t s;
+    if (e < EL_BTN)
+        return (uint32_t)key_src[e] << 4 | (uint32_t)led_state(14 + e);
+    if (e < EL_KNOB) {
+        int i = e - EL_BTN;
+        s = (uint32_t)btn_src[i] << 4 | (uint32_t)led_state(emu_hal.btn_id[i]);
+        if (i == EMU_B_PLAY) {
             uint8_t q = emu_hal.led_play_green;
-            int on = (emu_hal.led[q >> 3] >> (q & 7)) & 1u;
-            circle(c, r.x + 6, r.y + r.h - 6, 3.2f, on ? C_GREEN : C_LEDOFF, 1);
+            s |= ((emu_hal.led[q >> 3] >> (q & 7)) & 1u) << 3;
         }
+        return s;
     }
-    for (i = 0; i < EMU_NE; i++) {               /* knobs */
-        float cx = ENC_CX[i], cy = ENC_CY[i], a = knob_angle[i];
-        if (i == EMU_E_MASTER)
-            a = (float)((emu_hal.master / 1023.0 - .5) * 1.5 * M_PI);
-        circle(c, cx, cy, ENC_R, 0x26262Cu, 1);
-        ring(c, cx, cy, ENC_R - 3, 0x3A3A42u, 1, 2.5f, 2);
-        circle(c, cx, cy, ENC_CAP, 0x35353Cu, 1);
-        segment(c, cx + 4 * sinf(a), cy - 4 * cosf(a), cx + (ENC_CAP - 1) * sinf(a), cy - (ENC_CAP - 1) * cosf(a), 2,
-                i == EMU_E_MASTER ? 0xFFFFFFu : 0xC8C8D0u, 1);
-        if (i == sel_knob)
-            ring(c, cx, cy, ENC_R + 3, C_HINT, 1, 1.5f, 0);
+    e -= EL_KNOB;
+    s = (uint32_t)(int)lroundf(knob_angle[e] * 100) * 2u + (e == sel_knob);
+    return e == EMU_E_MASTER ? s * 2048u + (uint32_t)emu_hal.master : s;
+}
+/* the element's box on the canvas (pixels, clamped): its drawing, the strokes and the antialiasing inside it */
+static void el_box(int e, int *x0, int *y0, int *x1, int *y1)
+{
+    rect_t r;
+    if (e < EL_BTN)
+        r = KEYR[e - EL_KEY];
+    else if (e < EL_KNOB) {
+        r = BTNR[e - EL_BTN];
+        if (e - EL_BTN >= EMU_B_OCTDN)
+            r.h += 11;                            /* the hint below OCT- / OCT+ */
+    } else {
+        float R = ENC_R + 5;
+        r = (rect_t){ENC_CX[e - EL_KNOB] - R, ENC_CY[e - EL_KNOB] - R, 2 * R, 2 * R};
     }
+    *x0 = (int)floorf((r.x - cv.ox) * cv.k) - 2;
+    *y0 = (int)floorf((r.y - cv.oy) * cv.k) - 2;
+    *x1 = (int)ceilf((r.x + r.w - cv.ox) * cv.k) + 3;
+    *y1 = (int)ceilf((r.y + r.h - cv.oy) * cv.k) + 3;
+    if (*x0 < 0) *x0 = 0;
+    if (*y0 < 0) *y0 = 0;
+    if (*x1 > cv.w) *x1 = cv.w;
+    if (*y1 > cv.h) *y1 = cv.h;
+}
+static uint32_t el_seen[EL_N];
+
+static void draw_panel(void)                     /* the whole panel: base + every element */
+{
+    int e;
+    memcpy(cv.p, base.p, (size_t)cv.w * (size_t)cv.h * 4u);
+    clip_all(&cv);
+    for (e = 0; e < EL_N; e++) {
+        el_seen[e] = el_sig(e);
+        draw_el(&cv, e);
+    }
+}
+
+/* the elements that changed since the last frame: each box restored from the plate, every element touching it
+ * redrawn clipped to it (so nothing is blended twice), the box alone uploaded. Returns the boxes redrawn. */
+static int update_panel(SDL_Texture *t)
+{
+    int e, f, y, n = 0;
+    for (e = 0; e < EL_N; e++) {
+        int x0, y0, x1, y1;
+        uint32_t s = el_sig(e);
+        if (s == el_seen[e])
+            continue;
+        el_seen[e] = s;
+        el_box(e, &x0, &y0, &x1, &y1);
+        if (x1 <= x0 || y1 <= y0)
+            continue;
+        for (y = y0; y < y1; y++)
+            memcpy(cv.p + (size_t)y * cv.w + x0, base.p + (size_t)y * cv.w + x0, (size_t)(x1 - x0) * 4u);
+        cv.cx0 = x0; cv.cy0 = y0; cv.cx1 = x1; cv.cy1 = y1;
+        for (f = 0; f < EL_N; f++) {
+            int a0, b0, a1, b1;
+            el_box(f, &a0, &b0, &a1, &b1);
+            if (a0 < x1 && x0 < a1 && b0 < y1 && y0 < b1)
+                draw_el(&cv, f);
+        }
+        clip_all(&cv);
+        {
+            SDL_Rect r = {x0, y0, x1 - x0, y1 - y0};
+            SDL_UpdateTexture(t, &r, cv.p + (size_t)y0 * cv.w + x0, cv.w * 4);
+        }
+        n++;
+    }
+    return n;
 }
 
 /* ================================================================= timing === */
@@ -538,6 +644,39 @@ static void print_stats(void)
            "the audio waited for it at most %u us\n", shed, cpu, emu_hal.ui_lock_max_us, emu_hal.audio_wait_max_us);
 }
 
+/* EMU_TRACE_LEDS=1: after each UI frame whose LED bytes (or held controls) changed, the bytes and how many of the
+ * panel's buttons read off / dim / lit -- the trace that shows a frame where the glow drops */
+static void trace_leds(double now_us)
+{
+    static int on = -1;
+    static uint8_t seen[2 * EMU_NCOL + EMU_NB];
+    uint8_t cur[2 * EMU_NCOL + EMU_NB];
+    int i, n[3] = {0, 0, 0};
+    if (on < 0)
+        on = getenv("EMU_TRACE_LEDS") != NULL;
+    if (!on)
+        return;
+    memcpy(cur, emu_hal.led, EMU_NCOL);
+    memcpy(cur + EMU_NCOL, emu_hal.led_dim, EMU_NCOL);
+    memcpy(cur + 2 * EMU_NCOL, btn_src, EMU_NB);
+    if (!memcmp(cur, seen, sizeof cur) && ust.frames)
+        return;
+    memcpy(seen, cur, sizeof cur);
+    for (i = 0; i < EMU_NB; i++)
+        n[led_state(emu_hal.btn_id[i])]++;
+    printf("leds: frame %llu %.3f s lit", (unsigned long long)ust.frames, now_us / 1e6);
+    for (i = 0; i < EMU_NCOL; i++)
+        printf(" %02X", emu_hal.led[i]);
+    printf(" dim");
+    for (i = 0; i < EMU_NCOL; i++)
+        printf(" %02X", emu_hal.led_dim[i]);
+    printf(" | buttons off %d dim %d lit %d | held", n[0], n[1], n[2]);
+    for (i = 0; i < EMU_NB; i++)
+        if (btn_src[i])
+            printf(" %s", EMU_BTN_NAME[i]);
+    printf("\n");
+}
+
 static void ui_frame(double now_us)
 {
     double t0 = perf_us(), d;
@@ -566,6 +705,7 @@ static void ui_frame(double now_us)
             }
         }
     }
+    trace_leds(now_us);
     if (!ust.frames)
         ust.first = now_us;
     ust.last = now_us;
@@ -651,7 +791,9 @@ static void toggle_record(void)
 }
 
 static void window_shot(const char *name);
+static void probe_panel(void);
 static char window_pending[32];                  /* taken in present(), before the buffer is shown */
+static int probe_frames;                         /* script `probe N`: the next N presents print each button cap's level */
 
 /* ================================================================ script === */
 /* --script FILE (or - for stdin): one command a line, '#' at a word's start begins a comment.
@@ -674,7 +816,7 @@ static char window_pending[32];                  /* taken in present(), before t
  * Also accepted (older scripts): press KEY [MS], tap, hold / down, release / up, turn KNOB N, and a leading
  * "<ms>" for an absolute time ("1200 down A"). Names: a computer key wins for key/press/hold, a panel control
  * for btn; "note:F3" names the note F3. */
-enum { OP_DOWN, OP_UP, OP_TURN, OP_SHOT, OP_WINDOW, OP_DUMP, OP_REC, OP_QUIT, OP_MASTER, OP_EXPECT_LED, OP_EXPECT_SND, OP_MIDI };
+enum { OP_DOWN, OP_UP, OP_TURN, OP_SHOT, OP_WINDOW, OP_DUMP, OP_REC, OP_QUIT, OP_MASTER, OP_EXPECT_LED, OP_EXPECT_SND, OP_MIDI, OP_PROBE };
 typedef struct { uint32_t ms, seq; int op, kind, idx, n; const keymap_t *km; char name[96]; } sev_t;
 static sev_t *sev;
 static int sev_n, sev_cap, sev_i, quit_req;
@@ -808,6 +950,7 @@ static void load_script(const char *path)
         if (!strcmp(cmd, "frames")) { cur += 15u * (uint32_t)atoi(arg); continue; }
         if (!strcmp(cmd, "shot")) { sev_add(cur, OP_SHOT, NULL, 0, 0, 0, arg); continue; }
         if (!strcmp(cmd, "window")) { sev_add(cur, OP_WINDOW, NULL, 0, 0, 0, arg[0] ? arg : "window"); continue; }
+        if (!strcmp(cmd, "probe")) { sev_add(cur, OP_PROBE, NULL, 0, 0, arg[0] ? atoi(arg) : 1, NULL); continue; }
         if (!strcmp(cmd, "dump")) { sev_add(cur, OP_DUMP, NULL, 0, 0, 0, NULL); continue; }
         if (!strcmp(cmd, "rec")) { sev_add(cur, OP_REC, NULL, 0, 0, 0, NULL); continue; }
         if (!strcmp(cmd, "quit")) { sev_add(cur, OP_QUIT, NULL, 0, 0, 0, NULL); continue; }
@@ -973,6 +1116,12 @@ static void run_script(uint32_t ms)
             else
                 snprintf(window_pending, sizeof window_pending, "%s", e->name);
             break;
+        case OP_PROBE:
+            if (headless)
+                printf("script: no window in --headless\n");
+            else
+                probe_frames = e->n;
+            break;
         case OP_DUMP: emu_fw_dump(); break;
         case OP_REC: toggle_record(); break;
         case OP_EXPECT_LED: {
@@ -1102,8 +1251,7 @@ static int out_w, out_h, fr_x, fr_y;            /* renderer output (pixels), the
 static float dpi = 1;
 static uint16_t lcd_rgb[EMU_LCD_W * EMU_LCD_H];
 static uint32_t lcd_seen = 0xFFFFFFFFu;
-static uint8_t led_seen[2 * EMU_NCOL];
-static uint32_t panel_sig, panel_seen = 1;
+static uint32_t panel_seen = 1;              /* the whole panel to redraw (resize, expose) */
 static int timer_run = 1;
 static uint32_t stall_max;                       /* the main loop's longest pass (ms) */
 static uint32_t t0_ms;
@@ -1176,7 +1324,8 @@ static void relayout(void)
         pix_h = nh;
         free(base.p);
         free(cv.p);
-        base = (canvas_t){calloc((size_t)pix_w * (size_t)pix_h, 4), pix_w, pix_h, (float)pix_w / VIEW.w, VIEW.x, VIEW.y};
+        base = (canvas_t){calloc((size_t)pix_w * (size_t)pix_h, 4), pix_w, pix_h, (float)pix_w / VIEW.w, VIEW.x, VIEW.y, 0, 0, 0, 0};
+        clip_all(&base);
         cv = base;
         cv.p = calloc((size_t)pix_w * (size_t)pix_h, 4);
         if (t_panel)
@@ -1195,7 +1344,6 @@ static void relayout(void)
 
 static void present(void)
 {
-    uint32_t sig = 0;
     int i;
     SDL_Rect r;
     {   /* resized, or moved to a display of another pixel density */
@@ -1213,22 +1361,31 @@ static void present(void)
         if (recording)
             record_frame();
     }
-    for (i = 0; i < EMU_NKEY; i++)
-        sig = sig * 31u + key_src[i];
-    for (i = 0; i < EMU_NB; i++)
-        sig = sig * 31u + btn_src[i];
-    for (i = 0; i < EMU_NE; i++)
-        sig = sig * 31u + (uint32_t)(int)(knob_angle[i] * 100);
-    sig = sig * 31u + (uint32_t)sel_knob;
-    sig = sig * 31u + (uint32_t)emu_hal.master;
-    if (sig != panel_sig || memcmp(led_seen, emu_hal.led, EMU_NCOL) || memcmp(led_seen + EMU_NCOL, emu_hal.led_dim, EMU_NCOL) ||
-        panel_seen) {
-        panel_sig = sig;
-        panel_seen = 0;
-        memcpy(led_seen, emu_hal.led, EMU_NCOL);
-        memcpy(led_seen + EMU_NCOL, emu_hal.led_dim, EMU_NCOL);
-        draw_panel();
-        SDL_UpdateTexture(t_panel, NULL, cv.p, cv.w * 4);
+    {   /* the panel: drawn whole after a resize / an expose, else only the elements that changed */
+        double tq = perf_us();
+        int n = -1;
+        if (panel_seen) {
+            panel_seen = 0;
+            draw_panel();
+            SDL_UpdateTexture(t_panel, NULL, cv.p, cv.w * 4);
+        } else
+            n = update_panel(t_panel);
+        if (n > 0 && getenv("EMU_PANEL_CHECK")) {  /* the boxes against a whole redraw, pixel for pixel */
+            size_t np = (size_t)cv.w * (size_t)cv.h, j, bad = 0;
+            uint32_t *keep = malloc(np * 4u);
+            memcpy(keep, cv.p, np * 4u);
+            draw_panel();
+            for (j = 0; j < np; j++)
+                bad += keep[j] != cv.p[j];
+            printf("panel check: %zu pixel(s) differ from a whole redraw\n", bad);
+            free(keep);
+        }
+        if (n && getenv("EMU_TRACE_LEDS")) {
+            if (n < 0)
+                printf("panel: redrawn %dx%d in %.2f ms\n", cv.w, cv.h, (perf_us() - tq) / 1000.0);
+            else
+                printf("panel: %d element(s) redrawn in %.2f ms\n", n, (perf_us() - tq) / 1000.0);
+        }
     }
     SDL_SetRenderDrawColor(ren, 14, 14, 16, 255);
     SDL_RenderClear(ren);
@@ -1245,12 +1402,37 @@ static void present(void)
         r = (SDL_Rect){fr_x + x0, fr_y + lcd_px + y0, x1 - x0, y1 - y0};
     }
     SDL_RenderCopy(ren, t_lcd_small, NULL, &r);
+    if (probe_frames > 0) {
+        probe_frames--;
+        probe_panel();
+    }
     if (window_pending[0]) {
         window_shot(window_pending);
         window_pending[0] = 0;
     }
     SDL_RenderPresent(ren);
     update_title();
+}
+
+/* what the window shows of each button: the cap's mean level (0-255) in a patch beside its label, read back from
+ * the frame about to be presented, with the LED state the panel was drawn from */
+static void probe_panel(void)
+{
+    static uint32_t n;
+    int i;
+    printf("probe: present %u t %u ms caps", n++, SDL_GetTicks() - t0_ms);
+    for (i = 0; i < EMU_NB; i++) {
+        uint32_t px[16];
+        int j, sum = 0;
+        SDL_Rect r = {fr_x + (int)lroundf((BTNR[i].x + 2.5f - VIEW.x) * cv.k),
+                      fr_y + lcd_px + (int)lroundf((BTNR[i].y + BTNR[i].h * .5f - VIEW.y) * cv.k), 4, 4};
+        if (SDL_RenderReadPixels(ren, &r, SDL_PIXELFORMAT_ARGB8888, px, 16) != 0)
+            continue;
+        for (j = 0; j < 16; j++)
+            sum += (int)(((px[j] >> 16) & 255) + ((px[j] >> 8) & 255) + (px[j] & 255)) / 3;
+        printf(" %s=%d/%d", EMU_BTN_NAME[i], sum / 16, led_state(emu_hal.btn_id[i]));
+    }
+    printf("\n");
 }
 
 static void window_shot(const char *name)
@@ -1536,12 +1718,23 @@ int main(int argc, char **argv)
             return 1;
         }
         SDL_SetWindowMinimumSize(win, 240, 160);
-        ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
+        /* vsync on: without it the Metal layer presents unsynchronised every 15 ms, and on macOS 27.0 (Mac Studio
+         * M5 Max, a 144 Hz VRR display) that hung WindowServer into a watchdog panic twice (2026-10-09).
+         * SDL_RENDER_VSYNC=0 in the environment turns it off again. */
+        ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
         if (!ren)
             ren = SDL_CreateRenderer(win, -1, 0);
         t_lcd = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, EMU_LCD_W, EMU_LCD_H);
         t_lcd_small = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, EMU_LCD_W, EMU_LCD_H);
         relayout();
+        if (getenv("EMU_TRACE_LEDS")) {
+            int wx, wy;
+            SDL_RendererInfo ri;
+            SDL_GetWindowPosition(win, &wx, &wy);
+            printf("window at %d,%d\n", wx, wy);
+            if (SDL_GetRendererInfo(ren, &ri) == 0)
+                printf("renderer %s, flags %X\n", ri.name, ri.flags);
+        }
         printf("window %dx%d points on display %d (%.0fx pixels; `: LCD view %s)\n", win_w, win_h, d, dpi,
                show_lcd ? "shown" : "hidden");
     }

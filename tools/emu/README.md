@@ -42,7 +42,8 @@ usable height, with the live LCD on the panel's own screen. **`` ` ``** (backtic
 panel (a square as wide as the panel; `--lcd` starts with it shown, `--scale N` then makes the starting
 window 240*N points wide). The window is **resizable** and can go to any display: everything is redrawn
 to fit, keeping the aspect ratio (letterboxed); the panel is re-rasterised at the new size, so it stays
-sharp, and the scale snaps to an integer multiple of the 240x240 screen when one is close (nearest
+sharp (in play only the keys, buttons and knobs whose look changed are redrawn and uploaded, each box from the
+cached plate: well under a millisecond a press), and the scale snaps to an integer multiple of the 240x240 screen when one is close (nearest
 neighbour; linear otherwise). `--display N` picks the display, `--pos X,Y` the top-left corner (global
 points), `--size W,H` the size in points. Nothing is remembered between runs.
 
@@ -97,7 +98,9 @@ a run is deterministic: the same script gives the same LCD and the same audio, b
 frames of 15 ms (`--frames N`; without it, to the end of the script, else 600 frames), then prints the
 peak / rms, the block render time, the host instructions per audio block and UI frame with the device estimate
 (`EMU_CPU_LOG=PCT` lists every block above PCT % of the device's budget; `EMU_UI_LOG=N` every UI frame above N
-million host instructions, with its index, time, device estimate and the screen it drew: kind, view, name / item /
+million host instructions; `EMU_TRACE_LEDS=1` prints the LED bytes and the buttons off / dim / lit after every UI
+frame they (or the held controls) change, and in the window each panel redraw and its time; `EMU_PANEL_CHECK=1`
+compares every partial panel redraw with a whole one, pixel for pixel, with its index, time, device estimate and the screen it drew: kind, view, name / item /
 title, animation clock, ring, message, strips blitted), **the number of non-silent blocks and
 non-zero samples**, and exits
 1 if an `expect` failed (2 on a script error). `--frames` alone implies `--headless`.
@@ -118,6 +121,7 @@ own clock in ms from power-on; commands run in order and only `wait` (and the ti
 | `shot NAME` | the LCD to `build/emu/NAME.png` and `.ppm`; a NAME with `/` or ending `.ppm` / `.png` is a path |
 | `expect led NAME on\|dim\|off` | check a key's or button's LED now (`on` = lit); `GREEN` is PLAY's green LED |
 | `expect sound` / `expect silence` | non-zero samples since the previous `expect sound\|silence` (or power-on) |
+| `probe N` | (window) the next N presented frames: each button cap's level read back from the frame, with its LED state (`probe: present ... FX=247/2 SEL=121/1 ...`) |
 | `dump` | print the input state (as F12) |
 | `rec` | start / stop recording the LCD frames (as Insert) |
 | `quit` | stop here |
