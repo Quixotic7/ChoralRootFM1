@@ -239,25 +239,32 @@ static void cr_battery(int32_t rx, uint32_t lvl)
     if (lvl) cr_frect((rx + 2) * 16, 9 * 16, (int32_t)(12u * 16u * lvl / 4u), 6 * 16, lvl <= 1u ? CR_YELLOW : CR_RED);
 }
 
-/* the corner dial (a loop playing, no ring): Orchid's ring shrunk into the top line's right end, centre (229, 12), r 8,
- * 3 px: the dotted track (10 dots of 2.5 px, about 2 on 3 off, T_LINE: cr_disc, cheaper than a dashed cr_arc's per-sample angles), the
- * progress red clockwise from 12 o'clock, 5 px on the downbeat's frame. Rows 2..22: strip 0 only (cr_draw redraws
- * that strip alone when only its fraction or pulse moved) */
+/* the corner dial (every loop state but the count-in: no ring): Orchid's ring shrunk into the top line's right end,
+ * centre (229, 12), r 8, 3 px: the dotted track (10 dots of 2.5 px, about 2 on 3 off: cr_disc, cheaper than a dashed
+ * cr_arc's per-sample angles), grey, red while the first take records (CR_DIAL_REC: no loop yet, the whole circle is
+ * being made); the progress red clockwise from 12 o'clock (the loop's cycle, or the take's: cr_loop_ring), 5 px on
+ * the downbeat's frame; the REC dot (r 3, red) in the middle while dial_dot (the REC LED's twin: lit armed, blinking
+ * recording or overdubbing), clear of the band (inner edge r 6.5, 5.5 pulsing). Rows 2..22: strip 0 only (cr_draw
+ * redraws that strip alone when only its fraction, pulse, look or dot moved) */
 #define CR_DIAL_X (229 * 16)
 #define CR_DIAL_Y (12 * 16)
 #define CR_DIAL_R (8 * 16)
+#define CR_DIAL_DOT (3 * 16)             /* the REC dot's radius */
 #define CR_DIAL_SHIFT 22                 /* the header's right text moves this far left while the dial shows */
 static void cr_dial(const cr_screen_t *s)
 {
     uint32_t sweep = s->dial >= 256u ? 65536u : (uint32_t)s->dial << 8;
     uint32_t k;
+    uint16_t tc = s->dial_mode == CR_DIAL_REC ? CR_RED : T_LINE;
     if (cr_row0() > 23) return;          /* (not this strip) */
     for (k = 0; k < 10u; k++) {
         uint32_t a = k * 65536u / 10u;
-        cr_disc(CR_DIAL_X + ((CR_DIAL_R * cr_cos(a)) >> 14), CR_DIAL_Y + ((CR_DIAL_R * cr_sin(a)) >> 14), 20, T_LINE);
+        cr_disc(CR_DIAL_X + ((CR_DIAL_R * cr_cos(a)) >> 14), CR_DIAL_Y + ((CR_DIAL_R * cr_sin(a)) >> 14), 20, tc);
     }
     if (sweep)
         cr_arc(CR_DIAL_X, CR_DIAL_Y, CR_DIAL_R, s->dial_pulse ? 5 * 16 : 3 * 16, 49152u, sweep, 0, 0, 0, CR_RED);
+    if (s->dial_dot)
+        cr_disc(CR_DIAL_X, CR_DIAL_Y, CR_DIAL_DOT, CR_RED);
 }
 
 static void cr_header(const cr_screen_t *s)
@@ -1880,8 +1887,9 @@ static void cr_p_scope(const cr_screen_t *s, int32_t ph)
 
 /* ------------------------------------------------------------ ring --- */
 /* Orchid's ring: a dotted circle round the edge (cr_arc width 5, dash 2 of 6 at R 113, T_LINE) and the progress
- * over it (the same band solid, clockwise from 12 o'clock). cr_ui.c sets it only for the count-in, the undo screen,
- * the capture states (armed, recording, overdubbing) and calibration; a loop merely playing is the corner dial. Only its colour and fraction change, so the coverage
+ * over it (the same band solid, clockwise from 12 o'clock). cr_ui.c sets it only where the loop is the whole screen
+ * (the count-in, the undo screen) and for calibration; every other loop state is the corner dial (cr_dial: playing,
+ * armed, recording, overdubbing). Only its colour and fraction change, so the coverage
  * of every pixel of the band is computed once (cr_arc_px, the first time a ring is drawn) into the POOL: per row up
  * to two runs of pixels, a byte a pixel (the solid band's and the dotted circle's sample counts, d <= s, as one
  * index of the 153 pairs). A frame blends the runs of its rows from the table; the progress is decided per run
@@ -2047,7 +2055,7 @@ static struct {
     uint32_t row[CR_ED_ROWS], wv, hot, ttl;   /* the editor's parts (cr_ed_strips): each row's cells, the band, the
                                                * hot cell, the title line */
     uint16_t ring;                       /* .. which was drawn */
-    uint32_t dl;                         /* the corner dial's fraction and pulse drawn (dial | dial_pulse << 16) */
+    uint32_t dl;                         /* the corner dial drawn (dial | pulse << 16 | mode << 17 | dot << 20) */
     uint8_t valid, force;
     uint8_t blits, drawn;                /* strips blitted / composed by the last cr_draw (the host test reads them) */
     uint8_t slot;                        /* the DMA buffer the next blit uses (cr_send) */
@@ -2196,12 +2204,12 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
     cr_frame_t fr;
     uint32_t sig, base, k, strips = (1u << CR_NSTRIP) - 1u, row[CR_ED_ROWS], wv, hot;
     uint32_t ttl, ed = s->kind == CR_K_EDIT8 || s->kind == CR_K_STACK, i, j, o;
-    /* the struct's bytes but these (offset, size), hashed apart: the ring's fraction, the corner dial's fraction and
-     * pulse, the editor's parts (its cells, the hot cell, the band's values, its title line) */
+    /* the struct's bytes but these (offset, size), hashed apart: the ring's fraction, the corner dial's fraction,
+     * pulse, look and REC dot, the editor's parts (its cells, the hot cell, the band's values, its title line) */
     uint32_t sk[8][2] = {
         {(uint32_t)__builtin_offsetof(cr_screen_t, ring), sizeof s->ring},
         {(uint32_t)__builtin_offsetof(cr_screen_t, dial), sizeof s->dial},
-        {(uint32_t)__builtin_offsetof(cr_screen_t, dial_pulse), sizeof s->dial_pulse},
+        {(uint32_t)__builtin_offsetof(cr_screen_t, dial_pulse), 3u},
         {(uint32_t)__builtin_offsetof(cr_screen_t, cell), sizeof s->cell},
         {(uint32_t)__builtin_offsetof(cr_screen_t, hot_r), 3u},
         {(uint32_t)__builtin_offsetof(cr_screen_t, wv), sizeof s->wv},
@@ -2209,7 +2217,11 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
         {(uint32_t)__builtin_offsetof(cr_screen_t, page), sizeof s->page}};
     _Static_assert(__builtin_offsetof(cr_screen_t, hot_c) == __builtin_offsetof(cr_screen_t, hot_r) + 1 &&
                    __builtin_offsetof(cr_screen_t, hot_col) == __builtin_offsetof(cr_screen_t, hot_r) + 2, "hot_r c col");
-    uint32_t dl = (uint32_t)s->dial | (uint32_t)s->dial_pulse << 16;
+    _Static_assert(__builtin_offsetof(cr_screen_t, dial_mode) == __builtin_offsetof(cr_screen_t, dial_pulse) + 1 &&
+                   __builtin_offsetof(cr_screen_t, dial_dot) == __builtin_offsetof(cr_screen_t, dial_pulse) + 2,
+                   "dial_pulse mode dot");
+    uint32_t dl = (uint32_t)s->dial | (uint32_t)s->dial_pulse << 16 | (uint32_t)s->dial_mode << 17 |
+                  (uint32_t)s->dial_dot << 20;
     for (i = 1; i < 8u; i++)                                     /* (in the struct's order) */
         for (j = i; j && sk[j - 1][0] > sk[j][0]; j--) {
             uint32_t a = sk[j][0], c = sk[j][1];
@@ -2241,7 +2253,7 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
         if (ttl != cr_dc.ttl)
             strips |= 1u;                                        /* the editor's title line (rows 0..24) */
         if (dl != cr_dc.dl)
-            strips |= 1u;                                        /* the corner dial (rows 2..22) */
+            strips |= 1u;                                        /* the corner dial (rows 2..22; the REC dot's blink) */
         if (wv != cr_dc.wv || hot != cr_dc.hot)
             strips |= cr_ed_strips(s, row, wv, hot);
         else

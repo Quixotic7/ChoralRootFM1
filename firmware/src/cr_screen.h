@@ -33,6 +33,9 @@ enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOA
 
 /* the top line's icon: none = the bare Orchid line (mid at the left in 15 px, right at the right) */
 enum { CR_ICON_NONE, CR_ICON_PLAY, CR_ICON_REC, CR_ICON_LOOP };
+/* the corner dial's looks (dial_mode): the loop playing; REC armed (no loop yet: the track alone; an overdub armed: over
+ * the playing arc); the first take recording (the track red); an overdub recording (the playing arc) */
+enum { CR_DIAL_PLAY, CR_DIAL_ARMED, CR_DIAL_REC, CR_DIAL_OD };
 
 /* an editor cell's glyph (the designer's params glyphs, drawn small); CR_G_NONE: a text cell */
 enum { CR_G_NONE, CR_G_KNOB, CR_G_BAR, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_STEPS, CR_G_DOTS,
@@ -130,13 +133,16 @@ typedef struct {
     /* the one-line footer (empty: none; the panel then runs to the bottom) */
     char footer[64];
 
-    /* the ring round the edge and the message box */
+    /* the ring round the edge (only where the loop is the whole screen: the count-in, undo; calibration) */
     uint8_t ring_on, ring_rec, ring_col, message_col;
     uint16_t ring;                  /* Q8 progress (0: the dotted track only) */
-    /* the corner dial: a loop merely playing (no ring), a 16 px ring at the right end of the top line (centre 229, 12,
-     * r 8, 3 px: the dotted track, the progress red from 12 o'clock); the header's right text moves 22 px left */
+    /* the corner dial: every loop state but the count-in (no ring), a 16 px ring at the right end of the top line
+     * (centre 229, 12, r 8, 3 px: the dotted track, the progress red from 12 o'clock, the REC dot in its middle); the
+     * header's right text moves 22 px left */
     uint8_t dial_on, dial_pulse;    /* dial_pulse: the downbeat's frame (~100 ms): the arc drawn 5 px wide */
-    uint16_t dial;                  /* Q8 progress (the loop's fraction, as ring) */
+    uint8_t dial_mode;              /* CR_DIAL_*: CR_DIAL_REC draws the track red */
+    uint8_t dial_dot;               /* the REC dot lit this frame (the REC LED's twin: lit armed, blinking capturing) */
+    uint16_t dial;                  /* Q8 progress (the loop's fraction or the take's, as ring; 0: no arc) */
     char message[24];
 
     /* panel: chord, arp, keyboard (with a root), geek */

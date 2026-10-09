@@ -32,7 +32,7 @@
    "KNOB4": "FX"
   }
  },
- "notes": "What the screen shows while a loop plays. Today Orchid's progress ring is drawn round every screen (state 1). Decided (2026-10-07): the corner dial, a 16 px ring at the right end of the top line (states 2-7: the chord view, the downbeat pulse, the perform and key layers, Key Mode, the overdub armed); nothing in the sound editor or Options (8); the ring stays where the loop is the subject: recording, the count-in, undo, the LOOP layer and the loop save dialog (9, 10).",
+ "notes": "What the screen shows while a loop runs. Before, Orchid's progress ring was drawn round every screen (state 1). Decided (2026-10-07): the corner dial, a 16 px ring at the right end of the top line (states 2-7: the chord view, the downbeat pulse, the perform and key layers, Key Mode, the overdub armed); nothing in the sound editor or Options (8). 2026-10-09: REC too lives in the dial, the REC dot in its middle (9a armed, 9b recording the first loop with the track red, 9c overdubbing); the ring stays only where the loop is the whole screen: the count-in and undo (10).",
  "states": [
   {
    "name": "1 \u00b7 today: the loop plays, every screen wears the ring",
@@ -905,7 +905,7 @@
   },
   {
    "name": "7 \u00b7 overdub armed while playing (REC lit)",
-   "notes": "REC tapped while the loop plays: the overdub is armed (REC lit) and the next chord opens a layer. The top line says 'Dub 3.2' at the right in red, left of the dial; once the overdub records, the ring returns (state 9) because recording is the subject again.",
+   "notes": "REC tapped while the loop plays: the overdub is armed (REC lit) and the next chord opens a layer. The top line says 'Dub 3.2' at the right in red, left of the dial; the REC dot sits in the dial's middle, lit like the REC LED. Once the overdub records, the dot blinks with REC (state 9c); no ring.",
    "export": true,
    "keys": [
     1,
@@ -1045,12 +1045,14 @@
      ]
     },
     "footer": null,
-    "note": "armed: 'Dub 3.2' left of the dial; no ring until the overdub records.",
+    "note": "armed: 'Dub 3.2' left of the dial, the REC dot lit in it.",
     "loop": {
      "style": "dial",
      "pct": 0.62,
      "on": false,
-     "col": "red"
+     "col": "red",
+     "rec": "armed",
+     "dot": true
     }
    }
   },
@@ -1291,8 +1293,8 @@
    }
   },
   {
-   "name": "9 \u00b7 the ring stays where the loop is the subject: recording",
-   "notes": "Unchanged: while recording or overdubbing (and during the count-in and the undo screen) the loop IS the subject, so the red ring runs round the edge as the Orchid's does, with 'Rec' and bar.beat in the top line. It leaves with the take; playback then shows the dial.",
+   "name": "9a \u00b7 REC armed: the dial's REC dot (no loop yet)",
+   "notes": "REC tapped with no loop (Free): armed, the first chord starts the take. No ring: the dial's grey track alone with the REC dot in its middle, lit like the REC LED; 'Rec' top-left, 'ready' left of the dial. The chord view keeps the whole panel (an overdub armed over a playing loop is the same dot over the playing arc: state 7).",
    "export": true,
    "keys": [
     1,
@@ -1346,14 +1348,169 @@
     "SAVE": 1,
     "ARP": 1,
     "SEQ": 1,
-    "PLAY": 2,
+    "PLAY": 1,
+    "REC": 2,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "REC": "lit: armed; blinks once it records"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Rec",
+     "right": "ready",
+     "batt": false,
+     "usb": false,
+     "midCol": "red",
+     "rightCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "chord",
+     "root": "F",
+     "quality": "",
+     "sup": "",
+     "notes": "",
+     "line": "",
+     "hint": "",
+     "cols": {
+      "root": "white"
+     },
+     "bubbles": [
+      {
+       "t": "F4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "A4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "C5",
+       "col": "white",
+       "mark": false
+      }
+     ]
+    },
+    "footer": null,
+    "note": "armed: the track and the REC dot; no ring.",
+    "loop": {
+     "style": "dial",
+     "pct": 0,
+     "on": false,
+     "col": "red",
+     "rec": "armed",
+     "dot": true
+    }
+   }
+  },
+  {
+   "name": "9b \u00b7 recording the first loop: the track red",
+   "notes": "The first take records (REC blinks): the dial's track turns red (no loop yet: the whole circle is being made), the arc is the take's progress (a loop length set, here 4 bars synced: bar 2 beat 3, 35 %; Free: the bar's position, sweeping once a bar) and the REC dot blinks with the REC LED. 'Rec' and bar.beat in the top line; no ring, the chord at full size. The count-in before it keeps its own screen with the ring (state 10).",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
     "REC": 3,
     "OCT-": 1,
     "OCT+": 1
    },
    "playGreen": 0,
    "buttonLabels": {},
-   "buttonNotes": {},
+   "buttonNotes": {
+    "REC": "blinks: recording"
+   },
    "encoders": {
     "MASTER": {
      "note": "",
@@ -1396,7 +1553,8 @@
      "right": "2.3",
      "batt": false,
      "usb": false,
-     "midCol": "red"
+     "midCol": "red",
+     "rightCol": "red"
     },
     "cards": null,
     "panel": {
@@ -1429,14 +1587,20 @@
      ]
     },
     "footer": null,
-    "note": "recording: the red ring, as today.",
-    "ring": 0.35,
-    "ringRec": true
+    "note": "recording: the track red, the take's arc, the dot blinking.",
+    "loop": {
+     "style": "dial",
+     "pct": 0.35,
+     "on": false,
+     "col": "red",
+     "rec": "rec",
+     "dot": true
+    }
    }
   },
   {
-   "name": "10 \u00b7 the ring stays in the LOOP layer while playing",
-   "notes": "Unchanged: LOOP held opens the loop layer with the Overdub / Pause / Undo / Clear picker inside the ring (OCT+ does it); the ring shows the cycle. SAVE held (the loop save / load / delete) keeps its ring too.",
+   "name": "9c \u00b7 overdubbing: the playing arc and the REC dot",
+   "notes": "An overdub records (REC blinks): the dial is the playing one (grey track, the loop's arc) with the REC dot blinking in its middle; 'Loop 1' and 'Dub 3.2' in the top line. The sound editor and the Options pages show nothing (state 8): the REC LED carries it there.",
    "export": true,
    "keys": [
     1,
@@ -1490,16 +1654,15 @@
     "SAVE": 1,
     "ARP": 1,
     "SEQ": 1,
-    "PLAY": 3,
-    "REC": 2,
+    "PLAY": 2,
+    "REC": 3,
     "OCT-": 1,
-    "OCT+": 3
+    "OCT+": 1
    },
    "playGreen": 1,
    "buttonLabels": {},
    "buttonNotes": {
-    "PLAY": "blinks: its layer is open (locked since the 300 ms hold); OCT- or HOME closes it, a tap still toggles it",
-    "OCT+": "OK: does the picked action"
+    "REC": "blinks: overdubbing"
    },
    "encoders": {
     "MASTER": {
@@ -1540,6 +1703,159 @@
      "icon": "none",
      "bpm": "",
      "mid": "Loop 1",
+     "right": "Dub 3.2",
+     "batt": false,
+     "usb": false,
+     "midCol": "red",
+     "rightCol": "red"
+    },
+    "cards": null,
+    "panel": {
+     "kind": "chord",
+     "root": "G",
+     "quality": "",
+     "sup": "",
+     "notes": "",
+     "line": "",
+     "hint": "",
+     "cols": {
+      "root": "white"
+     },
+     "bubbles": [
+      {
+       "t": "G4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "B4",
+       "col": "white",
+       "mark": false
+      },
+      {
+       "t": "D5",
+       "col": "white",
+       "mark": false
+      }
+     ]
+    },
+    "footer": null,
+    "note": "overdubbing: the loop's arc, the REC dot blinking.",
+    "loop": {
+     "style": "dial",
+     "pct": 0.62,
+     "on": false,
+     "col": "red",
+     "rec": "od",
+     "dot": true
+    }
+   }
+  },
+  {
+   "name": "10 \u00b7 the ring stays on the loop's own screens: the count-in",
+   "notes": "The ring is drawn only where the loop is the whole screen: the count-in (the beats to go huge in red, the ring drawing itself in over the bar) and the undo screen (REC held: the layers left); calibration uses it as its progress. (The old state 10, the ring in the LOOP layer, went with the layers sheet's state 6: a knob row, the dial.)",
+   "export": true,
+   "keys": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "keyLabels": {
+    "1": "DIM",
+    "3": "MIN",
+    "5": "MAJ",
+    "8": "SUS",
+    "0": "6",
+    "2": "m7",
+    "4": "M7",
+    "7": "9",
+    "6": "LOCK"
+   },
+   "keyNotes": {},
+   "buttons": {
+    "FX": 1,
+    "SEL": 1,
+    "ENV": 1,
+    "LFO": 1,
+    "EDIT": 1,
+    "GLO": 1,
+    "HOME": 1,
+    "SAVE": 1,
+    "ARP": 1,
+    "SEQ": 1,
+    "PLAY": 1,
+    "REC": 3,
+    "OCT-": 1,
+    "OCT+": 1
+   },
+   "playGreen": 0,
+   "buttonLabels": {},
+   "buttonNotes": {
+    "REC": "blinks: counting in"
+   },
+   "encoders": {
+    "MASTER": {
+     "note": "",
+     "value": ""
+    },
+    "SELECT": {
+     "note": "",
+     "value": ""
+    },
+    "PRESETS": {
+     "note": "",
+     "value": ""
+    },
+    "ALGORITHM": {
+     "note": "",
+     "value": ""
+    },
+    "KNOB1": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB2": {
+     "note": "",
+     "value": "0"
+    },
+    "KNOB3": {
+     "note": "",
+     "value": "off"
+    },
+    "KNOB4": {
+     "note": "",
+     "value": "25"
+    }
+   },
+   "screen": {
+    "header": {
+     "icon": "none",
+     "bpm": "",
+     "mid": "Rec",
      "right": "",
      "batt": false,
      "usb": false,
@@ -1547,20 +1863,16 @@
     },
     "cards": null,
     "panel": {
-     "kind": "picker",
-     "items": [
-      "Overdub",
-      "Pause",
-      "Undo",
-      "Clear"
-     ],
-     "sel": 0,
-     "label": "loop 1",
-     "col": "red"
+     "kind": "big",
+     "value": "3",
+     "label": "count-in",
+     "col": "red",
+     "size": 104
     },
     "footer": null,
-    "note": "the loop layer: the picker inside the ring, as today.",
-    "ring": 0.62
+    "note": "the count-in: the panel is the loop's, the ring round it.",
+    "ring": 0.25,
+    "ringRec": true
    }
   }
  ]

@@ -1,0 +1,35 @@
+# ChoralRoot looper: the REC states live in the corner dial, no ring round the screen (only the count-in and the undo
+# screen keep it). 120 BPM, Free: a bar = 2 s. REC armed with no loop: the grey track, the REC dot lit (the REC LED
+# lit); D (MAJ + D4) starts the take: the track red, the bar's sweep, the dot blinking with REC; REC commits the
+# loop; REC arms an overdub, G (MAJ + G4) records it: the loop's arc, the dot blinking; LOOP stops it. REC blinks lit
+# 0..250 ms of every 500 (fm1_ms): the recording shots sit in a lit half; the armed ones wait out the message box
+# (1.2 s). (A btn tap takes 100 ms of the clock.)
+wait 300
+btn REC
+wait 1300
+expect led REC on
+shot build/emu/test/cr_rec_armed.ppm          # t 1700: armed, no loop yet
+btn A#3 down
+btn D4 down
+wait 900
+shot build/emu/test/cr_rec_rec.ppm            # t 2600: the first take recording (~0.45 of the bar), the dot lit
+btn D4 up
+btn A#3 up
+wait 400
+btn REC                                       # t 3000: commit, the loop plays
+wait 2000
+btn REC                                       # t 5100: an overdub armed
+wait 1300
+expect led REC on
+btn A#3 down
+btn G4 down
+wait 600
+shot build/emu/test/cr_rec_od.ppm             # t 7100: overdubbing, the dot lit
+btn G4 up
+btn A#3 up
+wait 200
+btn REC                                       # t 7300: the overdub ends
+wait 800
+btn PLAY                                      # LOOP tap: the loop stops
+wait 2000
+dump

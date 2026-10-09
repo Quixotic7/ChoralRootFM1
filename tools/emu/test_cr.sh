@@ -527,6 +527,39 @@ p=$(pixel "$OUT/cr_countin_4.ppm" 120 130); set -- $p
 has '^undo: 1 layers left' "$OUT/cr_countin.log" && ok "REC held: undo, the layers left huge: $OUT/cr_undo.ppm" || bad "undo trace"
 silent_end cr_countin
 
+echo "REC in the corner dial: no ring round the screens; the count-in and undo keep theirs"
+ring12() { px_count "$1" 104 2 136 10 ink; }      # the ring's band at 12 o'clock (nothing else draws there)
+dialred() { px_count "$1" 218 0 240 26 red; }     # red in the corner dial's box
+redpx() { set -- $(pixel "$1" "$2" "$3"); [ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 100 ]; }   # redpx FILE X Y
+export EMU_UI_LOG=0
+run cr_rec_dial
+unset EMU_UI_LOG
+f=$OUT/cr_rec_armed.ppm
+[ "$(ring12 "$f")" = 0 ] && [ "$(dialred "$f")" -gt 10 ] && [ "$(dialred "$f")" -lt 45 ] && redpx "$f" 229 12 && ! redpx "$f" 220 11 &&
+    ok "REC armed, no loop: no ring; the dial's grey track and the REC dot lit in its middle ($(dialred "$f") red px): $f" \
+    || bad "armed: ring band $(ring12 "$f"), $(dialred "$f") red in the dial, dot $(pixel "$f" 229 12), track $(pixel "$f" 220 11)"
+f=$OUT/cr_rec_rec.ppm
+[ "$(ring12 "$f")" = 0 ] && redpx "$f" 229 12 && redpx "$f" 220 11 &&
+    ok "the first take recording: no ring; the dial's track red past the arc, the REC dot ($(dialred "$f") red px): $f" \
+    || bad "recording: ring band $(ring12 "$f"), dot $(pixel "$f" 229 12), track $(pixel "$f" 220 11)"
+f=$OUT/cr_rec_od.ppm
+[ "$(ring12 "$f")" = 0 ] && redpx "$f" 229 12 && [ "$(dialred "$f")" -gt 60 ] &&
+    ok "overdubbing: no ring; the loop's arc and the REC dot ($(dialred "$f") red px): $f" \
+    || bad "overdubbing: ring band $(ring12 "$f"), $(dialred "$f") red in the dial, dot $(pixel "$f" 229 12)"
+L="$OUT/cr_rec_dial.log"
+grep -q 'dial armed/0/1 ' "$L" && grep -q 'dial rec/[0-9]*/0 ' "$L" && grep -q 'dial rec/[0-9]*/1 ' "$L" &&
+    grep -q 'dial od/[0-9]*/0 ' "$L" && grep -q 'dial od/[0-9]*/1 ' "$L" && ! grep -q 'dial armed/[0-9]*/0 ' "$L" &&
+    ok "the REC dot follows the REC LED: lit while armed, blinking while recording and overdubbing" || bad "the dot's blink: $(grep -o 'dial [a-z]*/[0-9]*/[01]' "$L" | sort -u | head -5 | tr '\n' ' ')"
+for f in cr_loop_rec_free cr_loop_rec cr_loop_overdub; do
+    [ "$(ring12 "$OUT/$f.ppm")" = 0 ] && [ "$(dialred "$OUT/$f.ppm")" -gt 10 ] && ok "$f: no ring, the dial: $OUT/$f.ppm" \
+        || bad "$f: ring band $(ring12 "$OUT/$f.ppm"), $(dialred "$OUT/$f.ppm") red in the dial"
+done
+for f in cr_loop_countin cr_countin_4 cr_undo; do
+    [ "$(ring12 "$OUT/$f.ppm")" -gt 0 ] && [ "$(dialred "$OUT/$f.ppm")" = 0 ] && ok "$f: the ring (the loop's own screen), no dial: $OUT/$f.ppm" \
+        || bad "$f: ring band $(ring12 "$OUT/$f.ppm"), $(dialred "$OUT/$f.ppm") red in the dial's box"
+done
+silent_end cr_rec_dial
+
 echo "the loop's notes glow; MIDI start / stop"
 run cr_loop_glow
 [ "$(grep -c 'expect led .* dim .*: ok' "$OUT/cr_loop_glow.log")" = 4 ] &&

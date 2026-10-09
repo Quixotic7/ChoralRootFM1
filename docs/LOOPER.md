@@ -57,15 +57,25 @@ The count-in takes the whole panel: the beats to go (4 3 2 1 from the time signa
 in, "count-in" under it, the top line `Rec`, the red ring drawing itself in over the bar. It is above popups and
 layers, below PANIC.
 
-Where the loop is the subject — the count-in, the undo screen, recording and overdubbing (REC blinks) — Orchid's red
-ring runs round the edge (calibration uses it too, as its progress). The LOOP and SAVE layers have no ring (the layers
-sheet's state 6, 2026-10-07): a playing loop shows there as the dial like everywhere else. While the loop **merely plays** (or plays with an overdub
-armed) the screen shows a small **corner dial** in the top line instead (`design/choralroot-fm1-loop-screens.png`):
-a 16 px dial at the right end, the dotted track grey, the loop's progress red from 12 o'clock, its arc drawn thick
-for ~100 ms on each downbeat (not with Options > Motion Off); the top line's right text ("Oct +1", "Arp") moves left
-of it. It shows on the views, the layers (KEY, PERF, FX, BASS, LOOP, SAVE, METRO, the engine picker), the SAVE naming dialog
-and the knob popups; not in the sound editor (no top line) nor on the Options pages, where the LOOP button's green
-LED carries it.
+Orchid's red ring runs round the edge only where the loop is the whole screen — the count-in and the undo screen
+(calibration uses it too, as its progress). Every other loop state lives in a small **corner dial** in the top line
+(`design/choralroot-fm1-loop-screens.png`, states 2-7 and 9a-9c; 2026-10-09: before, REC armed drew the ring round
+every screen, layer, picker and popup until the take ended): a 16 px dial at the right end, the top line's right text
+("Oct +1", "Arp", "ready", "2.3", "Dub 3.2") moved left of it. Its looks (`cr_draw.c cr_dial`, `cr_screen_t.dial_mode`):
+
+- **playing**: the dotted track grey, the loop's progress red from 12 o'clock, its arc drawn thick for ~100 ms on each
+  downbeat (not with Options > Motion Off);
+- **REC armed** (no loop yet, Free: the grey track alone) and **overdub armed** (over the playing arc): the **REC dot**
+  in the dial's middle, red, lit like the REC LED;
+- **recording the first take**: the track red (no loop yet: the whole circle is being made), the arc the take's
+  progress (`lring`: with a loop length set the whole take, N bars; Free the bar's position, sweeping once a bar), the
+  REC dot blinking with the REC LED (its 250 ms phase);
+- **overdubbing**: the playing dial with the REC dot blinking.
+
+It shows on the views, the layers (KEY, PERF, FX, BASS, LOOP, SAVE, METRO, the engine picker), the SAVE naming dialog
+and the knob popups; not in the sound editor (no top line) nor on the Options pages, where the REC LED and the LOOP
+button's green LED carry it. `tools/emu/scripts/cr_rec_dial.txt` shoots the REC looks (`cr_rec_armed.ppm`,
+`cr_rec_rec.ppm`, `cr_rec_od.ppm`).
 
 While the loop sounds, its notes glow **dim** on the root keys where they sit in the current octave window
 (`cr_snap_t.lnote`, a 128-bit note mask from the 8 loop voices, taken with the snapshot); the player's own notes stay

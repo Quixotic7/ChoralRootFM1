@@ -45,7 +45,7 @@ Licensing: a Felucca fork is **GPL-3.0-only**, and `ChoralRootFM1/LICENSE` is GP
 | sound | MIDI only | internal engines (Felucca) **and** MIDI out on 3 channels |
 | menus / parameters | hold-to-reveal on the grid's top row | layers that lock open on a hold (pickers and meters), Options one setting per screen, a dense sound editor |
 | display | LED levels | chord name, notes, keyboard strip, ring, Orchid's View modes |
-| loop display | column fill while Loop is held | the ring progress indicator around the screen while recording; a corner dial in the top line while it plays |
+| loop display | column fill while Loop is held | a corner dial in the top line (playing, REC armed, recording, overdubbing: a REC dot in it); the ring progress indicator around the screen on the count-in and undo screens |
 | velocity | 8 rows | fixed (Options > Velocity); patterns keep their accents |
 
 ## 3. Control mapping (normative; `design/make_mockups.py` draws it)
@@ -166,7 +166,7 @@ numbers**.
 | **white** | the chord name and its triad notes, sounds, the Perform picker, tempo |
 | **blue** | KNOB 1 voicing |
 | **orange** | the bass (ALGORITHM, KNOB 2, BASS) and 7th extensions |
-| **red** | the loop and REC (the ring), secret-chord tones, panic |
+| **red** | the loop and REC (the corner dial, the count-in's ring), secret-chord tones, panic |
 | **yellow** | Key Mode (`Key: C`, select-key) |
 | **green** | FX (KNOB 4, the FX picker) |
 
@@ -205,9 +205,11 @@ orange, white, green (KNOB 1–4) whatever they edit.
 - **Perform in motion**: the chord's notes as text on a line; the sounding one sits on a colour block
   and hops along in time, a dotted arc to the next.
 - **Select key**: KEY held shows the keyboard with the tonic lit yellow as the knob row's band.
-- **The ring**: Orchid's progress ring as a dotted circle round the edge — red, where the loop is the subject
-  (recording, overdubbing, the count-in, undo; calibration's progress in yellow). Everywhere else a playing loop is
-  the 16 px corner dial in the top line, the LOOP and SAVE layers included (`docs/LOOPER.md`).
+- **The ring**: Orchid's progress ring as a dotted circle round the edge — red, only where the loop is the whole
+  screen (the count-in, undo; calibration's progress in yellow). Every other loop state is the 16 px corner dial in
+  the top line, the LOOP and SAVE layers included: playing, REC armed and overdub armed (a red REC dot in it, lit like
+  the REC LED), recording the first loop (the track red, the dot blinking), overdubbing (the dot blinking)
+  (`docs/LOOPER.md`).
 - **The sound editor** ([`docs/EDITOR.md`](docs/EDITOR.md)) is the one dense place, and it takes the whole screen:
   **no header bar and no footer**. Its top line is the sound's name (`*` once edited, ` · BASS` in orange for the
   bass part) and, at the right, the section and what is on the knobs (`OSC 2 · A`, `ENV 2 · filter`, `MOD 3`). Two
@@ -234,8 +236,8 @@ implements it once:
   click (the lowest slides to the end);
 - pickers **flip like a split-flap board**; meters **fill stripe by stripe**; a meter's number
   **springs** in;
-- the idle stripes **slide** at the BPM and are **swept off** by the first chord; the ring **draws itself**
-  and **pulses** on the downbeat; the keyboard **slides up** for select-key;
+- the idle stripes **slide** at the BPM and are **swept off** by the first chord; the count-in's ring **draws
+  itself** and the loop's dial **pulses** on the downbeat; the keyboard **slides up** for select-key;
 - a secret chord **flashes** its name; panic **shakes** the red screen;
 - in the editor: rows **swap with a slide** and the active bar **slides** between rows / instances; a bank swap
   **slides the columns sideways**; the wide envelope / filter **redraws** as its knob turns; the turned cell's

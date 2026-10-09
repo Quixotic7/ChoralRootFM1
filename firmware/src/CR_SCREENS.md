@@ -18,7 +18,7 @@ cr_draw(&s, ms_since_the_change);     /* every frame; cheap when nothing changed
 `cr_screen_t` mirrors the designer's `screen` object, flattened: `kind` (`CR_K_STRIPES CHORD PICKER METER KEYBOARD
 ARP GEEK TEXT BIG SCOPE EDIT8 STACK KNOBROW`), the top line (`header`, `icon` none/play/rec/loop, `mid`/`mid_col`, `right`/`right_col`,
 `batt`), `footer` (one line; empty = none, the panel then runs to row 240), the ring (`ring_on`, `ring` Q8,
-`ring_rec`, `ring_col`), the corner dial (`dial_on`, `dial` Q8, `dial_pulse`), `message`/`message_col`, and the panel fields of every kind (fixed char arrays; the chord
+`ring_rec`, `ring_col`), the corner dial (`dial_on`, `dial` Q8, `dial_pulse`, `dial_mode` CR_DIAL_*, `dial_dot`), `message`/`message_col`, and the panel fields of every kind (fixed char arrays; the chord
 name as `cr_name_t {root, quality, sup, col_root, col_quality, col_sup}`; up to 8 notes `{t, col, mark}`; a picker
 window of 8 items with `n_items`, `item0`, `sel`; 4 params columns; 27 keys as a `lit` bitmask + `lit_col[]` +
 `key_label[]`). Colours are `cr_col_t`: ChoralRoot's seven + black (fixed RGB565 in `cr_draw.c`, not per palette:
@@ -65,7 +65,8 @@ message.
   only the strips holding band pixels between the old and the new tip are drawn (`cr_ring_strips`: the band's rows
   over those angles, widened by two pixels; usually one strip, two where a strip edge is crossed; the loop's restart
   clears the whole ring: all six). The other strips are neither drawn nor blitted.
-- **Only the corner dial moved** (`dial`, `dial_pulse` hashed apart like `ring`): strip 0 alone is drawn.
+- **Only the corner dial moved** (`dial`, `dial_pulse`, `dial_mode`, `dial_dot` hashed apart like `ring`): strip 0
+  alone is drawn (the REC dot's blink included).
 - `cr_draw_invalidate()`: the next draw blits all six (after Felucca's UI drew, a palette change, power-up).
 
 **The ring** (`cr_ring_draw`): its pixels never move, only its colour and fraction change, so the coverage of the
@@ -79,17 +80,24 @@ row): a run well inside the sweep takes the band's coverage, one well outside no
 and the partial draws with full draws). Host instructions a UI frame with a loop playing on the chord screen: 1.0 M
 (0.58 M with no ring at all); before, 12.8 M with the arp (`tools/emu/perf.sh` c: now 2.4 M, 1.2 M with no ring).
 
-**The corner dial** (`cr_dial`, from `cr_header`): the ring is drawn only where the loop is the subject (the
-count-in, the undo screen, recording and overdubbing, set by `cr_ui.c`; calibration uses it as its progress); the
-LOOP and SAVE layers have no ring since the layers sheet's state 6 (2026-10-07); while a loop
-merely plays (`lstate` PLAYING, `lcap` NONE or OD_ARMED) the producer sets `dial_on` instead, on every screen with
-a top line but the Options pages (the sound editor has none). The dial is Orchid's ring shrunk into the top line:
-centre (229, 12), r 8, 3 px — the track as 10 dots of T_LINE (`cr_disc`, about 2 on 3 off; no dashed `cr_arc`, whose
-per-sample angles cost more), the progress `cr_arc` red clockwise from 12 o'clock, 5 px wide for `dial_pulse` (the
-downbeat's ~100 ms, skipped with Motion Off). The header's `right` text moves 22 px left while it shows; nothing
+**The corner dial** (`cr_dial`, from `cr_header`): the ring is drawn only where the loop is the whole screen (the
+count-in and the undo screen, set by `cr_ui.c`; calibration uses it as its progress); every other loop state is the
+dial (2026-10-09; before, the capture states drew the ring under every screen): the producer sets `dial_on` on every
+screen with a top line but the Options pages (the sound editor has none) while `lstate` is PLAYING or `lcap` is
+ARMED / REC / OD_ARMED / OD (`cu_dial_state`), with `dial_mode` CR_DIAL_PLAY (playing), ARMED (REC armed with no loop,
+or an overdub armed over the playing loop), REC (the first take) or OD (an overdub) and `dial_dot` (the REC dot lit
+this frame: the REC LED's twin, lit armed, blinking in its 250 ms phase recording or overdubbing). The dial is Orchid's
+ring shrunk into the top line: centre (229, 12), r 8, 3 px — the track as 10 dots of T_LINE, red for CR_DIAL_REC
+(`cr_disc`, about 2 on 3 off; no dashed `cr_arc`, whose per-sample angles cost more), the progress `cr_arc` red
+clockwise from 12 o'clock (`dial`: the loop's cycle, or the first take's: its N bars with a loop length set, the bar's
+position in Free), 5 px wide for `dial_pulse` (the downbeat's ~100 ms, skipped with Motion Off), and the REC dot, a
+red `cr_disc` r 3 at the centre, for `dial_dot`. The header's `right` text moves 22 px left while it shows; nothing
 else moves (the panel keeps its height, pickers their marks and footers). Rows 2..22, so strip 0 only: a moving
 dial redraws one strip (`perf.sh` c, a 1-bar loop at 200 BPM under the arp: 2.70 ms a UI frame on the device
-scale, 2.95 ms with the ring it replaced).
+scale, 2.95 ms with the ring it replaced). Fixtures: `tests/gen_cr_screens.py` reads the designer's `loop` dial (`rec`
+armed / rec / od, `dot`); states 63–67 are design/choralroot-fm1-loop-mockups.json's 7, 9a–9c, 10 (`LOOP_PICK`), and
+the main sheet's 10 / 11 (drawn with the ring there) carry the dial (`MAIN_DIAL`); `tests/cr_draw_test.c` checks the
+looks (`loop_dial_armed / rec / od`) and lints texts on the dial.
 
 ## Type: faces, sizes, flash
 
@@ -209,7 +217,7 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
   FORMAT.md. tests/cr_draw_test.c checks each one's ink stays in its box and changes with pct.
 - **QUAD's primitives** (docs/QUAD.md; design/choralroot-fm1-quad-mockups.json, the user-approved sheet
   design/choralroot-fm1-quad-screens.png; the designer's drawWide `algo` / `ade2` / the filter's `bw`, drawPicto `harm`
-  `detune` `lfowave`, cellRow's `big`, `ratio`, `span`, the bipolar knob). States 63–71 of `tests/gen_cr_screens.py`
+  `detune` `lfowave`, cellRow's `big`, `ratio`, `span`, the bipolar knob). States 68–76 of `tests/gen_cr_screens.py`
   are that file's states 1–8 and 10 (ENV 3's three cells) (`QUAD_PICK`); `tests/cr_draw_test.c` renders all eight
   algorithms besides (`algo_1` .. `algo_8`, linted).
   - `CR_W_ALGO`: `wv` = algo (0: 1..8), fdbk (1: 0..255), mix (2: 0..255, 128 = X and Y alike). "ALGO" 10 px MID and

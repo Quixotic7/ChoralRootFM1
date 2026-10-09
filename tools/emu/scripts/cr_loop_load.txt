@@ -1,5 +1,5 @@
 # ChoralRoot looper, relaunched on the same flash file: slot 2 is back (in RAM, stopped); LOOP held + E4 loads it,
-# LOOP tap plays it (the chord view with the corner dial; LOOP held: the loop layer with its ring); End (panic)
+# LOOP tap plays it (the chord view with the corner dial; LOOP held: the loop layer, the dial, no ring); End (panic)
 # stops it with no stuck note.
 wait 300
 dump

@@ -21,7 +21,7 @@
  * upreset.c's 32 slots); OPT + PRESETS changes the chord part's engine; EDIT opens the sound pages (cr_pages.c), EDIT
  * held the engine picker, SAVE the save dialog (Overwrite / Save as new, then the naming screen, cr_name.c).
  * The looper (cr_loop.c, docs/LOOPER.md): LOOP / REC / METRO and their layers, SAVE held (the loop slots in flash),
- * the ring and the transport's top line.
+ * the corner dial (the count-in's and undo's ring) and the transport's top line.
  * Included after cr_out.c, cr_anim.c, gfx.c, cr_gfx.c, cr_draw.c, panel.c, cr_bank.c, cr_pages.c and cr_name.c. */
 #include "cr_ui.h"
 
@@ -825,6 +825,7 @@ static void cu_pick_end(int keep);
 static void cu_epk_commit(void);
 static uint32_t cu_layer(void);
 static uint32_t cu_now(void) { return fm1_ms; }
+static int cu_blink(uint32_t now) { return ((now / 250u) & 1u) == 0u; }   /* the blinking LEDs' phase (and the dial's dot) */
 
 static void cu_message(const char *t, uint32_t col)
 {
@@ -2752,7 +2753,7 @@ static int32_t cu_key_of_note(uint32_t note)       /* the root key a note sounds
 static void cr_leds(void)
 {
     uint8_t nl[FM1_NCOL] = {0}, nd[FM1_NCOL] = {0}, own[FM1_NCOL] = {0}, ld[FM1_NCOL] = {0};
-    uint32_t k, b, now = cu_now(), blink = ((now / 250u) & 1u) == 0u, l = cu_layer();
+    uint32_t k, b, now = cu_now(), blink = (uint32_t)cu_blink(now), l = cu_layer();
     const cr_snap_t *sn = &cr_snap;
     if (cu.msg.big == 1u && (int32_t)(cu.msg.until - now) > 0) {   /* panic: everything flashes */
         for (k = 0; k < 41u; k++)
@@ -3004,12 +3005,23 @@ static void cu_header(cr_screen_t *s)
         }
     }
 }
-/* the loop playing and nothing captured but an overdub armed: the corner dial, not the ring (cu_dial) */
-static int cu_loop_plays(void)
+/* the corner dial's state (cr_screen.h CR_DIAL_*), -1 none: the loop playing (PLAY), REC armed with no loop yet or an
+ * overdub armed over the playing loop (ARMED), the first take recording (REC), an overdub recording (OD); none
+ * during the count-in (its own screen, with the ring) */
+static int cu_dial_state(void)
 {
-    return cr_snap.lstate == CRL_PLAYING && (cr_snap.lcap == CRL_CAP_NONE || cr_snap.lcap == CRL_CAP_OD_ARMED);
+    const cr_snap_t *sn = &cr_snap;
+    switch (sn->lcap) {
+    case CRL_CAP_NONE: return sn->lstate == CRL_PLAYING ? CR_DIAL_PLAY : -1;
+    case CRL_CAP_ARMED:
+    case CRL_CAP_OD_ARMED: return CR_DIAL_ARMED;
+    case CRL_CAP_REC: return CR_DIAL_REC;
+    case CRL_CAP_OD: return CR_DIAL_OD;
+    default: return -1;
+    }
 }
-static void cu_ring_on(cr_screen_t *s)            /* the loop's ring round the edge, red (a loop or a capture) */
+/* the loop's ring round the edge, red: only where the loop is the whole screen (the count-in, the undo screen) */
+static void cu_ring_on(cr_screen_t *s)
 {
     const cr_snap_t *sn = &cr_snap;
     if (sn->lcap == CRL_CAP_NONE && sn->lstate != CRL_PLAYING)
@@ -3019,17 +3031,13 @@ static void cu_ring_on(cr_screen_t *s)            /* the loop's ring round the e
     s->ring = sn->lring;
     s->ring_rec = sn->lcap == CRL_CAP_COUNTIN || sn->lcap == CRL_CAP_REC || sn->lcap == CRL_CAP_OD;
 }
-static void cu_ring(cr_screen_t *s)               /* .. under the screens: while the loop is the subject (capturing) */
-{
-    if (cr_snap.lcap != CRL_CAP_NONE && cr_snap.lcap != CRL_CAP_OD_ARMED)
-        cu_ring_on(s);                            /* (the loop merely playing: the dial, cu_dial) */
-}
-/* the downbeat (the bar's first beat begins): its time, for the dial's pulse; tracked every frame */
+/* the downbeat (the bar's first beat begins): its time, for the dial's pulse; tracked every frame while the dial
+ * shows a progress (the loop playing, an overdub armed or recording, the first take recording) */
 static struct { uint32_t t0; uint8_t beat, bar, on; } cu_db;
 static void cu_downbeat(uint32_t now)
 {
     uint8_t beat = (uint8_t)cr_snap.lbeat, bar = (uint8_t)cr_snap.lbar;
-    if (!cu_loop_plays()) {
+    if (cu_dial_state() < 0 || (cr_snap.lstate != CRL_PLAYING && cr_snap.lcap != CRL_CAP_REC)) {
         cu_db.on = 0;
         return;
     }
@@ -3039,14 +3047,20 @@ static void cu_downbeat(uint32_t now)
     cu_db.beat = beat;
     cu_db.bar = bar;
 }
-/* the corner dial (a loop merely playing): in the top line, where no ring is drawn and a header shows */
+/* the corner dial (every loop state but the count-in): in the top line, where no ring is drawn and a header shows.
+ * The arc is cr_snap.lring: the loop's cycle (playing, an overdub armed or recording); recording the first take, the
+ * take's progress with a loop length set (Sync: rec_len), else (Free) the bar's, sweeping once a bar. The REC dot is
+ * the REC LED's twin (cr_leds): lit while armed, blinking in its phase while recording or overdubbing */
 static void cu_dial(cr_screen_t *s, uint32_t now)
 {
-    if (!cu_loop_plays() || s->ring_on || !s->header)
+    int st = cu_dial_state();
+    if (st < 0 || s->ring_on || !s->header)
         return;
     s->dial_on = 1;
+    s->dial_mode = (uint8_t)st;
     s->dial = cr_snap.lring;
     s->dial_pulse = (uint8_t)(cr_motion != CR_MOTION_OFF && cu_db.on && now - cu_db.t0 < 100u);
+    s->dial_dot = (uint8_t)(st == CR_DIAL_ARMED || ((st == CR_DIAL_REC || st == CR_DIAL_OD) && cu_blink(now)));
 }
 
 static void cu_meter(cr_screen_t *s, const char *value, const char *sub, const char *label, uint32_t col, uint32_t pct,
@@ -3435,7 +3449,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         if (psnd[ce.part].edited)
             cu_cat(s->value, "*", sizeof s->value);
         break;
-    case L_LOOP: {                                 /* layers sheet 6: the knob row, no ring (playing: the dial) */
+    case L_LOOP: {                                 /* layers sheet 6: the knob row, no ring (a loop running: the dial) */
         static char seen[48];
         if (cu_playing()) {
             cu_picker(s, CU_LOOP_ACT, 4, cs.loop_act, CR_COL_RED, SLOTS[cs.loop_slot % 10u], "");
@@ -3458,7 +3472,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     case L_SAVE:                                   /* loops: save / load / delete on the root-chosen slot */
         cu_picker(s, CU_SAVE_ACT, 3, cs.save_act, CR_COL_RED,
                   (cs.loop_used >> cs.loop_target) & 1u ? "holds a loop" : "empty",
-                  "");                       /* (a plain picker: no ring; a loop playing: the dial) */
+                  "");                       /* (a plain picker: no ring; a loop running: the dial) */
         s->orient = 1;
         cu_cpy(s->value, SLOTS[cs.loop_target % 10u], sizeof s->value);
         cu_cpy(s->mid, "Loops", sizeof s->mid);
@@ -3784,9 +3798,8 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         cu_dial(s, now);
         return;
     }
-    /* the loop: the ring while it is the subject (recording, overdubbing; the LOOP and SAVE layers set their own),
-     * the corner dial while it merely plays (not in the sound editor: no top line; not on the Options pages) */
-    cu_ring(s);                                   /* (under every screen below; the panic box hides it) */
+    /* the loop: the corner dial in every state (playing, armed, recording, overdubbing; the ring only on the count-in
+     * and undo screens above), not in the sound editor (no top line) nor on the Options pages: the REC and LOOP LEDs */
     /* 3. an open layer, a page; 4. Options */
     if (l) {
         cu_layer_screen(s, l);

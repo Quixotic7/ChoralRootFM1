@@ -92,6 +92,7 @@ static void lint(const char *scr, const cr_screen_t *s)
             fprintf(rep, "note %-34s ellipsised '%s'\n", scr, b->s);
         }
         if (s->ring_on && !(b->flags & 32u) && ring_hits(b)) finding(scr, "on the ring", b, 0);
+        if (s->dial_on && s->header && b->x1 > 219 && b->y0 < 23) finding(scr, "on the dial", b, 0);
         if (s->message[0] && b->x0 < 120 + 114 && b->x1 > 120 - 114 && b->y0 < 140 && b->y1 > 100) continue;
         for (j = i + 1u; j < nbox; j++) {
             const tbox_t *o = &boxes[j];
@@ -234,6 +235,41 @@ int main(int argc, char **argv)
         s.dial = 170;
         cr_draw(&s, 0);
         check("the corner dial's fraction moves: only the top strip is blitted", cr_dc.drawn == 1 && cr_dc.blits == 1);
+        {   /* the REC looks (docs/LOOPER.md): armed, no loop yet: the grey track and the REC dot, no arc; the first take:
+             * the track red too; an overdub: the playing arc and the dot, which blinks (the top strip alone redrawn) */
+            uint32_t armed, play, rec, od0, od1, c0, c1;
+            s.dial_mode = CR_DIAL_ARMED;
+            s.dial = 0;
+            s.dial_dot = 1;
+            render(&s, 0);
+            write_ppm(dir, "loop_dial_armed");
+            DIAL_RED(218, 0, 240, 26, armed);
+            DIAL_RED(30, 90, 210, 150, mid0);
+            c0 = host_screen[12u * 240u + 229u] == red;
+            check("the dial armed: the REC dot red in its middle, no arc, the track grey", c0 && armed > 12u && armed < 40u && mid0 == 0u);
+            s.dial_mode = CR_DIAL_PLAY;
+            s.dial = 100;
+            render(&s, 0);
+            DIAL_RED(218, 0, 240, 26, play);
+            s.dial_mode = CR_DIAL_REC;
+            render(&s, 0);
+            write_ppm(dir, "loop_dial_rec");
+            DIAL_RED(218, 0, 240, 26, rec);
+            check("the dial recording the first take: the track red as well (more red than the arc and the dot)", rec > play + 10u);
+            s.dial_mode = CR_DIAL_OD;
+            s.dial = 158;
+            render(&s, 0);
+            write_ppm(dir, "loop_dial_od");
+            DIAL_RED(218, 0, 240, 26, od1);
+            c1 = host_screen[12u * 240u + 229u] == red;
+            s.dial_dot = 0;
+            cr_draw(&s, 0);
+            DIAL_RED(218, 0, 240, 26, od0);
+            c0 = host_screen[12u * 240u + 229u] == red;
+            check("the dial overdubbing: the dot blinks, only the top strip is drawn", c1 && !c0 && od1 > od0 + 12u &&
+                  cr_dc.drawn == 1 && cr_dc.blits == 1);
+            s.dial_mode = CR_DIAL_PLAY;
+        }
         s.dial_on = 0;
         s.dial = 0;
         render(&s, 0);
