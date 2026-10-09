@@ -126,6 +126,7 @@ static const quad_algo_t QUAD_ALGO[8] = {
 #define QC_MIX {"MIX", F_OFS, -64, 63, 0, 0, 0}
 #define QC_OFS(l) {l, F_INT, -100, 100, 0, N_QUAD_OFS, 0}
 #define QC_T(l, d) {l, F_TIME, 0, 127, d, 0, 0}
+#define QC_TI(l, d) {l, F_TIMEI, 0, 127, d, 0, 0}         /* a release: 127 = INF (it holds) */
 #define QC_P(l, d) {l, F_INT, 0, 127, d, 0, 0}
 #define QC_PCT(l, d) {l, F_PCT, 0, 127, d, 0, 0}
 #define QC_ON(l, d) {l, F_ONOFF, 0, 1, d, 0, 0}
@@ -149,7 +150,7 @@ static const eng_page_t QUAD_PAGES[] = {
     {"SYN 1", {QC_ALGO, QC_RC, QC_RA, QC_RB}},                              /* 0  OSC */
     {"SYN 1+", {QC_HARM, QC_DTUN, QC_FDBK, QC_MIX}},
     {"SYN 2", {QC_OFS("OFS C"), QC_OFS("OFS A"), QC_OFS("OFS B1"), QC_OFS("OFS B2")}},
-    {"FILTER", {QC_T("ATK", 0), QC_T("DEC", 64), QC_PCT("SUS", 0), QC_T("REL", 40)}},   /* 3  FILTER */
+    {"FILTER", {QC_T("ATK", 0), QC_T("DEC", 64), QC_PCT("SUS", 0), QC_TI("REL", 40)}},   /* 3  FILTER */
     {"FILTER+", {QC_FREQ, QC_PCT("RESO", 0), QC_FTYPE, QC_DEPTH("DEPTH")}},
     {"FILT 2", {QC_T("DELAY", 0), QC_PCT("KTRK", 0), QC_NONE, QC_NONE}},
     {"FILT 2+", {QC_P("BASE", 0), QC_P("WIDTH", 127), QC_NONE, QC_NONE}},
@@ -158,7 +159,7 @@ static const eng_page_t QUAD_PAGES[] = {
     {"ENV 2", {QC_T("A DLY", 0), QC_ON("A TRIG", 1), QC_ON("A RESET", 1), QC_PHRT}},
     {"ENV 2+", {QC_T("B DLY", 0), QC_ON("B TRIG", 1), QC_ON("B RESET", 1), QC_PCT("VEL", 64)}},
     {"ENV 3", {QC_PCT("A KEY", 0), QC_PCT("B1 KEY", 0), QC_PCT("B2 KEY", 0), QC_NONE}},
-    {"AMP", {QC_T("ATK", 0), QC_T("DEC", 64), QC_PCT("SUS", 127), QC_T("REL", 40)}},
+    {"AMP", {QC_T("ATK", 0), QC_T("DEC", 64), QC_PCT("SUS", 127), QC_TI("REL", 40)}},
     {"AMP+", {QC_P("LEVEL", 100), QC_PAN, QC_PCT("DRIVE", 0), QC_NONE}},
     {"LFO 1", {QC_SPEED, QC_MULT, QC_FADE, QC_DEST}},                       /* 14 LFO */
     {"LFO 1+", {QC_WAVE, QC_P("PHASE", 0), QC_LTRIG, QC_DEPTH("DEPTH")}},
@@ -257,7 +258,8 @@ typedef struct {
     int32_t fb1, fb2;                            /* the feedback operator's last two outputs (its wave, Q15) */
     int32_t env[4];                              /* Q24: operator A, operator B, filter, amp */
     uint32_t dly[4];                             /* DELAY progress, Q24 */
-    uint8_t stage[4];                            /* 0 off, 1 delay, 2 attack, 3 decay (/ sustain), 4 release */
+    uint8_t stage[4];                            /* 0 off, 1 delay, 2 attack, 3 decay (/ sustain), 4 release, 5 the
+                                                  * release held (REL INF: 127) */
     int16_t lv[3];                               /* the ramps' ends: operator A's, B1's, B2's level, Q15 */
     int32_t amp;                                 /* .. the amplitude, Q15 */
     int32_t f1, f2, f3, f4;                      /* the SVF (LP24: f3 f4 its first stage) */
@@ -828,7 +830,8 @@ static void quad_legato(track_t *t, voice_t *v)
 }
 
 /* one control tick of an envelope (Q24 x, stage st, delay progress dp): DELAY, then ATK (linear to 1), then DEC
- * (exponential to sus, Q24), held; adsr: the gate's end releases (REL, exponential to 0, then off). Q15 */
+ * (exponential to sus, Q24), held; adsr: the gate's end releases (REL, exponential to 0, then off; REL 127 = INF: the
+ * level held, stage 5, until REL (modulated) leaves 127, a steal or a panic: the Digitone's 0..126 + INF). Q15 */
 static int32_t quad_env_tick(quad_voice_t *s, uint32_t k, int32_t atk, int32_t dec, int32_t sus, int32_t rel,
                              int32_t dly, int gate, int adsr)
 {
@@ -852,6 +855,12 @@ static int32_t quad_env_tick(quad_voice_t *s, uint32_t k, int32_t atk, int32_t d
         x += mulq16(sus - x, ENV_EXP[dec & 127]);
         break;
     case 4:
+    case 5:
+        if (rel >= 127) {                        /* INF: held */
+            s->stage[k] = 5;
+            break;
+        }
+        s->stage[k] = 4;
         x -= mulq16(x, ENV_EXP[rel & 127]);
         if (x < (1 << 12)) {
             x = 0;
@@ -875,6 +884,15 @@ static int quad_done(track_t *t, voice_t *v)    /* the amp envelope has ended (v
         return 1;
     }
     return 0;
+}
+
+/* the voice would sound on after its release (engine_t.endless: trk_all_off kills it): AMP REL at INF (the patch's, or
+ * the release already held by a modulated 127) */
+static int quad_endless(const track_t *t, const voice_t *v)
+{
+    uint32_t tr = quad_tr(t), i = (uint32_t)(v - t->v);
+    const quad_voice_t *s = tr < QUAD_NPART && i < QUAD_POLY ? &quad_vs[tr][i] : 0;
+    return s && s->live && s->stage[3] && (quad_patch[tr][QP_EREL] >= 127 || s->stage[3] == 5u);
 }
 
 /* the ratio (Q16) of table value r plus the fine offset o (1/100), at least 0 */
@@ -1324,6 +1342,7 @@ static const engine_t ENG_QUAD = {
     .block = quad_block,
     .ownenv = 1,
     .done = quad_done,
+    .endless = quad_endless,
     .legato = quad_legato,
     .deep = &QUAD_DEEP,
 };

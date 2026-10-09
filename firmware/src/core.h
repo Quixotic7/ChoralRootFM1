@@ -72,8 +72,10 @@
 enum {
     F_INT, F_PCT, F_BIPCT, F_TIME, F_LFOHZ, F_CUTOFF, F_DB, F_SEMI, F_ENUM, F_BPM, F_NOTE,
     F_ONOFF, F_OCT, F_STEPS,
-    F_OFS, F_FMNOTE, F_FMFRQ    /* FM6's pages: 0 at the middle of the range, the DX7 break point, an operator's frequency
+    F_OFS, F_FMNOTE, F_FMFRQ,   /* FM6's pages: 0 at the middle of the range, the DX7 break point, an operator's frequency
                                  * (params.c param_format; F_FMFRQ: Melodee's operator pages, here a plain number) */
+    F_TIMEI                     /* F_TIME with 127 = "INF" (QUAD's filter / amp REL: the release holds, the Digitone's
+                                 * 0..126 + INF); the editor protocol's fmt 17 */
 };
 
 typedef struct {
@@ -311,6 +313,9 @@ typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c 
     uint32_t (*cap)(const struct track *t);
     /* the voice budget units one of its voices takes now (default: 1 above NPOLY voices, else 2) */
     uint32_t (*units)(const struct track *t);
+    /* optional: 1 = the voice would sound on after its release (QUAD's REL INF): trk_all_off (panic, all notes off, a
+     * sound load) kills it instead of releasing it */
+    int (*endless)(const struct track *t, const voice_t *v);
 } engine_t;
 /* voice_start: what the voice it starts did just before (0 free, 1 released, 2 its key down: a steal or a move);
  * engine_t.note_on may read it */

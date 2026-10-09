@@ -555,7 +555,12 @@ class Voice:
                 self.stage[k] = 3
         elif st == 3:
             x += mulq16(sus - x, ENV_EXP[dec & 127])
-        elif st == 4:
+        elif st == 4 or st == 5:
+            if rel >= 127:                       # REL 127 = INF: the level held (stage 5)
+                self.stage[k] = 5
+                self.env[k] = x
+                return x >> 9
+            self.stage[k] = 4
             x -= mulq16(x, ENV_EXP[rel & 127])
             if x < (1 << 12):
                 x = 0

@@ -184,7 +184,12 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
 {
     *unit = "";
     fmt_named = d->fmt == F_ENUM;
-    switch (d->fmt) {
+    if (d->fmt == F_TIMEI && v >= 127) {            /* QUAD's REL: 127 = INF (the release holds), else F_TIME */
+        str_cpy(val, "INF", 6);
+        fmt_named = 1;
+        return;
+    }
+    switch (d->fmt == F_TIMEI ? (uint8_t)F_TIME : d->fmt) {
     case F_PCT:                                     /* a 0..100 range (SWG) is its value, others a share of 127 */
         fmt_int(val, d->max == 100 ? v : (v * 100 + 63) / 127);
         *unit = "%";

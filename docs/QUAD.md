@@ -191,9 +191,18 @@ negative h shapes C, positive A and B1 (modulators included), B2 never.
 (a one-pole high-pass at BASE, off at 0, then a one-pole low-pass at BASE + WIDTH, off at >= 127; 30 Hz x
 533^(v/127)) -> the multimode: TYPE `OFF` (passes), `LP12`, `HP12` (dsp.c's trapezoidal SVF, its products rounded:
 truncation's bias, integrated, was DC), `LP24` (a plain LP12 stage, damping 2, then the resonant one), the soft knee,
-FREQ + the filter ADSR x DEPTH + key track; then the amp ADSR x LEVEL^2. **Release INF is not done**: F_TIME is
-params.c's (not the engine's); REL stays 0..127 (to add: a name for the last F_TIME value in params.c, then REL 127
-holding in `quad_env_tick`).
+FREQ + the filter ADSR x DEPTH + key track; then the amp ADSR x LEVEL^2.
+
+**Release INF** (the manual §11.7 / §11.8: REL 0–126, INF): the filter and amp REL keep 0..127 (int8 patch bytes) and
+**127 = INF**; 126 is the longest timed release. In `quad_env_tick` a release at REL 127 holds its level (stage 5) and
+decays again as soon as REL (modulated) leaves 127 (an LFO on "F REL" / "AMP R" reaching 127 holds it too: accepted).
+A held voice sounds on after the note-off (`quad_done` 0) until the platform ends it: a steal for the budget or of the
+part's own voice (voice.c, the oldest first: a held voice is an ordinary sounding one), an engine switch, or
+`trk_all_off` (panic, MIDI all notes off, a sound load), which asks `engine_t.endless` (`quad_endless`: AMP REL 127 in
+the patch, or a release already held) and fades such a voice in one block instead of releasing it. The text: the
+format `F_TIMEI` (core.h, after `F_FMFRQ`: params.c prints F_TIME for 0..126, "INF" at 127; the editor protocol's fmt
+17; QUAD's cells `QC_TI`), "INF" in every cell style (`cr_edit.c ce_ptext`); the AMP band draws the release flat to its
+right edge (`wv[6]`). No factory preset uses 127 (none had it): the goldens do not change.
 
 **Envelopes.** Operator A and B: DELAY, ATK (linear), DEC (exponential to END), held (attack-decay-end); TRIG / RESET
 as before (unchanged by the review). **PHRT** (`QP_PHRT`, value 23) OFF ALL C A+B A+B2: at every note-on (a fresh voice
@@ -218,9 +227,9 @@ to 80 (73 values + 5 zero bytes). Values (index name min..max (init)): 0 ALGO 1.
 0..63 (3); 3 RATIO B1 0..18 (3); 4 HARM -26..26 (0); 5 DTUNE 0..127 (0); 6 FDBK 0..120 (0); 7 MIX -64..63 (0); 8..11
 OFS C A B1 B2 -100..100 (0); 12..15 A ATK DEC END LEV (0 60 64 48); 16..19 B ATK DEC END LEV (0 60 0 0); 20 A DLY (0);
 21 A TRIG 0..1 (1); 22 A RESET 0..1 (1); 23 PHRT 0..4 (1 ALL); 24 B DLY (0); 25 B TRIG (1); 26 B RESET (1); 27 VEL (64);
-28 A KEY (0); 29 B1 KEY (0); 30..33 filter ATK DEC SUS REL (0 64 0 40); 34 FREQ (127); 35 RESO (0); 36 TYPE 0..3 OFF
+28 A KEY (0); 29 B1 KEY (0); 30..33 filter ATK DEC SUS REL (0 64 0 40; REL 127 = INF); 34 FREQ (127); 35 RESO (0); 36 TYPE 0..3 OFF
 LP12 HP12 LP24 (1); 37 DEPTH -64..63 (0); 38 F DELAY (0); 39 F KTRK (0); 40 BASE (0); 41 WIDTH (127); 42..45 amp ATK
-DEC SUS REL (0 64 127 40); 46 LEVEL (100); 47..54, 55..62, 63..70 LFO 1..3: SPEED -64..63 (16), MULT 0..23 (3), FADE
+DEC SUS REL (0 64 127 40; REL 127 = INF); 46 LEVEL (100); 47..54, 55..62, 63..70 LFO 1..3: SPEED -64..63 (16), MULT 0..23 (3), FADE
 -64..63 (0), DEST 0..39 (0), WAVE 0..6 (0), PHASE (0), TRIG 0..4 (0), DEPTH -64..63 (0); 71 RATIO B2 0..18 (3); 72 B2
 KEY (0). (Unlisted ranges 0..127.) Macros P_E0..P_E7 = values 0 1 2 **71** 4 5 6 7.
 **Versions 1 and 2 are read** (`quad_blob_ok` with their ranges, `quad_range_v2`; `quad_unpack` converts): version 1's
@@ -251,7 +260,7 @@ is still taken by `quad_track_loaded`. Blobs are written as version 3; the QUAD 
 
 Formats: ALGO `F_INT`; RATIO C / A / B and the offsets `F_INT` with a name list (`N_QUAD_RCB`, RATIO B a pair over
 361 values); HARM, MIX, SPEED, FADE, the depths, PAN `F_OFS`; MULT, TYPE, PHRT, WAVE, TRIG, DEST `F_ENUM`; TRIG / RESET
-`F_ONOFF`; times `F_TIME`; FREQ `F_CUTOFF`; RESO, SUS, KEY, KTRK, VEL, DRIVE `F_PCT`; FDBK, DTUNE, BASE, WIDTH, END, LEV,
+`F_ONOFF`; times `F_TIME` (the filter and amp REL `F_TIMEI`: 127 = INF); FREQ `F_CUTOFF`; RESO, SUS, KEY, KTRK, VEL, DRIVE `F_PCT`; FDBK, DTUNE, BASE, WIDTH, END, LEV,
 LEVEL, PHASE `F_INT`. The editor's screens: ENV 3 is one row of three cells "A Key", "B1 Key", "B2 Key".
 
 **Presets** (retuned 2026-10-08 for the new routings and laws; a 6-note chord at LEVEL 92 peaks at 30-71 % FS; measured
@@ -325,7 +334,8 @@ baselines are new entries to record (`tests/golden.txt`, `tests/cpu_baseline.txt
 carriers, the B LEV law, HARM as the 26-wave series on C (-) or A and B1 (+), DTUN on A and B2, FDBK 0..120 (35 = saw),
 key scaling A / B1 / B2 (B2 KEY new), MIX -64..63, RATIO B with B2 as the fast hand (macro = B2, text B2/B1), the
 filter OFF / LP12 / HP12 / LP24 after the base-width filter, the LFOs (tempo-synced MULT, fade in / out, RAND slew,
-40 destinations), PHRT as an enum; versions 1 and 2 read; the 16 presets retuned. Not done: release INF (params.c).
+40 destinations), PHRT as an enum; versions 1 and 2 read; the 16 presets retuned. Release INF: done (2026-10-08, the
+filter and amp REL at 127; "Filters" above).
 regress: the 16 FM TONE goldens and CPU entries change (to be re-recorded), 0 health failures.
 
 **2026-10-08, RATIO B as the full grid** (the user: B1 steps through 0.25 .. 16, then B2 steps, both directions): the

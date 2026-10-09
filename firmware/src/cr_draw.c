@@ -1360,7 +1360,7 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
         for (i = 0; i < 5u; i++) sum += u[i];
         xs[0] = L;
         for (i = 0; i < 5u; i++) xs[i + 1] = xs[i] + u[i] * W / sum;
-        py[0] = yB; py[1] = yT; py[2] = yT; py[3] = yS; py[4] = yS; py[5] = yB;
+        py[0] = yB; py[1] = yT; py[2] = yT; py[3] = yS; py[4] = yS; py[5] = s->wv[6] ? yS : yB;   /* (REL INF: held to the edge) */
         cr_frect(L, yB + 16, W, 16, T_LINE);
         for (i = 0; i < 6u; i++) {               /* steep runs in pieces <= 26 px tall: small boxes for cr_poly */
             if (i) {

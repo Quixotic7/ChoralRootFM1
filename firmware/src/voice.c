@@ -512,10 +512,14 @@ static void trk_note_off(track_t *t, uint32_t note)
 
 static void trk_all_off(track_t *t)
 {
+    const engine_t *e = ENGINES[t->engine];
     uint32_t i;
     for (i = 0; i < NVOICE; i++) {
         t->v[i].gate = 0;
         t->v[i].stage = t->v[i].active ? 3 : 0;
+        if (t->v[i].active && e->endless && e->endless(t, &t->v[i]))
+            t->v[i].stage = 4;                          /* a release that never ends (QUAD's REL INF): this
+                                                         * block fades it (env_tick stage 4, as voice_kill) */
     }
     t->nmono = 0;
     t->mono_note = 0;

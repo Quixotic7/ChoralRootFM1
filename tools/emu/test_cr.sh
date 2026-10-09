@@ -830,6 +830,35 @@ d2=$(den "$OUT/cr_quad_ratiob_b2.ppm"); d16=$(den "$OUT/cr_quad_ratiob_b16.ppm")
 differ cr_quad_ratiob_b1 cr_quad_ratiob_b2 "Shift: the title line reads \"fine · B1\", the denominator 2.00: $OUT/cr_quad_ratiob_b2.ppm"
 silent_end cr_quad_ratiob
 
+echo "FM TONE's release INF: AMP REL 127 reads INF, a released note sounds on; REL 61 decays; PANIC ends a held one"
+run cr_quad_inf --wav "$OUT/cr_quad_inf.wav"
+QL="$OUT/cr_quad_inf.log"
+has '^deep: part 0 page 12 AMP col 3 REL 62 -> 127 (INF)' "$QL" && has '^deep: part 0 page 12 AMP col 3 REL 127 -> 61 (83ms)' "$QL" &&
+    ok "AMP: KNOB 4 to the top shows INF, back down a time (61: 83ms): $OUT/cr_quad_inf_amp.ppm" ||
+    bad "AMP REL INF text: $(grep '^deep:' "$QL" | head -2 | tr '\n' ' ')"
+qv() { grep "part 0:" "$QL" | sed -n "${1}p" | sed -n 's/.*voices \([0-9]*\),.*/\1/p'; }
+[ "$(qv 1)" = 1 ] && [ "$(qv 2)" = 0 ] && [ "$(qv 3)" = 1 ] && [ "$(qv 4)" = 0 ] &&
+    ok "voices: INF held 1.5 s after the release (1), REL 61 ended (0), INF held again (1), PANIC ended it (0)" ||
+    bad "voices after the releases: $(qv 1) $(qv 2) $(qv 3) $(qv 4) (want 1 0 1 0)"
+# the WAV (its clock: note 1's onset, script 3.3 s): RMS before each release (script 3.7..4.0 s, 8.4..8.7 s) and
+# 1.2..1.5 s after it (5.2..5.5 s, 9.9..10.2 s)
+iv=$(python3 - "$OUT/cr_quad_inf.wav" <<'PY'
+import sys, wave, struct, math
+w = wave.open(sys.argv[1]); sr = w.getframerate(); ch = w.getnchannels()
+raw = w.readframes(w.getnframes()); x = struct.unpack('<%dh' % (len(raw) // 2), raw)
+def rms(t0, t1):
+    a, b = int(t0 * sr), int(t1 * sr)
+    return math.sqrt(sum(x[i * ch] ** 2 for i in range(a, b)) / max(b - a, 1))
+t0 = next(t / 100 for t in range(0, int(len(x) / ch / sr * 100)) if rms(t / 100, t / 100 + 0.01) > 50) - 3.3
+print(*('%d' % rms(t0 + a, t0 + a + 0.3) for a in (3.7, 5.2, 8.4, 9.9)))
+PY
+)
+set -- $iv
+[ "${1:-0}" -gt 100 ] && [ $((${2:-0} * 10)) -gt $((${1:-0} * 3)) ] && [ "${3:-0}" -gt 100 ] && [ $((${4:-999} * 20)) -lt "${3:-0}" ] &&
+    ok "the WAV: INF 1.5 s after the release RMS ${2} (held: ${1} before), REL 61 RMS ${4} (${3} before)" ||
+    bad "the WAV: INF ${1:-?} -> ${2:-?}, REL 61 ${3:-?} -> ${4:-?} (want held, then silent)"
+silent_end cr_quad_inf
+
 echo "SAFE MODE: the boot guard (firmware/src/cr_bootguard.h)"
 SF="$OUT/cr_safe_flash.bin"
 rm -f "$SF"

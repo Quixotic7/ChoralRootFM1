@@ -650,7 +650,7 @@ static void ce_text(const track_t *t, ce_ref_t r, const param_desc_t *d, int32_t
         for (i = 0; out[i]; i++)
             out[i] = (char)(out[i] >= 'A' && out[i] <= 'Z' ? out[i] + 32 : out[i]);
     l = str_len(out);
-    if (unit[0] && l + 1u + str_len(unit) + 1u <= n && (d->fmt == F_TIME || d->fmt == F_LFOHZ || d->fmt == F_CUTOFF)) {
+    if (unit[0] && l + 1u + str_len(unit) + 1u <= n && (d->fmt == F_TIME || d->fmt == F_TIMEI || d->fmt == F_LFOHZ || d->fmt == F_CUTOFF)) {
         cu_cat(out, " ", n);
         cu_cat(out, unit, n);
     } else if (unit[0] && l + str_len(unit) + 1u <= n) {
@@ -1235,7 +1235,7 @@ static void ce_leds(uint8_t *nl, uint32_t blink)
 }
 
 /* ------------------------------------------------------------ the screen --- */
-/* the band's values from the view: env a h d s r, filter cut res type drive (Q8 of 255) */
+/* the band's values from the view: env a h d s r (o[6]: 1 = REL at INF), filter cut res type drive (Q8 of 255) */
 static void ce_band(const track_t *t, const ce_view_t *vw, uint8_t *o)
 {
     static const char *const EL[5] = {"ATK", "HOLD", "DEC", "SUS", "REL"};
@@ -1269,8 +1269,12 @@ static void ce_band(const track_t *t, const ce_view_t *vw, uint8_t *o)
     } else if (vw->wide == CR_W_ENV && d && ce_deep(t) && vw->np) {
         for (i = 0; i < 5u; i++)
             for (pg = vw->dp0; pg < vw->dp0 + vw->np; pg++)
-                if ((k = cp_dcol(&d->pages[pg], EL[i])) >= 0)
-                    o[i] = ce_pct(&d->pages[pg].col[k], d->get(t, (uint32_t)pg, (uint32_t)k));
+                if ((k = cp_dcol(&d->pages[pg], EL[i])) >= 0) {
+                    int32_t v = d->get(t, (uint32_t)pg, (uint32_t)k);
+                    o[i] = ce_pct(&d->pages[pg].col[k], v);
+                    if (i == 4u && d->pages[pg].col[k].fmt == F_TIMEI && v >= d->pages[pg].col[k].max)
+                        o[6] = 1;                     /* (REL INF: the band's tail held) */
+                }
     } else if (vw->wide == CR_W_ENV) {
         static const uint8_t ID[5] = {P_ATK, 0xFF, P_DEC, P_SUS, P_REL};
         for (i = 0; i < 5u; i++)
@@ -1471,6 +1475,10 @@ static void ce_ptext(const param_desc_t *d, int32_t v, uint32_t style, char *out
             return;
         }
     }
+    if (d->fmt == F_TIMEI && v >= d->max) {      /* a release at INF: the word, whatever the style */
+        cu_cpy(out, "INF", n);
+        return;
+    }
     if (style == ENG_C_NUM || style == ENG_C_BAR || style == ENG_C_DETUNE ||
         (style == ENG_C_BIG && d->fmt != F_INT && d->fmt != F_OFS)) {
         cu_int(out, v, d->min < 0, n);
@@ -1640,6 +1648,8 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
             s->wv[c] = band[c];
         if (vw.wide == CR_W_CZ && s->hot_r)       /* the step the cell turned (R k, L k; SUS / END: their step) */
             s->wv[18] = (uint8_t)ce_cz_step(t, vw.ref[(s->hot_r - 1u) % CR_ED_ROWS][s->hot_c & 3u]);
+        if (vw.wide == CR_W_ENV)                  /* REL INF: the tail held */
+            s->wv[6] = band[6];
         if (vw.wide == CR_W_ENV && s->hot_r)
             s->wv[5] = (uint8_t)ce_seg(t, vw.ref[(s->hot_r - 1u) % CR_ED_ROWS][s->hot_c & 3u]);
         if (vw.wide == CR_W_DX && s->hot_r)       /* the segment the cell turned ends (R k, L k: k) */

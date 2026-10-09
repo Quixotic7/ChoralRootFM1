@@ -201,7 +201,7 @@ typedef struct {
                                      * lane has a ratio pair, SHIFT steps its slow hand B1: "fine \267 B1");
                                      * `batt` (0..4, 4 = charging; 255 = none): edit8 / stack draw the header's battery
                                      * at the title line's right end (the MIX screens) */
-    uint8_t wv[20];                 /* env: a h d s r (Q8 of 255), the lit segment + 1 (1 A .. 5 R, 0 none);
+    uint8_t wv[20];                 /* env: a h d s r (Q8 of 255), the lit segment + 1 (1 A .. 5 R, 0 none), 1 = REL INF (6: the tail flat);
                                      * filter: cut res (Q8 of 255), ftype (0..127: 0 LP, 32 BP, 64 HP, 96 NOTCH,
                                      * crossfaded between, 127 back toward LP), drive;
                                      * dx: R1..R4, L1..L4 (0..99, the DX7's), the lit segment (1..4, 0 none), 1 = a

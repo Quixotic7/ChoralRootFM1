@@ -1,0 +1,52 @@
+# FM TONE's release INF (docs/QUAD.md "Release INF", the Digitone's REL 0..126 + INF): 01 EP, EDIT, ENV x 4: AMP;
+# KNOB 4 +30: REL to 127, the cell reads "INF" (the "deep:" line; the band's tail held: shot); a C4 (MIDI, part 0)
+# released at 4.0 s keeps sounding (dump 1.5 s later: one voice; tools/emu/test_cr.sh: the WAV's RMS at 5.2..5.5 s);
+# KNOB 4 -11: REL 61, the held note decays; a C4 released at 8.7 s is silent 1.5 s later (RMS at 9.9..10.2 s); REL
+# back to INF, a C4 released at 11.2 s, held (dump); EDIT leaves, End (OCT- + OCT+): PANIC ends it (the last dump:
+# every part silent)
+wait 300
+btn EDIT down
+wait 400
+btn E4
+wait 300
+btn EDIT up
+btn OCT+                      # FM TONE (01 EP)
+wait 300
+btn EDIT                      # OSC: SYN 1
+wait 400
+btn ENV                       # ENV A/B
+wait 400
+btn ENV                       # ENV 2
+wait 400
+btn ENV                       # ENV 3
+wait 400
+btn ENV                       # AMP
+wait 400
+knob KNOB4 +30                # REL 62 -> 127: INF
+wait 300
+shot build/emu/test/cr_quad_inf_amp.ppm
+midi 90 3C 64                 # note 1 (t 3.3 s), REL INF
+wait 700
+midi 80 3C 00                 # released at 4.0 s
+wait 1500
+dump
+knob KNOB4 -11                # REL 61: the held note decays
+wait 2500
+midi 90 3C 64                 # note 2 (8.0 s), REL 61
+wait 700
+midi 80 3C 00                 # released at 8.7 s
+wait 1500
+dump
+knob KNOB4 +30                # INF again
+wait 300
+midi 90 3C 64                 # note 3 (10.5 s)
+wait 700
+midi 80 3C 00                 # released at 11.2 s: held
+wait 500
+dump
+btn EDIT                      # the editor left
+wait 300
+key END 100                   # PANIC: the held voice ends
+wait 2000
+dump
+quit

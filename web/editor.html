@@ -366,7 +366,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED]);
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
 const UP = { NAME_MAX: 12, PAT: 16, LIST_MAX: 16 };
-const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI: 7, ENUM: 8, BPM: 9, NOTE: 10, ONOFF: 11, OCT: 12, STEPS: 13 };
+const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI: 7, ENUM: 8, BPM: 9, NOTE: 10, ONOFF: 11, OCT: 12, STEPS: 13, TIMEI: 17 };   /* (14..16: FM6's OFS FMNOTE FMFRQ: a number here) */
 
 const v14enc = (v) => { const u = Math.max(-8192, Math.min(8191, Math.round(v))) + 8192; return [u & 0x7F, (u >> 7) & 0x7F]; };
 const v14dec = (lo, hi) => (lo | (hi << 7)) - 8192;
@@ -773,6 +773,8 @@ function fmtValue(d, v) {
   switch (d.fmt) {
     case F.PCT: return [String(d.max === 100 ? v : Math.trunc((v * 100 + 63) / 127)), "%"];   /* 0..100 (SWG): the value */
     case F.BIPCT: return [sign(Math.trunc(v * 100 / 64)), "%"];
+    case F.TIMEI: if (v >= d.max) return ["INF", ""];   /* QUAD's REL: 127 = INF (the release holds), else TIME */
+    /* falls through */
     case F.TIME: {
       const ms10 = Math.round(10 * Math.pow(10000, (v & 127) / 127));
       if (ms10 < 100) return [(ms10 / 10).toFixed(1), "ms"];

@@ -114,7 +114,8 @@ none and keep the title rules:
 - OSC then has the **mixer** (when the oscillator pages have a LEVEL column and there are at most four of them);
 - FILT and ENV: an `edit8` screen per instance, its pages as lanes A and B (two a screen) under the wide band: the
   filter curve when the FILTER pages have a CUT column (else no band, the page's title on the right: FM6's ALGO), the
-  AHDSR, the **dx** band when the ENV page's columns are R1..R4 (FM6), or the **cz** band when the run of pages
+  AHDSR (a REL column of format `F_TIMEI` at its top, FM TONE's INF: the release drawn flat to the band's right edge,
+  the cell reads "INF"), the **dx** band when the ENV page's columns are R1..R4 (FM6), or the **cz** band when the run of pages
   (one name and instance: `DCW 1`, `DCW 1+`, `DCW 1 B`, ..) has R1.. and SUS / END (CZ-1); FILT and ENV pages run by
   instance and name (`PITCH 1` and `DCW 1` are two runs);
 - MOD: a stack of the slots, eight a screen, when its pages are matrix slots (SRC DST AMT); else (FM6's function

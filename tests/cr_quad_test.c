@@ -10,7 +10,7 @@
  * ends, the texts); version-1 blobs and macros (RATIO B = BR x 19 + B1) converted; the routing table against the designer's ALGOS; every algorithm and
  * four presets against tests/quad_ref.py's renders (tests/quad_goldens: SNR over the first 2048 samples > 36 dB AND
  * every 10 ms block's RMS within 1.5 dB over 0.3 s); the envelopes' times (ATK, DEC to END, DELAY, LEV, TRIG, RESET,
- * the amp's release); the filter types and the base-width window; the LFOs' rates (within 2 %), direction, start
+ * the amp's release; REL INF holds, 126 decays, a kill frees it); the filter types and the base-width window; the LFOs' rates (within 2 %), direction, start
  * phase, ONE / HALF, waves; no int32 wrap at full feedback / levels / LFOs on every algorithm; voices end after the
  * release; a 6-note chord for 1.4 s on every preset: peak < 0.9 FS at LEVEL 92; no DC (every preset held 1 s, a plain
  * feedback operator at FDBK 0..127: the mean of 0.3..1 s under 2 % / 1 % of the RMS; regress's limit is 1.2 % FS). */
@@ -834,6 +834,70 @@ static void t_env(void)
             drv_tick(t, out);
         quad_legato(t, &t->v[0]);
         CHECK(quad_vs[0][0].stage[1] == 3, "legato, B TRIG off: restarted");
+    }
+}
+
+/* REL INF (127, the Digitone's 0..126 + INF): the amp and filter envelopes hold their level after the note-off (stage
+ * 5) for 2 s within 1 LSB, the voice sounds on (done 0) and is endless (engine_t.endless: voice.c trk_all_off, the
+ * panic / all notes off, kills it); REL 126 decays; a retrigger (a steal of the part's own voice) restarts it; the
+ * platform's kill (voice.c: active 0) frees the slot for a fresh note */
+static void t_rel_inf(void)
+{
+    track_t *t = &trk[0];
+    int32_t out[CTL];
+    int8_t p[QP_NP];
+    uint32_t n, r;
+    for (r = 126; r <= 127u; r++) {
+        int32_t e0, f0, e1, f1;
+        double sq = 0.0;
+        quad_init_patch(p);
+        p[QP_EATK] = 0, p[QP_EDEC] = 40, p[QP_ESUS] = 100, p[QP_EREL] = (int8_t)r;
+        p[QP_FATK] = 0, p[QP_FDEC] = 40, p[QP_FSUS] = 90, p[QP_FREL] = (int8_t)r, p[QP_FDEPTH] = 30, p[QP_FREQ] = 60;
+        drv_reset(t);
+        drv_patch(t, p);
+        drv_on(t, 0, 60, 100);
+        for (n = 0; n < FS / 2u / CTL; n++)      /* 0.5 s: at SUS */
+            drv_tick(t, out);
+        t->v[0].gate = 0;                        /* the note-off */
+        drv_tick(t, out);
+        e0 = quad_vs[0][0].env[3] >> 9, f0 = quad_vs[0][0].env[2] >> 9;
+        for (n = 0; n < 2u * FS / CTL; n++)      /* 2 s later */
+            drv_tick(t, out);
+        for (n = 0; n < CTL; n++)
+            sq += (double)out[n] * out[n];
+        e1 = quad_vs[0][0].env[3] >> 9, f1 = quad_vs[0][0].env[2] >> 9;
+        if (r == 127u) {
+            CHECK(abs(e1 - e0) <= 1 && e0 > 20000 && quad_vs[0][0].stage[3] == 5u && t->v[0].active && !quad_done(t, &t->v[0]),
+                  "AMP REL INF: amp %d -> %d after 2 s (stage %u, active %u)", e0, e1, quad_vs[0][0].stage[3], t->v[0].active);
+            CHECK(abs(f1 - f0) <= 1 && f0 > 20000 && quad_vs[0][0].stage[2] == 5u, "F REL INF: filter env %d -> %d (stage %u)",
+                  f0, f1, quad_vs[0][0].stage[2]);
+            CHECK(sqrt(sq / CTL) > 100.0, "REL INF: silent 2 s after the note-off (RMS %.1f)", sqrt(sq / CTL));
+            CHECK(ENG_QUAD.endless == quad_endless && quad_endless(t, &t->v[0]), "REL INF: not endless (the panic would not end it)");
+            quad_patch[0][QP_EREL] = 60;         /* REL turned down from INF: it decays and ends */
+            for (n = 0; n < 4u * FS / CTL && drv_tick(t, out); n++)
+                ;
+            CHECK(!t->v[0].active && !quad_vs[0][0].live, "REL INF -> 60: the held voice did not end");
+            quad_patch[0][QP_EREL] = 127;        /* held again; a retrigger (the part's own steal) restarts it */
+            drv_on(t, 0, 60, 100);
+            for (n = 0; n < FS / 4u / CTL; n++)
+                drv_tick(t, out);
+            t->v[0].gate = 0;
+            for (n = 0; n < FS / 4u / CTL; n++)
+                drv_tick(t, out);
+            CHECK(quad_vs[0][0].stage[3] == 5u, "REL INF: not held (stage %u)", quad_vs[0][0].stage[3]);
+            drv_on(t, 0, 64, 100);
+            CHECK(quad_vs[0][0].stage[3] == 2u && t->v[0].gate, "REL INF: a retrigger did not restart the amp envelope");
+            t->v[0].gate = 0;
+            for (n = 0; n < FS / 4u / CTL; n++)
+                drv_tick(t, out);
+            t->v[0].active = 0;                  /* the platform's kill (voice.c env_tick stage 4: a steal, the panic) */
+            CHECK(!drv_tick(t, out), "REL INF: a killed voice still rendered");
+            drv_on(t, 0, 67, 100);               /* .. its slot a fresh voice */
+            CHECK(quad_vs[0][0].stage[3] == 2u && !quad_vs[0][0].env[3], "REL INF: the slot after a kill not fresh");
+        } else {
+            CHECK(e1 < e0 * 9 / 10 && f1 < f0 * 9 / 10 && quad_vs[0][0].stage[3] == 4u && !quad_endless(t, &t->v[0]),
+                  "REL 126: amp %d -> %d, filter %d -> %d after 2 s (want a decay)", e0, e1, f0, f1);
+        }
     }
 }
 
@@ -1744,6 +1808,7 @@ int main(int argc, char **argv)
     t_algo_table();
     t_golden();
     t_env();
+    t_rel_inf();
     t_filters();
     t_lfo();
     t_render();

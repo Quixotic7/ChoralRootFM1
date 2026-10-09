@@ -30,7 +30,7 @@ const proto = html.slice(html.indexOf("/*PROTO-BEGIN*/"), html.indexOf("/*PROTO-
 const E = vm.runInNewContext(proto + `
 ;({ frame, unframe, parse, req, Link, parseWav, resample, normalize, takeSample, autoTrim, zoomView, rootFromName, buildSlot, makeMockDevice, CMD, SMP,
    UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, patternFromSteps, stepsFromPattern, upName,
-   mixer, parseNotes, parseHits, hitsText, gridFromSteps, LANE_NOTE, LANE_OF, readDevicePreferences, devicePresetRows, engineOrder, ENGINE_ORDER, aliasOf, fmtValue, FM6,
+   mixer, parseNotes, parseHits, hitsText, gridFromSteps, LANE_NOTE, LANE_OF, readDevicePreferences, devicePresetRows, engineOrder, ENGINE_ORDER, aliasOf, fmtValue, FM6, F,
    FM4, fromDigital })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console });
 
@@ -293,6 +293,10 @@ function mockTables() {
   ok(swg.length === 3 && swg.every((d) => E.fmtValue(d, 100)[0] === "100" && E.fmtValue(d, 50)[0] === "50") &&
      E.fmtValue({ fmt: swg[0].fmt, min: 0, max: 127 }, 127)[0] === "100" && E.fmtValue({ fmt: swg[0].fmt, min: 0, max: 127 }, 64)[0] === "50",
      "editor: SWG 100 shows 100 % (not 79), 0..127 percents unchanged");
+  /* FM TONE's REL (core.h F_TIMEI, fmt 17): 127 = INF, below it a time as TIME */
+  const ti = { fmt: E.F.TIMEI, min: 0, max: 127 }, tt = { fmt: E.F.TIME, min: 0, max: 127 };
+  ok(E.F.TIMEI === 17 && E.fmtValue(ti, 127)[0] === "INF" && E.fmtValue(ti, 126).join() === E.fmtValue(tt, 126).join() &&
+     E.fmtValue(tt, 127)[0] !== "INF", "editor: fmt TIMEI 127 = INF, 0..126 as TIME (TIME 127 a time)");
 }
 
 /* ------------------------------------------------------------------ DIGITAL retired --- */

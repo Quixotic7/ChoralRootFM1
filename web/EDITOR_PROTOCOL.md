@@ -205,6 +205,9 @@ bytes). An upload writes over it like any other data; a record that is not the s
 | 3 | TIME | 8 | ENUM | 13 | STEPS |
 | 4 | LFOHZ | 9 | BPM | | |
 
+14..16 (OFS, FMNOTE, FMFRQ: FM6's pages) show as numbers. 17 TIMEI: as TIME, but 127 = "INF" (FM TONE's filter and
+amp REL: the release holds); an editor that does not know it shows the number.
+
 The editor should show the value with the unit; formatting it exactly like the device does
 is not required.
 
