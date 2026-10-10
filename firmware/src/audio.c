@@ -60,6 +60,24 @@ static void cpu_window(uint32_t now_ms)          /* once per UI frame: a frame's
 static int16_t scope_buf[SCOPE_N];
 static uint32_t scope_w;
 
+#if FELUCCA_UAC
+static void ua_service_paced(uint32_t t0, int from_isr);              /* main.c */
+static inline void ua_isr_service(void)                 /* the recording's endpoint from the render, between blocks */
+{
+    if (!ua.cap_alt)
+        return;                                         /* (not recording: no IRQ-off section) */
+    fm1_irq_off();
+    if (usb_sie_owner) {
+        ua_dbg.isr_busy++;                              /* (we preempted an SIE sequence: not here) */
+    } else {
+        usb_sie_owner = 1;
+        ua_service_paced(fm1_ticks(), 1);
+        usb_sie_owner = 0;
+    }
+    fm1_irq_on();
+}
+#endif
+
 static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 -> 24 bit */
 {
     uint32_t i;
@@ -153,6 +171,9 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
             shed_voice();
         }
         for (b = 0; b < HALF_FRAMES; b += CTL) {
+#if FELUCCA_UAC
+            ua_isr_service();                   /* before each block (at most every 250 us): main.c */
+#endif
 #ifdef FM1_INPUT_LAT
             kb_out_tick = t0 + (HALF_FRAMES + b) * DAC_TICKS;   /* when this block plays (seq.c kb_lat) */
 #endif

@@ -504,6 +504,9 @@ static void ep0_service(void)
     for (i = 0; i < 8u; i++)
         s[i] = ep0buf[i];
     usb.setups++;
+#if FELUCCA_UAC
+    ua_log(fm1_ms, s[0] | (uint32_t)s[1] << 8 | (uint32_t)s[2] << 16 | (uint32_t)s[4] << 24);   /* (diagnostics) */
+#endif
     wvalue = (uint16_t)(s[2] | s[3] << 8);
     wlength = (uint16_t)(s[6] | s[7] << 8);
     switch ((uint32_t)s[0] << 8 | s[1]) {
@@ -627,6 +630,10 @@ ack:
     sie_wr(S_CSR0, 0x48);
     return;
 stall:
+#if FELUCCA_UAC
+    ua_dbg.stalls++;
+    ua_log(fm1_ms | 0x80000000u, s[0] | (uint32_t)s[1] << 8 | (uint32_t)s[2] << 16 | (uint32_t)s[4] << 24);
+#endif
     sie_wr(S_INDEX, 0);
     sie_wr(S_CSR0, 0x60);
 }

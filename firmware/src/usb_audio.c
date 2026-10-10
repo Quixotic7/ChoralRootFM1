@@ -30,6 +30,44 @@ static uint8_t ua_tx_slot;
 static uint16_t ua_frame;
 static uint8_t ua_frame_valid, ua_paused;
 static uint8_t ua_rate_pending, ua_rate_reply[3];
+static uint8_t ua_armed;                        /* a packet has been armed since the stream opened */
+/* 1 while a context is in an SIE register sequence (INDEX, then the indexed registers; CON1's start / done): TIMER5's
+ * USB work (main.c) and the audio ISR's endpoint service (audio.c ua_isr_service) never enter one while another is
+ * under way, whatever preempts what (main.c) */
+static volatile uint8_t usb_sie_owner;
+#ifdef FM1_TICKS_PER_US
+#define UA_DBG_NOW() fm1_ticks()
+#define UA_DBG_US FM1_TICKS_PER_US
+#else
+#define UA_DBG_NOW() 0u                                 /* (the host tests: no clock) */
+#define UA_DBG_US 1u
+#endif
+/* the endpoint's diagnostics (cr_backup.c's DEBUG command, tools/fm1_install.py --debug): who serviced it, how often
+ * the packet slot was found free or still armed, the TXCSR1 bits seen, the frames */
+static struct {
+    uint32_t svc_t5, svc_isr, isr_calls, isr_gated;   /* services from TIMER5 / the audio ISR; ISR calls; gated out */
+    uint32_t fill_free, fill_busy, csr_or, csr_last;  /* ua_tx_fill: slot free (a packet armed) / still armed; bits */
+    uint32_t sofs, frame_last, armed_frame_dup;       /* frames seen; the last; two packets armed in one frame */
+    uint32_t armed_frame;
+    uint32_t arm_last, arm_gap_max, arm_gap[3];       /* arm to arm (TIMER4 ticks): the longest; < 1.2, < 2.5, more ms */
+    uint32_t open_at, open_ms, opens;                 /* the stream: opened at (fm1_ms), ms open in all, times opened */
+    uint32_t arm_calls;                               /* ungated arm checks (main.c ua_service_paced) */
+    uint32_t take_bin[6], first_take_ms, first_take_max, open_close_ms, holds;   /* the host's takes after an
+                                                 * open (50 ms bins); its first take; open to close; reads stopped */
+    uint32_t pk528, pk540, pk_other, pk_other_last;   /* packets armed by size (44, 45 frames; anything else) */
+    uint32_t frames_open, frames_last_open;           /* frames sent in this open / the last whole one */
+    uint32_t isr_busy, t5_busy;                       /* skipped: the SIE was in another context's sequence */
+    uint32_t stalls, log_n, ovr_seen;                 /* EP0 requests stalled; events logged; overruns logged */
+    uint32_t log[16][2];                              /* the last 16 events: fm1_ms, what (UA_EV_*) */
+} ua_dbg;
+/* an event: a SETUP (bmRequestType | bRequest << 8 | wValue low << 16 | wIndex low << 24, the stalled ones repeated
+ * with bit 31 of the time set) or an overrun (0xFF0000nn: the count) */
+static void ua_log(uint32_t ms, uint32_t what)
+{
+    uint32_t k = ua_dbg.log_n++ & 15u;
+    ua_dbg.log[k][0] = ms;
+    ua_dbg.log[k][1] = what;
+}
 
 /* CFG_DESC without the recording when ua_off has it (MIDI only: a build without the console). The AC header's
  * streaming interface list is kept as it is (the function goes whole); an absent stream gets UA_NO_IF. */
@@ -79,6 +117,7 @@ static void ua_cap_config(void)
 static void ua_hw_stop(void)
 {
     ua_reset();
+    ua_armed = 0;
     ua_rate_pending = 0;
     ua_frame_valid = ua_paused = 0;
     ua_tx_bytes = ua_tx_slot = 0;
@@ -93,10 +132,58 @@ static void ua_hw_stop(void)
 static void ua_tx_fill(void)
 {
     if (ua.cap_alt) {
+        uint32_t csr;
         sie_wr(S_INDEX, 2);
-        if (!(sie_rd(S_TXCSR1) & 1u)) {
+        csr = sie_rd(S_TXCSR1);
+        ua_dbg.csr_or |= csr;
+        ua_dbg.csr_last = csr;
+        if (csr & 1u) {
+            ua_dbg.fill_busy++;
+            /* the host stopped reading (a packet waiting 20 ms) without closing: the ring stops being fed */
+            if (ua_armed && !ua.cap_hold && ua_dbg.arm_last && UA_DBG_NOW() - ua_dbg.arm_last > 20000u * UA_DBG_US) {
+                ua.cap_hold = 1;
+                ua_cap_reset();
+                ua_dbg.holds++;
+            }
+        }
+        if (!(csr & 1u)) {
+            if (ua_armed) {                     /* the host took the armed packet */
+                uint32_t since = fm1_ms - ua_dbg.open_at;
+                if (since < 300u)
+                    ua_dbg.take_bin[since / 50u]++;
+                if (ua.cap_hold) {              /* its first (or first again): the ring is fed from now, primes, */
+                    ua.cap_hold = 0;            /* then plays: no overrun while the host has not started */
+                    ua_cap_reset();
+                    if (since > ua_dbg.first_take_max)
+                        ua_dbg.first_take_max = since;
+                    ua_dbg.first_take_ms = since;
+                }
+            }
+            ua_armed = 1;
+            ua_dbg.fill_free++;
+            if (ua_frame_valid && ua_dbg.armed_frame == ua_frame)
+                ua_dbg.armed_frame_dup++;
+            ua_dbg.armed_frame = ua_frame;
+            {
+                uint32_t now = UA_DBG_NOW(), g = now - ua_dbg.arm_last;
+                if (ua_dbg.arm_last) {
+                    if (g > ua_dbg.arm_gap_max)
+                        ua_dbg.arm_gap_max = g;
+                    ua_dbg.arm_gap[g < 1200u * UA_DBG_US ? 0 : g < 2500u * UA_DBG_US ? 1 : 2]++;
+                }
+                ua_dbg.arm_last = now;
+            }
             if (!ua_tx_bytes)                   /* first packet after a stream reset */
                 ua_tx_bytes = ua_transmit(ua_tx[ua_tx_slot]);
+            if (ua_tx_bytes == 528u)
+                ua_dbg.pk528++;
+            else if (ua_tx_bytes == 540u)
+                ua_dbg.pk540++;
+            else {
+                ua_dbg.pk_other++;
+                ua_dbg.pk_other_last = ua_tx_bytes;
+            }
+            ua_dbg.frames_open += ua_tx_bytes / (2u * UA_CAP_CHANNELS);
             fm1_usb_ep_send(2, ua_tx[ua_tx_slot], ua_tx_bytes);
             sie_wr(S_TXCSR1, 1);
             ua.tx_packets++;
@@ -119,7 +206,19 @@ static int ua_set_interface(uint16_t interface, uint16_t alt)
     if (UAC_BLOCKED())
         alt = 0;                                /* (SAFE MODE presents no audio function: belt and braces) */
     ua_cap_reset();
+    if (alt && !ua.cap_alt) {
+        ua_dbg.open_at = fm1_ms;
+        ua_dbg.opens++;
+        ua_dbg.arm_last = 0;
+        ua_dbg.frames_open = 0;
+    } else if (!alt && ua.cap_alt) {
+        ua_dbg.frames_last_open = ua_dbg.frames_open;
+        ua_dbg.open_ms += fm1_ms - ua_dbg.open_at;
+        ua_dbg.open_close_ms = fm1_ms - ua_dbg.open_at;
+    }
     ua.cap_alt = (uint8_t)alt;
+    ua.cap_hold = (uint8_t)alt;                 /* fed once the host takes its first packet (ua_tx_fill) */
+    ua_armed = 0;
     if (alt)
         ua_cap_config();
     else {
@@ -215,6 +314,8 @@ static void ua_hw_poll(void)
         }
         ua_frame = (uint16_t)f;
         ua_frame_valid = 1;
+        ua_dbg.sofs++;
+        ua_dbg.frame_last = f;
         ua_sof();
     }
     ua_tx_fill();

@@ -14,6 +14,13 @@
  *                frames at random times inside their half: no underrun or overrun after the start, every frame once
  *                and in order, the rates matched
  *   recovery     the host stops reading: the overrun is counted, the stream re-primes, and runs in order again
+ *   handoff      the endpoint's two packet slots as usb_audio.c arms them: every frame once, none twice or skipped
+ *   quicktime    60 s against a host reading 1 packet a ms (fast, slow, nominal clocks): no gap, no reset, the
+ *                packet lengths near 44.1 (runs of 44-frame packets bounded)
+ *   render gap   the device's half-rate bug modelled (no service during a long render) and the audio ISR's own
+ *                paced service curing it
+ *   hold         the ring not fed until the host's first take (no overrun at every stream open)
+ *   frames       30 s byte for byte: whole 12-byte frames in order across the 44 / 45 boundaries and the nudges
  *   --bench      host instructions for a half's USB work (macOS) and the device estimate (perf.sh)
  *   cc -std=gnu11 -O2 -o build/host/cr_usbaudio_test tests/cr_usbaudio_test.c   (tests/run_cr_tests.sh) */
 #include <stdint.h>
@@ -357,7 +364,7 @@ static uint64_t instr(void)
 static volatile int32_t sink;
 /* a half's (128 frames, 2.9 ms) USB recording work on the host: per block (x4) fx.c's ua_stage clear and the part
  * captures (two parts x 32 frames, as mix_part writes them), the master tap (choralroot.c) and the ring copy
- * (ua_audio); per USB frame (x2.9) the packet out (ua_transmit) and the SOF servo. Device us = host instructions /
+ * (ua_audio); per USB frame (x2.9) the packet out (ua_transmit) and the SOF fill filter. Device us = host instructions /
  * 259 (emu.c's ratio) */
 static void bench(void)
 {
@@ -500,7 +507,7 @@ static void test_quicktime(double rate)
 {
     static uint8_t buf[UA_PACKET];
     double next_half = 0, half_us = 128e6 / rate;
-    uint32_t ms, i, ch, gap = 0, maxgap = 0, frames = 0, n;
+    uint32_t ms, i, ch, gap = 0, maxgap = 0, frames = 0, n, run44 = 0, maxrun44 = 0;
     uint16_t seq = 0;
     memset(&ua, 0, sizeof ua);
     ua_reset();
@@ -519,6 +526,9 @@ static void test_quicktime(double rate)
         ua_sof();
         n = ua_transmit(buf) / (2u * UA_CAP_CHANNELS);
         frames += n;
+        run44 = n == 44u ? run44 + 1u : 0u;
+        if (ms >= 1000u && run44 > maxrun44)
+            maxrun44 = run44;
         for (i = 0; i < n; i++) {
             if ((int16_t)(buf[12 * i + 10] | buf[12 * i + 11] << 8) == 0)
                 gap++;
@@ -533,6 +543,185 @@ static void test_quicktime(double rate)
         snprintf(m, sizeof m, "QuickTime 60 s, producer %.1f Hz: %u frames, longest silence %u, under %u over %u, "
                  "fill %d", rate, frames, maxgap, ua.cap_underruns, ua.cap_overruns, ua.cap_fill_q8 >> 8);
         check(m, maxgap <= 1323u && !ua.cap_underruns && !ua.cap_overruns);
+        {   /* (a -1000 ppm I2S takes away every other 45: runs to ~30) */
+            uint32_t lim = rate < 44090.0 ? 31u : 21u;
+            snprintf(m, sizeof m, "  packet lengths near nominal: at most %u 44-frame packets in a row (<= %u)", maxrun44,
+                     lim);
+            check(m, maxrun44 <= lim);
+        }
+    }
+}
+
+/* The stream opened, the host not reading yet (macOS takes its first packet ~10+ ms after SET_INTERFACE): the ring
+ * is not fed (cap_hold, usb_audio.c), so no overrun storm at every open; once the host reads, it primes and plays */
+static void test_hold(void)
+{
+    static uint8_t buf[UA_PACKET];
+    uint32_t i, ch, k, got = 0;
+    memset(&ua, 0, sizeof ua);
+    ua_reset();
+    ua.cap_alt = 1;
+    ua.cap_hold = 1;
+    for (k = 0; k < 4u * 20u; k++) {                   /* 20 halves, ~58 ms */
+        for (i = 0; i < 32; i++)
+            for (ch = 0; ch < UA_CAP_CHANNELS; ch++)
+                stage[i * UA_CAP_CHANNELS + ch] = 7;
+        ua_audio(stage, 32);
+    }
+    check("held (the host not reading yet): the ring is not fed, no overrun", ua.cw == ua.cr && !ua.cap_overruns);
+    ua.cap_hold = 0;                                   /* the first take (ua_tx_fill) */
+    ua_cap_reset();
+    for (k = 0; k < 400u; k++) {                       /* 400 ms: halves and packets */
+        if (k % 3u == 0)
+            for (i = 0; i < 4u; i++) {
+                for (ch = 0; ch < 32u * UA_CAP_CHANNELS; ch++)
+                    stage[ch] = 7;
+                ua_audio(stage, 32);
+            }
+        ua_sof();
+        ua_transmit(buf);
+        got += buf[10] == 7;
+    }
+    check("  then fed: primed and playing, no overrun", got > 300u && !ua.cap_overruns);
+}
+
+/* The device (0.14, a 14 s QuickTime / ffmpeg capture while chords play): the host got ~half the frames, the ring
+ * ran over, silence. Modelled: each 128-frame half's render takes render_us (silence ~300, chords ~1500-2500) and
+ * TIMER5's endpoint service (every 100 us tick, paced to 250 us) does not get in during it (nest = 0: what the
+ * device behaves like); isr = 1 adds the audio ISR's own paced call before each of its 4 blocks (audio.c
+ * ua_isr_service). The host's IN token each 1 ms takes the queued packet if one is armed. Returns the frames the
+ * host got per frame produced (x1000) over 20 s; *over gets the overruns */
+static uint32_t sim_render(uint32_t render_us, int nest, int isr, uint32_t *over)
+{
+    static uint8_t buf[2][UA_PACKET];
+    uint8_t slot = 0, pktrdy = 0;
+    uint32_t bytes = 0, t, i, ch, b, got = 0, made = 0, last_svc = 0, have_svc = 0, blk_at[4];
+    double next_half = 0, half_us = 128e6 / 44117.647, half_t0 = -1e9;
+    int bi = 4;
+    memset(&ua, 0, sizeof ua);
+    ua_reset();
+    ua.cap_alt = 1;
+    for (t = 0; t < 20000000u; t += 10) {              /* 10 us steps, 20 s */
+        int svc = 0, in_render;
+        if (t >= next_half) {                          /* a half starts: blocks at its render's quarters */
+            half_t0 = next_half;
+            for (b = 0; b < 4; b++)
+                blk_at[b] = (uint32_t)(half_t0 + render_us * b / 4);
+            bi = 0;
+            next_half += half_us;
+        }
+        in_render = t < half_t0 + render_us;
+        while (bi < 4 && t >= blk_at[bi]) {            /* a block: the ISR's paced service first, then the copy */
+            if (isr && (!have_svc || t - last_svc >= 250u))
+                svc = 1;
+            for (i = 0; i < 32; i++)
+                for (ch = 0; ch < UA_CAP_CHANNELS; ch++)
+                    stage[i * UA_CAP_CHANNELS + ch] = 1;
+            if (svc) {
+                last_svc = t;
+                have_svc = 1;
+                if (!pktrdy) {
+                    if (!bytes)
+                        bytes = ua_transmit(buf[slot]);
+                    pktrdy = 1;
+                    slot ^= 1u;
+                    bytes = 0;
+                }
+                if (!bytes)
+                    bytes = ua_transmit(buf[slot]);
+                svc = 0;
+            }
+            ua_audio(stage, 32);
+            made += 32;
+            bi++;
+        }
+        if (t % 100u == 0 && (nest || !in_render) && (!have_svc || t - last_svc >= 250u)) {   /* TIMER5 */
+            last_svc = t;
+            have_svc = 1;
+            if (!pktrdy) {
+                if (!bytes)
+                    bytes = ua_transmit(buf[slot]);
+                pktrdy = 1;
+                slot ^= 1u;
+                bytes = 0;
+            }
+            if (!bytes)
+                bytes = ua_transmit(buf[slot]);
+        }
+        if (t % 1000u == 500u) {                       /* the host's IN token (SOF at the frame's start) */
+            ua_sof();
+            if (pktrdy) {
+                got += 44;                             /* (a packet: ~44 frames to the host's clock) */
+                pktrdy = 0;
+            }
+        }
+    }
+    *over = ua.cap_overruns;
+    return (uint32_t)((uint64_t)got * 1000u / made);
+}
+
+static void test_render_gap(void)
+{
+    static const uint32_t R[3] = {300, 1500, 2500};
+    uint32_t k, ratio, over;
+    char m[200];
+    ratio = sim_render(1500, 0, 0, &over);
+    snprintf(m, sizeof m, "device model, no service during a 1500 us render: the host gets %u/1000 of the frames, "
+             "%u overruns (the bug)", ratio, over);
+    check(m, ratio < 900u && over > 0);
+    for (k = 0; k < 3; k++) {
+        ratio = sim_render(R[k], 0, 1, &over);
+        snprintf(m, sizeof m, "  + the audio ISR's paced service, render %u us: %u/1000, %u overruns", R[k], ratio, over);
+        check(m, ratio > 990u && !over);
+        ratio = sim_render(R[k], 1, 1, &over);
+        snprintf(m, sizeof m, "  + nested TIMER5 as well, render %u us: %u/1000, %u overruns", R[k], ratio, over);
+        check(m, ratio > 990u && !over);
+    }
+}
+
+/* Every byte of every packet: six channels a frame, 12 bytes, whole frames in order across the 44 / 45 packet
+ * boundaries and the nudges, none dropped, doubled or shifted; the length a multiple of 12 (the descriptor: 6 x 16 bit) */
+static void test_frames(void)
+{
+    static uint8_t buf[UA_PACKET];
+    double next_half = 0, half_us = 128e6 / 44117.647;
+    uint32_t ms, i, ch, n, bytes, bad = 0, badlen = 0, frames = 0;
+    uint16_t seq = 0, expect = 0;
+    int started = 0;
+    memset(&ua, 0, sizeof ua);
+    ua_reset();
+    ua.cap_alt = 1;
+    for (ms = 0; ms < 30000u; ms++) {
+        while (next_half <= ms * 1000.0) {
+            for (n = 0; n < 4; n++) {
+                for (i = 0; i < 32; i++, seq++)
+                    for (ch = 0; ch < UA_CAP_CHANNELS; ch++)
+                        stage[i * UA_CAP_CHANNELS + ch] = (int16_t)(uint16_t)(seq * 8u + ch + 1u);
+                ua_audio(stage, 32);
+            }
+            next_half += half_us;
+        }
+        ua_sof();
+        bytes = ua_transmit(buf);
+        badlen += bytes % 12u != 0 || bytes > UA_PACKET;
+        for (i = 0; i < bytes / 12u; i++) {
+            uint16_t v0 = (uint16_t)(buf[12 * i] | buf[12 * i + 1] << 8);
+            if (!v0)
+                continue;                                  /* silence: priming */
+            for (ch = 1; ch < UA_CAP_CHANNELS; ch++)
+                bad += (uint16_t)(buf[12 * i + 2 * ch] | buf[12 * i + 2 * ch + 1] << 8) != (uint16_t)(v0 + ch);
+            if (started && v0 != expect)
+                bad++;
+            started = 1;
+            expect = (uint16_t)(v0 + 8u);
+            frames++;
+        }
+    }
+    {
+        char m[200];
+        snprintf(m, sizeof m, "packets byte for byte, 30 s: %u frames of 6 channels, %u wrong, %u bad lengths, "
+                 "nudges +%u -%u", frames, bad, badlen, ua.cap_nudges_up, ua.cap_nudges_down);
+        check(m, !bad && !badlen && frames > 29u * 44000u);
     }
 }
 
@@ -550,6 +739,9 @@ int main(int argc, char **argv)
     test_quicktime(44100.0 * 1.001);
     test_quicktime(44100.0 * 0.999);
     test_quicktime(44100.0);
+    test_render_gap();
+    test_hold();
+    test_frames();
     printf("cr_usbaudio: %d passed, %d failed\n", passes, fails);
     return fails ? 1 : 0;
 }

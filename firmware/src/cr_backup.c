@@ -44,7 +44,7 @@
 #define CRB_HDR0 0x7Du
 #define CRB_HDR1 0x46u
 #define CRB_HDR2 0x4Cu
-enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72 };
+enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72, CRB_DEBUG = 73 };
 #define CRB_LOOP0 40u                                /* loop slot k: id 40 + k */
 #define CRB_VA 9u
 #define CRB_FM6S 10u                                 /* 10, 11: the FM6 patch store's halves */
@@ -448,6 +448,101 @@ static uint32_t crb_put(const uint8_t *a, uint32_t n)
     return 0;
 }
 
+/* ------------------------------------------------------------------ DEBUG --- */
+/* 73 DEBUG (read-only, not a backup object: LIST does not name it) -> version 1, count, count x u32 (crb_u32): the
+ * device's counters for tools/fm1_install.py --debug, which names them in this order (DEBUG_NAMES there) */
+static void crb_debug(void)
+{
+    uint32_t v[144], k = 0, i;
+#ifdef DBG_MAGIC
+    v[k++] = fm1_ms;
+    v[k++] = felucca_dbg.halves;
+    v[k++] = felucca_dbg.max_us;
+    v[k++] = felucca_dbg.late;
+    v[k++] = felucca_dbg.nested;
+    v[k++] = felucca_dbg.timer_irqs;
+    v[k++] = felucca_dbg.ui_frames;
+    v[k++] = felucca_dbg.last_us;
+    v[k++] = cpu_last.avg_us;
+    v[k++] = cpu_last.max_us;
+    v[k++] = cpu_last.max_all_us;
+    v[k++] = cpu_last.halves;
+#else
+    for (i = 0; i < 12u; i++)
+        v[k++] = 0;
+#endif
+    v[k++] = cr_dbg.c1;
+    v[k++] = cr_dbg.c1_jobs;
+    for (i = 0; i < CRP_N; i++)
+        v[k++] = cr_dbg.avg_us[i];
+#if FELUCCA_UAC
+    v[k++] = ua.cap_alt;
+    v[k++] = ua_stage_on;
+    v[k++] = ua.cap_ready;
+    v[k++] = ua.tx_packets;
+    v[k++] = ua.cap_underruns;
+    v[k++] = ua.cap_overruns;
+    v[k++] = ua.cw - ua.cr;
+    v[k++] = (uint32_t)ua.cap_fill_q8;
+    v[k++] = ua.missed_frames;
+    v[k++] = ua.poll_max_ticks / FM1_TICKS_PER_US;
+    v[k++] = ua.service_max_ticks / FM1_TICKS_PER_US;
+    v[k++] = ua_dbg.svc_t5;
+    v[k++] = ua_dbg.svc_isr;
+    v[k++] = ua_dbg.isr_calls;
+    v[k++] = ua_dbg.isr_gated;
+    v[k++] = ua_dbg.fill_free;
+    v[k++] = ua_dbg.fill_busy;
+    v[k++] = ua_dbg.csr_or;
+    v[k++] = ua_dbg.csr_last;
+    v[k++] = ua_dbg.sofs;
+    v[k++] = ua_dbg.frame_last;
+    v[k++] = ua_dbg.armed_frame_dup;
+    v[k++] = usb.resets;
+    v[k++] = usb.suspended;
+    v[k++] = usb.timeouts;
+    v[k++] = usb.suspends;
+    v[k++] = usb.sof_seen;
+    v[k++] = ua_dbg.arm_gap_max / FM1_TICKS_PER_US;
+    v[k++] = ua_dbg.arm_gap[0];
+    v[k++] = ua_dbg.arm_gap[1];
+    v[k++] = ua_dbg.arm_gap[2];
+    v[k++] = ua_dbg.open_ms + (ua.cap_alt ? fm1_ms - ua_dbg.open_at : 0u);
+    v[k++] = ua_dbg.opens;
+    v[k++] = ua_dbg.arm_calls;
+    v[k++] = ua_dbg.pk528;
+    v[k++] = ua_dbg.pk540;
+    v[k++] = ua_dbg.pk_other;
+    v[k++] = ua_dbg.pk_other_last;
+    for (i = 0; i < 6u; i++)
+        v[k++] = ua_dbg.take_bin[i];
+    v[k++] = ua_dbg.first_take_ms;
+    v[k++] = ua_dbg.first_take_max;
+    v[k++] = ua_dbg.open_close_ms;
+    v[k++] = ua_dbg.holds;
+    v[k++] = ua.cap_hold;
+    v[k++] = UA_EP_MAXP;
+    v[k++] = ua.cap_nudges_up;
+    v[k++] = ua.cap_nudges_down;
+    v[k++] = ua_dbg.frames_open;
+    v[k++] = ua_dbg.frames_last_open;
+    v[k++] = ua_dbg.isr_busy;
+    v[k++] = ua_dbg.t5_busy;
+    v[k++] = usb.setups;
+    v[k++] = ua_dbg.stalls;
+    v[k++] = ua_dbg.log_n;
+    for (i = 0; i < 16u; i++) {                      /* the event log, oldest first */
+        uint32_t e = (ua_dbg.log_n + i) & 15u;
+        v[k++] = ua_dbg.log[e][0];
+        v[k++] = ua_dbg.log[e][1];
+    }
+#endif
+    crb_b(1);
+    crb_b(k);
+    for (i = 0; i < k; i++)
+        crb_u32(v[i]);
+}
+
 /* ------------------------------------------------------------------ the dispatcher --- */
 /* f: the bytes between F0 and F7 (7D 46 4C cmd args); 1 = answered */
 static int crb_handle(const uint8_t *f, uint32_t n)
@@ -497,6 +592,11 @@ static int crb_handle(const uint8_t *f, uint32_t n)
         crb_b(rc);
         break;
     }
+    case CRB_DEBUG:
+        if (na)
+            return 0;
+        crb_debug();
+        break;
     case CRB_RESTART:
         if (na)
             return 0;

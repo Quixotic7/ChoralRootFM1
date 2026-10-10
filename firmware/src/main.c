@@ -22,6 +22,46 @@ extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[];
  * stretch the next deadline). It touches only the audio endpoint (INDEX is set on every access) and the
  * USB side of the capture ring (audio.c copies with the IRQs off), and usb_poll never runs nested, so the
  * two never interleave (Melodee's). */
+#if FELUCCA_UAC
+/* the recording's endpoint (usb.c ua_service), at most every 250 us by elapsed time, independent of coalesced ticks:
+ * from TIMER5 (nested in the render too) and from the audio ISR itself between its blocks, with the IRQs off
+ * (audio.c ua_isr_service). The device showed why both: while notes sound the host got about half the packets (a
+ * 14 s capture held 6.5 s, the ring ran over), i.e. the endpoint went unserviced for most of each long render; the
+ * audio ISR's own calls bound the gap to one block's render whatever the nesting does. The two never interleave
+ * in an SIE sequence: usb_sie_owner (usb_audio.c) is taken around TIMER5's USB work, and the audio ISR's IRQ-off
+ * call skips while it is held */
+static void ua_service_paced(uint32_t t0, int from_isr)
+{
+    static uint32_t last_ua;
+    uint32_t gap = t0 - last_ua;
+    if (from_isr)
+        ua_dbg.isr_calls++;
+    if (ua.cap_overruns != ua_dbg.ovr_seen) {   /* (diagnostics: an overrun into the event log) */
+        ua_dbg.ovr_seen = ua.cap_overruns;
+        ua_log(fm1_ms, 0xFF000000u | (ua.cap_overruns & 0xFFFFu));
+    }
+    if (usb.up && usb.config && !usb.suspended && !USB_CDC_ON && ua.cap_alt && !ua_paused) {
+        ua_dbg.arm_calls++;                     /* every call, ungated: the packet slot freed -> the next one armed */
+        ua_tx_fill();                           /* (the frame bookkeeping stays paced, below) */
+    }
+    if (!last_ua || gap >= 250u * FM1_TICKS_PER_US) {
+        if (from_isr)
+            ua_dbg.svc_isr++;
+        else
+            ua_dbg.svc_t5++;
+        if (last_ua && gap > ua.poll_max_ticks)
+            ua.poll_max_ticks = gap;
+        last_ua = t0;
+        ua_service();
+        gap = fm1_ticks() - t0;
+        if (gap > ua.service_max_ticks)
+            ua.service_max_ticks = gap;
+    } else if (from_isr) {
+        ua_dbg.isr_gated++;
+    }
+}
+#endif
+
 void fm1_timer5_irq(void)
 {
     static uint32_t sub, owed;
@@ -47,18 +87,12 @@ void fm1_timer5_irq(void)
     if (++sub == 10u)
         sub = 0;
 #if FELUCCA_UAC
-    {
-        static uint32_t last_ua;
-        uint32_t gap = t0 - last_ua;
-        if (!last_ua || gap >= 250u * FM1_TICKS_PER_US) {
-            if (last_ua && gap > ua.poll_max_ticks)
-                ua.poll_max_ticks = gap;
-            last_ua = t0;
-            ua_service();                       /* at most 4 kHz, independent of coalesced ticks */
-            gap = fm1_ticks() - t0;
-            if (gap > ua.service_max_ticks)
-                ua.service_max_ticks = gap;
-        }
+    if (usb_sie_owner) {
+        ua_dbg.t5_busy++;                       /* (an SIE sequence under way below us: not entered) */
+    } else {
+        usb_sie_owner = 1;
+        ua_service_paced(t0, 0);
+        usb_sie_owner = 0;
     }
 #endif
     if (felucca_dbg.in_audio) {
@@ -66,8 +100,16 @@ void fm1_timer5_irq(void)
         t5_nested_ticks += fm1_ticks() - t0;
         return;
     }
+#if FELUCCA_UAC
+    if (usb_sie_owner)
+        return;                                 /* (owed stays: the next tick) */
+    usb_sie_owner = 1;
+#endif
     if (owed & 1u)
         usb_poll();
+#if FELUCCA_UAC
+    usb_sie_owner = 0;
+#endif
 #if FELUCCA_UART
     if (owed & 2u)
         uart_midi_poll();

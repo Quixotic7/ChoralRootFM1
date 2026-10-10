@@ -90,13 +90,15 @@ has no CDC function at all (Melodee's layout), so the switch stays.
 - **44.1 kHz only**, no sample-rate conversion: the computer must run the device at 44.1 kHz (macOS and Windows do so
   for a device that offers only that rate; a DAW project at 48 kHz resamples or refuses, depending on the DAW).
 - **Clock:** the FM-1's I2S clock (~44,117.6 Hz) is not locked to USB. The endpoint is asynchronous: capture packets
-  carry 44 or 45 frames and one more or fewer as a low-pass ring-fill servo asks. Nothing is resampled; the ring
-  absorbs the difference.
+  follow a fixed 44.1-frame pattern (44 frames, a 45 every 10th packet); when the ring's fill leaves 128..384 frames
+  a packet takes one frame more or fewer (a 44 made 45 or a 45 made 44, at most one in 10 packets). Nothing is
+  resampled; the ring absorbs the difference.
 - **Latency** (on top of the computer's buffers): ~5.8 ms (the ring holds 256 frames). A ring that runs over (the
   host stops reading) or dry (a 45 ms flash erase when a setting or a sound is saved) is counted and re-primed: a
   short gap, never stale or repeated audio.
-- **Bus bandwidth:** 540 bytes a frame of a full-speed frame's 1500, inside a USB 2 hub's split-transaction budget
-  (~1157). (Six channels at 24 bit would have been 810.)
+- **Bus bandwidth:** the packets carry up to 540 bytes; the endpoint reserves 640 a frame (bit stuffing: "What went
+  wrong and why" below) of a full-speed frame's 1500, inside a USB 2 hub's split-transaction budget (~1157). (Six
+  channels at 24 bit would have been 810.)
 - **The metronome click** is not in ChoralRoot In.
 - **No playback:** the computer cannot play through the FM-1 (removed, above).
 - **The emulator has no USB:** the Options entries are there and saved, nothing streams (`FELUCCA_UAC` is 0 in the
@@ -109,7 +111,7 @@ has no CDC function at all (Melodee's layout), so the switch stays.
 The emulator cannot stream, so the cost is measured on the host and scaled (`sh tools/emu/perf.sh`, scenario (u):
 `tests/cr_usbaudio_test.c --bench`, emu.c's ratio of 259 host instructions per device µs): while the computer
 records, the audio ISR's share (the stage cleared, the part captures, the master tap, the ring copy) is about 21 µs a
-2.9 ms half and TIMER5's packets (the packet out, the servo) about 10 µs: **~31 µs, 1.1 % of the half**, plus the SIE
+2.9 ms half and TIMER5's packets (the packet out) about 10 µs: **~31 µs, 1.1 % of the half**, plus the SIE
 register accesses of the endpoint service (up to 4 kHz, nested in the render; not in the host figure). Without the
 stream the ISR does none of it (a flag test a block, no IRQ-off section). On the device: record, then switch USB
 Record Off and read `cpu` and `status` on the console: `audio_max_all_us`, `ua_poll_max_us`, `ua_service_max_us`
@@ -143,13 +145,72 @@ names, 44.1 kHz accepted; the console with USB Record Off, the replug), long-run
 (no `ua_cap_underruns` / `_overruns` over an hour), the 540-byte capture packets on the JieLi controller (Melodee's
 largest was the same 540), the stream with a full chord (`audio_max_all_us`), and iPadOS.
 
+## What went wrong and why (0.14, 2026-10-10)
+
+The first device recordings (QuickTime, ffmpeg, Live) gave one slice of sound and then seconds of silence: a 14 s
+capture held 6.5 s of audio. GEEK OUT's `usb` line showed the ring over-running (`o` rising, `u` 0) only while notes
+sounded. Measured with `tools/uac_check.py` and the device's counters (`fm1_install.py --debug`, below), one step
+at a time:
+
+- **The device was not starved.** The endpoint is armed again as soon as the host takes a packet: at every call of
+  the service, from TIMER5 (every tick, nested in the render too) and from the audio ISR before each of its blocks,
+  with the IRQs off (`main.c ua_service_paced`, `audio.c ua_isr_service`). With that, ~992 packets a second went out
+  while the stream was open, every gap between two packets under 1.2 ms.
+- **The host closed and reopened the stream.** The event log showed `SET_INTERFACE` alt 0 about 250 ms after each
+  alt 1, then alt 1 again: ~25 times in 14 s with chords, ~6 in silence, nothing on the device's side between. Each
+  reopen cost the recording a restart. The packet rate (a servo, an exact 44.1 pattern, the I2S's own 44.1176), the
+  sync type (async, adaptive, synchronous), the CPU load and the MIDI traffic made no difference.
+- **The sample bytes did.** Builds that replaced the audio in the packets: all zeros with chords playing, 1 reopen
+  (0.938 of the wall time recorded); constant 0x1000, 4; noise, 6; the master pair only (the part channels zero), 19;
+  the real chords, ~25; every sample 0xFFFF (silent to the ear), 29, the worst. USB inserts a 0 bit after six 1 bits
+  (bit stuffing), so a packet of 0xFF bytes is up to 7/6 longer on the wire; small negative samples (0xFFxx), all over
+  quiet and decaying audio, do the same. The endpoint reserved exactly 540 bytes a frame, and the FM-1 was on a
+  USB 2 hub (split transactions, a tight schedule): a stuffed packet overran its slot, the host counted an error and
+  CoreAudio restarted the stream.
+- **The fix:** `wMaxPacketSize` 640 (`usb_audio_stream.c UA_EP_MAXP`; 540 x 7 / 6 = 630 covers the worst case), the
+  packets unchanged. On the device: 12.7 and 13.2 s of 14 recorded with chords, 27.9 s of 30, the stream opened once
+  and held. A port straight on the computer may have held with 540; 640 costs nothing (a full-speed frame holds 1500
+  bytes).
+- **Kept from the hunt:** the ring is not fed until the host takes its first packet (`ua.cap_hold`: macOS reads ~14
+  ms after `SET_INTERFACE`, which over-ran the 11.6 ms ring at every open) and is held again if the host stops
+  reading for 20 ms; the fixed packet pattern (Melodee's fill servo wandered around 44.07 frames a packet after every
+  ring reset); the endpoint armed from the audio ISR too, under `usb_sie_owner` (`usb_audio.c`: no two contexts in
+  one SIE register sequence, `INDEX` then the indexed registers); the counters and the event log below.
+
+## Reading the counters during a recording
+
+`python3 tools/fm1_install.py --debug` (USB-MIDI SysEx 73, read-only, also while recording; web/EDITOR_PROTOCOL.md)
+prints the device's counters by name, the mean packet length of the last whole open, and the last 16 events (each
+`SETUP` the host sent, by name; a stalled one; each ring over-run) with the device's time in ms. Take one before and
+one after a recording; the differences say:
+
+| field | healthy |
+| --- | --- |
+| `ua_opens`, `ua_open_close_ms` | one open per recording, held for its length (each reopen is a gap in the recording) |
+| `ua_tx_packets` / `ua_open_ms` | ~1 packet a ms while open |
+| `ua_overruns`, `ua_underruns` | 0 after the first open (an over-run: the host stopped reading; an under-run: the ring ran dry) |
+| `ua_arm_gap_*` | the gaps between two armed packets: all `< 1.2 ms` but one per open |
+| `ua_pk528`, `ua_pk540`, `ua_pk_other` | ~90 % / ~10 % / 0 (the 44.1 pattern; any other length is a bug) |
+| `ua_first_take_ms` | ~14: the host's first read after an open |
+| `ua_holds` | 0 (the host stopped reading without closing the stream) |
+| `ua_isr_sie_busy`, `ua_t5_sie_busy` | 0 (an SIE sequence was preempted and its service skipped) |
+| `nested`, `late`, `cpu_*`, `st_*` | the audio ISR: TIMER5 nested in it, late halves, the render's time and stages |
+
+## Measuring the recording on a Mac
+
+`tools/uac_check.py OUT.wav [SECONDS] [--nonotes] [--debug]` records ChoralRoot In with ffmpeg (avfoundation) while
+it plays C-major chords on the FM-1 over USB-MIDI (mido), then prints the WAV's length against the wall time (the
+drain ratio: ~0.93 or more is healthy, ffmpeg's start costs ~1 s), the loud 50 ms windows and every silent gap of
+0.5 s or more while chords were sent; `--debug` adds the device's counters before and after. Needs `ffmpeg`, `mido`
+and `python-rtmidi`; it never writes the FM-1.
+
 ## Where it lives
 
 | File | What |
 | --- | --- |
 | `firmware/src/usb.c` | the descriptors (`CFG_DESC` with `usb_audio_desc.h`, `CFG_DESC_CDC`), the strings, EP0 (SET_INTERFACE, the UAC1 sampling-frequency requests), `usb_cdc_on`, `usb_replug`, `ua_off_set` / `ua_off_apply`, `ua_service` |
 | `firmware/src/usb_audio.c` | Melodee's endpoint service: `ua_cfg_build`, SET_INTERFACE, the isochronous endpoint in TIMER5 |
-| `firmware/src/usb_audio_stream.c` | the capture ring, the servo, the packet format, `ua_audio` (no hardware: the host test builds it) |
+| `firmware/src/usb_audio_stream.c` | the capture ring, the packet pattern and its nudge, `UA_EP_MAXP`, the packet format, `ua_audio` (no hardware: the host test builds it) |
 | `firmware/src/usb_audio_desc.h` | the recording function's descriptors |
 | `firmware/src/fx.c` | `ua_stage` and the part captures (`mix_part`), `fx_usb_fixed` / `usb_fixed_dac` (USB Level) |
 | `firmware/src/choralroot.c` | the master tap (the `mix_block` shim, before the click) |

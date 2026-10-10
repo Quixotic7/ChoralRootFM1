@@ -17,5 +17,6 @@
     9, 4, 3, 1, 1, 1, 2, 0, 0,
     7, 0x24, 1, 4, 1, 1, 0,                         /* PCM */
     11, 0x24, 2, 1, 6, 2, 16, 1, 0x44, 0xAC, 0,
-    9, 5, 0x82, 0x05, 28, 2, 1, 0, 0,               /* EP2 IN isochronous async, 45 x 12 bytes = 540 */
+    9, 5, 0x82, 0x05, UA_EP_MAXP & 0xFF, UA_EP_MAXP >> 8, 1, 0, 0,   /* EP2 IN isochronous async: packets of up to
+                                                     * 45 x 12 = 540 bytes, 640 reserved (UA_EP_MAXP: bit stuffing) */
     7, 0x25, 1, 1, 0, 0, 0,                         /* sampling-frequency control */

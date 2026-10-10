@@ -12,6 +12,7 @@ the FM-1 restarts and the installed identity is checked.
   fm1_install.py PACKAGE.fwsc [--port NAME] [--yes] [--force]
   fm1_install.py FM-1.fwsc            (the official V15 file: back to the stock firmware)
   fm1_install.py --info [--port NAME]
+  fm1_install.py --debug              (ChoralRoot: the device's diagnostic counters, read-only; docs/USB-AUDIO.md)
   fm1_install.py --backup FILE        (save what is stored on the FM-1: settings, user sounds, loops, samples ...)
   fm1_install.py --restore FILE       (write a backup back; ChoralRoot restarts afterwards)
   fm1_install.py PACKAGE.fwsc --backup FILE [--restore FILE]   (back up, install, restore onto the new firmware)
@@ -445,6 +446,35 @@ class Updater:
 
 BK_HDR = bytes([0xF0, 0x7D, 0x46, 0x4C])
 BK_INFO, BK_LIST, BK_GET, BK_PUT, BK_RESTART = 1, 65, 66, 67, 72
+BK_DEBUG = 73                                     # read-only counters (cr_backup.c crb_debug), --debug
+DEBUG_NAMES = ["ms", "halves", "max_us", "late", "nested", "timer_irqs", "ui_frames", "last_us",
+               "cpu_avg_us", "cpu_max_us", "cpu_max_all_us", "cpu_halves", "c1_state", "c1_jobs",
+               "st_tick_us", "st_part0_us", "st_part1_us", "st_fx_us", "st_master_us", "st_wait_us",
+               "ua_cap_alt", "ua_stage_on", "ua_cap_ready", "ua_tx_packets", "ua_underruns", "ua_overruns", "ua_fill",
+               "ua_fill_q8", "ua_missed_frames", "ua_poll_max_us", "ua_service_max_us", "ua_svc_t5", "ua_svc_isr",
+               "ua_isr_calls", "ua_isr_gated", "ua_fill_free", "ua_fill_busy", "ua_csr_or", "ua_csr_last", "ua_sofs",
+               "ua_frame_last", "ua_armed_frame_dup", "usb_resets", "usb_suspended", "usb_timeouts", "usb_suspends",
+               "usb_sof_seen", "ua_arm_gap_max_us", "ua_arm_gap_lt1.2ms", "ua_arm_gap_lt2.5ms", "ua_arm_gap_more",
+               "ua_open_ms", "ua_opens", "ua_arm_calls", "ua_pk528", "ua_pk540", "ua_pk_other", "ua_pk_other_last", "ua_take_0_50ms", "ua_take_50_100ms", "ua_take_100_150ms", "ua_take_150_200ms",
+               "ua_take_200_250ms", "ua_take_250_300ms", "ua_first_take_ms", "ua_first_take_max_ms", "ua_open_close_ms",
+               "ua_holds", "ua_cap_hold", "ua_ep_maxp", "ua_nudges_up", "ua_nudges_down",
+               "ua_frames_this_open", "ua_frames_last_open", "ua_isr_sie_busy", "ua_t5_sie_busy", "usb_setups", "usb_stalls", "ua_log_n"]
+SETUP_NAMES = {(0x00, 0x05): "SET_ADDRESS", (0x80, 0x06): "GET_DESCRIPTOR", (0x00, 0x09): "SET_CONFIGURATION",
+               (0x80, 0x08): "GET_CONFIGURATION", (0x01, 0x0B): "SET_INTERFACE", (0x81, 0x0A): "GET_INTERFACE",
+               (0x02, 0x01): "CLEAR_FEATURE(ep)", (0x80, 0x00): "GET_STATUS(dev)", (0x81, 0x00): "GET_STATUS(if)",
+               (0x82, 0x00): "GET_STATUS(ep)", (0x22, 0x01): "SET_CUR(ep rate)", (0xA2, 0x81): "GET_CUR(ep)",
+               (0xA2, 0x82): "GET_MIN(ep)", (0xA2, 0x83): "GET_MAX(ep)", (0xA2, 0x84): "GET_RES(ep)",
+               (0x21, 0x01): "SET_CUR(if)", (0xA1, 0x81): "GET_CUR(if)", (0xA1, 0x82): "GET_MIN(if)",
+               (0xA1, 0x83): "GET_MAX(if)", (0xA1, 0x84): "GET_RES(if)"}
+
+
+def debug_event(ms, what):
+    """one entry of the DEBUG event log (cr_backup.c crb_debug, usb_audio.c ua_log)"""
+    if what >> 24 == 0xFF and not ms >> 31:
+        return f"{ms:9d} ms  overrun #{what & 0xFFFF}"
+    bm, req, wv, wi = what & 0xFF, (what >> 8) & 0xFF, (what >> 16) & 0xFF, what >> 24
+    name = SETUP_NAMES.get((bm, req), f"req {bm:02X} {req:02X}")
+    return f"{ms & 0x7FFFFFFF:9d} ms  {'STALLED ' if ms >> 31 else ''}{name} wValue {wv} wIndex {wi}"
 BK_CHUNK = 256
 FELUCCA_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34]
 CR_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13] + list(range(14, 22)) + [22] + list(range(40, 50))   # fm1backup.js CR_BACKUP_IDS
@@ -1616,6 +1646,32 @@ def run(a, backend, out, ask):
     up = Updater(backend, a.port)
     if sound_op(a):
         return run_sounds(up, a, out, ask)
+    if getattr(a, "debug", False):
+        dev = up.find()
+        if not dev or dev.id.loader:
+            raise not_found(up)
+        try:
+            r = BackupLink(dev.link).request(BK_DEBUG, [], 1.5)
+        finally:
+            dev.link.close()
+        if not r or r[0] != 1 or len(r) != 2 + 5 * r[1]:
+            raise BackupError("unexpected debug reply")
+        vals = [bk_r32(r, 2 + 5 * k) for k in range(r[1])]
+        for k, v in enumerate(vals[:len(DEBUG_NAMES)]):
+            name = DEBUG_NAMES[k]
+            print(f"{name} {v}" + (f" (0x{v:02X})" if name.startswith("ua_csr") else ""), file=out)
+        d = dict(zip(DEBUG_NAMES, vals))
+        if d.get("ua_open_close_ms"):
+            print(f"last whole open: {d['ua_frames_last_open']} frames in {d['ua_open_close_ms']} ms = "
+                  f"{d['ua_frames_last_open'] / d['ua_open_close_ms']:.4f} frames/ms", file=out)
+        log = vals[len(DEBUG_NAMES):]
+        if log:
+            n = vals[DEBUG_NAMES.index("ua_log_n")]
+            print("event log (oldest first):", file=out)
+            for j in range(0, len(log) - 1, 2):
+                if j // 2 >= 16 - min(n, 16):
+                    print("  " + debug_event(log[j], log[j + 1]), file=out)
+        return 0
     if a.info:
         dev = up.find()
         if not dev:
@@ -1698,6 +1754,7 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("package", nargs="?", help="Felucca package (.fwsc)")
     ap.add_argument("--info", action="store_true", help="print the identity of the connected FM-1")
+    ap.add_argument("--debug", action="store_true", help="print ChoralRoot's diagnostic counters (read-only)")
     ap.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
     ap.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     ap.add_argument("--force", action="store_true", help="install a package without the Felucca loader marker, or over a "
@@ -1748,7 +1805,9 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
         ap.error(f"--rename-sound: {check_sound_name(a.rename_sound[1])}")
     if a.info and (a.package or a.backup or a.restore):
         ap.error("--info goes alone")
-    if not (a.info or a.package or a.backup or a.restore or ops):
+    if a.debug and (a.info or a.package or a.backup or a.restore or ops):
+        ap.error("--debug goes alone")
+    if not (a.debug or a.info or a.package or a.backup or a.restore or ops):
         ap.error("give a PACKAGE.fwsc, --backup FILE, --restore FILE, --info or --sounds")
     try:
         if backend is None:
