@@ -429,6 +429,32 @@ static void t_view_lock(void)
        "version 8 -> 9: the view kept, unlocked");
 }
 
+/* version 11: Options > Dual Core in bit 6 of view (set = Off), default On; older records On */
+static void t_dualcore_v11(void)
+{
+    cr_settings_t s, r;
+    uint32_t h, i;
+    cr_settings_defaults(&s);
+    ok(CRS_DUALCORE(&s) == 1 && s.view == 0, "v11 defaults: Dual Core On (the view byte 0)");
+    s.view = (uint8_t)(CRS_VIEW_BYTE(3, 1) | CRS_DC_OFF);
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && !CRS_DUALCORE(&r) && CRS_VIEW(&r) == 3 && CRS_VIEW_LOCK(&r),
+       "v11: Dual Core Off kept, with the view and its lock");
+    s.view = CRS_VIEW_BYTE(2, 0);
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_DUALCORE(&r) && CRS_VIEW(&r) == 2, "v11: Dual Core On kept");
+    s.view = (uint8_t)(CRS_DC_OFF | 0x08u);        /* an unknown bit: the default view byte, so On */
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_DUALCORE(&r) && r.view == 0, "v11: an unknown view bit: defaults (On)");
+    cr_settings_defaults(&s);                      /* a version-10 record: bit 6 0 */
+    s.view = CRS_VIEW_BYTE(4, 1);
+    s.version = 10;
+    for (h = 2166136261u, i = 12; i < CRS_SIZE; i++) { h ^= ((uint8_t *)&s)[i]; h *= 16777619u; }
+    s.check = h;
+    ok(cr_settings_import(&r, &s, sizeof s) == 2 && CRS_DUALCORE(&r) && CRS_VIEW(&r) == 4 && CRS_VIEW_LOCK(&r) &&
+       r.version == CRS_VERSION, "version 10 -> 11: Dual Core On, the view and lock kept");
+}
+
 int main(void)
 {
     t_defaults();
@@ -438,7 +464,7 @@ int main(void)
     t_presets();
     t_flash();
     t_loop_rec();
-    t_view_lock(); t_hold_v10();
+    t_view_lock(); t_hold_v10(); t_dualcore_v11();
     printf("cr_settings: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }

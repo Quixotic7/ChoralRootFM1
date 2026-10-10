@@ -123,6 +123,17 @@ would be the next step if the CPU is ever short.
 
 On the device with core 1 the half is about the block less part1, plus the wait.
 
+## Options > Dual Core (0.15)
+
+Options > **Dual Core: On / Off** (after USB Level; settings v11, bit 6 of `view`, docs/SETTINGS.md), default On. Why:
+other FM-1 firmwares' dual-core support was reported to crash for some people after playing notes; this keeps a
+per-device way out if ChoralRoot's ever does. `cr_settings_boot` (persist_boot) reads it into `cr_c1_off` before
+`cr_c1_boot`; Off: core 1 is never started, `cr_dbg.c1` stays `C1_OFF` (GEEK OUT `c1 off`, console `c1_state 0`), one
+core with the shared 16-unit budget (an 8-note chord + bass gives up a voice). A change in Options takes effect at the
+**next power-on** (the value reads "Off · restart" / "On · restart", the line under it "takes effect after a restart"):
+core 1 is never started or stopped live. Test: `tools/emu/test_cr.sh` (`cr_dualcore_opt.txt`, a relaunch with
+`cr_dualcore.txt`: `c1 off`, one voice given up; `cr_dualcore_on.txt`, a relaunch: `c1 ok`, none given up).
+
 ## The fail-safes
 
 - Core 1 does not answer in 20 ms at power-on: held, `c1 failed`, one core for the session, the shared budget.
@@ -144,7 +155,8 @@ On the device with core 1 the half is about the block less part1, plus the wait.
 4. A flash save (SAVE a sound, the settings), a loop slot write: no glitch beyond the known erase silence, no crash.
 5. Reboot paths: Options > Flash Data reboot (SAFE MODE), OCT- + OCT+ 5 s (UBOOT), the installer's update (M-UPGRADE,
    the loader): each must come back cleanly (core 1 held before each).
-6. SAFE MODE (two crash boots): `c1 off`, everything else as before.
+6. SAFE MODE (two crash boots): `c1 off`, everything else as before. Options > Dual Core Off, power cycle: `c1 off`,
+   `c1_state 0`; back On, power cycle: `c1 ok`.
 7. The Transporter dump still works (the boot info / mailbox at the top of RAM are untouched apart from the entry
    word 0x01C7FFF8).
 8. Leave it playing (c) for 10 minutes: `c1` stays `ok`, `audio_late` 0.

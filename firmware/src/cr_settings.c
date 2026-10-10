@@ -157,7 +157,8 @@ static void crs_sanitize(cr_settings_t *s)
     }
     CRS_FIX(clock_mode, 0, CRS_CLOCK_IN);
     CRS_FIX(raw_sound, 0, 1);
-    if ((s->view & 0x78u) || CRS_VIEW(s) > 4u)    /* (v9: bit 7 the lock; an unknown bit or view: the default) */
+    if ((s->view & 0x38u) || CRS_VIEW(s) > 4u)    /* (v9: bit 7 the lock, v11: bit 6 Dual Core Off; an unknown bit
+                                                    * or view: the default) */
         s->view = d.view;
     CRS_FIX(motion, 0, 2);
     CRS_FIX(leds, 0, 1);
@@ -271,6 +272,7 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
             int m;
             for (m = 0; m < CRS_NPM; m++) s->par[m][CR_P_HOLD] = 0;
         }
+        /* version 11: Dual Core (view bit 6, set = Off): 0 in every older record (v9 / v10 cleared unknown bits): On */
     }
     crs_sanitize(s);
     cr_settings_seal(s);
@@ -390,6 +392,7 @@ static void cr_settings_boot(void)                 /* persist_boot (flash_ok kno
     }
     crs_last_rc = cr_settings_import(&crs_rec.cr, &crs_rec.cr, sizeof crs_rec.cr);
     crs_usb_apply(&crs_rec.cr);                    /* (before usb_start: the configuration the host first reads) */
+    cr_c1_off = (uint8_t)!CRS_DUALCORE(&crs_rec.cr);   /* Options > Dual Core Off: core 1 not started (cr_c1_boot) */
 }
 
 /* the record's pool_pos slot of the engine of ENGINE_ORDER rank r (cr_settings.h): CRS_NENG = 11 slots, fixed per engine
@@ -473,7 +476,7 @@ static void crs_capture(cr_settings_t *s)
     s->usb_in = cs.usb_in;
     s->usb_level = cs.usb_fixed;
     s->split_pc = cs.split;
-    s->view = CRS_VIEW_BYTE(cs.view, cs.view_lock);
+    s->view = (uint8_t)(CRS_VIEW_BYTE(cs.view, cs.view_lock) | (cs.dualcore ? 0u : CRS_DC_OFF));
     s->motion = cr_motion;
     s->leds = cs.leds;
     s->fx_on = cs.fx_on;
@@ -539,6 +542,7 @@ static void cr_settings_load(void)
     cs.split = s->split_pc;
     cs.view = (uint8_t)CRS_VIEW(s);
     cs.view_lock = (uint8_t)CRS_VIEW_LOCK(s);
+    cs.dualcore = (uint8_t)CRS_DUALCORE(s);        /* (what this power-on did: cr_c1_off, cr_settings_boot) */
     cr_motion = s->motion;
     cs.leds = s->leds;
     palette_set(s->palette < NPALETTES ? s->palette : NPALETTES - 1u);

@@ -405,7 +405,7 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
   register, sound, level), EDIT (the engine picker; KNOB 1 the engine's sounds). Knobs: KNOB 1 voicing, KNOB 2 bass
   voicing, KNOB 3 the mode's main parameter, KNOB 4 FX amount, PRESETS the chord sound (Felucca's factory presets of
   the melodic engines, POLY), ALGORITHM the bass (presets named BASS / ACID; 0 = OFF), SELECT tempo (in a picker:
-  move); OPT + ALGORITHM bass level. Options: a picker of 18 settings (USB Record and USB Level since 0.14, docs/USB-AUDIO.md), KNOB 1 sets. `cr_build_screen` in the order
+  move); OPT + ALGORITHM bass level. Options: a picker of 19 settings (USB Record and USB Level since 0.14, docs/USB-AUDIO.md; Dual Core On / Off since 0.15, at the next power-on, docs/DUALCORE.md), KNOB 1 sets. `cr_build_screen` in the order
   of section 5 (PANIC / message, knob meter 900 ms, layer, page, Options, the stripes (the splash; the screensaver after 3 min without input; the screen off after 10 min), the View: CHORD,
   KEYBOARD, NOTES, GEEK OUT; perform on never swaps the chosen view: it shows in the PERF LED and the top
   line's right text only); `cr_leds` as section 6.

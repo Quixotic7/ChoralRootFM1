@@ -1150,6 +1150,23 @@ cmp -s "$OUT/cr_dmaj.wav" "$OUT/cr_dmaj_onecore.wav" && ok "cr_dmaj: the split's
 cmp -s "$OUT/cr_dualcore_hang.wav" "$OUT/cr_dualcore_nostart.wav" && ok "a hung job from the first block: one core's WAV" ||
     bad "a hung job's WAV differs from one core's"
 
+echo "Options > Dual Core (settings v11): Off at the next power-on (c1 off, the shared budget), back On (c1 ok)"
+DF="$OUT/cr_dualcore_flash.bin"
+rm -f "$DF"
+EMU_UI_LOG=1 "$EMU" --headless --flash "$DF" --script "$S/cr_dualcore_opt.txt" >"$OUT/cr_dualcore_opt.log" 2>&1
+LC_ALL=C grep -aq "item 'Dual Core' value 'Off .* restart'" "$OUT/cr_dualcore_opt.log" &&
+    ok "Options > Dual Core Off: the value says restart ($OUT/cr_dualcore_opt.ppm)" || bad "Dual Core Off: no restart note"
+EMU_UI_LOG=0 "$EMU" --headless --flash "$DF" --script "$S/cr_dualcore.txt" >"$OUT/cr_dualcore_off.log" 2>&1
+l=$(c1line "$OUT/cr_dualcore_off.log"); g=$(c1gu "$OUT/cr_dualcore_off.log")
+echo "$l" | grep -q "c1 off" && [ "${g:-0}" -ge 1 ] && ok "relaunched Off: $l, one core's shared budget ($g given up)" ||
+    bad "relaunched Off: ${l:-none}, ${g:-?} given up"
+EMU_UI_LOG=1 "$EMU" --headless --flash "$DF" --script "$S/cr_dualcore_on.txt" >"$OUT/cr_dualcore_on.log" 2>&1
+LC_ALL=C grep -aq "item 'Dual Core' value 'On .* restart'" "$OUT/cr_dualcore_on.log" && ok "back On: the value says restart" ||
+    bad "Dual Core On: no restart note"
+EMU_UI_LOG=0 "$EMU" --headless --flash "$DF" --script "$S/cr_dualcore.txt" >"$OUT/cr_dualcore_back.log" 2>&1
+l=$(c1line "$OUT/cr_dualcore_back.log"); g=$(c1gu "$OUT/cr_dualcore_back.log")
+echo "$l" | grep -q "c1 ok [1-9]" && [ "${g:-x}" = 0 ] && ok "relaunched On: $l, none given up" || bad "relaunched On: ${l:-none}, ${g:-?} given up"
+
 echo "determinism"
 mkdir -p "$OUT/cr_again"
 cp "$OUT/cr_dmaj.ppm" "$OUT/cr_again/first.ppm"

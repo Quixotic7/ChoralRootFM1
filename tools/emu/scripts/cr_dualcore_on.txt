@@ -1,0 +1,14 @@
+# ChoralRoot: Options > Dual Core back On (KNOB 1 +1; tools/emu/test_cr.sh, after cr_dualcore_opt.txt and a relaunch:
+# see there). "On . restart" until the next power-on; saved, quit
+wait 500
+btn GLO 80
+wait 300
+knob SELECT +18
+wait 300
+knob KNOB1 +1
+wait 400
+shot build/emu/test/cr_dualcore_opt_on.ppm
+btn GLO 80
+wait 2500
+dump
+quit

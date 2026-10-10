@@ -1,0 +1,15 @@
+# ChoralRoot: Options > Dual Core (settings v11, docs/DUALCORE.md). tools/emu/test_cr.sh: on one flash file, this
+# (KNOB 1 -1: Off), a relaunch with cr_dualcore.txt ("c1 off", the shared budget), cr_dualcore_on.txt (back On), a
+# relaunch ("c1 ok"). The value line says "Off . restart" until the next power-on; saved past the save delay, quit
+wait 500
+btn GLO 80
+wait 300
+knob SELECT +18
+wait 300
+knob KNOB1 -1
+wait 400
+shot build/emu/test/cr_dualcore_opt.ppm
+btn GLO 80
+wait 2500
+dump
+quit

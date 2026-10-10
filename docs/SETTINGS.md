@@ -28,7 +28,7 @@ LEDs in `zoom`.
 The block has its own header:
 
 - `magic` `CRS1`
-- `version` (`CRS_VERSION`, currently 10)
+- `version` (`CRS_VERSION`, currently 11)
 - `size` (the writer's `CRS_SIZE`)
 - `check`: FNV-1a over bytes 12..size
 
@@ -49,7 +49,7 @@ The block has its own header:
 | midi_en[3], midi_ch[3] | per stream MAIN BASS RAW | on, on, **RAW off**; channels 1 / 2 / 3 |
 | clock_mode | Off / **Out** / In | **Out** (Orchid sends clock) |
 | raw_sound | RAW also plays part 0 | off |
-| view, motion, leds | view bits 0..2: Chord / Keyboard / Notes / Geek Out / Scope (Options > View, HOME held's menu); **v9: bit 7 the view lock** (`CRS_VIEW` / `CRS_VIEW_LOCK` / `CRS_VIEW_BYTE`; locked: HOME tap never cycles the view), another bit or view: the default; Full/Calm/Off, Glow/Stock | Chord, unlocked, Full, Glow; a v1..v8 record: its view, unlocked |
+| view, motion, leds | view bits 0..2: Chord / Keyboard / Notes / Geek Out / Scope (Options > View, HOME held's menu); **v9: bit 7 the view lock** (`CRS_VIEW` / `CRS_VIEW_LOCK` / `CRS_VIEW_BYTE`; locked: HOME tap never cycles the view); **v11: bit 6 Options > Dual Core Off** (`CRS_DC_OFF`, `CRS_DUALCORE`; set = Off: core 1 not started at power-on, docs/DUALCORE.md), another bit or view: the default; Full/Calm/Off, Glow/Stock | Chord, unlocked, Dual Core **On**, Full, Glow; a v1..v8 record: its view, unlocked; a v1..v10 record: Dual Core On (bit 6 was 0) |
 | palette | gfx.c index, 0xFF = MOD | **MOD** |
 | fx_on | 0/1 | on |
 | chord_sound | v6: the chord part's sound, (engine << 8) \| its pool position (docs/PRESETS.md); 0xFFFF = the UI's default. v1..5: an old list position, read as the default | FM6 TINE EP |
@@ -63,7 +63,9 @@ The block has its own header:
 
 The reserve is used up by v6 (`rsv[20]` became `pool_pos`), and v8 took the last free byte (`rsv_usb`, packed with two
 fields), v9 put the view lock in the view's byte (bit 7; an older firmware reads a locked record's view as out of
-range, Chord): the next field needs a longer record (a new PER magic or
+range, Chord), v11 put Dual Core Off in bit 6 of the same byte (the same caveat: an older firmware reads an
+Off record's view as Chord and the bit is lost there; the bit is set only for Off, so every older record reads On): the
+next field needs a longer record (a new PER magic or
 a larger `CRS_SIZE` with the import rules for a shorter one).
 
 ### Import rules (`cr_settings_import`)

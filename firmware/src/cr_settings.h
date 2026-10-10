@@ -13,7 +13,7 @@
 #include <stdint.h>
 
 #define CRS_MAGIC 0x31535243u           /* "CRS1" */
-#define CRS_VERSION 10u
+#define CRS_VERSION 11u
 #define CRS_SIZE 192u                   /* bytes, header included; never changes (fields come out of rsv) */
 #define CRS_NPM 5                       /* perform modes (cr_engine.h CR_PM_COUNT) */
 #define CRS_NPAR 11                     /* parameters per mode (CR_P_COUNT) */
@@ -29,6 +29,11 @@
 #define CRS_VIEW(s) ((unsigned)(s)->view & 7u)
 #define CRS_VIEW_LOCK(s) (((unsigned)(s)->view >> 7) & 1u)
 #define CRS_VIEW_BYTE(v, lock) ((uint8_t)(((v) & 7u) | ((lock) ? 0x80u : 0u)))
+/* v11: bit 6 of view, Options > Dual Core Off (docs/DUALCORE.md: core 1 not started at the next power-on). Still no
+ * reserve: it rides in the view's byte as the lock does, set = Off, so every older record (the bit 0: v9 / v10 sanitize
+ * an unknown bit away) reads On, the default. An older firmware reads an Off record's view as out of range: Chord */
+#define CRS_DC_OFF 0x40u
+#define CRS_DUALCORE(s) (((unsigned)(s)->view & CRS_DC_OFF) ? 0u : 1u)
 enum { CRS_CLOCK_OFF, CRS_CLOCK_OUT, CRS_CLOCK_IN };
 enum { CRS_NONE = 0xFF };               /* out part: no part */
 enum { CRS_USB_MASTER, CRS_USB_FIXED };
@@ -60,7 +65,8 @@ typedef struct {
     uint8_t loop_sync, loop_quant, loop_count_in, loop_level;   /* 0..5 (Free, 1..16 bars), 0..6, 0/1, 0..100 */
     uint8_t midi_en[3], midi_ch[3];                  /* per stream (MAIN BASS RAW): MIDI out on, channel 0..15 */
     uint8_t clock_mode, raw_sound, view, motion;     /* CRS_CLOCK_*, RAW also plays part 0, View 0..4 (bits 0..2; v9:
-                                                      * bit 7 the view lock, CRS_VIEW / CRS_VIEW_LOCK), Motion 0..2 */
+                                                      * bit 7 the view lock, CRS_VIEW / CRS_VIEW_LOCK; v11: bit 6
+                                                      * Dual Core Off, CRS_DUALCORE), Motion 0..2 */
     uint8_t palette, leds, fx_on, pool_pos10_bass;   /* palette index (CRS_PALETTE_MOD), LEDs Glow / Stock, FX on; v6: the
                                                       * bass part's pool_pos of engine rank 10 (was rsv1) */
     uint16_t chord_sound, bass_sound;                /* v6: the chord part's sound and the bass part's (what BASS tap

@@ -27,7 +27,7 @@ enum { C1_OFF, C1_OK, C1_FAILED, C1_GAVE_UP };
  * sends, parts 2..3, the FX buses), the master (limiter, the click, the USB tap), core 0's wait for core 1 */
 enum { CRP_TICK, CRP_PART0, CRP_PART1, CRP_FX, CRP_MASTER, CRP_WAIT, CRP_N };
 typedef struct {
-    uint8_t c1;                      /* C1_*: off (CR_CPU1 0, SAFE MODE), ok, failed at start, gave up on a job */
+    uint8_t c1;                      /* C1_*: off (CR_CPU1 0, SAFE MODE, Options > Dual Core Off), ok, failed at start, gave up on a job */
     uint8_t win_reset;               /* audio.c cpu_window took the window: the ISR starts a new one */
     uint8_t prof_on;                 /* the stage counters run (device: always; emulator: EMU_STAGES=1) */
     uint32_t c1_jobs;                /* jobs core 1 rendered */
@@ -41,6 +41,9 @@ typedef struct {
     uint32_t tot_max[CRP_N], tot_n;
 } cr_dbg_t;
 static cr_dbg_t cr_dbg;
+/* Options > Dual Core Off (settings v11, read by cr_settings_boot before cr_c1_boot): core 1 is never started this
+ * power-on, cr_dbg.c1 stays C1_OFF ("c1 off"), the shared budget. A change in Options waits for the next power-on */
+static uint8_t cr_c1_off;
 static const char *const CRP_NAME[CRP_N] = {"tick", "part0", "part1", "fx", "master", "wait"};
 
 #if CR_CPU1
@@ -126,13 +129,19 @@ static volatile uint8_t cr_c1_split;
 static void cr_c1_boot(void)
 {
     int rc;
+    if (cr_c1_off) {                                    /* Options > Dual Core Off: one core this session */
+        cr_dbg.c1 = C1_OFF;
+        return;
+    }
 #ifdef FM1_HAVE_CPU1
+    {
     uint32_t t0 = fm1_ticks();
     fm1_guard_unlock_top();                             /* (fm1_main locks it after the IRQs are attached) */
     fm1_guard_pc_open();
     rc = fm1_cpu1_start();
     fm1_guard_enable(FM1_GUARD_PC);
     cr_dbg.c1_start_us = (fm1_ticks() - t0) / CR_PROF_PER_US;
+    }
 #else
     rc = cr_c1_test_nostart ? -1 : 0;
 #endif
