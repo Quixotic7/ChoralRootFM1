@@ -29,7 +29,7 @@
 static const int16_t CRS_PAR_DEF[CRS_NPM][CRS_NPAR] = {     /* = cr_engine.c CR_PAR_DEFAULT (the test checks) */
     {40, CR_DIV_1_8, 0, 1, 100, 50, 1, 1, 0, 0, 0},
     {40, CR_DIV_1_8, 0, 1, 100, 50, 1, 1, 0, 30, 0},
-    {40, CR_DIV_1_8, 0, 1, 70, 50, 1, 1, 0, 0, 1},
+    {40, CR_DIV_1_8, 0, 1, 70, 50, 1, 1, 0, 0, 0},
     {40, CR_DIV_1_8, 0, 1, 70, 50, 1, 1, 0, 0, 0},
     {8, CR_DIV_1_8, 0, 3, 100, 50, 1, 1, 0, 0, 0}};
 static const int16_t CRS_PAR_MIN[CRS_NPAR] = {1, 0, 0, 1, 1, 50, 0, 1, -12, 0, 0};
@@ -265,6 +265,11 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
             cr_settings_t d;
             cr_settings_defaults(&d);
             s->loop_rec = d.loop_rec;
+        }
+        if (in.version < 10u) {                    /* version 10: the arp's Hold defaults off (it latched with no
+                                                    * control in the ARP layer); LOCK is the latch */
+            int m;
+            for (m = 0; m < CRS_NPM; m++) s->par[m][CR_P_HOLD] = 0;
         }
     }
     crs_sanitize(s);

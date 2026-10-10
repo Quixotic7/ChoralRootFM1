@@ -229,7 +229,7 @@ L="$OUT/cr_perf_toggle.log"
 pc() { grep '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.* perform \([0-9]\) .* layer \([0-9]*\) .*/\1 \2/p'; }
 no() { grep '^  cr: voices' "$L" | sed -n "$1p" | sed -n 's/.* notes-out \([0-9]*\) .*/\1/p'; }
 grep -q '^expect led ARP on at [0-9]* ms: ok' "$L" && grep -q '^expect led ARP dim at [0-9]* ms: ok' "$L" && [ "$(pc 1)" = "0 0" ] &&
-    ok "PERF tap: perform on (LED lit, \"perform on\"), tap again: off (LED dim): $OUT/cr_perf_on_msg.ppm" || bad "PERF tap: $(pc 1)"
+    ok "PERF tap: perform on (LED lit, no message), tap again: off (LED dim): $OUT/cr_perf_on_msg.ppm" || bad "PERF tap: $(pc 1)"
 [ "$(pc 2)" = "1 2" ] && [ "$(pc 3)" = "0 2" ] && [ "$(pc 4)" = "1 2" ] &&
     ok "the perform layer: SELECT picks Arpeggiate (on), OCT+ off / on, the layer stays open: $OUT/cr_perf_layer_off.ppm" \
     || bad "the perform layer: $(pc 2) / $(pc 3) / $(pc 4)"
@@ -237,6 +237,19 @@ differ cr_perf_layer_off cr_perf_layer_on "the layer's label follows on / off"
 [ "$(no 6)" -gt "$(no 5)" ] && [ "$(no 8)" = "$(no 7)" ] && [ "$(pc 7)" = "0 0" ] &&
     ok "the arp steps while on ($(no 5) -> $(no 6) notes out), PERF tap off: the chord held plain ($(no 7) -> $(no 8))" \
     || bad "the arp on / off: notes out $(no 5) $(no 6) $(no 7) $(no 8)"
+
+echo "the arp's Hold off by default: released keys stop it; LATCH holds it; PANIC stops; perform never swaps the view"
+export EMU_UI_LOG=0
+run cr_arp_hold
+unset EMU_UI_LOG
+L="$OUT/cr_arp_hold.log"
+[ "$(no 3)" = "$(no 2)" ] && ok "arp, chord released: the notes out stop within 300 ms ($(no 2) -> $(no 3))" || bad "arp kept going after release: $(no 2) -> $(no 3)"
+[ "$(no 5)" -gt "$(no 4)" ] && ok "LATCH + chord: the arp continues ($(no 4) -> $(no 5))" || bad "LATCH: no arp $(no 4) -> $(no 5)"
+[ "$(no 7)" = "$(no 6)" ] && ok "PANIC: the latched arp stops ($(no 6) -> $(no 7))" || bad "PANIC: $(no 6) -> $(no 7)"
+fl=$(grep '^ui: frame' "$L" | tail -1)
+case "$fl" in *"keyboard view 1"*"right 'Arp'"*) ok "Keyboard view + PERF on + a chord: the keyboard view stays, the top line says Arp: $OUT/cr_perf_view_kbd.ppm";;
+    *) bad "perform swapped the view: $fl";; esac
+grep -q '^ui: frame.*device): arp ' "$L" && bad "an arp screen appeared" || ok "no arp screen in any frame"
 
 echo "HOME held: the view menu; the view lock; HOME tap at home cycles only unlocked"
 run cr_view_menu

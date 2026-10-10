@@ -193,10 +193,10 @@ a button pressed during another's hold is that hold's combo (its release does no
 | printed | role | tap | hold (locked open unless noted) |
 | --- | --- | --- | --- |
 | SEL | KEY | Key Mode on/off | the knob row with the keyboard as its band: roots = tonic (MIN held: minor); KNOB 1–4 Tonic Scale Transpose Single as cells, the turned cell hot |
-| ARP | PERF | performance on/off (LED lit while on; "perform on" / "perform off") | the knob row: SELECT = mode (picking one turns it on), the roots play the chord; **OCT+ = on/off** (the label "perform · on" / "· off"); KNOB 1–4 = the mode's params as cells; no popups, the turned cell hot 800 ms |
+| ARP | PERF | performance on/off (LED lit while on, the only indicator: no message; the view never changes, the top line says the mode) | the knob row: SELECT = mode (picking one turns it on), the roots play the chord; **OCT+ = on/off** (the label "perform · on" / "· off"); KNOB 1–4 = the mode's params as cells; no popups, the turned cell hot 800 ms |
 | FX | FX | main effect on/off | the knob row: SELECT = effect, the roots play; **OCT+ = on/off** (label "fx · on" / "· off"); KNOB 1–3 params, KNOB 4 amount (on: FX on); no popups, the turned cell hot 800 ms |
 | ENV | BASS | bass on/off | the knob row: KNOB 1–4 BEHAVIOUR REGISTER SOUND LEVEL as cells (no popups, the turned cell hot); BASS held + EDIT = the bass sound's editor, + SAVE its saving |
-| LFO | LATCH | latch on/off | — |
+| LFO | LATCH | latch on/off (Sticky Keys; also holds a performed arp / pattern after the keys are released: Hold defaults off in every mode, an arp stops when the keys are up; Hold is STRUM's KNOB 4) | — |
 | GLO | OPT | Options (picker pages) | shift (momentary): OPT + KNOB 1 split point, + SELECT metronome level, + ALGORITHM bass level; the other knobs keep their job |
 | EDIT | EDIT | the sound editor (again: leave; in the engine picker: keep its sound, close it) | the engine picker (a preview: OCT− cancels, OCT+ keeps) on the white roots, KNOB 1 its presets, KNOB 2 init, KNOB 4 roots engines / play |
 | HOME | HOME | close the layer / page / menu (the view unchanged); on the view: next View **unless the view is locked** | **600 ms: the view menu** (`L_VIEW`, a picker: Chord · Keyboard · Notes · Geek Out · Scope by SELECT / the white roots, the last line "Lock: On / Off": KNOB 1 or the sixth white root; OCT+ ok, OCT− / HOME back; Settings v9 `view_lock`, the same view as Options > View) |
@@ -393,7 +393,8 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
   the melodic engines, POLY), ALGORITHM the bass (presets named BASS / ACID; 0 = OFF), SELECT tempo (in a picker:
   move); OPT + ALGORITHM bass level. Options: a picker of 18 settings (USB Record and USB Level since 0.14, docs/USB-AUDIO.md), KNOB 1 sets. `cr_build_screen` in the order
   of section 5 (PANIC / message, knob meter 900 ms, layer, page, Options, the stripes (the splash; the screensaver after 3 min without input), the View: CHORD,
-  ARP in motion, KEYBOARD, NOTES, GEEK OUT); `cr_leds` as section 6.
+  KEYBOARD, NOTES, GEEK OUT; perform on never swaps the chosen view: it shows in the PERF LED and the top
+  line's right text only); `cr_leds` as section 6.
 - **Sounds** (`cr_bank.c`, `cr_pages.c`, `cr_name.c`; section 7, docs/PRESETS.md): PRESETS turns the pool of the
   chord part's engine, ALGORITHM the bass part's (after OFF); OPT + PRESETS the chord part's engine (a horizontal
   picker while OPT is held, applied on release). The meter: the place big, the name (a square after an overwritten

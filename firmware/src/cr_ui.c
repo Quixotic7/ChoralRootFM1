@@ -1525,14 +1525,12 @@ static void cu_layer_close(void)                  /* OCT- in a layer: back (the 
     cu.lock = L_NONE;
 }
 
-/* PERF tap / OCT+ in the perform layer: perform on / off; FX tap / OCT+ in the fx layer: the effects on / off. Outside
- * the layer a short message says which (in it, the label "perform \267 on" does) */
+/* PERF tap / OCT+ in the perform layer: perform on / off; FX tap / OCT+ in the fx layer: the effects on / off. No
+ * message: the PERF / FX LED shows the state (in the layer, its label "perform \267 on" too) */
 static void cu_perf_toggle(void)
 {
     cs.perform_on ^= 1u;
     cr_post(CRE_PERFORM, 0, 0, cs.perform_on);
-    if (cu.lock != L_PERF)
-        cu_message(cs.perform_on ? "perform on" : "perform off", CR_COL_WHITE);
     cu_trace("perf: %s\n", cs.perform_on ? "on" : "off");
 }
 static void cu_fx_toggle(void)
@@ -4144,23 +4142,7 @@ static void cu_view_screen(cr_screen_t *s)
 {
     const cr_snap_t *sn = &cr_snap;
     const cr_chord_info_t *ci = &sn->ci;
-    uint32_t pm = sn->perform_mode;
-    if (cs.view == V_CHORD && sn->perform_on && ci->sounding && pm != CR_PM_STRUM && pm != CR_PM_SLOP) {
-        char v[8], sub[12];
-        int32_t p = CU_PERF_KNOB[pm][0];
-        s->kind = CR_K_ARP;                        /* perform in motion: the sounding note hops along */
-        cu_name(&s->name, ci);
-        cu_notes(s, ci);
-        s->pos = (int8_t)(sn->perf_pos < (int)s->n_notes ? sn->perf_pos : -1);
-        s->hop_col = CR_COL_WHITE;
-        cu_param_text((uint32_t)p, cs.par[pm][p], v, sub);
-        cu_cpy(s->line, CU_PERF[cs.perf_sel].short_name, sizeof s->line);
-        s->line[0] = (char)(s->line[0] | 0x20);
-        cu_cat(s->line, " ", sizeof s->line);
-        cu_cat(s->line, p == CR_P_DIV || p == CR_P_PATTERN ? sub : v, sizeof s->line);
-        s->line_col = CR_COL_MID;
-        return;
-    }
+    /* perform never swaps the chosen view: its state shows in the PERF LED and the top line ("Arp") only */
     switch (cs.view) {
     case V_SCOPE:                                 /* the sound itself: one bold line, the chord small on top */
         s->kind = CR_K_SCOPE;
@@ -4257,6 +4239,25 @@ static void cu_view_screen(cr_screen_t *s)
                 cu_cat(s->lines[4].t, b, sizeof s->lines[4].t);
             }
             s->n_lines = 5;
+        }
+#endif
+#if FELUCCA_UAC
+        {   /* ChoralRoot In (usb_audio_stream.c): "usb 12345 u0 o0 f256": packets sent, ring under/over-runs, its fill */
+            char b[12];
+            char *t = s->lines[s->n_lines].t;
+            cu_cpy(t, "usb ", sizeof s->lines[0].t);
+            cu_int(b, (int32_t)ua.tx_packets, 0, sizeof b);
+            cu_cat(t, b, sizeof s->lines[0].t);
+            cu_cat(t, " u", sizeof s->lines[0].t);
+            cu_int(b, (int32_t)ua.cap_underruns, 0, sizeof b);
+            cu_cat(t, b, sizeof s->lines[0].t);
+            cu_cat(t, " o", sizeof s->lines[0].t);
+            cu_int(b, (int32_t)ua.cap_overruns, 0, sizeof b);
+            cu_cat(t, b, sizeof s->lines[0].t);
+            cu_cat(t, " f", sizeof s->lines[0].t);
+            cu_int(b, (int32_t)(ua.cw - ua.cr), 0, sizeof b);
+            cu_cat(t, b, sizeof s->lines[0].t);
+            s->n_lines++;
         }
 #endif
         cu_cpy(s->right, "Trans ", sizeof s->right);

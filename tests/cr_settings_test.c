@@ -267,7 +267,7 @@ static void t_presets(void)
     for (part = 0; part < 2u; part++)
         for (i = 0; i < (unsigned)CRS_NENG; i++)
             all &= crs_pool_get(&d, part, i) == CRS_POOL_DEFAULT;
-    ok(all && d.chord_sound == CRS_SOUND_DEFAULT && d.bass_sound == CRS_SOUND_DEFAULT && d.version == 9u,
+    ok(all && d.chord_sound == CRS_SOUND_DEFAULT && d.bass_sound == CRS_SOUND_DEFAULT && d.version == CRS_VERSION,
        "v7 defaults: the UI's sounds (TINE EP, DEEP SUB), every engine's first preset for both parts");
     s = d;
     s.chord_sound = (uint16_t)(13u << 8 | 4u);     /* VA 04 */
@@ -387,6 +387,20 @@ static void t_loop_rec(void)
        "version 7 -> 8: kept, the record mode Overwrite and the keys Play");
 }
 
+/* version 10: every mode's Hold off (an older record's arp Hold 1 cleared) */
+static void t_hold_v10(void)
+{
+    cr_settings_t d, s, r;
+    cr_settings_defaults(&d);
+    ok(d.par[CR_PM_ARP][CR_P_HOLD] == 0, "v10 defaults: arp Hold off");
+    s = d; s.par[CR_PM_ARP][CR_P_HOLD] = 1; s.par[CR_PM_STRUM][CR_P_HOLD] = 1;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.par[CR_PM_STRUM][CR_P_HOLD] == 1, "v10: a set Hold round-trips");
+    s.version = 9u; s.check = crs_check(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 2 && r.par[CR_PM_ARP][CR_P_HOLD] == 0 && r.par[CR_PM_STRUM][CR_P_HOLD] == 0,
+       "version 9 -> 10: Hold off in every mode");
+}
+
 /* version 9: the view lock in bit 7 of the view's byte (HOME held's menu; no reserve left) */
 static void t_view_lock(void)
 {
@@ -424,7 +438,7 @@ int main(void)
     t_presets();
     t_flash();
     t_loop_rec();
-    t_view_lock();
+    t_view_lock(); t_hold_v10();
     printf("cr_settings: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }

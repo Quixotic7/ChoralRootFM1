@@ -1,4 +1,4 @@
-# ChoralRoot: perform on / off (docs/INTEGRATION.md). PERF (ARP) tap: perform on, its LED lit ("perform on"), tap
+# ChoralRoot: perform on / off (docs/INTEGRATION.md). PERF (ARP) tap: perform on, its LED lit (no message), tap
 # again: off, the LED dim. PERF held: the layer; SELECT +3 picks Arpeggiate (on); OCT+ in the layer: off / on (the
 # label "perform - off / on"); OCT- closes it. MAJ + D4 held: the arp steps (notes out climb); PERF tap: off, the
 # chord held plain (no more notes out).

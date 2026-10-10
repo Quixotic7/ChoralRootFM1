@@ -932,7 +932,7 @@ static void s_arp(void)
     fresh("arp");
     cr_set_perform(&C, 1);
     cr_set_perform_mode(&C, CR_PM_ARP);
-    ok(C.perform_mode == CR_PM_ARP && cr_get_param(&C, CR_PM_ARP, CR_P_HOLD) == 1, "arp selected, Hold default on");
+    ok(C.perform_mode == CR_PM_ARP && cr_get_param(&C, CR_PM_ARP, CR_P_HOLD) == 0, "arp selected, Hold default off");
     cr_set_param(&C, CR_PM_ARP, CR_P_HOLD, 0);
     MD(CR_MOD_MAJ);
     t_press = T; K(48, 1); step(900);
@@ -1081,6 +1081,14 @@ static void s_arp(void)
     ok(sounding() == 0 && cr_voices(&C) == 0, "switching away from Arp releases a Hold-latched voice");
     cr_set_perform_mode(&C, CR_PM_ARP);
     cr_set_param(&C, CR_PM_ARP, CR_P_HOLD, 0);
+    /* Hold off (the default): the arp stops within one step of the last key up; LOCK (Sticky) latches it */
+    K(48, 1); step(600); R(48, 1); step(260); clear(); step(600);
+    ok(count('+', 0) == 0 && sounding() == 0 && cr_voices(&C) == 0, "arp Hold off: stops within one step after keys up");
+    cr_set_sticky(&C, 1);
+    K(48, 1); step(300); R(48, 1); clear(); step(600);
+    ok(count('+', 0) > 0 && cr_voices(&C) > 0, "arp + LOCK: keeps arping after keys up");
+    cr_set_sticky(&C, 0); step(300); clear(); step(400);
+    ok(count('+', 0) == 0 && sounding() == 0, "LOCK off: the latched arp stops");
     MU(CR_MOD_MAJ); clear();
 }
 

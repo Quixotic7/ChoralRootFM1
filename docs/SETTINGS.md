@@ -28,7 +28,7 @@ LEDs in `zoom`.
 The block has its own header:
 
 - `magic` `CRS1`
-- `version` (`CRS_VERSION`, currently 8)
+- `version` (`CRS_VERSION`, currently 10)
 - `size` (the writer's `CRS_SIZE`)
 - `check`: FNV-1a over bytes 12..size
 
@@ -87,7 +87,8 @@ read as the defaults, every `pool_pos` 1; v6 → 7 (0.14: ANALOG retired, FM TON
 place from `rsv_usb` when a 0.14 dev build wrote it there (1..127; a 0.13 record's 0: the first preset), its bass place
 from `bass_sound` when the bass played FM TONE (else the first preset), `rsv_usb` cleared; a `chord_sound` /
 `bass_sound` on ANALOG (engine 0) reads as the default (TINE EP / DEEP SUB). Both bytes of a 0.14 dev record are read,
-the slot is what is written; v7 → 8 `loop_rec` (the byte `rsv_usb` was, 0 since v7) takes its default (Overwrite, Play).
+the slot is what is written; v7 → 8 `loop_rec` (the byte `rsv_usb` was, 0 since v7) takes its default (Overwrite, Play); v9 → 10 every mode's Hold (`par[m][CR_P_HOLD]`) set to 0: the arp no longer
+latches by default (it had no control in the ARP layer); LOCK (Sticky Keys) is the latch, STRUM KNOB 4 still sets Hold.
 
 ## How to add a field
 

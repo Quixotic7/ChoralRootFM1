@@ -58,7 +58,7 @@ static const char *const CR_PATTERN_NAMES[CR_NPATTERN] = {
 static const int16_t CR_PAR_DEFAULT[CR_PM_COUNT][CR_P_COUNT] = {
     /* strum   */ { 40, CR_DIV_1_8, 0, 1, 100, 50, 1, 1, 0, 0, 0 },
     /* slop    */ { 40, CR_DIV_1_8, 0, 1, 100, 50, 1, 1, 0, 30, 0 },
-    /* arp     */ { 40, CR_DIV_1_8, 0, 1, 70, 50, 1, 1, 0, 0, 1 },     /* Hold default on (design.md 12.3) */
+    /* arp     */ { 40, CR_DIV_1_8, 0, 1, 70, 50, 1, 1, 0, 0, 0 },     /* Hold default off: LOCK latches */
     /* pattern */ { 40, CR_DIV_1_8, 0, 1, 70, 50, 1, 1, 0, 0, 0 },
     /* harp    */ { 8, CR_DIV_1_8, 0, 3, 100, 50, 1, 1, 0, 0, 0 },
 };

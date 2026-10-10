@@ -494,6 +494,48 @@ static void test_handoff(void)
     }
 }
 
+/* QuickTime: the host reads one packet every 1.000 ms and does no drift correction; the producer at rate Hz in
+ * 128-frame halves; 60 s: after the first second no silence gap over 30 ms, and no resets */
+static void test_quicktime(double rate)
+{
+    static uint8_t buf[UA_PACKET];
+    double next_half = 0, half_us = 128e6 / rate;
+    uint32_t ms, i, ch, gap = 0, maxgap = 0, frames = 0, n;
+    uint16_t seq = 0;
+    memset(&ua, 0, sizeof ua);
+    ua_reset();
+    ua.cap_alt = 1;
+    for (ms = 0; ms < 60000u; ms++) {
+        double t = ms * 1000.0;
+        while (next_half <= t) {
+            for (n = 0; n < 4; n++) {
+                for (i = 0; i < 32; i++, seq++)
+                    for (ch = 0; ch < UA_CAP_CHANNELS; ch++)
+                        stage[i * UA_CAP_CHANNELS + ch] = (int16_t)(ch ? -(int)ch : (int16_t)seq);
+                ua_audio(stage, 32);
+            }
+            next_half += half_us;
+        }
+        ua_sof();
+        n = ua_transmit(buf) / (2u * UA_CAP_CHANNELS);
+        frames += n;
+        for (i = 0; i < n; i++) {
+            if ((int16_t)(buf[12 * i + 10] | buf[12 * i + 11] << 8) == 0)
+                gap++;
+            else
+                gap = 0;
+            if (ms >= 1000u && gap > maxgap)
+                maxgap = gap;
+        }
+    }
+    {
+        char m[200];
+        snprintf(m, sizeof m, "QuickTime 60 s, producer %.1f Hz: %u frames, longest silence %u, under %u over %u, "
+                 "fill %d", rate, frames, maxgap, ua.cap_underruns, ua.cap_overruns, ua.cap_fill_q8 >> 8);
+        check(m, maxgap <= 1323u && !ua.cap_underruns && !ua.cap_overruns);
+    }
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1 && !strcmp(argv[1], "--bench")) {
@@ -504,6 +546,10 @@ int main(int argc, char **argv)
     test_routing();
     test_drift();
     test_handoff();
+    test_quicktime(44117.647);
+    test_quicktime(44100.0 * 1.001);
+    test_quicktime(44100.0 * 0.999);
+    test_quicktime(44100.0);
     printf("cr_usbaudio: %d passed, %d failed\n", passes, fails);
     return fails ? 1 : 0;
 }

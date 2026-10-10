@@ -76,7 +76,7 @@ typedef enum {                   /* per-mode performance parameters (design.md 1
     CR_P_PATTERN,                /* 1..12 */
     CR_P_ROTATE,                 /* -12..12 */
     CR_P_AMOUNT,                 /* slop amount % 0..100 */
-    CR_P_HOLD                    /* 0 / 1: latch while this mode performs (arp Hold, default on) */
+    CR_P_HOLD                    /* 0 / 1: latch while this mode performs (arp Hold, default off: LOCK latches) */
 } cr_param_t;
 #define CR_P_COUNT 11
 

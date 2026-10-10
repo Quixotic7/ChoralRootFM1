@@ -1,0 +1,55 @@
+# ChoralRoot: the arp's Hold defaults off. Arpeggiate picked (PERF held, SELECT +3), OCT- closes; MAJ + D4 played and
+# released: the notes out stop (dumps 2 and 3 equal). LATCH (LFO) on + the chord released: the arp keeps going (4 < 5).
+# PANIC (OCT- + OCT+): stops (6 = 7). Then the view: HOME tap -> Keyboard, PERF on, a chord: the keyboard view stays.
+wait 300
+btn ARP down
+wait 500
+btn ARP up
+wait 300
+knob SELECT +3
+wait 300
+btn OCT-
+wait 300
+dump                          # 1: perform 1, layer 0
+key F3 down
+wait 40
+btn D4 down
+wait 1000
+btn D4 up
+key F3 up
+wait 300
+dump                          # 2: released (+300 ms)
+wait 1000
+dump                          # 3: no more notes out
+btn LFO
+wait 200
+key F3 down
+wait 40
+btn D4 down
+wait 500
+btn D4 up
+key F3 up
+wait 300
+dump                          # 4: latched
+wait 1000
+dump                          # 5: still arping
+btn OCT- down
+btn OCT+ down
+wait 200
+btn OCT+ up
+btn OCT- up
+wait 300
+dump                          # 6: panic
+wait 1000
+dump                          # 7: silent
+btn HOME
+wait 300
+key F3 down
+wait 40
+btn D4 down
+wait 800
+shot build/emu/test/cr_perf_view_kbd.ppm
+dump                          # 8: view 1 (Keyboard), perform 1
+btn D4 up
+key F3 up
+wait 300
