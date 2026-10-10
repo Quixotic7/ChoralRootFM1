@@ -67,6 +67,7 @@ static void reset(void)
     NOW = 1000;
     cr_init(&C, &OUT);
     cr_loop_init(&L);
+    L.mode = CRL_MODE_OVERDUB;                       /* (the scenarios before the record modes: REC over a loop dubs) */
     cr_tick(&C, NOW);
     cr_loop_tick(&L, &C, NOW);
     memset(clicks, 0, sizeof clicks);
@@ -357,8 +358,213 @@ static void s_limits(void)
     ok(nlog == 0, "loop level 0: silent");
 }
 
+/* the record modes (docs/LOOPER-MODES.md) */
+static void until_pos(uint32_t p)                    /* step until the cycle position reaches p (ticks) */
+{
+    int i;
+    for (i = 0; i < 10000 && cr_loop_pos(&L) != p; i++) step(1);
+}
+static int find_ev(int root, int live)               /* the first event of root (live: not hidden), -1 */
+{
+    int i;
+    for (i = 0; i < L.d.nev; i++)
+        if (L.d.ev[i].root == root && (!live || !(L.d.ev[i].layer & CRL_HID))) return i;
+    return -1;
+}
+static void take_dga(void)                           /* Free: D (a beat), G (two beats), Ab (a beat): one bar
+                                                      * (no chord holds another's root: ons_of counts roots) */
+{
+    cr_loop_rec(&L, &C);
+    chord(62, CR_MOD_MAJ, 500);
+    chord(67, CR_MOD_MAJ, 1000);
+    chord(68, CR_MOD_MAJ, 500);
+    cr_loop_rec(&L, &C);
+}
+static void s_overwrite(void)
+{
+    char name[128];
+    reset();
+    L.mode = CRL_MODE_OVERWRITE;
+    take_dga();
+    ok(L.state == CRL_PLAYING && L.d.nev == 3 && L.d.len == 384, "overwrite: a 1-bar take of 3 events plays");
+    step(700);
+    ok(cr_loop_rec(&L, &C) == CRL_DID_ARM && L.state == CRL_STOPPED && L.d.nev == 3 && L.ow,
+       "overwrite: REC while playing stops and arms; the loop is still there");
+    step(300);
+    ok(sounding() == 0, "overwrite: armed, the loop silent");
+    ok(cr_loop_rec(&L, &C) == CRL_DID_CANCEL && L.d.nev == 3 && L.d.len == 384 && !L.ow && L.state == CRL_STOPPED,
+       "overwrite: REC again before the first chord cancels, the loop intact");
+    ok(cr_loop_rec(&L, &C) == CRL_DID_ARM && L.d.nev == 3, "overwrite: armed again (stopped, a loop)");
+    cr_mod(&C, CR_MOD_MIN, 1); cr_key(&C, 64, 100, 1);
+    step(1);
+    ok(L.cap == CRL_CAP_REC && L.d.nev == 0 && L.d.len == 0 && L.dirty, "overwrite: the first chord starts the take: the loop goes now");
+    step(500);
+    cr_key(&C, 64, 100, 0); cr_mod(&C, CR_MOD_MIN, 0);
+    step(500);
+    ok(cr_loop_rec(&L, &C) == CRL_DID_COMMIT && L.d.nev == 1 && L.d.ev[0].root == 64 && L.d.nlayers == 1 &&
+       L.state == CRL_PLAYING, "overwrite: the new take replaced it (Em alone, 1 layer, playing)");
+    /* synced: the count-in keeps the loop; its end clears it */
+    L.sync = 1;
+    L.count_in = 1;
+    ok(cr_loop_rec(&L, &C) == CRL_DID_COUNTIN && L.d.nev == 1, "overwrite, 1 bar synced: REC starts the count-in, the loop kept");
+    step(1000);
+    ok(L.cap == CRL_CAP_COUNTIN && L.d.nev == 1, "overwrite: halfway through the count-in, still kept");
+    step(1010);
+    snprintf(name, sizeof name, "overwrite: the count-in's end starts the take, the loop cleared (cap %u nev %u)",
+             (unsigned)L.cap, (unsigned)L.d.nev);
+    ok(L.cap == CRL_CAP_REC && L.d.nev == 0, name);
+    chord(62, CR_MOD_MAJ, 400);
+    step(2000);
+    ok(L.cap == CRL_CAP_NONE && L.state == CRL_PLAYING && L.d.len == 384 && L.d.nev == 1 && L.d.ev[0].root == 62,
+       "overwrite: the synced take committed by itself (D, 1 bar)");
+    /* Advance is Overwrite in the engine (the UI loads the next slot first): the slot math */
+    ok(CRL_NEXT_SLOT(2u) == 3u && CRL_NEXT_SLOT(9u) == 0u && CRL_NEXT_SLOT(0u) == 1u, "advance: slot 3 -> 4, 10 wraps to 1");
+    L.mode = CRL_MODE_ADVANCE;
+    ok(cr_loop_rec(&L, &C) == CRL_DID_COUNTIN && L.ow, "advance: over a loop (the slot jumped to), as Overwrite");
+    cr_loop_play(&L, &C);
+    ok(L.cap == CRL_CAP_NONE && L.d.nev == 1 && !L.ow, "advance: LOOP during the count-in cancels, the loop kept");
+    cr_loop_panic(&L);
+    L.mode = CRL_MODE_OVERWRITE;
+    L.sync = 0;
+    cr_loop_rec(&L, &C);
+    cr_loop_panic(&L);
+    ok(L.d.nev == 1 && L.state == CRL_STOPPED, "overwrite: a panic while armed keeps the loop");
+    step(200);
+    ok(sounding() == 0 && dup_on == 0 && stray_off == 0, "overwrite: no stuck, double or stray note");
+}
+static void s_replace(void)
+{
+    char name[160];
+    static uint8_t buf[CRL_REC_MAX];
+    static crl_data_t back;
+    uint32_t t[8], n;
+    int g, a, mark, gc;
+    reset();
+    L.mode = CRL_MODE_REPLACE;
+    take_dga();
+    g = find_ev(67, 1);
+    a = find_ev(68, 1);
+    snprintf(name, sizeof name, "replace: the take D G Ab (G at %u for %u, A at %u)", g >= 0 ? (unsigned)L.d.ev[g].t : 0u,
+             g >= 0 ? (unsigned)L.d.ev[g].dur : 0u, a >= 0 ? (unsigned)L.d.ev[a].t : 0u);
+    ok(L.d.nev == 3 && g == 1 && a == 2 && L.d.ev[g].t < 144 && L.d.ev[g].t + L.d.ev[g].dur > 160 &&
+       L.d.ev[a].t > 150 && L.d.ev[a].t < 300, name);
+    ok(cr_loop_rec(&L, &C) == CRL_DID_REP_ARM && L.cap == CRL_CAP_OD_ARMED && L.rep, "replace: REC while playing arms it");
+    until_pos(144);
+    cr_mod(&C, CR_MOD_MAJ, 1); cr_key(&C, 65, 100, 1);  /* F held from tick 144 (G sounds there) */
+    step(1);
+    ok(L.cap == CRL_CAP_OD && L.rep_n == 1 && (L.d.ev[g].layer & CRL_HID), "replace: the chord opened the layer, G (sounding) hidden");
+    gc = find_ev(67, 1);
+    ok(gc >= 3 && L.d.ev[gc].t == L.d.ev[g].t && L.d.ev[gc].t + L.d.ev[gc].dur == 144 && L.d.ev[gc].layer == 1,
+       "replace: G cut at 144 (a copy in the new layer, ending there)");
+    until_pos(310);
+    ok(L.d.ev[a].layer == (CRL_HID | 1u), "replace: A, starting inside the held span, hidden by layer 2");
+    ok(!(L.d.ev[0].layer & CRL_HID), "replace: D, before the span, untouched");
+    cr_key(&C, 65, 100, 0); cr_mod(&C, CR_MOD_MAJ, 0);
+    step(1);
+    ok(L.rep_n == 0, "replace: released, nothing more is erased");
+    ok(cr_loop_rec(&L, &C) == CRL_DID_OD_END && L.d.nlayers == 2 && !L.rep, "replace: REC ends it: 2 layers");
+    n = cr_loop_pack(&L.d, buf, sizeof buf);
+    ok(n == CRL_REC_HDR + 2u * 2u + 7u * 3u && cr_loop_unpack(buf, n, &back) && back.nev == 3,
+       "replace: the record holds the live events only (D, G cut, F)");
+    until_pos(380);
+    mark = nlog;
+    step(2000);
+    snprintf(name, sizeof name, "replace: the next cycle plays D, G (cut), F; not Ab (%d %d %d %d)", ons_of(62, mark, t, 8),
+             ons_of(67, mark, t, 8), ons_of(65, mark, t, 8), ons_of(68, mark, t, 8));
+    ok(ons_of(62, mark, t, 8) == 1 && ons_of(65, mark, t, 8) == 1 && ons_of(68, mark, t, 8) == 0 &&
+       ons_of(67, mark, t, 8) == 1, name);
+    ok(cr_loop_undo(&L, &C) == CRL_DID_UNDO && L.d.nlayers == 1 && L.d.nev == 3 && !(L.d.ev[g].layer & CRL_HID) &&
+       !(L.d.ev[a].layer & CRL_HID) && L.d.ev[g].t + L.d.ev[g].dur > 160, "undo: the layer goes, G (whole) and Ab come back");
+    until_pos(380);
+    mark = nlog;
+    step(2000);
+    ok(ons_of(68, mark, t, 8) == 1 && ons_of(65, mark, t, 8) == 0, "undo: Ab plays again, F no longer");
+    /* undo of a replace in progress restores too */
+    cr_loop_rec(&L, &C);
+    until_pos(10);
+    cr_mod(&C, CR_MOD_MAJ, 1); cr_key(&C, 65, 100, 1);
+    until_pos(200);
+    ok((L.d.ev[g].layer & CRL_HID) && (L.d.ev[0].layer & CRL_HID), "replace again: D and G hidden while C is held");
+    ok(cr_loop_undo(&L, &C) == CRL_DID_UNDO && L.d.nev == 3 && !(L.d.ev[0].layer & CRL_HID) && !(L.d.ev[g].layer & CRL_HID),
+       "undo while replacing: the layer in progress goes, D and G back");
+    cr_key(&C, 65, 100, 0); cr_mod(&C, CR_MOD_MAJ, 0);
+    cr_loop_play(&L, &C);
+    step(300);
+    ok(sounding() == 0 && dup_on == 0 && stray_off == 0, "replace: no stuck, double or stray note");
+}
+static void step_chord(int note, cr_mod_t m)      /* a chord pressed and released, then every key up */
+{
+    chord(note, m, 60);
+    step(5);
+    cr_loop_step(&L, CRL_STEP_KEYSUP);
+}
+static void s_step(void)
+{
+    char name[128];
+    uint32_t t[8], e[8], gg[8];
+    int mark;
+    reset();
+    L.mode = CRL_MODE_OVERWRITE;
+    take_dga();                                      /* a loop there before: replaced by the steps */
+    L.mode = CRL_MODE_STEP;
+    L.quant = 0;                                     /* none: 1/16 steps (24 ticks) */
+    ok(cr_loop_rec(&L, &C) == CRL_DID_STEP && L.cap == CRL_CAP_STEP && L.state == CRL_STOPPED && L.step == 0 &&
+       L.step_g == 24, "step: REC while playing stops the loop, step entry at step 1 (1/16)");
+    step(200);
+    ok(sounding() == 0, "step: the loop stopped");
+    step_chord(62, CR_MOD_MAJ);
+    ok(L.step == 1 && L.d.nev == 4 && L.d.ev[3].t == 0 && L.d.ev[3].dur == 24, "step: D written at step 1 (one step long), the cursor on 2");
+    cr_loop_step(&L, CRL_STEP_KEYSUP);
+    ok(L.step == 1, "step: keys up again with nothing written: the cursor stays");
+    step_chord(64, CR_MOD_MIN);
+    step_chord(68, CR_MOD_MAJ);
+    ok(L.step == 3 && L.d.ev[4].t == 24 && L.d.ev[5].t == 48, "step: Em at step 2, Ab at step 3");
+    cr_loop_step(&L, CRL_STEP_REST);
+    ok(L.step == 4, "step: OCT+ a rest, the cursor on 5");
+    cr_loop_step(&L, CRL_STEP_BACK);
+    ok(L.step == 3 && L.d.nev == 6, "step: OCT- back to 4 (nothing erased)");
+    ok(cr_loop_rec(&L, &C) == CRL_DID_STEP_DONE && L.d.nev == 3 && L.d.nlayers == 1 && L.state == CRL_STOPPED,
+       "step: REC commits the steps as the loop (the old one gone), stopped");
+    snprintf(name, sizeof name, "step: Free, 4 steps used: one bar (len %u)", (unsigned)L.d.len);
+    ok(L.d.len == 384, name);
+    mark = nlog;
+    cr_loop_play(&L, &C);
+    step(1990);
+    ok(ons_of(62, mark, t, 8) == 1 && ons_of(64, mark, e, 8) == 1 && ons_of(68, mark, gg, 8) == 1 &&
+       near(e[0] - t[0], 125, 6) && near(gg[0] - t[0], 250, 6), "step: playback D, Em 125 ms later, Ab 250 ms (1/16s at 120)");
+    cr_loop_play(&L, &C);
+    step(300);
+    /* nothing entered: the loop as it was; LOOP leaves and plays */
+    ok(cr_loop_rec(&L, &C) == CRL_DID_STEP && cr_loop_rec(&L, &C) == CRL_DID_EMPTY_TAKE && L.d.nev == 3 && L.d.len == 384,
+       "step: REC REC with nothing entered keeps the loop");
+    /* synced 1 bar: the cursor wraps; two gestures at one step; LOOP leaves and plays */
+    L.sync = 1;
+    L.quant = 2;                                     /* 1/8: 8 steps a bar */
+    cr_loop_rec(&L, &C);
+    ok(L.step_g == 48 && L.step_len == 384, "step, 1 bar at 1/8: 8 steps");
+    cr_mod(&C, CR_MOD_MIN, 1);
+    cr_key(&C, 62, 100, 1); step(30); cr_key(&C, 62, 100, 0); step(10);
+    cr_key(&C, 69, 100, 1); step(30); cr_key(&C, 69, 100, 0); step(10);
+    cr_mod(&C, CR_MOD_MIN, 0);
+    cr_loop_step(&L, CRL_STEP_KEYSUP);
+    ok(L.d.nev == 5 && L.d.ev[3].t == 0 && L.d.ev[4].t == 0 && L.step == 1, "step: two presses before every key is up: both at step 1");
+    cr_loop_step(&L, CRL_STEP_BACK);
+    cr_loop_step(&L, CRL_STEP_BACK);
+    ok(L.step == 7, "step, synced: back past step 1 wraps to the bar's last step");
+    cr_loop_step(&L, CRL_STEP_REST);
+    ok(L.step == 0, "step, synced: the cursor wraps at the length");
+    ok(cr_loop_play(&L, &C) == CRL_DID_PLAY && L.state == CRL_PLAYING && L.d.nev == 2 && L.d.len == 384,
+       "step: LOOP leaves step entry and plays the steps (2 events, the bar)");
+    cr_loop_play(&L, &C);
+    step(300);
+    ok(sounding() == 0 && dup_on == 0 && stray_off == 0, "step: no stuck, double or stray note");
+}
+
 int main(void)
 {
+    s_overwrite();
+    s_replace();
+    s_step();
     s_free();
     s_sync();
     s_slots();

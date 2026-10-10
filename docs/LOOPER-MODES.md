@@ -1,6 +1,11 @@
 # The looper's record modes and the PLAY menu (design, 2026-10-09)
 
-**Status: proposal, mock-ups to be approved** (`design/make_looper_mockups.py`, `design/choralroot-fm1-looper-screens.png`).
+**Status: implemented 2026-10-09** (the mock-ups approved: `design/make_looper_mockups.py`,
+`design/choralroot-fm1-looper-screens.png`; the firmware: docs/LOOPER.md "Record modes" and "The PLAY menu"). Decisions
+taken on the way: Advance overwrites whatever the next slot holds (when the take starts), and from an **empty** slot it
+records where it is (no jump: nothing to keep); Step entry is a fresh take (the loop there is replaced at the commit,
+kept when nothing was entered); OCT+ / OCT- step in or out of the menu; PRESETS switches the slot when the knob rests
+(250 ms) while a loop plays.
 The slot bug (a slot's pattern lost on a switch) is fixed separately: a slot *is* its pattern, leaving a slot saves it
 (docs/LOOPER.md "Slots and the record").
 
@@ -63,9 +68,9 @@ A strip 200 px wide, 40 px high, red on the panel's dark:
 
 ## Settings
 
-Record v8: `loop_mode` (0..4) and `loop_keys` (0 Play / 1 Loops) from the reserve (`rsv_usb` is free since v7:
-one of them goes there, the other into the next reserve byte; cr_settings.c's import gives older records the
-defaults).
+Record v8: `loop_mode` (0..4) and `loop_keys` (0 Play / 1 Loops) share the one free byte, `loop_rec` (was `rsv_usb`,
+0 since v7; the reserve is otherwise used up): bits 0..3 the mode, bit 4 the keys (`CRS_LOOP_MODE` / `CRS_LOOP_KEYS`);
+0 = Overwrite + Play, the defaults; older records read the defaults (docs/SETTINGS.md).
 
 ## Not changed
 

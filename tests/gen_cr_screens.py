@@ -32,7 +32,7 @@ NAMES = {"white": "WHITE", "cream": "WHITE", "red": "RED", "coral": "RED", "mage
          "bg": "BG", "surf": "SURF"}
 KIND = {"stripes": "STRIPES", "chord": "CHORD", "picker": "PICKER", "meter": "METER", "keyboard": "KEYBOARD",
         "arp": "ARP", "geek": "GEEK", "text": "TEXT", "big": "BIG", "scope": "SCOPE", "edit8": "EDIT8",
-        "stack": "STACK", "knobrow": "KNOBROW"}
+        "stack": "STACK", "knobrow": "KNOBROW", "loopmenu": "LOOPMENU"}
 ICON = {"none": "NONE", "play": "PLAY", "rec": "REC", "loop": "LOOP", "stop": "NONE"}
 DIAL = {"armed": "ARMED", "rec": "REC", "od": "OD"}         # the corner dial's REC looks (FORMAT.md loop dial `rec`)
 CELL_GLYPH = {"knob": "KNOB", "bar": "BAR", "wave": "WAVE", "saw": "SAW", "square": "SQUARE", "steps": "STEPS",
@@ -325,6 +325,12 @@ def screen(sc, prev_name):
         elif n > 1:
             f.append(f".slide = {1 if sel > 0 else -1}")
             anim.append("CR_A_SLIDE")
+    elif kind == "loopmenu":
+        f += loopmenu_fields(p)
+        m = p.get("mode") or {}
+        if len(m.get("items") or []) > 1:
+            f.append(f".slide = {1 if (m.get('sel') or 0) > 0 else -1}")
+            anim.append("CR_A_SLIDE")
     elif kind in ("edit8", "stack"):
         f += editor_fields(p, kind)
         if p.get("batt") is not None:                   # the editor's title line: the battery (the MIX screens)
@@ -395,6 +401,94 @@ def cell_init(c):
         value, pct, pct2 = parts[0], q[0], q[1]
     return (f"{{{cstr(c.get('label'), 14)}, {cstr(value, 10)}, {' | '.join(flags)}, CR_G_{glyph}, "
             f"{pct}, {pct2}, {wave}}}")
+
+
+def lane_bits(positions, first, bars):
+    """bar positions (from the loop's start) -> the 64-column bits over `bars` bars from bar `first`"""
+    b = 0
+    for x in positions or []:
+        c = int(round((float(x) - first) * 64 / bars))
+        if 0 <= c < 64:
+            b |= 1 << c
+    return b
+
+
+def loopmenu_fields(p):
+    """the looper's PLAY menu (FORMAT.md "The looper's PLAY menu") -> CR_K_LOOPMENU's fields (cr_screen.h lm_*)"""
+    f = []
+    sl = p.get("slots") or {}
+    used = sum(1 << (int(k) - 1) for k in sl.get("used") or [] if 1 <= int(k) <= 10)
+    f.append(f".lm_used = 0x{used:03x}")
+    f.append(f".lm_slot = {max(0, int(sl.get('sel') or 1) - 1)}")
+    if sl.get("jump"):
+        f.append(f".lm_jump = {int(sl['jump'])}")
+    m = p.get("mode") or {}
+    items = [it if isinstance(it, str) else (it or {}).get("t", "") for it in (m.get("items") or [])]
+    n, sel = len(items), max(0, min(len(items) - 1, m.get("sel") or 0))
+    first = max(0, min(sel - 3, n - 8))
+    f.append(".item = {" + ", ".join(cstr(t, 24) for t in items[first:first + 8]) + "}")
+    f.append(f".n_items = {n}")
+    f.append(f".item0 = {first}")
+    f.append(f".sel = {sel}")
+    f.append(".orient = 1")
+    f.append(f".col = {col(m.get('col'), 'WHITE')}")
+    mid = p.get("mid")
+    if isinstance(mid, str):
+        mid = {"t": mid}
+    mid = mid or {}
+    if mid.get("kind") == "timeline":
+        bars, pos, free = int(mid.get("bars") or 1), float(mid.get("pos") or 0), bool(mid.get("free"))
+        b0 = max(0, int(pos) - 3) if free else 0            # free: four bars across, then the earlier ones scroll off
+        shown = int(pos) - b0 + 1 if free else bars
+        lanes = [list(l) for l in (mid.get("lanes") or [])]
+        new = mid.get("new")
+        lanes = lanes[-(3 if new is not None else 4):]
+        if new is not None:
+            lanes.append(list(new))
+        f.append(".lm_mid = CR_LM_TIMELINE")
+        f.append(f".lm_bars = {shown}")
+        f.append(f".lm_beats = {int(mid.get('beats') or 4)}")
+        if free:
+            f.append(".lm_free = 1")
+        f.append(f".lm_pos = {q8(pos - b0)}")
+        f.append(".lm_lane = {" + ", ".join(f"0x{lane_bits(l, b0, shown):016x}ull" for l in lanes) + "}")
+        f.append(f".lm_nlane = {len(lanes)}")
+        if new is not None:
+            f.append(f".lm_newlane = {len(lanes)}")
+        if mid.get("erase"):
+            e0, e1 = mid["erase"]
+            f.append(f".lm_erase0 = {q8(float(e0) - b0)}")
+            f.append(f".lm_erase1 = {q8(float(e1) - b0)}")
+        if mid.get("elapsed"):
+            f.append(f".sub = {cstr(mid['elapsed'], 32)}")
+    elif mid.get("kind") == "steps":
+        filled = sum(1 << (int(k) - 1) for k in mid.get("filled") or [] if 1 <= int(k) <= 64)
+        f.append(".lm_mid = CR_LM_STEPS")
+        f.append(f".lm_bars = {int(mid.get('bars') or 1)}")
+        f.append(f".lm_pos = {max(0, int(mid.get('cursor') or 1) - 1)}")
+        f.append(f".lm_lane = {{0x{filled:016x}ull}}")
+        if mid.get("name"):
+            f.append(f".sub = {cstr(str(mid['name']).replace(chr(0x2013), '-'), 32)}")
+        if mid.get("right"):
+            f.append(f".value = {cstr(mid['right'], 24)}")
+    else:
+        f.append(".lm_mid = CR_LM_TEXT")
+        if mid.get("t"):
+            f.append(f".title = {cstr(mid['t'], 24)}")
+        f.append(f".title_col = {col(mid.get('col'), 'RED')}")
+        if mid.get("sub"):
+            f.append(f".sub = {cstr(mid['sub'], 32)}")
+    cells = ((p.get("cells") or []) + [None] * 4)[:4]
+    f.append(".cell = {{" + ", ".join(cell_init(c) for c in cells) + "}}")
+    f.append(".n_rows = 1")
+    if p.get("hot") not in (None, ""):
+        f.append(".hot_r = 1")
+        f.append(f".hot_c = {int(p['hot'])}")
+    if p.get("hotCol"):
+        f.append(f".hot_col = {col(p['hotCol'])}")
+    if p.get("foot"):
+        f.append(f".foot = {cstr(p['foot'], 48)}")
+    return f
 
 
 def row_columns(row):
@@ -744,6 +838,20 @@ def quad_states():
     return out
 
 
+# .. and the looper's PLAY menu (design/choralroot-fm1-looper-mockups.json, docs/LOOPER-MODES.md, the approved sheet
+# design/choralroot-fm1-looper-screens.png): all 12 states, after QUAD (run_cr_draw.sh's compare cuts them from that sheet)
+LOOPER_SRC = ROOT / "design" / "choralroot-fm1-looper-mockups.json"
+
+
+def looper_states():
+    out = []
+    for st in json.loads(LOOPER_SRC.read_text())["states"]:
+        st = json.loads(json.dumps(st))
+        st["name"] = "LOOPER " + st.get("name", "")
+        out.append(st)
+    return out
+
+
 def slug(name):
     name = name.split("·", 1)[-1]
     words = re.findall(r"[a-z0-9]+", name.lower())
@@ -758,7 +866,8 @@ def slug(name):
 def main():
     d = json.loads(SRC.read_text())
     d["states"] = (main_states(d["states"]) + DEVICE_STATES + editor_states() + fx_states() + layers_states()
-                   + presets_states() + loop_states() + quad_states())   # (QUAD last: run_cr_draw.sh's compare)
+                   + presets_states() + loop_states() + quad_states() + looper_states())   # (run_cr_draw.sh's compare:
+    # QUAD, then the looper last)
     if d.get("palette") not in (None, "MOD"):
         print(f"gen_cr_screens: note: the design's palette is {d.get('palette')}; the device draws MOD")
     out = ["/* generated by tests/gen_cr_screens.py from design/choralroot-fm1-mockups.json: the mock-up states as",

@@ -16,7 +16,7 @@ cr_draw(&s, ms_since_the_change);     /* every frame; cheap when nothing changed
 ## The view-model (`cr_screen.h`)
 
 `cr_screen_t` mirrors the designer's `screen` object, flattened: `kind` (`CR_K_STRIPES CHORD PICKER METER KEYBOARD
-ARP GEEK TEXT BIG SCOPE EDIT8 STACK KNOBROW`), the top line (`header`, `icon` none/play/rec/loop, `mid`/`mid_col`, `right`/`right_col`,
+ARP GEEK TEXT BIG SCOPE EDIT8 STACK KNOBROW LOOPMENU`), the top line (`header`, `icon` none/play/rec/loop, `mid`/`mid_col`, `right`/`right_col`,
 `batt`), `footer` (one line; empty = none, the panel then runs to row 240), the ring (`ring_on`, `ring` Q8,
 `ring_rec`, `ring_col`), the corner dial (`dial_on`, `dial` Q8, `dial_pulse`, `dial_mode` CR_DIAL_*, `dial_dot`), `message`/`message_col`, and the panel fields of every kind (fixed char arrays; the chord
 name as `cr_name_t {root, quality, sup, col_root, col_quality, col_sup}`; up to 8 notes `{t, col, mark}`; a picker
@@ -67,6 +67,10 @@ message.
   clears the whole ring: all six). The other strips are neither drawn nor blitted.
 - **Only the corner dial moved** (`dial`, `dial_pulse`, `dial_mode`, `dial_dot` hashed apart like `ring`): strip 0
   alone is drawn (the REC dot's blink included).
+- **Only the loop menu's moving parts changed** (`lm_lane`, `lm_pos`, `lm_erase0/1` hashed apart; other kinds hash
+  them with the rest): the timeline's strips (rows sy−6 .. sy+43: a playhead, a new mark, the Replace span), the
+  step grid's (the marks), or the step cursor's old and new rows' strips alone (the cursor moving or blinking:
+  usually one strip).
 - `cr_draw_invalidate()`: the next draw blits all six (after Felucca's UI drew, a palette change, power-up).
 
 **The ring** (`cr_ring_draw`): its pixels never move, only its colour and fraction change, so the coverage of the
@@ -191,6 +195,30 @@ exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when 
   The cache hashes the editor's parts apart (each row's cells, `wv`, the hot cell, the title line) and composes only
   their strips (`cr_ed_strips`); a cutoff detent: <= 4 M host instructions, measured by tools/emu/test_cr.sh
   (`cr_editor_lag.txt`, `EMU_UI_LOG=0`). The old params page (`CR_K_PARAMS`) is retired.
+- **`CR_K_LOOPMENU`: the looper's PLAY menu** (FORMAT.md "The looper's PLAY menu", docs/LOOPER-MODES.md; the approved
+  sheet design/choralroot-fm1-looper-screens.png, all 12 states). Under the ordinary top line ("Loop 3" red, the right
+  text, the corner dial), in rows: the **slot strip** 28–54 (ten cells over x 6–234, bottom row 50, 3 px apart:
+  `lm_used` bit k filled grey with the number in the background colour, an empty one a 1.5 px grey outline with a dim
+  number; `lm_slot` red (filled, or a 2 px outline when empty), 5 px taller, its number 13 px; `lm_jump` (target + 1):
+  the target drawn selected and a 2 px hop arrow under the cells from `lm_slot` to it); the **record mode** 56–92 as a
+  horizontal picker (`items` / `sel` / `col` / the slide, the picker's own pieces: 28 px bold squeezed to 150, the
+  neighbours 13 px dim at x 6 / 234, the marks at row 86); the **middle** 92 .. the knob row (`lm_mid`):
+  `CR_LM_TEXT` = `title` big (up to 40 px bold, 0.6 of the height, squeezed to 224) in `title_col` (NONE red), `sub`
+  12 px grey under it (`mid` is the top line's, so the big text is `title`); `CR_LM_TIMELINE` = the 200 × 40 strip at
+  x 20: `lm_bars` bar boxes (surface, a 1 px grey outline) with `lm_beats` ticks (0: 4) at the top and bottom, the
+  lanes' marks (`lm_lane[li]` bit c = column c of 64 over the bars shown, 3 px, a lane each over `lm_nlane`; lane li
+  `30 × (nlane − 1 − li)` % toward the background (≤ 62 %), the take's lane `lm_newlane` − 1 full red), Replace's span
+  (`lm_erase0/1`, Q8 bars: a band 70 % toward the background, a 1.5 px red edge; the older lanes' marks in it grey
+  under a red ×), the playhead (`lm_pos`, Q8 bars from the left: a 2 px red line past the strip, a triangle on top);
+  `lm_free`: a bar is 50 px, the last one only up to the playhead, no marks past it; `sub` (the elapsed "0:07") 13 px
+  grey under it; `CR_LM_STEPS` = the step grid: `lm_bars` rows (≤ 4) of 7 px, 2 apart, `lm_beats` steps a bar (the
+  Quantize grid, 0: 16) over 200 px (2 px apart, 2 more between fours), `lm_lane[0]` bit s filled red, the cursor
+  `lm_pos` a 2 px red outline in a 1 px background ring, not drawn while `CR_LM_CUR_OFF` is set (its blink: the
+  producer's clock; cr_draw has none), `sub` (the step's chord) 15 px bold at the left under it and `value` 12 px grey
+  at the right. The **knob row** is knobrow's (`cr_kr_cells`, shared: `cell[0][0..3]`, `hot_r` / `hot_c`), 72 px
+  (168–240), or 64 (162–226) over `foot` (11 px grey, centred, baseline 237); a `CR_CF_BIG` cell (Keys) draws its
+  value 20 px where the glyph and the value would be. Differences from the mock-ups: the used cells' numbers are the
+  background colour as the designer draws them; the empty step's name "–" is "-" in the fixtures.
 - **`CR_K_KNOBROW`: a layer screen** (FORMAT.md `knobrow`; design/choralroot-fm1-fx-mockups.json, the user-approved
   sheet design/choralroot-fm1-fx-screens.png; `cr_ui.c` fills it for every layer: `cu_fx_cells`, `cu_perf_cells`, `cu_bass_cells`, `cu_key_cells`,
   `cu_loop_cells`, METRO's Click inline, the hot cell `cu_hot_row`; design/choralroot-fm1-layers-mockups.json states
@@ -291,5 +319,8 @@ no text off the screen, no two texts overlapping, no text on the ring's band. Ch
 charset, the cache (0 / 1 / 6 strips), animations pure and settling. States 45–53 are design/choralroot-fm1-fx-mockups.json's 2 3 4 5 5b (knob rows), 6 7 (the
 glyph studies, edit8) and 10 11 (the perform and bass layers); states 54–57 the layers sheet's 1 3 (KEY, the keyboard band), 6 (LOOP, no
 ring), 7 (METRO); states 58–62 the preset sheet's 1 2 3 5 6; states 63–71 QUAD's 1–8, 10 (compare.png cuts them from
-design/choralroot-fm1-quad-screens.png); state 16 is the main sheet's fx layer, a knob row. The pictograms and the knob row's hot
+design/choralroot-fm1-quad-screens.png); states 77–88 the looper sheet's 1–12 (`CR_K_LOOPMENU`, cut from
+design/choralroot-fm1-looper-screens.png); state 16 is the main sheet's fx layer, a knob row. The loop menu's checks: the
+selected slot red and taller (an empty one an outline), the playhead's column and its move composing the timeline's
+strips only, a struck mark in Replace's span, the step cursor's blink composing one strip (partial = full draws). The pictograms and the knob row's hot
 block and strips are checked too. Report: `build/cr_screens/report.txt`.

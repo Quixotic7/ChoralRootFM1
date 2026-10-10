@@ -81,7 +81,7 @@ layer or out, is always the button's on/off action.
 | HOME | **HOME** | back to the view from any page, menu, layer or the editor; tapped again on the view: next View (CHORD / KEYBOARD / NOTES / GEEK OUT / SCOPE) | — |
 | SAVE | **SAVE** | the save dialog (docs/PRESETS.md): **Overwrite** the current preset (saved at once, its name kept; a factory preset is overwritten by a user record bound to it) or **Save as new** (the pool's next place, then the name typed with the keys); OCT+ / SAVE takes it, OCT− cancels; SAVE held 1 s in the dialog: reset to factory / delete; the same dialog in the editor | save / load / delete loops (Orchid's Loop long press; a plain picker, no ring) |
 | SEQ | **METRO** | metronome / beat on-off (Orchid's BPM press) | metronome layer, a **knob row**: the time signature (4/4 3/4 6/8) over CLICK (KNOB 1, bar) and three empty cells; no popup |
-| PLAY | **LOOP** | play / stop the loop (green LED = playing) | loop layer, a **knob row** with no ring: white root keys = slots 1–10, D#4 = CLEAR (hold 1 s), F#4 = UNDO; the length picker over SYNC (range) / QUANTIZE (echoes) / COUNT-IN (gate) / LEVEL (bar), KNOB 1 = the picker, no popups; while playing, the Overdub / Pause / Undo / Clear picker (OCT+ does it), SYNC dim, the corner dial in the top line |
+| PLAY | **LOOP** | play / stop the loop (green LED = playing) | the **PLAY menu** (docs/LOOPER-MODES.md), no ring: PRESETS the slot (a strip of ten), ALGORITHM the record mode (Overwrite Advance Overdub Replace Step), SELECT the length (the middle; the timeline while recording / playing, the step grid in step entry), KNOB 1..4 QUANTIZE (echoes) / COUNT-IN (gate) / LEVEL (bar) / KEYS; KEYS (KNOB 4, GLO tap) = Play (the keys play) or Loops (white roots = slots 1–10, D#4 = CLEAR held 1 s, F#4 = UNDO); no popups; the corner dial in the top line |
 | REC | **REC** | record (count-in, then the sync length) / overdub arm; red LED blinks while recording | undo the last layer |
 | EDIT | **EDIT** | the **sound editor** on the chord sound (EDIT blinks; EDIT tap or HOME leaves; [`docs/EDITOR.md`](docs/EDITOR.md)) | the engine picker (locked open like a layer) |
 | OCT− / OCT+ | octave of the root keys | in layers, menus and dialogs: **back (closes the layer) / OK** (Felucca's convention; OCT+ blinks when it would do something) | **both together: PANIC** (all notes off on every stream, CC 123 on the three channels, octave reset, LOCK latch cleared) |
@@ -192,13 +192,13 @@ orange, white, green (KNOB 1–4) whatever they edit.
   (reverb size: the far wall recedes), a moon (damping / tone), echoes (delay time and feedback), an LFO wave (chorus
   rate and depth), a clipped sine (drive), a coil (spring reverb), dry / wet squares (the amount); gate, range, arrow
   and shift picture the other layers' values. Used by every layer: FX, PERF, BASS; KEY (the band is the keyboard with
-  the tonic lit yellow, over Tonic / Scale / Transpose / Single); LOOP (stopped: the length picker, playing: Overdub /
-  Pause / Undo / Clear, over Sync (dim while playing) / Quantize / Count-in / Level; no ring); METRO (the time
+  the tonic lit yellow, over Tonic / Scale / Transpose / Single); LOOP (the PLAY menu, its own kind: the slot strip, the record
+  mode as the band, the length / timeline / step grid, over Quantize / Count-in / Level / Keys; no ring); METRO (the time
   signature over Click and three empty cells). SAVE held (save / load / delete a loop) stays a plain picker, no ring.
 - **Pickers** replace every list: one choice at a time, huge, its neighbours peeking small and faded
   above and below (left and right inside the ring), square position marks, the value under it. SELECT
   or the root keys move it with a split-flap flip; OCT+ confirms, OCT− backs out. Used for Perform,
-  FX, bass behaviour, the loop length and the loop's Overdub / Pause / Undo / Clear, the engine
+  FX, bass behaviour, the PLAY menu (the loop's slot, record mode, length), the engine
   picker, and **Options: one setting per screen** (its name big, its value under it, KNOB 1 sets).
 - **Meters** replace dials: a knob's value huge in its colour over a stripe meter of bold blocks that
   fill one by one (`03 SUB / bass`, `13 EP / sound`, `05 / reverb`; SELECT's `120 / bpm` the same way).

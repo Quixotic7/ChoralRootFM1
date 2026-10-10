@@ -55,7 +55,7 @@ static void t_defaults(void)
     ok(!d.bass_on && d.bass_mode == CR_BASS_CHORDS_ONLY, "defaults: bass off, Chords Only");
     ok(d.palette == CRS_PALETTE_MOD, "defaults: the MOD palette");
     ok(d.pick_roots == 1, "defaults: the engine picker's roots choose engines");
-    ok(d.usb_in == 1 && d.usb_level == CRS_USB_MASTER && !d.rsv_usb,
+    ok(d.usb_in == 1 && d.usb_level == CRS_USB_MASTER && !d.loop_rec,
        "defaults: USB Record on, USB Level Master (Felucca's)");
     ok(d.bpm == 120 && d.vel == 100 && d.playstyle == CR_PS_SIMPLE && !d.key_on && d.single == CR_SINGLE_FULL,
        "defaults: 120 BPM, velocity 100, Simple, Key Mode off, Full Octave");
@@ -213,24 +213,24 @@ static void t_version(void)
     cr_settings_defaults(&s);
     s.bpm = 97;
     s.pick_roots = 0;
-    s.rsv_usb = s.usb_in = s.usb_level = 0;
+    s.loop_rec = s.usb_in = s.usb_level = 0;
     s.version = 3;
     for (h = 2166136261u, i = 12; i < CRS_SIZE; i++) { h ^= ((uint8_t *)&s)[i]; h *= 16777619u; }
     s.check = h;
     ok(cr_settings_import(&r, &s, sizeof s) == 2 && r.bpm == 97 && r.pick_roots == 0 && r.usb_in == 1 &&
-       r.usb_level == CRS_USB_MASTER && !r.rsv_usb && r.version == CRS_VERSION,
+       r.usb_level == CRS_USB_MASTER && !r.loop_rec && r.version == CRS_VERSION,
        "version 3 -> 5: kept, USB Record takes its default (on), USB Level Master");
-    /* a version-4 record (a 0.14 dev build: usb_out = USB Audio Out, 1 by default, where rsv_usb is now): the byte
+    /* a version-4 record (a 0.14 dev build: usb_out = USB Audio Out, 1 by default, where loop_rec is now): the byte
      * is cleared; USB Record and USB Level are kept */
     cr_settings_defaults(&s);
     s.bpm = 96;
-    s.rsv_usb = 1;
+    s.loop_rec = 1;
     s.usb_in = 0;
     s.usb_level = CRS_USB_FIXED;
     s.version = 4;
     for (h = 2166136261u, i = 12; i < CRS_SIZE; i++) { h ^= ((uint8_t *)&s)[i]; h *= 16777619u; }
     s.check = h;
-    ok(cr_settings_import(&r, &s, sizeof s) == 2 && r.bpm == 96 && r.rsv_usb == 0 && r.usb_in == 0 &&
+    ok(cr_settings_import(&r, &s, sizeof s) == 2 && r.bpm == 96 && r.loop_rec == 0 && r.usb_in == 0 &&
        r.usb_level == CRS_USB_FIXED && r.version == CRS_VERSION,
        "version 4 -> 5: USB Audio Out's byte cleared, USB Record Off and USB Level Fixed kept");
     /* the USB settings round-trip; out of range takes the default */
@@ -267,7 +267,7 @@ static void t_presets(void)
     for (part = 0; part < 2u; part++)
         for (i = 0; i < (unsigned)CRS_NENG; i++)
             all &= crs_pool_get(&d, part, i) == CRS_POOL_DEFAULT;
-    ok(all && d.chord_sound == CRS_SOUND_DEFAULT && d.bass_sound == CRS_SOUND_DEFAULT && d.version == 7u,
+    ok(all && d.chord_sound == CRS_SOUND_DEFAULT && d.bass_sound == CRS_SOUND_DEFAULT && d.version == 8u,
        "v7 defaults: the UI's sounds (TINE EP, DEEP SUB), every engine's first preset for both parts");
     s = d;
     s.chord_sound = (uint16_t)(13u << 8 | 4u);     /* VA 04 */
@@ -284,10 +284,10 @@ static void t_presets(void)
     cr_settings_seal(&s);
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && crs_pool_get(&r, 1, 3) == CRS_POOL_DEFAULT &&
        crs_pool_get(&r, 0, 2) == 4, "v7: a place out of range takes its default, the others kept");
-    /* version 6 -> 7 (ANALOG retired: slot 0 is FM TONE's). A 0.14 dev record: FM TONE's chord place in rsv_usb (5),
-     * slot 0 ANALOG's (9 / 6), the bass on FM TONE 04; a 0.13 record: rsv_usb 0, the parts' sounds on ANALOG */
+    /* version 6 -> 7 (ANALOG retired: slot 0 is FM TONE's). A 0.14 dev record: FM TONE's chord place in loop_rec (5),
+     * slot 0 ANALOG's (9 / 6), the bass on FM TONE 04; a 0.13 record: loop_rec 0, the parts' sounds on ANALOG */
     s = d;
-    s.rsv_usb = 5;
+    s.loop_rec = 5;
     crs_pool_set(&s, 0, 0, 9);
     crs_pool_set(&s, 1, 0, 6);
     crs_pool_set(&s, 0, 3, 7);
@@ -297,9 +297,9 @@ static void t_presets(void)
     s.version = 6;
     s.check = crs_check(&s);
     ok(cr_settings_import(&r, &s, sizeof s) == 2 && crs_pool_get(&r, 0, 0) == 5 && crs_pool_get(&r, 1, 0) == 4 &&
-       !r.rsv_usb && crs_pool_get(&r, 0, 3) == 7 && r.chord_sound == (12u << 8 | 3u) &&
+       !r.loop_rec && crs_pool_get(&r, 0, 3) == 7 && r.chord_sound == (12u << 8 | 3u) &&
        r.bass_sound == (CRS_ENG_QUAD << 8 | 4u) && r.version == CRS_VERSION,
-       "version 6 (0.14 dev) -> 7: FM TONE's chord place from rsv_usb into slot 0, the bass's from bass_sound, rsv_usb 0");
+       "version 6 (0.14 dev) -> 7: FM TONE's chord place from loop_rec into slot 0, the bass's from bass_sound, loop_rec 0");
     s = d;
     crs_pool_set(&s, 0, 0, 9);
     crs_pool_set(&s, 1, 0, 6);
@@ -357,6 +357,36 @@ static void t_flash(void)
        cr_settings_import(&r, &r, sizeof r) == 1 && r.bpm == 160, "flash: the next save wins");
 }
 
+/* version 8 (docs/LOOPER-MODES.md): the record mode and the PLAY menu's keys in loop_rec (rsv_usb before) */
+static void t_loop_rec(void)
+{
+    cr_settings_t d, s, r;
+    cr_settings_defaults(&d);
+    ok(d.loop_rec == 0 && CRS_LOOP_MODE(&d) == 0 && CRS_LOOP_KEYS(&d) == 0, "v8 defaults: Overwrite, keys Play");
+    s = d;
+    s.loop_rec = CRS_LOOP_REC(3u, 1u);             /* Replace, Loops */
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LOOP_MODE(&r) == 3 && CRS_LOOP_KEYS(&r) == 1,
+       "v8: Replace + Loops round-trip");
+    s.loop_rec = CRS_LOOP_REC(4u, 0u);
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LOOP_MODE(&r) == 4 && !CRS_LOOP_KEYS(&r), "v8: Step + Play round-trip");
+    s.loop_rec = 7;                                /* no such mode */
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.loop_rec == 0, "v8: a mode out of range takes the defaults");
+    s.loop_rec = 0x41;                             /* an unknown bit */
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.loop_rec == 0, "v8: an unknown bit takes the defaults");
+    s = d;                                         /* a version-7 record: the byte 0 (rsv_usb), the rest kept */
+    s.bpm = 101;
+    s.loop_rec = 0x12;                             /* (garbage a v7 writer could not have left: cleared anyway) */
+    cr_settings_seal(&s);
+    s.version = 7;
+    s.check = crs_check(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 2 && r.bpm == 101 && r.loop_rec == 0 && r.version == CRS_VERSION,
+       "version 7 -> 8: kept, the record mode Overwrite and the keys Play");
+}
+
 int main(void)
 {
     t_defaults();
@@ -365,6 +395,7 @@ int main(void)
     t_version();
     t_presets();
     t_flash();
+    t_loop_rec();
     printf("cr_settings: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }

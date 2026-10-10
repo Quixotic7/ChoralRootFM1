@@ -122,7 +122,7 @@ own clock in ms from power-on; commands run in order and only `wait` (and the ti
 | `expect led NAME on\|dim\|off` | check a key's or button's LED now (`on` = lit); `GREEN` is PLAY's green LED |
 | `expect sound` / `expect silence` | non-zero samples since the previous `expect sound\|silence` (or power-on) |
 | `probe N` | (window) the next N presented frames: each button cap's level read back from the frame, with its LED state (`probe: present ... FX=247/2 SEL=121/1 ...`) |
-| `dump` | print the input state (as F12) |
+| `dump` | print the input state (as F12); its `loop:` line also gives the record mode, the PLAY menu's keys, the step cursor and the events a Replace layer hid (`mode keys step hidden`) |
 | `rec` | start / stop recording the LCD frames (as Insert) |
 | `quit` | stop here |
 

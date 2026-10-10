@@ -38,6 +38,10 @@ st() { sed -n 's/.* style \([0-9]*\) .*/\1/p' "$1" | tail -1; }
 [ "$(st "$OUT/persist_1.log")" = 1 ] && ok "run 1: Play Style set to Advanced" || bad "run 1: style $(st "$OUT/persist_1.log")"
 [ "$(st "$OUT/persist_2.log")" = 1 ] && ok "run 2: Play Style Advanced after a relaunch (cr_ui_init -> cr_settings_load: the engine has it)" \
     || bad "run 2: style $(st "$OUT/persist_2.log")"
+lm() { sed -n 's/.* mode \([0-9]*\) keys \([0-9]*\) .*/\1 \2/p' "$1" | tail -1; }
+[ "$(lm "$OUT/persist_1.log")" = "3 1" ] && [ "$(lm "$OUT/persist_2.log")" = "3 1" ] &&
+    ok "the PLAY menu's record mode (Replace) and keys (Loops) after a relaunch (settings v8 loop_rec)" \
+    || bad "record mode / keys: run 1 '$(lm "$OUT/persist_1.log")', run 2 '$(lm "$OUT/persist_2.log")'"
 grep -q "record: current" "$OUT/persist_2.log" && ok "run 2: the record was read (current)" || bad "run 2: record not read"
 [ -s "$OUT/persist_bpm.ppm" ] && ok "run 2: the BPM meter: $OUT/persist_bpm.ppm" || bad "run 2: no screenshot"
 

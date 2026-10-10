@@ -52,7 +52,7 @@ static void crl_voices_off(cr_loop_t *lp, cr_t *c)
         }
 }
 
-static void crl_play_ev(cr_loop_t *lp, cr_t *c, const crl_ev_t *e)
+static void crl_play_ev(cr_loop_t *lp, cr_t *c, const crl_ev_t *e, uint32_t idx)
 {
     int lv, best = -1;
     uint32_t vel = (uint32_t)e->vel * lp->level / 100u;
@@ -64,17 +64,49 @@ static void crl_play_ev(cr_loop_t *lp, cr_t *c, const crl_ev_t *e)
             if (best < 0 || (int32_t)(lp->pv[lv].off - lp->pv[best].off) < 0) best = lv;
     cr_loop_event(c, best, e->root, (uint8_t)(e->qx >> 4), (uint8_t)(e->qx & 15u), (uint8_t)vel, 1);
     lp->pv[best].used = 1;
+    lp->pv[best].ev = (uint16_t)idx;
     lp->pv[best].off = lp->t + (e->dur ? e->dur : 1u);
     lp->played++;
+}
+
+static void crl_hide(cr_loop_t *lp, uint32_t i)    /* Replace: event i hidden by the layer being recorded */
+{
+    lp->d.ev[i].layer = (uint8_t)(CRL_HID | lp->d.nlayers);
+    lp->gen++;
 }
 
 static void crl_fire(cr_loop_t *lp, cr_t *c, uint32_t lo, uint32_t hi)   /* events at positions lo..hi */
 {
     uint32_t i;
+    int hiding = lp->cap == CRL_CAP_OD && lp->rep && lp->rep_n;   /* Replace, a gesture held: what starts is erased */
     for (i = 0; i < lp->d.nev; i++) {
         const crl_ev_t *e = &lp->d.ev[i];
-        if (e->t >= lo && e->t <= hi) crl_play_ev(lp, c, e);
+        if ((e->layer & CRL_HID) || e->t < lo || e->t > hi) continue;
+        if (hiding && i < lp->layer_ev0) crl_hide(lp, i);
+        else crl_play_ev(lp, c, e, i);
     }
+}
+
+/* each layer's first event, from the layers of a loop with no hidden events (a load) */
+static void crl_lev0_scan(cr_loop_t *lp)
+{
+    uint32_t l, i = 0;
+    for (l = 0; l < CRL_MAX_LAYERS; l++) {
+        while (i < lp->d.nev && (lp->d.ev[i].layer & 0x1Fu) < l) i++;
+        lp->lev0[l] = (uint16_t)i;
+    }
+}
+
+/* undo of layer L: the events it hid come back, in their own layers (by their place: the array is in layer order) */
+static void crl_restore(cr_loop_t *lp, uint32_t L)
+{
+    uint32_t i, l;
+    for (i = 0; i < lp->d.nev; i++)
+        if (lp->d.ev[i].layer == (uint8_t)(CRL_HID | L)) {
+            for (l = L ? L - 1u : 0u; l && lp->lev0[l] > i; l--) {}
+            lp->d.ev[i].layer = (uint8_t)l;
+            lp->gen++;
+        }
 }
 
 static void crl_offs(cr_loop_t *lp, cr_t *c)
@@ -96,6 +128,8 @@ static void crl_take_next(cr_loop_t *lp)            /* a queued slot replaces th
     lp->next = 0;
     if (n && n->len && n->nev) crl_copy(&lp->d, n, crl_data_size(n->nev));
     else crl_zero(&lp->d, crl_data_size(0));
+    crl_lev0_scan(lp);
+    lp->gen++;
     lp->dirty = 0;
     lp->loads++;
     if (!lp->d.len) lp->state = CRL_EMPTY;
@@ -148,12 +182,20 @@ static void crl_write(cr_loop_t *lp, uint32_t t0, int16_t root, uint8_t q, uint8
         if ((int32_t)(start - lp->od0) < 0) start = lp->od0;
         r = (int32_t)(start - lp->cyc0) % (int32_t)lp->d.len;
         rel = (uint32_t)(r < 0 ? r + (int32_t)lp->d.len : r);
+    } else if (lp->cap == CRL_CAP_STEP) {                              /* at the cursor, one step long */
+        rel = (uint32_t)lp->step * lp->step_g;
+        start = lp->t - lp->step_g;
     } else {
         return;
     }
     if (lp->d.nev >= CRL_MAX_EV) { lp->full = 1; return; }
     dur = lp->t - start;
     dur = dur < 1u ? 1u : dur > CRL_MAX_LEN ? CRL_MAX_LEN : dur;
+    if (lp->cap == CRL_CAP_STEP) {
+        lp->step_w = 1;
+        if (lp->step + 1u > lp->step_end) lp->step_end = (uint16_t)(lp->step + 1u);
+    }
+    lp->gen++;
     e = &lp->d.ev[lp->d.nev++];
     e->t = (uint16_t)rel;
     e->dur = (uint16_t)dur;
@@ -162,6 +204,42 @@ static void crl_write(cr_loop_t *lp, uint32_t t0, int16_t root, uint8_t q, uint8
     e->qx = (uint8_t)((q < CR_Q_COUNT ? q : 0u) << 4 | (ext & 15u));
     e->layer = lp->d.nlayers;
     if (lp->d.nev >= CRL_MAX_EV) lp->full = 1;
+}
+
+/* a fresh take starts: Overwrite's loop goes now (not on arming: REC again before this keeps it) */
+static void crl_take_start(cr_loop_t *lp)
+{
+    if (!lp->ow) return;
+    lp->ow = 0;
+    lp->d.nev = 0;
+    lp->d.len = 0;
+    lp->d.nlayers = 0;
+    lp->state = CRL_EMPTY;
+    lp->next_on = 0;
+    lp->dirty = 1;
+    lp->gen++;
+}
+
+/* Replace: a gesture begins at cycle position p: an older event sounding there is cut at p (it is hidden, and a copy
+ * ending at p goes into the new layer: undo brings the whole one back) and its voice ends */
+static void crl_cut(cr_loop_t *lp)
+{
+    uint32_t p = (lp->t - lp->cyc0) % lp->d.len, i, lv, n = lp->layer_ev0;
+    for (i = 0; i < n; i++) {
+        crl_ev_t *e = &lp->d.ev[i];
+        uint32_t rel;
+        if (e->layer & CRL_HID) continue;
+        rel = (p + lp->d.len - e->t) % lp->d.len;
+        if (!rel || rel >= e->dur) continue;
+        if (lp->d.nev >= CRL_MAX_EV) { lp->full = 1; return; }
+        lp->d.ev[lp->d.nev] = *e;
+        lp->d.ev[lp->d.nev].dur = (uint16_t)rel;
+        lp->d.ev[lp->d.nev].layer = lp->d.nlayers;
+        lp->d.nev++;
+        crl_hide(lp, i);
+        for (lv = 0; lv < CR_MAX_LOOPV; lv++)
+            if (lp->pv[lv].used && lp->pv[lv].ev == i) lp->pv[lv].off = lp->t;   /* (crl_offs ends it) */
+    }
 }
 
 void cr_loop_gesture(cr_loop_t *lp, uint32_t gid, int16_t root, uint8_t q, uint8_t ext, uint8_t vel, int on)
@@ -180,7 +258,9 @@ void cr_loop_gesture(cr_loop_t *lp, uint32_t gid, int16_t root, uint8_t q, uint8
         lp->open[k].q = q;
         lp->open[k].ext = ext;
         lp->open[k].vel = vel;
+        lp->open[k].rep = 0;
         if (lp->cap == CRL_CAP_ARMED) {                                /* Free: the first chord starts the take */
+            crl_take_start(lp);
             lp->cap = CRL_CAP_REC;
             lp->rec0 = lp->t;
             lp->rec_len = 0;
@@ -191,11 +271,18 @@ void cr_loop_gesture(cr_loop_t *lp, uint32_t gid, int16_t root, uint8_t q, uint8
             lp->od0 = lp->t;
             lp->layer_ev0 = lp->d.nev;
         }
+        if (lp->cap == CRL_CAP_OD && lp->rep && lp->state == CRL_PLAYING && lp->d.len) {   /* Replace: a held span */
+            lp->open[k].rep = 1;
+            if (!lp->rep_n++) lp->rep0 = (lp->t - lp->cyc0) % lp->d.len;
+            crl_cut(lp);
+        }
+        if (lp->cap != CRL_CAP_NONE) lp->gen++;
         return;
     }
     for (i = 0; i < CRL_OPEN; i++)
         if (lp->open[i].used && lp->open[i].gid == gid) {
             lp->open[i].used = 0;
+            if (lp->open[i].rep && lp->rep_n) lp->rep_n--;
             crl_write(lp, lp->open[i].t0, root, q, ext, vel);
             return;
         }
@@ -233,6 +320,44 @@ static void crl_drop_take(cr_loop_t *lp)
     lp->state = CRL_EMPTY;
 }
 
+/* step entry ends (REC; LOOP: play = 1): the steps entered become the loop (the one there before goes), its length
+ * synced, or (Free) the bars the steps used; nothing entered: the loop as it was */
+static int crl_step_commit(cr_loop_t *lp, cr_t *c, int play)
+{
+    uint32_t i, n, bar = cr_loop_bar(lp), len;
+    crl_close_open(lp);
+    lp->cap = CRL_CAP_NONE;
+    lp->full = 0;
+    n = lp->d.nev > lp->layer_ev0 ? lp->d.nev - lp->layer_ev0 : 0u;
+    lp->gen++;
+    if (!n) {
+        lp->d.nev = lp->layer_ev0;
+        if (play && lp->state == CRL_STOPPED) crl_start(lp, c);
+        return CRL_DID_EMPTY_TAKE;
+    }
+    for (i = 0; i < n; i++) {
+        lp->d.ev[i] = lp->d.ev[lp->layer_ev0 + i];
+        lp->d.ev[i].layer = 0;
+    }
+    lp->d.nev = (uint16_t)n;
+    lp->d.nlayers = 1;
+    lp->lev0[0] = 0;
+    lp->layer_ev0 = 0;
+    if (lp->step_len) len = lp->step_len;
+    else {
+        len = (uint32_t)(lp->step_end ? lp->step_end : 1u) * lp->step_g;
+        len = (len + bar - 1u) / bar * bar;
+        if (len > CRL_MAX_LEN) len = CRL_MAX_LEN / bar * bar;
+    }
+    lp->d.len = len;
+    lp->d.sig = lp->sig;
+    lp->dirty = 1;
+    lp->next_on = 0;
+    lp->state = CRL_STOPPED;
+    if (play) crl_start(lp, c);
+    return CRL_DID_STEP_DONE;
+}
+
 static int crl_commit(cr_loop_t *lp, cr_t *c)      /* the capture ends */
 {
     uint32_t elapsed, bar = cr_loop_bar(lp), len;
@@ -254,8 +379,10 @@ static int crl_commit(cr_loop_t *lp, cr_t *c)      /* the capture ends */
         }
         lp->d.len = len;
         lp->d.nlayers = 1;
+        lp->lev0[0] = 0;
         lp->d.sig = lp->sig;
         crl_quantize(lp, 0);
+        lp->gen++;
         lp->dirty = 1;
         lp->state = CRL_PLAYING;                     /* the take was the first cycle: playback goes on from here */
         lp->cyc0 = lp->rec0;
@@ -267,14 +394,21 @@ static int crl_commit(cr_loop_t *lp, cr_t *c)      /* the capture ends */
         crl_close_open(lp);
         lp->cap = CRL_CAP_NONE;
         lp->full = 0;
+        lp->rep = lp->rep_n = 0;
         if (lp->d.nev > lp->layer_ev0) {
             crl_quantize(lp, lp->layer_ev0);
+            lp->lev0[lp->d.nlayers] = lp->layer_ev0;
             lp->d.nlayers++;
             lp->dirty = 1;
+        } else {
+            crl_restore(lp, lp->d.nlayers);
         }
+        lp->gen++;
         return CRL_DID_OD_END;
     }
+    if (cap == CRL_CAP_STEP) return crl_step_commit(lp, c, 0);
     lp->cap = CRL_CAP_NONE;
+    lp->ow = 0;
     return CRL_DID_CANCEL;
 }
 
@@ -284,6 +418,7 @@ static void crl_tick1(cr_loop_t *lp, cr_t *c)
     uint32_t bar = cr_loop_bar(lp), beat = cr_loop_beat(lp), anchor = 0, rel;
     int on = 0;
     if (lp->cap == CRL_CAP_COUNTIN && lp->t - lp->cin0 >= bar) {
+        crl_take_start(lp);
         lp->cap = CRL_CAP_REC;
         lp->rec0 = lp->cin0 + bar;
         lp->layer_ev0 = 0;
@@ -329,8 +464,9 @@ void cr_loop_tick(cr_loop_t *lp, cr_t *c, uint32_t now_ms)
 /* ----------------------------------------------------------- transport --- */
 void cr_loop_stop(cr_loop_t *lp, cr_t *c)
 {
-    if (lp->cap == CRL_CAP_REC || lp->cap == CRL_CAP_OD) crl_commit(lp, c);
+    if (lp->cap == CRL_CAP_REC || lp->cap == CRL_CAP_OD || lp->cap == CRL_CAP_STEP) crl_commit(lp, c);
     lp->cap = CRL_CAP_NONE;
+    lp->ow = 0;
     crl_voices_off(lp, c);
     lp->next_on = 0;
     lp->state = lp->d.len ? CRL_STOPPED : CRL_EMPTY;
@@ -338,10 +474,36 @@ void cr_loop_stop(cr_loop_t *lp, cr_t *c)
 
 int cr_loop_rec(cr_loop_t *lp, cr_t *c)
 {
+    int mode = lp->mode < CRL_NMODE ? lp->mode : CRL_MODE_OVERWRITE;
     switch (lp->cap) {
     case CRL_CAP_NONE:
-        if (lp->state == CRL_EMPTY) {
-            crl_drop_take(lp);
+        if (mode == CRL_MODE_STEP) {                 /* step entry: the loop stops, the cursor on the first step */
+            if (lp->state == CRL_PLAYING) {
+                crl_voices_off(lp, c);
+                lp->state = CRL_STOPPED;
+            }
+            lp->next_on = 0;
+            lp->cap = CRL_CAP_STEP;
+            lp->layer_ev0 = lp->d.nev;               /* (entered after the loop's events: it stays until the commit) */
+            lp->step = lp->step_end = 0;
+            lp->step_w = 0;
+            lp->step_g = CRL_QGRID[lp->quant < CRL_NQUANT ? lp->quant : 0];
+            if (!lp->step_g) lp->step_g = 24;        /* none: 1/16 */
+            lp->step_len = lp->sync ? CRL_BARS[lp->sync < CRL_NSYNC ? lp->sync : 1] * cr_loop_bar(lp) : 0u;
+            lp->full = lp->d.nev >= CRL_MAX_EV;
+            lp->gen++;
+            return CRL_DID_STEP;
+        }
+        if (lp->state == CRL_EMPTY || mode == CRL_MODE_OVERWRITE || mode == CRL_MODE_ADVANCE) {
+            if (lp->state == CRL_EMPTY) {
+                crl_drop_take(lp);
+                lp->ow = 0;
+            } else {                                 /* Overwrite: stopped; the loop goes when the take starts */
+                crl_voices_off(lp, c);
+                lp->state = CRL_STOPPED;
+                lp->next_on = 0;
+                lp->ow = 1;
+            }
             lp->full = 0;
             lp->layer_ev0 = 0;
             if (!lp->sync) {
@@ -355,6 +517,7 @@ int cr_loop_rec(cr_loop_t *lp, cr_t *c)
                 lp->click = 2;                       /* the count-in's first beat now */
                 return CRL_DID_COUNTIN;
             }
+            crl_take_start(lp);
             lp->cap = CRL_CAP_REC;
             lp->rec0 = lp->t;
             if (lp->metro) lp->click = 2;
@@ -367,12 +530,17 @@ int cr_loop_rec(cr_loop_t *lp, cr_t *c)
         if (lp->state == CRL_STOPPED) crl_start(lp, c);
         lp->next_on = 0;                             /* a queued switch: cancelled, this loop is being edited */
         lp->cap = CRL_CAP_OD_ARMED;
-        return CRL_DID_OD_ARM;
+        lp->rep = mode == CRL_MODE_REPLACE;
+        lp->rep_n = 0;
+        return lp->rep ? CRL_DID_REP_ARM : CRL_DID_OD_ARM;
     case CRL_CAP_REC:
     case CRL_CAP_OD:
+    case CRL_CAP_STEP:
         return crl_commit(lp, c);
-    default:                                         /* armed / counting in: cancelled */
+    default:                                         /* armed / counting in: cancelled (Overwrite: the loop kept) */
         lp->cap = CRL_CAP_NONE;
+        lp->ow = 0;
+        lp->rep = 0;
         return CRL_DID_CANCEL;
     }
 }
@@ -384,9 +552,13 @@ int cr_loop_play(cr_loop_t *lp, cr_t *c)
     case CRL_CAP_ARMED:
     case CRL_CAP_COUNTIN:
         lp->cap = CRL_CAP_NONE;
+        lp->ow = 0;
         return CRL_DID_CANCEL;
     case CRL_CAP_REC:
         return crl_commit(lp, c);
+    case CRL_CAP_STEP:                               /* step entry ends, the loop plays */
+        r = crl_step_commit(lp, c, 1);
+        return lp->state == CRL_PLAYING ? CRL_DID_PLAY : r;
     case CRL_CAP_OD:
     case CRL_CAP_OD_ARMED:
         r = crl_commit(lp, c);
@@ -414,14 +586,19 @@ int cr_loop_undo(cr_loop_t *lp, cr_t *c)
     if (lp->cap == CRL_CAP_OD || lp->cap == CRL_CAP_OD_ARMED) {     /* the layer in progress goes */
         int had = lp->cap == CRL_CAP_OD && lp->d.nev > lp->layer_ev0;
         lp->d.nev = lp->layer_ev0;
+        crl_restore(lp, lp->d.nlayers);              /* (Replace: what it erased comes back) */
         lp->cap = CRL_CAP_NONE;
+        lp->rep = lp->rep_n = 0;
         lp->full = 0;
+        lp->gen++;
         return had ? CRL_DID_UNDO : CRL_DID_CANCEL;
     }
     if (lp->cap != CRL_CAP_NONE || lp->d.nlayers <= 1u) return CRL_DID_NOTHING;
-    for (i = 0; i < lp->d.nev && lp->d.ev[i].layer < lp->d.nlayers - 1u; i++) {}
-    lp->d.nev = (uint16_t)i;                         /* (its sounding notes finish) */
+    i = lp->lev0[lp->d.nlayers - 1u];
+    lp->d.nev = (uint16_t)(i < lp->d.nev ? i : lp->d.nev);   /* (its sounding notes finish) */
     lp->d.nlayers--;
+    crl_restore(lp, lp->d.nlayers);                  /* the events a Replace layer hid come back */
+    lp->gen++;
     lp->full = 0;
     lp->dirty = 1;
     lp->next_on = 0;                                 /* a queued switch: cancelled, this loop is being edited */
@@ -431,8 +608,10 @@ int cr_loop_undo(cr_loop_t *lp, cr_t *c)
 int cr_loop_clear(cr_loop_t *lp, cr_t *c)
 {
     lp->cap = CRL_CAP_NONE;
+    lp->ow = lp->rep = lp->rep_n = 0;
     crl_voices_off(lp, c);
     crl_drop_take(lp);
+    lp->gen++;
     lp->full = 0;
     lp->next_on = 0;
     lp->dirty = 1;
@@ -443,15 +622,19 @@ void cr_loop_panic(cr_loop_t *lp)
 {
     uint32_t i;
     for (i = 0; i < CR_MAX_LOOPV; i++) lp->pv[i].used = 0;          /* cr_panic ended the voices */
-    if (lp->cap == CRL_CAP_REC || lp->cap == CRL_CAP_ARMED || lp->cap == CRL_CAP_COUNTIN) {
+    if (lp->cap == CRL_CAP_REC) {
         crl_drop_take(lp);                                          /* a fresh take is dropped */
     } else if (lp->cap == CRL_CAP_OD && lp->d.nev > lp->layer_ev0) {
         crl_quantize(lp, lp->layer_ev0);                            /* a partial overdub is kept */
+        lp->lev0[lp->d.nlayers] = lp->layer_ev0;
         lp->d.nlayers++;
         lp->dirty = 1;
-    } else if (lp->cap == CRL_CAP_OD || lp->cap == CRL_CAP_OD_ARMED) {
-        lp->d.nev = lp->layer_ev0;
+    } else if (lp->cap == CRL_CAP_OD || lp->cap == CRL_CAP_OD_ARMED || lp->cap == CRL_CAP_STEP) {
+        lp->d.nev = lp->layer_ev0;                                  /* (armed / counting in: the loop is kept) */
+        if (lp->cap != CRL_CAP_STEP) crl_restore(lp, lp->d.nlayers);
     }
+    lp->ow = lp->rep = lp->rep_n = 0;
+    lp->gen++;
     for (i = 0; i < CRL_OPEN; i++) lp->open[i].used = 0;
     lp->cap = CRL_CAP_NONE;
     lp->full = 0;
@@ -462,6 +645,7 @@ void cr_loop_panic(cr_loop_t *lp)
 void cr_loop_set(cr_loop_t *lp, cr_t *c, const crl_data_t *d)
 {
     lp->cap = CRL_CAP_NONE;
+    lp->ow = lp->rep = lp->rep_n = 0;
     crl_voices_off(lp, c);
     lp->next = d;
     lp->next_on = 0;
@@ -478,8 +662,34 @@ void cr_loop_queue(cr_loop_t *lp, cr_t *c, const crl_data_t *d)
     }
     if (lp->cap == CRL_CAP_OD) crl_commit(lp, c);
     lp->cap = CRL_CAP_NONE;
+    lp->ow = lp->rep = lp->rep_n = 0;
     lp->next = d;
     lp->next_on = 1;
+}
+
+void cr_loop_step(cr_loop_t *lp, int op)
+{
+    uint32_t nst, s;
+    if (lp->cap != CRL_CAP_STEP || !lp->step_g) return;
+    nst = lp->step_len ? lp->step_len / lp->step_g : CRL_MAX_LEN / lp->step_g;
+    s = lp->step;
+    if (op == CRL_STEP_KEYSUP && !lp->step_w) return;    /* (no chord written here yet) */
+    if (op == CRL_STEP_BACK) {
+        s = s ? s - 1u : lp->step_len ? nst - 1u : 0u;
+    } else {
+        if (s + 1u > lp->step_end) lp->step_end = (uint16_t)(s + 1u);   /* (a rest is a step used) */
+        s = s + 1u < nst ? s + 1u : lp->step_len ? 0u : s;
+    }
+    lp->step = (uint16_t)s;
+    lp->step_w = 0;
+    lp->gen++;
+}
+
+uint32_t cr_loop_pos(const cr_loop_t *lp)
+{
+    if (lp->cap == CRL_CAP_REC) return lp->t - lp->rec0;
+    if (lp->state == CRL_PLAYING && lp->d.len) return (lp->t - lp->cyc0) % lp->d.len;
+    return 0;
 }
 
 void cr_loop_metro(cr_loop_t *lp, int on)
@@ -523,30 +733,37 @@ static uint32_t crl_get32(const uint8_t *p) { return crl_get16(p) | crl_get16(p 
 
 uint32_t cr_loop_pack(const crl_data_t *d, uint8_t *buf, uint32_t max)
 {
-    uint32_t i, n = CRL_REC_HDR + 2u * d->nlayers + 7u * d->nev, o;
-    if (!d->len || !d->nev || !d->nlayers || d->nlayers > CRL_MAX_LAYERS || d->nev > CRL_MAX_EV || n > max) return 0;
+    uint32_t i, live = 0, n, o;
+    for (i = 0; i < d->nev && i < CRL_MAX_EV; i++) live += !(d->ev[i].layer & CRL_HID);   /* (hidden: not stored) */
+    n = CRL_REC_HDR + 2u * d->nlayers + 7u * live;
+    if (!d->len || !live || !d->nlayers || d->nlayers > CRL_MAX_LAYERS || d->nev > CRL_MAX_EV || n > max) return 0;
     crl_put32(buf, CRL_REC_MAGIC);
     buf[4] = 1;                                      /* record version */
     buf[5] = d->sig;
     buf[6] = d->nlayers;
     buf[7] = 0;
     crl_put32(buf + 8, d->len);
-    crl_put16(buf + 12, d->nev);
+    crl_put16(buf + 12, live);
     crl_put16(buf + 14, CRL_PPQN);
     for (i = 0; i < d->nlayers; i++) crl_put16(buf + CRL_REC_HDR + 2u * i, 0);
     for (i = 0; i < d->nev; i++) {                   /* events per layer */
-        uint32_t l = d->ev[i].layer < d->nlayers ? d->ev[i].layer : d->nlayers - 1u;
-        uint8_t *p = buf + CRL_REC_HDR + 2u * l;
+        uint32_t l;
+        uint8_t *p;
+        if (d->ev[i].layer & CRL_HID) continue;
+        l = d->ev[i].layer < d->nlayers ? d->ev[i].layer : d->nlayers - 1u;
+        p = buf + CRL_REC_HDR + 2u * l;
         crl_put16(p, crl_get16(p) + 1u);
     }
     o = CRL_REC_HDR + 2u * d->nlayers;
-    for (i = 0; i < d->nev; i++, o += 7u) {
+    for (i = 0; i < d->nev; i++) {
         const crl_ev_t *e = &d->ev[i];
+        if (e->layer & CRL_HID) continue;
         crl_put16(buf + o, e->t);
         crl_put16(buf + o + 2, e->dur);
         buf[o + 4] = e->root;
         buf[o + 5] = e->vel;
         buf[o + 6] = e->qx;
+        o += 7u;
     }
     return n;
 }

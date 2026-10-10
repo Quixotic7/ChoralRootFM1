@@ -28,7 +28,7 @@ LEDs in `zoom`.
 The block has its own header:
 
 - `magic` `CRS1`
-- `version` (`CRS_VERSION`, currently 7)
+- `version` (`CRS_VERSION`, currently 8)
 - `size` (the writer's `CRS_SIZE`)
 - `check`: FNV-1a over bytes 12..size
 
@@ -56,12 +56,13 @@ The block has its own header:
 | bass_sound | v6: the bass part's sound (what BASS tap brings), (engine << 8) \| pool position; 0xFFFF = the UI's default (v1..5: read as the default; v6 on ANALOG, engine 0, retired in 0.14: read as the default) | VA DEEP SUB (ANALOG SUB BASS until 0.14) |
 | metro_on, metro_sig, metro_vol, loop_slot (v2) | the click, 4/4 3/4 6/8, 0..100, 0..9 | off, 4/4, 70, 0 |
 | pick_roots (v3) | the engine picker's white roots: 1 choose engines, 0 play (KNOB 4 in the picker) | **1** (engines) |
-| rsv_usb (v4: usb_out) | retired in v5: v4's Options > USB Audio Out (the playback device, removed: docs/USB-AUDIO.md). A 0.14 dev build (still v6) kept the chord part's pool position on FM TONE (engine 15, `eng_quad.c`, code name QUAD) here; v6 → 7 moves it into `pool_pos` slot 0 and clears the byte: 0 since | 0; a v4 record's byte (1 by default there) is cleared on import |
+| loop_rec (v8; was rsv_usb, v4: usb_out) | v8: the looper's record mode (bits 0..3: 0 Overwrite, 1 Advance, 2 Overdub, 3 Replace, 4 Step; `CRS_LOOP_MODE`) and the PLAY menu's keys (bit 4: 0 Play, 1 Loops; `CRS_LOOP_KEYS`), docs/LOOPER-MODES.md; another value or bit: the defaults. Before v8: retired in v5: v4's Options > USB Audio Out (the playback device, removed: docs/USB-AUDIO.md). A 0.14 dev build (still v6) kept the chord part's pool position on FM TONE (engine 15, `eng_quad.c`, code name QUAD) here; v6 → 7 moves it into `pool_pos` slot 0 and clears the byte: 0 since | 0 (Overwrite, Play); a v4 record's byte (1 by default there) is cleared on import; v1..v7 records read 0 |
 | usb_in (v4) | Options > **USB Record**: ChoralRoot In is presented to the computer (docs/USB-AUDIO.md); Off: the serial console instead | **1** (on); a v1..v3 record takes it (its zero would mean off) |
 | usb_level (v4) | Options > USB Level: `CRS_USB_MASTER` (the recording follows MASTER) / `CRS_USB_FIXED` (recorded at the full level, MASTER after) | Master |
 | pool_pos[2][10], pool_pos10_chord, pool_pos10_bass (v6) | per part (chord, bass), per engine slot (slots 0..9 in `pool_pos`, slot 10 in the two bytes that were `rsv0` / `rsv1`; `crs_pool_get` / `crs_pool_set`). The slots are fixed per engine in 0.13's display order, whatever the order shown (`cr_settings.c crs_slot`): 0 FM TONE (ANALOG's until v7), 1 FM6, 2 VA, 3 PHASE, 4 CZ-1, 5 LOFI, 6 VOICE, 7 TRIO, 8 WHEEL, 9 PHYS, 10 NOISE: the pool position last played there, where OPT + PRESETS lands; 0..127, checked against the pool by the glue | 1 (each engine's first preset); a v1..v5 record takes the defaults |
 
-The reserve is used up by v6 (`rsv[20]` became `pool_pos`): the next field needs a longer record (a new PER magic or
+The reserve is used up by v6 (`rsv[20]` became `pool_pos`), and v8 took the last free byte (`rsv_usb`, packed with two
+fields): the next field needs a longer record (a new PER magic or
 a larger `CRS_SIZE` with the import rules for a shorter one).
 
 ### Import rules (`cr_settings_import`)
@@ -85,7 +86,7 @@ read as the defaults, every `pool_pos` 1; v6 → 7 (0.14: ANALOG retired, FM TON
 place from `rsv_usb` when a 0.14 dev build wrote it there (1..127; a 0.13 record's 0: the first preset), its bass place
 from `bass_sound` when the bass played FM TONE (else the first preset), `rsv_usb` cleared; a `chord_sound` /
 `bass_sound` on ANALOG (engine 0) reads as the default (TINE EP / DEEP SUB). Both bytes of a 0.14 dev record are read,
-the slot is what is written.
+the slot is what is written; v7 → 8 `loop_rec` (the byte `rsv_usb` was, 0 since v7) takes its default (Overwrite, Play).
 
 ## How to add a field
 

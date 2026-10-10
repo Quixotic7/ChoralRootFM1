@@ -1,0 +1,174 @@
+# ChoralRoot: the looper's record modes (docs/LOOPER-MODES.md), 120 BPM 4/4 (a bar = 2 s), the PLAY menu open
+# (LOOP held) for its shots. Chords: MAJ = A#3, MIN = G#3.
+# A. Overwrite (the default): a Free take of D held into bar 2 (the timeline: bar 2 growing, shot), REC: a 2-bar loop
+#    plays. REC: stopped and armed, the loop kept; REC again: cancelled, kept; REC + Em: the take starts and the loop
+#    goes; REC: Em alone.
+# B. Advance: REC on slot 1 jumps to slot 2 (slot 1 saved), armed there (shot); F records slot 2.
+# C. 4 bars synced (count-in off): D G Ab F#m one a bar (Overwrite, it commits by itself); Overdub: Bb in bar 2 (two
+#    layers playing: shot); Replace: F held over the start of bar 3 hides Ab (shot while held), REC ends it; REC held:
+#    undo brings Ab back.
+# D. Step (Free, 1/16): REC: step entry; D, Em, Ab (one each, every key up between), OCT+ a rest, OCT- back; REC: a
+#    1-bar loop of 3 events; LOOP plays it (D at 0, Em at 1/16, Ab at 2/16).
+wait 300
+btn PLAY down
+wait 500
+btn PLAY up
+wait 200
+btn REC
+wait 300
+btn A#3 down
+btn D4 down
+wait 3000
+shot build/emu/test/cr_lm_6.ppm             # A: recording Free, bar 2
+dump                                        # 1: recording (cap 3)
+btn D4 up
+btn A#3 up
+wait 500
+btn REC
+wait 300
+dump                                        # 2: a loop of 1 event, playing
+btn REC
+wait 300
+dump                                        # 3: armed (cap 1), stopped (state 1), still 1 event
+btn REC
+wait 300
+dump                                        # 4: cancelled, 1 event (D)
+btn REC
+wait 300
+btn G#3 down
+btn E4 down
+wait 50
+dump                                        # 5: the take started: the loop went (0 events, cap 3)
+wait 400
+btn E4 up
+btn G#3 up
+wait 500
+btn REC
+wait 300
+dump                                        # 6: Em alone (1 event), playing
+knob ALGORITHM +1                           # B: Advance
+wait 300
+btn REC
+wait 300
+shot build/emu/test/cr_lm_10.ppm            # the jump: slot 2, armed
+dump                                        # 7: slot 2, used 001 (slot 1 saved), armed
+btn A#3 down
+btn F4 down
+wait 500
+btn F4 up
+btn A#3 up
+wait 500
+btn REC
+wait 300
+dump                                        # 8: slot 2 holds F, playing
+btn PLAY                                    # (a tap: stop)
+wait 300
+knob ALGORITHM -1                           # C: Overwrite, 4 bars, no count-in
+knob SELECT +3
+knob KNOB2 -1
+wait 300
+btn REC                                     # t0: the take, 4 bars
+wait 50
+btn A#3 down
+btn D4 down
+wait 1000
+btn D4 up
+btn A#3 up
+wait 950
+btn A#3 down
+btn G4 down
+wait 1000
+btn G4 up
+btn A#3 up
+wait 1000
+btn A#3 down
+btn G#4 down
+wait 1000
+btn G#4 up
+btn A#3 up
+wait 1000
+btn G#3 down
+btn F#4 down
+wait 1000
+btn F#4 up
+btn G#3 up
+wait 1500                                   # t0 + 8.5 s: committed, playing (cycle 2)
+dump                                        # 9: 4 events, 4 bars (1536), playing
+knob ALGORITHM +2                           # Overdub
+wait 100
+btn REC                                     # overdub armed
+wait 1300                                   # t0 + 10.0: bar 2 of cycle 2
+btn A#3 down
+btn A#4 down
+wait 400
+btn A#4 up
+btn A#3 up
+wait 200
+btn REC                                     # the layer ends
+wait 2000
+shot build/emu/test/cr_lm_7.ppm             # playing: 4 bars, two layers (t0 + 12.7)
+dump                                        # 10: 2 layers, 5 events
+knob ALGORITHM +1                           # Replace
+wait 100
+btn REC                                     # replace armed
+wait 6700                                   # t0 + 19.6: cycle 3, just before bar 3 (Ab at t0 + 4.05)
+btn A#3 down
+btn F4 down
+wait 1000
+shot build/emu/test/cr_lm_9.ppm             # F held over bar 3's start: Ab erased
+dump                                        # 11: hidden 1+ (Ab), layer in progress
+btn F4 up
+btn A#3 up
+wait 200
+btn REC                                     # the replace layer ends
+wait 300
+dump                                        # 12: 3 layers, Ab hidden
+btn REC 700                                 # REC held: undo
+wait 300
+dump                                        # 13: 2 layers, nothing hidden
+btn PLAY                                    # stop
+wait 300
+knob ALGORITHM +1                           # D: Step, Free, 1/16 (Quantize none)
+knob SELECT -3
+wait 300
+btn REC                                     # step entry
+wait 300
+dump                                        # 14: cap 6, step 0
+btn A#3 down
+btn D4 down
+wait 200
+btn D4 up
+btn A#3 up
+wait 200
+btn G#3 down
+btn E4 down
+wait 200
+btn E4 up
+btn G#3 up
+wait 200
+btn A#3 down
+btn G#4 down
+wait 300
+shot build/emu/test/cr_lm_11.ppm            # Ab held at step 3
+btn G#4 up
+btn A#3 up
+wait 300
+shot build/emu/test/cr_lm_12.ppm            # the cursor on step 4
+btn OCT+                                    # a rest: step 5
+wait 200
+btn OCT-                                    # back: step 4
+wait 200
+dump                                        # 15: step 3 (0-based), 4 + 3 events
+btn REC                                     # the steps become the loop
+wait 300
+dump                                        # 16: 3 events, 384 ticks, stopped
+btn PLAY                                    # LOOP: plays
+wait 50
+expect sound
+wait 1950
+dump                                        # 17
+wait 2000
+dump                                        # 18: 3 more played in the 2 s cycle
+btn PLAY
+wait 2000
+dump

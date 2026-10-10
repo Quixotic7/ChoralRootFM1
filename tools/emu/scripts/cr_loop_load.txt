@@ -1,11 +1,11 @@
-# ChoralRoot looper, relaunched on the same flash file: slot 2 is back (in RAM, stopped); LOOP held + E4 loads it,
+# ChoralRoot looper, relaunched on the same flash file: slot 2 is back (in RAM, stopped: the PLAY menu shows it),
 # LOOP tap plays it (the chord view with the corner dial; LOOP held: the loop layer, the dial, no ring); End (panic)
 # stops it with no stuck note.
 wait 300
 dump
 btn PLAY down
 wait 400
-btn E4
+shot build/emu/test/cr_loop_load_menu.ppm
 wait 100
 btn PLAY up
 btn OCT-                      # the layer stays open after a hold: OCT- closes it

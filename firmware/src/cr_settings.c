@@ -168,6 +168,8 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(pick_roots, 0, 1);
     CRS_FIX(usb_in, 0, 1);
     CRS_FIX(usb_level, 0, CRS_USB_FIXED);
+    if ((s->loop_rec & ~0x1Fu) || CRS_LOOP_MODE(s) >= CRS_NLOOPMODE)   /* (an unknown mode or bit: the defaults) */
+        s->loop_rec = d.loop_rec;
     for (i = 0; i < CRS_NENG; i++)                 /* (a pool: INIT + 64 CZ-1 presets + 32 user ones at most) */
         for (m = 0; m < 2; m++)
             if (crs_pool_get(s, (unsigned)m, (unsigned)i) > 127u)
@@ -229,7 +231,7 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
             s->usb_level = d.usb_level;
         }
         if (in.version < 5u)                       /* version 5: the USB playback removed, its byte (v4's usb_out, */
-            s->rsv_usb = 0;                        /* 1 by default there) cleared */
+            s->loop_rec = 0;                       /* 1 by default there) cleared */
         if (in.version < 6u) {                     /* version 6: presets per engine (docs/PRESETS.md): the old list
                                                     * positions mean nothing in the pools: the defaults (TINE EP, SUB
                                                     * BASS), every engine's first preset */
@@ -247,15 +249,21 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
                                                     * build kept it (0 in a 0.13 record: the first preset); the bass
                                                     * part's: bass_sound's when the bass played FM TONE. A part's sound
                                                     * on ANALOG: the default (TINE EP, DEEP SUB) */
-            uint8_t q = s->rsv_usb;
+            uint8_t q = s->loop_rec;               /* (rsv_usb then) */
             crs_pool_set(s, 0, 0, q && q <= 127u ? q : CRS_POOL_DEFAULT);
             crs_pool_set(s, 1, 0, s->bass_sound != CRS_SOUND_DEFAULT && (s->bass_sound >> 8) == CRS_ENG_QUAD ?
                                       (uint8_t)(s->bass_sound & 0xFFu) : CRS_POOL_DEFAULT);
-            s->rsv_usb = 0;
+            s->loop_rec = 0;
             if (s->chord_sound != CRS_SOUND_DEFAULT && (s->chord_sound >> 8) == CRS_ENG_ANALOG)
                 s->chord_sound = CRS_SOUND_DEFAULT;
             if (s->bass_sound != CRS_SOUND_DEFAULT && (s->bass_sound >> 8) == CRS_ENG_ANALOG)
                 s->bass_sound = CRS_SOUND_DEFAULT;
+        }
+        if (in.version < 8u) {                     /* version 8: the looper's record mode and keys (docs/LOOPER-MODES.md)
+                                                    * in the byte that was rsv_usb (0 since v7): the defaults */
+            cr_settings_t d;
+            cr_settings_defaults(&d);
+            s->loop_rec = d.loop_rec;
         }
     }
     crs_sanitize(s);
@@ -454,6 +462,7 @@ static void crs_capture(cr_settings_t *s)
     s->metro_sig = cs.metro_sig;
     s->metro_vol = cs.metro_vol;
     s->loop_slot = cs.loop_slot;
+    s->loop_rec = CRS_LOOP_REC(cs.loop_mode, cs.loop_keys);
     s->pick_roots = cs.pick_roots;
     s->usb_in = cs.usb_in;
     s->usb_level = cs.usb_fixed;
@@ -515,6 +524,8 @@ static void cr_settings_load(void)
     cs.metro_sig = s->metro_sig;
     cs.metro_vol = s->metro_vol;
     cs.loop_slot = s->loop_slot;
+    cs.loop_mode = (uint8_t)CRS_LOOP_MODE(s);
+    cs.loop_keys = (uint8_t)CRS_LOOP_KEYS(s);
     cs.pick_roots = s->pick_roots;
     cs.usb_in = s->usb_in;
     cs.usb_fixed = s->usb_level;

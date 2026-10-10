@@ -84,7 +84,11 @@ if ref.exists():
     emock = Image.open(eref).convert("RGB") if eref.exists() else None
     qref = Path("design/choralroot-fm1-quad-screens.png")   # QUAD's states: cut from QUAD's sheet (the last ones)
     qmock = Image.open(qref).convert("RGB") if qref.exists() else None
-    q0, qpick = sum(1 for st, _ in shots if st[:2].isdigit()) - len(g.QUAD_PICK), g.QUAD_PICK
+    lref = Path("design/choralroot-fm1-looper-screens.png")  # the looper's states: cut from its sheet (the very last)
+    lmock = Image.open(lref).convert("RGB") if lref.exists() else None
+    nl = len(g.looper_states())
+    l0 = sum(1 for st, _ in shots if st[:2].isdigit()) - nl
+    q0, qpick = l0 - len(g.QUAD_PICK), g.QUAD_PICK
     for n, (stem, img) in enumerate(shots):
         x, y = (n % 2) * cw + 12, (n // 2) * (SW + 40) + 12
         src, k = mock, n
@@ -92,6 +96,8 @@ if ref.exists():
             src, k = emock, epick[n - e0] - 1
         if qmock is not None and q0 <= n < q0 + len(qpick):
             src, k = qmock, qpick[n - q0] - 1
+        if lmock is not None and l0 <= n < l0 + nl:
+            src, k = lmock, n - l0
         mx, my = GAP + (k % COLS) * (SW + GAP), GAP + 36 + (k // COLS) * (SW + NAME_H + GAP)
         comp.paste(src.crop((mx, my, mx + SW, my + SW)), (x, y))
         comp.paste(img.resize((SW, SW), Image.NEAREST), (x + SW + 12, y))

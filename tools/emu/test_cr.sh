@@ -252,24 +252,26 @@ differ cr_key_row_hot cr_key_row_cool "the hot block gone 900 ms later: $OUT/cr_
 differ cr_key_row_minor cr_key_row_e "E4: the lit key moved: $OUT/cr_key_row_e.ppm"
 run cr_loop_row
 L="$OUT/cr_loop_row.log"
-has '^loop: cells Sync Quantize Count-in Level' "$L" && ok "LOOP held, stopped: the length over Sync / Quantize / Count-in / Level: $OUT/cr_loop_row.ppm" || bad "no loop cells"
-has '^loop: knob 2 quantize' "$L" && has '^loop: knob 3 count-in' "$L" && has '^loop: knob 4 level' "$L" &&
-    ok "KNOB 2..4: quantize, count-in, level" || bad "loop knobs: $(grep '^loop: knob' "$L" | tr '\n' ' ')"
-grep -q '^ui: frame.*device): knobrow .*hot 1\.1$' "$L" && grep -q '^ui: frame.*device): knobrow .*hot 1\.2$' "$L" &&
-    grep -q '^ui: frame.*device): knobrow .*hot 1\.3$' "$L" && ok "the turned cells hot (1, 2, 3)" || bad "loop: no hot cells"
+has '^loop: cells Quantize Count-in Level Keys' "$L" && ok "LOOP held, stopped: the PLAY menu over Quantize / Count-in / Level / Keys: $OUT/cr_loop_row.ppm" || bad "no loop cells"
+has '^loop: knob 1 quantize' "$L" && has '^loop: knob 2 count-in' "$L" && has '^loop: knob 3 level' "$L" &&
+    ok "KNOB 1..3: quantize, count-in, level" || bad "loop knobs: $(grep '^loop: knob' "$L" | tr '\n' ' ')"
+grep -q '^ui: frame.*device): loopmenu .*hot 1\.0$' "$L" && grep -q '^ui: frame.*device): loopmenu .*hot 1\.1$' "$L" &&
+    grep -q '^ui: frame.*device): loopmenu .*hot 1\.2$' "$L" && ok "the turned cells hot (1, 2, 3)" || bad "loop: no hot cells"
 mt=$(grep -c '^ui: frame.*device): meter ' "$L")
-[ "$mt" = 0 ] && ok "no popup in the loop layer" || bad "a popup in the loop layer ($mt meters)"
-differ cr_loop_row cr_loop_row_quant "KNOB 2: the quantize cell: $OUT/cr_loop_row_quant.ppm"
-differ cr_loop_row_quant cr_loop_row_countin "KNOB 3: the count-in cell: $OUT/cr_loop_row_countin.ppm"
-differ cr_loop_row_countin cr_loop_row_level "KNOB 4: the level cell: $OUT/cr_loop_row_level.ppm"
+[ "$mt" = 0 ] && ok "no popup in the PLAY menu" || bad "a popup in the PLAY menu ($mt meters)"
+differ cr_loop_row cr_loop_row_quant "KNOB 1: the quantize cell: $OUT/cr_loop_row_quant.ppm"
+differ cr_loop_row_quant cr_loop_row_countin "KNOB 2: the count-in cell: $OUT/cr_loop_row_countin.ppm"
+differ cr_loop_row_countin cr_loop_row_level "KNOB 3: the level cell: $OUT/cr_loop_row_level.ppm"
+grep -q "^ui: frame.*device): loopmenu .* lm 1/1/0/[0-9]* lanes 1/0 " "$L" &&
+    ok "LOOP held while it plays: the timeline in the middle (1 bar, 1 lane): $OUT/cr_loop_row_playing.ppm" || bad "no timeline while playing"
 for f in cr_loop_row cr_loop_row_playing; do
-    re=$(px_count "$OUT/$f.ppm" 104 2 136 10 ink); rd=$(px_count "$OUT/$f.ppm" 218 0 240 26 red)
+    re=$(px_count "$OUT/$f.ppm" 2 100 14 140 ink); rd=$(px_count "$OUT/$f.ppm" 218 0 240 26 red)
     case $f in
     *playing) [ "$re" = 0 ] && [ "$rd" -gt 20 ] && ok "playing: no ring, the dial ($rd red): $OUT/$f.ppm" || bad "$f: ring band $re, dial $rd";;
     *) [ "$re" = 0 ] && [ "$rd" = 0 ] && ok "stopped: no ring, no dial: $OUT/$f.ppm" || bad "$f: ring band $re, dial $rd";;
     esac
 done
-grep -q '^loop: cells' "$L" && differ cr_loop_row_playing cr_loop_row_playing_level "playing, KNOB 4: the level cell hot: $OUT/cr_loop_row_playing_level.ppm"
+grep -q '^loop: cells' "$L" && differ cr_loop_row_playing cr_loop_row_playing_level "playing, KNOB 3: the level cell hot: $OUT/cr_loop_row_playing_level.ppm"
 run cr_metro_row
 L="$OUT/cr_metro_row.log"
 has '^metro: cells Click - - -' "$L" && ok "METRO held: the time signature over Click: $OUT/cr_metro_row.ppm" || bad "no metro cells"
@@ -487,7 +489,7 @@ has 'expect led GREEN on .*: ok' "$OUT/cr_loop_free.log" && has 'expect led PLAY
 e=$(L cr_loop_free 6); f=$(L cr_loop_free 7); g=$(L cr_loop_free 8)
 [ $(( $(lf "$e" played) - $(lf "$d" played) )) = 3 ] && ok "the overdub plays in the next cycle (3 events in 2 s)" || bad "overdub playback"
 [ "$(lf "$f" layers)" = 1 ] && [ "$(lf "$f" events)" = 2 ] && ok "REC held: undo removed the layer" || bad "undo: $f"
-[ "$(lf "$g" state)" = 0 ] && [ "$(lf "$g" events)" = 0 ] && ok "LOOP held + D#4 held 1 s: cleared: $OUT/cr_loop_layer_playing.ppm" || bad "clear: $g"
+[ "$(lf "$g" state)" = 0 ] && [ "$(lf "$g" events)" = 0 ] && ok "LOOP held, GLO (Keys = Loops) + D#4 held 1 s: cleared: $OUT/cr_loop_layer_playing.ppm" || bad "clear: $g"
 silent_end cr_loop_free
 run cr_loop_sync --flash "$OUT/cr_loop_flash.bin"
 a=$(L cr_loop_sync 1); b=$(L cr_loop_sync 2); c=$(L cr_loop_sync 4)
@@ -502,14 +504,14 @@ run cr_loop_load --flash "$OUT/cr_loop_flash.bin"
 a=$(L cr_loop_load 1); b=$(L cr_loop_load 2); c=$(L cr_loop_load 4)
 [ "$(lf "$a" slot)" = 2 ] && [ "$(lf "$a" events)" = 2 ] && ok "relaunched with --flash: slot 2 back at power-on" || bad "boot: $a"
 [ "$(lf "$b" state)" = 2 ] && [ "$(lf "$b" len)" = 768 ] && [ "$(lf "$b" played)" -ge 1 ] &&
-    ok "LOOP held + E4 loads slot 2, LOOP plays it: $OUT/cr_loop_loaded.ppm" || bad "load / play: $b"
+    ok "slot 2 in RAM at power-on (the PLAY menu: $OUT/cr_loop_load_menu.ppm), LOOP plays it: $OUT/cr_loop_loaded.ppm" || bad "load / play: $b"
 [ "$(lf "$c" state)" = 1 ] && ok "panic: the loop stops, kept" || bad "panic: $c"
 dr=$(px_count "$OUT/cr_loop_dial.ppm" 218 0 240 26 red); cr=$(px_count "$OUT/cr_loop_dial.ppm" 16 40 224 200 red)
 de=$(px_count "$OUT/cr_loop_dial.ppm" 2 60 14 180 ink)
 [ "$dr" -gt 10 ] && [ "$cr" = 0 ] && [ "$de" = 0 ] &&
     ok "the chord view while the loop plays: the corner dial ($dr red px top-right), no ring, no red in the panel: $OUT/cr_loop_dial.ppm" \
     || bad "the corner dial: $dr red in its box, $cr red in the panel, $de ink in the ring's left band"
-re=$(px_count "$OUT/cr_loop_layer_dial.ppm" 2 60 14 180 ink); rd=$(px_count "$OUT/cr_loop_layer_dial.ppm" 218 0 240 26 red)
+re=$(px_count "$OUT/cr_loop_layer_dial.ppm" 2 100 14 140 ink); rd=$(px_count "$OUT/cr_loop_layer_dial.ppm" 218 0 240 26 red)
 [ "$re" = 0 ] && [ "$rd" -gt 20 ] && ok "LOOP held while it plays: no ring in the loop layer, the dial in the top line ($rd red): $OUT/cr_loop_layer_dial.ppm" \
     || bad "the loop layer: $re px in the ring's left band, $rd red in the dial's box"
 silent_end cr_loop_load
@@ -520,19 +522,19 @@ a=$(L cr_loop_slots 1); b=$(L cr_loop_slots 2)
 [ "$(lf "$a" slot)" = 1 ] && [ "$(lf "$a" events)" = 2 ] && [ "$(lf "$a" used)" = 000 ] && has '^loop: slot 1 staged ' "$SL" &&
     [ "$(lf "$b" slot)" = 2 ] && [ "$(lf "$b" events)" = 0 ] && [ "$(lf "$b" used)" = 001 ] &&
     has '^loop: auto-save slot 1 [0-9]* bytes rc 0 (at the stop)' "$SL" &&
-    ok "a take in slot 1, LOOP held + E4 while it plays: slot 1 staged, written once the loop stopped (empty slot 2): used 001" \
+    ok "a take in slot 1, LOOP held + PRESETS +1 while it plays: slot 1 staged, written once the loop stopped (empty slot 2): used 001" \
     || bad "switch while playing: $a / $b"
 c=$(L cr_loop_slots 3); d=$(L cr_loop_slots 4); e=$(L cr_loop_slots 5)
 [ "$(lf "$c" slot)" = 2 ] && [ "$(lf "$c" events)" = 1 ] && [ "$(lf "$d" slot)" = 1 ] && [ "$(lf "$d" events)" = 2 ] &&
     [ "$(lf "$d" state)" = 2 ] && [ "$(lf "$d" used)" = 001 ] && [ "$(lf "$e" used)" = 003 ] && [ "$(lf "$e" state)" = 1 ] &&
     has '^loop: auto-save slot 2 [0-9]* bytes rc 0 (at the stop)' "$SL" &&
-    ok "a take in slot 2, LOOP held + D4 while it plays: slot 1 back (2 events) playing on; LOOP stops: slot 2 written (used 003)" \
+    ok "a take in slot 2, LOOP held + PRESETS -1 while it plays: slot 1 back (2 events) playing on; LOOP stops: slot 2 written (used 003)" \
     || bad "the pending save at the stop: $c / $d / $e"
 f=$(L cr_loop_slots 6); g=$(L cr_loop_slots 7); h=$(L cr_loop_slots 8); i=$(L cr_loop_slots 9)
 [ "$(lf "$f" events)" = 3 ] && [ "$(lf "$g" slot)" = 2 ] && [ "$(lf "$g" events)" = 1 ] &&
     has '^loop: auto-save slot 1 [0-9]* bytes rc 0 (leaving it)' "$SL" && [ "$(lf "$h" slot)" = 1 ] &&
     [ "$(lf "$h" events)" = 3 ] && [ "$(lf "$h" layers)" = 2 ] &&
-    ok "stopped: an overdub on slot 1, LOOP held + E4 saves it now, D4 brings it back with its 3 events, 2 layers" \
+    ok "stopped: an overdub on slot 1, LOOP held + PRESETS +1 saves it now, -1 brings it back with its 3 events, 2 layers" \
     || bad "switch while stopped: $f / $g / $h"
 gr=$(od -An -tu1 -v -j 15 "$OUT/cr_loop_slots_saved.ppm" | awk '{ for (k = 1; k <= NF; k++) v[n++] = $k }
      END { c = 0; for (o = 0; o + 2 < n; o += 3) if (v[o] < 100 && v[o+1] > 140 && v[o+2] > 90 && v[o+2] < 160) c++; print c }')
@@ -553,14 +555,90 @@ has '^loop: switch to slot 2 cancelled, slot 1 stays' "$SL" && [ "$(lf "$m" slot
     ok "a switch cancelled by a stop before the cycle's end: slot 1 stays selected, its overdub written at the stop (5 events)" \
     || bad "cancelled switch: $m"
 silent_end cr_loop_slots
+# the PLAY menu (docs/LOOPER-MODES.md, design/choralroot-fm1-looper-screens.png): the knobs, GLO, the strip, the modes
+export EMU_UI_LOG=0
+run cr_loop_menu
+LM="$OUT/cr_loop_menu.log"
+a=$(L cr_loop_menu 2); b=$(L cr_loop_menu 3)
+has '^loop: length 3' "$LM" && grep -aq "loopmenu .*title '4 bars'" "$LM" && ok "SELECT +3 in the menu: 4 bars, big in the middle (state 1): $OUT/cr_lm_1.ppm" || bad "the menu's length"
+has 'chord D sounding 1' "$LM" && ok "Keys = Play: MAJ + D4 plays D with the menu open" || bad "Keys = Play: no D"
+has '^loop: keys Loops' "$LM" && has 'expect led GLO on .*: ok' "$LM" && has 'expect led D#4 on .*: ok' "$LM" &&
+    has 'expect led D#4 dim .*: ok' "$LM" && ! has 'expect.*FAILED' "$LM" &&
+    ok "GLO in the menu: Keys = Loops (GLO lit, the slot map: CLEAR lit; state 2: $OUT/cr_lm_2.ppm), GLO / KNOB 4 back: Play" || bad "the menu's keys: $(grep -a 'expect.*FAILED' "$LM" | head -2)"
+has '^loop: mode Overdub' "$LM" && grep -aq "loopmenu .*item 'Overdub'" "$LM" && ok "ALGORITHM +2: the record mode Overdub (state 3): $OUT/cr_lm_3.ppm" || bad "the mode picker"
+has '^loop: slot 5 turned' "$LM" && grep -aq "loopmenu .*slot 5 jump 0 sub '' right 'empty'" "$LM" &&
+    ok "PRESETS +4: slot 5 (empty: \"empty\" at the top right; state 4): $OUT/cr_lm_4.ppm" || bad "the slot strip"
+[ "$(lf "$a" cap)" = 1 ] && grep -aq "loopmenu .*title 'Free' .*sub 'the first chord starts the take' right 'Rec . Overwrite'" "$LM" &&
+    [ "$(lf "$b" cap)" = 0 ] && ok "REC in the menu: armed, \"Rec · Overwrite\" at the top right (state 5: $OUT/cr_lm_5.ppm); REC again: cancelled"     || bad "armed in the menu: $a / $b"
+grep -q 'layer 8' "$LM" && grep -q 'layer 0 options' "$LM" && ok "OCT+ in the menu: nothing; OCT- closes it" || bad "the menu's OCT"
+# the record modes
+run cr_loop_modes --wav "$OUT/cr_loop_modes.wav"
+unset EMU_UI_LOG
+LM="$OUT/cr_loop_modes.log"
+m() { L cr_loop_modes "$1"; }
+grep -aq "loopmenu .* lm 1/2/2/[0-9]* lanes 1/1 slot 1 jump 0 sub '0:0[0-9]' right 'Rec 2\.[0-9]'" "$LM" &&
+    ok "recording Free in the menu: the timeline, bar 2 growing, the elapsed time under it: $OUT/cr_lm_6.ppm" || bad "the Free take's timeline"
+[ "$(lf "$(m 3)" cap)" = 1 ] && [ "$(lf "$(m 3)" state)" = 1 ] && [ "$(lf "$(m 3)" events)" = 1 ] && [ "$(lf "$(m 4)" events)" = 1 ] &&
+    [ "$(lf "$(m 4)" cap)" = 0 ] && ok "Overwrite: REC while playing stops and arms, the loop kept; REC again cancels, kept" || bad "Overwrite arm / cancel: $(m 3) / $(m 4)"
+[ "$(lf "$(m 5)" cap)" = 3 ] && [ "$(lf "$(m 5)" events)" = 0 ] && [ "$(lf "$(m 6)" events)" = 1 ] && [ "$(lf "$(m 6)" state)" = 2 ] &&
+    ok "Overwrite: the first chord starts the take and the loop goes then; the take replaces it" || bad "Overwrite take: $(m 5) / $(m 6)"
+[ "$(lf "$(m 7)" slot)" = 2 ] && [ "$(lf "$(m 7)" used)" = 001 ] && [ "$(lf "$(m 7)" cap)" = 1 ] &&
+    has '^loop: advance slot 1 -> 2 (saved)' "$LM" && grep -aq "loopmenu .*slot 2 jump 2 sub 'slot 1 saved . next: slot 2'" "$LM" &&
+    [ "$(lf "$(m 8)" slot)" = 2 ] && [ "$(lf "$(m 8)" events)" = 1 ] && [ "$(lf "$(m 8)" state)" = 2 ] &&
+    ok "Advance: REC on slot 1 saves it and arms slot 2 (the hop, \"slot 1 saved · next: slot 2\": $OUT/cr_lm_10.ppm); F recorded there"     || bad "Advance: $(m 7) / $(m 8)"
+[ "$(lf "$(m 9)" len)" = 1536 ] && [ "$(lf "$(m 9)" events)" = 4 ] && [ "$(lf "$(m 10)" layers)" = 2 ] &&
+    grep -aq "loopmenu .* lm 1/4/0/[0-9]* lanes 2/0 " "$LM" &&
+    ok "4 bars synced, then an overdub: the timeline's 4 bars and 2 lanes while it plays: $OUT/cr_lm_7.ppm" || bad "4 bars, 2 layers: $(m 9) / $(m 10)"
+[ "$(lf "$(m 11)" hidden)" -ge 1 ] && [ "$(lf "$(m 11)" cap)" = 5 ] && grep -aq "right 'Rep 3\.[0-9]'" "$LM" &&
+    [ "$(lf "$(m 12)" layers)" = 3 ] && [ "$(lf "$(m 12)" hidden)" -ge 1 ] &&
+    ok "Replace: F held over bar 3 hides Ab (hidden $(lf "$(m 11)" hidden), \"Rep 3.x\", the span: $OUT/cr_lm_9.ppm); REC ends it (3 layers)" \
+    || bad "Replace: $(m 11) / $(m 12)"
+[ "$(lf "$(m 13)" layers)" = 2 ] && [ "$(lf "$(m 13)" hidden)" = 0 ] && [ "$(lf "$(m 13)" events)" = 5 ] &&
+    ok "REC held: undo of the replace layer brings Ab back (2 layers, 5 events, none hidden)" || bad "Replace undo: $(m 13)"
+[ "$(lf "$(m 14)" cap)" = 6 ] && [ "$(lf "$(m 14)" state)" = 1 ] && [ "$(lf "$(m 15)" step)" = 3 ] && [ "$(lf "$(m 15)" events)" = 8 ] &&
+    grep -aq "loopmenu .* lm 2/1/0/2 .*sub 'G#' right 'Rec . Step'" "$LM" &&
+    ok "Step: REC enters it (the loop stops); D, Em, Ab at steps 1-3, OCT+ a rest, OCT- back: the cursor on step 4 ($OUT/cr_lm_11.ppm, $OUT/cr_lm_12.ppm)" \
+    || bad "Step entry: $(m 14) / $(m 15)"
+[ "$(lf "$(m 16)" events)" = 3 ] && [ "$(lf "$(m 16)" len)" = 384 ] && [ "$(lf "$(m 16)" layers)" = 1 ] && [ "$(lf "$(m 16)" state)" = 1 ] &&
+    [ $(( $(lf "$(m 18)" played) - $(lf "$(m 17)" played) )) = 3 ] && has 'expect sound .*: ok' "$LM" &&
+    ok "Step: REC commits a 1-bar loop of the 3 chords; LOOP plays them (3 a cycle)" || bad "Step commit / play: $(m 16) / $(m 17) / $(m 18)"
+# the WAV: the step loop's second cycle (found after its silence): E4 (Em's root) comes in 1/16 (125 ms) after the
+# start, G#4 (Ab's) 2/16; D4 leads (Goertzel over 90 ms windows; the ratios late / early)
+wv=$(python3 - "$OUT/cr_loop_modes.wav" <<'PY'
+import sys, wave, struct, math
+w = wave.open(sys.argv[1]); sr = w.getframerate(); ch = w.getnchannels()
+raw = w.readframes(w.getnframes()); x = struct.unpack('<%dh' % (len(raw) // 2), raw)
+n = len(x) // ch
+def band(t0, t1, f):
+    a, b = int(t0 * sr), int(t1 * sr); k = 2 * math.cos(2 * math.pi * f / sr); s1 = s2 = 0.0
+    for i in range(a, b):
+        s = (x[i * ch] + x[i * ch + ch - 1]) / 2 + k * s1 - s2; s2 = s1; s1 = s
+    return math.sqrt(max(s1 * s1 + s2 * s2 - k * s1 * s2, 0)) / (b - a)
+# the second cycle of the step loop: the last onset after a silence, 4..2 s before the end
+f = int(0.005 * sr); t0 = None
+i = n - int(4.4 * sr)
+while i < n - int(1.5 * sr):
+    if sum(abs(x[k * ch]) for k in range(i, i + f)) / f > 300 and sum(abs(x[k * ch]) for k in range(i - 4 * f, i - 3 * f)) / f < 30:
+        t0 = i / sr; break
+    i += f
+if t0 is None: print('none'); sys.exit()
+def r(f0, early, late): return band(t0 + late, t0 + late + 0.09, f0) / max(band(t0 + early, t0 + early + 0.09, f0), 1e-3)
+print('%.2f %.1f %.1f %.1f' % (t0, r(329.63, 0.02, 0.14), r(415.30, 0.14, 0.27), band(t0+0.02,t0+0.11,293.66)/max(band(t0+0.02,t0+0.11,415.30),1e-3)))
+PY
+)
+set -- $wv
+[ $# = 4 ] && awk "BEGIN { exit !($2 > 3 && $3 > 3 && $4 > 3) }" &&
+    ok "the WAV: the steps at their ticks (from $1 s: E4 x$2 at +125 ms, G#4 x$3 at +250 ms, D4 / G#4 x$4 at the start)" \
+    || bad "the step loop's WAV: '$wv'"
+silent_end cr_loop_modes
 "$EMU" --headless --script "$S/cr_loop_free.txt" --wav "$OUT/cr_again/cr_loop_free.wav" >/dev/null 2>&1
 cmp -s "$OUT/cr_loop_free.wav" "$OUT/cr_again/cr_loop_free.wav" && ok "the looper is deterministic (the same audio twice)" || bad "looper audio differs"
 
 echo "the loop-length layer, the count-in, undo"
 run cr_countin
-has '^loop: length 1' "$OUT/cr_countin.log" && ok "LOOP held + KNOB 1 +1: the length picker moved (Free -> 1 bar), no meter: $OUT/cr_loop_length_1bar.ppm" \
-    || bad "KNOB 1 in the loop layer"
-differ cr_loop_length cr_loop_length_1bar "the picker's selection changed: $OUT/cr_loop_length.ppm"
+has '^loop: length 1' "$OUT/cr_countin.log" && ok "LOOP held + SELECT +1: the length (Free -> 1 bar), no meter: $OUT/cr_loop_length_1bar.ppm" \
+    || bad "SELECT in the PLAY menu"
+differ cr_loop_length cr_loop_length_1bar "the length changed: $OUT/cr_loop_length.ppm"
 differ cr_countin_4 cr_countin_3 "the count-in counts down huge in red: $OUT/cr_countin_4.ppm -> cr_countin_3.ppm"
 p=$(pixel "$OUT/cr_countin_4.ppm" 120 130); set -- $p
 [ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 90 ] && ok "the beat number is red ($p)" || bad "count-in number not red ($p)"
@@ -568,7 +646,8 @@ has '^undo: 1 layers left' "$OUT/cr_countin.log" && ok "REC held: undo, the laye
 silent_end cr_countin
 
 echo "REC in the corner dial: no ring round the screens; the count-in and undo keep theirs"
-ring12() { px_count "$1" 104 2 136 10 ink; }      # the ring's band at 12 o'clock (nothing else draws there)
+ring12() { px_count "$1" 2 100 14 140 ink; }      # the ring's band at 9 o'clock (nothing else draws there: the top
+                                                  # line's right text "Rec \302\267 Overwrite" reaches 12 o'clock)
 dialred() { px_count "$1" 218 0 240 26 red; }     # red in the corner dial's box
 redpx() { set -- $(pixel "$1" "$2" "$3"); [ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 100 ]; }   # redpx FILE X Y
 export EMU_UI_LOG=0

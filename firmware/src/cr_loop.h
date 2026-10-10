@@ -25,6 +25,7 @@
 #define CRL_SLOTS 10u
 #define CRL_NSYNC 6u             /* Free, 1, 2, 4, 8, 16 bars */
 #define CRL_NQUANT 7u            /* none, 1/4, 1/8, 1/8T, 1/16, 1/16T, 1/32 */
+#define CRL_NEXT_SLOT(k) (((k) + 1u) % CRL_SLOTS)   /* Advance: the slot after k (10 wraps to 1) */
 
 enum { CRL_EMPTY, CRL_STOPPED, CRL_PLAYING };                  /* the loop */
 enum { CRL_CAP_NONE,                                            /* capture */
@@ -32,10 +33,18 @@ enum { CRL_CAP_NONE,                                            /* capture */
        CRL_CAP_COUNTIN,     /* synced: the one-bar count-in (REC blinks, the click counts) */
        CRL_CAP_REC,         /* recording the first layer (REC blinks) */
        CRL_CAP_OD_ARMED,    /* playing, overdub armed: the next chord opens a layer (REC lit) */
-       CRL_CAP_OD };        /* overdubbing a layer (REC blinks) */
+       CRL_CAP_OD,          /* overdubbing a layer (REC blinks); Replace: the same with lp->rep */
+       CRL_CAP_STEP };      /* step entry (docs/LOOPER-MODES.md): the loop stopped, chords written at a cursor (REC lit) */
+enum { CRL_MODE_OVERWRITE, CRL_MODE_ADVANCE, CRL_MODE_OVERDUB, CRL_MODE_REPLACE, CRL_MODE_STEP, CRL_NMODE };
+#define CRL_HID 0x80u            /* crl_ev_t.layer: hidden by a Replace layer (| that layer's index); RAM only */
+#define CRL_LAYER(e) ((e)->layer & CRL_HID ? 0xFFu : (e)->layer)   /* a live event's layer (0xFF: hidden) */
 enum { CRL_SIG_44, CRL_SIG_34, CRL_SIG_68, CRL_NSIG };
 
-typedef struct { uint16_t t, dur; uint8_t root, vel, qx, layer; } crl_ev_t;   /* qx = quality << 4 | ext */
+typedef struct { uint16_t t, dur; uint8_t root, vel, qx, layer; } crl_ev_t;   /* qx = quality << 4 | ext; layer: its
+                                                                                 * layer, or CRL_HID | the Replace layer
+                                                                                 * that hid it (undoing that layer brings
+                                                                                 * it back; the flash record has only
+                                                                                 * the live events) */
 
 typedef struct {                 /* a loop's content: what a slot stores */
     uint32_t len;                /* ticks, 0 = empty */
@@ -48,6 +57,8 @@ typedef struct {
     /* settings (the UI's, posted) */
     uint8_t sync, quant, count_in, level;      /* 0..5, 0..6, 0/1, 0..100 (loop velocity %) */
     uint8_t sig, metro, metro_vol;             /* CRL_SIG_*, click on, click level 0..100 */
+    uint8_t mode;                              /* CRL_MODE_*: what REC does with no capture (Advance: the UI's slot jump,
+                                                * then as Overwrite) */
     /* the loop */
     crl_data_t d;
     uint8_t state, cap, full;
@@ -57,8 +68,17 @@ typedef struct {
     uint8_t clk_on;
     uint32_t cyc0, scan;                       /* the current cycle's start (abs ticks); next position to play */
     uint32_t rec0, rec_len, cin0, od0, met0;
-    struct { uint32_t gid, t0; int16_t root; uint8_t used, q, ext, vel; } open[CRL_OPEN];   /* held gestures */
-    struct { uint32_t off; uint8_t used; } pv[CR_MAX_LOOPV];
+    struct { uint32_t gid, t0; int16_t root; uint8_t used, q, ext, vel, rep; } open[CRL_OPEN];   /* held gestures
+                                                * (rep: opened while replacing) */
+    struct { uint32_t off; uint16_t ev; uint8_t used; } pv[CR_MAX_LOOPV];   /* ev: the event it plays */
+    uint16_t lev0[CRL_MAX_LAYERS];             /* each layer's first event (a hidden event's layer, back on undo) */
+    uint8_t ow;                                /* Overwrite armed over a loop: it is cleared when the take starts */
+    uint8_t rep, rep_n;                        /* the overdub replaces (Replace); gestures of it held */
+    uint32_t rep0;                             /* the cycle position the held span began at (ticks) */
+    uint16_t step, step_end;                   /* step entry: the cursor; the steps used (Free: the length) */
+    uint8_t step_g, step_w;                    /* the grid (ticks a step); a chord written at the cursor */
+    uint32_t step_len;                         /* synced: the length the cursor wraps at (0: Free) */
+    uint16_t gen;                              /* + 1 whenever the events change (the UI's timeline cache) */
     const crl_data_t *next;                    /* a slot switch waiting for the end of the cycle (0: empty) */
     uint8_t next_on, dirty;                    /* a switch is queued; the content changed since loaded / saved */
     uint8_t loads;                             /* + 1 whenever a slot's data replaces the loop: the UI tells a queued
@@ -76,11 +96,15 @@ void cr_loop_gesture(cr_loop_t *lp, uint32_t gid, int16_t root, uint8_t q, uint8
 
 /* transport (PLAN.md section 3). Each returns what it did (CRL_DID_*) for the UI's message */
 enum { CRL_DID_NOTHING, CRL_DID_ARM, CRL_DID_COUNTIN, CRL_DID_REC, CRL_DID_CANCEL, CRL_DID_COMMIT, CRL_DID_OD_ARM,
-       CRL_DID_OD_END, CRL_DID_PLAY, CRL_DID_STOP, CRL_DID_UNDO, CRL_DID_CLEAR, CRL_DID_EMPTY_TAKE };
+       CRL_DID_OD_END, CRL_DID_PLAY, CRL_DID_STOP, CRL_DID_UNDO, CRL_DID_CLEAR, CRL_DID_EMPTY_TAKE, CRL_DID_REP_ARM,
+       CRL_DID_STEP, CRL_DID_STEP_DONE };
 int  cr_loop_rec(cr_loop_t *lp, cr_t *c);      /* REC tap */
 int  cr_loop_play(cr_loop_t *lp, cr_t *c);     /* LOOP tap */
 int  cr_loop_undo(cr_loop_t *lp, cr_t *c);     /* REC hold, F#4: the last layer (an overdub in progress first) */
 int  cr_loop_clear(cr_loop_t *lp, cr_t *c);    /* D#4 held 1 s */
+enum { CRL_STEP_KEYSUP, CRL_STEP_REST, CRL_STEP_BACK };
+void cr_loop_step(cr_loop_t *lp, int op);      /* step entry: every key up (advances after a chord), OCT+, OCT- */
+uint32_t cr_loop_pos(const cr_loop_t *lp);     /* the playhead: ticks into the take / the cycle (0 idle) */
 void cr_loop_stop(cr_loop_t *lp, cr_t *c);     /* stop playing (loop voices end), capture ends */
 void cr_loop_panic(cr_loop_t *lp);             /* after cr_panic: stopped, content kept (a fresh take dropped) */
 void cr_loop_set(cr_loop_t *lp, cr_t *c, const crl_data_t *d);    /* load now (stops): d = 0 empties */

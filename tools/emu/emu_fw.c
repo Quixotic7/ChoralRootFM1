@@ -308,12 +308,18 @@ void emu_fw_dump(void)
     printf("  parts busy %u  octave %d master_q12 %u cpu %u%%  midi in %u out %u\n", (unsigned)cr_parts_busy(),
            (int)cu.octave, (unsigned)song.master_q12, (unsigned)(song.cpu_q8 * 100u / 256u),
            (unsigned)(mi_w - mi_r), (unsigned)(mo_w - mo_r));
-    printf("  loop: state %u cap %u layers %u events %u len %u slot %u played %u ring %u used %03X metro %u sig %u "
-           "busy-loopv %d style %u single %u split %u\n",
-           (unsigned)crl.state, (unsigned)crl.cap, (unsigned)crl.d.nlayers, (unsigned)crl.d.nev, (unsigned)crl.d.len,
-           (unsigned)cs.loop_slot + 1u, (unsigned)crl.played, (unsigned)cr_loop_ring(&crl), (unsigned)cs.loop_used,
-           (unsigned)crl.metro, (unsigned)crl.sig, cr_loop_busy(&cr, 0) + cr_loop_busy(&cr, 1) + cr_loop_busy(&cr, 2),
-           (unsigned)cr.playstyle, (unsigned)cr.single, (unsigned)cr.split_pc);
+    {
+        unsigned hid = 0, k;
+        for (k = 0; k < crl.d.nev; k++)
+            hid += (crl.d.ev[k].layer & CRL_HID) != 0;
+        printf("  loop: state %u cap %u layers %u events %u len %u slot %u played %u ring %u used %03X metro %u sig %u "
+               "mode %u keys %u step %u hidden %u busy-loopv %d style %u single %u split %u\n",
+               (unsigned)crl.state, (unsigned)crl.cap, (unsigned)crl.d.nlayers, (unsigned)crl.d.nev, (unsigned)crl.d.len,
+               (unsigned)cs.loop_slot + 1u, (unsigned)crl.played, (unsigned)cr_loop_ring(&crl), (unsigned)cs.loop_used,
+               (unsigned)crl.metro, (unsigned)crl.sig, (unsigned)crl.mode, (unsigned)cs.loop_keys, (unsigned)crl.step, hid,
+               cr_loop_busy(&cr, 0) + cr_loop_busy(&cr, 1) + cr_loop_busy(&cr, 2),
+               (unsigned)cr.playstyle, (unsigned)cr.single, (unsigned)cr.split_pc);
+    }
     printf("  boot: %s reset %s failed %u pending %u prev_stage %u\n", bootguard_mode_name(bootguard.mode),
            bootguard_class_name(bootguard.cls), (unsigned)bootguard.failed, (unsigned)bootguard.pending,
            (unsigned)felucca_dbg.prev_stage);
@@ -331,18 +337,21 @@ void emu_fw_dump(void)
 void emu_fw_ui_info(char *buf, uint32_t n)
 {
     static const char *const K[] = {"none", "stripes", "chord", "picker", "meter", "keyboard", "arp", "params", "geek",
-                                    "text", "big", "scope", "edit8", "stack", "knobrow"};
+                                    "text", "big", "scope", "edit8", "stack", "knobrow", "loopmenu"};
     static const char *const DM[] = {"play", "armed", "rec", "od"};    /* cr_screen.h CR_DIAL_* */
     const cr_screen_t *s = &cu_scr;
     snprintf(buf, n, "%s view %u name '%s|%s|%s' from '%s|%s|%s' item '%s' value '%s' title '%s' size %u squeeze %u "
-             "anim %02X %u ms ring %u/%u dial %s/%u/%u msg '%s' blits %u/%u bytes %u wv %u,%u,%u,%u,%u hot %u.%u",
+             "anim %02X %u ms ring %u/%u dial %s/%u/%u msg '%s' blits %u/%u bytes %u wv %u,%u,%u,%u,%u "
+             "lm %u/%u/%u/%u lanes %u/%u slot %u jump %u sub '%s' right '%s' hot %u.%u",
              s->kind < CR_K_N && s->kind < sizeof K / sizeof K[0] ? K[s->kind] : "?", (unsigned)cs.view, s->name.root, s->name.quality, s->name.sup,
-             s->from.root, s->from.quality, s->from.sup, s->kind == CR_K_PICKER || s->kind == CR_K_KNOBROW ? cr_item(s, s->sel) : "",
+             s->from.root, s->from.quality, s->from.sup, s->kind == CR_K_PICKER || s->kind == CR_K_KNOBROW || s->kind == CR_K_LOOPMENU ? cr_item(s, s->sel) : "",
              s->value, s->title, (unsigned)s->size, (unsigned)s->squeeze, (unsigned)s->anim,
              (unsigned)cr_anim_ms(&cu_anim, cu_now()), (unsigned)s->ring_on, (unsigned)s->ring,
              !s->dial_on ? "-" : s->dial_mode < 4u ? DM[s->dial_mode] : "?", (unsigned)s->dial, (unsigned)s->dial_dot, s->message,
              (unsigned)cr_dc.blits, (unsigned)cr_dc.drawn, (unsigned)cr_dc.bytes, (unsigned)s->wv[0], (unsigned)s->wv[1], (unsigned)s->wv[2], (unsigned)s->wv[3],
-             (unsigned)s->wv[4], (unsigned)s->hot_r, (unsigned)s->hot_c);
+             (unsigned)s->wv[4], (unsigned)s->lm_mid, (unsigned)s->lm_bars,
+             (unsigned)s->lm_free, (unsigned)(s->lm_pos & 0x7FFFu), (unsigned)s->lm_nlane, (unsigned)s->lm_newlane,
+             (unsigned)s->lm_slot + 1u, (unsigned)s->lm_jump, s->sub, s->right, (unsigned)s->hot_r, (unsigned)s->hot_c);
 }
 void emu_fw_stats(uint32_t *shed, uint32_t *cpu_pct)
 {

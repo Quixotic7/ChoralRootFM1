@@ -1,0 +1,60 @@
+# ChoralRoot: the PLAY menu (docs/LOOPER-MODES.md; design/choralroot-fm1-looper-screens.png states 1-5). LOOP (PLAY)
+# held: the slot strip (PRESETS), the record mode (ALGORITHM), the length (SELECT), Quantize / Count-in / Level /
+# Keys (KNOB 1..4). SELECT +3: 4 bars (state 1); Keys = Play: MAJ + D4 plays D with the menu open; GLO: Keys = Loops
+# (GLO lit, the slot map: D#4 CLEAR lit; state 2), GLO again: Play; KNOB 4 +1 / -1 the same; ALGORITHM +2: Overdub
+# (state 3), back; PRESETS +4: slot 5, empty (state 4), back; SELECT -3: Free; REC: armed, "Rec · Overwrite" (state 5);
+# REC again: cancelled. OCT+ does nothing in the menu; OCT- closes it.
+wait 300
+btn PLAY down
+wait 500
+btn PLAY up
+wait 200
+knob SELECT +3
+wait 600
+shot build/emu/test/cr_lm_1.ppm
+expect led GLO dim
+btn A#3 down
+btn D4 down
+wait 300
+dump                          # 1: D sounds with the menu open (Keys = Play)
+btn D4 up
+btn A#3 up
+wait 300
+btn GLO
+wait 300
+expect led GLO on
+expect led D#4 on
+shot build/emu/test/cr_lm_2.ppm
+btn GLO
+wait 300
+expect led GLO dim
+expect led D#4 dim
+knob KNOB4 +1
+wait 200
+expect led GLO on
+knob KNOB4 -1
+wait 900
+knob ALGORITHM +2
+wait 600
+shot build/emu/test/cr_lm_3.ppm
+knob ALGORITHM -2
+wait 300
+knob PRESETS +4
+wait 1300
+shot build/emu/test/cr_lm_4.ppm
+knob PRESETS -4
+wait 300
+btn OCT+                      # nothing: the menu stays
+wait 200
+knob SELECT -3
+wait 300
+btn REC
+wait 1500
+shot build/emu/test/cr_lm_5.ppm
+dump                          # 2: armed (cap 1), the menu open
+btn REC
+wait 300
+dump                          # 3: cancelled
+btn OCT-
+wait 300
+dump                          # 4: the menu closed (layer 0)

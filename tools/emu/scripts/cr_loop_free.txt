@@ -1,6 +1,14 @@
 # ChoralRoot looper, Free sync (120 BPM: a 4/4 bar = 2 s): REC arms, D (MAJ + D4) starts the take at beat 1, Em
 # (MIN + E4) at beat 3, REC at 2 s commits a 1-bar loop that plays at once; dumps at known times count the re-triggers;
-# REC: overdub armed, G (MAJ + G4) overdubbed, REC ends it; REC held: undo; LOOP held + D#4 held 1 s: clear.
+# REC: overdub armed, G (MAJ + G4) overdubbed, REC ends it; REC held: undo; LOOP held, GLO (Keys = Loops) + D#4 held
+# 1 s: clear. The record mode is set to Overdub first (LOOP held + ALGORITHM +2: Overwrite -> Overdub).
+wait 300
+btn PLAY down
+wait 400
+knob ALGORITHM +2
+wait 100
+btn PLAY up
+btn OCT-
 wait 300
 btn REC
 wait 300
@@ -52,10 +60,12 @@ dump
 btn PLAY down
 wait 700
 shot build/emu/test/cr_loop_layer_playing.ppm
+btn PLAY up                   # (the menu stays open)
+btn GLO                       # Keys = Loops: D#4 clears
+wait 100
 btn D#4 down
 wait 1200
 btn D#4 up
-btn PLAY up
 btn OCT-                      # the layer stays open after a hold: OCT- closes it
 wait 300
 dump

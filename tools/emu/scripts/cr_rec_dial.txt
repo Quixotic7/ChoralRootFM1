@@ -3,7 +3,15 @@
 # lit); D (MAJ + D4) starts the take: the track red, the bar's sweep, the dot blinking with REC; REC commits the
 # loop; REC arms an overdub, G (MAJ + G4) records it: the loop's arc, the dot blinking; LOOP stops it. REC blinks lit
 # 0..250 ms of every 500 (fm1_ms): the recording shots sit in a lit half; the armed ones wait out the message box
-# (1.2 s). (A btn tap takes 100 ms of the clock.)
+# (1.2 s). (A btn tap takes 100 ms of the clock.) First the record mode Overdub (LOOP held + ALGORITHM +2: 1 s, the
+# times below are after it, the blink's phase kept).
+btn PLAY down
+wait 400
+knob ALGORITHM +2
+wait 100
+btn PLAY up
+btn OCT-
+wait 400
 wait 300
 btn REC
 wait 1300

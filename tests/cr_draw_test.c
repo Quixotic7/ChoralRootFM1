@@ -876,6 +876,99 @@ int main(int argc, char **argv)
 #undef HS
     }
 
+    {   /* the looper's PLAY menu (CR_K_LOOPMENU, design/choralroot-fm1-looper-mockups.json): the slot strip's selected
+         * cell red and taller; the playhead where lm_pos puts it, its move composing only the timeline's strips; a
+         * struck mark in Replace's span; the step cursor's blink composing only its row's strip */
+        int32_t it = -1, ir = -1, is = -1, ix = -1;
+        uint32_t x, y, k, n0, n1, n2;
+        uint16_t red = swap16(CR_RED), dim = swap16(T_DIM);
+#define HS(x_, y_) host_screen[(uint32_t)(y_) * 240u + (uint32_t)(x_)]
+#define COUNT(n_, x0_, y0_, x1_, y1_, cond_) do { n_ = 0; for (y = (y0_); y < (uint32_t)(y1_); y++) \
+            for (x = (x0_); x < (uint32_t)(x1_); x++) n_ += (cond_); } while (0)
+        for (k = 0; k < CR_NSCREENS; k++) {
+            const cr_screen_t *q = &CR_SCREENS[k];
+            if (q->kind != CR_K_LOOPMENU) continue;
+            if (ix < 0 && q->lm_mid == CR_LM_TEXT && !q->lm_jump && q->lm_slot == 2u) ix = (int32_t)k;
+            if (it < 0 && q->lm_mid == CR_LM_TIMELINE && !q->lm_free && !q->lm_erase1) it = (int32_t)k;
+            if (ir < 0 && q->lm_mid == CR_LM_TIMELINE && q->lm_erase1) ir = (int32_t)k;
+            if (is < 0 && q->lm_mid == CR_LM_STEPS) is = (int32_t)k;
+        }
+        check("loop menu: the idle, playing, Replace and Step states are in the table", ix >= 0 && it >= 0 && ir >= 0 && is >= 0);
+        if (ix >= 0) {   /* slot 3 (x 48..68): red from row 29; slot 2 and 4: none red, nothing above row 34 */
+            cr_screen_t s = CR_SCREENS[ix];
+            s.anim = 0;
+            render(&s, 0);
+            COUNT(n0, 49u, 29u, 67u, 50u, HS(x, y) == red);
+            COUNT(n1, 49u, 29u, 67u, 33u, HS(x, y) == red);
+            COUNT(n2, 6u, 28u, 47u, 56u, HS(x, y) == red);
+            snprintf(name, sizeof name, "loop menu: the selected slot red and 5 px taller (%u red px, %u above the others; %u left of it)",
+                     n0, n1, n2);
+            check(name, n0 > 200u && n1 > 50u && n2 == 0u);
+            s.lm_slot = 4;                       /* slot 5, empty: a red outline only */
+            render(&s, 0);
+            COUNT(n0, 92u, 29u, 110u, 50u, HS(x, y) == red);
+            COUNT(n1, 96u, 34u, 106u, 46u, HS(x, y) == red);
+            check("loop menu: an empty selected slot is a red outline (no fill)", n0 > 50u && n1 < n0 / 4u);
+        }
+        if (it >= 0) {   /* the playhead: a red column at x 20 + pos * 50 (4 bars), moving composes the timeline only */
+            cr_screen_t s = CR_SCREENS[it];
+            int32_t sy = cr_lm_tl_y(&s), px = 20 + (int32_t)s.lm_pos * (200 / (int32_t)s.lm_bars) / 256;
+            s.anim = 0;
+            render(&s, 0);
+            COUNT(n0, (uint32_t)px - 1u, (uint32_t)sy - 2u, (uint32_t)px + 1u, (uint32_t)sy + 42u, HS(x, y) == red);
+            s.lm_pos = (uint16_t)(s.lm_pos + 64u);                    /* a quarter bar on */
+            cr_draw(&s, 0);
+            COUNT(n1, (uint32_t)px - 1u, (uint32_t)sy - 2u, (uint32_t)px + 1u, (uint32_t)sy + 42u, HS(x, y) == red);
+            COUNT(n2, (uint32_t)px + 11u, (uint32_t)sy - 2u, (uint32_t)px + 14u, (uint32_t)sy + 42u, HS(x, y) == red);
+            snprintf(name, sizeof name, "loop menu: the playhead at x %d (%u red px), a quarter bar on at %d (%u; %u left)",
+                     px, n0, px + 12, n2, n1);
+            check(name, n0 >= 40u && n2 >= 40u && n1 < 30u);
+            snprintf(name, sizeof name, "loop menu: the playhead moves: only the timeline's strips composed (%u)", cr_dc.drawn);
+            check(name, cr_dc.drawn >= 1u && cr_dc.drawn <= 2u);
+            memcpy(a, host_screen, sizeof a);
+            render(&s, 0);
+            check("loop menu: the playhead's partial draw equals a full one", !memcmp(a, host_screen, sizeof a));
+        }
+        if (ir >= 0) {   /* a mark at 2.25 bars (x 132) inside the span 2.1 .. 2.4: grey, a red x over it */
+            cr_screen_t s = CR_SCREENS[ir];
+            int32_t sy = cr_lm_tl_y(&s), mx = 20 + 225 * 50 / 100;
+            s.anim = 0;
+            render(&s, 0);
+            write_ppm(dir, "loopmenu_struck");
+            COUNT(n0, (uint32_t)mx - 1u, (uint32_t)sy + 5u, (uint32_t)mx + 2u, (uint32_t)sy + 35u, HS(x, y) == dim);
+            COUNT(n1, (uint32_t)mx - 5u, (uint32_t)sy + 5u, (uint32_t)mx + 6u, (uint32_t)sy + 35u, HS(x, y) == red);
+            s.lm_erase0 = s.lm_erase1 = 0;
+            render(&s, 0);
+            COUNT(n2, (uint32_t)mx - 1u, (uint32_t)sy + 5u, (uint32_t)mx + 2u, (uint32_t)sy + 35u, HS(x, y) == dim);
+            snprintf(name, sizeof name, "loop menu: a struck mark: grey (%u px, %u unstruck) under a red x (%u red px)", n0, n2, n1);
+            check(name, n0 >= 6u && n2 == 0u && n1 >= 10u);
+        }
+        if (is >= 0) {   /* the cursor's outline (red around a grey step); its blink: its row's strip only */
+            cr_screen_t s = CR_SCREENS[is];
+            int32_t gy = cr_lm_st_y(&s), per = cr_lm_per(&s), c = (int32_t)(s.lm_pos & 63u) % per;
+            int32_t cx0 = cr_lm_st_x(per, c) / 16, cy0 = gy + (int32_t)(s.lm_pos & 63u) / per * 9;
+            s.anim = 0;
+            render(&s, 0);
+            COUNT(n0, (uint32_t)cx0 - 3u, (uint32_t)cy0 - 3u, (uint32_t)cx0 + 14u, (uint32_t)cy0 + 10u, HS(x, y) == red);
+            s.lm_pos |= CR_LM_CUR_OFF;
+            cr_draw(&s, 0);
+            COUNT(n1, (uint32_t)cx0 - 3u, (uint32_t)cy0 - 3u, (uint32_t)cx0 + 14u, (uint32_t)cy0 + 10u, HS(x, y) == red);
+            snprintf(name, sizeof name, "loop menu: the step cursor blinks (%u red px lit, %u off), only its strip composed (%u)",
+                     n0, n1, cr_dc.drawn);
+            check(name, n0 >= 30u && n1 + 20u < n0 && cr_dc.drawn == 1u && cr_dc.blits == 1u);
+            memcpy(a, host_screen, sizeof a);
+            render(&s, 0);
+            check("loop menu: the blink's partial draw equals a full one", !memcmp(a, host_screen, sizeof a));
+            s.lm_pos = (uint16_t)((s.lm_pos & 63u) + 16u);            /* the cursor a bar down: both rows' strips */
+            cr_draw(&s, 0);
+            memcpy(a, host_screen, sizeof a);
+            render(&s, 0);
+            check("loop menu: the cursor moving rows: the partial draw equals a full one", !memcmp(a, host_screen, sizeof a));
+        }
+#undef COUNT
+#undef HS
+    }
+
     {   /* animations: pure and settling */
         int pure = 1, settle = 1, moving = 1;
         for (i = 0; i < CR_NSCREENS; i++) {

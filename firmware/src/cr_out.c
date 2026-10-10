@@ -373,8 +373,9 @@ enum {
     CRE_LOOP          /* a: LP_*, b / v: its argument */
 };
 /* CRE_LOOP's operations */
-enum { LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR, LP_SET, LP_QUEUE, LP_CONF, LP_METRO };   /* LP_SET / QUEUE: b 1 = empty */
-enum { LC_SYNC, LC_QUANT, LC_COUNTIN, LC_LEVEL, LC_SIG, LC_VOL };                  /* LP_CONF: b, v */
+enum { LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR, LP_SET, LP_QUEUE, LP_CONF, LP_METRO,
+       LP_STEP };                                                /* LP_SET / QUEUE: b 1 = empty; LP_STEP: v CRL_STEP_* */
+enum { LC_SYNC, LC_QUANT, LC_COUNTIN, LC_LEVEL, LC_SIG, LC_VOL, LC_MODE };         /* LP_CONF: b, v */
 typedef struct { uint8_t op, a, b, rsv; int16_t v; } cr_ev_in_t;
 #define CR_EVQ 128u                              /* a power of two */
 static cr_ev_in_t cr_evq[CR_EVQ];
@@ -419,6 +420,7 @@ static void cr_loop_op(const cr_ev_in_t *e)
         crl_stage_busy = crl.next_on ? 2u : 0u;    /* (the block frees it once the switch is taken) */
         break;
     case LP_METRO: cr_loop_metro(&crl, e->v); break;
+    case LP_STEP: cr_loop_step(&crl, e->v); break;
     case LP_CONF:
         switch (e->b) {
         case LC_SYNC: crl.sync = (uint8_t)(e->v < (int)CRL_NSYNC ? e->v : 0); break;
@@ -427,6 +429,7 @@ static void cr_loop_op(const cr_ev_in_t *e)
         case LC_LEVEL: crl.level = (uint8_t)(e->v > 100 ? 100 : e->v); break;
         case LC_SIG: if (crl.cap == CRL_CAP_NONE) crl.sig = (uint8_t)(e->v < CRL_NSIG ? e->v : 0); break;
         case LC_VOL: crl.metro_vol = (uint8_t)(e->v > 100 ? 100 : e->v); break;
+        case LC_MODE: crl.mode = (uint8_t)(e->v < (int)CRL_NMODE ? e->v : 0); break;
         default: break;
         }
         break;
@@ -666,6 +669,11 @@ typedef struct {
     uint32_t llen, lbar, lbeat, lplayed;
     uint8_t lnote[16];               /* bit n: a loop voice sounds note n (PLAN 6: their keys glow dim) */
     uint8_t ldisp;                   /* the chord shown (ci) is a loop voice's, not the player's */
+    /* the PLAY menu's timeline and step grid (cr_ui.c cu_lm_*): the events themselves are read (IRQ off) only when
+     * lgen changes */
+    uint8_t lrep, lrep_on, lstep_g;  /* the overdub replaces; a gesture of it held; the step grid (ticks) */
+    uint16_t lgen, lev0, lstep, lstep_end;   /* the events' generation; the take's first event; the cursor; steps used */
+    uint32_t lpos, lrep0, lrec_len, lstep_len;   /* playhead (ticks), the held span's start, the synced take, the steps' */
 } cr_snap_t;
 static cr_snap_t cr_snap;
 
@@ -701,6 +709,17 @@ static void cr_snapshot(void)
     cr_snap.lring = cr_loop_ring(&crl);
     cr_loop_where(&crl, &cr_snap.lbar, &cr_snap.lbeat);
     cr_snap.lplayed = crl.played;
+    cr_snap.lrep = crl.rep;
+    cr_snap.lrep_on = (uint8_t)(crl.rep && crl.rep_n && crl.cap == CRL_CAP_OD);
+    cr_snap.lstep_g = crl.step_g;
+    cr_snap.lgen = crl.gen;
+    cr_snap.lev0 = crl.layer_ev0;
+    cr_snap.lstep = crl.step;
+    cr_snap.lstep_end = crl.step_end;
+    cr_snap.lpos = cr_loop_pos(&crl);
+    cr_snap.lrep0 = crl.rep0;
+    cr_snap.lrec_len = crl.rec_len;
+    cr_snap.lstep_len = crl.step_len;
     for (n = 0; n < 16u; n++)
         cr_snap.lnote[n] = 0;
     for (n = 0; n < (uint32_t)CR_MAX_LOOPV; n++) {    /* the 8 loop voices' voiced notes */

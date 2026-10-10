@@ -29,7 +29,13 @@ enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOA
        CR_K_EDIT8,                  /* the sound editor: two rows of four cells, an optional wide band over them */
        CR_K_STACK,                  /* the sound editor: N rows (1..8) of four cells under column headings */
        CR_K_KNOBROW,                /* a layer: a horizontal picker band over one row of four knob cells (cell[0]) */
+       CR_K_LOOPMENU,               /* the looper's PLAY menu (docs/LOOPER-MODES.md): the slot strip, the record mode,
+                                     * the middle (a big text, the record timeline, the step grid), the knob row */
        CR_K_N };
+
+/* CR_K_LOOPMENU's middle (lm_mid) */
+enum { CR_LM_TEXT, CR_LM_TIMELINE, CR_LM_STEPS };
+#define CR_LM_CUR_OFF 0x8000u       /* lm_pos (steps): the cursor's blink, off this frame (the producer's clock) */
 
 /* the top line's icon: none = the bare Orchid line (mid at the left in 15 px, right at the right) */
 enum { CR_ICON_NONE, CR_ICON_PLAY, CR_ICON_REC, CR_ICON_LOOP };
@@ -170,7 +176,8 @@ typedef struct {
     uint8_t size;                   /* px of the huge type (0: the kind's default) */
 
     /* panel: meter */
-    char sub[12];                   /* under the value, in its colour */
+    char sub[32];                   /* under the value, in its colour; loopmenu: the line under the big text ("the first
+                                     * chord starts the take"), the elapsed "0:07", the step's chord name "Dm7" */
     uint16_t pct, pct_from;         /* Q8: the stripes filled; CR_A_FILL: from */
     uint8_t segments, thick;        /* stripes (0 = 12), their height (0 = 14) */
     uint8_t sub_mark;               /* a small square after `sub` (an overwritten factory preset, docs/PRESETS.md) */
@@ -231,6 +238,29 @@ typedef struct {
     /* panel: scope (the master output, triggered; -127..127 = the panel's half height; hashed with the rest, so a
      * moving trace redraws and a still one costs nothing) */
     int8_t wave[CR_WAVE_N];
+
+    /* panel: loopmenu (CR_K_LOOPMENU, the PLAY menu, docs/LOOPER-MODES.md): the knobrow's picker band = the record mode
+     * (items / sel / col as a knobrow; the slide), cell[0][0..3] = Quantize Count-in Level Keys (as a knobrow's; hot_r /
+     * hot_c), the slot strip above the band, the middle under it: a big text (`title` in title_col, NONE red; `sub`
+     * under it) or a timeline or the step grid (`sub` the cursor step's chord at the left under it, `value` the right
+     * text "step 7 \267 bar 1"), `foot` the bottom line (the knob row then 64 px). The top line is the ordinary header.
+     * lm_lane .. lm_erase1 are hashed apart (cr_draw.c): a playhead, a new mark or the cursor's blink redraws only the
+     * middle's strips (the cursor: its row's) */
+    uint64_t lm_lane[4];            /* timeline: event marks per lane, 64 columns over the bars shown (64 / lm_bars
+                                     * columns a bar); steps: lm_lane[0] = the filled steps of the page, bit s = step s
+                                     * (lm_beats a bar) */
+    uint16_t lm_pos;                /* timeline: the playhead, Q8 bars from the left edge (0..lm_bars*256); steps: the
+                                     * cursor's step index on the page (0..63), | CR_LM_CUR_OFF: the cursor not drawn (its blink) */
+    uint16_t lm_erase0, lm_erase1;  /* Replace: the held span, Q8 bars (both 0: none): the marks of the older lanes in it
+                                     * are struck (grey, a red x), on a dark band */
+    uint16_t lm_used;               /* slots holding a loop, bit k (0..9) */
+    uint8_t lm_slot, lm_jump;       /* the selected slot 0..9; Advance's target + 1 (0: none): the hop arrow */
+    uint8_t lm_mid;                 /* CR_LM_TEXT, CR_LM_TIMELINE, CR_LM_STEPS */
+    uint8_t lm_bars, lm_beats, lm_free;   /* timeline: bars shown 1..8, beats a bar (0: 4), free = the bars appear as they
+                                     * pass (a bar 1/4 of the strip, the current one up to the playhead); steps: the
+                                     * page's bars 1..4 (a row each) and lm_beats the steps a bar (the Quantize grid,
+                                     * 0: 16; lm_bars * steps <= 64) */
+    uint8_t lm_nlane, lm_newlane;   /* lanes in use 0..4 (lane 0 the oldest, dimmer); the take's lane + 1 (bright), 0 none */
 } cr_screen_t;
 
 /* the filter's FTYPE position's name (eng_va.c's names): "LP" "BP" "HP" "NOTCH" at 0 32 64 96, "LP>BP" .. "NT>LP"

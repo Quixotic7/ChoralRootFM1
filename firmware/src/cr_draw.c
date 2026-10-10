@@ -177,7 +177,7 @@ static void cr_frame(const cr_screen_t *s, uint32_t t, cr_frame_t *fr)
             fr->sq = CR_THIN + (((4096 - CR_THIN) * cr_ease_out(t, CR_SQUEEZE_MS)) >> 12);
         }
     }
-    if ((s->kind == CR_K_PICKER || s->kind == CR_K_KNOBROW) && (s->anim & CR_A_SLIDE) && s->slide && t < CR_SLIDE_MS) {
+    if ((s->kind == CR_K_PICKER || s->kind == CR_K_KNOBROW || s->kind == CR_K_LOOPMENU) && (s->anim & CR_A_SLIDE) && s->slide && t < CR_SLIDE_MS) {
         fr->busy = 1;
         fr->slide = 4096 - cr_ease_out(t, CR_SLIDE_MS);
     }
@@ -1769,12 +1769,47 @@ static void cr_p_stack(const cr_screen_t *s)
 #define CR_KR_ROW 72
 static int32_t cr_kr_rowy(const cr_screen_t *s) { return CR_PY0 + cr_ph(s) - CR_KR_ROW; }
 
+/* the knob row's four cells (cell[0]) at row ry, rh px tall (72: knobrow's; the loop menu's 64 over its foot: every
+ * offset scaled by rh / 72): the label (+11), a 48 x 36 glyph box (+15), the value 13 px bold (+66), the 2 px bar at the
+ * bottom; a CR_CF_BIG cell: the value 20 px centred where the glyph and the value would be (the loop menu's Keys) */
+static void cr_kr_cells(const cr_screen_t *s, int32_t ry, int32_t rh)
+{
+    int32_t ci;
+#define CR_KY(v) (P8(ry) + P8(v) * rh / CR_KR_ROW)   /* a row offset of the 72 px design -> Q8 */
+    if (!cr_in_strip(ry - 2, ry + rh + 2)) return;
+    for (ci = 0; ci < 4; ci++) {
+        cr_cell_t c = s->cell[0][ci];
+        int32_t x = ci * 60, cx = P8(x + 30);
+        uint16_t kc = (c.flags & CR_CF_DIM) ? cr_rgb(CR_COL_GREY, T_DIM) : cr_ccol((uint32_t)ci, 1);   /* dim: grey */
+        int hot = s->hot_r == 1u && s->hot_c == ci;
+        if (!(c.flags & CR_CF_ON)) {                 /* no parameter: a dim dash where the value would be */
+            cr_frect((x + 26) * 16 + 8, CR_KY(61) >> 4, 7 * 16, 32, T_DIM);
+            continue;
+        }
+        if (c.label[0]) {
+            char b[16];
+            int cut = cr_fit(b, sizeof b, c.label, 10, 1, CR_CF_MARKCOL(c.flags) ? P8(46) : P8(56));
+            cr_text(cx, CR_KY(11), b, 10, 1, CR_C, 4096, kc, T_BG, cut ? 9u : 0u);
+        }
+        cr_mark(&c, x + 58, ry + 1);
+        if (c.flags & CR_CF_BIG) {                   /* a number-only cell: 20 px in the glyph and value's space */
+            cr_cnum(c.value, cx, (CR_KY(15) + CR_KY(66)) / 2 + 20 * 92, P8(60), 20u, hot ? cr_hcol(s, kc) : kc, hot);
+        } else {
+            if (c.glyph == CR_G_NONE && (c.flags & CR_CF_PCT)) c.glyph = CR_G_BAR;
+            if (c.glyph != CR_G_NONE) cr_cglyph(&c, (x + 6) * 16, CR_KY(15) >> 4, 48 * 16, (36 * 16) * rh / CR_KR_ROW, kc);
+            cr_cvalue(&c, cx, CR_KY(66), P8(60), 13, hot ? cr_hcol(s, kc) : kc, hot, 0);
+        }
+        cr_fill(x + 4, ry + rh - 2, 52, 2, kc);
+    }
+#undef CR_KY
+}
+
 static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
 {
     int32_t n = s->n_items, sel = s->sel < n ? s->sel : n - 1, size = s->size ? s->size : 34, ry = cr_kr_rowy(s);
     int32_t bandh = P8(ph - CR_KR_ROW), bigh = size * 282, labelh = s->label[0] ? P8(14) : 0;   /* Q8 */
     int32_t stack = bigh + P8(10) + (s->value[0] ? P8(18) : 0), top = P8(CR_PY0) + labelh + (bandh - labelh - stack) / 2;
-    int32_t base = top + bigh * 4 / 5, marks = (top + bigh + P8(4) + 128) >> 8, ci;
+    int32_t base = top + bigh * 4 / 5, marks = (top + bigh + P8(4) + 128) >> 8;
     uint16_t col = cr_rgb(s->col, T_TEXT);
     if (cr_in_strip(CR_PY0, ry)) {                   /* the band */
         if (s->label[0]) cr_text_fit(P8(8), P8(CR_PY0 + 12), s->label, 11, 0, CR_L, T_DIM, T_BG, P8(224));
@@ -1790,27 +1825,202 @@ static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
         }
         if (s->value[0] && s->kr_band != 1u) cr_text_fit(P8(120), P8(marks + 19), s->value, 13, 1, CR_C, col, T_BG, P8(224));
     }
-    if (!cr_in_strip(ry - 2, ry + CR_KR_ROW + 2)) return;
-    for (ci = 0; ci < 4; ci++) {                     /* the knobs' cells */
-        cr_cell_t c = s->cell[0][ci];
-        int32_t x = ci * 60, cx = P8(x + 30);
-        uint16_t kc = (c.flags & CR_CF_DIM) ? cr_rgb(CR_COL_GREY, T_DIM) : cr_ccol((uint32_t)ci, 1);   /* dim: grey */
-        int hot = s->hot_r == 1u && s->hot_c == ci;
-        if (!(c.flags & CR_CF_ON)) {                 /* no parameter: a dim dash where the value would be */
-            cr_frect((x + 26) * 16 + 8, (ry + 61) * 16, 7 * 16, 32, T_DIM);
-            continue;
+    cr_kr_cells(s, ry, CR_KR_ROW);
+}
+
+/* CR_K_LOOPMENU (FORMAT.md "The looper's PLAY menu", docs/LOOPER-MODES.md): the looper's PLAY menu under the top line,
+ * red: the slot strip (rows 28..54), the record mode as a horizontal picker band (56..92: the item 28 px bold squeezed
+ * to 150, the neighbours 13 px dim, the marks), the middle (92 .. the knob row: the big text `title` with `sub` under
+ * it, the record timeline or the step grid), knobrow's row of the four knobs (72 px; 64 over the `foot` line). */
+#define CR_LM_TOP 92                     /* the middle's top row */
+static int32_t cr_lm_rowy(const cr_screen_t *s) { return 240 - (s->foot[0] ? 14 + 64 : CR_KR_ROW); }
+/* the timeline's strip: 200 x 40 at x 20, row sy (px) */
+static int32_t cr_lm_tl_y(const cr_screen_t *s)
+{
+    int32_t h = cr_lm_rowy(s) - CR_LM_TOP, d = (h - 40 - (s->sub[0] ? 16 : 0)) / 2;
+    return CR_LM_TOP + (d > 5 ? d : 5);
+}
+/* the step grid: 4 rows (lm_bars, at most 4) of 7 px, 2 apart, its top row gy (px); the grid is 34 px tall */
+static int32_t cr_lm_rows(const cr_screen_t *s) { return s->lm_bars < 1u ? 1 : s->lm_bars > 4u ? 4 : (int32_t)s->lm_bars; }
+static int32_t cr_lm_st_y(const cr_screen_t *s)
+{
+    int32_t h = cr_lm_rowy(s) - CR_LM_TOP, H = cr_lm_rows(s) * 9 - 2;
+    return CR_LM_TOP + (h - H - ((s->sub[0] || s->value[0]) ? 18 : 0)) / 2;
+}
+/* the step grid's steps a bar (lm_beats: the Quantize grid, 0 = 16) and a step's left x (Q4) and width (Q4): 200 px
+ * from x 20, 2 px apart, 2 px more between groups of four when the steps a bar are a multiple of four (> 4) */
+static int32_t cr_lm_per(const cr_screen_t *s) { return s->lm_beats ? (s->lm_beats > 32u ? 32 : s->lm_beats) : 16; }
+static int32_t cr_lm_grp(int32_t per) { return per > 4 && per % 4 == 0 ? 4 : 0; }
+static int32_t cr_lm_cw(int32_t per)
+{
+    int32_t g = cr_lm_grp(per);
+    return (200 * 16 - (per - 1) * 32 - (g ? (per / g - 1) * 32 : 0)) / per;
+}
+static int32_t cr_lm_st_x(int32_t per, int32_t c)
+{
+    int32_t g = cr_lm_grp(per);
+    return 20 * 16 + c * (cr_lm_cw(per) + 32) + (g ? (c / g) * 32 : 0);
+}
+
+/* the slot strip: ten cells over x 6..234, bottom row 50; a slot holding a loop filled grey (its number in the
+ * background colour), an empty one a 1.5 px outline (the number dim); the selected one red (filled, or a 2 px outline
+ * when empty), 5 px taller, its number 13 px; lm_jump: the selection drawn at the target and a 2 px hop arrow under
+ * the cells from lm_slot to it */
+static void cr_lm_slots(const cr_screen_t *s, uint16_t col)
+{
+    int32_t sel = s->lm_jump ? s->lm_jump - 1 : s->lm_slot, i, bot = 50;
+    if (!cr_in_strip(28, 56)) return;
+    for (i = 0; i < 10; i++) {
+        int on = i == sel, full = (s->lm_used >> i) & 1u;
+        int32_t x16 = 96 + i * 3696 / 10, w16 = 321, top = on ? 29 : 34, cx = x16 * 16 + w16 * 8;   /* cx: Q8 */
+        uint32_t npx = on ? 13u : 10u;
+        char nb[3];
+        nb[0] = (char)(i == 9 ? '1' : '1' + i);
+        nb[1] = (char)(i == 9 ? '0' : 0);
+        nb[2] = 0;
+        if (full) {
+            int32_t x0 = (x16 + 8) >> 4, x1 = (x16 + w16 + 8) >> 4;
+            cv_rrect(x0, top, x1 - x0, bot - top, 2, on ? col : T_DIM, T_BG);
+        } else {
+            cr_srect(x16 + 16, top * 16 + 16, w16 - 32, (bot - top - 2) * 16, on ? 32 : 24, on ? col : T_LINE);
         }
-        if (c.label[0]) {
-            char b[16];
-            int cut = cr_fit(b, sizeof b, c.label, 10, 1, CR_CF_MARKCOL(c.flags) ? P8(46) : P8(56));
-            cr_text(cx, P8(ry + 11), b, 10, 1, CR_C, 4096, kc, T_BG, cut ? 9u : 0u);
-        }
-        cr_mark(&c, x + 58, ry + 1);
-        if (c.glyph == CR_G_NONE && (c.flags & CR_CF_PCT)) c.glyph = CR_G_BAR;
-        if (c.glyph != CR_G_NONE) cr_cglyph(&c, (x + 6) * 16, (ry + 15) * 16, 48 * 16, 36 * 16, kc);
-        cr_cvalue(&c, cx, P8(ry + 66), P8(60), 13, hot ? cr_hcol(s, kc) : kc, hot, 0);
-        cr_fill(x + 4, ry + CR_KR_ROW - 2, 52, 2, kc);
+        cr_text(cx, P8(top + bot) / 2 + (int32_t)npx * 92, nb, npx, 1, CR_C, 4096, full ? T_BG : on ? col : T_DIM,
+                full ? (on ? col : T_DIM) : T_BG, 0);
     }
+    if (s->lm_jump && s->lm_jump - 1 != s->lm_slot && s->lm_slot < 10u) {   /* the hop: down, along, up into the target */
+        int32_t a = (96 + (int32_t)s->lm_slot * 3696 / 10) + 160, b = (96 + sel * 3696 / 10) + 160, y = bot * 16 + 40;
+        int32_t l = a < b ? a : b, r = a < b ? b : a;
+        cr_frect(a - 16, bot * 16 + 8, 32, 48, col);
+        cr_frect(l - 16, y - 16, r - l + 32, 32, col);
+        cr_tri(b - 48, bot * 16 + 32, b + 48, bot * 16 + 32, b, bot * 16 - 24, col);
+    }
+}
+
+/* the record timeline (FORMAT.md `timeline`): a 200 x 40 strip of bar boxes (surface, a 1 px grey outline, 2 px apart)
+ * with beat ticks at the top and bottom; the lanes' marks (3 px, a lane each; older lanes dimmer, the take's lane
+ * bright); Replace's held span a dark band with an edge, the older marks in it struck; the playhead a 2 px line with a
+ * triangle on top; lm_free: a bar a quarter of the strip, the last one only up to the playhead; `sub` under it */
+static void cr_lm_timeline(const cr_screen_t *s, uint16_t col)
+{
+    int32_t sy = cr_lm_tl_y(s), sh = 40, nb = s->lm_bars ? s->lm_bars : 1, beats = s->lm_beats ? s->lm_beats : 4;
+    int32_t bw = s->lm_free ? 800 : 3200 / nb, pos = s->lm_pos, end = s->lm_free ? pos : nb * 256, k, j, li;
+    int32_t L = s->lm_nlane ? s->lm_nlane : 1, lh = (30 * 16) / L, mh = lh - 32 < 32 ? 32 : lh - 32;
+    int er = s->lm_erase0 || s->lm_erase1;
+    uint32_t c;
+#define CR_LX(b8) (20 * 16 + (int32_t)(b8) * bw / 256)  /* a position in Q8 bars -> x (Q4) */
+    if (!cr_in_strip(sy - 6, sy + sh + 20)) return;
+    for (k = 0; k < nb; k++) {                       /* the bar boxes, the beat ticks */
+        int32_t bx = CR_LX(k * 256) + 16, bwk = bw - 32, x0, x1;
+        if (s->lm_free && k == nb - 1) {
+            bwk = (pos - k * 256) * bw / 256 - 16;
+            if (bwk < 32) bwk = 32;
+        }
+        x0 = bx >> 4;
+        x1 = (bx + bwk + 8) >> 4;
+        cv_rrect(x0, sy, x1 - x0, sh, 2, T_LINE, T_BG);
+        cv_rrect(x0 + 1, sy + 1, x1 - x0 - 2, sh - 2, 1, T_SURF, T_LINE);
+        if (bw / beats >= 64)
+            for (j = 1; j < beats; j++) {
+                int32_t tx = CR_LX(k * 256) + j * bw / beats;
+                if (tx > bx + bwk) break;
+                cr_frect(tx - 8, sy * 16, 16, 64, T_DIM);
+                cr_frect(tx - 8, (sy + sh - 4) * 16, 16, 64, T_DIM);
+            }
+    }
+    if (er) {                                        /* the held span */
+        int32_t e0 = CR_LX(s->lm_erase0), e1 = CR_LX(s->lm_erase1 < end ? s->lm_erase1 : end);
+        if (e1 > e0) cr_frect(e0, sy * 16 + 16, e1 - e0, (sh - 2) * 16, ux_mix(col, T_BG, 70));
+        cr_frect(e0, sy * 16, 24, sh * 16, col);
+    }
+    for (li = 0; li < L && li < 4; li++) {           /* the marks */
+        int fresh = s->lm_newlane == li + 1;
+        int32_t age = L - 1 - li, my = (sy + 5) * 16 + li * lh + 16;
+        uint16_t mc = fresh ? col : ux_mix(col, T_BG, age * 30 > 62 ? 62 : age * 30);
+        for (c = 0; c < 64u; c++) {
+            int32_t b8 = (int32_t)c * nb * 4, mx;
+            int struck;
+            if (!((s->lm_lane[li] >> c) & 1u) || b8 > end) continue;
+            mx = CR_LX(b8);
+            struck = er && !fresh && b8 >= s->lm_erase0 && b8 <= s->lm_erase1;
+            cr_frect(mx - 24, my, 48, mh, struck ? T_DIM : mc);
+            if (struck) {
+                int16_t p[4] = {(int16_t)(mx - 64), (int16_t)my, (int16_t)(mx + 64), (int16_t)(my + mh)};
+                int16_t q[4] = {(int16_t)(mx + 64), (int16_t)my, (int16_t)(mx - 64), (int16_t)(my + mh)};
+                cr_poly(p, 2, 24, 0, 0, col);
+                cr_poly(q, 2, 24, 0, 0, col);
+            }
+        }
+    }
+    {                                                /* the playhead */
+        int32_t px = CR_LX(pos);
+        cr_frect(px - 16, (sy - 2) * 16, 32, (sh + 4) * 16, col);
+        cr_tri(px - 64, (sy - 5) * 16, px + 64, (sy - 5) * 16, px, sy * 16, col);
+    }
+    if (s->sub[0]) cr_text_fit(P8(120), P8(sy + sh + 15), s->sub, 13, 1, CR_C, T_MID, T_BG, P8(200));
+#undef CR_LX
+}
+
+/* the step grid (FORMAT.md `steps`): a row per bar (four at most), sixteen steps across (2 px more every four); the
+ * filled steps (lm_lane[0]) red, the others grey; the cursor (lm_pos) a 2 px red outline in a 1 px background ring,
+ * not drawn while CR_LM_CUR_OFF (its blink); `sub` (the step's chord) 15 px under the grid at the left, `value` 12 px
+ * grey at the right */
+static void cr_lm_steps(const cr_screen_t *s, uint16_t col)
+{
+    int32_t gy = cr_lm_st_y(s), rows = cr_lm_rows(s), per = cr_lm_per(s), cw = cr_lm_cw(per), r, c, H = rows * 9 - 2;
+    int32_t ny = gy + H + 16;
+    uint32_t cur = s->lm_pos & 63u;
+    int curon = !(s->lm_pos & CR_LM_CUR_OFF);
+    if (cr_in_strip(gy - 4, gy + H + 4))
+        for (r = 0; r < rows; r++)
+            for (c = 0; c < per; c++) {
+                uint32_t st = (uint32_t)(r * per + c);
+                int32_t xx = cr_lm_st_x(per, c), yy = (gy + r * 9) * 16;
+                if (st > 63u) break;
+                cr_frect(xx, yy, cw, 7 * 16, (s->lm_lane[0] >> st) & 1u ? col : T_LINE);
+                if (st == cur && curon) {            /* (the steps after it cover its ring, as the designer's) */
+                    cr_srect(xx - 48, yy - 48, cw + 96, 7 * 16 + 96, 16, T_BG);
+                    cr_srect(xx - 24, yy - 24, cw + 48, 7 * 16 + 48, 32, col);
+                }
+            }
+    if (!cr_in_strip(ny - 16, ny + 4)) return;
+    {
+        int32_t rw = s->value[0] ? cr_tw(s->value, 12, 1) : 0;
+        if (s->value[0]) cr_text(P8(220), P8(ny), s->value, 12, 1, CR_R, 4096, T_MID, T_BG, 0);
+        if (s->sub[0]) cr_text_fit(P8(20), P8(ny), s->sub, 15, 1, CR_L, T_TEXT, T_BG, P8(200 - 8) - rw);
+    }
+}
+
+static void cr_p_loopmenu(const cr_screen_t *s, const cr_frame_t *fr)
+{
+    int32_t n = s->n_items, sel = s->sel < n ? s->sel : n - 1, ry = cr_lm_rowy(s), size = 28;
+    int32_t base = P8(56 + 2) + size * 200;          /* (0.78 of the size) */
+    uint16_t red = CR_RED, col = cr_rgb(s->col, CR_WHITE);
+    cr_lm_slots(s, red);
+    if (n > 0 && cr_in_strip(56, 92)) {              /* the record mode */
+        int32_t bw = cr_tw(cr_item(s, sel), (uint32_t)size, 1);
+        if (bw > P8(150)) bw = P8(150);
+        cr_pick_sides(s, n, sel, base + P8(1), 6, 234, (P8(228) - bw) / 2 - P8(10));
+        cr_pick_item(s, fr, sel, size, 150, 1, base, P8(56), P8(56) + size * 282, col);
+        if (n > 1) cr_pick_marks(n, sel, 56 + 36 - 6, col);
+    }
+    if (s->lm_mid == CR_LM_TIMELINE) {
+        cr_lm_timeline(s, red);
+    } else if (s->lm_mid == CR_LM_STEPS) {
+        cr_lm_steps(s, red);
+    } else if (cr_in_strip(CR_LM_TOP, ry)) {         /* a big text, `sub` under it */
+        int32_t h = ry - CR_LM_TOP, subh = s->sub[0] ? 18 : 0, sz = ((h - subh) * 6 + 5) / 10, w, sq;
+        int32_t by;
+        sz = sz > 40 ? 40 : sz < 14 ? 14 : sz;
+        by = P8(CR_LM_TOP) + P8(h - subh) / 2 + sz * 92;
+        if (s->title[0]) {
+            w = cr_tw(s->title, (uint32_t)sz, 1);
+            sq = w > P8(224) ? (P8(224) << 12) / w : 4096;
+            cr_text(P8(120), by, s->title, (uint32_t)sz, 1, CR_C, sq, cr_rgb(s->title_col, red), T_BG, 0);
+        }
+        if (s->sub[0]) cr_text_fit(P8(120), by + P8(18), s->sub, 12, 1, CR_C, T_MID, T_BG, P8(224));
+    }
+    cr_kr_cells(s, ry, s->foot[0] ? 64 : CR_KR_ROW);
+    if (s->foot[0] && cr_in_strip(226, 240)) cr_text_fit(P8(120), P8(237), s->foot, 11, 0, CR_C, T_MID, T_BG, P8(228));
 }
 
 static void cr_p_geek(const cr_screen_t *s, int32_t ph)
@@ -2020,6 +2230,7 @@ static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
     case CR_K_EDIT8: cr_p_edit8(s); break;
     case CR_K_STACK: cr_p_stack(s); break;
     case CR_K_KNOBROW: cr_p_knobrow(s, fr, ph); break;
+    case CR_K_LOOPMENU: cr_p_loopmenu(s, fr); break;
     case CR_K_GEEK: cr_p_geek(s, ph); break;
     case CR_K_TEXT: cr_p_text(s); break;
     case CR_K_BIG: cr_p_big(s, ph); break;
@@ -2056,6 +2267,8 @@ static struct {
                                                * hot cell, the title line */
     uint16_t ring;                       /* .. which was drawn */
     uint32_t dl;                         /* the corner dial drawn (dial | pulse << 16 | mode << 17 | dot << 20) */
+    uint32_t lm, lmr;                    /* the loop menu's moving parts (lm_lane .. lm_erase1), .. but lm_pos */
+    uint16_t lmpos;                      /* .. lm_pos drawn (the step cursor's old row) */
     uint8_t valid, force;
     uint8_t blits, drawn;                /* strips blitted / composed by the last cr_draw (the host test reads them) */
     uint8_t slot;                        /* the DMA buffer the next blit uses (cr_send) */
@@ -2199,6 +2412,23 @@ static uint32_t cr_ed_strips(const cr_screen_t *s, const uint32_t *row, uint32_t
     return m;
 }
 
+/* the loop menu's moving parts changed alone (lm_lane .. lm_erase1: a playhead, a mark, the Replace span, the step
+ * cursor and its blink): the middle's strips; the cursor alone (same marks and span): its old and new rows' strips */
+static uint32_t cr_lm_strips(const cr_screen_t *s, int marks)
+{
+    if (s->kind != CR_K_LOOPMENU) return (1u << CR_NSTRIP) - 1u;
+    if (s->lm_mid == CR_LM_TIMELINE) {
+        int32_t sy = cr_lm_tl_y(s);
+        return cr_strips_of(sy - 6, sy + 40 + 3);
+    }
+    if (s->lm_mid == CR_LM_STEPS) {
+        int32_t gy = cr_lm_st_y(s), per = cr_lm_per(s), r0 = (int32_t)(cr_dc.lmpos & 63u) / per, r1 = (int32_t)(s->lm_pos & 63u) / per;
+        if (marks) return cr_strips_of(gy - 4, gy + cr_lm_rows(s) * 9 + 2);
+        return cr_strips_of(gy + r0 * 9 - 4, gy + r0 * 9 + 11) | cr_strips_of(gy + r1 * 9 - 4, gy + r1 * 9 + 11);
+    }
+    return 0;                                        /* (a big text: none of them is drawn) */
+}
+
 static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
 {
     cr_frame_t fr;
@@ -2206,7 +2436,9 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
     uint32_t ttl, ed = s->kind == CR_K_EDIT8 || s->kind == CR_K_STACK, i, j, o;
     /* the struct's bytes but these (offset, size), hashed apart: the ring's fraction, the corner dial's fraction,
      * pulse, look and REC dot, the editor's parts (its cells, the hot cell, the band's values, its title line) */
-    uint32_t sk[8][2] = {
+    uint32_t lm, lmr, sk[9][2] = {
+        {(uint32_t)__builtin_offsetof(cr_screen_t, lm_lane), (uint32_t)(__builtin_offsetof(cr_screen_t, lm_used) -
+                                                                         __builtin_offsetof(cr_screen_t, lm_lane))},
         {(uint32_t)__builtin_offsetof(cr_screen_t, ring), sizeof s->ring},
         {(uint32_t)__builtin_offsetof(cr_screen_t, dial), sizeof s->dial},
         {(uint32_t)__builtin_offsetof(cr_screen_t, dial_pulse), 3u},
@@ -2220,9 +2452,13 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
     _Static_assert(__builtin_offsetof(cr_screen_t, dial_mode) == __builtin_offsetof(cr_screen_t, dial_pulse) + 1 &&
                    __builtin_offsetof(cr_screen_t, dial_dot) == __builtin_offsetof(cr_screen_t, dial_pulse) + 2,
                    "dial_pulse mode dot");
+    _Static_assert(__builtin_offsetof(cr_screen_t, lm_pos) == __builtin_offsetof(cr_screen_t, lm_lane) + 32 &&
+                   __builtin_offsetof(cr_screen_t, lm_erase0) == __builtin_offsetof(cr_screen_t, lm_pos) + 2 &&
+                   __builtin_offsetof(cr_screen_t, lm_used) == __builtin_offsetof(cr_screen_t, lm_erase0) + 4,
+                   "lm_lane pos erase0 erase1 used");
     uint32_t dl = (uint32_t)s->dial | (uint32_t)s->dial_pulse << 16 | (uint32_t)s->dial_mode << 17 |
                   (uint32_t)s->dial_dot << 20;
-    for (i = 1; i < 8u; i++)                                     /* (in the struct's order) */
+    for (i = 1; i < 9u; i++)                                     /* (in the struct's order) */
         for (j = i; j && sk[j - 1][0] > sk[j][0]; j--) {
             uint32_t a = sk[j][0], c = sk[j][1];
             sk[j][0] = sk[j - 1][0]; sk[j][1] = sk[j - 1][1];
@@ -2230,19 +2466,24 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
         }
     cr_frame(s, anim_ms, &fr);
     base = 2166136261u ^ ux.gen;
-    for (i = 0, o = 0; i < 8u; o = sk[i][0] + sk[i][1], i++)
+    for (i = 0, o = 0; i < 9u; o = sk[i][0] + sk[i][1], i++)
         base = cr_hash(base, (const uint8_t *)s + o, sk[i][0] - o);
     base = cr_hash(base, (const uint8_t *)s + o, (uint32_t)sizeof *s - o);
     base = cr_hash(base, &fr, sizeof fr);
     ttl = cr_hash(cr_hash(cr_hash(2166136261u, s->title, sizeof s->title), s->page, sizeof s->page), &s->title_col, 1u);
     if (!ed)                                                     /* (the title line: the editor's top strip only) */
         base = cr_hash(base, &ttl, sizeof ttl);
+    lmr = cr_hash(cr_hash(2166136261u, s->lm_lane, sizeof s->lm_lane), &s->lm_erase0, 4u);
+    lm = cr_hash(lmr, &s->lm_pos, sizeof s->lm_pos);
+    if (s->kind != CR_K_LOOPMENU)                                /* (the loop menu's moving parts: its middle only) */
+        base = cr_hash(base, &lm, sizeof lm);
     for (k = 0; k < CR_ED_ROWS; k++)
         row[k] = cr_hash(2166136261u, s->cell[k], sizeof s->cell[k]);
     wv = cr_hash(2166136261u, s->wv, sizeof s->wv);
     hot = (uint32_t)s->hot_r | (uint32_t)s->hot_c << 8 | (uint32_t)s->hot_col << 16;
     sig = cr_hash(cr_hash(cr_hash(cr_hash(cr_hash(cr_hash(base, &s->ring, sizeof s->ring), &dl, sizeof dl), row, sizeof row),
                                   &wv, sizeof wv), &hot, sizeof hot), &ttl, sizeof ttl);
+    sig = cr_hash(sig, &lm, sizeof lm);
     cr_dc.blits = cr_dc.drawn = 0;
     if (cr_dc.valid && !cr_dc.force && sig == cr_dc.sig)
         return;                          /* nothing changed: nothing drawn */
@@ -2254,6 +2495,8 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
             strips |= 1u;                                        /* the editor's title line (rows 0..24) */
         if (dl != cr_dc.dl)
             strips |= 1u;                                        /* the corner dial (rows 2..22; the REC dot's blink) */
+        if (lm != cr_dc.lm)
+            strips |= cr_lm_strips(s, lmr != cr_dc.lmr);         /* the loop menu: a playhead, a mark, the cursor */
         if (wv != cr_dc.wv || hot != cr_dc.hot)
             strips |= cr_ed_strips(s, row, wv, hot);
         else
@@ -2286,6 +2529,9 @@ static void cr_draw(const cr_screen_t *s, uint32_t anim_ms)
     cr_dc.base = base;
     cr_dc.ring = s->ring;
     cr_dc.dl = dl;
+    cr_dc.lm = lm;
+    cr_dc.lmr = lmr;
+    cr_dc.lmpos = s->lm_pos;
     for (k = 0; k < CR_ED_ROWS; k++)
         cr_dc.row[k] = row[k];
     cr_dc.wv = wv;

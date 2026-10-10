@@ -1,12 +1,12 @@
-# ChoralRoot looper, synced: LOOP held, KNOB 1 +2: 2 bars (count-in on); REC: a one-bar count-in (the click, nothing
+# ChoralRoot looper, synced: LOOP held, SELECT +2: 2 bars (count-in on); REC: a one-bar count-in (the click, nothing
 # played), then 2 bars recorded: D in bar 1, Am in bar 2; it commits by itself and plays. SAVE held + E4 (slot 2) +
 # OCT+ while playing: saved at stop; LOOP tap stops it -> slot 2 written to the flash file.
 wait 300
 btn PLAY down
 wait 400
-knob KNOB1 +1
+knob SELECT +1
 wait 50
-knob KNOB1 +1
+knob SELECT +1
 wait 300
 shot build/emu/test/cr_loop_layer.ppm
 btn PLAY up

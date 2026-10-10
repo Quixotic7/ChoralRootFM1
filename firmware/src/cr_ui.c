@@ -429,7 +429,7 @@ static const char *const CU_VIEW[5] = {"Chord", "Keyboard", "Notes", "Geek Out",
 static const char *const CU_LOOPLEN[6] = {"Free", "1 bar", "2 bars", "4 bars", "8 bars", "16 bars"};
 static const char *const CU_SIG[CRL_NSIG] = {"4/4", "3/4", "6/8"};
 static const char *const CU_QUANT[CRL_NQUANT] = {"none", "1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32"};
-static const char *const CU_LOOP_ACT[4] = {"Overdub", "Pause", "Undo", "Clear"};
+static const char *const CU_LOOP_MODE[CRL_NMODE] = {"Overwrite", "Advance", "Overdub", "Replace", "Step"};
 static const char *const CU_SAVE_ACT[3] = {"Save", "Load", "Delete"};
 enum { V_CHORD, V_KEYBOARD, V_NOTES, V_GEEK, V_SCOPE, V_N };
 
@@ -450,7 +450,8 @@ static struct {
     uint8_t metro, metro_sig, metro_vol;  /* the click: on, CRL_SIG_*, level 0..100 */
     uint8_t loop_len, loop_quant, loop_count_in, loop_level;   /* SYNC (0 Free, 1..16 bars), QUANT, COUNT-IN, LEVEL */
     uint8_t loop_slot, loop_target;       /* the slot in RAM (0..9); SAVE held's target */
-    uint8_t loop_act, save_act;           /* the pickers: LOOP held while playing, SAVE held */
+    uint8_t loop_mode, loop_keys;         /* the record mode (CRL_MODE_*); the PLAY menu's keys: 0 Play, 1 Loops (v8) */
+    uint8_t save_act;                     /* SAVE held's picker */
     uint8_t save_pending;                 /* slot + 1: saved once the loop stops (no flash erase while it plays) */
     uint16_t loop_used;                   /* bit k: slot k holds a loop in flash */
     uint8_t pick_roots;                   /* the engine picker: 1 the white roots choose engines, 0 they play */
@@ -486,6 +487,7 @@ static void cu_loop_conf(void)                    /* the looper's settings -> th
     cr_post(CRE_LOOP, LP_CONF, LC_SIG, cs.metro_sig);
     cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
     cr_post(CRE_LOOP, LP_METRO, 0, cs.metro);
+    cr_post(CRE_LOOP, LP_CONF, LC_MODE, cs.loop_mode);
 }
 static void cu_set_tempo(int32_t bpm)
 {
@@ -1001,6 +1003,12 @@ static struct {
     uint16_t n;                                    /* cu_loop_pend's length (0: an empty loop, the slot's record goes) */
     uint8_t slot;                                  /* its slot + 1 (0: nothing waits) */
     uint8_t q, qfrom, qloads;                      /* a switch posted: the slot the loop in RAM belongs to, crl.loads */
+    uint8_t want;                                  /* PRESETS in the PLAY menu: the slot turned to + 1 (cu_loop_want) */
+    uint32_t want_t;                               /* .. when (playing: the switch waits for the knob to rest) */
+    uint8_t adv_to;                                /* Advance: the slot jumped to + 1 (the strip's hop arrow) .. */
+    uint32_t adv_until;                            /* .. until then */
+    char adv_txt[32];                              /* "slot 3 saved \267 next: slot 4" (the menu, armed) .. */
+    uint8_t adv_armed;                             /* .. while the take it armed waits */
 } cu_lp;
 #if FELUCCA_FLASH
 static uint32_t crl_fl_sector(uint32_t k, uint32_t copy) { return CRL_FL_BASE + (2u * k + copy) * ST_SECTOR; }
@@ -1154,15 +1162,16 @@ static int cu_loop_flush(const char *why)
 static int cu_loop_keep(uint32_t k, uint32_t from, int revert, int play)
 {
     uint8_t was = cs.save_pending;
-    int need = was || crl.dirty || crl.cap == CRL_CAP_OD;
+    int need = was || crl.dirty || crl.cap == CRL_CAP_OD || crl.cap == CRL_CAP_STEP;
     if (cu_loop_flush(play ? "a second switch" : "before a load"))
         return -1;
     cs.save_pending = 0;                           /* (taken over here, or dropped with the loop) */
     if (!need || (revert && k == from) || cr_safe || cr_restore_lock || !crl_fl_ready())
         return 0;
     fm1_irq_off();
-    if (crl.cap == CRL_CAP_OD)
-        cr_loop_rec(&crl, &cr);                    /* the overdub ends, its layer kept (as cr_loop_queue ends it) */
+    if (crl.cap == CRL_CAP_OD || crl.cap == CRL_CAP_STEP)
+        cr_loop_rec(&crl, &cr);                    /* the overdub ends, its layer kept (as cr_loop_queue ends it); step
+                                                    * entry ends, its steps the loop */
     cu_lp.n = (uint16_t)cr_loop_pack(&crl.d, cu_loop_pend, sizeof cu_loop_pend);
     fm1_irq_on();
     if (!cu_lp.n && !((cs.loop_used >> from) & 1u))
@@ -1181,7 +1190,7 @@ static int cu_loop_keep(uint32_t k, uint32_t from, int revert, int play)
 /* a slot -> the loop in RAM: now when stopped, at the end of the cycle when playing; the loop being left goes to its
  * own slot first (cu_loop_keep). revert (SAVE held + Load, power-on): the slot in RAM may be loaded again, its
  * changes dropped; LOOP held + the root of the slot it is on, changed: kept as it is (it is not being left) */
-static void cu_loop_load(uint32_t k, int revert)
+static int cu_loop_load(uint32_t k, int revert)   /* < 0: refused (the message says why), else cu_loop_keep's */
 {
     int n, ok = 0, play = cu_playing(), kept;
     uint32_t from = cs.save_pending ? cs.save_pending - 1u : cs.loop_slot;
@@ -1189,16 +1198,16 @@ static void cu_loop_load(uint32_t k, int revert)
     cu_loop_gen++;
     if (crl_stage_busy) {
         cu_message("a slot is on its way", CR_COL_RED);
-        return;
+        return -2;
     }
-    if (!revert && k == from && (crl.dirty || cs.save_pending || crl.cap == CRL_CAP_OD)) {
+    if (!revert && k == from && (crl.dirty || cs.save_pending || crl.cap == CRL_CAP_OD || crl.cap == CRL_CAP_STEP)) {
         cu_trace("loop: slot %u kept as it is (changed since its save)\n", (unsigned)k + 1u);
         cu_slot_msg("loop ", k, "", CR_COL_RED);
-        return;
+        return -3;
     }
     kept = cu_loop_keep(k, from, revert, play);
     if (kept < 0)
-        return;                                    /* (the message says why: the loop and its slot stay) */
+        return -1;                                 /* (the message says why: the loop and its slot stay) */
     n = (cs.loop_used >> k) & 1u ? crl_fl_load(k, cu_loop_buf) : -1;
     if (n > 0)
         ok = cr_loop_unpack(cu_loop_buf, (uint32_t)n, &crl_stage);
@@ -1219,7 +1228,9 @@ static void cu_loop_load(uint32_t k, int revert)
     } else {
         cu_cat(t, ok ? (play ? ": next cycle" : "") : ": empty", sizeof t);
     }
-    cu_message(t, kept > 0 ? CR_COL_GREEN : CR_COL_RED);
+    if (kept > 0 || cu_layer() != L_LOOP)          /* (the PLAY menu's strip shows the slot) */
+        cu_message(t, kept > 0 ? CR_COL_GREEN : CR_COL_RED);
+    return kept;
 }
 static void cu_loop_save_now(uint32_t k)
 {
@@ -1295,10 +1306,79 @@ static void cu_save_act(void)                      /* SAVE held + OCT+: the acti
     else
         cu_loop_delete(cs.loop_target);
 }
-static void cu_loop_act(void)                      /* LOOP held while playing + OCT+: Overdub Pause Undo Clear */
+/* the slot the PLAY menu shows: PRESETS' while its switch waits, else the one in RAM */
+static uint32_t cu_lm_slot(void) { return cu_lp.want ? cu_lp.want - 1u : cs.loop_slot; }
+/* PRESETS turned in the PLAY menu: a slot switch (cu_loop_load): at once when stopped; playing, once the knob rests
+ * 250 ms (one switch per cycle: a second waits for the first to be taken) */
+static void cu_loop_want(void)
 {
-    static const uint8_t OP[4] = {LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR};
-    cr_post(CRE_LOOP, OP[cs.loop_act & 3u], 0, 0);
+    uint32_t k;
+    if (!cu_lp.want || crl_stage_busy || (cu_playing() && cu_now() - cu_lp.want_t < 250u))
+        return;
+    k = cu_lp.want - 1u;
+    cu_lp.want = 0;
+    if (k != cs.loop_slot)
+        cu_loop_load(k, 0);
+}
+static void cu_loop_turn(int32_t s)
+{
+    uint32_t k = (cu_lm_slot() + (uint32_t)(s % (int32_t)CRL_SLOTS + (int32_t)CRL_SLOTS)) % CRL_SLOTS;
+    cu_lp.want = (uint8_t)(k + 1u);
+    cu_lp.want_t = cu_now();
+    cu_trace("loop: slot %u turned\n", (unsigned)k + 1u);
+    cu_loop_want();
+}
+static void cu_loop_mode_turn(int32_t s)           /* ALGORITHM in the PLAY menu: the record mode (saved) */
+{
+    int32_t v = (int32_t)cs.loop_mode + s;
+    cs.loop_mode = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CRL_NMODE ? CRL_NMODE - 1u : (uint32_t)v);
+    cr_post(CRE_LOOP, LP_CONF, LC_MODE, cs.loop_mode);
+    cu_trace("loop: mode %s\n", CU_LOOP_MODE[cs.loop_mode]);
+}
+static void cu_loop_keys(uint32_t v)               /* GLO tapped / KNOB 4 in the PLAY menu: the keys play / the slots */
+{
+    cs.loop_keys = (uint8_t)(v != 0);
+    cu_hot_set(L_LOOP, 3);
+    cu.clear_t0 = 0;
+    cu_trace("loop: keys %s\n", cs.loop_keys ? "Loops" : "Play");
+}
+/* REC tapped, by the record mode (docs/LOOPER-MODES.md; cr_loop.c does the rest). Advance over a loop: first to the
+ * next slot (10 wraps to 1), the loop left saved to its own (the slot rule: stopped first, so it is written now);
+ * then as Overwrite there (that slot's loop goes when the take starts). An empty slot records where it is */
+static void cu_rec(void)
+{
+    if (cs.loop_mode == CRL_MODE_ADVANCE && cr_snap.lcap == CRL_CAP_NONE && cr_snap.lstate != CRL_EMPTY) {
+        uint32_t from = cs.loop_slot, to = CRL_NEXT_SLOT(from);
+        char nb[4];
+        int kept;
+        cu_lp.want = 0;
+        if (cu_playing()) {
+            fm1_irq_off();
+            cr_loop_stop(&crl, &cr);
+            fm1_irq_on();
+            cr_snap.lstate = crl.state;            /* (cu_loop_load: a stopped loop's switch, now) */
+        }
+        kept = cu_loop_load(to, 0);
+        if (kept < 0 || cs.loop_slot != to)
+            return;
+        cu_lp.adv_to = (uint8_t)(to + 1u);
+        cu_lp.adv_until = cu_now() + 800u;
+        cu_lp.adv_txt[0] = 0;
+        if (kept > 0) {                            /* "slot 3 saved \267 next: slot 4" */
+            cu_cpy(cu_lp.adv_txt, "slot ", sizeof cu_lp.adv_txt);
+            cu_int(nb, (int32_t)from + 1, 0, sizeof nb);
+            cu_cat(cu_lp.adv_txt, nb, sizeof cu_lp.adv_txt);
+            cu_cat(cu_lp.adv_txt, " saved \267 ", sizeof cu_lp.adv_txt);
+        }
+        cu_cat(cu_lp.adv_txt, "next: slot ", sizeof cu_lp.adv_txt);
+        cu_int(nb, (int32_t)to + 1, 0, sizeof nb);
+        cu_cat(cu_lp.adv_txt, nb, sizeof cu_lp.adv_txt);
+        cu_lp.adv_armed = 1;
+        if (cu_layer() != L_LOOP)                  /* (the menu: under the length, cu_loopmenu) */
+            cu_message(cu_lp.adv_txt, CR_COL_RED);
+        cu_trace("loop: advance slot %u -> %u (%s)\n", (unsigned)from + 1u, (unsigned)to + 1u, kept > 0 ? "saved" : "nothing to save");
+    }
+    cr_post(CRE_LOOP, LP_REC, 0, 0);
 }
 /* the transport's results (the ISR's CRL_DID_*) as messages; a deferred save once the loop stops */
 static uint32_t cu_did_seen;
@@ -1306,7 +1386,7 @@ static void cu_loop_frame(void)
 {
     static const char *const DID[] = {"", "rec: play to start", "count-in", "recording", "cancelled", "loop recorded",
                                       "overdub armed", "overdub done", "play", "stop", "undo", "loop cleared",
-                                      "nothing recorded"};
+                                      "nothing recorded", "replace armed", "step entry", "steps recorded"};
     uint32_t n = crl_did_n;
     if (n != cu_did_seen) {
         uint32_t d = crl_did;
@@ -1322,6 +1402,9 @@ static void cu_loop_frame(void)
         } else if (d == CRL_DID_NOTHING)
             cu_message(cr_snap.lfull ? "loop full" : cr_snap.lstate == CRL_EMPTY ? "no loop" : "nothing to undo",
                        CR_COL_RED);
+        else if (cu_layer() == L_LOOP && (d == CRL_DID_ARM || d == CRL_DID_OD_ARM || d == CRL_DID_REP_ARM ||
+                                          d == CRL_DID_STEP || d == CRL_DID_REC))
+            ;                                      /* (the PLAY menu shows these itself: no box over it) */
         else if (d < sizeof DID / sizeof DID[0])
             cu_message(DID[d], d == CRL_DID_PLAY || d == CRL_DID_STOP ? CR_COL_WHITE : CR_COL_RED);
         cu_trace("loop: %s (state %u layers %u events %u len %u)\n", d < sizeof DID / sizeof DID[0] ? DID[d] : "?",
@@ -1335,6 +1418,10 @@ static void cu_loop_frame(void)
             cu_trace("midi: %02X %s\n", (unsigned)cr_rt_last, cr_rt_last == 0xFAu ? "start" : "stop");
         }
     }
+    cu_loop_want();                                /* PRESETS in the PLAY menu: the slot turned to */
+    if (cu_lp.adv_armed && (int32_t)(cu_lp.adv_until - cu_now()) <= 0 && cr_snap.lcap != CRL_CAP_ARMED &&
+        cr_snap.lcap != CRL_CAP_COUNTIN)
+        cu_lp.adv_armed = 0;                       /* (Advance's text: until the take starts or is cancelled) */
     if (cu_lp.q && !crl_stage_busy) {              /* the switch posted is done: taken, or cancelled before the cycle's
                                                     * end (a stop, a clear, a panic, an overdub armed, an undo) */
         cu_lp.q = 0;
@@ -1426,6 +1513,10 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
         cr_post(CRE_STICKY, 0, 0, cs.sticky);
         break;
     case BT_OPT:
+        if (cu.lock == L_LOOP) {                  /* the PLAY menu: GLO toggles its keys (play / the slots) */
+            cu_loop_keys(!cs.loop_keys);
+            break;
+        }
         cu.page = PG_NONE;
         cu.lock = L_NONE;
         cu.opt_open ^= 1u;
@@ -1456,8 +1547,8 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
     case BT_LOOP:                                 /* play / stop (a take: commit) */
         cr_post(CRE_LOOP, LP_PLAY, 0, 0);
         break;
-    case BT_REC:                                  /* record / overdub arm / end the take */
-        cr_post(CRE_LOOP, LP_REC, 0, 0);
+    case BT_REC:                                  /* record by the mode / end the take */
+        cu_rec();
         break;
     default:
         break;
@@ -1534,15 +1625,20 @@ static void cu_oct_tap(uint32_t b)
         cu_calib_start();                         /* Options > Calibrate, OCT+: Felucca's HARDWARE CALIBRATION */
         return;
     }
-    if (cu_layer()) {                             /* a layer: OCT+ does a loop picker's action, else OK; OCT-: back */
+    if (cr_snap.lcap == CRL_CAP_STEP && (!cu_layer() || cu_layer() == L_LOOP) && !cu.opt_open && cu.page == PG_NONE) {
+        cr_post(CRE_LOOP, LP_STEP, 0, b == B_OCTUP ? CRL_STEP_REST : CRL_STEP_BACK);   /* step entry: a rest / back */
+        cu_trace("loop: step %s\n", b == B_OCTUP ? "rest" : "back");
+        return;
+    }
+    if (cu_layer()) {                             /* a layer: OCT+ does SAVE's action, else OK; OCT-: back */
         uint32_t l = cu_layer();
         if (l == L_EDIT) {                        /* the engine picker: OCT+ keeps the sound, OCT- cancels */
             cu_pick_end(b == B_OCTUP);
             cu_layer_close();
         } else if (b == B_OCTUP && l == L_SAVE)
             cu_save_act();
-        else if (b == B_OCTUP && l == L_LOOP && cu_playing())
-            cu_loop_act();
+        else if (b == B_OCTUP && l == L_LOOP)
+            ;                                     /* the PLAY menu: nothing (Pause = LOOP, Undo = REC held) */
         else if (cu.lock)
             cu_layer_close();
         return;
@@ -1981,12 +2077,17 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
             cu_engine_pick((uint32_t)i);
         }
         break;
-    case L_LOOP:                                   /* SELECT: the action while playing, else the length */
-        if (cu_playing() && i < 4)
-            cs.loop_act = (uint8_t)i;
-        else if (!cu_playing() && i < (int32_t)CRL_NSYNC) {
+    case L_LOOP:                                   /* SELECT: the length (the next take's) */
+        if (i < (int32_t)CRL_NSYNC) {
             cs.loop_len = (uint8_t)i;
             cr_post(CRE_LOOP, LP_CONF, LC_SYNC, i);
+            cu_trace("loop: length %d\n", (int)i);
+            if (cr_snap.lcap != CRL_CAP_NONE || cu_playing()) {   /* (the middle shows the timeline: say it) */
+                char t[24];
+                cu_cpy(t, "next take: ", sizeof t);
+                cu_cat(t, CU_LOOPLEN[i], sizeof t);
+                cu_message(t, CR_COL_RED);
+            }
         }
         break;
     case L_SAVE:                                   /* SELECT / KNOB 1: save load delete */
@@ -2010,7 +2111,7 @@ static int32_t cu_layer_sel(uint32_t l)
     case L_FX: return cs.fx_sel;
     case L_BASS: return cs.bass_mode;
     case L_EDIT: return cu_engine_rank(cu_edit_trk()->eng_req % NENGINES);
-    case L_LOOP: return cu_playing() ? cs.loop_act : cs.loop_len;
+    case L_LOOP: return cs.loop_len;
     case L_SAVE: return cs.save_act;
     case L_METRO: return cs.metro_sig;
     default: return 0;
@@ -2024,7 +2125,7 @@ static int32_t cu_layer_count(uint32_t l)
     case L_FX: return CU_NFX;
     case L_BASS: return 4;
     case L_EDIT: cu_engine_at(0, &n); return (int32_t)n;
-    case L_LOOP: return cu_playing() ? 4 : (int32_t)CRL_NSYNC;
+    case L_LOOP: return (int32_t)CRL_NSYNC;
     case L_SAVE: return 3;
     case L_METRO: return CRL_NSIG;
     default: return 0;
@@ -2142,28 +2243,25 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cu_trace("picker: roots %s\n", cs.pick_roots ? "engines" : "play");
         }
         break;
-    case L_LOOP:                                   /* SYNC QUANT COUNT-IN LEVEL */
-        if (knob == 0) {                           /* SYNC: the picker itself (stopped: the length; playing: the action) */
-            v = cu_layer_sel(L_LOOP) + (s > 0 ? 1 : -1);
-            v = v < 0 ? 0 : v >= cu_layer_count(L_LOOP) ? cu_layer_count(L_LOOP) - 1 : v;
-            cu_layer_pick(L_LOOP, v);
-            cu_trace("loop: %s %d\n", cu_playing() ? "action" : "length", (int)v);
-        } else if (knob == 1) {
+    case L_LOOP:                                   /* the PLAY menu: QUANTIZE COUNT-IN LEVEL KEYS */
+        if (knob == 0) {
             v = cs.loop_quant + (s > 0 ? 1 : -1);
             cs.loop_quant = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CRL_NQUANT ? CRL_NQUANT - 1u : (uint32_t)v);
             cr_post(CRE_LOOP, LP_CONF, LC_QUANT, cs.loop_quant);
-            cu_trace("loop: knob 2 quantize %s\n", CU_QUANT[cs.loop_quant]);
-        } else if (knob == 2) {
+            cu_trace("loop: knob 1 quantize %s\n", CU_QUANT[cs.loop_quant]);
+        } else if (knob == 1) {
             cs.loop_count_in = s > 0;
             cr_post(CRE_LOOP, LP_CONF, LC_COUNTIN, cs.loop_count_in);
-            cu_trace("loop: knob 3 count-in %s\n", cs.loop_count_in ? "on" : "off");
-        } else {
+            cu_trace("loop: knob 2 count-in %s\n", cs.loop_count_in ? "on" : "off");
+        } else if (knob == 2) {
             v = cs.loop_level + s * 5;
             cs.loop_level = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
             cr_post(CRE_LOOP, LP_CONF, LC_LEVEL, cs.loop_level);
-            cu_trace("loop: knob 4 level %u\n", (unsigned)cs.loop_level);
+            cu_trace("loop: knob 3 level %u\n", (unsigned)cs.loop_level);
+        } else {
+            cu_loop_keys(s > 0);
         }
-        cu_hot_set(L_LOOP, knob);                 /* (no popup: the cell turns hot; Sync while playing: dim, not hot) */
+        cu_hot_set(L_LOOP, knob);                 /* (no popup: the cell turns hot) */
         break;
     case L_SAVE:
         if (knob == 0)
@@ -2280,7 +2378,10 @@ static void cu_mod_release(uint32_t k)
 /* the root keys belong to layer l (its map), else they play: PERF and FX play the chord so a mode or an effect is
  * heard at once (SELECT picks there: docs/PRESETS.md "Also in this pass"), the engine picker with its roots off
  * plays the preview */
-static int cu_layer_keys(uint32_t l) { return l && l != L_PERF && l != L_FX && !(l == L_EDIT && !cs.pick_roots); }
+static int cu_layer_keys(uint32_t l)
+{
+    return l && l != L_PERF && l != L_FX && !(l == L_EDIT && !cs.pick_roots) && !(l == L_LOOP && !cs.loop_keys);
+}   /* (the PLAY menu with Keys = Play: they play, docs/LOOPER-MODES.md) */
 
 static void cu_key_press(uint32_t k)
 {
@@ -2511,6 +2612,14 @@ static void cu_knob(uint32_t role, int32_t s)
     }
     if (l && role >= EN_K1) {
         cu_layer_knob(l, role - EN_K1, s);
+        return;
+    }
+    if (l == L_LOOP && role == EN_PRESET) {        /* the PLAY menu: PRESETS the slot, ALGORITHM the record mode */
+        cu_loop_turn(s);
+        return;
+    }
+    if (l == L_LOOP && role == EN_ALGO) {
+        cu_loop_mode_turn(s);
         return;
     }
     if (l && role == EN_SELECT && l != L_KEY) {    /* a picker: SELECT moves */
@@ -2828,11 +2937,21 @@ static void cr_ui_input(void)
                 cu_key_release(k);
         }
     }
+    {                                              /* step entry: every key up (nothing latched) after a chord: the
+                                                    * cursor advances (the engine: if a chord was written there) */
+        static uint8_t down;
+        uint8_t dn = (uint8_t)(cu.kheld || cu.mlatch);
+        if (cr_snap.lcap == CRL_CAP_STEP && down && !dn) {
+            cr_post(CRE_LOOP, LP_STEP, 0, CRL_STEP_KEYSUP);
+            cu_trace("loop: step keys up\n");
+        }
+        down = dn;
+    }
     for (b = 0; b < NE; b++)
         if ((s = panel_enc(b)) != 0)
             cu_knob(b, s);
     if (cu.clear_t0) {                             /* D#4 held 1 s in the loop layer: CLEAR */
-        if (!((cu.kheld >> 10) & 1u) || cu_layer() != L_LOOP)
+        if (!((cu.kheld >> 10) & 1u) || cu_layer() != L_LOOP || !cs.loop_keys)
             cu.clear_t0 = 0;
         else if (now - cu.clear_t0 >= 1000u) {
             cu.clear_t0 = 0;
@@ -2890,13 +3009,14 @@ static void cr_leds(void)
     cu_led(nl, panel.btn[BT_FX], cs.fx_on);
     cu_led(nl, panel.btn[BT_BASS], cs.bass_on);
     cu_led(nl, panel.btn[BT_LATCH], cs.sticky || sn->latching);
-    cu_led(nl, panel.btn[BT_OPT], cu.opt_open || cu_shift());
+    cu_led(nl, panel.btn[BT_OPT], cu.opt_open || cu_shift() || (l == L_LOOP && cs.loop_keys));   /* (the PLAY menu:
+                                                                                            * Keys = Loops) */
     cu_led(nl, panel.btn[BT_EDIT], cu.page == PG_EDIT && blink);   /* blinks while the editor is open */
     cu_led(nl, panel.btn[BT_SAVE], cu.page == PG_SAVE);
     cu_led(nl, panel.btn[BT_METRO], cs.metro);
     {                                                    /* REC: blinks capturing, lit armed; LOOP: a loop */
         uint32_t cap = sn->lcap;
-        cu_led(nl, panel.btn[BT_REC], cap == CRL_CAP_ARMED || cap == CRL_CAP_OD_ARMED ||
+        cu_led(nl, panel.btn[BT_REC], cap == CRL_CAP_ARMED || cap == CRL_CAP_OD_ARMED || cap == CRL_CAP_STEP ||
                                           ((cap == CRL_CAP_COUNTIN || cap == CRL_CAP_REC || cap == CRL_CAP_OD) && blink));
         cu_led(nl, panel.btn[BT_LOOP], sn->lstate != CRL_EMPTY);
         if (sn->lstate == CRL_PLAYING)                   /* its green LED while playing */
@@ -2912,9 +3032,13 @@ static void cr_leds(void)
     if (cu.page == PG_EDIT && !l)                        /* the editor's buttons (EDIT blinking, the section lit) */
         ce_leds(nl, blink);
 #endif
-    if (cu_picker_ctx() || l) {                          /* a picker: OCT- back (lit), OCT+ OK (blinking) */
+    if (sn->lcap == CRL_CAP_STEP && (!l || l == L_LOOP) && !cu.opt_open && cu.page == PG_NONE) {
+        cu_led(nl, panel.btn[B_OCTDN], 1);               /* step entry: OCT- back, OCT+ a rest */
+        cu_led(nl, panel.btn[B_OCTUP], 1);
+    } else if (cu_picker_ctx() || l) {                   /* a picker: OCT- back (lit), OCT+ OK (blinking; the PLAY
+                                                          * menu: none) */
         cu_led(nl, panel.btn[B_OCTDN], 1);
-        cu_led(nl, panel.btn[B_OCTUP], (int)blink);
+        cu_led(nl, panel.btn[B_OCTUP], l != L_LOOP && blink);
     } else {
         cu_led(nl, panel.btn[B_OCTDN], cu.octave < 0);
         cu_led(nl, panel.btn[B_OCTUP], cu.octave > 0);
@@ -2932,8 +3056,9 @@ static void cr_leds(void)
         cu_led(nd, 14u + k, 1);
     }
     /* the roots: a layer's map, or the voiced notes where they sound */
-    if (l == L_LOOP || l == L_SAVE) {                  /* the slots: lit = a loop, blinking = the one selected */
-        uint32_t sel = l == L_LOOP ? cs.loop_slot : cs.loop_target;
+    if ((l == L_LOOP && cs.loop_keys) || l == L_SAVE) {   /* the slots: lit = a loop, blinking = the one selected (the
+                                                          * PLAY menu with Keys = Play: the keys as on the view) */
+        uint32_t sel = l == L_LOOP ? cu_lm_slot() : cs.loop_target;
         for (k = CU_ROOT0; k < CU_NKEY; k++) {
             int32_t wi = cu_white_idx(k);
             if (wi < 0 || wi >= (int32_t)CRL_SLOTS) {
@@ -3104,17 +3229,19 @@ static void cu_header(cr_screen_t *s)
         s->right[0] = 0;
         if (sn->lcap == CRL_CAP_COUNTIN) {
             cu_cpy(s->mid, "Rec", sizeof s->mid);   /* (the beats to go: the panel, cr_build_screen) */
-        } else if (sn->lcap == CRL_CAP_ARMED) {
-            cu_cpy(s->mid, "Rec", sizeof s->mid);
-            cu_cpy(s->right, "ready", sizeof s->right);
-        } else if (sn->lcap == CRL_CAP_REC) {
-            cu_cpy(s->mid, "Rec", sizeof s->mid);
-        } else {
+        } else {                                   /* "Loop 3" and the state: "Rec \267 Overwrite" (armed: the mode),
+                                                    * "Rec 2.4", "Dub 3.2", "Rep 3.2", "Rec \267 Step" */
             cu_cpy(s->mid, "Loop ", sizeof s->mid);
-            cu_int(b, cs.loop_slot + 1, 0, sizeof b);
+            cu_int(b, (int32_t)cu_lm_slot() + 1, 0, sizeof b);
             cu_cat(s->mid, b, sizeof s->mid);
-            if (sn->lcap == CRL_CAP_OD || sn->lcap == CRL_CAP_OD_ARMED)   /* (armed too: "Dub 3.2", loop mock-up 7) */
-                cu_cpy(s->right, "Dub ", sizeof s->right);
+            if (sn->lcap == CRL_CAP_ARMED || sn->lcap == CRL_CAP_STEP) {
+                cu_cpy(s->right, "Rec \267 ", sizeof s->right);
+                cu_cat(s->right, sn->lcap == CRL_CAP_STEP ? "Step" : CU_LOOP_MODE[cs.loop_mode % CRL_NMODE],
+                       sizeof s->right);
+            } else if (sn->lcap == CRL_CAP_REC)
+                cu_cpy(s->right, "Rec ", sizeof s->right);
+            else if (sn->lcap == CRL_CAP_OD || sn->lcap == CRL_CAP_OD_ARMED)   /* (armed too: "Dub 3.2") */
+                cu_cpy(s->right, sn->lrep ? "Rep " : "Dub ", sizeof s->right);
         }
         if (sn->lcap == CRL_CAP_REC || sn->lcap == CRL_CAP_OD || sn->lcap == CRL_CAP_OD_ARMED) {
             cu_int(b, (int32_t)sn->lbar, 0, sizeof b);
@@ -3134,6 +3261,7 @@ static int cu_dial_state(void)
     switch (sn->lcap) {
     case CRL_CAP_NONE: return sn->lstate == CRL_PLAYING ? CR_DIAL_PLAY : -1;
     case CRL_CAP_ARMED:
+    case CRL_CAP_STEP:                             /* (step entry: the REC dot steady) */
     case CRL_CAP_OD_ARMED: return CR_DIAL_ARMED;
     case CRL_CAP_REC: return CR_DIAL_REC;
     case CRL_CAP_OD: return CR_DIAL_OD;
@@ -3471,33 +3599,209 @@ static void cu_key_cells(cr_screen_t *s)
     cu_cpy(s->cell[0][3].value, cs.single ? "Split" : "Full", sizeof s->cell[0][3].value);
     cu_hot_row(s, L_KEY);
 }
-/* LOOP's knob row (layers sheet 6): Sync (range: the length; dim while playing: it cannot change then), Quantize
- * (echoes), Count-in (gate: full on, narrow off), Level (bar) */
+/* the PLAY menu's knob row (docs/LOOPER-MODES.md): Quantize (echoes), Count-in (gate: full on, narrow off), Level
+ * (bar), Keys (text: Play / Loops). The length is the menu's middle (SELECT) */
 static void cu_loop_cells(cr_screen_t *s)
 {
-    static const char *const LB[4] = {"Sync", "Quantize", "Count-in", "Level"};
-    uint32_t k, len = cs.loop_len % CRL_NSYNC, q = cs.loop_quant % CRL_NQUANT;
+    static const char *const LB[4] = {"Quantize", "Count-in", "Level", "Keys"};
+    uint32_t k, q = cs.loop_quant % CRL_NQUANT;
     for (k = 0; k < 4u; k++) {
         s->cell[0][k].flags = CR_CF_ON;
         cu_cpy(s->cell[0][k].label, LB[k], sizeof s->cell[0][k].label);
     }
-    if (cu_playing())
-        s->cell[0][0].flags |= CR_CF_DIM;
-    cu_cpy(s->cell[0][0].value, CU_LOOPLEN[len], sizeof s->cell[0][0].value);
-    s->cell[0][0].glyph = CR_G_RANGE;
-    s->cell[0][0].pct = (uint8_t)(len * 255u / (CRL_NSYNC - 1u));
-    cu_cpy(s->cell[0][1].value, CU_QUANT[q], sizeof s->cell[0][1].value);
-    s->cell[0][1].glyph = CR_G_ECHOES;              /* "none": no grid (pct 0, pct2 0: the baseline alone, cr_draw.c);
+    cu_cpy(s->cell[0][0].value, CU_QUANT[q], sizeof s->cell[0][0].value);
+    s->cell[0][0].glyph = CR_G_ECHOES;              /* "none": no grid (pct 0, pct2 0: the baseline alone, cr_draw.c);
                                                      * 1/4 .. 1/32 the repeats, the spacing growing as before */
-    s->cell[0][1].pct = (uint8_t)(q * 255u / (CRL_NQUANT - 1u));
-    s->cell[0][1].pct2 = q ? 255u : 0u;
-    cu_cpy(s->cell[0][2].value, cs.loop_count_in ? "On" : "Off", sizeof s->cell[0][2].value);
-    s->cell[0][2].glyph = CR_G_GATE;
-    s->cell[0][2].pct = cs.loop_count_in ? 255 : 26;
-    cu_int(s->cell[0][3].value, cs.loop_level, 0, sizeof s->cell[0][3].value);
-    s->cell[0][3].glyph = CR_G_BAR;
-    s->cell[0][3].pct = (uint8_t)(cs.loop_level * 255u / 100u);
+    s->cell[0][0].pct = (uint8_t)(q * 255u / (CRL_NQUANT - 1u));
+    s->cell[0][0].pct2 = q ? 255u : 0u;
+    cu_cpy(s->cell[0][1].value, cs.loop_count_in ? "On" : "Off", sizeof s->cell[0][1].value);
+    s->cell[0][1].glyph = CR_G_GATE;
+    s->cell[0][1].pct = cs.loop_count_in ? 255 : 26;
+    cu_int(s->cell[0][2].value, cs.loop_level, 0, sizeof s->cell[0][2].value);
+    s->cell[0][2].glyph = CR_G_BAR;
+    s->cell[0][2].pct = (uint8_t)(cs.loop_level * 255u / 100u);
+    cu_cpy(s->cell[0][3].value, cs.loop_keys ? "Loops" : "Play", sizeof s->cell[0][3].value);
     cu_hot_row(s, L_LOOP);
+}
+
+/* the PLAY menu's timeline / step grid marks (cr_screen.h lm_lane): read from the ISR's loop (IRQ off, <= 512 events)
+ * only when its events (crl.gen) or the window changed */
+static struct {
+    uint32_t key, start;
+    uint16_t gen;
+    uint8_t ok, nlane, newlane, cur_ok, cur_root, cur_qx;
+    uint64_t lane[4];
+} cu_lmc;
+static void cu_lm_marks(uint32_t start, uint32_t span, uint32_t mid)   /* window [start, start + span) ticks */
+{
+    const cr_snap_t *sn = &cr_snap;
+    uint32_t key = start * 2654435761u ^ span * 40503u ^ mid ^ (uint32_t)sn->lcap << 24 ^ sn->lnlayers << 16, i, nl, tot,
+             off, rec = sn->lcap == CRL_CAP_REC || sn->lcap == CRL_CAP_OD;
+    if (cu_lmc.ok && cu_lmc.gen == sn->lgen && cu_lmc.key == key)
+        return;
+    for (i = 0; i < 4u; i++)
+        cu_lmc.lane[i] = 0;
+    cu_lmc.cur_ok = 0;
+    nl = sn->lnlayers;
+    tot = nl + (sn->lcap == CRL_CAP_OD || sn->lcap == CRL_CAP_REC ? 1u : 0u);   /* (the first take: nlayers 0) */
+    off = tot > 4u ? tot - 4u : 0u;                /* more than 4 lanes: the older layers fold into lane 0 */
+    fm1_irq_off();
+    if (mid == CR_LM_STEPS) {
+        uint32_t g = crl.step_g ? crl.step_g : 24u, cur = (uint32_t)crl.step * g;
+        for (i = crl.layer_ev0; i < crl.d.nev; i++) {
+            const crl_ev_t *e = &crl.d.ev[i];
+            uint32_t st = e->t / g;
+            if (st >= start && st < start + span)
+                cu_lmc.lane[0] |= (uint64_t)1 << (st - start);
+            if (e->t == cur) {                     /* (the last one written there names the cursor's step) */
+                cu_lmc.cur_ok = 1;
+                cu_lmc.cur_root = e->root;
+                cu_lmc.cur_qx = e->qx;
+            }
+        }
+    } else {
+        for (i = 0; i < crl.d.nev; i++) {
+            const crl_ev_t *e = &crl.d.ev[i];
+            uint32_t l = CRL_LAYER(e), ln;
+            if (l == 0xFFu || e->t < start || e->t >= start + span)
+                continue;
+            ln = l > off ? l - off : 0u;
+            cu_lmc.lane[ln & 3u] |= (uint64_t)1 << ((e->t - start) * 64u / span);
+        }
+        if (rec)                                   /* the take's gestures still held: their marks where they began */
+            for (i = 0; i < CRL_OPEN; i++) {
+                uint32_t t0 = crl.open[i].t0, t;
+                if (!crl.open[i].used)
+                    continue;
+                if (crl.cap == CRL_CAP_REC)
+                    t = (int32_t)(t0 - crl.rec0) < 0 ? 0u : t0 - crl.rec0;
+                else if ((int32_t)(t0 - crl.od0) < 0 || !crl.d.len)
+                    continue;
+                else
+                    t = (t0 - crl.cyc0) % crl.d.len;
+                if (t >= start && t < start + span)
+                    cu_lmc.lane[(nl > off ? nl - off : 0u) & 3u] |= (uint64_t)1 << ((t - start) * 64u / span);
+            }
+    }
+    fm1_irq_on();
+    cu_lmc.nlane = (uint8_t)(tot > 4u ? 4u : tot);
+    cu_lmc.newlane = (uint8_t)(rec && tot ? (nl > off ? nl - off : 0u) + 1u : 0u);
+    cu_lmc.gen = sn->lgen;
+    cu_lmc.key = key;
+    cu_lmc.ok = 1;
+}
+/* the PLAY menu (LOOP held: docs/LOOPER-MODES.md, design/choralroot-fm1-looper-screens.png): the slot strip, the record
+ * mode, the middle (the length; the record timeline while recording or playing; the step grid in step entry), the
+ * knob row; the top line "Loop 3" and the state at its right */
+static void cu_loopmenu(cr_screen_t *s, uint32_t now)
+{
+    static char seen[48];
+    const cr_snap_t *sn = &cr_snap;
+    uint32_t sig = sn->lsig % CRL_NSIG, bar = sig == CRL_SIG_44 ? 384u : 288u;
+    uint32_t beats = sig == CRL_SIG_44 ? 4u : sig == CRL_SIG_34 ? 3u : 6u, cap = sn->lcap, slot = cu_lm_slot();
+    uint32_t cur = 1u << cs.loop_slot;
+    char b[12];
+    cu_picker(s, CU_LOOP_MODE, CRL_NMODE, cs.loop_mode % CRL_NMODE, CR_COL_WHITE, "", "");
+    s->kind = CR_K_LOOPMENU;
+    s->orient = 1;
+    cu_loop_cells(s);
+    cu_row_trace(s, "loop", seen, sizeof seen);
+    s->lm_used = (uint16_t)((cs.loop_used & ~cur) | (sn->lstate != CRL_EMPTY ? cur : 0u));   /* (the slot in RAM: what
+                                                                                              * it holds now) */
+    s->lm_slot = (uint8_t)slot;
+    s->lm_jump = (uint8_t)((int32_t)(cu_lp.adv_until - now) > 0 ? cu_lp.adv_to : 0u);
+    cu_cpy(s->mid, "Loop ", sizeof s->mid);
+    cu_int(b, (int32_t)slot + 1, 0, sizeof b);
+    cu_cat(s->mid, b, sizeof s->mid);
+    s->mid_col = CR_COL_RED;
+    if (cap == CRL_CAP_NONE && sn->lstate == CRL_PLAYING) {   /* playing: bar.beat at the right */
+        cu_int(s->right, (int32_t)sn->lbar, 0, sizeof s->right);
+        cu_cat(s->right, ".", sizeof s->right);
+        cu_int(b, (int32_t)sn->lbeat, 0, sizeof b);
+        cu_cat(s->right, b, sizeof s->right);
+        s->right_col = CR_COL_WHITE;
+    } else if (cap == CRL_CAP_NONE && !((s->lm_used >> slot) & 1u)) {
+        cu_cpy(s->right, "empty", sizeof s->right);
+        s->right_col = CR_COL_GREY;
+    }
+    if (cap == CRL_CAP_STEP) {                     /* the step grid: 16 a bar at 1/16 (the Quantize grid), 4 bars a page */
+        uint32_t g = sn->lstep_g ? sn->lstep_g : 24u, per = bar / g, pb = 64u / per, nst, tb, first, shown;
+        char r[4], q[5], sup[CR_SUP_MAX];
+        pb = pb > 4u ? 4u : pb ? pb : 1u;
+        nst = sn->lstep_len ? sn->lstep_len / g : (sn->lstep_end > sn->lstep + 1u ? sn->lstep_end : sn->lstep + 1u);
+        tb = (nst + per - 1u) / per;
+        first = sn->lstep / (per * pb) * per * pb;
+        shown = tb - first / per;
+        shown = shown < 1u ? 1u : shown > pb ? pb : shown;
+        cu_lm_marks(first, per * shown, CR_LM_STEPS);
+        s->lm_mid = CR_LM_STEPS;
+        s->lm_bars = (uint8_t)shown;
+        s->lm_beats = (uint8_t)per;
+        s->lm_lane[0] = cu_lmc.lane[0];
+        s->lm_pos = (uint16_t)((sn->lstep - first) | (cu_blink(now) ? 0u : CR_LM_CUR_OFF));
+        if (sn->ci.sounding && !sn->ldisp) {       /* the chord being entered, else the one at the cursor */
+            cu_cpy(s->sub, sn->ci.root, sizeof s->sub);
+            cu_cat(s->sub, sn->ci.qual, sizeof s->sub);
+            cu_cat(s->sub, sn->ci.sup, sizeof s->sub);
+        } else if (cu_lmc.cur_ok) {
+            cr_chord_name((uint8_t)(cu_lmc.cur_root % 12u), (uint8_t)(cu_lmc.cur_qx >> 4), (uint8_t)(cu_lmc.cur_qx & 15u),
+                          r, q, sup);
+            cu_cpy(s->sub, r, sizeof s->sub);
+            cu_cat(s->sub, q, sizeof s->sub);
+            cu_cat(s->sub, sup, sizeof s->sub);
+        } else
+            cu_cpy(s->sub, "-", sizeof s->sub);
+        cu_cpy(s->value, "step ", sizeof s->value);
+        cu_int(b, (int32_t)(sn->lstep % per) + 1, 0, sizeof b);
+        cu_cat(s->value, b, sizeof s->value);
+        cu_cat(s->value, " \267 bar ", sizeof s->value);
+        cu_int(b, (int32_t)(sn->lstep / per) + 1, 0, sizeof b);
+        cu_cat(s->value, b, sizeof s->value);
+        cu_cpy(s->foot, "OCT-: back \267 OCT+: rest \267 REC: done", sizeof s->foot);
+    } else if (cap == CRL_CAP_REC || cap == CRL_CAP_OD || cap == CRL_CAP_OD_ARMED || sn->lstate == CRL_PLAYING) {
+        uint32_t pos = sn->lpos, start = 0, shown, len;
+        s->lm_mid = CR_LM_TIMELINE;
+        s->lm_beats = (uint8_t)beats;
+        if (cap == CRL_CAP_REC && !sn->lrec_len) { /* Free, the first take: the bars as they pass, the current one right */
+            uint32_t nb = pos / bar + 1u, ms = pos * 625u / ((cs.bpm ? cs.bpm : 120u) * 1u);   /* (60000 / 96 = 625) */
+            start = (nb > 4u ? nb - 4u : 0u) * bar;
+            shown = nb > 4u ? 4u : nb;
+            s->lm_free = (uint8_t)(nb > 255u ? 255u : nb);
+            ms /= 1000u;                           /* "0:07" */
+            cu_int(s->sub, (int32_t)(ms / 60u), 0, sizeof s->sub);
+            cu_cat(s->sub, ":", sizeof s->sub);
+            cu_2d(b, ms % 60u, sizeof b);
+            cu_cat(s->sub, b, sizeof s->sub);
+        } else {                                   /* N bars: all of them (more than 8: the half the playhead is in) */
+            len = cap == CRL_CAP_REC ? sn->lrec_len : sn->llen;
+            shown = (len + bar - 1u) / bar;
+            shown = shown ? shown : 1u;
+            if (shown > 8u) {
+                start = pos / (8u * bar) * 8u * bar;
+                shown = shown - start / bar > 8u ? 8u : shown - start / bar;
+            }
+        }
+        s->lm_bars = (uint8_t)shown;
+        cu_lm_marks(start, shown * bar, CR_LM_TIMELINE);
+        for (cur = 0; cur < 4u; cur++)
+            s->lm_lane[cur] = cu_lmc.lane[cur];
+        s->lm_nlane = cu_lmc.nlane;
+        s->lm_newlane = cu_lmc.newlane;
+        s->lm_pos = (uint16_t)(pos >= start ? (pos - start) * 256u / bar : 0u);
+        if (sn->lrep_on) {                         /* Replace: the held span (from its start, or the window's edge) */
+            uint32_t e0 = sn->lrep0 >= start && sn->lrep0 <= pos ? sn->lrep0 - start : 0u;
+            s->lm_erase0 = (uint16_t)(e0 * 256u / bar);
+            s->lm_erase1 = (uint16_t)(s->lm_pos > s->lm_erase0 ? s->lm_pos : s->lm_erase0 + 1u);
+        }
+    } else {                                       /* idle, armed: the length big ("4 bars", "Free") */
+        s->lm_mid = CR_LM_TEXT;
+        cu_cpy(s->title, CU_LOOPLEN[cs.loop_len % CRL_NSYNC], sizeof s->title);
+        s->title_col = CR_COL_NONE;
+        if (cap == CRL_CAP_ARMED && cu_lp.adv_armed)
+            cu_cpy(s->sub, cu_lp.adv_txt, sizeof s->sub);
+        else if (cap == CRL_CAP_ARMED)
+            cu_cpy(s->sub, "the first chord starts the take", sizeof s->sub);
+    }
 }
 
 static void cu_layer_screen(cr_screen_t *s, uint32_t l)
@@ -3569,26 +3873,9 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         if (psnd[ce.part].edited)
             cu_cat(s->value, "*", sizeof s->value);
         break;
-    case L_LOOP: {                                 /* layers sheet 6: the knob row, no ring (a loop running: the dial) */
-        static char seen[48];
-        if (cu_playing()) {
-            cu_picker(s, CU_LOOP_ACT, 4, cs.loop_act, CR_COL_RED, SLOTS[cs.loop_slot % 10u], "");
-            cu_cpy(s->label, "loop ", sizeof s->label);
-            cu_cat(s->label, SLOTS[cs.loop_slot % 10u] + 5, sizeof s->label);
-        } else {
-            cu_picker(s, CU_LOOPLEN, CRL_NSYNC, cs.loop_len, CR_COL_RED, "loop length", "");
-        }
-        s->kind = CR_K_KNOBROW;
-        s->orient = 1;
-        cu_loop_cells(s);
-        cu_row_trace(s, "loop", seen, sizeof seen);
-        if (cr_snap.lstate != CRL_PLAYING) {
-            cu_cpy(s->mid, "Loop ", sizeof s->mid);
-            cu_cat(s->mid, SLOTS[cs.loop_slot % 10u] + 5, sizeof s->mid);
-        }
-        s->mid_col = CR_COL_RED;
+    case L_LOOP:                                   /* the PLAY menu (no ring: a loop running shows the dial) */
+        cu_loopmenu(s, cu_now());
         break;
-    }
     case L_SAVE:                                   /* loops: save / load / delete on the root-chosen slot */
         cu_picker(s, CU_SAVE_ACT, 3, cs.save_act, CR_COL_RED,
                   (cs.loop_used >> cs.loop_target) & 1u ? "holds a loop" : "empty",
