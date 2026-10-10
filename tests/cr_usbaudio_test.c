@@ -422,6 +422,78 @@ static void bench(void)
 #endif
 }
 
+/* ------------------------------------------------------------ handoff --- */
+/* The endpoint hand-off as usb_audio.c does it (ua_tx_fill, then ua_tx_prepare: one packet queued, the next packed
+ * ahead in the other slot), ua_service at 4 kHz, the host's IN token once per ms reading the queued slot at the token
+ * (the DMA reads the buffer then, not when it is armed), producer: 128-frame halves at the I2S rate. Over 10 s every
+ * frame the host gets is the next one produced: none twice, none skipped once primed. */
+static void test_handoff(void)
+{
+    uint8_t slot = 0, pktrdy = 0, q_slot = 0;
+    uint32_t bytes = 0, q_bytes = 0, tick, i, ch, n, dup = 0, skip = 0, got = 0, pk = 0, maxrep = 0, rep = 0;
+    uint16_t seq = 0, expect = 0, last = 0;
+    int started = 0;
+    double next_half = 0, half_us = 128e6 / 44117.647;
+    static uint8_t buf[2][UA_PACKET];
+    memset(&ua, 0, sizeof ua);
+    ua_reset();
+    ua.cap_alt = 1;
+    for (tick = 0; tick < 40000u; tick++) {                /* 250 us ticks, 10 s */
+        double t = tick * 250.0;
+        while (next_half <= t) {                           /* a half: 4 blocks of 32 */
+            for (n = 0; n < 4; n++) {
+                for (i = 0; i < 32; i++, seq++)
+                    for (ch = 0; ch < UA_CAP_CHANNELS; ch++)
+                        stage[i * UA_CAP_CHANNELS + ch] = (int16_t)(ch ? -(int)ch : (int16_t)seq);
+                ua_audio(stage, 32);
+            }
+            next_half += half_us;
+        }
+        if ((tick & 3u) == 0) {                            /* the host: SOF, then the IN token */
+            ua_sof();
+            if (pktrdy) {
+                const uint8_t *p = buf[q_slot];
+                pk++;
+                for (i = 0; i < q_bytes / (2u * UA_CAP_CHANNELS); i++) {
+                    uint16_t v = (uint16_t)(p[12 * i] | p[12 * i + 1] << 8);
+                    if ((int16_t)(p[12 * i + 10] | p[12 * i + 11] << 8) == 0)
+                        continue;                          /* silence: priming */
+                    if (started && v == last)
+                        rep++;
+                    if (started && (int16_t)(v - expect) < 0)
+                        dup++;
+                    else if (started && v != expect)
+                        skip++;
+                    started = 1;
+                    last = v;
+                    expect = (uint16_t)(v + 1);
+                    got++;
+                }
+                pktrdy = 0;
+            }
+        }
+        if (!pktrdy) {                                     /* ua_tx_fill */
+            if (!bytes)
+                bytes = ua_transmit(buf[slot]);
+            q_slot = slot;
+            q_bytes = bytes;
+            pktrdy = 1;
+            slot ^= 1u;
+            bytes = 0;
+        }
+        if (!bytes)                                        /* ua_tx_prepare */
+            bytes = ua_transmit(buf[slot]);
+        if (rep > maxrep)
+            maxrep = rep;
+    }
+    {
+        char m[160];
+        snprintf(m, sizeof m, "hand-off, 10 s: %u frames in %u packets, none twice (%u), none skipped (%u), "
+                 "under %u over %u", got, pk, dup, skip, ua.cap_underruns, ua.cap_overruns);
+        check(m, !dup && !skip && !maxrep && got > 9u * 44000u && !ua.cap_underruns && !ua.cap_overruns);
+    }
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1 && !strcmp(argv[1], "--bench")) {
@@ -431,6 +503,7 @@ int main(int argc, char **argv)
     test_descriptors();
     test_routing();
     test_drift();
+    test_handoff();
     printf("cr_usbaudio: %d passed, %d failed\n", passes, fails);
     return fails ? 1 : 0;
 }
