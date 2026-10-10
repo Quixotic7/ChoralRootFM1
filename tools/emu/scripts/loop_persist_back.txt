@@ -1,0 +1,10 @@
+# loop_persist_stop / _play's flash file relaunched (test_persist.sh): slot 1's loop is back in RAM at power-on
+# (2 events, used 001) and LOOP plays it.
+wait 300
+dump                          # 1: power-on: used 001, slot 1, 2 events, stopped
+btn PLAY
+wait 1500
+expect sound
+dump                          # 2: it plays
+btn PLAY
+wait 500

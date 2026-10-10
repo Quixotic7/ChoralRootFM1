@@ -1,0 +1,45 @@
+# ChoralRoot: HOME held 600 ms: the view menu (Chord / Keyboard / Notes / Geek Out / Scope, the last line the lock).
+# A chord first (the view, not the splash); HOME tap at home: the next view (unlocked, the default); HOME held: the
+# menu; SELECT +1: the next view; KNOB 1 +1: Lock On; OCT+: ok (closed); HOME tap: the view stays (locked); HOME held
+# again, the second white root (E4): Keyboard; KNOB 1 -1: unlocked; HOME tap closes; HOME tap: the next view again.
+wait 300
+key F3 down
+wait 40
+btn D4 down
+wait 500
+btn D4 up
+key F3 up
+wait 300
+dump                          # 1: view 0 (Chord)
+btn HOME
+wait 300
+dump                          # 2: view 1 (Keyboard): HOME tap cycles (unlocked)
+btn HOME 800
+wait 300
+shot build/emu/test/cr_view_menu.ppm
+dump                          # 3: the menu (layer 9), view 1
+knob SELECT +1
+wait 300
+knob KNOB1 +1
+wait 300
+shot build/emu/test/cr_view_menu_lock.ppm
+dump                          # 4: view 2 (Notes), locked
+btn OCT+
+wait 300
+dump                          # 5: closed (layer 0)
+btn HOME
+wait 300
+shot build/emu/test/cr_view_locked_tap.ppm
+dump                          # 6: view 2 still (locked)
+btn HOME 800
+wait 300
+btn E4
+wait 300
+knob KNOB1 -1
+wait 300
+btn HOME
+wait 300
+dump                          # 7: view 1 (E4, the second white root: Keyboard), unlocked, closed by HOME
+btn HOME
+wait 300
+dump                          # 8: view 2: HOME tap cycles again

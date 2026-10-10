@@ -42,8 +42,8 @@
 #define CU_BIT(b) (1u << (b))
 
 /* layers (a button held): their screens and the job of the root keys and KNOB 1..4 */
-enum { L_NONE, L_KEY, L_PERF, L_FX, L_BASS, L_EDIT, L_SAVE, L_METRO, L_LOOP, L_N };
-static const uint8_t L_BTN[L_N] = {NB, BT_KEY, BT_PERF, BT_FX, BT_BASS, BT_EDIT, BT_SAVE, BT_METRO, BT_LOOP};
+enum { L_NONE, L_KEY, L_PERF, L_FX, L_BASS, L_EDIT, L_SAVE, L_METRO, L_LOOP, L_VIEW, L_N };   /* L_VIEW: HOME held */
+static const uint8_t L_BTN[L_N] = {NB, BT_KEY, BT_PERF, BT_FX, BT_BASS, BT_EDIT, BT_SAVE, BT_METRO, BT_LOOP, BT_HOME};
 static uint32_t cu_layer_of(uint32_t b)
 {
     uint32_t l;
@@ -444,6 +444,7 @@ static struct {
     uint8_t pool_pos[2][NENG_SHOWN];      /* per part, per engine (ENGINE_ORDER rank): the pool position last played
                                            * (OPT + PRESETS lands there; Settings v6) */
     uint8_t view, leds;
+    uint8_t view_lock;                    /* HOME held's menu, Lock: HOME tap never cycles the view (Settings v9) */
     uint8_t ch[CR_NSTREAM];               /* MIDI channel 1..16, 0 = off */
     uint8_t raw_sound;                    /* RAW also plays part 0 */
     uint8_t split;                        /* Single Notes' split point, pitch class 0..11 */
@@ -780,6 +781,9 @@ static struct {
     uint8_t opt_open, opt_sel;
     uint8_t page;                         /* PG_* */
     uint32_t last_sound;                  /* the last time a chord sounded or a key was held */
+    uint32_t last_input;                  /* the last key, button, knob or MIDI message in (the screensaver, CR_IDLE_MS) */
+    uint32_t home_t0;                     /* HOME pressed (held CU_HOME_HOLD_MS: the view menu) */
+    uint8_t home_hold;                    /* .. armed (pressed alone, the menu not opened yet) */
     struct { uint32_t until; uint8_t kind, col, segs, jump, mark; uint16_t pct; char value[8], sub[12], label[24]; } pop;
                                           /* jump: the meter's bar jumps to the value (no fill: the picker's preview);
                                            * mark: the square after the name (an overwritten factory preset) */
@@ -1382,6 +1386,51 @@ static void cu_rec(void)
 }
 /* the transport's results (the ISR's CRL_DID_*) as messages; a deferred save once the loop stops */
 static uint32_t cu_did_seen;
+/* the loop in RAM, changed (crl.dirty) and stopped, written to its own slot without a SAVE, so a power-off after a stop
+ * loses nothing (docs/LOOPER.md "Slots and the record"): at once when it stops (LOOP tap, a panic, MIDI stop; a take /
+ * overdub committed while it played is written at that stop), else (a take that ends stopped, Step's commit, an undo
+ * or a clear while stopped) after CU_AUTOSAVE_MS with no chord sounding and no key held. Never while it plays (no
+ * flash erase then), nor while a capture is open, a switch is on its way, in SAFE MODE, after a restore or without
+ * the flash. An empty loop (cleared) deletes its slot's record, as leaving it does. "saved to slot N" only when written */
+#define CU_AUTOSAVE_MS 2000u
+static void cu_loop_autosave(void)
+{
+    static uint8_t was_playing;
+    uint32_t now = cu_now(), k = cs.loop_slot, n;
+    int stopped_now = was_playing && !cu_playing(), rc;
+    was_playing = (uint8_t)cu_playing();
+    if (!crl.dirty || cu_playing() || cr_snap.lcap != CRL_CAP_NONE || crl_stage_busy || cu_lp.q || cu_lp.slot ||
+        cs.save_pending || cr_safe || cr_restore_lock || !crl_fl_ready() || k >= CRL_SLOTS)
+        return;
+    if (!stopped_now && (cr_snap.ci.sounding || (cu.kheld >> CU_ROOT0) || now - cu.last_sound < CU_AUTOSAVE_MS))
+        return;
+    cu_loop_gen++;
+    fm1_irq_off();
+    n = cr_loop_pack(&crl.d, cu_loop_buf, sizeof cu_loop_buf);
+    fm1_irq_on();
+    if (!n && !((cs.loop_used >> k) & 1u)) {       /* empty, and so is its slot: nothing to write */
+        fm1_irq_off();
+        crl.dirty = 0;
+        fm1_irq_on();
+        return;
+    }
+    rc = n ? crl_fl_save(k, cu_loop_buf, n) : crl_fl_delete(k);
+    cu_trace("loop: auto-save slot %u %u bytes rc %d (%s)\n", (unsigned)k + 1u, (unsigned)n, rc,
+             stopped_now ? "stopped" : "idle");
+    fm1_irq_off();
+    crl.dirty = 0;                                 /* (an error: not retried every frame; the next change tries again) */
+    fm1_irq_on();
+    if (rc) {
+        cu_message("save error", CR_COL_RED);
+        return;
+    }
+    if (n)
+        cs.loop_used |= (uint16_t)(1u << k);
+    else
+        cs.loop_used &= (uint16_t)~(1u << k);
+    cu_slot_msg(n ? "saved to slot " : "cleared slot ", k, "", CR_COL_GREEN);
+}
+
 static void cu_loop_frame(void)
 {
     static const char *const DID[] = {"", "rec: play to start", "count-in", "recording", "cancelled", "loop recorded",
@@ -1441,6 +1490,7 @@ static void cu_loop_frame(void)
         cs.save_pending = 0;
         cu_loop_save_now(k);
     }
+    cu_loop_autosave();
 }
 
 /* -------------------------------------------------------------- actions --- */
@@ -1475,6 +1525,23 @@ static void cu_layer_close(void)                  /* OCT- in a layer: back (the 
     cu.lock = L_NONE;
 }
 
+/* PERF tap / OCT+ in the perform layer: perform on / off; FX tap / OCT+ in the fx layer: the effects on / off. Outside
+ * the layer a short message says which (in it, the label "perform \267 on" does) */
+static void cu_perf_toggle(void)
+{
+    cs.perform_on ^= 1u;
+    cr_post(CRE_PERFORM, 0, 0, cs.perform_on);
+    if (cu.lock != L_PERF)
+        cu_message(cs.perform_on ? "perform on" : "perform off", CR_COL_WHITE);
+    cu_trace("perf: %s\n", cs.perform_on ? "on" : "off");
+}
+static void cu_fx_toggle(void)
+{
+    cs.fx_on ^= 1u;
+    cu_fx_apply();
+    cu_trace("fx: %s\n", cs.fx_on ? "on" : "off");
+}
+
 static void cu_tap(uint32_t b)                    /* a button tapped (released before HOLD with nothing touched) */
 {
 #if CR_EDIT_HOOKS
@@ -1486,13 +1553,11 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
         cs.key_on ^= 1u;
         cu_post_key();
         break;
-    case BT_PERF:
-        cs.perform_on ^= 1u;
-        cr_post(CRE_PERFORM, 0, 0, cs.perform_on);
+    case BT_PERF:                                 /* perform on / off (its LED lit while on) */
+        cu_perf_toggle();
         break;
     case BT_FX:
-        cs.fx_on ^= 1u;
-        cu_fx_apply();
+        cu_fx_toggle();
         break;
     case BT_BASS:
         if (!cs.bass_on && !cs.bass_sound) {      /* ALGORITHM at OFF: the bass part's sound (the last one, the
@@ -1591,8 +1656,25 @@ static void cu_home_tap(void)
     }
     if (cu.lock || cu.opt_open || cu.page)
         cu_close_all();
-    else
+    else if (!cs.view_lock)                       /* home already: the next view, unless the view is locked */
         cs.view = (uint8_t)((cs.view + 1u) % V_N);
+}
+
+/* HOME held CU_HOME_HOLD_MS (alone): the view menu, a picker (L_VIEW): Chord .. Scope by SELECT / the white roots, the
+ * last line "Lock: On / Off" (KNOB 1, or the sixth white root); OCT+ ok, OCT- / HOME back. Not over the naming page */
+#define CU_HOME_HOLD_MS 600u
+static void cu_view_menu(void)
+{
+    if (cu.page == PG_SAVE)
+        return;
+    if (cu.lock == L_EDIT)
+        cu_pick_end(0);
+    cu.opt_open = 0;
+    if (cu.page != PG_EDIT)
+        cu.page = PG_NONE;
+    cu.lock = L_VIEW;
+    cu_hot.knob = 0;
+    cu_trace("view: menu (%s, lock %s)\n", CU_VIEW[cs.view % V_N], cs.view_lock ? "on" : "off");
 }
 
 static void cu_calib_start(void);
@@ -1638,7 +1720,11 @@ static void cu_oct_tap(uint32_t b)
         } else if (b == B_OCTUP && l == L_SAVE)
             cu_save_act();
         else if (b == B_OCTUP && l == L_LOOP)
-            ;                                     /* the PLAY menu: nothing (Pause = LOOP, Undo = REC held) */
+            ;
+        else if (b == B_OCTUP && l == L_PERF)     /* the perform layer: OCT+ perform on / off */
+            cu_perf_toggle();
+        else if (b == B_OCTUP && l == L_FX)       /* the fx layer: OCT+ the effects on / off */
+            cu_fx_toggle();                                     /* the PLAY menu: nothing (Pause = LOOP, Undo = REC held) */
         else if (cu.lock)
             cu_layer_close();
         return;
@@ -2053,6 +2139,15 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
             }
         }
         break;
+    case L_VIEW:
+        if (i < (int32_t)V_N) {
+            cs.view = (uint8_t)i;
+            cu_trace("view: %s\n", CU_VIEW[i]);
+        } else if (i == (int32_t)V_N) {
+            cs.view_lock ^= 1u;
+            cu_trace("view: lock %s\n", cs.view_lock ? "on" : "off");
+        }
+        break;
     case L_FX:
         if (i < (int32_t)CU_NFX) {
             if (cs.fx_sel != (uint8_t)i)
@@ -2114,6 +2209,7 @@ static int32_t cu_layer_sel(uint32_t l)
     case L_LOOP: return cs.loop_len;
     case L_SAVE: return cs.save_act;
     case L_METRO: return cs.metro_sig;
+    case L_VIEW: return cs.view;
     default: return 0;
     }
 }
@@ -2128,6 +2224,7 @@ static int32_t cu_layer_count(uint32_t l)
     case L_LOOP: return (int32_t)CRL_NSYNC;
     case L_SAVE: return 3;
     case L_METRO: return CRL_NSIG;
+    case L_VIEW: return V_N;
     default: return 0;
     }
 }
@@ -2188,6 +2285,12 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cu_trace("key: knob 4 single %s\n", cs.single ? "split" : "full");
         }
         cu_hot_set(L_KEY, knob);                  /* (no popup: the knob row is the readout, its cell turns hot) */
+        break;
+    case L_VIEW:                                   /* KNOB 1: the lock */
+        if (knob == 0 && cs.view_lock != (uint8_t)(s > 0)) {
+            cs.view_lock = (uint8_t)(s > 0);
+            cu_trace("view: lock %s\n", cs.view_lock ? "on" : "off");
+        }
         break;
     case L_PERF:
         cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][knob], s, 0);
@@ -2284,6 +2387,8 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
 /* ------------------------------------------------------------- the scan --- */
 static void cu_activity(void)
 {
+    cu.last_input = cu_now();                     /* (the screensaver's clock) */
+    cu.home_hold = 0;                             /* HOME held with something else: no view menu */
     if (cu.armed != NB) {                         /* something touched during a hold: a combo, the layer at once */
         cu.combo = 1;
         if (!cu.open) {
@@ -2446,6 +2551,9 @@ static void cu_btn_press(uint32_t b)
 {
     uint32_t octs = CU_BIT(B_OCTDN) | CU_BIT(B_OCTUP);
     cu.bheld |= CU_BIT(b);
+    cu.last_input = cu_now();
+    if (b != BT_HOME)
+        cu.home_hold = 0;
     if (b == B_OCTDN || b == B_OCTUP) {
         if (b == B_OCTDN)
             cu.oct_mod = 0;
@@ -2458,6 +2566,10 @@ static void cu_btn_press(uint32_t b)
     if (b == BT_HOME) {                           /* (its release: home; a held button's release: no tap) */
         if (cu.armed != NB)
             cu.combo = 1;
+        else {                                    /* alone: held CU_HOME_HOLD_MS opens the view menu (cu_scan) */
+            cu.home_t0 = cu_now();
+            cu.home_hold = 1;
+        }
         return;
     }
     if (cu.armed == NB) {
@@ -2502,6 +2614,7 @@ static void cu_btn_release(uint32_t b)
         return;
     }
     if (b == BT_HOME) {
+        cu.home_hold = 0;
         if (cu.swallow & CU_BIT(b))               /* (held through the calibration) */
             cu.swallow &= ~CU_BIT(b);
         else
@@ -2909,6 +3022,11 @@ static void cr_ui_input(void)
         now - cu.t0 >= 1000u) {                    /* naming: SAVE held 1 s asks to delete the slot (no loop layer) */
         cu.combo = 1;                              /* (its release: no cancel) */
         cu_save_ask();
+    }
+    if (cu.home_hold && !cc.on && ((cu.bheld >> BT_HOME) & 1u) && now - cu.home_t0 >= CU_HOME_HOLD_MS) {
+        cu.home_hold = 0;                          /* HOME held: the view menu; its release does nothing */
+        cu.swallow |= CU_BIT(BT_HOME);
+        cu_view_menu();
     }
     if (cu.armed != NB && !cu.open && ((cu.bheld >> cu.armed) & 1u) && !(cu.armed == BT_SAVE && cu.page == PG_SAVE) &&
         now - cu.t0 >= (uint32_t)HOLD_MS[settings_hold % 4u]) {
@@ -3835,8 +3953,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_PERF: {
         static char seen[48];
-        cu_picker(s, PERF_ITEMS, 7, cs.perf_sel, CR_COL_WHITE, "perform",
-                  "SELECT: mode \267 OCT-: back \267 HOME: home");
+        cu_picker(s, PERF_ITEMS, 7, cs.perf_sel, CR_COL_WHITE, cs.perform_on ? "perform \267 on" : "perform \267 off",
+                  "SELECT: mode \267 OCT+: on/off \267 OCT-: back");
         s->kind = CR_K_KNOBROW;
         s->orient = 1;
         cu_perf_cells(s);
@@ -3845,11 +3963,21 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_FX: {                                   /* the knob row: the effect over KNOB 1..4's cells */
         static char seen[48];                      /* (the trace: the row's labels when they change) */
-        cu_picker(s, FX_ITEMS, CU_NFX, cs.fx_sel, CR_COL_GREEN, "fx", "SELECT: effect \267 OCT-: back \267 HOME: home");
+        cu_picker(s, FX_ITEMS, CU_NFX, cs.fx_sel, CR_COL_GREEN, cs.fx_on ? "fx \267 on" : "fx \267 off",
+                  "SELECT: effect \267 OCT+: on/off \267 OCT-: back");
         s->kind = CR_K_KNOBROW;
         s->orient = 1;
         cu_fx_cells(s);
         cu_row_trace(s, "fx", seen, sizeof seen);
+        break;
+    }
+    case L_VIEW: {                                 /* HOME held: the views, the lock as the last line */
+        const char *it[V_N + 1];
+        for (k = 0; k < V_N; k++)
+            it[k] = CU_VIEW[k];
+        it[V_N] = cs.view_lock ? "Lock: On" : "Lock: Off";
+        cu_picker(s, it, V_N + 1u, cs.view % V_N, CR_COL_WHITE, cs.view_lock ? "view \267 locked" : "view",
+                  "SELECT: view \267 KNOB 1: lock \267 OCT+: ok");
         break;
     }
     case L_BASS: {
@@ -4255,8 +4383,11 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         cu_options_screen(s);
         return;
     }
-    /* 6. idle: nothing played yet, or nothing sounding for CR_IDLE_MS */
-    if (!sn->ci.valid || (!sn->ci.sounding && now - cu.last_sound >= CR_IDLE_MS && cs.view != V_SCOPE)) {
+    /* 6. the stripes: nothing touched since power-on (the splash stays; a PANIC's cleared chord no longer brings
+     * them back), or the screensaver: no input (a key, a button,
+     * a knob, a MIDI message in) for CR_IDLE_MS, 3 minutes; a loop playing alone does not keep the screen awake, and any
+     * input brings the view back at once (docs/INTEGRATION.md, the splash and the screensaver) */
+    if ((!sn->ci.valid && cu.last_input == cu_boot_ms) || now - cu.last_input >= CR_IDLE_MS) {
         cu_stripes(s);
         cu_dial(s, now);
         return;
@@ -4398,8 +4529,12 @@ static cr_screen_t cu_scr __attribute__((section(".pool")));   /* (cleared every
  * knobs apply them (with their meter) */
 static void cu_midi_poll(void)
 {
-    static uint32_t bpm_n;
+    static uint32_t bpm_n, msg_n;
     crm_act_t a;
+    if (msg_n != cr_in_msg_n) {                   /* a channel message in: activity (the screensaver) */
+        msg_n = cr_in_msg_n;
+        cu.last_input = cu_now();
+    }
     if (bpm_n != cr_in_bpm_n) {
         bpm_n = cr_in_bpm_n;
         cs.bpm = cr_in_bpm;                       /* (the ISR set the engine's: no CRE_TEMPO back) */
@@ -4600,6 +4735,7 @@ static void cr_ui_init(void)
     if (cr_safe)
         cu.opt_sel = O_SAFE;                      /* Options opens on Safe Mode (then Flash Data) */
     cu_boot_ms = cu_now();                        /* the splash: the idle stripes' first CR_SPLASH_MS */
+    cu.last_input = cu_boot_ms;
     cr_anim_mark(&cu_anim, cu_boot_ms);
     cr_draw_invalidate();
 }

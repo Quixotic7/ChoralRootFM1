@@ -158,8 +158,21 @@ in progress ends at the switch, its layer kept), it goes to its slot before the 
 Before the end of the cycle, a stop, a clear, a panic or an edit of the loop still playing (an overdub armed, an
 undo) cancels a queued switch: the slot it was leaving stays selected, its loop still in RAM (`cr_loop_t.loads`
 tells a switch taken from one cancelled), and a pending save is still written at the stop. LOOP held + the root of the slot it is on (Keys = Loops) keeps its
-loop as it is. Nothing is saved at power-off: changes to a slot never left are lost, as before. No save in SAFE
-MODE, after a backup restore (the flash is newer than the RAM) or without the flash: the loop left is dropped.
+loop as it is. No save in SAFE MODE, after a backup restore (the flash is newer than the RAM) or without the flash:
+the loop left is dropped.
+
+**Written at the stop (since 2026-10-09).** The loop in RAM is also written to its own slot without being left, so a
+power-off after a stop loses nothing (`cr_ui.c cu_loop_autosave`): when it changed (`crl.dirty`) and **stops** (LOOP
+tap, a panic, a MIDI stop; a take or overdub committed while it plays is written at that next stop, as the pending
+save is), at once ("saved to slot 1", green; traced `loop: auto-save slot 1 N bytes rc 0 (stopped)`); when it changed
+while already stopped (a take that ends stopped, Step's commit, an undo or a clear), after 2 s with no chord sounding
+and no key held (`CU_AUTOSAVE_MS`; traced `(idle)`). Never while a loop plays (no flash erase then), nor while a
+capture is open (armed, counting in, recording, overdubbing, step entry), a switch is on its way or a SAVE waits; a
+cleared loop deletes its slot's record ("cleared slot 1"), as leaving it does. The message appears only when a write
+happened. A loop still playing at power-off has its changes since the last stop lost (stop it first). Tests:
+`tools/emu/test_persist.sh` (`loop_persist_stop` / `loop_persist_play` + `loop_persist_back`: recorded, stopped at
+once or after 6 s of playing, relaunched: the loop is back without a SAVE); `cr_loop_slots.txt` now sees the
+stopped overdub written at its stop.
 
 SAVE held: Save / Load / Delete on the root-chosen slot, OCT+ does it. Save is rarely needed now (a copy into
 another slot, which becomes the selected one; while a loop plays it waits for the stop, and a switch before then

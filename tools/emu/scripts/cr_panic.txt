@@ -1,5 +1,5 @@
 # ChoralRoot: a chord held, End (OCT- + OCT+): PANIC, the red screen, every part silent within 2 s;
-# then idle 3 s: the stripes again
+# then 4 s without input: the view stays; 3 min: the screensaver (the stripes); a key dismisses it
 wait 300
 key F3 down
 wait 60
@@ -13,4 +13,9 @@ key F3 up
 wait 2000
 dump
 wait 1800
-shot build/emu/test/cr_idle_again.ppm
+shot build/emu/test/cr_idle_none.ppm      # 4 s without input: the view stays (no stripes)
+wait 177000
+shot build/emu/test/cr_idle_again.ppm     # 3 min without input: the screensaver (the stripes)
+key F3 60
+wait 100
+shot build/emu/test/cr_idle_woke.ppm      # a key: the view back at once

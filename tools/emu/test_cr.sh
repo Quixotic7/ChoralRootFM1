@@ -7,7 +7,7 @@
 # "Key: C", D4 alone -> Dm; KEY held: select-key, a root sets the tonic; PERF held: the Perform picker, SELECT
 # picks the mode (the roots play there); PRESETS: the sound meter and another timbre; ALGORITHM: the bass on, a bass
 # note on part 1; presets per engine (cr_presets: docs/PRESETS.md);
-# End: PANIC (the red screen); idle 3 s: the stripes; after every release, parts 0 and 1 silent within 2 s.
+# End: PANIC (the red screen); 3 min without input: the stripes (the screensaver), a key dismisses it; after every release, parts 0 and 1 silent within 2 s.
 # Screenshots: build/emu/test/cr_*.ppm (and the logs).
 set -u
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -161,9 +161,15 @@ p=$(pixel "$OUT/cr_panic.ppm" 120 200); set -- $p
 [ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 90 ] && [ "${3:-255}" -lt 90 ] && ok "the red PANIC screen ($p): $OUT/cr_panic.ppm" \
                                                                          || bad "not red ($p)"
 silent_end cr_panic
+p=$(pixel "$OUT/cr_idle_none.ppm" 120 150); set -- $p
+[ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 90 ] && bad "stripes after 4 s without input ($p): $OUT/cr_idle_none.ppm" \
+                                                 || ok "4 s without input: the view stays, no stripes ($OUT/cr_idle_none.ppm)"
 p=$(pixel "$OUT/cr_idle_again.ppm" 120 150); set -- $p
-[ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 90 ] && ok "3 s idle: the stripes again ($OUT/cr_idle_again.ppm)" \
-                                                 || bad "no stripes after 3 s idle ($p)"
+[ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 90 ] && ok "3 min without input: the screensaver, the stripes ($OUT/cr_idle_again.ppm)" \
+                                                 || bad "no stripes after 3 min without input ($p)"
+p=$(pixel "$OUT/cr_idle_woke.ppm" 120 150); set -- $p
+[ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 90 ] && bad "a key did not dismiss the screensaver ($p)" \
+                                                 || ok "a key: the screensaver gone at once ($OUT/cr_idle_woke.ppm)"
 
 echo "the other screens"
 run cr_layers
@@ -216,6 +222,34 @@ has '^perf: cells Rate Direction Range Hold' "$L" && has '^perf: cells Amount Ra
 has '^expect sound .*: ok' "$L" && ok "MAJ + D4 in the perform layer: the chord sounds (performed): $OUT/cr_perf_row_keys.ppm" || bad "the roots in the perform layer"
 has '^perf: knob Slop direction' "$L" && ok "KNOB 3 in Slop: its direction" || bad "KNOB 3: no Slop direction"
 differ cr_perf_row cr_perf_row_strum "Arpeggiate / Strum rows differ"
+
+echo "perform on / off: PERF tap, OCT+ in the perform layer; the arp stops when off"
+run cr_perf_toggle
+L="$OUT/cr_perf_toggle.log"
+pc() { grep '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.* perform \([0-9]\) .* layer \([0-9]*\) .*/\1 \2/p'; }
+no() { grep '^  cr: voices' "$L" | sed -n "$1p" | sed -n 's/.* notes-out \([0-9]*\) .*/\1/p'; }
+grep -q '^expect led ARP on at [0-9]* ms: ok' "$L" && grep -q '^expect led ARP dim at [0-9]* ms: ok' "$L" && [ "$(pc 1)" = "0 0" ] &&
+    ok "PERF tap: perform on (LED lit, \"perform on\"), tap again: off (LED dim): $OUT/cr_perf_on_msg.ppm" || bad "PERF tap: $(pc 1)"
+[ "$(pc 2)" = "1 2" ] && [ "$(pc 3)" = "0 2" ] && [ "$(pc 4)" = "1 2" ] &&
+    ok "the perform layer: SELECT picks Arpeggiate (on), OCT+ off / on, the layer stays open: $OUT/cr_perf_layer_off.ppm" \
+    || bad "the perform layer: $(pc 2) / $(pc 3) / $(pc 4)"
+differ cr_perf_layer_off cr_perf_layer_on "the layer's label follows on / off"
+[ "$(no 6)" -gt "$(no 5)" ] && [ "$(no 8)" = "$(no 7)" ] && [ "$(pc 7)" = "0 0" ] &&
+    ok "the arp steps while on ($(no 5) -> $(no 6) notes out), PERF tap off: the chord held plain ($(no 7) -> $(no 8))" \
+    || bad "the arp on / off: notes out $(no 5) $(no 6) $(no 7) $(no 8)"
+
+echo "HOME held: the view menu; the view lock; HOME tap at home cycles only unlocked"
+run cr_view_menu
+L="$OUT/cr_view_menu.log"
+vw() { grep '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.* view \([0-9]\) layer \([0-9]*\) .*/\1 \2/p'; }
+[ "$(vw 1)" = "0 0" ] && [ "$(vw 2)" = "1 0" ] && ok "unlocked (the default): HOME tap at home, the next view" || bad "HOME tap: $(vw 1) / $(vw 2)"
+[ "$(vw 3)" = "1 9" ] && has '^view: menu (Keyboard, lock off)' "$L" && ok "HOME held 600 ms: the view menu: $OUT/cr_view_menu.ppm" || bad "no view menu: $(vw 3)"
+[ "$(vw 4)" = "2 9" ] && has '^view: lock on' "$L" && [ "$(vw 5)" = "2 0" ] &&
+    ok "SELECT: Notes, KNOB 1: Lock On, OCT+: ok: $OUT/cr_view_menu_lock.ppm" || bad "the menu: $(vw 4) / $(vw 5)"
+[ "$(vw 6)" = "2 0" ] && ok "locked: HOME tap keeps the view: $OUT/cr_view_locked_tap.ppm" || bad "locked: HOME tap changed the view: $(vw 6)"
+[ "$(vw 7)" = "1 0" ] && [ "$(vw 8)" = "2 0" ] && has '^view: lock off' "$L" &&
+    ok "the menu again: E4 (the second white root) Keyboard, KNOB 1 -1 unlocked, HOME closes; HOME tap cycles again" \
+    || bad "unlock: $(vw 7) / $(vw 8)"
 
 echo "the bass layer: a knob row (behaviour, register, sound, level), a turned cell hot, no popup"
 export EMU_UI_LOG=0
@@ -532,13 +566,13 @@ c=$(L cr_loop_slots 3); d=$(L cr_loop_slots 4); e=$(L cr_loop_slots 5)
     || bad "the pending save at the stop: $c / $d / $e"
 f=$(L cr_loop_slots 6); g=$(L cr_loop_slots 7); h=$(L cr_loop_slots 8); i=$(L cr_loop_slots 9)
 [ "$(lf "$f" events)" = 3 ] && [ "$(lf "$g" slot)" = 2 ] && [ "$(lf "$g" events)" = 1 ] &&
-    has '^loop: auto-save slot 1 [0-9]* bytes rc 0 (leaving it)' "$SL" && [ "$(lf "$h" slot)" = 1 ] &&
+    has '^loop: auto-save slot 1 [0-9]* bytes rc 0 (stopped)' "$SL" && [ "$(lf "$h" slot)" = 1 ] &&
     [ "$(lf "$h" events)" = 3 ] && [ "$(lf "$h" layers)" = 2 ] &&
-    ok "stopped: an overdub on slot 1, LOOP held + PRESETS +1 saves it now, -1 brings it back with its 3 events, 2 layers" \
+    ok "stopped: an overdub on slot 1 written at the stop (no SAVE), PRESETS +1 / -1 brings it back with its 3 events, 2 layers" \
     || bad "switch while stopped: $f / $g / $h"
 gr=$(od -An -tu1 -v -j 15 "$OUT/cr_loop_slots_saved.ppm" | awk '{ for (k = 1; k <= NF; k++) v[n++] = $k }
      END { c = 0; for (o = 0; o + 2 < n; o += 3) if (v[o] < 100 && v[o+1] > 140 && v[o+2] > 90 && v[o+2] < 160) c++; print c }')
-[ "$gr" -gt 1000 ] && ok "the message \"loop 2 · saved 1\" in green ($gr px): $OUT/cr_loop_slots_saved.ppm" || bad "no green message ($gr px)"
+[ "$gr" -gt 1000 ] && ok "the message \"saved to slot 1\" at the stop, in green ($gr px): $OUT/cr_loop_slots_saved.ppm" || bad "no green message ($gr px)"
 [ "$(lf "$i" state)" = 2 ] && [ $(( $(lf "$i" played) - $(lf "$h" played) )) -ge 3 ] && grep -q '^expect sound .*: ok' "$SL" &&
     [ "$(num "non-silent blocks" "$SL")" -gt 0 ] &&
     ok "LOOP plays slot 1 again: its events sound ($(( $(lf "$i" played) - $(lf "$h" played) )) played in 1.5 s; the WAV: $OUT/cr_loop_slots.wav)" \

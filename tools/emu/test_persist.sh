@@ -138,5 +138,24 @@ grep -q '^loop: auto-save slot 1 .* rc 0' "$OUT/persist_loop_1.log" && ! grep -q
     [ "$(lp 3 events)" = 5 ] && [ "$(lp 3 layers)" = 4 ] && [ "$(lp 4 state)" = 2 ] && grep -q '^expect sound .*: ok' "$OUT/persist_loop_2.log" &&
     ok "loop run 2: both slots after a relaunch (used 003): slot 2's take, slot 1 with its overdubs (5 events, 4 layers), playing" \
     || bad "loop run 2: $(grep '^  loop:' "$OUT/persist_loop_2.log" | head -3 | tr '\n' ' ')"
+# the loop written at its stop (no SAVE, no switch; docs/LOOPER.md "Slots and the record"): a take, stopped at once
+# (loop_persist_stop) / left playing 6 s then stopped (loop_persist_play); a relaunch on the same file: the loop is back
+lv() { echo "$1" | sed -n "s/.* $2 \([0-9A-F]*\) .*/\1/p"; }
+for c in stop play; do
+    PF=$OUT/persist_loop_$c.bin
+    rm -f "$PF" "$OUT"/persist_loop_$c.log "$OUT"/persist_loop_${c}_back.log
+    "$EMU" --headless --flash "$PF" --script "$S/loop_persist_$c.txt" >"$OUT/persist_loop_$c.log" 2>&1 || bad "loop_persist_$c: exit status"
+    "$EMU" --headless --flash "$PF" --script "$S/loop_persist_back.txt" >"$OUT/persist_loop_${c}_back.log" 2>&1 || bad "loop_persist_$c back: exit status"
+    l1=$(grep '^  loop:' "$OUT/persist_loop_$c.log" | sed -n 1p); l2=$(grep '^  loop:' "$OUT/persist_loop_$c.log" | sed -n 2p)
+    b1=$(grep '^  loop:' "$OUT/persist_loop_${c}_back.log" | sed -n 1p); b2=$(grep '^  loop:' "$OUT/persist_loop_${c}_back.log" | sed -n 2p)
+    [ "$(lv "$l1" used)" = 000 ] && [ "$(lv "$l1" state)" = 2 ] && [ "$(lv "$l2" used)" = 001 ] &&
+        grep -q '^loop: auto-save slot 1 [0-9]* bytes rc 0 (stopped)' "$OUT/persist_loop_$c.log" &&
+        ! grep -q '^loop: save slot' "$OUT/persist_loop_$c.log" &&
+        ok "loop_persist_$c: the take written to slot 1 at its stop, no SAVE (used 000 -> 001): $OUT/loop_persist_$c.ppm" \
+        || bad "loop_persist_$c: $l1 / $l2"
+    [ "$(lv "$b1" used)" = 001 ] && [ "$(lv "$b1" slot)" = 1 ] && [ "$(lv "$b1" events)" = 2 ] && [ "$(lv "$b2" state)" = 2 ] &&
+        grep -q '^expect sound .*: ok' "$OUT/persist_loop_${c}_back.log" &&
+        ok "loop_persist_$c relaunched: slot 1 back (2 events) and plays" || bad "loop_persist_$c back: $b1 / $b2"
+done
 [ $fail = 0 ] && echo PASS || echo FAIL
 exit $fail

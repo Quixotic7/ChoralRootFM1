@@ -478,6 +478,7 @@ static crm_clock_t cr_cin;
 static uint8_t cr_cin_mode;                      /* clock_in as last seen (a change resets the follower) */
 static volatile uint16_t cr_in_bpm;              /* the tempo the clock set (the UI mirrors it into cs.bpm) .. */
 static volatile uint32_t cr_in_bpm_n;            /* .. and a count of its changes */
+static volatile uint32_t cr_in_msg_n;            /* channel messages received (the UI's screensaver: activity) */
 static volatile uint32_t cr_in_rt_n;             /* start / stop received (In) */
 static volatile uint8_t cr_in_rt_last;
 #define CR_MINQ 32u                              /* ISR -> UI: CC / program change (a power of two) */
@@ -553,6 +554,7 @@ static void cr_midi_in(void)
         } else if (status >= 0x80u && status < 0xF0u) {
             crm_act_t a[2];
             int i, n = crm_map(status, d1, d2, en, ch, a);
+            cr_in_msg_n++;
             for (i = 0; i < n; i++) {
                 if (a[i].kind == CRM_FORWARD)
                     midi_event(status & 0xF0u, a[i].part, d1, d2);

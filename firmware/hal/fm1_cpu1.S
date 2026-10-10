@@ -10,6 +10,8 @@
 	.balign 4
 	.balign 4
 	.globl fm1_c1_entry
+	.weak fm1_c1_trace	/* weak: a build with CR_CPU1 0 (no C side) links; never started there */
+	.weak fm1_c1_main
 fm1_c1_entry:
 	cli
 	r1 = fm1_c1_trace	/* a breadcrumb: core 1 reached its entry */

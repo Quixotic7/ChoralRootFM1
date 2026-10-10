@@ -13,7 +13,7 @@
 #include <stdint.h>
 
 #define CRS_MAGIC 0x31535243u           /* "CRS1" */
-#define CRS_VERSION 8u
+#define CRS_VERSION 9u
 #define CRS_SIZE 192u                   /* bytes, header included; never changes (fields come out of rsv) */
 #define CRS_NPM 5                       /* perform modes (cr_engine.h CR_PM_COUNT) */
 #define CRS_NPAR 11                     /* parameters per mode (CR_P_COUNT) */
@@ -23,6 +23,12 @@
 #define CRS_ENG_QUAD 15u                /* FM TONE (ENGI_QUAD, code name QUAD): pool_pos slot 0 since version 7 */
 #define CRS_POOL_DEFAULT 1u             /* pool_pos: an engine not played yet lands on its first preset */
 #define CRS_PALETTE_MOD 0xFFu           /* palette: MOD, ChoralRoot's (gfx.c: the last palette) */
+/* view (v9): bits 0..2 the main view 0..4 (Chord, Keyboard, Notes, Geek Out, Scope), bit 7 the view lock (HOME held's
+ * menu: locked, HOME tap never cycles the view); the other bits 0. No reserve was left: the lock rides in the view's byte
+ * (an older firmware reads a locked record's view as out of range: Chord) */
+#define CRS_VIEW(s) ((unsigned)(s)->view & 7u)
+#define CRS_VIEW_LOCK(s) (((unsigned)(s)->view >> 7) & 1u)
+#define CRS_VIEW_BYTE(v, lock) ((uint8_t)(((v) & 7u) | ((lock) ? 0x80u : 0u)))
 enum { CRS_CLOCK_OFF, CRS_CLOCK_OUT, CRS_CLOCK_IN };
 enum { CRS_NONE = 0xFF };               /* out part: no part */
 enum { CRS_USB_MASTER, CRS_USB_FIXED };
@@ -53,7 +59,8 @@ typedef struct {
     int16_t par[CRS_NPM][CRS_NPAR];                  /* per-mode perform parameters (cr_engine.h cr_param_t) */
     uint8_t loop_sync, loop_quant, loop_count_in, loop_level;   /* 0..5 (Free, 1..16 bars), 0..6, 0/1, 0..100 */
     uint8_t midi_en[3], midi_ch[3];                  /* per stream (MAIN BASS RAW): MIDI out on, channel 0..15 */
-    uint8_t clock_mode, raw_sound, view, motion;     /* CRS_CLOCK_*, RAW also plays part 0, View 0..4, Motion 0..2 */
+    uint8_t clock_mode, raw_sound, view, motion;     /* CRS_CLOCK_*, RAW also plays part 0, View 0..4 (bits 0..2; v9:
+                                                      * bit 7 the view lock, CRS_VIEW / CRS_VIEW_LOCK), Motion 0..2 */
     uint8_t palette, leds, fx_on, pool_pos10_bass;   /* palette index (CRS_PALETTE_MOD), LEDs Glow / Stock, FX on; v6: the
                                                       * bass part's pool_pos of engine rank 10 (was rsv1) */
     uint16_t chord_sound, bass_sound;                /* v6: the chord part's sound and the bass part's (what BASS tap

@@ -3,7 +3,7 @@
  * on the sound side as tests/regress.c builds it (tests/hostsim.c) with CR_CPU1 1 and cr_cpu1.h's stub core, which
  * runs the job when it is handed (before core 0 renders part 0: the split must not depend on the order):
  *   sh tests/run_cr_tests.sh
- * 1. bit for bit: the split (core 1 alive) renders what one core renders, the samples hashed, for every pair of
+ * 1. bit for bit (the output and the USB capture's staged CHORD / BASS channels): the split (core 1 alive) renders what one core renders, the samples hashed, for every pair of
  *    three presets (VA, FM6, CZ-1) on parts 0 and 1, with an S&H LFO on the matrix of both parts (the shared
  *    generator's order), a chord change and releases; under the budget, so both runs keep the same voices;
  * 2. the budgets: with core 1 alive 8 + 8 VA voices sound (parts 0 and 1, 16 units each), none given up; with one
@@ -11,6 +11,7 @@
  * 3. the fail-safes: a job that never answers -> core 0 renders part 1 itself in that block (the same samples as
  *    one core), c1 "gave up", the shared budget back; core 1 not answering at start -> "failed", one core. */
 #define CR_CPU1 1
+#define FELUCCA_UAC 1                   /* the USB capture's six channels (fx.c ua_stage) hashed too */
 #ifndef FELUCCA_VA
 #define FELUCCA_VA 1
 #endif
@@ -51,9 +52,12 @@ static void blocks(uint32_t nb)
     int32_t out[2 * CTL];
     uint32_t b, i;
     for (b = 0; b < nb; b++) {
+        ua_stage_on = 1;                            /* the computer records: master, CHORD, BASS staged */
         mix_block(out, CTL);
         for (i = 0; i < 2u * CTL; i++)
             hash = (hash ^ (uint32_t)out[i]) * 0x100000001B3ull;
+        for (i = 0; i < CTL * UA_CAP_CHANNELS; i++)  /* (the CHORD / BASS dry taps; the master pair is choralroot.c's) */
+            hash = (hash ^ (uint16_t)ua_stage[i]) * 0x100000001B3ull;
     }
 }
 static void setup(uint32_t p0, uint32_t p1)

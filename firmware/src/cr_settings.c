@@ -157,7 +157,8 @@ static void crs_sanitize(cr_settings_t *s)
     }
     CRS_FIX(clock_mode, 0, CRS_CLOCK_IN);
     CRS_FIX(raw_sound, 0, 1);
-    CRS_FIX(view, 0, 4);
+    if ((s->view & 0x78u) || CRS_VIEW(s) > 4u)    /* (v9: bit 7 the lock; an unknown bit or view: the default) */
+        s->view = d.view;
     CRS_FIX(motion, 0, 2);
     CRS_FIX(leds, 0, 1);
     CRS_FIX(fx_on, 0, 1);
@@ -467,7 +468,7 @@ static void crs_capture(cr_settings_t *s)
     s->usb_in = cs.usb_in;
     s->usb_level = cs.usb_fixed;
     s->split_pc = cs.split;
-    s->view = cs.view;
+    s->view = CRS_VIEW_BYTE(cs.view, cs.view_lock);
     s->motion = cr_motion;
     s->leds = cs.leds;
     s->fx_on = cs.fx_on;
@@ -531,7 +532,8 @@ static void cr_settings_load(void)
     cs.usb_fixed = s->usb_level;
     fx_usb_fixed = cs.usb_fixed;                   /* (USB Record: crs_usb_apply at boot, before usb_start) */
     cs.split = s->split_pc;
-    cs.view = s->view;
+    cs.view = (uint8_t)CRS_VIEW(s);
+    cs.view_lock = (uint8_t)CRS_VIEW_LOCK(s);
     cr_motion = s->motion;
     cs.leds = s->leds;
     palette_set(s->palette < NPALETTES ? s->palette : NPALETTES - 1u);

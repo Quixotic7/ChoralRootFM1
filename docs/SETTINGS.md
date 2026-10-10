@@ -49,7 +49,7 @@ The block has its own header:
 | midi_en[3], midi_ch[3] | per stream MAIN BASS RAW | on, on, **RAW off**; channels 1 / 2 / 3 |
 | clock_mode | Off / **Out** / In | **Out** (Orchid sends clock) |
 | raw_sound | RAW also plays part 0 | off |
-| view, motion, leds | Chord..Geek Out, Full/Calm/Off, Glow/Stock | Chord, Full, Glow |
+| view, motion, leds | view bits 0..2: Chord / Keyboard / Notes / Geek Out / Scope (Options > View, HOME held's menu); **v9: bit 7 the view lock** (`CRS_VIEW` / `CRS_VIEW_LOCK` / `CRS_VIEW_BYTE`; locked: HOME tap never cycles the view), another bit or view: the default; Full/Calm/Off, Glow/Stock | Chord, unlocked, Full, Glow; a v1..v8 record: its view, unlocked |
 | palette | gfx.c index, 0xFF = MOD | **MOD** |
 | fx_on | 0/1 | on |
 | chord_sound | v6: the chord part's sound, (engine << 8) \| its pool position (docs/PRESETS.md); 0xFFFF = the UI's default. v1..5: an old list position, read as the default | FM6 TINE EP |
@@ -62,7 +62,8 @@ The block has its own header:
 | pool_pos[2][10], pool_pos10_chord, pool_pos10_bass (v6) | per part (chord, bass), per engine slot (slots 0..9 in `pool_pos`, slot 10 in the two bytes that were `rsv0` / `rsv1`; `crs_pool_get` / `crs_pool_set`). The slots are fixed per engine in 0.13's display order, whatever the order shown (`cr_settings.c crs_slot`): 0 FM TONE (ANALOG's until v7), 1 FM6, 2 VA, 3 PHASE, 4 CZ-1, 5 LOFI, 6 VOICE, 7 TRIO, 8 WHEEL, 9 PHYS, 10 NOISE: the pool position last played there, where OPT + PRESETS lands; 0..127, checked against the pool by the glue | 1 (each engine's first preset); a v1..v5 record takes the defaults |
 
 The reserve is used up by v6 (`rsv[20]` became `pool_pos`), and v8 took the last free byte (`rsv_usb`, packed with two
-fields): the next field needs a longer record (a new PER magic or
+fields), v9 put the view lock in the view's byte (bit 7; an older firmware reads a locked record's view as out of
+range, Chord): the next field needs a longer record (a new PER magic or
 a larger `CRS_SIZE` with the import rules for a shorter one).
 
 ### Import rules (`cr_settings_import`)

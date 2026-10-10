@@ -193,20 +193,20 @@ a button pressed during another's hold is that hold's combo (its release does no
 | printed | role | tap | hold (locked open unless noted) |
 | --- | --- | --- | --- |
 | SEL | KEY | Key Mode on/off | the knob row with the keyboard as its band: roots = tonic (MIN held: minor); KNOB 1–4 Tonic Scale Transpose Single as cells, the turned cell hot |
-| ARP | PERF | performance on/off | the knob row: white roots = mode; KNOB 1–4 = the mode's params as cells; no popups, the turned cell hot 800 ms |
-| FX | FX | main effect on/off | the knob row: white roots = effect; KNOB 1–3 params, KNOB 4 amount (on: FX on); no popups, the turned cell hot 800 ms |
+| ARP | PERF | performance on/off (LED lit while on; "perform on" / "perform off") | the knob row: SELECT = mode (picking one turns it on), the roots play the chord; **OCT+ = on/off** (the label "perform · on" / "· off"); KNOB 1–4 = the mode's params as cells; no popups, the turned cell hot 800 ms |
+| FX | FX | main effect on/off | the knob row: SELECT = effect, the roots play; **OCT+ = on/off** (label "fx · on" / "· off"); KNOB 1–3 params, KNOB 4 amount (on: FX on); no popups, the turned cell hot 800 ms |
 | ENV | BASS | bass on/off | the knob row: KNOB 1–4 BEHAVIOUR REGISTER SOUND LEVEL as cells (no popups, the turned cell hot); BASS held + EDIT = the bass sound's editor, + SAVE its saving |
 | LFO | LATCH | latch on/off | — |
 | GLO | OPT | Options (picker pages) | shift (momentary): OPT + KNOB 1 split point, + SELECT metronome level, + ALGORITHM bass level; the other knobs keep their job |
 | EDIT | EDIT | the sound editor (again: leave; in the engine picker: keep its sound, close it) | the engine picker (a preview: OCT− cancels, OCT+ keeps) on the white roots, KNOB 1 its presets, KNOB 2 init, KNOB 4 roots engines / play |
-| HOME | HOME | close the layer / page / menu; on the view: next View | — |
+| HOME | HOME | close the layer / page / menu (the view unchanged); on the view: next View **unless the view is locked** | **600 ms: the view menu** (`L_VIEW`, a picker: Chord · Keyboard · Notes · Geek Out · Scope by SELECT / the white roots, the last line "Lock: On / Off": KNOB 1 or the sixth white root; OCT+ ok, OCT− / HOME back; Settings v9 `view_lock`, the same view as Options > View) |
 | SAVE | SAVE | save sound (naming; in it: save, as OCT+) | save / load / delete loops (momentary, while held; OCT+ does it; a plain picker, no ring) |
 | SEQ | METRO | metronome on/off | the knob row: the time signature over Click (KNOB 1, hot; no popup) and three empty cells |
 | PLAY | LOOP | play / stop | the knob row, no ring: slots on white roots, D#4 CLEAR (hold), F#4 UNDO; KNOB 1 the length picker, 2–4 Quantize Count-in Level cells (hot, no popups); playing: the action picker, OCT+ does it, Sync dim, the dial |
 | REC | REC | record / overdub arm | undo the last layer (not a layer) |
 | OCT−/OCT+ | | octave −2..+2; in a layer or picker: back / OK | **both: PANIC** (the LOCK latch cleared) |
 
-Layer footers read "… · OCT-: back · HOME: home"; the emulator's log has `layer: open N (locked)` / `layer: close N`.
+Layer footers read "… · OCT-: back · HOME: home" (PERF / FX: "SELECT: mode · OCT+: on/off · OCT-: back"); the emulator's log has `layer: open N (locked)` / `layer: close N`.
 
 Knobs (`fm1_enc_take(panel.enc[role])`, one step per detent): KNOB 1 → `cr_voicing_step`,
 KNOB 2 → `cr_bass_voicing_step`, KNOB 3 → the current perform mode's main parameter, KNOB 4 →
@@ -262,7 +262,12 @@ Priority, top down, first match wins:
 3. an open layer → its screen: KEY, PERF, FX, BASS, LOOP, METRO the `knobrow` (no popup over it: their knob turns never set one; KEY's band the keyboard); SAVE (loops) and the engine picker pickers; EDIT the `params` page
 4. Options → the settings picker
 5. the View: CHORD (`chord` with squeeze + notes line, `Key:` in the top line, `Rec`/loop status in the top line; the ring only for the count-in, the undo screen, recording / overdubbing and calibration; the corner dial (`dial_on`) while the loop merely plays — on every screen with a top line but Options, the LOOP and SAVE layers included), KEYBOARD, NOTES, GEEK OUT, SCOPE (Felucca's scope buffer)
-6. idle (no chord sounding, no loop, 3 s after the last note) → `stripes`
+6. the splash and the screensaver → `stripes` (the ChoralRoot logo): at power-on (the splash, CR_SPLASH_MS with the
+   version, the intro slide once) until the first input; then only as a screensaver after **3 minutes without any
+   input** (`CR_IDLE_MS` 180 000, fixed: keys, buttons, knobs and MIDI channel messages in are activity, `cu.last_input`;
+   a loop playing alone or a chord still ringing is not). Any input brings the view back at once. Before 2026-10-09 the
+   stripes came back 3 s after the last chord stopped sounding (and after every PANIC), which read as the logo popping
+   up all the time. Test: `cr_panic.txt` (4 s: no stripes; 3 min: the stripes; a key: gone).
 
 ## 6. LEDs (`cr_leds()`)
 
@@ -387,7 +392,7 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
   voicing, KNOB 3 the mode's main parameter, KNOB 4 FX amount, PRESETS the chord sound (Felucca's factory presets of
   the melodic engines, POLY), ALGORITHM the bass (presets named BASS / ACID; 0 = OFF), SELECT tempo (in a picker:
   move); OPT + ALGORITHM bass level. Options: a picker of 18 settings (USB Record and USB Level since 0.14, docs/USB-AUDIO.md), KNOB 1 sets. `cr_build_screen` in the order
-  of section 5 (PANIC / message, knob meter 900 ms, layer, page, Options, idle stripes after 3 s, the View: CHORD,
+  of section 5 (PANIC / message, knob meter 900 ms, layer, page, Options, the stripes (the splash; the screensaver after 3 min without input), the View: CHORD,
   ARP in motion, KEYBOARD, NOTES, GEEK OUT); `cr_leds` as section 6.
 - **Sounds** (`cr_bank.c`, `cr_pages.c`, `cr_name.c`; section 7, docs/PRESETS.md): PRESETS turns the pool of the
   chord part's engine, ALGORITHM the bass part's (after OFF); OPT + PRESETS the chord part's engine (a horizontal
@@ -422,7 +427,7 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
 - **`cr_anim.c`**: `cr_tween`, `cr_spring`, the animation clock and Options > Motion (Full / Calm / Off); the
   squeeze, picker slide, meter fill and spring, the stripes at one bar per cycle and their sweep by the first chord.
 
-- **The SCOPE view** (View 5: Options > View, HOME taps): the master output as one bold 3 px white line over a thin
+- **The SCOPE view** (View 5: Options > View, HOME held's view menu, HOME taps when unlocked): the master output as one bold 3 px white line over a thin
   grey centre line, the chord name small in the top line. `cr_ui.c cu_scope` reads `audio.c`'s own ring
   (`scope_buf`, 512 samples at 22 kHz, written in the audio ISR, as Felucca's GRAPH scope), takes 240 samples from the
   steepest rising zero crossing of the first 272 and auto-scales them (floor 2048: silence is a flat line) into

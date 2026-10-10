@@ -1,0 +1,26 @@
+# The loop survives a power cycle without a SAVE (docs/LOOPER.md "Slots and the record", test_persist.sh): a Free take
+# in slot 1 (D, Em: 2 events), playing; after 400 ms LOOP tap stops it: the changed loop is written to its slot at the
+# stop ("saved to slot 1"). loop_persist_back.txt relaunches on the same flash file: slot 1 is back and plays.
+wait 300
+btn REC
+wait 300
+btn A#3 down
+btn D4 down
+wait 500
+btn D4 up
+btn A#3 up
+wait 500
+btn G#3 down
+btn E4 down
+wait 500
+btn E4 up
+btn G#3 up
+wait 400
+btn REC                       # the take ends: a 1-bar loop, playing (nothing in the flash yet)
+wait 400
+dump                          # 1: slot 1, 2 events, playing, used 000
+btn PLAY                      # stop: written at the stop
+wait 200
+shot build/emu/test/loop_persist_stop.ppm
+wait 1000
+dump                          # 2: stopped, used 001
