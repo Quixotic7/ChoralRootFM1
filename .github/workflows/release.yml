@@ -139,6 +139,11 @@ jobs:
     env:
       VERSION: ${{ needs.build.outputs.version }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: docs/releases
+          sparse-checkout-cone-mode: false   # first: a checkout cleans the workspace (it wiped assets/ in the v0.14 run)
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: choralroot-${{ needs.build.outputs.version }}
@@ -153,11 +158,6 @@ jobs:
           done
           if [ -f release/ATTRIBUTION.txt ]; then cp release/ATTRIBUTION.txt assets/; fi
           ls -l assets
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          sparse-checkout: docs/releases
-          sparse-checkout-cone-mode: false
 
       - name: Release notes (docs/releases/<version>.md, then the install text)
         env:
