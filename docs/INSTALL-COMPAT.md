@@ -141,7 +141,14 @@ plug it **straight into the computer** with a cable known to carry data (no hub)
    author's unit (274 of ~1167 requests; black screen; no USB device in any mode on a Mac and on Windows; the OCT hold,
    two minutes on, three quick restarts and an hour of charging changed nothing). Note that the reworked boot guard is
    cleared by a power-on, so quick restarts cannot drive it into ROM boot. The route is the hardware one, the FM-1
-   Transporter (`docs/TRANSPORTER-HANDOFF.md`); its flash dump tells why the loader did not come back.
+   Transporter: a Seeed XIAO RP2040 on the FM-1's USB data lines (three wires, no VBUS) that forces the chip's ROM
+   boot at power-on. **Resolved 2026-10-09 that way** (`docs/TRANSPORTER-HANDOFF.md`, and the step-by-step guide with
+   the parts, wiring and script in [MvaveFM1Unbricker's TRANSPORTER-GUIDE.md](https://github.com/Quixotic7/MvaveFM1Unbricker/blob/main/TRANSPORTER-GUIDE.md)).
+   The dump showed: head intact, 33 new sectors in front of 110 old ones, no torn sector, the staged loader and the
+   flash record at 0xE4F00 both present and valid, and still no `ota-FM-1` at any power-on. So the SPL does not run the
+   loader from the flash record on a cold boot: nothing the app or the loader leaves in flash brings a half-written
+   unit back, and none of steps 1-3 below can work on it because no code of ours runs. Official V15 was written through
+   the Transporter, the unit power-cycled to stock, then ChoralRoot installed normally on a full battery.
 
 1. **Leave it switched on, on USB, for 2 minutes** and watch. A unit in ROM boot stays black and shows the
    "WL82 UBOOT1.00" disk (USB 4C4A:8057) the whole time. A unit whose firmware crashes and restarts flashes its

@@ -69,7 +69,7 @@
         <p class="note">Who needs this?</p>
       </div>
     </div>
-    <p>The installer talks to the FM-1 over Web MIDI. The firmware it runs now (stock, Felucca or ChoralRoot) stages the update loader, the loader writes the whole image, then the FM-1 restarts and reports {{PRODUCT}}. Do not unplug it while it writes. An interrupted install resumes when you press Install again: the FM-1 stays in update mode.</p>
+    <p>The installer talks to the FM-1 over Web MIDI. The firmware it runs now (stock, Felucca or ChoralRoot) stages the update loader, the loader writes the whole image, then the FM-1 restarts and reports {{PRODUCT}}. Charge the FM-1 fully first: it writes on its battery, and the installer cannot read its charge. Keep the computer awake and do not unplug it while it writes. If the computer side stops, pressing Install again resumes: the FM-1 stays in update mode. If the FM-1 itself resets mid-write (a flat battery), it can come back dark with no USB device at all; the way back is then the FM-1 Transporter (see <a href="https://github.com/Quixotic7/MvaveFM1Unbricker/blob/main/TRANSPORTER-GUIDE.md">the recovery guide</a>).</p>
     <p>On the command line, from the source: <code class="cmd">pip3 install mido python-rtmidi</code>, then <code class="cmd">python3 tools/fm1_install.py <span class="nw">{{PKG}}</span></code>. <code>--info</code> prints the connected FM-1's identity.</p>
     <nav class="toc" aria-label="Sections">
       <a href="#playing">Playing</a>

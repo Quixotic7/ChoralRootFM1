@@ -1,4 +1,15 @@
-# Handoff: ChoralRoot FM-1, state at 2026-10-07 (commit `4ec3f42`)
+# Handoff: ChoralRoot FM-1, state at 2026-10-09
+
+**2026-10-09: the user's FM-1 is back** (it was dark, no USB device at all, after an install interrupted at 274 of
+~1167 loader requests on 2026-10-07). Recovered through the FM-1 Transporter (a XIAO RP2040 on the USB data lines):
+official V15 written over the half-written app, then ChoralRoot 0.14 installed normally. The full account is
+`docs/TRANSPORTER-HANDOFF.md` ("Result"); the dump's findings and the decisions they force are in `docs/BOOT-SAFETY.md`
+("What the dump showed"): the SPL does not run the update loader from the flash record on a cold boot, so the boot stub
+is the only power-loss safety and is the next firmware work item (its two remaining experiments are now safe to run
+with the Transporter). The procedure, parts and the automation script live in MvaveFM1Unbricker
+(`TRANSPORTER-GUIDE.md`, `fm1_transporter_recover.py`). The Mac is new (arm64, no Rosetta): the Transporter builds with
+Arm's 14.2 toolchain tarball in `~/arm-gnu-toolchain-14.2`, ChoralRoot under Docker (memory note
+transporter-toolchain-on-this-mac). Rule learned: **a full battery and an awake computer before every install**.
 
 Paste this into a new session as the first message.
 
@@ -10,7 +21,8 @@ Continue the ChoralRoot FM-1 project. Repos (all under /Volumes/Q7Media-2025/Pro
 | --- | --- | --- |
 | `ChoralRootFM1/` | the firmware (GPL-3.0 fork of Felucca 1.0.1 for the M-VAVE FM-1), the Mac emulator, the web installer and site | github.com/Quixotic7/ChoralRootFM1, branch main, tags v0.1 v0.11 v0.12 v0.13 |
 | `ChoralRootFM1Designer/` | the mock-up designer (MIT); its PNG sheets are in Git LFS | github.com/Quixotic7/MvaveFM1-Designer, Pages at quixotic7.github.io/MvaveFM1-Designer |
-| `MvaveFM1Unbricker/` | `fm1_unbrick.py` (MIT): recovers a soft-bricked FM-1 ("WL82 UBOOT1.00") over USB on Windows/Linux via jl-uboot-tool; mock-device tests | github.com/Quixotic7/MvaveFM1Unbricker |
+| `MvaveFM1Unbricker/` | `fm1_unbrick.py` (MIT): recovers a soft-bricked FM-1 ("WL82 UBOOT1.00") over USB on Windows/Linux via jl-uboot-tool; `fm1_transporter_recover.py` + `TRANSPORTER-GUIDE.md`: the hardware route for a unit with no USB device at all; mock-device tests | github.com/Quixotic7/MvaveFM1Unbricker |
+| `FM-1-transporter/`, `jl-uboot-tool/`, `MVaveOfficial/V15-FM-1.fwsc` | kurogedelic's Transporter (built: `build/fm1_transporter.uf2`), kagaimiq's tool (adb3f18), the official V15 package (hash-verified) | upstream repos, read-only |
 | `Felucca/` (at v1.0.1, tags to v1.0.5.1 fetched), `melodee/`, `sloop-fm1/` | read-only references | |
 
 Read first, in order: `ChoralRootFM1/PLAN.md` (§3 controls, §4 grammar, §5 screens, §7 architecture, §8 milestones), `docs/INTEGRATION.md` (the mechanism and its Status section), `docs/EDITOR.md`, `docs/VA.md`, `docs/FM6.md`, `docs/CZ1.md`, `docs/USB-AUDIO.md`, `docs/LOOPER.md`, `docs/SETTINGS.md`, `docs/INSTALL-COMPAT.md`, `tools/emu/README.md` (key map, headless script grammar), and the memory notes (choralroot-fm1-workflow, -ui-taste, -device-build, opus-agents-for-coding, no-focus-stealing-gui, dcg-hook-blocks-rm-rf).
@@ -59,6 +71,7 @@ Released: v0.13 (brick fix) is live. Untagged since: CZ-1, SAFE MODE, capture-on
 3c. **Melodee 0.12** (github.com/keremimo/melodee, tag v0.12, fetched into `melodee/`): native user presets (64 FM6 voices, 128 CZ-1 tones as raw tones in the pool, SysEx command 78 per slot, .syx import / export in its editor), 64 general presets (ids 17 / 18), microtonal scales, A4 400-480 Hz, timed recording, note editing; its storage.c leaves the last 256 bytes of its new objects erased because of the SPL's scan: checked here, the SPL reads only the fixed OTA record at 0xE4F00 (`ota.c OTA_RES`), so ChoralRoot's loop records (up to 3664 + 256 bytes into a sector) are not affected. Nothing else of 0.12 is a ChoralRoot concern.
 4. **M7 finish**: bank by ear (the user), sticker sheet, README/manual (EDITOR.md/VA.md/FM6.md/CZ1.md are most of it), the Options "Calibrate" entry exists.
 5. **Hardware-only checks nobody has done**: the reset-reason register bits (console `boot`), SAFE MODE on a real crash, the USB-record clock drift over an hour, Windows enumeration of "ChoralRoot In", the Reddit user's bricked unit (guide in the Unbricker README).
+5b. **Boot safety (docs/BOOT-SAFETY.md)**: experiment 1 is answered by the dump (the flash record is not a resume path). Next, with the Transporter wired and the user's go (each is a deliberate write to a working unit): experiments 2 and 3 (what the SPL does with a bad body sector / with a bad first sector; whether it honours the RAM record after a WDT reset), then the stub + the loader write order (§5 work items).
 6. **Felucca 1.0.5.1 leftovers** not ported: the LED "breath" (fm1_input.h), its UI changes (not used by ChoralRoot).
 7. M8: Orchid captures (secret-chord map, chromatic Key Mode, factory patterns).
 

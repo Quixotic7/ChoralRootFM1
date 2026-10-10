@@ -15,6 +15,38 @@ need the real unit (the dump, two experiments) are marked. Nothing here is imple
 
 So the only safety that worked was the hardware one, and it needs a board we did not have.
 
+## What the dump showed (2026-10-09, the dark unit read through the Transporter)
+
+Two full reads, identical (sha256 `6c075920…`; `docs/TRANSPORTER-HANDOFF.md`, "Result"). Against the V15 package, the
+package that was being installed (commit `23a8a75`, rebuilt: its hash is the one the PC had, `e59c47ee…`, so the build
+is reproducible) and the build before it:
+
+| region | finding |
+| --- | --- |
+| 0x0000..0x3FFF | identical to V15's head |
+| 0x04000..0x24FFF (33 sectors) | the new package, bit-exact |
+| 0x25000..0x92FFF (110 sectors) | the old firmware, every sector fully programmed: **no torn sector**. The loader died between finishing 0x24000 and erasing 0x25000 (33 sectors = the 274 requests, 8 reads per sector) |
+| 0xE0000..0xE4FFF | the staged loader **intact**: outer header CRC valid, body byte-identical to `build/loader/ota.bin`, marker at 0xE004C |
+| 0xE4F00 | the record **present and valid**: CRC, 0x5A0D / 0x5A01, magic 0x5441, `ota-FM-1_015`, area 0xE0000; the only record in 0x93000..0xFC000 |
+
+**Experiment 1 is answered: the SPL does not start the loader from the flash record at 0xE4F00 on a cold boot.**
+Everything the resume path needs was in flash and valid, and the unit never produced `ota-FM-1`. (The dump cannot
+separate "the SPL ignores the record" from "the SPL runs the loader and the loader dies on a cold start", but the
+result is the same: the flash record is not a resume path.) The RAM record is the only hand-over known to work, and a
+power cycle clears it. `ota.c`'s flash copy of the record stays (it is harmless and `ota_boot_cleanup` erases it), but
+nothing may rely on it. This settles the design below: the stub is the only safety that survives a power loss.
+
+Decisions taken from this:
+
+- `FELUCCA_OTA_RAMONLY` stays 0 (the flash record costs nothing), but the docs and the installer stop promising a
+  resume after a power loss; "charge first, keep the computer awake" is the rule (`INSTALL-COMPAT.md`, README).
+- The stub + write order (next section) is the work item, in the order of §5. The two experiments left (§4, 2 and 3)
+  are now safe to run: the Transporter restores anything, and `MvaveFM1Unbricker/fm1_transporter_recover.py` does the
+  dump / restore in one go. Run them before the stub's hand-over code is written (experiment 3 decides how the stub
+  starts the loader).
+- The Transporter's dump is also the test oracle for the loader's host model (`tests/ldr_test.c`): the "33 new, then
+  old, nothing torn" state is the fixture the stub must turn into a rescue.
+
 ## The design: a stub that owns the first sector, and a write order that keeps it true
 
 ### 1. A boot stub in sector 0x4000, version-independent
@@ -74,7 +106,7 @@ stub's check is what happens *after* the SPL accepts.)
 1. **The dump** (`docs/TRANSPORTER-HANDOFF.md` step 6): is the flash record at 0xE4F00 intact and valid? Is the
    loader at 0xE0000 intact? Which sectors are new? That says whether the SPL honours the flash record at all. If it
    does not, the RAM record is the only hand-over and resume-after-power-loss is impossible by that route, which
-   makes the stub the only safety and settles the design.
+   makes the stub the only safety and settles the design. **Done 2026-10-09: it does not (see "What the dump showed").**
 2. **What the SPL does with a bad app**: with a known-good flash and the Transporter connected, corrupt one body
    sector (not the first) and power on: does the SPL (a) jump anyway and the app crashes (then the WDT + guard path
    should have reached UBOOT in the dark unit, so something else happened), (b) refuse and hang (the dark unit's

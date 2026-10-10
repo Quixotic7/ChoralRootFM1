@@ -1651,6 +1651,9 @@ def run(a, backend, out, ask):
             raise InstallError("unsupported", refusal_text(name) + "\n  (--force installs anyway, at your own risk)")
         if verdict == "refuse":
             print(f"--force: installing over {name} anyway, although it is not supported", file=out)
+    print("before writing: the FM-1 must be fully charged (it updates on its battery, and this tool cannot read it), "
+          "plugged straight into the computer, and the computer kept awake; an interrupted write can leave it dark "
+          "with no USB device at all (docs/INSTALL-COMPAT.md)", file=out)
     if not a.yes and not ask("Install? Do not unplug the FM-1 while writing. [y/N] "):
         dev.link.close()
         print("cancelled", file=out)

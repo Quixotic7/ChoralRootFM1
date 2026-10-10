@@ -139,3 +139,32 @@ user data (user sounds U01 SHIMMER, U02 TINE EP, settings) is backed up on the M
   both published hashes match). The Unbricker (eca8f0b) and `tools/transporter` accept it; `tools/transporter` accepts
   `build/choralroot.fwsc` too (its look-alike head differs from V15's in 15031 bytes, which is noted, not refused: the
   head is never written). Step 3 of the plan is done; step 7's command: `FM1_RESEARCH=$PWD/tools/transporter FM1_V15=../MVaveOfficial/V15-FM-1.fwsc python3 ../FM-1-transporter/tools/fm1t.py write --package ../MVaveOfficial/V15-FM-1.fwsc --ref backup.bin` (dry run first, then `--write`).
+
+---
+
+## Result (2026-10-09): the unit is back
+
+Done on the new Mac (arm64, no Rosetta; everything rebuilt there: the Transporter with Arm's 14.2 toolchain tarball,
+since Homebrew's `arm-none-eabi-gcc` has no newlib; ChoralRoot under Docker's amd64 emulation).
+
+- **Step 2**: the XIAO (already running its factory sketch, one CDC port) rebooted into `RPI-RP2` on a 1200-baud
+  touch of its port; `fm1_transporter.uf2` (210 944 B, loader embedded at 0xF3D8) copied; it came back as
+  "FM-1 Transporter" (2E8A:000A) with the console on `cu.usbmodem1101` (`KEY: n packets`) and the data port on
+  `cu.usbmodem1103` (answers `ping`, nothing else until the FM-1 ACKs the key).
+- **Step 4**: wired D6/D7/GND, FM-1 switched on: the console logged the PIO host enumerating 4C4A:8057 and
+  `INQUIRY OK: vendor="WL82    " product="UBOOT1.00"`. `status`: `OK uboot=1 v15=0 loader=1 loader_running=0`;
+  `info`: `OK key=980F type=3 id=856014`.
+- **Step 5**: two dumps, crc32 ACCDD26C, sha256 `6c075920bdca1cf56f13094cd343244bb8ab98d1df6de5e45635b48814198258`,
+  identical (kept on the Mac in `recovery-20261009/`, not committed: they hold the user data).
+- **Step 6**: head = V15; 0x04000..0x24FFF the new package (commit 23a8a75 rebuilt: hash e59c47ee…, the PC's file);
+  0x25000..0x92FFF the old firmware (a midday Oct 7 build; 0x5B000.. equals 4ec3f42's); no torn sector; the staged
+  loader intact and byte-identical to `build/loader/ota.bin`; the record at 0xE4F00 valid (`ota-FM-1_015`, 0xE0000).
+  The SPL does not run the loader from the flash record on a cold boot: `docs/BOOT-SAFETY.md`, "What the dump showed".
+- **Step 7**: `fm1t.py write` dry run (143 sectors differ, fresh read equals the dump), then `--write`: 143 × `OK`,
+  "final full read EQUALS the expected image".
+- **Step 8**: power-cycled to stock V15 (`fm1_install.py --info`: `FM-1_015 [running] port: FM-1`), then
+  `caffeinate -dimsu python3 tools/fm1_install.py build/choralroot.fwsc --yes` on a full battery: "done: the FM-1 runs
+  FM-1_920"; `--info`: `FM-1_920 [running] port: ChoralRoot FM-1 version: ChoralRoot 0.14`.
+
+The procedure, parts (with links), wiring and a script that automates it are in MvaveFM1Unbricker:
+`TRANSPORTER-GUIDE.md` and `fm1_transporter_recover.py`.
