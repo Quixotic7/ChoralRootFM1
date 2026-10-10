@@ -68,4 +68,5 @@ int emu_fw_midi_in(uint32_t pkt);           /* one USB-MIDI event packet in; 0: 
 int emu_fw_midi_out_take(uint32_t *pkt);    /* one USB-MIDI event packet out, 0: none */
 void emu_fw_dump(void);                     /* print the firmware's input state (F12) */
 void emu_fw_stats(uint32_t *shed, uint32_t *cpu_pct);  /* voices shed on overload, the CPU meter */
+void emu_fw_stages(char *buf, uint32_t n);  /* the audio ISR's stage profile (EMU_STAGES=1), "" = none */
 void emu_fw_ui_info(char *buf, uint32_t n);  /* the last UI frame's screen: kind, text, strips (EMU_UI_LOG) */

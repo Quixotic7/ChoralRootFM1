@@ -201,6 +201,14 @@ static void fm1_main(void)
     panel_init();
     CR_STAGE(BS_SOUNDS);
     felucca_init();
+#if CR_CPU1
+    CR_STAGE(BS_CPU1);                                  /* (a hang here: prev_stage "core 1", the boot guard counts it) */
+    cr_dbg.prof_on = 1;                                 /* the ISR's stage profile (cr_cpu1.h) */
+    if (!cr_safe)                                       /* the second core: at power-on, before the audio and the
+                                                         * timers (started later it does not reach its entry: fm1-x0x,
+                                                         * Melodee); no answer in 20 ms: one core (docs/DUALCORE.md) */
+        cr_c1_boot();
+#endif
     CR_STAGE(BS_AUDIO);
     audio_init();
     CR_STAGE(BS_USB);

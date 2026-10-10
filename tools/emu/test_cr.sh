@@ -1055,6 +1055,31 @@ st=$?
 [ $st = 3 ] && has '^boot: UBOOT (ROM boot): reset wdt' "$OUT/cr_safe_uboot.log" &&
     ok "SAFE MODE crashed twice more (failed 4): UBOOT" || bad "uboot: exit $st"
 
+echo "the second core (docs/DUALCORE.md): the bass part's job, GEEK OUT's c1 line, 8 + 1 voices, the fail-safes"
+c1line() { LC_ALL=C grep -a -o "line3 '[^']*'" "$1" | tail -1; }
+c1gu() { LC_ALL=C grep -a 'voices: given up' "$1" | tail -1 | sed -n 's/.*given up \([0-9]*\).*/\1/p'; }
+export EMU_STAGES=1 EMU_UI_LOG=0
+run cr_dualcore --wav "$OUT/cr_dualcore.wav"
+unset EMU_STAGES EMU_UI_LOG
+[ -s "$OUT/cr_dualcore_geek.ppm" ] && cp "$OUT/cr_dualcore_geek.ppm" "$OUT/cr_dualcore_geek_ok.ppm" || bad "no cr_dualcore_geek.ppm"
+l=$(c1line "$OUT/cr_dualcore.log"); g=$(c1gu "$OUT/cr_dualcore.log")
+echo "$l" | grep -q "c1 ok [1-9]" && ok "GEEK OUT: $l ($OUT/cr_dualcore_geek_ok.ppm)" || bad "GEEK OUT's c1 line: ${l:-none}"
+[ "${g:-x}" = 0 ] && ok "core 1 alive: the 8-note chord and the bass all sound (none given up)" || bad "core 1 alive: ${g:-?} given up"
+LC_ALL=C grep -aq '^cpu: stages .* c1 ok, jobs [1-9]' "$OUT/cr_dualcore.log" &&
+    ok "$(LC_ALL=C grep -a '^cpu: stages' "$OUT/cr_dualcore.log" | cut -c6-)" || bad "no stage profile"
+for m in nostart hang; do
+    want="failed"; [ $m = hang ] && want="gave up"
+    EMU_C1=$m EMU_UI_LOG=0 "$EMU" --headless --script "$S/cr_dualcore.txt" --wav "$OUT/cr_dualcore_$m.wav" >"$OUT/cr_dualcore_$m.log" 2>&1
+    l=$(c1line "$OUT/cr_dualcore_$m.log"); g=$(c1gu "$OUT/cr_dualcore_$m.log")
+    echo "$l" | grep -q "c1 $want" && [ "${g:-0}" -ge 1 ] && ok "EMU_C1=$m: $l, one core's shared budget ($g given up)" ||
+        bad "EMU_C1=$m: ${l:-none}, ${g:-?} given up"
+done
+EMU_C1=nostart "$EMU" --headless --script "$S/cr_dmaj.txt" --wav "$OUT/cr_dmaj_onecore.wav" >/dev/null 2>&1
+cmp -s "$OUT/cr_dmaj.wav" "$OUT/cr_dmaj_onecore.wav" && ok "cr_dmaj: the split's WAV = one core's, bit for bit" ||
+    bad "cr_dmaj: the split's WAV differs from one core's"
+cmp -s "$OUT/cr_dualcore_hang.wav" "$OUT/cr_dualcore_nostart.wav" && ok "a hung job from the first block: one core's WAV" ||
+    bad "a hung job's WAV differs from one core's"
+
 echo "determinism"
 mkdir -p "$OUT/cr_again"
 cp "$OUT/cr_dmaj.ppm" "$OUT/cr_again/first.ppm"

@@ -596,11 +596,19 @@ sound since power-on:
 | `voices_shed` | voices dropped because two halves in a row went over 85 % (`audio.c` shed) | 0 |
 | `flash_erases`, `settings_saves` | each erase stops every IRQ for ~45 ms with the audio buffer zeroed | grow only when you save, or when the instrument is quiet |
 | `ui_frame_max_ms`, `ui_frames` | the longest main-loop frame of the second (15 ms nominal; keys are read once a frame) | < 30 |
+| `stage_<s>_avg_us` / `_max_us` | the ISR's stages per half, the last second (`cr_cpu1.h` cr_dbg): `tick` (the engine, the looper, MIDI, the events, voice allocation), `part0` (the chord part's render), `part1` (the bass part's: core 1's job time), `fx` (DIST / level / sends of every part, parts 2..3, the FX buses), `master` (limiter, USB tap, click), `wait` (core 0 waiting for core 1) | their sum ~ `audio_avg_us` |
+| `c1_state`, `c1_jobs`, `c1_stack_bytes`, `c1_start_us` | the second core (docs/DUALCORE.md): 0 off (SAFE MODE), 1 ok, 2 failed at start, 3 gave up on a job; jobs done; its stack's high-water mark of 2816; its start | 1, rising, < 2816 |
 
 The GEEK OUT view (Options > View) shows the third line `isr <us> · late <n>`: the last second's longest half
 (`audio_max_all_us`) and the overruns since power-on. After a boot that was not clean (a counted crash reset, or SAFE
 MODE) it shows `boot <reason> stage <n>` instead: the reset class and the boot stage the crashed run reached
 (`firmware/src/cr_bootguard.h` names them).
+The fourth line is the second core (docs/DUALCORE.md): `c1 ok <jobs> · stk <bytes>`, `c1 off` (SAFE MODE), `c1 failed`
+(no answer at power-on) or `c1 gave up` (a job took over 8 ms); the fifth the ISR's stages, the last second's average
+in us per half: `t<tick> c<chord> b<bass> f<fx> m<master> w<wait>`.
+
+The memory after the second core (`./build.sh`, 2026-10-09): `.text 414120 B, .ram_text 2888 B, .c1_text 60 B (RAMTEXT
+2948 of 24576), .data 12072 B, .bss 72104 B; XIP 73.8 %, RAM 85.6 %, POOL 95.0 %`.
 
 ### Measured on the host
 

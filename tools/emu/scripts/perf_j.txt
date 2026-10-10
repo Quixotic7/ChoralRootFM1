@@ -1,0 +1,58 @@
+# tools/emu/perf.sh (j): an 8-note VA chord (a C 13th, MIDI) + 4 bass notes on the VA bass (MIDI), held 4 s (docs/DUALCORE.md)
+# (ENSEMBLE STR: C3 E3 G3 Bb3 D4 F4 A4 C5 on the CHORD channel; PUNCH BASS on the BASS channel: the bass part is always
+# MONO (voice mode 1 whatever the preset), so its 4 notes are one voice: 9 voices, 18 units: one core gives one up)
+wait 300
+btn ENV down                  # the bass part's engine (as perf_f): BASS held + EDIT, EDIT held: the engine picker
+wait 50
+btn EDIT
+btn ENV up
+wait 300
+btn EDIT 600
+wait 200
+btn F4                        # the third white root: VA
+wait 200
+btn OCT+                      # kept
+wait 200
+btn EDIT                      # the editor closed
+wait 200
+btn GLO down
+wait 100
+knob PRESETS +2               # OPT + PRESETS: the chord part to the VA (01 LUSH PAD), on OPT's release
+wait 100
+btn GLO up
+wait 50
+knob PRESETS +4               # VA 05 ENSEMBLE STR
+wait 300
+knob ALGORITHM +19            # OFF -> VA 18 PUNCH BASS
+wait 300
+midi 90 30 64                 # channel 1 (CHORD): the 13th
+midi 90 34 64
+midi 90 37 64
+midi 90 3A 64
+midi 90 3E 64
+midi 90 41 64
+midi 90 45 64
+midi 90 48 64
+wait 20
+midi 91 18 64                 # channel 2 (BASS): C1 G1 C2 G2
+midi 91 1F 64
+midi 91 24 64
+midi 91 2B 64
+wait 2000
+dump
+wait 2000
+dump
+midi 80 30 00
+midi 80 34 00
+midi 80 37 00
+midi 80 3A 00
+midi 80 3E 00
+midi 80 41 00
+midi 80 45 00
+midi 80 48 00
+midi 81 18 00
+midi 81 1F 00
+midi 81 24 00
+midi 81 2B 00
+wait 2500
+dump

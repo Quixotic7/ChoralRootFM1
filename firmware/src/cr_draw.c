@@ -2030,7 +2030,8 @@ static void cr_p_geek(const cr_screen_t *s, int32_t ph)
     for (i = 0; i < s->n_notes; i++)
         cr_text(P8(230), P8(CR_PY0 + 30 + 14 * (int32_t)i), s->note[i].t, 12, 1, CR_R, 4096,
                 cr_rgb(s->note[i].col, CR_WHITE), T_BG, 0);
-    for (i = 0; i < s->n_lines && i < 3u; i++)    /* (the third: the audio ISR's load, cr_ui.c) */
+    for (i = 0; i < s->n_lines && i < 5u; i++)    /* (the third: the audio ISR's load; the fourth: the second core;
+                                                   * the fifth: the ISR's stages, cr_ui.c) */
         cr_text_fit(P8(10), P8(CR_PY0 + 72 + 11 * (int32_t)i), s->lines[i].t, 10, 0, CR_L, T_MID, T_BG, P8(150));
     cr_keyboard(s, CR_PY0 + ph - 30, 26);
 }

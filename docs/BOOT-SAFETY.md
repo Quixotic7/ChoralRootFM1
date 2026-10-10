@@ -15,6 +15,10 @@ need the real unit (the dump, two experiments) are marked. Nothing here is imple
 
 So the only safety that worked was the hardware one, and it needs a board we did not have.
 
+The second core (docs/DUALCORE.md, 0.14): the app starts it at power-on; every path into a reset or a loader holds it first
+(`fm1_reboot`, `fm1_enter_uboot`, `fm1_core_reset` / `fm1_enter_update`), so it never runs old code while a loader writes;
+the loader and the stub never start it.
+
 ## What the dump showed (2026-10-09, the dark unit read through the Transporter)
 
 Two full reads, identical (sha256 `6c075920…`; `docs/TRANSPORTER-HANDOFF.md`, "Result"). Against the V15 package, the

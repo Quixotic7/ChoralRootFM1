@@ -42,6 +42,10 @@
 #ifndef FELUCCA_SLICER
 #define FELUCCA_SLICER 1                              /* (as felucca.c; the device unit has it off) */
 #endif
+#ifndef CR_CPU1
+#define CR_CPU1 1                                     /* as choralroot.c: the bass part as the second core's job; here the
+                                                         * stub core (firmware/src/cr_cpu1.h) runs it when handed */
+#endif
 #define mix_block fx_mix_block                        /* fx.c's mix; audio.c gets ChoralRoot's below */
 #ifndef FM6_POLY
 #define FM6_POLY 8                                    /* as choralroot.c: FM6 capped at 8 voices (docs/FM6.md) */
@@ -64,9 +68,11 @@
 #include "../../firmware/src/cr_out.c"                /* streams -> parts 0 / 1 and MIDI; the engine's clock */
 static void mix_block(int32_t *out, uint32_t n)        /* the audio ISR's block: the engine first, then the mix */
 {
+    CR_PROF_START();             /* the ISR's stages (cr_cpu1.h): the tick from here to fx.c's parts */
     cr_audio_block(n);
     fx_mix_block(out, n);
     cr_click_mix(out, n);                              /* the metronome / count-in click */
+    CR_PROF(CRP_MASTER);         /* the master, the USB tap, the click */
 }
 #include "../../firmware/src/audio.c"                 /* fm1_alnk0_irq: the audio ISR, called per block */
 

@@ -97,7 +97,9 @@ Time is simulated (the 1 ms timer, a UI frame every 15 ms, the 128-frame audio b
 a run is deterministic: the same script gives the same LCD and the same audio, bit for bit. It runs N
 frames of 15 ms (`--frames N`; without it, to the end of the script, else 600 frames), then prints the
 peak / rms, the block render time, the host instructions per audio block and UI frame with the device estimate
-(`EMU_CPU_LOG=PCT` lists every block above PCT % of the device's budget; `EMU_UI_LOG=N` every UI frame above N
+(`EMU_CPU_LOG=PCT` lists every block above PCT % of the device's budget; `EMU_STAGES=1` adds the audio ISR's stages,
+`cpu: stages ...` (docs/DUALCORE.md); `EMU_C1=nostart` / `EMU_C1=hang`: the second core does not answer at power-on /
+never finishes a job (the stub otherwise runs the bass part's job inline); `EMU_UI_LOG=N` every UI frame above N
 million host instructions; `EMU_TRACE_LEDS=1` prints the LED bytes and the buttons off / dim / lit after every UI
 frame they (or the held controls) change, and in the window each panel redraw and its time; `EMU_PANEL_CHECK=1`
 compares every partial panel redraw with a whole one, pixel for pixel, with its index, time, device estimate and the screen it drew: kind, view, name / item /

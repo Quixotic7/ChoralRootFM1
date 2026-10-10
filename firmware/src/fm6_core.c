@@ -420,7 +420,10 @@ typedef struct fm6_voice {                               /* a voice; operators i
 enum { FM6_P_ADD = 4, FM6_P_FB = 0x40, FM6_P_RUN = 0x80 };   /* plan: bits 0-1 out bus, 4-5 in bus */
 
 /* ------------------------------------------------------ the operators --- */
-static int32_t fm6_bus[2][CTL], fm6_sum[CTL];
+/* a render's scratch: the modulator buses and the voice's sum. Two with ChoralRoot's second core (docs/DUALCORE.md:
+ * core 1 renders part 1 while core 0 renders part 0, cr_cpu1.h CR_C1_IDX), one otherwise */
+typedef struct { int32_t bus[2][CTL], sum[CTL]; } fm6_scr_t;
+static fm6_scr_t fm6_scr[1 + CR_CPU1];
 
 /* MARK I: a sine from the log-sine and exponent tables (mkiSin); env: attenuation, 1024 an octave.
  * As in Dexed the sum is 16 bits, the sign its top bit (a gain ramp that overshoots wraps it) */
@@ -602,14 +605,14 @@ static void fm6_plan(fm6_voice_t *s, const int32_t *lv, uint32_t alg, uint32_t e
     }
 }
 
-static void fm6_run(fm6_voice_t *s, uint32_t n)          /* the planned operators over n samples into fm6_sum */
+static void fm6_run(fm6_voice_t *s, uint32_t n, fm6_scr_t *S)   /* the planned operators over n samples into S->sum */
 {
     uint32_t k, eng = s->eng;
     for (k = 0; k < n; k++)
-        fm6_sum[k] = 0;
+        S->sum[k] = 0;
     for (k = 0; k < 6u; k++) {
         uint32_t pl = s->plan[k], o = pl & 3u, in = (pl >> 4) & 3u;
-        int32_t *out = o ? fm6_bus[o - 1u] : fm6_sum;
+        int32_t *out = o ? S->bus[o - 1u] : S->sum;
         if (!(pl & FM6_P_RUN))
             continue;
         if (!k && s->loop)
@@ -617,6 +620,6 @@ static void fm6_run(fm6_voice_t *s, uint32_t n)          /* the planned operator
         else if (pl & FM6_P_FB)
             fm6_op_fb(s, k, out, pl & FM6_P_ADD, eng, n);
         else
-            fm6_op(s, k, out, in ? fm6_bus[in - 1u] : 0, pl & FM6_P_ADD, eng, n);
+            fm6_op(s, k, out, in ? S->bus[in - 1u] : 0, pl & FM6_P_ADD, eng, n);
     }
 }

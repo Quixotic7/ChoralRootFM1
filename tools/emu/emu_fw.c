@@ -116,6 +116,20 @@ void emu_fw_init(int demo)
     CR_STAGE(BS_SETTINGS);
     cr_settings_boot();                           /* .. and the settings record (Felucca's fields + ChoralRoot's) */
     cr_ui_init();                                 /* the engine, the sounds, the record applied (cr_settings_load) */
+    {   /* the second core (main.c, docs/DUALCORE.md): the stub runs the bass part's job when handed. EMU_C1=nostart: it
+         * does not answer at power-on; EMU_C1=hang: it answers, then never finishes a job (8 ms: core 0 does it).
+         * EMU_STAGES=1: the ISR's stage profile (cr_dbg; ~6.6 k host instructions a mark, left out of the stages
+         * but not out of the block's count: tools/emu/perf.sh runs it apart) */
+        const char *c1 = getenv("EMU_C1");
+        cr_c1_test_nostart = c1 && !strcmp(c1, "nostart");
+        cr_c1_test_hang = c1 && !strcmp(c1, "hang");
+        cr_dbg.prof_on = getenv("EMU_STAGES") != NULL;
+        if (cr_dbg.prof_on)
+            cr_prof_calibrate();
+        CR_STAGE(BS_CPU1);
+        if (!cr_safe)
+            cr_c1_boot();
+    }
     atexit(emu_fw_exit);
     usb.up = 1;                                   /* a host is there: MIDI out flows (usb.c midi_out_event) */
     usb.config = 1;
@@ -352,9 +366,33 @@ void emu_fw_ui_info(char *buf, uint32_t n)
              (unsigned)s->wv[4], (unsigned)s->lm_mid, (unsigned)s->lm_bars,
              (unsigned)s->lm_free, (unsigned)(s->lm_pos & 0x7FFFu), (unsigned)s->lm_nlane, (unsigned)s->lm_newlane,
              (unsigned)s->lm_slot + 1u, (unsigned)s->lm_jump, s->sub, s->right, (unsigned)s->hot_r, (unsigned)s->hot_c);
+    if (s->kind == CR_K_GEEK) {                   /* GEEK OUT's status lines (the second core's: tools/emu/test_cr.sh) */
+        size_t l = strlen(buf);
+        uint32_t i;
+        for (i = 0; i < s->n_lines && l + 4u < n; i++) {
+            snprintf(buf + l, n - l, " line%u '%s'", (unsigned)i, s->lines[i].t);
+            l = strlen(buf);
+        }
+    }
 }
 void emu_fw_stats(uint32_t *shed, uint32_t *cpu_pct)
 {
     *shed = shed_count;
     *cpu_pct = song.cpu_q8 * 100u / 256u;
+}
+
+/* the audio ISR's stages since power-on (cr_cpu1.h cr_dbg; EMU_STAGES=1), in device us (host instructions / 259) */
+void emu_fw_stages(char *buf, uint32_t n)
+{
+    uint32_t k, o = 0;
+    buf[0] = 0;
+    if (!cr_dbg.prof_on || !cr_dbg.tot_n)
+        return;
+    o += (uint32_t)snprintf(buf + o, n - o, "stages (device us per half, avg / max): ");
+    for (k = 0; k < CRP_N && o < n; k++)
+        o += (uint32_t)snprintf(buf + o, n - o, "%s%s %.0f / %.0f", k ? ", " : "", CRP_NAME[k],
+                                (double)cr_dbg.tot_sum[k] / cr_dbg.tot_n / CR_PROF_PER_US,
+                                (double)cr_dbg.tot_max[k] / CR_PROF_PER_US);
+    if (o < n)
+        snprintf(buf + o, n - o, "; c1 %s, jobs %u", cr_c1_name(), (unsigned)cr_dbg.c1_jobs);
 }

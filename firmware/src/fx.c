@@ -392,19 +392,19 @@ static inline int16_t ua_sat(int32_t x) { return (int16_t)(x > 32767 ? 32767 : x
 
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
-static void mix_part(track_t *t, uint32_t n)
+/* (mix_part's second half: the part rendered into b, its side into side when side_on, nr voices) */
+static void mix_part_out(track_t *t, int32_t *b, int32_t *side, uint8_t side_on, uint32_t nr, uint32_t n)
 {
-    int32_t *b = part_buf, *sd;
+    int32_t *sd;
     uint32_t i;
 #if FELUCCA_UAC
     int16_t *pc = ua_stage_on && (uint32_t)(t - trk) < UA_PART_CAPTURED ? ua_stage + 2u + 2u * (uint32_t)(t - trk) : 0;
 #endif
-    mod_begin(t);                                       /* the matrix's per-block values into t->p (mod.c) */
-    if (track_render(t, b, n))
+    if (nr)
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
     else if ((!t->tail || !t->p[P_DIST] || !--t->tail) && !slicer_busy(t)) {
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
-        if (mod.on)
+        if (MODP(t).on)
             mod_end(t);
         return;
     }
@@ -425,7 +425,7 @@ static void mix_part(track_t *t, uint32_t n)
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
         /* a stereo side (voice.c part_side: VA's SPREAD / USPREAD): DIST works on the mid, the SLICER plays the part
          * mono, the FX layer's mute fades both; the sends take the mid */
-        sd = part_side_on && !t->p[P_SLCR] && !slicer_busy(t) ? part_side : 0;
+        sd = side_on && !t->p[P_SLCR] && !slicer_busy(t) ? side : 0;
         track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
         if ((pf.mute >> (t - trk)) & 1u) {
@@ -461,7 +461,7 @@ static void mix_part(track_t *t, uint32_t n)
                 }
             }
             t->peak = pk;
-            if (mod.on)
+            if (MODP(t).on)
                 mod_end(t);
             return;
         }
@@ -492,9 +492,77 @@ static void mix_part(track_t *t, uint32_t n)
         }
         t->peak = pk;
     }
-    if (mod.on)
+    if (MODP(t).on)
         mod_end(t);                                     /* the stored values back */
 }
+
+static void mix_part(track_t *t, uint32_t n)
+{
+    uint32_t nr;
+    CR_PROF(CRP_FX);
+    mod_begin(t);                                       /* the matrix's per-block values into t->p (mod.c) */
+    nr = track_render(t, part_buf, n);
+    CR_PROF(t == &trk[0] ? CRP_PART0 : t == &trk[1] ? CRP_PART1 : CRP_FX);
+    mix_part_out(t, part_buf, part_side, part_side_on, nr, n);
+}
+
+#if CR_CPU1
+/* ChoralRoot's second core (cr_cpu1.h, docs/DUALCORE.md): part 1's render as core 1's job, into its own buffers.
+ * It touches trk[1] (its voices, its LFO's value, its patch, P_E0..7 during an engine fade), its engine's state
+ * (eng_state[1], the engine's per-part arrays, fm6_core.c's second scratch) and these; nothing else */
+static int32_t c1_buf[CTL] __attribute__((section(".pool"))), c1_side[CTL] __attribute__((section(".pool")));
+static uint8_t c1_side_on;
+static uint32_t c1_nr;
+static int32_t c1_lfo[2];                               /* the parts' LFO values before this block's tick */
+static void c1_part1_job(uint32_t n)
+{
+    uint32_t t0 = cr_dbg.prof_on ? cr_prof_now() : 0u;
+    c1_nr = track_render_x(&trk[1], c1_buf, c1_side, &c1_side_on, n, &c1_lfo[1]);
+    if (cr_dbg.prof_on)
+        cr_dbg.cur[CRP_PART1] += cr_prof_less(cr_prof_now() - t0);
+}
+/* the split is one core's samples bit for bit unless part 0's render draws from the shared generator itself
+ * (PHYS: a model change under a note) or both parts play VOICE (one breath-noise generator, eng_formant.c): then
+ * this block renders on core 0 alone, as before */
+static int c1_split_ok(void)
+{
+    const engine_t *e0 = ENGINES[trk[0].engine], *e1 = ENGINES[trk[1].engine];
+    return e0 != &ENG_PHYS && !(e0 == &ENG_FORMANT && e1 == &ENG_FORMANT);
+}
+/* parts 0 and 1: everything shared first on core 0 (the matrices, the LFOs: their draws from the shared generator in
+ * one core's order), part 1 to core 1, part 0 here, then both mixed in one core's order */
+static void mix_parts_split(uint32_t n)
+{
+    track_t *t0 = &trk[0], *t1 = &trk[1];
+    uint32_t nr0;
+    int ran;
+    CR_PROF(CRP_FX);
+    mod_begin(t0);
+    c1_lfo[0] = mulq15(t0->lfo_val, t0->lfo_fade);
+    track_lfo_tick(t0);
+    mod_begin(t1);
+    c1_lfo[1] = mulq15(t1->lfo_val, t1->lfo_fade);
+    track_lfo_tick(t1);
+    cr_c1_split = 1;
+    ran = cr_c1_run(c1_part1_job, n);
+    CR_PROF_SKIP();                                     /* (the host's stub ran it here: counted as part1) */
+    nr0 = track_render_x(t0, part_buf, part_side, &part_side_on, n, &c1_lfo[0]);
+    CR_PROF(CRP_PART0);
+    if (ran && cr_c1_wait()) {                          /* 8 ms: core 1 is held for good, core 0 does it */
+        cr_dbg.c1 = C1_GAVE_UP;
+        ran = 0;
+    }
+    CR_PROF(CRP_WAIT);
+    cr_c1_split = 0;
+    if (ran)
+        cr_dbg.c1_jobs++;
+    else
+        c1_part1_job(n);
+    CR_PROF_SKIP();
+    mix_part_out(t0, part_buf, part_side, part_side_on, nr0, n);
+    mix_part_out(t1, c1_buf, c1_side, c1_side_on, c1_nr, n);
+}
+#endif
 
 /* the master with the FX layer's effects between its level and master_out (perform.c) */
 static __attribute__((noinline)) void perf_master(int32_t *out, uint32_t n)
@@ -528,11 +596,20 @@ static void mix_block(int32_t *out, uint32_t n)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     events_block(n);
     perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
-    for (i = 0; i < NPART; i++)
+    CR_PROF(CRP_TICK);                                  /* (the engine tick before it: the mix_block shim) */
+    i = 0;
+#if CR_CPU1
+    if (cr_dualcore_active() && c1_split_ok()) {
+        mix_parts_split(n);
+        i = 2;
+    }
+#endif
+    for (; i < NPART; i++)
         mix_part(&trk[i], n);
     if (perf)
         perf_pre(mix_l, mix_r, send_d, send_r, n);
     fx_buses(send_c, send_d, send_r, wet, n);
+    CR_PROF(CRP_FX);
     if (perf) {
         perf_master(out, n);
         return;

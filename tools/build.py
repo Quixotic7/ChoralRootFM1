@@ -206,6 +206,7 @@ def build_app():
     tc_all(("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
            ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
            ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
+           ("cc", "-c", FW / "hal" / "fm1_cpu1.S", "-o", OUT / "fm1_cpu1.o"),
            cmain)
     if size:
         subprocess.run([sys.executable, SRC / "tools" / "size_fns.py", OUT / f"{UNIT}.ll", OUT / f"{UNIT}_size.ll"],
@@ -214,12 +215,13 @@ def build_app():
            OUT / f"{UNIT}_size.ll", "-o", OUT / f"{UNIT}.o")
     elf = OUT / f"{UNIT}.elf"
     tc("pi32v2/bin/ld", "-T", FW / "app.ld", OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
-       OUT / f"{UNIT}.o", "-o", elf)
-    for sect in ("text.bin", "data.bin", "ramtext.bin"):
+       OUT / "fm1_cpu1.o", OUT / f"{UNIT}.o", "-o", elf)
+    for sect in ("text.bin", "data.bin", "ramtext.bin", "c1text.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
+                               ("common/bin/objcopy", "-O", "binary", "-j", ".c1_text", elf, OUT / "c1text.bin"),
                                ("common/bin/objdump", "-t", elf),
                                ("common/bin/objdump", "-d", elf),
                                ("common/bin/objdump", "-d", "-j", ".ram_text", elf),
@@ -229,8 +231,9 @@ def build_app():
     def symv(name):
         return int(re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M).group(1), 16)
     img = bytearray((OUT / "text.bin").read_bytes())
-    # .ram_text and .data follow .text at their load addresses; crt0 copies them by words
-    for sect, lname in (("ramtext.bin", "_rt_load"), ("data.bin", "_data_load")):
+    # .ram_text, .c1_text (the second core's loop, docs/DUALCORE.md) and .data follow .text at their load
+    # addresses; main.c copies them by words
+    for sect, lname in (("ramtext.bin", "_rt_load"), ("c1text.bin", "_c1_load"), ("data.bin", "_data_load")):
         load = symv(lname)
         if load % 4:
             raise SystemExit(f"{lname} {load:#x} is not word aligned")
@@ -252,9 +255,9 @@ def size_line(hdr):
         p = ln.split()
         if len(p) > 3 and p[0].isdigit() and p[1].startswith("."):
             sz[p[1]] = int(p[2], 16)
-    t, rt, d, b = (sz.get(k, 0) for k in (".text", ".ram_text", ".data", ".bss"))
-    xip, ram = t + rt + d, d + b
-    s = (f"size: .text {t} B, .ram_text {rt} B, .data {d} B, .bss {b} B; "
+    t, rt, c1, d, b = (sz.get(k, 0) for k in (".text", ".ram_text", ".c1_text", ".data", ".bss"))
+    xip, ram = t + rt + c1 + d, d + b
+    s = (f"size: .text {t} B, .ram_text {rt} B, .c1_text {c1} B (RAMTEXT {rt + c1} of {0x6000}), .data {d} B, .bss {b} B; "
          f"XIP {xip} B of {XIP_LEN} ({100 * xip / XIP_LEN:.1f}%), RAM {ram} B of {RAM_LEN} ({100 * ram / RAM_LEN:.1f}%)")
     if ".pool" in sz:
         s += f", POOL {sz['.pool']} B of {POOL_LEN} ({100 * sz['.pool'] / POOL_LEN:.1f}%)"

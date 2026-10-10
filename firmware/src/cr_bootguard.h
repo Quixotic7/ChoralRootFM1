@@ -125,12 +125,12 @@ static inline const char *bootguard_mode_name(uint32_t m)
 
 /* the boot breadcrumb (felucca_dbg.stage, .noinit): where the firmware was when it reset. 1 / 2 / 9: the main loop
  * (main.c); 10..: the boot steps, in order (main.c fm1_cstart / fm1_main, cr_shim.c persist_boot, upreset.c up_boot,
- * cr_ui.c cr_ui_init) */
+ * cr_ui.c cr_ui_init; BS_CPU1, appended, between BS_SOUNDS and BS_AUDIO: the second core's start) */
 enum {
     BS_LOOP_INPUT = 1, BS_LOOP_DRAW = 2, BS_LOOP_IDLE = 9,
     BS_GUARD = 10, BS_FLASH, BS_USER_SOUNDS, BS_FM6_BANK, BS_VA_STORE, BS_FM6_STORE, BS_SETTINGS, BS_OTA_CLEANUP,
     BS_LCD, BS_SPLASH, BS_INPUT, BS_SOUNDS, BS_AUDIO, BS_USB, BS_UART, BS_IRQ, BS_CALIB, BS_UI_INIT,
-    BS_UI_SETTINGS, BS_LOOPS, BS_N
+    BS_UI_SETTINGS, BS_LOOPS, BS_CPU1, BS_N
 };
 static inline const char *bootguard_stage_name(uint32_t s)
 {
@@ -160,6 +160,7 @@ static inline const char *bootguard_stage_name(uint32_t s)
     case BS_UI_INIT: return "ui init";
     case BS_UI_SETTINGS: return "ui settings";
     case BS_LOOPS: return "loops";
+    case BS_CPU1: return "core 1";
     default: return "?";
     }
 }

@@ -43,6 +43,7 @@ static void cpu_window(uint32_t now_ms)          /* once per UI frame: a frame's
         return;
     if (aw_reset)
         return;                                  /* (the ISR has not taken the last one yet: no half since) */
+    cr_prof_window();                            /* the ISR's stages (cr_cpu1.h cr_dbg) */
     cpu_last.avg_us = aw_n ? aw_sum_us / aw_n : 0u;
     cpu_last.max_us = aw_max_us;
     cpu_last.max_all_us = aw_max_all / FM1_TICKS_PER_US;
@@ -158,6 +159,8 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
             audio_block(o + 2u * b, CTL);
         }
         fm1_audio_ack_half();
+        cr_prof_half();                                 /* the half's stages (cr_cpu1.h): core 1's wait is in the
+                                                         * half's time, so the meter and the shed see it */
         audio_halves++;
         {
             uint32_t all = fm1_ticks() - t0;

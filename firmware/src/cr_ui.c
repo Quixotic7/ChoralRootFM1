@@ -4102,6 +4102,35 @@ static void cu_view_screen(cr_screen_t *s)
             cu_cat(s->lines[2].t, b, sizeof s->lines[2].t);
         }
         s->n_lines = 3;
+#if CR_CPU1
+        {   /* the second core (cr_cpu1.h, docs/DUALCORE.md): "c1 ok 1234 \267 stk 828" / "c1 failed" / "c1 gave up";
+             * then the ISR's stages, the last second's average in us per half: "t107 c443 b135 f730 m159 w102" (the tick,
+             * the chord part, the bass part, the rest of the mix and the FX, the master and the click, the wait) */
+            char b[12];
+            uint32_t k;
+            static const char *const SN[CRP_N] = {"t", "c", "b", "f", "m", "w"};   /* tick, chord, bass, fx, master, wait */
+            cu_cpy(s->lines[3].t, "c1 ", sizeof s->lines[3].t);
+            cu_cat(s->lines[3].t, cr_c1_name(), sizeof s->lines[3].t);
+            if (cr_dbg.c1 == C1_OK) {
+                cu_cat(s->lines[3].t, " ", sizeof s->lines[3].t);
+                cu_int(b, (int32_t)cr_dbg.c1_jobs, 0, sizeof b);
+                cu_cat(s->lines[3].t, b, sizeof s->lines[3].t);
+                cu_cat(s->lines[3].t, " \267 stk ", sizeof s->lines[3].t);
+                cu_int(b, (int32_t)cr_dbg.c1_stack, 0, sizeof b);
+                cu_cat(s->lines[3].t, b, sizeof s->lines[3].t);
+            }
+            s->lines[4].t[0] = 0;
+            for (k = 0; k < CRP_N; k++) {
+                if (k == CRP_WAIT && cr_dbg.c1 != C1_OK)
+                    break;
+                cu_cat(s->lines[4].t, k ? " " : "", sizeof s->lines[4].t);
+                cu_cat(s->lines[4].t, SN[k], sizeof s->lines[4].t);
+                cu_int(b, (int32_t)cr_dbg.avg_us[k], 0, sizeof b);
+                cu_cat(s->lines[4].t, b, sizeof s->lines[4].t);
+            }
+            s->n_lines = 5;
+        }
+#endif
         cu_cpy(s->right, "Trans ", sizeof s->right);
         if (cs.transpose)
             cu_int(s->right + 6, cs.transpose, 1, sizeof s->right - 6u);
@@ -4428,6 +4457,10 @@ static void cu_midi_poll(void)
 static void cr_ui_frame(void)                      /* after the scan: the engine's state, the LEDs */
 {
     cpu_window(fm1_ms);                            /* audio.c: the last second's ISR load (console `cpu`, GEEK OUT) */
+#if CR_CPU1
+    if (cr_dbg.c1 == C1_OK)
+        cr_dbg.c1_stack = cr_c1_stack_used();      /* core 1's stack high-water mark (its C1MK fill) */
+#endif
     if (cpk.on && cu.lock != L_EDIT)               /* the picker closed another way (OPT, SAVE, BASS + EDIT): kept */
         cu_pick_end(1);
     if (cu.epk_on && !cu_shift())                  /* OPT + PRESETS: OPT let go another way */

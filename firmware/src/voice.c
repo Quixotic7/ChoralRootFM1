@@ -79,6 +79,26 @@ static uint32_t voice_units(const track_t *t)
     return e->units ? e->units(t) : trk_nvoice(t) > NPOLY ? 1u : 2u;
 }
 
+/* the budget a part shares: all parts' one (Felucca, one core), or with the second core alive (cr_cpu1.h) part 1's own
+ * and part 0's (with parts 2..3, which ChoralRoot leaves silent): each VBUDGET units */
+#if CR_CPU1
+#define VB_SAME(a, b) (!cr_dualcore_active() || ((a) == 1u) == ((b) == 1u))
+#else
+#define VB_SAME(a, b) 1
+#endif
+static uint32_t voices_busy_of(const track_t *self)        /* budget units of the sounding voices (not fading) of the
+                                                         * parts that share self's budget */
+{
+    uint32_t p, i, n, u = 0, sp = (uint32_t)(self - trk);
+    for (p = 0; p < NPART; p++) {
+        if (!VB_SAME(p, sp))
+            continue;
+        for (i = n = 0; i < NVOICE; i++)
+            n += trk[p].v[i].active && trk[p].v[i].stage != 4u;
+        u += n * voice_units(&trk[p]);
+    }
+    return u;
+}
 static uint32_t voices_busy(void)                       /* budget units of all parts' sounding voices (not fading) */
 {
     uint32_t p, i, n, u = 0;
@@ -107,7 +127,10 @@ static uint32_t voice_victim(const track_t *self, int soft, track_t **pp)
     uint32_t p, i, best = NVOICE, cat = 4;
     for (p = 0; p < NPART; p++) {
         track_t *t = &trk[p];
-        uint32_t mode = trk_vmode(t);
+        uint32_t mode;
+        if (!VB_SAME(p, (uint32_t)(self - trk)))
+            continue;                                   /* another budget's (the second core: parts 0 / 1 apart) */
+        mode = trk_vmode(t);
         uint32_t low = mode == V_POLY ? lowest_held(t) : NVOICE;
         if (soft && t == self)
             continue;
@@ -146,7 +169,7 @@ static void voice_kill(voice_t *v)                      /* fade out over the nex
 /* the budget is full: free room for a voice of part t. 0 = nothing to take (soft) */
 static int voice_room(track_t *t, int soft)
 {
-    while (voices_busy() + voice_units(t) > VBUDGET) {
+    while (voices_busy_of(t) + voice_units(t) > VBUDGET) {
         track_t *vp = 0;
         uint32_t k = voice_victim(t, soft, &vp);
         if (k == NVOICE)
@@ -251,7 +274,7 @@ static voice_t *voice_alloc(track_t *t, uint32_t note, uint32_t vel)
         }
         nfree += !t->v[i].active;
     }
-    while (nfree && voices_busy() + voice_units(t) > VBUDGET) {
+    while (nfree && voices_busy_of(t) + voice_units(t) > VBUDGET) {
         track_t *vp = 0;
         uint32_t k = voice_victim(t, 0, &vp);
         if (k < np && vp == t && (!voice_fade_steal || !t->v[k].env_out)) {
@@ -636,12 +659,16 @@ static int32_t env_tick(track_t *t, voice_t *v)
 static int32_t midi_bend_q8[NTRK], midi_bend_target[NTRK];
 static int32_t part_side[CTL];
 static uint8_t part_side_on;
-static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
+/* side / side_on: the part's stereo side (part_side, or core 1's own: fx.c); lfo_pre: 0 = tick the LFO here, else the
+ * caller ticked it (before the hand-off to core 1, so the shared generator's draws keep one core's order: cr_cpu1.h)
+ * and this is the value it had before, the one the block renders with */
+static uint32_t track_render_x(track_t *t, int32_t *out, int32_t *side, uint8_t *side_on, uint32_t n,
+                               const int32_t *lfo_pre)
 {
     const engine_t *e = ENGINES[t->engine];
     const int16_t *p = t->p;
     uint32_t i;
-    int32_t lfo = mulq15(t->lfo_val, t->lfo_fade);
+    int32_t lfo = lfo_pre ? *lfo_pre : mulq15(t->lfo_val, t->lfo_fade);
     /* TUNE in cents: whole 1/16 semitones in the pitch, the rest as a fine factor (no dead zone) */
     int32_t tune = song.g[G_TUNE] >= 0 ? song.g[G_TUNE] * 16 / 100 : -((-song.g[G_TUNE] * 16 + 99) / 100);
     int32_t tune_fine = (song.g[G_TUNE] * 16 - tune * 100) * 2367 / 16000;   /* rest, in 1/4096 (1 ct = 2.367) */
@@ -661,16 +688,17 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     int16_t pe_new[8];
     for (i = 0; i < n; i++)
         out[i] = 0;
-    part_side_on = 0;
+    *side_on = 0;
     if (e->render2)
         for (i = 0; i < n; i++)
-            part_side[i] = 0;
+            side[i] = 0;
     if (fade)                                           /* engine switch: the old engine, its own values */
         for (i = 0; i < 8u; i++) {
             pe_new[i] = t->p[P_E0 + i];
             t->p[P_E0 + i] = t->pe_old[i];
         }
-    track_lfo_tick(t);
+    if (!lfo_pre)
+        track_lfo_tick(t);
     if (e->block)                                       /* the engine's per-part work (WHEEL: bars, rotor) */
         e->block(t);
     for (i = 0; i < NVOICE; i++) {
@@ -729,12 +757,12 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         if (v->vel > 110)                               /* accent opens the filter with the env */
             m.cutoff += (m.envq15 * 24) >> 7;
         m.shape = (64 << 8) + ((lfo * p[P_LD_SHP]) >> 7) + ((m.envq15 * p[P_ED_SHP]) >> 7);
-        if (mod.on)                                     /* the modulation matrix (mod.c) */
+        if (MODP(t).on)                                     /* the modulation matrix (mod.c) */
             mod_voice(t, v, &m, v->fine + tune_fine + bend_fine);
         /* 1/16 st and 1/4096 -> Q24 octaves: the voice's own offset (the matrix's pitch too), without TUNE and bend */
         m.plog = (m.pitch16 - tune - bend16 - v->pitch16) * 87381 + (m.fine - tune_fine - bend_fine) * 5909;
         if (e->render2)                                 /* (VA: SPREAD / USPREAD, a stereo side) */
-            part_side_on |= (uint8_t)e->render2(t, v, out, part_side, n, &m);
+            *side_on |= (uint8_t)e->render2(t, v, out, side, n, &m);
         else
             e->render(t, v, out, n, &m);
         nr++;
@@ -747,4 +775,8 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         t->xf--;
     }
     return nr;
+}
+static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
+{
+    return track_render_x(t, out, part_side, &part_side_on, n, 0);
 }

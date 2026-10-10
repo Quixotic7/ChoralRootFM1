@@ -12,7 +12,12 @@
 #define NVOICE 16                /* voice slots per part (FM6 plays Dexed's 16; Melodee's voice model) */
 #define NPOLY 8                  /* the voices of an engine without its own cap (its per-voice state: engines.c eng_state) */
 #define VBUDGET 16               /* the sounding voices of all parts, in units: a voice of an engine capped above NPOLY
-                                  * (FM6) takes one, any other two, so the others keep their shared eight */
+                                  * (FM6) takes one, any other two, so the others keep their shared eight. With the
+                                  * second core alive (CR_CPU1, cr_cpu1.h) parts 0 and 1 each have their own VBUDGET */
+#ifndef CR_CPU1
+#define CR_CPU1 0                /* ChoralRoot's bass part on the second core (cr_cpu1.h, docs/DUALCORE.md): choralroot.c
+                                  * and the emulator set 1; felucca.c, tests/hostsim.c and tests/regress.c build without */
+#endif
 #define NPART 4                  /* synth parts: tracks 1..4 */
 #define NTRK NPART               /* tracks (the formats and the protocol count these): every track is a part */
 #define NSTEP 64
@@ -437,6 +442,7 @@ typedef struct {
 
 static track_t trk[NTRK];        /* the instrument: four parts */
 static song_t song;
+#include "cr_cpu1.h"             /* the second core and the ISR's stage profile (cr_dbg) */
 #define TSEL (&trk[song.sel])    /* the selected track */
 
 /* SWING of a track's step clock: the track's own plus the global one, at most 100 (#31). The sequencer

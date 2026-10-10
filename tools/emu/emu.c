@@ -640,6 +640,12 @@ static void print_stats(void)
         printf("cpu: host instructions per UI frame avg %.0f, max %llu -> device estimate avg %.0f us, max %.0f us\n",
                (double)ist.ui_sum / (double)ist.ui_n, (unsigned long long)ist.ui_max,
                (double)ist.ui_sum / (double)ist.ui_n / DEV_INSTR_PER_US, (double)ist.ui_max / DEV_INSTR_PER_US);
+    {
+        char sb[400];
+        emu_fw_stages(sb, sizeof sb);
+        if (sb[0])
+            printf("cpu: %s\n", sb);
+    }
     printf("firmware: voices shed on overload %u, CPU meter %u %%; CPU lock: the UI held it at most %u us, "
            "the audio waited for it at most %u us\n", shed, cpu, emu_hal.ui_lock_max_us, emu_hal.audio_wait_max_us);
 }
@@ -697,7 +703,7 @@ static void ui_frame(double now_us)
                 log_m = e ? atof(e) : 1e12;
             }
             if ((double)di > log_m * 1e6) {
-                char info[400];
+                char info[640];
                 emu_fw_ui_info(info, sizeof info);
                 printf("ui: frame %llu at %.3f s: %.1f M instructions (%.0f us device): %s\n",
                        (unsigned long long)ust.frames, now_us / 1e6, (double)di / 1e6, (double)di / DEV_INSTR_PER_US,

@@ -252,6 +252,26 @@ static void con_cpu(void)
 #endif
     con_kv("ui_frame_max_ms", (int32_t)cpu_last.ui_max_ms);   /* the longest main-loop frame (15 ms nominal) */
     con_kv("ui_frames", (int32_t)cpu_last.ui_frames);
+#if CR_CPU1
+    {   /* the ISR's stages, the last second (cr_cpu1.h): per half, us; and the second core (docs/DUALCORE.md) */
+        uint32_t k;
+        char nm[24];
+        for (k = 0; k < CRP_N; k++) {
+            uint32_t l;
+            str_cpy(nm, "stage_", sizeof nm);
+            str_cpy(nm + 6, CRP_NAME[k], sizeof nm - 6u);
+            l = (uint32_t)str_len(nm);
+            str_cpy(nm + l, "_avg_us", sizeof nm - l);
+            con_kv(nm, (int32_t)cr_dbg.avg_us[k]);
+            str_cpy(nm + l, "_max_us", sizeof nm - l);
+            con_kv(nm, (int32_t)cr_dbg.max_us[k]);
+        }
+        con_kv("c1_state", (int32_t)cr_dbg.c1);                /* 0 off, 1 ok, 2 failed at start, 3 gave up on a job */
+        con_kv("c1_jobs", (int32_t)cr_dbg.c1_jobs);
+        con_kv("c1_stack_bytes", (int32_t)cr_dbg.c1_stack);    /* of 2816 */
+        con_kv("c1_start_us", (int32_t)cr_dbg.c1_start_us);
+    }
+#endif
 }
 
 static void con_dbg(void)
