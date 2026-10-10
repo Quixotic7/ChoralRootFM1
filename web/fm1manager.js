@@ -259,11 +259,16 @@ export class LibraryStore {
   constructor(idb = (typeof indexedDB !== "undefined" ? indexedDB : null)) { this.idb = idb; this.mem = new Map(); this.next = 1; this.db = null; }
   async open() {
     if (!this.idb || this.db) return;
-    this.db = await new Promise((resolve, reject) => {
-      const r = this.idb.open("choralroot-manager", 1);
-      r.onupgradeneeded = () => r.result.createObjectStore("items", { keyPath: "key", autoIncrement: true });
-      r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
-    }).catch(() => null);
+    this.db = await new Promise((resolve) => {        // (no IndexedDB, blocked, or no answer in 2 s: kept in memory)
+      const timer = setTimeout(() => resolve(null), 2000);
+      try {
+        const r = this.idb.open("choralroot-manager", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("items", { keyPath: "key", autoIncrement: true });
+        r.onsuccess = () => { clearTimeout(timer); resolve(r.result); };
+        r.onerror = r.onblocked = () => { clearTimeout(timer); resolve(null); };
+      } catch (_) { clearTimeout(timer); resolve(null); }
+    });
+    if (!this.db) this.idb = null;
   }
   tx(mode, f) {
     return new Promise((resolve, reject) => {

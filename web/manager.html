@@ -1,0 +1,527 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca)
+     The device manager (docs/DEVICE-MANAGER.md). Built by web/make_site.py: the LIB mark = fm1backup.js + fm1sounds.js +
+     fm1manager.js inlined, the packs (web/packs) inlined at the PACKS mark. ?sim=1: a simulated FM-1, no device. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>ChoralRoot FM-1 · device manager</title>
+<style>
+  @font-face { font-family: "Inter Tight"; src: url(../../InterTight.woff2) format("woff2");
+               font-weight: 100 900; font-display: swap; }
+  :root { --ground: #080808; --cream: #F6F2EE; --red: #E63829; --orange: #F67918; --yellow: #F6B600; --blue: #2950CD;
+          --green: #29B27B; --grey: #6A696A; --dark: #313031; --deep: #1A191A; --dim: #9A999A; --c: var(--red); }
+  * { box-sizing: border-box; }
+  html { background: var(--ground); }
+  body { margin: 0; background: var(--ground); color: var(--cream);
+         font: 400 16px/1.45 "Inter Tight", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 20px 16px 56px; }
+  a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { color: var(--orange); }
+  button { font: inherit; border: 0; border-radius: 2px; cursor: pointer; color: var(--cream); background: var(--dark); }
+  button:disabled { opacity: .3; cursor: default; }
+  button:focus-visible, select:focus-visible { outline: 3px solid var(--cream); outline-offset: 2px; }
+  .top { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; justify-content: space-between; }
+  .home { font-size: 14px; font-weight: 600; color: var(--dim); text-decoration: none; }
+  .home:hover { color: var(--cream); }
+  h1 { font-size: clamp(36px, 7vw, 60px); font-weight: 900; letter-spacing: -0.045em; line-height: .95; margin: 14px 0 0; }
+  .stripes { display: grid; gap: 4px; margin: 16px 0 18px; }
+  .stripes i { display: block; height: 8px; }
+  .stripes i:nth-child(1) { background: var(--red); } .stripes i:nth-child(2) { background: var(--orange); }
+  .stripes i:nth-child(3) { background: var(--cream); }
+  .conn { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 14px; font-weight: 700; }
+  .pill { padding: 4px 12px; border-radius: 99px; background: var(--dark); color: var(--dim); }
+  .pill.on { background: var(--green); color: #000; } .pill.sim { background: var(--yellow); color: #000; }
+  .pill.off { background: var(--red); color: #fff; }
+  #fw { color: var(--dim); }
+  .small { color: var(--dim); font-size: 13px; margin: 4px 0; }
+  #status { min-height: 1.5em; margin: 10px 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+  #status.err { color: var(--red); } #status.busy { color: var(--yellow); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1fr); gap: 14px; align-items: start; }
+  @media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } .mid { flex-direction: row !important; } }
+  .pane { background: var(--deep); border-top: 6px solid var(--c); min-width: 0; }
+  .pane h2 { margin: 0; padding: 12px 14px 4px; font-size: 26px; font-weight: 900; letter-spacing: -0.03em; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 14px 10px; }
+  .tabs button { padding: 5px 10px; font-size: 13px; font-weight: 800; background: var(--dark); color: var(--cream); }
+  .tabs button[aria-selected=true] { background: var(--tc, var(--cream)); color: #000; }
+  .lib-head { display: flex; gap: 8px; padding: 8px 14px 10px; align-items: center; flex-wrap: wrap; }
+  select { font: inherit; font-size: 14px; font-weight: 700; background: var(--dark); color: var(--cream); border: 0; padding: 6px 8px; border-radius: 2px; max-width: 100%; }
+  .lib-head label { font-size: 13px; color: var(--dim); display: flex; gap: 6px; align-items: center; }
+  ol.rows { list-style: none; margin: 0; padding: 0 0 8px; height: 470px; overflow-y: auto; }
+  ol.rows li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
+               padding: 7px 14px; border-bottom: 1px solid #222; cursor: pointer; font-size: 15px; }
+  ol.rows li:hover { background: #242324; }
+  ol.rows li.sel { background: var(--c); color: #000; }
+  ol.rows li.sel .pos, ol.rows li.sel .meta { color: #000; }
+  ol.rows li.swap-src { outline: 2px dashed var(--yellow); outline-offset: -2px; }
+  .pos { font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--dim); }
+  .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .factory .nm { color: #BDBABA; font-weight: 500; } .init .nm { color: var(--dim); font-weight: 500; }
+  li.sel.factory .nm, li.sel.init .nm { color: #000; }
+  .over { font-size: 12px; color: var(--orange); font-weight: 700; margin-left: 6px; }
+  li.sel .over { color: #000; }
+  .meta { font-size: 12px; color: var(--dim); white-space: nowrap; }
+  .badge { font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 4px 6px; border-radius: 2px; background: var(--cream); color: #000; }
+  .badge.empty { background: transparent; color: var(--grey); }
+  .chip { font-size: 11px; font-weight: 800; padding: 3px 6px; border-radius: 2px; color: #000; background: var(--tc, var(--grey)); }
+  .empty-note { padding: 16px 14px; color: var(--dim); font-size: 14px; }
+  .mid { display: flex; flex-direction: column; gap: 10px; padding-top: 110px; }
+  .mid button { padding: 14px 6px; font-weight: 900; font-size: 15px; letter-spacing: -0.01em; }
+  #place { background: var(--red); color: #fff; } #keep { background: var(--blue); color: #fff; }
+  #place-all { background: var(--dark); font-size: 12px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; padding: 12px 0; border-top: 3px solid var(--dark); }
+  .bar button { padding: 9px 13px; font-weight: 800; font-size: 14px; }
+  .bar button:not(:disabled):hover { background: var(--cream); color: #000; }
+  #undo { background: var(--orange); color: #000; margin-left: auto; }
+  progress { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 5px; border: 0; background: var(--dark); color: var(--cream); margin: 0; }
+  progress::-webkit-progress-bar { background: var(--dark); } progress::-webkit-progress-value { background: var(--cream); }
+  .kb-wrap { margin-top: 16px; display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 820px) { .kb-wrap { grid-template-columns: 1fr; } }
+  .kb-side { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--dim); min-width: 180px; }
+  .kb-side label { display: flex; gap: 8px; align-items: center; font-weight: 800; color: var(--cream); font-size: 15px; cursor: pointer; }
+  .kb-side input { accent-color: var(--orange); width: 18px; height: 18px; }
+  #midi-mon { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--yellow); min-height: 1.4em; }
+  .kb { position: relative; height: 150px; display: flex; user-select: none; touch-action: none; overflow-x: auto; }
+  .kb .w { flex: 1 0 34px; height: 100%; background: var(--cream); border-right: 2px solid var(--ground); border-radius: 0 0 3px 3px;
+           display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; font: 700 12px/1 ui-monospace, Menlo, monospace; color: var(--grey); }
+  .kb .b { position: absolute; top: 0; height: 60%; background: #111; border: 2px solid var(--ground); border-top: 0; border-radius: 0 0 3px 3px; z-index: 1;
+           display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; font: 700 11px/1 ui-monospace, Menlo, monospace; color: var(--grey); }
+  .kb .w.on { background: var(--orange); color: #000; } .kb .b.on { background: var(--orange); color: #000; }
+  .kb.bass .w.on, .kb.bass .b.on { background: var(--blue); color: #fff; }
+  details { margin-top: 22px; border-top: 3px solid var(--dark); padding-top: 12px; }
+  summary { cursor: pointer; font-weight: 800; font-size: 17px; }
+  footer { margin-top: 36px; padding-top: 14px; border-top: 3px solid var(--dark); }
+  footer p { color: var(--dim); font-size: 12px; margin: 4px 0; }
+  .nolink { pointer-events: none; opacity: .35; }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <a class="home" href="../../">← ChoralRoot FM-1</a>
+    <a class="home" href="index.html">Web installer →</a>
+  </div>
+  <h1>Device manager</h1>
+  <div class="stripes" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="top">
+    <div class="conn"><span id="conn" class="pill">not connected</span><span id="fw"></span>
+      <button id="connect" style="padding:5px 12px;font-weight:800">Connect</button></div>
+    <p class="small" id="needs">Chrome or Edge on a computer: Web MIDI with SysEx. The FM-1 over USB, as "ChoralRoot FM-1".</p>
+  </div>
+  <p id="status" role="status"></p>
+  <progress id="bar" max="100" value="0"></progress>
+
+  <div class="grid" style="margin-top:14px">
+    <section class="pane" id="left" aria-label="Your FM-1">
+      <h2>Your FM-1</h2>
+      <div class="tabs" id="eng-tabs" role="tablist"></div>
+      <ol class="rows" id="left-rows"></ol>
+    </section>
+    <div class="mid">
+      <button id="place" disabled title="Put the library's sound into the FM-1">← Place</button>
+      <button id="keep" disabled title="Copy the FM-1's sound into This browser">Keep →</button>
+      <button id="place-all" disabled title="Place every sound of the pack as added sounds">Place all</button>
+    </div>
+    <section class="pane" id="right" aria-label="Library" style="--c: var(--blue)">
+      <h2>Library</h2>
+      <div class="lib-head">
+        <select id="lib-src" aria-label="Library source"></select>
+        <button id="lib-files" style="padding:6px 10px;font-weight:800;font-size:14px">Add files…</button>
+        <label><input type="checkbox" id="lib-this" checked> this engine only</label>
+        <input id="lib-file" type="file" multiple accept=".json,.syx,application/json" hidden>
+      </div>
+      <ol class="rows" id="right-rows"></ol>
+    </section>
+  </div>
+
+  <div class="bar">
+    <button id="rename" disabled>Rename</button>
+    <button id="swap" disabled>Swap with…</button>
+    <button id="delete" disabled>Delete</button>
+    <button id="save-file" disabled>Save as a file</button>
+    <button id="lib-remove" disabled>Remove from library</button>
+    <button id="backup" disabled>Back up everything</button>
+    <button id="restore" disabled>Install a backup…</button>
+    <input id="restore-file" type="file" accept=".json,application/json" hidden>
+    <button id="undo" disabled>Undo</button>
+  </div>
+
+  <div class="kb-wrap">
+    <div class="kb-side">
+      <label><input type="checkbox" id="bass"> Bass (channel 2)</label>
+      <span>Mouse, or the computer keys A W S E D F T G Y H U J K O L P; Z / X octave.</span>
+      <span>Plain notes, velocity 100, on channel 1 (the chord part): the FM-1 plays them as a MIDI instrument, so its own chord-quality keys are not part of what you hear.</span>
+      <div id="midi-mon" aria-live="polite"></div>
+    </div>
+    <div class="kb" id="kb" aria-label="Keyboard"></div>
+  </div>
+
+  <details>
+    <summary>Device not found?</summary>
+    <p class="small">Check the USB cable (a data cable, directly on the computer, not through a hub), close other apps that use MIDI (the editor, a DAW holding the port), switch the FM-1 on: the page connects by itself when the port "ChoralRoot FM-1" appears. The FM-1 must run ChoralRoot (the <a href="index.html">installer</a> puts it on).</p>
+    <p class="small">Auditioning: the FM-1 takes a program change as a position in the pool of the engine it is on now, so selecting a row plays that row when the FM-1 is on the same engine (OPT + PRESETS changes it on the unit). Writes stop the sound for about 45 ms per object; a write while a loop plays is refused: stop the loop on the FM-1 first.</p>
+    <p class="small">Try the page without a device: <a href="?sim=1">?sim=1</a> (a simulated FM-1; the keyboard shows what it would send).</p>
+  </details>
+  <footer>
+    <p>ChoralRoot FM-1 (GPL-3.0): <a href="https://github.com/Quixotic7/ChoralRootFM1" target="_blank" rel="noopener">github.com/Quixotic7/ChoralRootFM1</a>. Built on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments. Font: Inter Tight (SIL OFL 1.1).</p>
+    <p>M-VAVE and FM-1 are trademarks of their respective owners. ChoralRoot is not affiliated with Telepathic Instruments, M-VAVE or Cuvave.</p>
+  </footer>
+</main>
+<script type="module">
+/*LIB*/
+const EMBED_PACKS = (/*PACKS*/null);
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const SIM = new URLSearchParams(location.search).get("sim") === "1";
+const PORT = "ChoralRoot FM-1";
+const COLORS = { 12: "#E63829", 15: "#F67918", 13: "#F6B600", 14: "#2950CD", 2: "#29B27B", 3: "#F6F2EE", 5: "#E63829", 6: "#F67918", 7: "#F6B600", 9: "#29B27B", 11: "#9A999A" };
+const colorOf = (e) => COLORS[poolOf(e)] || "#6A696A";
+const TAB0 = (new URLSearchParams(location.search).get("tab") || "").toUpperCase();   // ?tab=loops / ?tab=CZ-1: the tab to open on
+const ui = { tab: TAB0 === "LOOPS" ? "loops" : ENGINE_NAMES.indexOf(TAB0) >= 0 && MANAGER_ENGINES.includes(ENGINE_NAMES.indexOf(TAB0)) ? ENGINE_NAMES.indexOf(TAB0) : 12, left: null, right: null, swapFrom: null, libSrc: "browser", libItems: [], packs: [], busy: false };
+let session = null, firmware = "", link = null, output = null, sim = null, store = new LibraryStore();
+
+function say(text, cls = "") { $("status").textContent = text; $("status").className = cls; }
+const progress = (d, t) => { $("bar").value = t ? (d / t) * 100 : 0; };
+function download(name, data, type = "application/json") {
+  const blob = new Blob([data], { type }), a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const connected = () => !!session && !!session.objs;
+
+/* ---- MIDI out: the keyboard and the audition (sim: shown only) */
+function sendMidi(bytes) {
+  $("midi-mon").textContent = `${SIM ? "would send" : "sent"}: ${midiText(bytes)}`;
+  if (SIM) { sim.send(bytes); return; }
+  try { if (output && output.state !== "disconnected") output.send(bytes); } catch (_) {}
+}
+
+/* ---- the left pane */
+function renderTabs() {
+  const tabs = MANAGER_ENGINES.map((e) => `<button role="tab" data-e="${e}" style="--tc:${colorOf(e)}" aria-selected="${ui.tab === e}">${esc(ENGINE_NAMES[e])}</button>`);
+  tabs.push(`<button role="tab" data-e="loops" style="--tc:#F6F2EE" aria-selected="${ui.tab === "loops"}">LOOPS</button>`);
+  $("eng-tabs").innerHTML = tabs.join("");
+  $("left").style.setProperty("--c", ui.tab === "loops" ? "var(--cream)" : colorOf(ui.tab));
+}
+function leftRows() {
+  if (!connected()) return [];
+  return ui.tab === "loops" ? managerLoops(session.objs) : managerPools(session.objs)[ui.tab];
+}
+function renderLeft() {
+  renderTabs();
+  const rows = leftRows();
+  if (!connected()) { $("left-rows").innerHTML = `<li class="empty-note" style="display:block">${SIM ? "Reading the simulated FM-1…" : "Connect the FM-1 (USB) to see its sounds and loops."}</li>`; return; }
+  if (ui.tab === "loops") {
+    $("left-rows").innerHTML = rows.map((l, i) =>
+      `<li data-i="${i}" class="${l.used ? "user" : "init"}${ui.left === i ? " sel" : ""}${ui.swapFrom && ui.swapFrom.loop === l.slot ? " swap-src" : ""}">` +
+      `<span class="pos">${String(l.slot).padStart(2, "0")}</span><span class="nm">${l.used ? "holds a loop" : "empty"}</span>` +
+      `<span class="meta">${esc(loopSummary(l.header))}</span><span class="badge${l.used ? "" : " empty"}">L${String(l.slot).padStart(2, "0")}</span></li>`).join("");
+    return;
+  }
+  $("left-rows").innerHTML = rows.map((r, i) =>
+    `<li data-i="${i}" class="${r.type}${ui.left === i ? " sel" : ""}${ui.swapFrom && ui.swapFrom.row && ui.swapFrom.row.engine === r.engine && ui.swapFrom.row.pos === r.pos ? " swap-src" : ""}">` +
+    `<span class="pos">${String(r.pos).padStart(2, "0")}</span>` +
+    `<span class="nm">${esc(r.name)}${r.overwrites ? `<span class="over">over ${esc(r.overwrites)}</span>` : ""}</span>` +
+    `<span class="meta">${r.type === "init" ? "init" : r.type === "factory" ? "factory" : r.kind ? (r.patch ? r.kind + " patch" : "macros") : "macros"}</span>` +
+    `<span class="badge${r.slot ? "" : " empty"}">${r.slot ? esc(r.label) : "—"}</span></li>`).join("");
+}
+const selLeft = () => (ui.left == null ? null : leftRows()[ui.left] || null);
+
+/* ---- the library */
+async function loadLibrary() {
+  try {
+    if (ui.libSrc === "browser") ui.libItems = (await store.all()).map((it) => ({ ...it, source: "This browser" }));
+    else if (ui.libSrc === "files") ui.libItems = ui.fileItems || [];
+    else {
+      const entry = ui.packs.find((p) => p.file === ui.libSrc);
+      ui.libItems = entry ? (EMBED_PACKS && EMBED_PACKS.packs[entry.file]
+        ? libraryItemsFromFile(entry.file, JSON.stringify(EMBED_PACKS.packs[entry.file]))
+        : await loadPack(fetchJson, entry)) : [];
+    }
+  } catch (e) { ui.libItems = []; say(`Library: ${e.message}`, "err"); }
+  ui.right = null; renderRight(); refresh();
+}
+const fetchJson = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`); return r.json(); };
+function libVisible() {
+  const loops = ui.tab === "loops";
+  return ui.libItems.map((it, i) => ({ it, i })).filter(({ it }) => loops ? it.type === "loop"
+    : it.type === "sound" && (!$("lib-this").checked || it.pool === ui.tab));
+}
+function renderRight() {
+  const vis = libVisible();
+  if (!vis.length) {
+    const what = ui.tab === "loops" ? "loops" : $("lib-this").checked ? `${ENGINE_NAMES[ui.tab]} sounds` : "sounds";
+    $("right-rows").innerHTML = `<li class="empty-note" style="display:block">No ${esc(what)} here. ${ui.libSrc === "browser" ? "Keep a sound from the FM-1, or add files (sound files, .syx, packs, backups, loop files)." : ""}</li>`;
+    return;
+  }
+  $("right-rows").innerHTML = vis.map(({ it, i }, n) => it.type === "loop"
+    ? `<li data-i="${i}" class="user${ui.right === i ? " sel" : ""}"><span class="pos">${String(n + 1).padStart(2, "0")}</span><span class="nm">${esc(it.name)}</span><span class="meta">${esc(loopSummary(it.header))}</span><span class="chip" style="--tc:#F6F2EE">LOOP</span></li>`
+    : `<li data-i="${i}" class="user${ui.right === i ? " sel" : ""}"><span class="pos">${String(n + 1).padStart(2, "0")}</span><span class="nm">${esc(it.name)}</span>` +
+      `<span class="meta">${it.patch ? esc(it.kind) + " patch" : "macros"}</span><span class="chip" style="--tc:${colorOf(it.engine)}">${esc(ENGINE_NAMES[it.engine])}</span></li>`).join("");
+}
+function renderSources() {
+  const opts = [`<option value="browser">This browser</option>`, `<option value="files">Files${ui.fileItems ? ` (${ui.fileItems.length})` : ""}</option>`,
+    ...ui.packs.map((p) => `<option value="${esc(p.file)}">Pack: ${esc(p.name)} (${p.count})</option>`)];
+  $("lib-src").innerHTML = opts.join(""); $("lib-src").value = ui.libSrc;
+}
+const selRight = () => (ui.right == null ? null : ui.libItems[ui.right] || null);
+
+/* ---- the buttons' states */
+function refresh() {
+  const c = connected() && !ui.busy, l = selLeft(), r = selRight(), loops = ui.tab === "loops";
+  $("place").disabled = !c || !r || (loops ? r.type !== "loop" || !l : r.type !== "sound");
+  $("place-all").disabled = !c || loops || ui.libSrc === "browser" || !libVisible().length;
+  $("place-all").textContent = `Place all${libVisible().length && !loops ? " " + libVisible().length : ""}`;
+  $("keep").disabled = !c || !l || (loops ? !l.used : l.type !== "user");
+  $("rename").disabled = !c || loops || !l || l.type !== "user";
+  $("swap").disabled = !c || !l || (loops ? false : l.type === "init");
+  $("swap").textContent = ui.swapFrom ? "Cancel swap" : "Swap with…";
+  $("delete").disabled = !c || !l || (loops ? !l.used : l.type !== "user");
+  $("delete").textContent = !loops && l && l.overwrites ? "Reset to factory" : "Delete";
+  $("save-file").disabled = !(r || (c && l && (loops ? l.used : l.type === "user")));
+  $("lib-remove").disabled = !r || ui.libSrc !== "browser";
+  $("backup").disabled = $("restore").disabled = !c;
+  $("undo").disabled = !c || !session.canUndo;
+  $("undo").textContent = connected() && session.history.length ? `Undo (${session.history.length})` : "Undo";
+}
+
+/* ---- connecting */
+async function readDevice(msg = "Reading the FM-1…") {
+  ui.busy = true; refresh(); say(msg);
+  try { await session.read(progress); say(`${firmware || "FM-1"} read: ${parseSoundObjects(session.objs).slots.filter((s) => s.used).length} user sounds, ${managerLoops(session.objs).filter((l) => l.used).length} loops.`); }
+  catch (e) { say(e.message, "err"); }
+  finally { ui.busy = false; progress(0, 0); renderLeft(); refresh(); }
+}
+function setConn(state, text) { $("conn").className = `pill ${state}`; $("conn").textContent = text; }
+let midiAccess = null;
+async function connectMidi() {
+  if (SIM) return;
+  if (!navigator.requestMIDIAccess) { setConn("off", "no Web MIDI"); say("This browser has no Web MIDI: use Chrome or Edge on a computer.", "err"); return; }
+  try { midiAccess = midiAccess || await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (_) { setConn("off", "MIDI not allowed"); say("MIDI (SysEx) access was not allowed: allow it in the site settings (address bar) and press Connect.", "err"); return; }
+  midiAccess.onstatechange = () => { clearTimeout(ui.hot); ui.hot = setTimeout(attach, 300); };
+  await attach();
+}
+async function attach() {
+  const find = (m) => [...m.values()].find((p) => p.name && p.name.includes(PORT) && p.state !== "disconnected");
+  const input = find(midiAccess.inputs), out = find(midiAccess.outputs);
+  if (link && input && out && link.input === input && link.output === out) return;
+  if (link) { link.close(); link = null; }
+  if (!input || !out) {
+    session = null; output = null; firmware = ""; $("fw").textContent = "";
+    setConn("off", "FM-1 not found"); say('Connect the FM-1 over USB: the page waits for the port "ChoralRoot FM-1".'); renderLeft(); refresh(); return;
+  }
+  link = new BackupConnection(input, out); output = out;
+  const request = (r, o) => link.request(r, o);
+  const info = await deviceInfo(request);
+  if (!info || info.family !== "choralroot") {
+    setConn("off", info ? info.version : "no answer"); say("The FM-1 does not answer as ChoralRoot: install it with the installer first.", "err"); return;
+  }
+  firmware = info.version; $("fw").textContent = firmware;
+  session = new ManagerSession(request);
+  setConn("on", "connected");
+  await readDevice();
+}
+async function startSim() {
+  sim = makeSimFM1();
+  firmware = "ChoralRoot 0.15 (simulated)"; $("fw").textContent = firmware; $("connect").hidden = true;
+  setConn("sim", "simulated FM-1"); $("needs").textContent = "Simulator: a pretend FM-1 in this page. Writes change it only until the page reloads.";
+  session = new ManagerSession(sim.request);
+  await readDevice("Reading the simulated FM-1…");
+}
+
+/* ---- writes: every one through the session (undo kept, read back) */
+async function run(label, res, done) {
+  if (!res.changed.length) { say(`${label}: nothing changed.`); return; }
+  ui.busy = true; refresh(); say(`${label}…`);
+  try {
+    await session.apply(res);
+    say(done || `${label}: done.`);
+  } catch (e) { say(`${label}: ${writeErrorText(e)}`, e.rc === 3 ? "busy" : "err"); }
+  finally { ui.busy = false; renderLeft(); refresh(); }
+}
+const act = (f) => async () => { try { await f(); } catch (e) { say(e.message, "err"); } };
+
+$("place").addEventListener("click", act(async () => {
+  const r = selRight(), l = selLeft();
+  if (ui.tab === "loops") {
+    if (l.used && !confirm(`Loop slot ${l.slot} holds a loop. Replace it?`)) return;
+    return run(`Place into loop slot ${l.slot}`, placeLoop(session.objs, l.slot, r.file), `Placed into loop slot ${l.slot}.`);
+  }
+  if (l && l.type === "user" && l.engine === r.pool && !confirm(`Replace ${l.label} ${l.name} with ${r.name}?`)) return;
+  const res = managerPlace(session.objs, r.file, l);
+  const where = res.where === "over-factory" ? `over ${poolLabel(r.pool, l.pos)}` : res.where === "over-user" ? `into ${slotLabel(res.slot)}` : `as a new ${ENGINE_NAMES[r.pool]} sound`;
+  if (r.pool !== ui.tab) { ui.tab = r.pool; ui.left = null; }
+  await run(`Place ${r.name}`, res, `Placed ${r.name} ${where} (${slotLabel(res.slot)}).`);
+}));
+$("place-all").addEventListener("click", act(async () => {
+  const items = libVisible().map(({ it }) => it).filter((it) => it.type === "sound");
+  if (!confirm(`Place all ${items.length} sounds as added sounds (into the free user slots)?`)) return;
+  const res = managerPlaceAll(session.objs, items.map((it) => it.file));
+  await run("Place all", res, `Placed ${res.placed} sounds${res.skipped ? `; ${res.skipped} did not fit (32 user slots)` : ""}.`);
+}));
+$("keep").addEventListener("click", act(async () => {
+  const l = selLeft();
+  const file = ui.tab === "loops" ? keepLoop(session.objs, l.slot, { firmware }) : managerKeep(session.objs, l, { firmware });
+  const item = libraryItemsFromFile("kept.json", JSON.stringify(file))[0];
+  if (ui.tab === "loops") item.name = `loop ${l.slot} · ${new Date().toISOString().slice(0, 10)}`;
+  await store.add({ ...item, source: "This browser" });
+  say(`Kept ${ui.tab === "loops" ? `loop slot ${l.slot}` : l.name} in This browser.`);
+  if (ui.libSrc === "browser") await loadLibrary();
+}));
+$("rename").addEventListener("click", act(async () => {
+  const l = selLeft(), name = prompt(`New name for ${l.label} (1 to 12 characters: letters, digits, symbols, spaces)`, l.name);
+  if (name == null) return;
+  if (!nameValid(name)) { say("A name is 1 to 12 characters (ASCII letters, digits, symbols, spaces).", "err"); return; }
+  await run(`Rename ${l.label}`, managerRename(session.objs, l, name), `${l.label} is now ${name}.`);
+}));
+$("swap").addEventListener("click", () => {
+  const l = selLeft();
+  if (ui.swapFrom) { ui.swapFrom = null; say("Swap cancelled."); }
+  else { ui.swapFrom = ui.tab === "loops" ? { loop: l.slot } : { row: l }; say(ui.tab === "loops" ? `Swap loop slot ${l.slot} with… select the other slot.` : `Swap ${l.name} with… select the other row.`); }
+  renderLeft(); refresh();
+});
+async function finishSwap(target) {
+  const from = ui.swapFrom; ui.swapFrom = null;
+  try {
+    if (from.loop) return await run(`Swap loop slots ${from.loop} and ${target.slot}`, swapLoops(session.objs, from.loop, target.slot));
+    await run(`Swap ${from.row.name} and ${target.name}`, managerSwap(session.objs, from.row, target));
+  } catch (e) { say(e.message, "err"); renderLeft(); refresh(); }
+}
+$("delete").addEventListener("click", act(async () => {
+  const l = selLeft();
+  if (ui.tab === "loops") {
+    if (!confirm(`Delete the loop in slot ${l.slot}?`)) return;
+    return run(`Delete loop slot ${l.slot}`, deleteLoop(session.objs, l.slot), `Loop slot ${l.slot} is empty.`);
+  }
+  if (!confirm(l.overwrites ? `Delete ${l.label} ${l.name}? ${l.overwrites} comes back.` : `Delete ${l.label} ${l.name}?`)) return;
+  await run(`Delete ${l.label}`, managerDelete(session.objs, l), l.overwrites ? `${l.overwrites} is back.` : `${l.label} is empty.`);
+}));
+$("save-file").addEventListener("click", act(async () => {
+  const r = selRight(), l = selLeft();
+  if (r) { download(r.type === "loop" ? loopFileName(r.file.slot || 0) : `${SOUND_FORMAT}-${String(r.name).replace(/[^A-Za-z0-9-]/g, "_")}.json`, JSON.stringify(r.file, null, 1)); return; }
+  if (ui.tab === "loops") { download(loopFileName(l.slot), JSON.stringify(keepLoop(session.objs, l.slot, { firmware }), null, 1)); return; }
+  const file = managerKeep(session.objs, l, { firmware });
+  download(soundFileName(l.slot, file.name || ""), JSON.stringify(file, null, 1));
+}));
+$("lib-remove").addEventListener("click", act(async () => { const r = selRight(); await store.remove(r.key); say(`Removed ${r.name} from This browser.`); await loadLibrary(); }));
+$("backup").addEventListener("click", act(async () => {
+  ui.busy = true; refresh(); say("Backing up everything…");
+  try { const file = await captureBackup(session.request, firmware.replace(/ \(simulated\)$/, ""), progress); download(backupFileName(file.firmware), JSON.stringify(file)); say("Backup saved."); }
+  finally { ui.busy = false; progress(0, 0); refresh(); }
+}));
+$("restore").addEventListener("click", () => $("restore-file").click());
+$("restore-file").addEventListener("change", act(async () => {
+  const f = $("restore-file").files[0]; $("restore-file").value = "";
+  if (!f) return;
+  const file = readBackup(await f.text());
+  if (!confirm(`Install the backup ${f.name} (${file.firmware || "unknown firmware"})? Everything it holds replaces what is on the FM-1, then the FM-1 restarts.`)) return;
+  ui.busy = true; refresh(); say("Installing the backup…");
+  try {
+    const r = await restoreBackup(session.request, file, progress, { busyTries: 0 });
+    await restartDevice(session.request).catch(() => {});
+    session.history = [];
+    say(`Backup installed (${r.restored.length} objects). The FM-1 restarts…`);
+    setTimeout(() => (SIM ? readDevice() : null), SIM ? 300 : 0);
+  } catch (e) { say(`Install a backup: ${writeErrorText(e)}`, e.rc === 3 ? "busy" : "err"); }
+  finally { ui.busy = false; progress(0, 0); refresh(); }
+}));
+$("undo").addEventListener("click", act(async () => {
+  ui.busy = true; refresh(); say("Undo…");
+  try { const ids = await session.undo(); say(`Undone (${ids.map(objectName).join(", ")} written back).`); }
+  catch (e) { say(`Undo: ${writeErrorText(e)}`, e.rc === 3 ? "busy" : "err"); }
+  finally { ui.busy = false; renderLeft(); refresh(); }
+}));
+
+/* ---- selection, audition */
+$("eng-tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  ui.tab = b.dataset.e === "loops" ? "loops" : +b.dataset.e; ui.left = null; ui.right = null; ui.swapFrom = null;
+  renderLeft(); renderRight(); refresh();
+});
+$("left-rows").addEventListener("click", (e) => {
+  const li = e.target.closest("li[data-i]"); if (!li) return;
+  const row = leftRows()[+li.dataset.i];
+  if (ui.swapFrom) { finishSwap(row); return; }
+  ui.left = +li.dataset.i; renderLeft(); refresh();
+  if (ui.tab !== "loops") {
+    for (const m of auditionMessages(row, { bass: $("bass").checked })) sendMidi(m);
+    say(`${poolLabel(row.engine, row.pos)} ${row.name}${row.slot ? ` (${row.label})` : ""} · program change ${row.pos}: plays when the FM-1 is on ${ENGINE_NAMES[row.engine]}.`);
+  }
+});
+$("right-rows").addEventListener("click", (e) => {
+  const li = e.target.closest("li[data-i]"); if (!li) return;
+  ui.right = +li.dataset.i; renderRight(); refresh();
+});
+$("lib-src").addEventListener("change", () => { ui.libSrc = $("lib-src").value; loadLibrary(); });
+$("lib-this").addEventListener("change", () => { ui.right = null; renderRight(); refresh(); });
+$("lib-files").addEventListener("click", () => $("lib-file").click());
+$("lib-file").addEventListener("change", act(async () => {
+  const items = [], errs = [];
+  for (const f of $("lib-file").files) {
+    try { items.push(...libraryItemsFromFile(f.name, /\.syx$/i.test(f.name) ? new Uint8Array(await f.arrayBuffer()) : await f.text())); }
+    catch (e) { errs.push(e.message); }
+  }
+  $("lib-file").value = "";
+  ui.fileItems = [...(ui.fileItems || []), ...items]; ui.libSrc = "files"; renderSources();
+  await loadLibrary();
+  say(`${items.length} item${items.length === 1 ? "" : "s"} read${errs.length ? `; ${errs.join("; ")}` : ""}. Keep a sound in This browser by placing it, or Save as a file.`, errs.length ? "err" : "");
+}));
+$("connect").addEventListener("click", () => connectMidi());
+
+/* ---- the keyboard: two octaves; mouse and the computer keys (the emulator's Ableton layout) */
+const KEYS = "awsedftgyhujkolp;']";
+let octave = 4; const held = new Map();
+function buildKb() {
+  const whites = [], blacks = [];
+  for (let i = 0; i < 25; i++) {
+    const n = i % 12, black = [1, 3, 6, 8, 10].includes(n);
+    (black ? blacks : whites).push(i);
+  }
+  const wpc = 100 / whites.length;
+  $("kb").innerHTML = whites.map((i) => `<div class="w" data-k="${i}">${i % 12 === 0 ? "C" + (octave + Math.floor(i / 12) - 1) : ""}</div>`).join("") +
+    blacks.map((i) => { const left = whites.filter((w) => w < i).length; return `<div class="b" data-k="${i}" style="left:calc(${left * wpc}% - ${wpc * 0.32}%);width:${wpc * 0.64}%"></div>`; }).join("");
+  $("kb").classList.toggle("bass", $("bass").checked);
+}
+const noteOf = (k) => 12 * octave + k;
+function noteOn(k) {
+  if (held.has(k)) return;
+  const n = noteOf(k); held.set(k, n);
+  sendMidi(noteMessage(true, n, { bass: $("bass").checked }));
+  const el = $("kb").querySelector(`[data-k="${k}"]`); if (el) el.classList.add("on");
+}
+function noteOff(k) {
+  if (!held.has(k)) return;
+  const n = held.get(k); held.delete(k);
+  sendMidi(noteMessage(false, n, { bass: $("bass").checked }));
+  const el = $("kb").querySelector(`[data-k="${k}"]`); if (el) el.classList.remove("on");
+}
+let mouseKey = null;
+$("kb").addEventListener("pointerdown", (e) => { const el = e.target.closest("[data-k]"); if (!el) return; mouseKey = +el.dataset.k; noteOn(mouseKey); });
+addEventListener("pointerup", () => { if (mouseKey != null) { noteOff(mouseKey); mouseKey = null; } });
+addEventListener("keydown", (e) => {
+  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const k = KEYS.indexOf(e.key.toLowerCase());
+  if (k >= 0) { noteOn(k); e.preventDefault(); }
+  else if (e.key === "z" || e.key === "x") { for (const key of [...held.keys()]) noteOff(key); octave = Math.max(1, Math.min(8, octave + (e.key === "x" ? 1 : -1))); buildKb(); }
+});
+addEventListener("keyup", (e) => { const k = KEYS.indexOf(e.key.toLowerCase()); if (k >= 0) noteOff(k); });
+$("bass").addEventListener("change", () => { for (const key of [...held.keys()]) noteOff(key); buildKb(); });
+
+/* ---- start */
+(async () => {
+  buildKb(); renderLeft(); renderRight(); refresh();
+  try { ui.packs = EMBED_PACKS ? EMBED_PACKS.index : await loadPackIndex(fetchJson); } catch (_) { ui.packs = []; }
+  renderSources();
+  if (SIM) {
+    if (ui.packs.length) { ui.libSrc = ui.packs[0].file; renderSources(); }   // (the simulator opens on the first pack)
+    await startSim();
+  } else await connectMidi();
+  await loadLibrary();
+})();
+</script>
+</body>
+</html>

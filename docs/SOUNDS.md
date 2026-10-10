@@ -232,6 +232,14 @@ installer's other buttons as a restore does, show the status ("Writing U05 …",
 and refresh the table. Every error goes to the status line and the log as the page's other errors do. The section's
 text says what a sound file is and that Back up covers everything at once.
 
+## The device manager (`web/manager.html`, docs/DEVICE-MANAGER.md)
+
+The same objects and edits in a two-pane page (the FM-1's pools per engine and loop slots; a library). Additions to
+`web/fm1sounds.js` for it: `placeSound(objs, slot, sound, f)` imports with the binding set as SAVE > Overwrite sets it
+(`note[15]` 0xA6, `flags[15]` f + 1, or 0 for an added sound), `bindSound` moves a slot's binding, `swapSounds`
+exchanges two slots (in one pool the binding bytes stay with the slots, so the sounds exchange their places),
+`firstFreeSlot`. The factory sounds of every engine as sound files: `web/packs/` (`tools/make_packs.py`).
+
 ## The CLI (`tools/fm1_install.py`)
 
 | option | does |

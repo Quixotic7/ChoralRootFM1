@@ -227,6 +227,8 @@ if command -v node >/dev/null 2>&1; then
     if [ -f web/test_installer.mjs ]; then
         run "web installer: the page against a simulated FM-1 (node, no browser)" node web/test_installer.mjs
     fi
+    run "web sounds: slots as files, bindings, .syx" node web/test_sounds.mjs
+    run "web device manager: pools, place / keep / swap / undo, loops, packs (simulated FM-1)" node web/test_manager.mjs
 else
     echo "== skip web tests (no node)"
 fi

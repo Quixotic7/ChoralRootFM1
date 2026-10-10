@@ -9,6 +9,10 @@
                               JieLi SDK files under Apache-2.0, see LICENSING.md)
   webapp/installer/index.html index_pkg.html, self-contained (fm1pkg.js, fm1ota.js, fm1backup.js, fm1sounds.js,
                               metadata inlined)
+  webapp/installer/manager.html  the device manager (docs/DEVICE-MANAGER.md): manager.html, self-contained
+                              (fm1backup.js, fm1sounds.js, fm1manager.js and the packs of web/packs inlined; ?sim=1
+                              runs it against a simulated FM-1)
+  webapp/installer/packs/     web/packs/*.json (the packs as files, to download)
   emu/                        "Try it in the browser": build/emu-web/* (made by sh tools/emu/web/build_web.sh;
                               EMU_DIR or a 4th argument overrides; missing: a warning, the site is made without it)
   src/                        not touched
@@ -69,6 +73,20 @@ def landing(out, index):
     return written
 
 
+def manager_page():
+    """web/manager.html with /*LIB*/ (fm1backup.js, fm1sounds.js, fm1manager.js) and the packs (web/packs) inlined"""
+    html = (HERE / "manager.html").read_text(encoding="utf-8")
+    lib = "\n".join(strip_module((HERE / n).read_text(encoding="utf-8")) for n in ("fm1backup.js", "fm1sounds.js", "fm1manager.js"))
+    packs = HERE / "packs"
+    index = json.loads((packs / "index.json").read_text(encoding="utf-8")) if (packs / "index.json").is_file() else {"packs": []}
+    embed = {"index": [{**p, "url": "packs/" + p["file"]} for p in index["packs"]],
+             "packs": {p["file"]: json.loads((packs / p["file"]).read_text(encoding="utf-8")) for p in index["packs"]}}
+    for mark in ("/*LIB*/", "/*PACKS*/null"):
+        if html.count(mark) != 1:
+            raise SystemExit(f"manager.html must contain {mark} once; update make_site.py")
+    return html.replace("/*LIB*/", lib).replace("/*PACKS*/null", json.dumps(embed, separators=(",", ":")).replace("</", "<\\/"))
+
+
 def main(pkg, version, out, emu=None):
     pkg, out = Path(pkg), Path(out)
     emu = Path(emu or os.environ.get("EMU_DIR") or HERE.parent / "build" / "emu-web")
@@ -97,6 +115,13 @@ def main(pkg, version, out, emu=None):
     for old in [*fw.glob("choralroot-*.fwsc"), *fw.glob("felucca-*.fwsc")]:   # one package: the current one
         old.unlink()
     (inst / "index.html").write_text(html, encoding="utf-8")
+    mgr = manager_page()
+    (inst / "manager.html").write_text(mgr, encoding="utf-8")
+    packs_out = inst / "packs"
+    packs_out.mkdir(exist_ok=True)
+    pack_files = sorted((HERE / "packs").glob("*.json"))
+    for f in pack_files:
+        shutil.copy(f, packs_out / f.name)
     shutil.copy(pkg, fw / name)
     lic = HERE.parent / "LICENSES"                  # the package holds JieLi SDK files (Apache-2.0): their
     (fw / "LICENSES").mkdir(exist_ok=True)          # licence travels next to it, with Felucca's own
@@ -123,6 +148,7 @@ def main(pkg, version, out, emu=None):
               "landing page's 'Try it in the browser' link has no target; build it with sh tools/emu/web/build_web.sh",
               file=sys.stderr)
     print(f"site: {out}: {', '.join(site)}; webapp/installer/index.html ({len(html)} B); "
+          f"webapp/installer/manager.html ({len(mgr)} B, {len(pack_files)} pack files); "
           f"firmware/{name} ({len(raw)} B, {product}), firmware/LICENSE, firmware/LICENSING.md, "
           f"firmware/LICENSES/ ({len(names)} texts + index.html); {emu_note}")
 

@@ -39,6 +39,11 @@ python3 tools/fm1_install.py --sounds        # the 32 user sounds; --export-soun
 **Single sounds as files:** the installer page's Sounds section and the commands above export, import, rename and
 delete one user sound at a time (its record and its VA / FM6 / CZ-1 patch) as a small JSON file, without a restart.
 
+**The device manager** (`webapp/installer/manager.html` on the site, [docs/DEVICE-MANAGER.md](docs/DEVICE-MANAGER.md)):
+the FM-1's pools per engine and its ten loop slots next to a library (this browser, files, the factory packs); Place,
+Keep, Swap, Rename, Delete, Undo, a back-up, and an on-screen keyboard over Web MIDI. `manager.html?sim=1` runs it
+against a simulated FM-1, no device needed.
+
 **Back to the stock firmware:** the installer's "Return to official V15" section installs the official FM-1
 V15 firmware, `FM-1.fwsc`, which you download yourself from M-VAVE's
 [downloads page](https://www.m-vave.com/download) (or `python3 tools/fm1_install.py FM-1.fwsc --backup .`). It
