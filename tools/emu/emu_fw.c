@@ -337,6 +337,8 @@ void emu_fw_dump(void)
     printf("  boot: %s reset %s failed %u pending %u prev_stage %u\n", bootguard_mode_name(bootguard.mode),
            bootguard_class_name(bootguard.cls), (unsigned)bootguard.failed, (unsigned)bootguard.pending,
            (unsigned)felucca_dbg.prev_stage);
+    printf("  lcd: screen %s, %u writes, %u on/off commands\n", emu_hal.lcd_dark ? "off" : "on",
+           (unsigned)emu_hal.lcd_writes, (unsigned)emu_hal.lcd_power_cmds);
     printf("  flash: %s, %u writes, settings saves %u (record: %s)\n", emu_flash_path[0] ? emu_flash_path : "RAM only",
            (unsigned)emu_flash_writes, (unsigned)crs_saves, crs_last_rc == 1 ? "current" : crs_last_rc == 2 ? "migrated" : "defaults");
     printf("  voices: given up %u (budget fades + overload sheds %u), own voices taken for a new note %u\n",

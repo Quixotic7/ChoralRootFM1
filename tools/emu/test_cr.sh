@@ -7,7 +7,8 @@
 # "Key: C", D4 alone -> Dm; KEY held: select-key, a root sets the tonic; PERF held: the Perform picker, SELECT
 # picks the mode (the roots play there); PRESETS: the sound meter and another timbre; ALGORITHM: the bass on, a bass
 # note on part 1; presets per engine (cr_presets: docs/PRESETS.md);
-# End: PANIC (the red screen); 3 min without input: the stripes (the screensaver), a key dismisses it; after every release, parts 0 and 1 silent within 2 s.
+# End: PANIC (the red screen); 3 min without input: the stripes (the screensaver), a key dismisses it; 10 min: the
+# screen off (cr_screen_off: a key or a knob wakes it and acts, a loop playing does not keep it on); after every release, parts 0 and 1 silent within 2 s.
 # Screenshots: build/emu/test/cr_*.ppm (and the logs).
 set -u
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -170,6 +171,28 @@ p=$(pixel "$OUT/cr_idle_again.ppm" 120 150); set -- $p
 p=$(pixel "$OUT/cr_idle_woke.ppm" 120 150); set -- $p
 [ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 90 ] && bad "a key did not dismiss the screensaver ($p)" \
                                                  || ok "a key: the screensaver gone at once ($OUT/cr_idle_woke.ppm)"
+
+echo "the screen off: the logo at 3 min, the screen off at 10 min; a key / a knob wakes it and acts; a loop is not input"
+run cr_screen_off
+SO="$OUT/cr_screen_off.log"
+lit() { od -An -tu1 -v -j 15 "$1" | tr -s ' \n' '\n\n' | grep -v '^$' | awk '$1 > 24 { c++ } END { print c + 0 }'; }   # bytes > 24
+p=$(pixel "$OUT/cr_off_logo.ppm" 120 150); set -- $p
+[ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 90 ] && ok "3 min: the logo ($p): $OUT/cr_off_logo.ppm" || bad "no logo at 3 min ($p)"
+[ "$(lit "$OUT/cr_off_dark.ppm")" = 0 ] && [ "$(lit "$OUT/cr_off_view.ppm")" -gt 1000 ] &&
+    ok "10 min: the screen off, the panel black: $OUT/cr_off_dark.ppm" || bad "10 min: the panel not black ($(lit "$OUT/cr_off_dark.ppm") lit bytes)"
+w=$(grep '^  lcd:' "$SO" | sed -n 's/.*screen \([a-z]*\), \([0-9]*\) writes.*/\1 \2/p')
+set -- $w
+[ "$1" = off ] && [ "$3" = off ] && [ "$2" = "$4" ] && has '^screen: off (idle)' "$SO" &&
+    ok "the backlight off, no LCD write in the minute after ($2 = $4 writes)" || bad "LCD writes while off: $w"
+[ "$5" = on ] && [ "$(lit "$OUT/cr_off_key.ppm")" -gt 1000 ] && ! grep -q 'FAILED' "$SO" &&
+    [ "$(grep -A4 'screenshot: build/emu/test/cr_off_key.ppm' "$SO" | grep -c 'part 0: .*voices 3')" = 1 ] &&
+    ok "a key: the screen on, the view back, the chord sounding: $OUT/cr_off_key.ppm" || bad "a key did not wake it and play ($5)"
+[ "$7" = off ] && [ "$9" = on ] && [ "$(lit "$OUT/cr_off_knob.ppm")" -gt 1000 ] &&
+    [ "$(grep -A8 'screenshot: build/emu/test/cr_off_knob.ppm' "$SO" | grep -c 'voicing 2 ')" = 1 ] &&
+    ok "10 min more: off; a knob turn: on, and KNOB 1 turned (voicing 2): $OUT/cr_off_knob.ppm" || bad "a knob did not wake it / act ($7 $9)"
+[ "$(lit "$OUT/cr_off_loop.ppm")" = 0 ] && [ "${13}" = off ] && grep '^  loop:' "$SO" | tail -1 | grep -q 'state 2 ' &&
+    [ "$(grep -c '^expect sound.*: ok' "$SO")" = 5 ] &&
+    ok "a loop playing alone: the screen off after 10 min, the loop still playing: $OUT/cr_off_loop.ppm" || bad "loop: ${13}"
 
 echo "the other screens"
 run cr_layers

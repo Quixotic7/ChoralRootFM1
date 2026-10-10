@@ -72,6 +72,7 @@ static uint32_t fm1_input_note_edges(void) { return __atomic_exchange_n(&host_no
 static int32_t fm1_enc_take(uint32_t e) { return __atomic_exchange_n(&host_enc[e % 7u], 0, __ATOMIC_SEQ_CST); }
 
 /* ----------------------------------------------------- display --- */
+static void lcd_power(int on);
 static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
     uint32_t i, j;
@@ -80,8 +81,20 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
         for (i = 0; i < w && x + i < 240u; i++)
             emu_hal.lcd[(y + j) * 240u + x + i] = s;
     emu_hal.lcd_writes++;
+    if (emu_hal.lcd_dark)                         /* (lcd.c: main.c's one-shots light it) */
+        lcd_power(1);
 }
 static void lcd_sync(void) {}
+/* the backlight (hal/fm1_lcd_hw.h) and the screen off / on (src/lcd.c lcd_power: DISPOFF / DISPON + the backlight):
+ * emu_hal.lcd_dark, the panel and the shots show black while it is set */
+static void fm1_lcd_backlight(int on) { emu_hal.lcd_dark = (uint8_t)!on; }
+static void lcd_power(int on)
+{
+    if ((!on) == emu_hal.lcd_dark)
+        return;
+    emu_hal.lcd_power_cmds++;                     /* (DISPON / DISPOFF: the panel's RAM is kept) */
+    fm1_lcd_backlight(on);
+}
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 {
     uint32_t i, j;

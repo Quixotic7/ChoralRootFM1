@@ -762,6 +762,14 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
 /* ------------------------------------------------------------ UI state --- */
 enum { PG_NONE, PG_EDIT, PG_SAVE };
 enum { PU_METER, PU_VOICING, PU_BASS_VOICING };
+/* the screen when idle (no key, button, knob or MIDI channel message in; a loop playing, the arp, the metronome are
+ * not input): the logo (the stripes) after CR_IDLE_MS, then the screen off after CR_SCREEN_OFF_MS (DISPOFF and the
+ * backlight off, lcd.c lcd_power; no LCD writes while off, the UI keeps ticking: LEDs, looper, MIDI). The panel is a
+ * TFT: the backlight off stops the image retention ("burn") and its heat. Any input wakes it, the full view redrawn
+ * at once, and acts as usual (a key plays, a knob turns). Fixed: no setting (docs/INTEGRATION.md section 5) */
+#define CR_IDLE_MS 180000u                        /* 3 minutes: the logo */
+#define CR_SCREEN_OFF_MS 600000u                  /* 10 minutes: the screen off */
+
 static struct {
     uint32_t bheld;                       /* label bits held, as the scan last saw them */
     uint32_t kheld;                       /* key bits held */
@@ -782,6 +790,10 @@ static struct {
     uint8_t page;                         /* PG_* */
     uint32_t last_sound;                  /* the last time a chord sounded or a key was held */
     uint32_t last_input;                  /* the last key, button, knob or MIDI message in (the screensaver, CR_IDLE_MS) */
+    uint32_t last_local;                  /* .. the last key, button or knob (not MIDI: what wakes a SysEx screen off) */
+    uint32_t sx_local;                    /* last_local when SysEx 74 switched the screen off */
+    uint8_t screen_off;                   /* the screen is off (lcd_power(0)): nothing drawn */
+    uint8_t sx_off;                       /* SysEx 74 SCREEN 0: off until SysEx on or a key, button or knob */
     uint32_t home_t0;                     /* HOME pressed (held CU_HOME_HOLD_MS: the view menu) */
     uint8_t home_hold;                    /* .. armed (pressed alone, the menu not opened yet) */
     struct { uint32_t until; uint8_t kind, col, segs, jump, mark; uint16_t pct; char value[8], sub[12], label[24]; } pop;
@@ -2385,7 +2397,7 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
 /* ------------------------------------------------------------- the scan --- */
 static void cu_activity(void)
 {
-    cu.last_input = cu_now();                     /* (the screensaver's clock) */
+    cu.last_input = cu.last_local = cu_now();     /* (the screensaver's clock) */
     cu.home_hold = 0;                             /* HOME held with something else: no view menu */
     if (cu.armed != NB) {                         /* something touched during a hold: a combo, the layer at once */
         cu.combo = 1;
@@ -2549,7 +2561,7 @@ static void cu_btn_press(uint32_t b)
 {
     uint32_t octs = CU_BIT(B_OCTDN) | CU_BIT(B_OCTUP);
     cu.bheld |= CU_BIT(b);
-    cu.last_input = cu_now();
+    cu.last_input = cu.last_local = cu_now();
     if (b != BT_HOME)
         cu.home_hold = 0;
     if (b == B_OCTDN || b == B_OCTUP) {
@@ -4624,12 +4636,47 @@ static void cr_ui_frame(void)                      /* after the scan: the engine
     cr_leds();
 }
 
+/* SysEx 74 SCREEN (cr_backup.c): 0 the screen off until SysEx 1 or a key, button or knob (MIDI in does not wake it:
+ * a test driving the unit over MIDI keeps it dark); 1 on (as an input: the idle clocks restart) */
+static void cu_screen_sysex(int on)
+{
+    cu.sx_off = (uint8_t)!on;
+    cu.sx_local = cu.last_local;
+    if (on)
+        cu.last_input = cu_now();
+    cu_trace("screen: sysex %s\n", on ? "on" : "off");
+}
+
 static void cr_ui_draw(void)
 {
     uint32_t now = cu_now();
+    int off;
+    if (cu.sx_off && cu.last_local != cu.sx_local)  /* a key, button or knob: the SysEx off ends */
+        cu.sx_off = 0;
+    off = cu.sx_off || now - cu.last_input >= CR_SCREEN_OFF_MS;
     cr_build_screen(&cu_scr, now);
+    if (off) {                                    /* the screen off: the model ticks, nothing is drawn */
+        if (!cu.screen_off) {
+            cu.screen_off = 1;
+            lcd_sync();                           /* (the last strip's transfer) */
+            lcd_power(0);
+            cu_trace("screen: off (%s)\n", cu.sx_off ? "sysex" : "idle");
+        }
+        cu_animate(&cu_scr, now);
+        return;
+    }
+    if (cu.screen_off) {                          /* woken: the whole view at once (no sweep off the dark logo) */
+        if (ca.kind == CR_K_STRIPES)
+            ca.kind = CR_K_NONE;
+        cr_draw_invalidate();
+    }
     cu_animate(&cu_scr, now);
     cr_draw(&cu_scr, cr_anim_ms(&cu_anim, now));
+    if (cu.screen_off) {                          /* drawn: the backlight and DISPON */
+        cu.screen_off = 0;
+        lcd_power(1);
+        cu_trace("screen: on\n");
+    }
 }
 
 /* the pool position of engine e's factory preset named so (none: 1, the first) */
@@ -4736,7 +4783,7 @@ static void cr_ui_init(void)
     if (cr_safe)
         cu.opt_sel = O_SAFE;                      /* Options opens on Safe Mode (then Flash Data) */
     cu_boot_ms = cu_now();                        /* the splash: the idle stripes' first CR_SPLASH_MS */
-    cu.last_input = cu_boot_ms;
+    cu.last_input = cu.last_local = cu_boot_ms;
     cr_anim_mark(&cu_anim, cu_boot_ms);
     cr_draw_invalidate();
 }

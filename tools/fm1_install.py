@@ -13,6 +13,8 @@ the FM-1 restarts and the installed identity is checked.
   fm1_install.py FM-1.fwsc            (the official V15 file: back to the stock firmware)
   fm1_install.py --info [--port NAME]
   fm1_install.py --debug              (ChoralRoot: the device's diagnostic counters, read-only; docs/USB-AUDIO.md)
+  fm1_install.py --screen off|on      (ChoralRoot: the screen off until --screen on or a key, button or knob on the
+                                       unit; MIDI in does not wake it: tests over MIDI keep it dark)
   fm1_install.py --backup FILE        (save what is stored on the FM-1: settings, user sounds, loops, samples ...)
   fm1_install.py --restore FILE       (write a backup back; ChoralRoot restarts afterwards)
   fm1_install.py PACKAGE.fwsc --backup FILE [--restore FILE]   (back up, install, restore onto the new firmware)
@@ -447,6 +449,7 @@ class Updater:
 BK_HDR = bytes([0xF0, 0x7D, 0x46, 0x4C])
 BK_INFO, BK_LIST, BK_GET, BK_PUT, BK_RESTART = 1, 65, 66, 67, 72
 BK_DEBUG = 73                                     # read-only counters (cr_backup.c crb_debug), --debug
+BK_SCREEN = 74                                    # the screen off (0) / on (1) (cr_backup.c, cr_ui.c), --screen
 DEBUG_NAMES = ["ms", "halves", "max_us", "late", "nested", "timer_irqs", "ui_frames", "last_us",
                "cpu_avg_us", "cpu_max_us", "cpu_max_all_us", "cpu_halves", "c1_state", "c1_jobs",
                "st_tick_us", "st_part0_us", "st_part1_us", "st_fx_us", "st_master_us", "st_wait_us",
@@ -1646,6 +1649,18 @@ def run(a, backend, out, ask):
     up = Updater(backend, a.port)
     if sound_op(a):
         return run_sounds(up, a, out, ask)
+    if getattr(a, "screen", None):
+        dev = up.find()
+        if not dev or dev.id.loader:
+            raise not_found(up)
+        try:
+            r = BackupLink(dev.link).request(BK_SCREEN, [1 if a.screen == "on" else 0], 1.5)
+        finally:
+            dev.link.close()
+        if r != [0]:
+            raise BackupError("unexpected screen reply")
+        print(f"screen {a.screen}", file=out)
+        return 0
     if getattr(a, "debug", False):
         dev = up.find()
         if not dev or dev.id.loader:
@@ -1755,6 +1770,9 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     ap.add_argument("package", nargs="?", help="Felucca package (.fwsc)")
     ap.add_argument("--info", action="store_true", help="print the identity of the connected FM-1")
     ap.add_argument("--debug", action="store_true", help="print ChoralRoot's diagnostic counters (read-only)")
+    ap.add_argument("--screen", choices=("off", "on"), help="ChoralRoot: switch the screen off (until --screen on or a "
+                                                            "key, button or knob on the unit; MIDI in does not wake it) "
+                                                            "or on")
     ap.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
     ap.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     ap.add_argument("--force", action="store_true", help="install a package without the Felucca loader marker, or over a "
@@ -1807,8 +1825,10 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
         ap.error("--info goes alone")
     if a.debug and (a.info or a.package or a.backup or a.restore or ops):
         ap.error("--debug goes alone")
-    if not (a.debug or a.info or a.package or a.backup or a.restore or ops):
-        ap.error("give a PACKAGE.fwsc, --backup FILE, --restore FILE, --info or --sounds")
+    if a.screen and (a.debug or a.info or a.package or a.backup or a.restore or ops):
+        ap.error("--screen goes alone")
+    if not (a.screen or a.debug or a.info or a.package or a.backup or a.restore or ops):
+        ap.error("give a PACKAGE.fwsc, --backup FILE, --restore FILE, --info, --sounds or --screen off|on")
     try:
         if backend is None:
             try:

@@ -38,6 +38,8 @@ typedef struct {
     uint8_t led[EMU_NCOL], led_dim[EMU_NCOL];   /* fm1_led / fm1_led_dim: packed row bits per column */
     uint16_t lcd[EMU_LCD_W * EMU_LCD_H];        /* the panel's RAM, RGB565 as sent (big-endian) */
     volatile uint32_t lcd_writes;               /* bumped by every fill / blit */
+    volatile uint8_t lcd_dark;                  /* lcd_power(0): DISPOFF + the backlight off (the panel shows black) */
+    volatile uint32_t lcd_power_cmds;           /* DISPOFF / DISPON sent (lcd_power) */
     /* the panel: label -> matrix id (firmware panel.c), role -> matrix encoder and direction */
     uint8_t btn_id[EMU_NB];
     uint8_t enc_id[EMU_NE - 1];

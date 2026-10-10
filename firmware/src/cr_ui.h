@@ -16,6 +16,5 @@
 
 #define CR_VERSION "ChoralRoot 0.1"
 #define CR_POPUP_MS 900u          /* a knob's meter stays this long after the last turn (INTEGRATION section 5) */
-#define CR_IDLE_MS 180000u        /* no input (keys, buttons, knobs, MIDI in) this long: the screensaver (the stripes) */
 #define CR_PANIC_MS 1100u         /* the red PANIC screen */
 #define CR_MSG_MS 1200u           /* a message box */

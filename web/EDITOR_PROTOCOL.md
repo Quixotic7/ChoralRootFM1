@@ -614,6 +614,7 @@ each commit, no RESTART.
 | 67 BACKUP_PUT | as above | as above |
 | 72 RESTART | — | rc (0); then the device restarts (about 150 ms later, once the reply has left) |
 | 73 DEBUG | — | read-only diagnostics, not a backup object (LIST does not name it): `1, count`, then `count` x u32 (5 x 7 bits each): the audio ISR's and the USB recording's counters and its event log, in the order `tools/fm1_install.py --debug` names them (`DEBUG_NAMES`; firmware `cr_backup.c crb_debug`; docs/USB-AUDIO.md "Reading the counters"). Other clients ignore it |
+| 74 SCREEN | `0` off / `1` on | `0` (rc). The screen off: DISPOFF and the backlight off, nothing drawn, as after 10 minutes without input (docs/INTEGRATION.md section 5); it stays off until `74 SCREEN 1` or a key, button or knob on the unit (which also acts as usual). MIDI in does not wake a screen switched off this way, so a test driving the unit over MIDI keeps it dark. Any other payload: no reply. `tools/fm1_install.py --screen off\|on`; firmware `cr_backup.c` / `cr_ui.c cu_screen_sysex`. Other clients ignore it |
 
 Objects (Felucca's ids where Felucca has the same object; 9..21 and 40..49 are ChoralRoot's):
 

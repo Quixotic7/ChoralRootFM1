@@ -15,7 +15,7 @@
  * defaults, the banks and the FM6 bank as they are (Felucca 1.0's 27-slot FM6 bank too, imported at the next boot),
  * ids 0 / 2..5 / 32..34 refused, the SMP_* commands unanswered; the Sounds (docs/SOUNDS.md): single slots imported,
  * renamed, deleted and replaced by another engine through whole-object PUTs, usable at once (name, engine, patch), a
- * bad blob / bank header refused with nothing written, LIST's sizes and CRCs; RESTART. */
+ * bad blob / bank header refused with nothing written, LIST's sizes and CRCs; SCREEN (74: off / on); RESTART. */
 #include <os/lock.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -638,6 +638,50 @@ int main(void)
               find(man, nman, 13)->size == 2320 && find(man, nman, 13)->crc == st_crc32((uint8_t *)&c1, sizeof c1) &&
               find(man, nman, 12)->size == 0, "sounds: LIST: bank 1 and CZ-1 half 1 as written");
 #endif
+    }
+
+    /* ---- 74 SCREEN: off until SysEx on or a key / button / knob; MIDI in does not wake it ---- */
+    {
+        uint32_t w;
+        fm1_ms += 20u;
+        cr_ui_draw();
+        CHECK(!emu_hal.lcd_dark, "SCREEN: lit before");
+        t_begin(74);
+        t_b(0);
+        a = t_send(&n);
+        CHECK(a && n == 1 && a[0] == 0, "SCREEN 0: rc 0");
+        cr_ui_draw();
+        w = emu_hal.lcd_writes;
+        CHECK(emu_hal.lcd_dark && cu.screen_off, "SCREEN 0: the screen off (DISPOFF, the backlight off)");
+        fm1_ms += 20u;
+        cr_in_msg_n++;                               /* a MIDI channel message in */
+        cu_midi_poll();
+        cr_ui_draw();
+        CHECK(emu_hal.lcd_dark && emu_hal.lcd_writes == w, "SCREEN 0: MIDI in keeps it off, nothing drawn");
+        fm1_ms += 20u;
+        cu_activity();                               /* a key, button or knob */
+        cr_ui_draw();
+        CHECK(!emu_hal.lcd_dark && emu_hal.lcd_writes > w, "SCREEN 0, then a knob: on, the view redrawn");
+        t_begin(74);
+        t_b(0);
+        a = t_send(&n);
+        fm1_ms += 20u;
+        cr_ui_draw();
+        CHECK(emu_hal.lcd_dark, "SCREEN 0 again: off");
+        t_begin(74);
+        t_b(1);
+        a = t_send(&n);
+        CHECK(a && n == 1 && a[0] == 0, "SCREEN 1: rc 0");
+        fm1_ms += 20u;
+        cr_ui_draw();
+        CHECK(!emu_hal.lcd_dark, "SCREEN 1: on");
+        t_begin(74);
+        a = t_send(&n);
+        CHECK(!a, "SCREEN without its byte: no reply");
+        t_begin(74);
+        t_b(2);
+        a = t_send(&n);
+        CHECK(!a, "SCREEN 2: no reply");
     }
 
     /* ---- RESTART ---- */

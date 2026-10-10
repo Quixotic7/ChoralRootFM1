@@ -741,13 +741,19 @@ static void mkdir_parent(const char *path)       /* mkdir -p of the file's direc
             *q = '/';
         }
 }
+/* what the panel shows: its RAM, or black while the screen is off (DISPOFF, the backlight off: emu_hal.lcd_dark) */
+static const uint16_t *lcd_shown(void)
+{
+    static const uint16_t black[EMU_LCD_W * EMU_LCD_H];
+    return emu_hal.lcd_dark ? black : emu_hal.lcd;
+}
 /* the LCD to a file: PPM if the name ends in .ppm, else PNG */
 static int write_lcd(const char *path)
 {
     int r;
     mkdir_parent(path);
-    r = has_ext(path, ".ppm") ? emu_write_ppm(path, emu_hal.lcd, EMU_LCD_W, EMU_LCD_H)
-                              : emu_write_png(path, emu_hal.lcd, EMU_LCD_W, EMU_LCD_H);
+    r = has_ext(path, ".ppm") ? emu_write_ppm(path, lcd_shown(), EMU_LCD_W, EMU_LCD_H)
+                              : emu_write_png(path, lcd_shown(), EMU_LCD_W, EMU_LCD_H);
     printf(r == 0 ? "screenshot: %s\n" : "screenshot: cannot write %s\n", path);
     return r;
 }
@@ -780,7 +786,7 @@ static void record_frame(void)
 {
     char p[1200];
     snprintf(p, sizeof p, "%srec/%04u.ppm", out_dir, rec_n++);
-    emu_write_ppm(p, emu_hal.lcd, EMU_LCD_W, EMU_LCD_H);
+    emu_write_ppm(p, lcd_shown(), EMU_LCD_W, EMU_LCD_H);
 }
 static void toggle_record(void)
 {
@@ -1257,6 +1263,7 @@ static int out_w, out_h, fr_x, fr_y;            /* renderer output (pixels), the
 static float dpi = 1;
 static uint16_t lcd_rgb[EMU_LCD_W * EMU_LCD_H];
 static uint32_t lcd_seen = 0xFFFFFFFFu;
+static uint8_t lcd_seen_dark;
 static uint32_t panel_seen = 1;              /* the whole panel to redraw (resize, expose) */
 static int timer_run = 1;
 static uint32_t stall_max;                       /* the main loop's longest pass (ms) */
@@ -1358,10 +1365,12 @@ static void present(void)
         if (ow != out_w || oh != out_h)
             relayout();
     }
-    if (emu_hal.lcd_writes != lcd_seen) {
+    if (emu_hal.lcd_writes != lcd_seen || emu_hal.lcd_dark != lcd_seen_dark) {   /* (the screen off: black) */
+        const uint16_t *src = lcd_shown();
         lcd_seen = emu_hal.lcd_writes;
+        lcd_seen_dark = emu_hal.lcd_dark;
         for (i = 0; i < EMU_LCD_W * EMU_LCD_H; i++)
-            lcd_rgb[i] = (uint16_t)((emu_hal.lcd[i] >> 8) | (emu_hal.lcd[i] << 8));
+            lcd_rgb[i] = (uint16_t)((src[i] >> 8) | (src[i] << 8));
         SDL_UpdateTexture(t_lcd, NULL, lcd_rgb, EMU_LCD_W * 2);
         SDL_UpdateTexture(t_lcd_small, NULL, lcd_rgb, EMU_LCD_W * 2);
         if (recording)

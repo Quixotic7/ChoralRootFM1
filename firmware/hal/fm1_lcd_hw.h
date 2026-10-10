@@ -9,6 +9,7 @@
  *   fm1_lcd_send_data(p, n)    D/C high, CS low, DMA n bytes from RAM p
  *   fm1_lcd_wait()             SPI done (or timeout, counted), pending cleared
  *   fm1_lcd_deselect()         CS high
+ *   fm1_lcd_backlight(on)      PA2: 1 lit, 0 dark (active low; the screen off: src/lcd.c lcd_power)
  */
 #pragma once
 #include <stdint.h>
@@ -45,6 +46,14 @@ FM1_INLINE void fm1_lcd_hw_init(void)
 }
 
 FM1_INLINE void fm1_lcd_baud(uint32_t b) { FM1_LCD_SPI_BAUD = b; }
+
+FM1_INLINE void fm1_lcd_backlight(int on)          /* PA2 low: lit (fm1_lcd_hw_init leaves it lit) */
+{
+    if (on)
+        FM1_LCD_PA_OUT &= ~FM1_LCD_BL;
+    else
+        FM1_LCD_PA_OUT |= FM1_LCD_BL;
+}
 
 static void fm1_lcd_wait(void)
 {

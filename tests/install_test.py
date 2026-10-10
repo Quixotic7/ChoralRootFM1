@@ -190,6 +190,9 @@ class BackupSide:
             if cmd >= 13:
                 self.log.append(32 + a[0])
             return [a[0], a[1], a[2], a[3], 0] if cmd == 12 else [a[0], 0]
+        if cmd == I.BK_SCREEN and self.version.startswith("ChoralRoot") and len(a) == 1 and a[0] <= 1:
+            self.log.append(f"screen {a[0]}")
+            return [0]
         if cmd == I.BK_RESTART and self.version.startswith("ChoralRoot"):
             self.restarts += 1
             return [0]
@@ -492,6 +495,23 @@ def backups():
     bad.write_text(json.dumps({**f, "objects": [{**f["objects"][1], "crc": f["objects"][1]["crc"] ^ 1}]}))
     rc, out, err = cli(["--restore", str(bad), "--yes"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: BackupSide("ChoralRoot 0.1", I.CR_IDS)))
     ok(rc == 2 and "damaged" in err, "--restore of a damaged file: exit 2 before any request")
+
+
+def screen():
+    cr = BackupSide("ChoralRoot 0.1", I.CR_IDS)
+    dev = FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr)
+    rc, out, err = cli(["--screen", "off"], dev)
+    rc2, out2, err2 = cli(["--screen", "on"], dev)
+    ok(rc == 0 and rc2 == 0 and "screen off" in out and "screen on" in out2 and cr.log == ["screen 0", "screen 1"] and
+       dev.sent[-1] == bytes([0xF0, 0x7D, 0x46, 0x4C, 74, 1, 0xF7]),
+       "--screen off / on: 74 SCREEN F0 7D 46 4C 4A 00|01 F7, rc 0")
+    rc, out, err = cli(["--screen", "off"], FakeFM1(b"", identity="FM-1_910", bk=lambda _i: BackupSide("FELUCCA 1.0", I.FELUCCA_IDS)))
+    ok(rc != 0 and "no answer" in err, "--screen on Felucca (no SCREEN): an error")
+    try:
+        cli(["--screen", "off", "--info"], dev)
+        ok(False, "--screen with --info refused")
+    except SystemExit as e:
+        ok(e.code == 2, "--screen goes alone")
 
 
 def sound_rec(engine, name, ver=4, np=40, used=0xA5, seed=0):
@@ -930,6 +950,7 @@ def bindings():
 
 wire()
 backups()
+screen()
 sounds()
 syx()
 bindings()

@@ -9,6 +9,9 @@
  *   66 GET      id, offset u32, count (<= 256) -> id, rc, offset u32, count, pack7 data
  *   67 PUT      0 begin (id, size u32, crc u32) / 1 data (id, offset u32, pack7) / 2 commit (id) / 3 abort (id)
  *   72 RESTART  -> rc; the device restarts (everything restored loads from flash)
+ *   73 DEBUG    -> version 1, count, count x u32: the diagnostic counters (read-only)
+ *   74 SCREEN   0 off / 1 on -> rc 0: the screen off (DISPOFF, the backlight off, nothing drawn) until 1 or a key,
+ *               button or knob on the unit (MIDI in does not wake it), as the idle timer's (cr_ui.c cu_screen_sysex)
  *
  * Objects (Felucca's ids where Felucca has them; 9 and 40..49 are ChoralRoot's):
  *   1 settings (persist_t PER5: Felucca's fields + cr_settings_t; a PUT takes PER1..PER5, settings_persist.c migrates)
@@ -44,7 +47,7 @@
 #define CRB_HDR0 0x7Du
 #define CRB_HDR1 0x46u
 #define CRB_HDR2 0x4Cu
-enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72, CRB_DEBUG = 73 };
+enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72, CRB_DEBUG = 73, CRB_SCREEN };
 #define CRB_LOOP0 40u                                /* loop slot k: id 40 + k */
 #define CRB_VA 9u
 #define CRB_FM6S 10u                                 /* 10, 11: the FM6 patch store's halves */
@@ -596,6 +599,12 @@ static int crb_handle(const uint8_t *f, uint32_t n)
         if (na)
             return 0;
         crb_debug();
+        break;
+    case CRB_SCREEN:                                 /* (not a backup object) */
+        if (na != 1u || a[0] > 1u)
+            return 0;
+        cu_screen_sysex(a[0]);
+        crb_b(0);
         break;
     case CRB_RESTART:
         if (na)

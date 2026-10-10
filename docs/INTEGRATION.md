@@ -268,6 +268,20 @@ Priority, top down, first match wins:
    a loop playing alone or a chord still ringing is not). Any input brings the view back at once. Before 2026-10-09 the
    stripes came back 3 s after the last chord stopped sounding (and after every PANIC), which read as the logo popping
    up all the time. Test: `cr_panic.txt` (4 s: no stripes; 3 min: the stripes; a key: gone).
+7. the screen off: after **10 minutes without input** (`CR_SCREEN_OFF_MS` 600 000; both timeouts are constants in
+   `cr_ui.c`, no setting) the screen goes off: DISPOFF (ST7789 0x28) and the backlight off (PA2, `fm1_lcd_backlight`;
+   `lcd.c lcd_power`), and nothing is drawn (no LCD writes: the bus is quiet). The UI keeps ticking: the LEDs, the
+   looper, the arp, the metronome and MIDI go on (none of them is input: a long loop playing alone lets the screen go
+   off, the LEDs show it). The panel is a TFT (IPS), not an OLED: the "burn" is image retention and the backlight's
+   heat, which the backlight off ends. Any key, button, knob or MIDI channel message in wakes it: the whole current
+   view redrawn at once (the strip cache invalidated, no sweep off the logo), the backlight and DISPON; the press or
+   turn that wakes it also acts as usual (a key plays, a knob changes its value: nothing swallowed). The same in SAFE
+   MODE and on the Options pages. A full-screen fill from `main.c` (the crash screen, UBOOT, an update) lights the
+   panel again. **SysEx 74 SCREEN** (`cr_backup.c`, web/EDITOR_PROTOCOL.md; `tools/fm1_install.py --screen off|on`)
+   switches it off by the same path until `SCREEN 1` or a key, button or knob on the unit; MIDI in does not wake a
+   screen switched off this way (a test driving the unit over MIDI keeps it dark). Tests: `cr_screen_off.txt` in
+   `tools/emu/test_cr.sh` (3 min the logo, 10 min black with no LCD write for a minute, a key wakes it and plays, a
+   knob wakes it and turns, a loop alone does not keep it on), `tests/cr_backup_test.c` (SCREEN), `tests/install_test.py`.
 
 ## 6. LEDs (`cr_leds()`)
 
@@ -392,7 +406,7 @@ its deep pages under the cz band and the tone store; `cr_cz.txt`, `cz_persist_*.
   voicing, KNOB 3 the mode's main parameter, KNOB 4 FX amount, PRESETS the chord sound (Felucca's factory presets of
   the melodic engines, POLY), ALGORITHM the bass (presets named BASS / ACID; 0 = OFF), SELECT tempo (in a picker:
   move); OPT + ALGORITHM bass level. Options: a picker of 18 settings (USB Record and USB Level since 0.14, docs/USB-AUDIO.md), KNOB 1 sets. `cr_build_screen` in the order
-  of section 5 (PANIC / message, knob meter 900 ms, layer, page, Options, the stripes (the splash; the screensaver after 3 min without input), the View: CHORD,
+  of section 5 (PANIC / message, knob meter 900 ms, layer, page, Options, the stripes (the splash; the screensaver after 3 min without input; the screen off after 10 min), the View: CHORD,
   KEYBOARD, NOTES, GEEK OUT; perform on never swaps the chosen view: it shows in the PERF LED and the top
   line's right text only); `cr_leds` as section 6.
 - **Sounds** (`cr_bank.c`, `cr_pages.c`, `cr_name.c`; section 7, docs/PRESETS.md): PRESETS turns the pool of the

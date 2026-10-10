@@ -1,0 +1,56 @@
+# ChoralRoot: the screen when idle (docs/INTEGRATION.md section 5). A chord, then no input: the view, the logo after
+# 3 min, the screen off after 10 min (DISPOFF + the backlight off: the shot black, no LCD write for a further minute).
+# A key wakes it and plays (the view back, the chord sounding); 10 min more: off again, a knob turn wakes it and
+# changes the value (KNOB 1: voicing 2). A loop playing does not keep it on: off 10 min later, the loop still playing.
+wait 300
+key F3 down
+wait 60
+btn D4 down
+wait 540
+expect sound
+btn D4 up
+key F3 up
+wait 4000
+shot build/emu/test/cr_off_view.ppm         # 5 s: the view
+expect sound                                 # (the release tail; the mark for the silence below)
+wait 176000
+shot build/emu/test/cr_off_logo.ppm         # 3 min without input: the logo
+wait 421000
+shot build/emu/test/cr_off_dark.ppm         # 10 min: the screen off
+dump
+wait 60000
+dump                                         # a minute later: no LCD write
+expect silence
+key F3 down
+wait 60
+btn D4 down
+wait 200
+shot build/emu/test/cr_off_key.ppm          # a key: the view back at once
+dump
+expect sound
+btn D4 up
+key F3 up
+wait 602000
+dump                                         # off again
+knob KNOB1 +2
+wait 150
+shot build/emu/test/cr_off_knob.ppm         # a knob: on, and it turned (voicing 2)
+dump
+knob KNOB1 -2
+wait 300
+btn REC
+wait 300
+btn A#3 down
+btn D4 down
+wait 300
+btn D4 up
+btn A#3 up
+wait 1300
+btn REC
+wait 150
+dump                                         # the loop plays
+expect sound
+wait 601000
+shot build/emu/test/cr_off_loop.ppm         # 10 min of the loop alone: the screen off
+dump
+expect sound                                 # the loop still sounds
