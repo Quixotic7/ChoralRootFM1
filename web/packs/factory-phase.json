@@ -1,0 +1,106 @@
+{
+"format": "choralroot-pack",
+"version": 1,
+"name": "PHASE factory sounds",
+"author": "ChoralRoot FM-1 firmware (tools/make_packs.py)",
+"licence": "GPL-3.0-only",
+"engine": 2,
+"sounds": [
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "BRASS",
+"engine": 2,
+"engineName": "PHASE",
+"binding": {
+"overwrites": 1,
+"name": "BRASS"
+},
+"record": "pQQCW0JSQVNTAAAAAAAAAEBIhppoQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBUVGhAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEBemkBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAB",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "ORGAN",
+"engine": 2,
+"engineName": "PHASE",
+"binding": {
+"overwrites": 2,
+"name": "ORGAN"
+},
+"record": "pQQCW09SR0FOAAAAAAAAAEBAv79eQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBoQF5AQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQ0BoQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAC",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "STRING",
+"engine": 2,
+"engineName": "PHASE",
+"binding": {
+"overwrites": 3,
+"name": "STRING"
+},
+"record": "pQQCW1NUUklORwAAAAAAAEBomqSGQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEByVHxAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQERyaExAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAD",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "RESO",
+"engine": 2,
+"engineName": "PHASE",
+"binding": {
+"overwrites": 4,
+"name": "RESO"
+},
+"record": "pQQCW1JFU08AAAAAAAAAAEBAhl58QEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAaGhAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BARUB8fEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAE",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "BELL",
+"engine": 2,
+"engineName": "PHASE",
+"binding": {
+"overwrites": 5,
+"name": "BELL"
+},
+"record": "pQQCW0JFTEwAAAAAAAAAAEBAn0CaQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAXoZAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BARkCQckBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAF",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "WIRE",
+"engine": 2,
+"engineName": "PHASE",
+"binding": {
+"overwrites": 6,
+"name": "WIRE"
+},
+"record": "pQQCW1dJUkUAAAAAAAAAAEBKkJB8QEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE9eXmhAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAREeGaEdAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAG",
+"patch": null
+}
+]
+}

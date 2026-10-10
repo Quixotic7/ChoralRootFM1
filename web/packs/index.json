@@ -1,0 +1,83 @@
+{
+ "format": "choralroot-pack-index",
+ "version": 1,
+ "packs": [
+  {
+   "file": "factory-fm6.json",
+   "name": "FM6 factory sounds",
+   "engine": 12,
+   "count": 25,
+   "patches": 25
+  },
+  {
+   "file": "factory-fm-tone.json",
+   "name": "FM TONE factory sounds",
+   "engine": 15,
+   "count": 16,
+   "patches": 16
+  },
+  {
+   "file": "factory-va.json",
+   "name": "VA factory sounds",
+   "engine": 13,
+   "count": 25,
+   "patches": 25
+  },
+  {
+   "file": "factory-cz-1.json",
+   "name": "CZ-1 factory sounds",
+   "engine": 14,
+   "count": 64,
+   "patches": 64
+  },
+  {
+   "file": "factory-phase.json",
+   "name": "PHASE factory sounds",
+   "engine": 2,
+   "count": 6,
+   "patches": 0
+  },
+  {
+   "file": "factory-lofi.json",
+   "name": "LOFI factory sounds",
+   "engine": 3,
+   "count": 5,
+   "patches": 0
+  },
+  {
+   "file": "factory-voice.json",
+   "name": "VOICE factory sounds",
+   "engine": 5,
+   "count": 4,
+   "patches": 0
+  },
+  {
+   "file": "factory-trio.json",
+   "name": "TRIO factory sounds",
+   "engine": 6,
+   "count": 5,
+   "patches": 0
+  },
+  {
+   "file": "factory-wheel.json",
+   "name": "WHEEL factory sounds",
+   "engine": 7,
+   "count": 5,
+   "patches": 0
+  },
+  {
+   "file": "factory-phys.json",
+   "name": "PHYS factory sounds",
+   "engine": 9,
+   "count": 9,
+   "patches": 0
+  },
+  {
+   "file": "factory-noise.json",
+   "name": "NOISE factory sounds",
+   "engine": 11,
+   "count": 4,
+   "patches": 0
+  }
+ ]
+}

@@ -4705,8 +4705,6 @@ static void cr_ui_init(void)
     CR_STAGE(BS_UI_INIT);
     settings_init();                              /* (panel.c: the palette, LOWCUT, HOLD) */
     panel_init();
-    if (!cr_ring.state)
-        cr_ring_build();                          /* the loop ring's table (cr_draw.c): now, not at the first count-in */
     palette_set(NPALETTES - 1u);                  /* MOD: ChoralRoot's (gfx.c palettes: the last) */
     fm6_init();                                   /* every part's FM6 patch: the init voice */
     for (k = 0; k < G_COUNT; k++)

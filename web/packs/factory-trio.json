@@ -1,0 +1,90 @@
+{
+"format": "choralroot-pack",
+"version": 1,
+"name": "TRIO factory sounds",
+"author": "ChoralRoot FM-1 firmware (tools/make_packs.py)",
+"licence": "GPL-3.0-only",
+"engine": 6,
+"sounds": [
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "FAT BASS",
+"engine": 6,
+"engineName": "TRIO",
+"binding": {
+"overwrites": 1,
+"name": "FAT BASS"
+},
+"record": "pQQGW0ZBVCBCQVNTAAAAAEBAfnxZaEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEpASkpAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEA0SUB+bYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAB",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "ARP LEAD",
+"engine": 6,
+"engineName": "TRIO",
+"binding": {
+"overwrites": 2,
+"name": "ARP LEAD"
+},
+"record": "pQQGW0FSUCBMRUFEAAAAAEBAfJpeSEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAY1RAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQkxARECYWWAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAC",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "SYNC LEAD",
+"engine": 6,
+"engineName": "TRIO",
+"binding": {
+"overwrites": 3,
+"name": "SYNC LEAD"
+},
+"record": "pQQGW1NZTkMgTEVBRAAAAEBChqRoUkBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBKaFlAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BASUlAQECSXoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAD",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "RING BELL",
+"engine": 6,
+"engineName": "TRIO",
+"binding": {
+"overwrites": 4,
+"name": "RING BELL"
+},
+"record": "pQQGW1JJTkcgQkVMTAAAAEBAnECQQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBUY3dAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BATUBSRkGgXoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAE",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "CHIP CHOIR",
+"engine": 6,
+"engineName": "TRIO",
+"binding": {
+"overwrites": 5,
+"name": "CHIP CHOIR"
+},
+"record": "pQQGW0NISVAgQ0hPSVIAAECGmq6VXkBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEByVIFAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQUBMR0F+n2gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAF",
+"patch": null
+}
+]
+}

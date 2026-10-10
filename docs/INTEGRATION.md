@@ -707,8 +707,9 @@ step; only sampled engines restarted their sample (fixed above).
 With the loop playing (scenario c) the UI frame cost ~49 ms on average and up to ~220 ms on the device scale (host:
 12.8 M instructions a frame): `cr_draw.c` drew the ring (`cr_arc` twice, the dotted circle and the progress, 16
 samples a pixel with an `atan2`, a square root and two divides each) into all six strips at every change of its
-fraction. Now (CR_SCREENS.md, Strips and the cache) the ring's coverage is a table computed once at power-on
-(`cr_ring_build`, 6.1 KB of POOL, pixel for pixel `cr_arc`'s), and when only the fraction moved only the strips its
+fraction. Now (CR_SCREENS.md, Strips and the cache) the ring's coverage is a table
+(`cr_ring`, 6.1 KB; since 2026-10-10 a `const` in flash, `firmware/src/cr_ring_table.h`, generated and checked by
+`tests/cr_draw_test.c` (`CR_RING_GEN=1 sh tests/run_cr_draw.sh` rewrites it), no POOL; pixel for pixel `cr_arc`'s), and when only the fraction moved only the strips its
 tip crossed are drawn. Scenario (c): 12.8 M -> 2.4 M host instructions a frame on average (49 -> 9.4 ms device
 estimate; the same build with no ring at all: 1.2 M); the loop playing on the chord screen alone: 1.0 M a frame
 (3.9 ms), 0.58 M with no ring. The worst frames of (c) (50 M, ~194 ms) and (e) (30 M, ~115 ms) were other screens'

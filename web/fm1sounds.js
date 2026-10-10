@@ -545,3 +545,52 @@ export function exportSyx(objs, slot) {
   const name = sndDecodeName(r);
   return { bytes: kind === "fm6" ? fm6VcedSyx(fm6BlobToVced(blob)) : czToneSyx(blob), name, fileName: syxFileName(slot, name) };
 }
+
+// ---- the device manager (docs/DEVICE-MANAGER.md): a sound placed with its binding, two slots swapped, a binding moved
+// the first free user slot, 0: none
+export const firstFreeSlot = (objs) => (parseSoundObjects(objs).slots.find((s) => !s.used) || { slot: 0 }).slot;
+// the record bound to factory preset index f of its engine's pool (SAVE > Overwrite: note[15] 0xA6, flags[15] f + 1);
+// f < 0: an added preset (flags 0)
+export function withBinding(record, f) {
+  const r = record.slice();
+  r[SND_BIND_NOTE] = SND_BIND_MARK; r[SND_BIND_FLAGS] = f >= 0 ? f + 1 : 0;
+  return r;
+}
+// a sound (readSoundFile's result or the file) into slot, bound to factory preset index f (-1: added)
+export function placeSound(objs, slot, sound, f = -1) {
+  if (!sound || !(sound.record instanceof Uint8Array)) sound = readSoundFile(sound);
+  return importSound(objs, slot, { ...sound, record: withBinding(sound.record, f) });
+}
+// slot's binding only (its sound stays): f the factory preset index of its pool, -1 added
+export function bindSound(objs, slot, f) {
+  sndCheckSlot(slot);
+  const before = sndMap(objs), m = new Map(before), r = sndRecord(m, slot);
+  if (!r || !recordValid(r)) throw new Error(`${sndLabel(slot)} is empty`);
+  sndPutRecord(m, slot, withBinding(r, f));
+  return sndResult(before, m);
+}
+// two slots' sounds exchanged (record and patch; an empty slot: a move). Both of one pool: the two places in the pool
+// are kept (the binding bytes stay with the slot), so the sounds exchange their pool positions; else each sound keeps
+// its binding
+export function swapSounds(objs, a, b) {
+  sndCheckSlot(a); sndCheckSlot(b);
+  if (a === b) throw new Error("Swap needs two different slots");
+  const before = sndMap(objs), m = new Map(before);
+  const take = (slot) => {
+    const r = sndRecord(before, slot);
+    if (!r || !recordValid(r)) return null;
+    const rec = r.slice(), kind = patchKindOf(rec[2]), blob = kind && sndBlob(before, kind, slot);
+    return { rec, kind, blob: blob ? blob.slice() : null };
+  };
+  const A = take(a), B = take(b);
+  if (!A && !B) throw new Error(`${sndLabel(a)} and ${sndLabel(b)} are empty`);
+  if (A && B && poolOf(A.rec[2]) === poolOf(B.rec[2])) {
+    for (const i of [SND_BIND_NOTE, SND_BIND_FLAGS]) { const t = A.rec[i]; A.rec[i] = B.rec[i]; B.rec[i] = t; }
+  }
+  const put = (slot, S) => {
+    for (const k of SND_KINDS) sndPutBlob(m, k, slot, S && k === S.kind && S.blob ? S.blob : null);
+    sndPutRecord(m, slot, S ? S.rec : null);
+  };
+  put(a, B); put(b, A);
+  return sndResult(before, m);
+}

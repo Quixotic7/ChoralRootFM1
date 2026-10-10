@@ -1,0 +1,74 @@
+{
+"format": "choralroot-pack",
+"version": 1,
+"name": "NOISE factory sounds",
+"author": "ChoralRoot FM-1 firmware (tools/make_packs.py)",
+"licence": "GPL-3.0-only",
+"engine": 11,
+"sounds": [
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "WIND",
+"engine": 11,
+"engineName": "NOISE",
+"binding": {
+"overwrites": 1,
+"name": "WIND"
+},
+"record": "pQQLW1dJTkQAAAAAAAAAAECamq6aQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBeVJBAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQICGpL9AhkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAB",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "RAIN",
+"engine": 11,
+"engineName": "NOISE",
+"binding": {
+"overwrites": 2,
+"name": "RAIN"
+},
+"record": "pQQLW1JBSU4AAAAAAAAAAEBKmr+GQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAVIZAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQV6YkICpaEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAC",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "ARCADE",
+"engine": 11,
+"engineName": "NOISE",
+"binding": {
+"overwrites": 3,
+"name": "ARCADE"
+},
+"record": "pQQLW0FSQ0FERQAAAAAAAEBAkEByQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASlRAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQkC/QL+wQJQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAD",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "METAL",
+"engine": 11,
+"engineName": "NOISE",
+"binding": {
+"overwrites": 4,
+"name": "METAL"
+},
+"record": "pQQLW01FVEFMAAAAAAAAAEBAi2h8SkBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBUXm1AQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQ0CkaKRgQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAE",
+"patch": null
+}
+]
+}

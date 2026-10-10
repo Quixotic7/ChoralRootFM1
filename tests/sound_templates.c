@@ -5,6 +5,7 @@
  *
  *   cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/sound_templates tests/sound_templates.c -lm
  *   ./build/host/sound_templates                 prints the JSON below
+ *   ./build/host/sound_templates --packs         prints the factory presets as user records (web/packs: tools/make_packs.py)
  *   ./build/host/sound_templates --check FILE..  exits 1 unless every FILE contains each template's base64 string
  *                                                and the two factory-table strings below, verbatim, and
  *                                                every selectable engine's name in quotes ("FM TONE": the
@@ -102,6 +103,64 @@ static void factory_json(char *fac, size_t nf, char *first, size_t n1)
     snprintf(first + o1, n1 - o1, "}");
 }
 
+/* --packs: every factory preset of every engine with eng_ok as the record SAVE would store it (cr_bank.c cb_store of
+ * a chord part loaded with it, cr_ui.c cu_load; bound to itself: note[15] 0xA6, flags[15] k + 1) and its engine's
+ * patch (the deep engine's blob_preset, then blob_get), one JSON object: {"<engine>": {"name", "first", "presets":
+ * [{"k", "name", "record", "patch" (base64 or null)}]}} (tools/make_packs.py writes web/packs/factory-*.json) */
+static void packs_json(void)
+{
+    static char rb[400], pb[400];
+    uint32_t e, k, i, first = 1;
+    printf("{");
+    for (e = 0; e < NENGINES; e++) {
+        const engine_t *en;
+        if (!eng_ok(e))
+            continue;
+        en = ENGINES[e];
+        printf("%s\n \"%u\": {\"name\": \"%s\", \"first\": %u, \"presets\": [", first ? "" : ",", (unsigned)e, en->name,
+               (unsigned)pool_f0(e));
+        first = 0;
+        for (k = pool_f0(e); k < en->npresets; k++) {
+            track_t *t = &trk[0];
+            const eng_deep_t *d;
+            up_rec_t r;
+            uint8_t blob[ENG_BLOB_MAX];
+            const char *c;
+            cu_load(t, e, k, 0);
+            d = cp_deep(t);
+            memset(&r, 0, sizeof r);
+            r.used = UP_USED;
+            r.ver = UP_VER;
+            r.engine = (uint8_t)e;
+            r.np = P_COUNT;
+            for (i = 0; i < 12u && en->presets[k].name[i]; i++)
+                r.name[i] = en->presets[k].name[i];
+            for (i = 0; i < P_COUNT; i++)
+                up_set_value(&r, i, (int16_t)clamp(t->p[i], -64, 127));
+            r.note[15] = CB_BIND_MARK;
+            r.flags[15] = (uint8_t)(k + 1u);
+            if (!up_valid(&r)) {
+                fprintf(stderr, "engine %u preset %u is not a valid record\n", (unsigned)e, (unsigned)k);
+                exit(2);
+            }
+            b64((const uint8_t *)&r, sizeof r, rb);
+            pb[0] = 0;
+            if (d && d->blob_get && d->blob_size && d->blob_size <= sizeof blob) {
+                if (d->blob_preset)
+                    d->blob_preset(t, k);
+                d->blob_get(t, blob);
+                b64(blob, d->blob_size, pb);
+            }
+            printf("%s\n  {\"k\": %u, \"name\": \"", k > pool_f0(e) ? "," : "", (unsigned)k);
+            for (c = en->presets[k].name; *c; c++)
+                printf("%s%c", *c == '"' || *c == '\\' ? "\\" : "", *c);
+            printf("\", \"record\": \"%s\", \"patch\": %s%s%s}", rb, pb[0] ? "\"" : "null", pb, pb[0] ? "\"" : "");
+        }
+        printf("]}");
+    }
+    printf("\n}\n");
+}
+
 int main(int argc, char **argv)
 {
     static char t_fm6[400], t_cz[400], t_quad[400], f_blob[200], f_vced[240], f_fn[20], f_tone[200], f_quad[200],
@@ -138,6 +197,10 @@ int main(int argc, char **argv)
     b64(blob + 114u, 8u, f_fn);
     b64(CZ_FACTORY[0], CZ_BYTES, f_tone);
     factory_json(fac, sizeof fac, first, sizeof first);
+    if (argc == 2 && !strcmp(argv[1], "--packs")) {
+        packs_json();
+        return 0;
+    }
     if (argc > 2 && !strcmp(argv[1], "--check")) {
         int i, bad = 0;
         for (i = 2; i < argc; i++) {

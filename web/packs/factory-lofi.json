@@ -1,0 +1,90 @@
+{
+"format": "choralroot-pack",
+"version": 1,
+"name": "LOFI factory sounds",
+"author": "ChoralRoot FM-1 firmware (tools/make_packs.py)",
+"licence": "GPL-3.0-only",
+"engine": 3,
+"sounds": [
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "PULSE LD",
+"engine": 3,
+"engineName": "LOFI",
+"binding": {
+"overwrites": 1,
+"name": "PULSE LD"
+},
+"record": "pQQDW1BVTFNFIExEAAAAAEBAfJpeQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAaFRAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEBgQEBUQL8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAB",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "WAVE BASS",
+"engine": 3,
+"engineName": "LOFI",
+"binding": {
+"overwrites": 2,
+"name": "WAVE BASS"
+},
+"record": "pQQDW1dBVkUgQkFTUwAAAEBAcoZUQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASkBAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQUFAQEBAQJoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAC",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "ARP 8BIT",
+"engine": 3,
+"engineName": "LOFI",
+"binding": {
+"overwrites": 3,
+"name": "ARP 8BIT"
+},
+"record": "pQQDW0FSUCA4QklUAAAAAEBAfJBoQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAXlRAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQkCgQEBAQq4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAD",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "WAVE LEAD",
+"engine": 3,
+"engineName": "LOFI",
+"binding": {
+"overwrites": 4,
+"name": "WAVE LEAD"
+},
+"record": "pQQDW1dBVkUgTEVBRAAAAEBAhppeQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAaFlAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEScQEBSQK4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAE",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "STEP LEAD",
+"engine": 3,
+"engineName": "LOFI",
+"binding": {
+"overwrites": 5,
+"name": "STEP LEAD"
+},
+"record": "pQQDW1NURVAgTEVBRAAAAEBAgL93QEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAaFRAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAREBoYkBQQL8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAF",
+"patch": null
+}
+]
+}

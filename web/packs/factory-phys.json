@@ -1,0 +1,154 @@
+{
+"format": "choralroot-pack",
+"version": 1,
+"name": "PHYS factory sounds",
+"author": "ChoralRoot FM-1 firmware (tools/make_packs.py)",
+"licence": "GPL-3.0-only",
+"engine": 9,
+"sounds": [
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "BELL TREE",
+"engine": 9,
+"engineName": "PHYS",
+"binding": {
+"overwrites": 1,
+"name": "BELL TREE"
+},
+"record": "pQQJW0JFTEwgVFJFRQAAAEBApL+gQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBUXnxAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQIakqkykQEYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAB",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "MARIMBA",
+"engine": 9,
+"engineName": "PHYS",
+"binding": {
+"overwrites": 2,
+"name": "MARIMBA"
+},
+"record": "pQQJW01BUklNQkEAAAAAAEBAmr90QEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAT15AQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQLRmaFiaQF4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAC",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "PLUCK",
+"engine": 9,
+"engineName": "PHYS",
+"binding": {
+"overwrites": 3,
+"name": "PLUCK"
+},
+"record": "pQQJW1BMVUNLAAAAAAAAAEBApL96QEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBKXl5AQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQXiIlGigQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAD",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "BOWED METAL",
+"engine": 9,
+"engineName": "PHYS",
+"binding": {
+"overwrites": 4,
+"name": "BOWED METAL"
+},
+"record": "pQQJW0JPV0VEIE1FVEFMAEB8mr+aQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBoVIZAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQKKGsEqQmkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAE",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "KALIMBA",
+"engine": 9,
+"engineName": "PHYS",
+"binding": {
+"overwrites": 5,
+"name": "KALIMBA"
+},
+"record": "pQQJW0tBTElNQkEAAAAAAEBApL98QEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBKVGhAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQGJQeKSaQHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAF",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "HAND DRUM",
+"engine": 9,
+"engineName": "PHYS",
+"binding": {
+"overwrites": 6,
+"name": "HAND DRUM"
+},
+"record": "pQQJW0hBTkQgRFJVTQAAAEBApL+AQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASl5AQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQrCMeGykTlgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAG",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "TOMS",
+"engine": 9,
+"engineName": "PHYS",
+"binding": {
+"overwrites": 7,
+"name": "TOMS"
+},
+"record": "pQQJW1RPTVMAAAAAAAAAAEBApL+GQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGhAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQkB0aF6kaF4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAH",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "DRONE STRING",
+"engine": 9,
+"engineName": "PHYS",
+"binding": {
+"overwrites": 8,
+"name": "DRONE STRING"
+},
+"record": "pQQJW0RST05FIFNUUklOR0BApL+aQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBKVHJAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQ7+QmICknEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAI",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "HARP",
+"engine": 9,
+"engineName": "PHYS",
+"binding": {
+"overwrites": 9,
+"name": "HARP"
+},
+"record": "pQQJW0hBUlAAAAAAAAAAAEBApL+QQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBUVHxAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQ0h+inyaQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAJ",
+"patch": null
+}
+]
+}

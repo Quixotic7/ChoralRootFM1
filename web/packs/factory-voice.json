@@ -1,0 +1,74 @@
+{
+"format": "choralroot-pack",
+"version": 1,
+"name": "VOICE factory sounds",
+"author": "ChoralRoot FM-1 firmware (tools/make_packs.py)",
+"licence": "GPL-3.0-only",
+"engine": 5,
+"sounds": [
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "CHOIR AAH",
+"engine": 5,
+"engineName": "VOICE",
+"binding": {
+"overwrites": 1,
+"name": "CHOIR AAH"
+},
+"record": "pQQFW0NIT0lSIEFBSAAAAECVmrOfQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQECGT5pAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEBAQGhWfEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAB",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "VOX LEAD",
+"engine": 5,
+"engineName": "VOICE",
+"binding": {
+"overwrites": 2,
+"name": "VOX LEAD"
+},
+"record": "pQQFW1ZPWCBMRUFEAAAAAEBGhql3QEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBUbWhAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAYEBAQppIiEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAC",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "WOW BASS",
+"engine": 5,
+"engineName": "VOICE",
+"binding": {
+"overwrites": 3,
+"name": "WOW BASS"
+},
+"record": "pQQFW1dPVyBCQVNTAAAAAEBAhoZeQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEpASkpAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAn0CEQKRAkEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAD",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "WHISPER",
+"engine": 5,
+"engineName": "VOICE",
+"binding": {
+"overwrites": 4,
+"name": "WHISPER"
+},
+"record": "pQQFW1dISVNQRVIAAAAAAEBymq6aQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBoXoZAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQJ+YQ3K4ckAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAE",
+"patch": null
+}
+]
+}

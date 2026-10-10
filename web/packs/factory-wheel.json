@@ -1,0 +1,90 @@
+{
+"format": "choralroot-pack",
+"version": 1,
+"name": "WHEEL factory sounds",
+"author": "ChoralRoot FM-1 firmware (tools/make_packs.py)",
+"licence": "GPL-3.0-only",
+"engine": 7,
+"sounds": [
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "FULL ORGAN",
+"engine": 7,
+"engineName": "WHEEL",
+"binding": {
+"overwrites": 1,
+"name": "FULL ORGAN"
+},
+"record": "pQQHW0ZVTEwgT1JHQU4AAEBAgL9tQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASmNAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAT0BAQEBeVEEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAB",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "JAZZ PERC",
+"engine": 7,
+"engineName": "WHEEL",
+"binding": {
+"overwrites": 2,
+"name": "JAZZ PERC"
+},
+"record": "pQQHW0pBWlogUEVSQwAAAEBAgL9oQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQFlAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAREBAQEJySEEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAC",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "GOSPEL",
+"engine": 7,
+"engineName": "WHEEL",
+"binding": {
+"overwrites": 3,
+"name": "GOSPEL"
+},
+"record": "pQQHW0dPU1BFTAAAAAAAAEBAgL9tQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGhAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BARkBAQEF8aEIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAD",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "SOFT FLUTE",
+"engine": 7,
+"engineName": "WHEEL",
+"binding": {
+"overwrites": 4,
+"name": "SOFT FLUTE"
+},
+"record": "pQQHW1NPRlQgRkxVVEUAAEBAgL93QEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBUT3dAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQUA+QEBKQEEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAE",
+"patch": null
+},
+{
+"format": "choralroot-sound",
+"version": 1,
+"firmware": null,
+"created": null,
+"slot": null,
+"name": "ROCK DRIVE",
+"engine": 7,
+"engineName": "WHEEL",
+"binding": {
+"overwrites": 5,
+"name": "ROCK DRIVE"
+},
+"record": "pQQHW1JPQ0sgRFJJVkUAAEBAgL9oQEBAQHxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGNASllAQEBAQEBAaEBAQEBAQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAR0BAQECGpEIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKYAAAAAAAAAAAAAAAAAAAAF",
+"patch": null
+}
+]
+}

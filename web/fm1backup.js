@@ -253,3 +253,21 @@ export class BackupConnection {
     if (this.pending) { const p = this.pending; this.pending = null; clearTimeout(p.timer); p.reject(new Error("Backup connection closed")); }
   }
 }
+
+// ---- a loop slot's record (objects 40..49, docs/LOOPER.md "Slots and the record"; firmware cr_loop.c cr_loop_pack):
+// "CRL1", version 1, the time signature (0 4/4, 1 3/4, 2 6/8), the layers, 0, len u32 (ticks), the events u16, ppqn u16,
+// then per layer its event count u16, then 7 bytes per event. -> null (empty), or the header with the length in bars
+// (cr_loop_bar: 4 quarter notes in 4/4, 3 otherwise) and valid (the header's checks of cr_loop_unpack)
+export const LOOP_MAGIC = 0x314C5243, LOOP_PPQN = 96, LOOP_SIGS = ["4/4", "3/4", "6/8"];
+export function loopHeader(bytes) {
+  if (!bytes || !bytes.length) return null;
+  if (bytes.length < 16) return { valid: false, size: bytes.length };
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const sig = bytes[5], nlayers = bytes[6], len = v.getUint32(8, true), nev = v.getUint16(12, true), ppqn = v.getUint16(14, true);
+  let counted = 0;
+  for (let l = 0; l < nlayers && 16 + 2 * l + 1 < bytes.length; l++) counted += v.getUint16(16 + 2 * l, true);
+  const valid = v.getUint32(0, true) === LOOP_MAGIC && bytes[4] === 1 && sig < LOOP_SIGS.length && ppqn === LOOP_PPQN &&
+    nlayers > 0 && nlayers <= 32 && nev > 0 && len > 0 && bytes.length >= 16 + 2 * nlayers + 7 * nev && counted === nev;
+  const bar = (sig === 0 ? 4 : 3) * (ppqn || LOOP_PPQN);
+  return { valid, sig, sigName: LOOP_SIGS[sig] || "?", nlayers, len, nev, ppqn, bars: len / bar, size: bytes.length };
+}
