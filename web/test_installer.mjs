@@ -121,7 +121,10 @@ class El {
     this.id = attrs.id; this.textContent = ""; this.disabled = "disabled" in attrs; this.value = 0; this.files = [];
     this.checked = false; this.dataset = attrs.t ? { t: attrs.t } : {}; this.style = {}; this.l = {}; this.clicks = 0;
     this.hidden = "hidden" in attrs; this.innerHTML = ""; this.className = ""; this.attrs = {}; this.focused = 0;
+    this.scrolled = 0;
   }
+  getBoundingClientRect() { return { top: 5000, bottom: 5030 }; }   // (below the window: the stock section)
+  scrollIntoView() { this.scrolled++; }
   setAttribute(k, v) { this.attrs[k] = v; }
   removeAttribute(k) { delete this.attrs[k]; }
   focus() { this.focused++; }
@@ -151,7 +154,7 @@ const fastTimeout = (f, ms = 0, ...a) => setTimeout(f, ms >= 100 ? ms / 10 : ms,
 
 function runPage({ navigator = {}, fetch, confirm = () => true, prompt = () => null, prelude = "", extra = {}, page = code } = {}) {
   const { byId, withT } = makeDom();
-  const win = { l: {}, addEventListener(type, f) { this.l[type] = f; } };
+  const win = { l: {}, innerHeight: 800, addEventListener(type, f) { this.l[type] = f; } };
   const confirms = [], downloads = [], prompts = [];
   const document = {
     documentElement: { lang: "" },
@@ -482,63 +485,155 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
   ok(p.$.status.textContent === en.denied && !p.$.go.disabled, "error: SysEx refused -> denied text, Install unlocked");
 }
 
-// return to official V15: validateStockPackage stands in for the real file (the official V15 is not in the repo)
+// return to official V15: validateStockPackage stands in for the real file (the official V15 is not in the repo).
+// The section reports in its own status line, bar, panels and log (stock-status, stock-bar, stock-done,
+// stock-interrupted, stock-log); the install card at the top (status, bar, done, interrupted) is not written to.
 {
   const stockImage = Uint8Array.from({ length: 0x2000 }, (_, i) => (i * 7) & 0xFF);
   const prelude = "validateStockPackage = async (b) => ({ product: \"FM-1_015\", image: __stockImage, sha256: \"test\" });";
   const v15 = { size: STOCK_V15_SIZE, arrayBuffer: async () => new ArrayBuffer(STOCK_V15_SIZE) };
+  const TOP = "ChoralRoot 0.1 · FM-1_920";       // what the install card says when the package is loaded
+  const sst = (p) => p.$["stock-status"].textContent;
+  const stockPage = (dev, answer) => runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw), prelude, extra: { __stockImage: stockImage }, confirm: () => answer });
   const stockRun = async (dev, answer) => {
-    const p = runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw), prelude, extra: { __stockImage: stockImage }, confirm: () => answer });
+    const p = stockPage(dev, answer);
     await settle();
     p.$["stock-file"].files = [{ size: 123, arrayBuffer: async () => new ArrayBuffer(123) }];
     await p.$["stock-file"].fire("change");
-    const wrong = p.$.status.textContent.startsWith(en.stockError) && p.$["stock-go"].disabled;
+    const wrong = sst(p).startsWith(en.stockError) && p.$["stock-go"].disabled && p.$.stock.open === true && p.$.status.textContent === TOP;
+    p.$.stock.open = false;
     p.$["stock-file"].files = [v15];
     await p.$["stock-file"].fire("change");
-    const valid = p.$.status.textContent === en.stockValid && !p.$["stock-go"].disabled;
+    const valid = sst(p) === en.stockValid && !p.$["stock-go"].disabled && p.$.stock.open === true && p.$.status.textContent === TOP;
     await p.$["stock-go"].fire("click");
     return { p, wrong, valid };
   };
+  // a probe of the install card: a file that is not a backup, chosen under "Back up and restore", is answered there
+  const topAnswers = async (p) => {
+    const was = sst(p);
+    p.$["restore-file"].files = [{ text: async () => "not json" }];
+    await p.$["restore-file"].fire("change");
+    return p.$.status.textContent.startsWith(en.badBackup) && sst(p) === was;
+  };
+  // the bar as the FM-1's answers sample it (one sample per answer; the two "finished" answers move nothing):
+  // never back, up at least `min` times, under 100 until the end
+  const rises = (b) => b.filter((v, i) => v > (i ? b[i - 1] : 0)).length;
+  const climbs = (b, min) => b.every((v, i) => i === 0 || v >= b[i - 1]) && rises(b) >= min && b[b.length - 1] < 100;
+  const shown = (b) => b.map((v) => Math.round(v * 10) / 10).join(" ");
   const confirmText = en.stockConfirm || "";
   ok(/backup/.test(confirmText) && /Restore/.test(en.stockWarn || ""), "stock: the warning and the confirm speak of the backup");
+  ok(html.indexOf('id="stock-go"') < html.indexOf('id="stock-bar"') && html.indexOf('id="stock-bar"') < html.indexOf('id="stock-status" role="status"') &&
+     html.indexOf('id="stock-status"') < html.indexOf('id="stock-done" role="status" hidden') &&
+     html.indexOf('id="stock-done"') < html.indexOf('id="stock-interrupted" role="alert" hidden') &&
+     html.indexOf('<details class="more" id="stock">') < html.indexOf('id="stock-go"') &&
+     html.indexOf('id="stock-log"') < html.indexOf("</details>", html.indexOf('id="stock-go"')) && html.includes("#status, #stock-status {"),
+     "stock: its own bar, status line, done panel, guidance and log, in the section, under the button");
   const crSide = () => backupSide("ChoralRoot 0.1", CR_BACKUP_IDS, crData());
+  const crDev = () => new FakeFM1(stockImage, { identity: "FM-1_920", final: "FM-1_015", loader: "ota-FM-1_015", bk: (id) => (id === "FM-1_920" ? crSide() : null) });
 
-  let dev = new FakeFM1(stockImage, { identity: "FM-1_920", final: "FM-1_015", loader: "ota-FM-1_015", bk: (id) => (id === "FM-1_920" ? crSide() : null) });
+  let dev = crDev();
   let r = await stockRun(dev, false);
-  ok(r.wrong && r.valid, "stock: a file of the wrong size is refused, the V15 (stub) accepted");
+  ok(r.wrong && r.valid, "stock: a file of the wrong size is refused, the V15 (stub) accepted: said in the section, which is opened");
   ok(r.p.downloads.length === 1 && /^choralroot-backup-/.test(r.p.downloads[0].name), "stock: the backup is saved first");
   ok(r.p.confirms.length === 1 && r.p.confirms[0] === confirmText && dev.upgrades === 0 && dev.served === 0 && !r.p.$["stock-go"].disabled,
     "stock: declined -> confirm asked once, nothing written, unlocked");
-  dev = new FakeFM1(stockImage, { identity: "FM-1_920", final: "FM-1_015", loader: "ota-FM-1_015", bk: (id) => (id === "FM-1_920" ? crSide() : null) });
+  ok(sst(r.p) === en.cancelled && r.p.$.status.textContent === TOP && r.p.$["stock-done"].hidden && r.p.$["stock-interrupted"].hidden && r.p.$["stock-bar"].value === 0,
+    "stock: declined -> Cancelled in the section, no panel, the install card as it was");
+  ok(await topAnswers(r.p), "stock: after a declined confirm the install card answers again (the section's line stays)");
+
+  // the whole run: every message in the section, the bar moving, the install card left idle
+  dev = crDev();
+  const seen = [];
+  let pRun = null;
+  dev.onServe = () => seen.push({ loader: dev.identity.startsWith("ota-"), bar: pRun.$["stock-bar"].value, st: sst(pRun), top: pRun.$.status.textContent, topBar: pRun.$.bar.value, open: pRun.$.stock.open });
+  pRun = stockPage(dev, true);
+  await settle();
+  pRun.$["stock-file"].files = [v15];
+  await pRun.$["stock-file"].fire("change");
+  pRun.$.done.hidden = false; pRun.$.bar.value = 100;   // as after an install of ChoralRoot in this page
+  await pRun.$["stock-go"].fire("click");
+  r = { p: pRun };
+  ok(r.p.confirms.length === 1 && r.p.downloads.length === 1 && sst(r.p) === en.done && dev.bad === 0 && dev.identity === "FM-1_015",
+    "stock: confirmed -> backup, ChoralRoot -> loader -> FM-1_015, status Done (in the section)");
+  const wr = seen.filter((s) => s.loader && s.st === en.write), bars = seen.map((s) => s.bar);
+  ok(wr.length >= 6 && rises(wr.map((s) => s.bar)) >= 5 && seen.some((s) => !s.loader && s.st === en.verify && s.bar > 0) && climbs(bars, 9) &&
+     r.p.$["stock-bar"].value === 100, `stock: the bar moves through the check and the write, never back, 100 only at the end (${shown(bars)} 100)`);
+  ok(seen.length > 0 && seen.every((s) => s.top === TOP && s.topBar === 0 && s.open === true) && r.p.$.status.textContent === TOP && r.p.$.bar.value === 0 &&
+     r.p.$.done.hidden === true && r.p.$.interrupted.hidden === true,
+     "stock: during the run nothing is said in the install card, which goes back to idle (its bar 0, its panels hidden)");
+  ok(r.p.$["stock-done"].hidden === false && r.p.$["stock-interrupted"].hidden === true && r.p.$.stock.open === true &&
+     r.p.$["stock-done-line"].textContent === en.stockDnLine.replace("{identity}", "FM-1_015") &&
+     r.p.$["stock-done-data"].textContent === en.stockDnSaved.replace("{file}", r.p.downloads[0].name) &&
+     /top of this page/.test(en.stockDnBack) && /Restore/.test(en.stockDnBack) && html.includes('<p data-t="stockDnBack">'),
+     "stock: the done panel: the identity the FM-1 answers with, the backup file saved, the way back");
+  ok(r.p.$["stock-status"].scrolled === 1 && /^write \d+/m.test(r.p.$["stock-log"].textContent) && /^backup ChoralRoot/m.test(r.p.$["stock-log"].textContent) &&
+     r.p.$.log.textContent.includes(r.p.$["stock-log"].textContent),
+     "stock: the status line is scrolled into view at the start; the section shows the run's log lines (the main log has them too)");
+  r.p.$.stock.open = false; r.p.$.stock.fire("toggle");
+  ok(r.p.$.stock.open === true, "stock: the section cannot be folded over its done panel");
+  // an install of ChoralRoot after the return reports in the install card again
+  dev.onServe = null; dev.image = image; dev.loader = "ota-FM-1_920"; dev.final = "FM-1_920";
+  await r.p.$.go.fire("click");
+  ok(r.p.$.status.textContent === en.done && r.p.$.bar.value === 100 && r.p.$.done.hidden === false && dev.identity === "FM-1_920" && dev.bad === 0 &&
+     sst(r.p) === en.done && r.p.$["stock-bar"].value === 100 && !/^verify/m.test(r.p.$["stock-log"].textContent.split("done FM-1_015")[1] || "x"),
+     "stock: an install of ChoralRoot afterwards reports in the install card (status, bar, done panel), not in the section");
+
+  // interrupted while writing: the guidance in the section; the resume box and the same file finish it
+  dev = crDev();
+  dev.onServe = () => { if (dev.identity.startsWith("ota-") && dev.served >= 6) dev.input.state = dev.output.state = "disconnected"; };
   r = await stockRun(dev, true);
-  ok(r.p.confirms.length === 1 && r.p.downloads.length === 1 && r.p.$.status.textContent === en.done && dev.bad === 0 && dev.identity === "FM-1_015",
-    "stock: confirmed -> backup, ChoralRoot -> loader -> FM-1_015, status Done");
+  const barAt = r.p.$["stock-bar"].value;
+  ok(sst(r.p) === en.lost && r.p.$["stock-interrupted"].hidden === false && r.p.$["stock-done"].hidden === true && !r.p.$["stock-go"].disabled && barAt > 6 && barAt < 100 &&
+     r.p.$.status.textContent === TOP && r.p.$.interrupted.hidden === true && r.p.$.stock.open === true,
+     "stock interrupted: the cable lost while writing -> said in the section with its guidance; the install card's guidance stays hidden");
+  ok(/nothing was written/.test(en.stockIntEarly) && /update mode/.test(en.stockIntOn) && en.stockIntOn.includes(en.stockRecovery.split(":")[0]) && /same official file/.test(en.stockIntOn) &&
+     html.includes('<span data-t="stockIntOff"></span> <a href="#dark" data-t="darkTitle">'),
+     "stock interrupted: the guidance names the resume box and the same file, and the way to the help");
+  ok(await topAnswers(r.p), "stock: after an error the install card answers again");
+  dev.onServe = null; dev.boot("ota-FM-1_015", "Felucca Update");
+  r.p.$["stock-recovery"].checked = true;
+  await r.p.$["stock-go"].fire("click");
+  ok(sst(r.p) === en.done && dev.identity === "FM-1_015" && r.p.$["stock-interrupted"].hidden === true && r.p.$["stock-done"].hidden === false &&
+     r.p.$["stock-bar"].value === 100 && r.p.$["stock-done-data"].textContent === en.stockDnEarlier,
+     "stock interrupted: the resume box ticked, the button again -> FM-1_015, the done panel (no backup in this run: it says so)");
 
   dev = new FakeFM1(stockImage, { identity: "ota-FM-1_920", final: "FM-1_015" });
   r = await stockRun(dev, true);
-  ok(r.p.confirms.length === 0 && dev.upgrades === 0 && r.p.$.status.textContent === en.stockNeedBackup, "stock resume (in update mode) without the resume box: nothing written");
+  ok(r.p.confirms.length === 0 && dev.upgrades === 0 && sst(r.p) === en.stockNeedBackup && r.p.$["stock-interrupted"].hidden, "stock resume (in update mode) without the resume box: nothing written");
   dev = new FakeFM1(stockImage, { identity: "ota-FM-1_920", final: "FM-1_015" });
   const stockRunR = async (d, answer) => {
-    const p = runPage({ navigator: midiOf(d), fetch: pkgFetch(raw), prelude, extra: { __stockImage: stockImage }, confirm: () => answer });
+    const p = stockPage(d, answer);
     await settle();
     p.$["stock-file"].files = [v15];
     await p.$["stock-file"].fire("change");
     p.$["stock-recovery"].checked = true;
+    d.onServe = () => { (p.bars = p.bars || []).push(p.$["stock-bar"].value); };
     await p.$["stock-go"].fire("click");
     return { p };
   };
   r = await stockRunR(dev, false);
-  ok(r.p.confirms.length === 1 && dev.upgrades === 0, "stock resume (box ticked): declined -> nothing written");
+  ok(r.p.confirms.length === 1 && dev.upgrades === 0 && sst(r.p) === en.cancelled, "stock resume (box ticked): declined -> nothing written, Cancelled");
   dev = new FakeFM1(stockImage, { identity: "ota-FM-1_920", final: "FM-1_015" });
   r = await stockRunR(dev, true);
-  ok(r.p.confirms.length === 1 && r.p.$.status.textContent === en.done && dev.identity === "FM-1_015", "stock resume (box ticked): confirmed -> FM-1_015, status Done");
+  ok(r.p.confirms.length === 1 && sst(r.p) === en.done && dev.identity === "FM-1_015" && r.p.$.status.textContent === TOP, "stock resume (box ticked): confirmed -> FM-1_015, status Done");
+  ok(climbs(r.p.bars, 6) && r.p.$["stock-bar"].value === 100 && r.p.$["stock-done"].hidden === false,
+     `stock resume: the bar moves the same way (${shown(r.p.bars)} 100), and the done panel`);
 
   const none = runPage({ navigator: midiOf({ access: { inputs: new Map(), outputs: new Map() } }), fetch: pkgFetch(raw), prelude, extra: { __stockImage: stockImage } });
   await settle();
   none.$["stock-file"].files = [v15];
   await none.$["stock-file"].fire("change");
   await none.$["stock-go"].fire("click");
-  ok(none.$.status.textContent === en.notfound && none.confirms.length === 0, "stock: no FM-1 -> notfound before any confirm");
+  ok(sst(none) === en.notfound && none.confirms.length === 0 && none.$.status.textContent === TOP && none.$["stock-interrupted"].hidden === true,
+    "stock: no FM-1 -> notfound before any confirm, in the section, without the guidance (nothing was started)");
+  ok(await topAnswers(none), "stock: after notfound the install card answers again");
+  const refused = runPage({ navigator: { requestMIDIAccess: async () => { throw new Error("SecurityError"); } }, fetch: pkgFetch(raw), prelude, extra: { __stockImage: stockImage } });
+  await settle();
+  refused.$["stock-file"].files = [v15];
+  await refused.$["stock-file"].fire("change");
+  await refused.$["stock-go"].fire("click");
+  ok(sst(refused) === en.denied && refused.$.status.textContent === TOP && !refused.$["stock-go"].disabled && await topAnswers(refused),
+    "stock: MIDI refused -> denied in the section, unlocked, and the install card answers again");
 }
 
 /* ----------------------------------------------- the Sounds section (docs/SOUNDS.md) --- */
@@ -1016,7 +1111,7 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
   }
 
   // demo mode: a state shown with made-up data; nothing reaches MIDI or the network, whatever is clicked
-  const DEMOS = ["idle", "older", "writing", "interrupted", "done", "nomidi"];
+  const DEMOS = ["idle", "older", "writing", "interrupted", "done", "nomidi", "stockwriting", "stockdone"];
   ok(DEMOS.every((d) => new RegExp(`\\b${d}\\b`).test(/const DEMO = [\s\S]*?\n\}\)\(\);/.exec(src)[0])), `demo: the states ${DEMOS.join(", ")}`);
   for (const q of [...DEMOS.map((d) => "?demo=" + d), "?x=1&demo=writing"]) {
     let midiCalls = 0, fetches = 0;
@@ -1033,7 +1128,8 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
     const want = state === "older" ? older : newest;
     ok(p.$.go.textContent === label(want) && p.$.go.disabled === (state === "writing" || state === "nomidi") &&
        p.$["not-newest"].hidden === (state !== "older") && p.$.interrupted.hidden === (state !== "interrupted") && p.$.done.hidden === (state !== "done") &&
-       p.$.nomidi.hidden === (state !== "nomidi"), `demo ${state}: "${p.$.go.textContent}"${p.$.go.disabled ? " (disabled)" : ""}, and only this state's boxes`);
+       p.$.nomidi.hidden === (state !== "nomidi") && p.$["stock-done"].hidden === (state !== "stockdone") && p.$["stock-interrupted"].hidden === true &&
+       !!p.$.stock.open === state.startsWith("stock"), `demo ${state}: "${p.$.go.textContent}"${p.$.go.disabled ? " (disabled)" : ""}, and only this state's boxes`);
     if (state === "idle") ok(p.$.status.textContent === `ChoralRoot ${newest} · FM-1_920` && p.$.unit.textContent === en.cnCr.replace("{name}", "ChoralRoot " + vers[1]) &&
       count(p.$.versions.innerHTML, en.chHas) === 1, "demo idle: the newest selected, the FM-1 shown as running the version before it");
     if (state === "older") ok(chips(p).includes(older + "*") && p.$["plan-back"].textContent === en.planBack.replace("{version}", older) + rel(older).going_back.short &&
@@ -1042,6 +1138,10 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
     if (state === "interrupted") ok(p.$.status.textContent === en.lost, "demo interrupted: the lost-connection status with the guidance");
     if (state === "done") ok(p.$["done-line"].textContent === en.dnLine.replace("{version}", newest) && p.$.unit.textContent === en.dnMatch.replace("{name}", "ChoralRoot " + newest) &&
       p.$.bar.value === 100, "demo done: installed, and the read-back");
+    if (state === "stockwriting") ok(p.$["stock-status"].textContent === en.write && p.$["stock-bar"].value === 58 && p.$.bar.value === 0 &&
+      p.$.status.textContent === `ChoralRoot ${newest} · FM-1_920`, "demo stockwriting: the section open, its bar part way, its status Writing; the install card idle");
+    if (state === "stockdone") ok(p.$["stock-status"].textContent === en.done && p.$["stock-bar"].value === 100 && p.$["stock-done-line"].textContent === en.stockDnLine.replace("{identity}", "FM-1_015") &&
+      /choralroot-backup-\d+\.json/.test(p.$["stock-done-data"].textContent) && p.$.status.textContent === `ChoralRoot ${newest} · FM-1_920`, "demo stockdone: the section's done panel; the install card idle");
     if (state === "nomidi") ok(p.$.status.textContent === en.nomidi && p.$["check-go"].disabled, "demo nomidi: the notice of a browser that cannot install");
   }
   for (const q of ["?demo=9", "?demo=1", "?demo=", "?demo=idleX", "?nodemo=idle"]) {

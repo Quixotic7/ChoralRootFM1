@@ -6,8 +6,10 @@
      web/make_site.py inlines the libraries at LIB and the metadata at META (the versions of web/releases.json with
      their packages under ../../firmware/). The newest version is what Install writes; "Other versions" under the
      button chooses an older one, and the notes beside the button are those of the version chosen.
-     ?demo=idle | older | writing | interrupted | done | nomidi shows a state with made-up device data for review and
-     screenshots: in demo mode the page never asks the browser for MIDI and fetches nothing. -->
+     ?demo=idle | older | writing | interrupted | done | nomidi | stockwriting | stockdone shows a state with made-up
+     device data for review and screenshots: in demo mode the page never asks the browser for MIDI and fetches nothing.
+     The return to the official V15 (the <details id="stock"> far down the page) has its own bar, status line, end
+     panels and log: OUT_STOCK in the script (the install card at the top is out of sight from there). -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -88,7 +90,7 @@
   progress::-webkit-progress-bar { background: var(--dark); }
   progress::-webkit-progress-value { background: var(--cream); }
   progress::-moz-progress-bar { background: var(--cream); }
-  #status { margin: 12px 0 0; min-height: 1.5em; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+  #status, #stock-status { margin: 12px 0 0; min-height: 1.5em; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
   pre { color: var(--grey); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         white-space: pre-wrap; margin: 12px 0 0; max-height: 240px; overflow: auto; }
   pre:empty { display: none; }
@@ -226,7 +228,7 @@
       </table>
     </div>
   </section>
-  <details class="more">
+  <details class="more" id="stock">
     <summary data-t="stockTitle"></summary>
     <p class="warn" data-t="stockWarn"></p>
     <p class="small" data-t="stockBack"></p>
@@ -234,6 +236,20 @@
     <p><label><span data-t="stockFile"></span><br><input id="stock-file" type="file" accept=".fwsc"></label></p>
     <label class="check"><input id="stock-recovery" type="checkbox"><span data-t="stockRecovery"></span></label>
     <p><button id="stock-go" disabled data-t="stockGo"></button></p>
+    <progress id="stock-bar" max="100" value="0"></progress>
+    <p id="stock-status" role="status"></p>
+    <div class="fin" id="stock-done" role="status" hidden>
+      <p id="stock-done-line"></p>
+      <p id="stock-done-data"></p>
+      <p data-t="stockDnBack"></p>
+    </div>
+    <div class="halt" id="stock-interrupted" role="alert" hidden>
+      <h2 data-t="stockIntTitle"></h2>
+      <p data-t="stockIntEarly"></p>
+      <p data-t="stockIntOn"></p>
+      <p><span data-t="stockIntOff"></span> <a href="#dark" data-t="darkTitle"></a></p>
+    </div>
+    <pre id="stock-log"></pre>
   </details>
   <section class="bk" id="files-section">
     <h2 data-t="flTitle"></h2>
@@ -337,6 +353,14 @@ const TEXT = {
     stockValid: "Official V15 verified",
     stockConfirm: "Has the backup file been saved to this computer? Continue to install the official V15. The stock firmware cannot open ChoralRoot's data.",
     stockError: "Cannot validate the official firmware: ",
+    stockDnLine: "The FM-1 now runs the official V15 ({identity}).",
+    stockDnSaved: "ChoralRoot's user sounds, loops and settings are in the backup file saved before the write: {file}.",
+    stockDnEarlier: "No backup was saved in this run: ChoralRoot's user sounds, loops and settings are in the backup file you saved earlier.",
+    stockDnBack: "To come back: install ChoralRoot with the Install button at the top of this page, then press Restore and choose that backup file.",
+    stockIntTitle: "The return to the official V15 stopped.",
+    stockIntEarly: "If it stopped before \"Switching to update mode\", nothing was written and the FM-1 runs what it ran: replug the USB cable and press the button again.",
+    stockIntOn: "If it stopped while writing and the FM-1 stayed on: it is in update mode (a black screen) and waits. Replug the USB cable, tick \"Resume an interrupted update\" above and press the button again, with the same official file selected.",
+    stockIntOff: "If the FM-1 was switched off or its battery ran out: switch it on and do the same. If this page does not find it:",
     nomidi: "This browser cannot do it. Open the page in Chrome or Edge.", loadfail: "Could not load: ",
     start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
     reboot: "Restarting", done: "Done", stopped: "Stopped. Replug the USB cable and press Install again.",
@@ -381,19 +405,25 @@ let lastKey = null, lastArg = "";
 function applyLang() {
   document.documentElement.lang = lang;
   document.querySelectorAll("[data-t]").forEach((e) => { e.textContent = t(e.dataset.t); });
-  if (lastKey) $("status").textContent = t(lastKey) + lastArg;
+  if (lastKey) $(out.status).textContent = t(lastKey) + lastArg;
 }
+// where the messages go: the install card at the top, or, for the return to the official V15 (its file check and its
+// run), the status line and the log of that section, which is far below the card. Everything that reports (takeBackup,
+// failSay, the steps) goes through say / sayK / log, so the stock flow switches `out` and nothing is written twice.
+const OUT_TOP = { status: "status", log: null }, OUT_STOCK = { status: "stock-status", log: "stock-log" };
+let out = OUT_TOP;
+const sayAt = (where, fn) => { const was = out; out = where; try { return fn(); } finally { out = was; } };
 applyLang();
-const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $("status").textContent = t(k) + arg; };
-const say = (txt) => { lastKey = null; $("status").textContent = txt; };
-const log = (t) => { $("log").textContent += t + "\n"; };
+const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $(out.status).textContent = t(k) + arg; };
+const say = (txt) => { lastKey = null; $(out.status).textContent = txt; };
+const log = (t) => { $("log").textContent += t + "\n"; if (out.log) $(out.log).textContent += t + "\n"; };
 let image = null;                                // the selected version's image, set only after its checks passed
 
-// ---- demo mode (?demo=idle | older | writing | interrupted | done | nomidi): a state shown with made-up device data,
+// ---- demo mode (?demo=idle | older | writing | interrupted | done | nomidi | stockwriting | stockdone): made-up device data,
 // for review and screenshots. Inert by construction: midiAccess() is the page's only way to the browser's MIDI and
 // refuses in demo mode, every handler that talks to an FM-1 returns first, and no package is fetched.
 const DEMO = (() => {
-  try { const m = /[?&]demo=(idle|older|writing|interrupted|done|nomidi)(?:&|$)/.exec(location.search); return m ? m[1] : null; }
+  try { const m = /[?&]demo=(idle|older|writing|interrupted|done|nomidi|stockwriting|stockdone)(?:&|$)/.exec(location.search); return m ? m[1] : null; }
   catch (_) { return null; }
 })();
 
@@ -694,17 +724,17 @@ async function loadPackage(rel) {
     if (!r.ok) throw new Error(`${rel.pkg}: HTTP ${r.status}`);
     const pkg = new Uint8Array(await r.arrayBuffer());
     if (epoch !== loadEpoch) return;
-    if (productOf(pkg) !== meta.product) { sayK("badpkg"); return; }
+    if (productOf(pkg) !== meta.product) { sayAt(OUT_TOP, () => sayK("badpkg")); return; }
     const sum = await sha256hex(pkg);
     if (epoch !== loadEpoch) return;
     if (!rel.sha256 || sum !== rel.sha256) {       // not the released file: never offered to the FM-1
-      say(tv("badhash", { version: rel.version })); log(`sha256 of ${rel.pkg}: ${sum}, the list says ${rel.sha256 || "nothing"}`);
+      sayAt(OUT_TOP, () => say(tv("badhash", { version: rel.version }))); log(`sha256 of ${rel.pkg}: ${sum}, the list says ${rel.sha256 || "nothing"}`);
       return;
     }
     image = logicalImage(pkg);
-    ready({ version: rel.version, product: meta.product });
+    sayAt(OUT_TOP, () => ready({ version: rel.version, product: meta.product }));
     lockInstaller(writing);
-  } catch (e) { if (epoch === loadEpoch) sayK("loadfail", e.message); }
+  } catch (e) { if (epoch === loadEpoch) sayAt(OUT_TOP, () => sayK("loadfail", e.message)); }
 }
 function selectVersion(v) {
   const r = releases.find((x) => x.version === v);
@@ -744,6 +774,11 @@ if (DEMO === "done") {
   $("done-line").textContent = tv("dnLine", { version: sel.version });
   $("done").hidden = false; renderPick();
 }
+if (DEMO === "stockwriting" || DEMO === "stockdone") sayAt(OUT_STOCK, () => {
+  $("stock").open = true;
+  if (DEMO === "stockwriting") { $("stock-bar").value = 58; sayK("write"); }
+  else { $("stock-bar").value = 100; sayK("done"); stockFinished("FM-1_015", backupFileName("ChoralRoot " + newest.version)); }
+});
 
 $("go").addEventListener("click", async () => {
   if (writing || DEMO || !image) return;
@@ -840,6 +875,32 @@ $("restore-go").addEventListener("click", async () => {
   finally { lockInstaller(false); }
 });
 
+// ---- the return to the official V15. It reports in its own section (OUT_STOCK): the install card is out of sight
+// from there. The section is opened whenever something is shown in it, and stays open while a run is going.
+let stockBusy = false;
+function stockShow(scroll) {
+  const d = $("stock"), s = $("stock-status");
+  d.open = true;
+  if (!scroll || !s.getBoundingClientRect || !s.scrollIntoView) return;
+  const r = s.getBoundingClientRect();
+  if (r.top < 0 || r.bottom > window.innerHeight) s.scrollIntoView({ block: "center" });
+}
+$("stock").addEventListener("toggle", () => {
+  if (!$("stock").open && (stockBusy || !$("stock-done").hidden || !$("stock-interrupted").hidden)) $("stock").open = true;
+});
+// the end: what the FM-1 answered with, where ChoralRoot's data are (file: the backup this run saved, "" if none)
+function stockFinished(identity, file) {
+  $("stock-done-line").textContent = tv("stockDnLine", { identity });
+  $("stock-done-data").textContent = file ? tv("stockDnSaved", { file }) : t("stockDnEarlier");
+  $("stock-done").hidden = false;
+}
+// a write to stock begins: what the install card says of an earlier install or check is no longer true of the FM-1,
+// so the card goes back to its idle state (the version it would install) and stays so through the run
+function clearTop() {
+  $("bar").value = 0; $("done").hidden = true; $("interrupted").hidden = true;
+  installedV = null; unit = null; unitAsked = false; $("unit").hidden = true; renderPick();
+  if (image) sayAt(OUT_TOP, () => ready({ version: sel.version, product: meta.product }));
+}
 $("stock-file").addEventListener("change", async () => {
   const epoch = ++stockFileEpoch, file = $("stock-file").files[0]; stock = null; lockInstaller(false);
   if (!file) return;
@@ -847,37 +908,65 @@ $("stock-file").addEventListener("change", async () => {
     if (file.size !== STOCK_V15_SIZE) throw new Error("FM-1 V15 / FM-1.fwsc");
     const verified = await validateStockPackage(new Uint8Array(await file.arrayBuffer()));
     if (epoch !== stockFileEpoch) return;
-    stock = verified; sayK("stockValid"); lockInstaller(false);
-  } catch (e) { if (epoch === stockFileEpoch) sayK("stockError", e.message); }
+    stock = verified; sayAt(OUT_STOCK, () => sayK("stockValid")); stockShow(false); lockInstaller(false);
+  } catch (e) { if (epoch === stockFileEpoch) { sayAt(OUT_STOCK, () => sayK("stockError", e.message)); stockShow(false); } }
 });
-// the return to stock: a backup first (the stock firmware cannot use ChoralRoot's data), as Felucca's installer
+// a backup first (the stock firmware cannot use ChoralRoot's data), as Felucca's installer; then the same two steps as
+// an install. The bar: the first 6 % for the check by the running firmware (74 reads, as the install card counts it),
+// the rest for the write. How many reads the loader of the official package makes is not known before it makes them
+// (it is M-VAVE's own loader, not ours), so the write is measured against the whole image in 512-byte reads, the most
+// it can ask for at once: an estimate, held under 100 until the FM-1 has answered again, and it never runs backwards.
 $("stock-go").addEventListener("click", async () => {
   if (DEMO || !stock || writing) return;
   const selected = stock; lockInstaller(true);
+  let began = false, okDone = false, halted = false, identity = "", savedName = "";
+  out = OUT_STOCK; stockBusy = true;
+  $("stock-bar").value = 0; $("stock-done").hidden = true; $("stock-interrupted").hidden = true; $("stock-log").textContent = "";
+  stockShow(true);
   try {
     let midi;
     try { midi = await midiAccess(); } catch (e) { sayK("denied"); return; }
     const up = new Updater(midi, log);
-    const step = (k, n) => { log(`${k} ${n ?? ""}`); if (["start","verify","loader","write","reboot","done"].includes(k)) sayK(k); if (k === "done") $("bar").value = 100; };
+    const reads = Math.ceil(selected.image.length / 512);
+    const bar = (v) => { const b = $("stock-bar"); b.value = Math.max(Number(b.value) || 0, Math.min(99, v)); };
+    const step = (k, n) => {
+      log(`${k} ${n ?? ""}`);
+      if (["start", "verify", "loader", "write", "reboot", "done"].includes(k)) sayK(k);
+      if (k === "start" || k === "write") began = true;
+      if (k === "verify") bar(Math.min(n, 74) / 74 * 6);
+      if (k === "loader") bar(6);
+      if (k === "write") bar(6 + (n / reads) * 93);
+      if (k === "done") { identity = n; $("stock-bar").value = 100; }
+    };
     const loader = await up.find(id => id.model === "ota-FM-1");
     if (loader) {
       loader.link.close();
       if (!$("stock-recovery").checked) { sayK("stockNeedBackup"); return; }
-      if (!confirm(t("stockConfirm"))) return;
-      sayK(await up.resume(selected.image, step, selected.product) ? "done" : "stopped");
+      if (!confirm(t("stockConfirm"))) { sayK("cancelled"); return; }
+      clearTop(); began = true;
+      okDone = await up.resume(selected.image, step, selected.product);
+      if (!okDone) { sayK("stopped"); halted = true; }
     } else {
       if (!$("stock-recovery").checked) {
-        try { await takeBackup(up); }
+        try { savedName = backupFileName((await takeBackup(up)).firmware); }
         catch (e) {
           if (e.code === "notfound") throw e;
           log(`backup: ${e.message}`);
           if (!confirm(t("noBackupConfirm"))) { sayK("cancelled"); return; }
         }
       }
-      if (!confirm(t("stockConfirm"))) return;
+      if (!confirm(t("stockConfirm"))) { sayK("cancelled"); return; }
+      clearTop();
       await up.install(selected.image, selected.product, step);
+      okDone = true;
     }
-  } catch (e) { failSay(e); } finally { lockInstaller(false); }
+  } catch (e) { failSay(e); halted = began && !okDone && e.code !== "mismatch"; }
+  finally {
+    if (okDone) stockFinished(identity || selected.product, savedName);
+    else if (halted) $("stock-interrupted").hidden = false;   // what to do now: resume with the box ticked
+    stockShow(false);
+    out = OUT_TOP; stockBusy = false; lockInstaller(false);
+  }
 });
 </script>
 </body>
