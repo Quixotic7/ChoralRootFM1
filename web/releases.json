@@ -8,6 +8,26 @@
   },
   "releases": [
     {
+      "version": "0.27",
+      "date": "2026-10-25",
+      "tag": "v0.27",
+      "sha256": "a09f9e19b66a91351de37c532e0d15cdc03ff9e9c82a0b152cdb66ca3fdc0326",
+      "sha256_1core": "1b810633ff9a17a339d3a11a04847cbe27f575a12c482ab58f92e70e6dffe148",
+      "title": "FX routing: Parallel or Chain, the filter before the effects",
+      "bullets": [
+        "A Routing page in the FX layer draws the chorus, delay, reverb and master filter as boxes on a wire. Hold a black key (C#4 Chorus, D#4 Delay, F#4 Reverb, G#4 Filter) and turn KNOB 1 to move that block.",
+        "Every other key keeps playing on the page, so you hear the effects while you route them.",
+        "Parallel is ChoralRoot as it always was: the three send buses side by side. The filter can now go before them (hold G#4, KNOB 1 anticlockwise): a high cut keeps the fizz out of the reverb.",
+        "Chain is the original firmware's way: one path through the four blocks in the order on the screen, each effect adding its sound to everything before it. A#4 or KNOB 2 switches the mode.",
+        "Where every FM-1 starts (Parallel, the filter after the effects) the sound is 0.26.1's bit for bit. Mode and order are kept with the other effect settings by SAVE held.",
+        "The web device manager finds an FM-1 that a Mac still calls \"FM-1\" (it used to say \"FM-1 not found\" while the installer saw it)."
+      ],
+      "notes": [
+        "Updating from 0.26.1 or 0.26 keeps your settings, sounds, loops and favorites; the effects sound as they did until you open the Routing page. From 0.25.1 or older, your FM-1 also moves to the FM-1 chord keys once.",
+        "The Single core package has the routing too. The SMK-37 test build stays 0.26-smk37."
+      ]
+    },
+    {
       "version": "0.26.1",
       "date": "2026-10-20",
       "tag": "v0.26.1",
@@ -23,7 +43,14 @@
       "notes": [
         "Updating from 0.26 is optional: nothing changes but the version line. From 0.25.1 or older, this is 0.26's update.",
         "The Single core package is signed the same way."
-      ]
+      ],
+      "going_back": {
+        "short": "Your settings, sounds, loops and favorites stay: 0.27 stores everything as 0.26.1 does. The routing's mode and order are kept under two tags 0.26.1 skips, so it comes up as the buses with the filter after them, its own sound.",
+        "points": [
+          "The Routing page is not there; the FX layer has eight pages again.",
+          "One exception: with the filter moved before the effects AND all four of the filter's cells off their defaults, 0.26.1 takes the effects' global settings back to their defaults once (the reverb's, delay's and chorus's own parameters and the bass part's sends); sounds, loops and the chord part's sends are untouched."
+        ]
+      }
     },
     {
       "version": "0.26",

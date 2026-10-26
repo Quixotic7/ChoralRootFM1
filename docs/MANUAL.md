@@ -1,6 +1,6 @@
 # ChoralRoot FM-1: the manual
 
-For ChoralRoot 0.26.1 on the M-VAVE FM-1 (what is new since 0.22 is marked so; 0.26.1 is 0.26 signed, [releases/0.26.1.md](releases/0.26.1.md); what 0.26 brought: [releases/0.26.md](releases/0.26.md)). It is written for someone who owns an
+For ChoralRoot 0.27 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md); 0.26.1 is 0.26 signed, [releases/0.26.1.md](releases/0.26.1.md)). It is written for someone who owns an
 FM-1, has installed ChoralRoot with
 the web installer and wants to play it. Nothing here needs the design documents; where one goes deeper, the manual
 links to it.

@@ -139,6 +139,10 @@ each part:
   and Felucca 1.1.5) at 48 kHz too when Options > USB Rate offers it; Options > USB Record switches it (Off:
   the serial console instead) ([docs/USB-AUDIO.md](docs/USB-AUDIO.md)).
 - **On the computer**: the web installer with backup, restore and sounds as files, and the web device manager.
+- **New in 0.27** ([docs/releases/0.27.md](docs/releases/0.27.md)): FX routing: the Routing page draws the chorus, delay,
+  reverb and filter as boxes you reorder with the black keys and KNOB 1, in Parallel (the buses as before, the filter
+  now movable before them) or Chain (one path, the original firmware's way); the device manager finds an FM-1 a Mac
+  still calls "FM-1".
 - **New in 0.26.1** ([docs/releases/0.26.1.md](docs/releases/0.26.1.md)): 0.26's firmware, the first release GitHub
   built from source and signed through The Firmware Hub's shared workflow (`gh attestation verify`, BUILDING.md
   "Checking a package").

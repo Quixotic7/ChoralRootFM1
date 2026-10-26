@@ -6434,3 +6434,22 @@ new managerPorts case); the page built by make_site.py's `manager_page()` served
 owner's unit E81CE2F7 on USB as "FM-1": connected, "ChoralRoot 0.26.1 · unit ID E81CE2F7", its pools read (0 user
 sounds, 0 loops). Not published: the site is built at the next release (web/make_site.py).
 
+## 2026-10-25 (0.27, the release tree)
+
+3y197. **0.27, the release tree (the owner: "merge to main and get the next release tagged"): the FX routing (3y192 ..
+3y195, issue 21) and the device manager's port match (3y196, issue 32), FM-1 only; the SMK-37 build stays
+v0.26-smk37.** From origin/main 7d97982 (v0.26.1): the five commits of claude/fx-routing, fast-forwarded.
+`FELUCCA_VERSION` "ChoralRoot 0.27"; `docs/releases/0.27.md` for players (the routing page, the two modes and the
+filter's places, the manager, Installing, "Going back to 0.26.1": the two new session tags are skipped, the one case
+where 0.26.1 takes the FX block's defaults named); README's "New in 0.27"; the manual's first line. `web/releases.json`:
+0.27 first, dated 2026-10-25, sha256 a09f9e19b66a91351de37c532e0d15cdc03ff9e9c82a0b152cdb66ca3fdc0326, 1-core
+1b810633ff9a17a339d3a11a04847cbe27f575a12c482ab58f92e70e6dffe148, six bullets; 0.26.1's entry gets its `going_back`.
+**Built** twice, `./build.sh --release 0.27` and then `tools/hub_build.sh 0.27` (the hub's command, Docker): the same
+`SHA256SUMS` (the four files), "web/releases.json: 0.27's 2 sha256s match". Size: XIP 549 076 B of 573 440 (95.8 %),
+RAM 80 560, RAMTEXT 16 120, POOL 310 336 of 344 064 (90.2 %).
+**Checked**: `CR_VERSION=0.27 sh tests/run_all.sh` ALL SUITES PASSED (23 suites, 96 s; test_cr 1106 ok, test_persist
+119; 317 golden renders, 0 changed; 0 lint; the browser emulators built and their tests PASS; site_test "New in
+0.27"); `python3 tests/releases_test.py` releases ALL OK; the dev build `build/choralroot.fwsc` is the release
+package's bytes (a09f9e19..). On the owner's unit E81CE2F7: f3d63cd's build (the same firmware, read as 0.26.1).
+Pushed to main and tagged v0.27: release.yml builds, signs and publishes, then pages.yml the site.
+
