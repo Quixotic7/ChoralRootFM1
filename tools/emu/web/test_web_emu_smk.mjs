@@ -127,6 +127,33 @@ ok(a.scale === 1, "SCALE (KEY) lights its LED");
 const b = await run();
 ok(b.chord.hash === a.chord.hash && b.chord.e === a.chord.e, "the same input twice: the same samples (deterministic)");
 
+console.log("K1, the volume (GitHub issue 30): its popup, and the level back after a power cycle");
+{
+  const d = await load(), ex = d.ex;
+  ex.web_boot();
+  d.render(ms(3000));                         // (past the splash)
+  ok(ex.web_smk_master() === 724, `a fresh unit starts at 724 (${ex.web_smk_master()})`);
+  ex.web_smk_enc(0, -10);                     // ten detents down (the model's quadrature lands nine, as the 724 -> 628
+  d.render(ms(200));                          // of five above: four), 24 each
+  const lv = ex.web_smk_master(), sr = (d.dump().match(/screen reads:.*/) || ["?"])[0];
+  const pct = String(Math.floor((lv * 100 + 511) / 1023)).padStart(2, "0");
+  ok(lv < 724 && (724 - lv) % 24 === 0, `K1 down: ${lv}, in detents of 24`);
+  ok(new RegExp(`value '${pct}' sub '%' label 'volume'`).test(sr), `the popup: volume ${pct} % (${sr.trim()})`);
+  ex.web_smk_button(11, 1);                   // BT = SAVE, held: the global save
+  d.render(ms(2000));
+  ex.web_smk_button(11, 0);
+  d.render(ms(500));
+  const img = new Uint8Array(d.mem.buffer, ex.web_flash(), ex.web_flash_size()).slice();
+  const e = await load();                     // the power cycle: a new unit on the saved flash
+  new Uint8Array(e.mem.buffer, e.ex.web_flash_stage(), img.length).set(img);
+  e.ex.web_flash_stage_len(img.length);
+  e.ex.web_boot();
+  e.render(ms(3000));
+  ok(e.ex.web_smk_master() === lv, `after SAVE held and a power cycle: ${lv} again (${e.ex.web_smk_master()})`);
+  const sr2 = (e.dump().match(/screen reads:.*/) || [""])[0];
+  ok(!/label 'volume'/.test(sr2), "no volume popup at power-on (the level set, K1 not turned)");
+}
+
 if (!args.has("--no-page")) {
   console.log("the page (headless Chromium screenshot)");
   const chrome = "/Applications/Chromium.app/Contents/MacOS/Chromium";

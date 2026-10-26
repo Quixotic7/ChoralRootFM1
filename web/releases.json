@@ -24,7 +24,7 @@
       ],
       "notes": [
         "Updating from 0.26.1 or 0.26 keeps your settings, sounds, loops and favorites; the effects sound as they did until you open the Routing page. From 0.25.1 or older, your FM-1 also moves to the FM-1 chord keys once.",
-        "The Single core package has the routing too. The SMK-37 community test build stays at 0.26 for now."
+        "The Single core package has the routing too. 0.27 also comes as a community test build for the M-Vave SMK-37 (see SMK37.md in the repository)."
       ]
     },
     {

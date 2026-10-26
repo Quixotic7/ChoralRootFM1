@@ -292,8 +292,8 @@ static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uin
  * CR_BLOCK), so the block keeps its size and its layout and an older firmware reads a v15 block as it read v14's.
  * The record has its own header (magic, version, size, check: FNV-1a over [12, size)), the block's import rules (a
  * shorter, older record over the defaults; a longer, newer one by its prefix; anything else: the defaults = the unit as
- * 0.17 powered on) and real reserve: CSS_SIZE is 1024 of the object's 3840 bytes, 126 of them unused today (46 in the
- * state, 4 after the FX block, 8 in each part, 60 at the end).
+ * 0.17 powered on) and real reserve: CSS_SIZE is 1024 of the object's 3840 bytes, 120 of them unused today (44 in the
+ * state, 8 in each part, 60 at the end; the SMK-37's MASTER took two of the state's).
  * `bind`: the CRC of the settings object in flash when the session was written (0: none). The session is used at
  * power-on if the settings block was read as current (written by a v15 firmware: an older one in between would have
  * left its own version there) or, with any other block, if the settings object is still the one the session was
@@ -393,7 +393,12 @@ typedef struct {
                                          * -5 x1/8, -4 x1/6 (those four since 2026-10-11), -3 x1/4, -2 x1/2,
                                          * -1 x3/4, 0 x1, 1 x1.5, 2 x2, 3 x4 (cr_loop.h CRL_NRATE; 0 = the default, so
                                          * a record written before it reads x1: no migration) */
-    uint8_t rsv[46];
+    uint8_t smk_master[2];              /* the SMK-37's only (GitHub issue 30): K1's virtual MASTER pot (hal/smk_input.h
+                                         * smk_master, 0..1023) + 1, little-endian; 0 = not stored (an older record, a
+                                         * 0.26-smk37 one: 724 as before). The FM-1 build neither writes nor reads it
+                                         * (its MASTER is a physical pot): 0 in its records. Bytes 22, 23 (the first
+                                         * two of the old reserve) */
+    uint8_t rsv[44];
     css_fx_t fx;                        /* (rsv_fx[4] after it until the routing (issue 21): its entry took it) */
     css_part_t part[2];                 /* chord, bass */
     uint8_t rsv_end[60];

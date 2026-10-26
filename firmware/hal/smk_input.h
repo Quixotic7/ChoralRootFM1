@@ -702,6 +702,11 @@ static void fm1_led_key(uint32_t id, int on)
 enum { FM1_ADC_BATT = 3, FM1_ADC_MASTER = 4 };
 #define SMK_ENC_MASTER 0u          /* K1, where the FM-1 has its MASTER pot (top left) */
 static int32_t smk_master = 724;
+/* smk_master_seq: bumped by every read that took a detent (the audio / main loop's poll, below), so that the UI's
+ * pump (cr_ui.c cu_smk_input) sees a turn once a frame and shows the level (GitHub issue 30: nothing on the screen
+ * said K1 was the volume). The level itself stays here; the session record keeps it across power-off (cr_settings.c
+ * css_capture / css_apply write and set smk_master) */
+static volatile uint8_t smk_master_seq;
 static void fm1_adc_init(void) {}
 static int32_t fm1_enc_take(uint32_t e);
 static int32_t fm1_adc_read(uint32_t ch)
@@ -709,8 +714,12 @@ static int32_t fm1_adc_read(uint32_t ch)
     if (ch == FM1_ADC_BATT)
         return fm1_in.batt ? (int32_t)fm1_in.batt : -1;
     if (ch == FM1_ADC_MASTER) {
-        smk_master += fm1_enc_take(SMK_ENC_MASTER) * 24;
-        smk_master = smk_master < 0 ? 0 : smk_master > 1023 ? 1023 : smk_master;
+        int32_t d = fm1_enc_take(SMK_ENC_MASTER);
+        if (d) {
+            smk_master += d * 24;
+            smk_master = smk_master < 0 ? 0 : smk_master > 1023 ? 1023 : smk_master;
+            smk_master_seq++;                      /* (at an end too: the popup shows 0 or 100) */
+        }
         return smk_master;
     }
     return -1;

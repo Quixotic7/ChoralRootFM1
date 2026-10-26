@@ -6453,3 +6453,32 @@ RAM 80 560, RAMTEXT 16 120, POOL 310 336 of 344 064 (90.2 %).
 package's bytes (a09f9e19..). On the owner's unit E81CE2F7: f3d63cd's build (the same firmware, read as 0.26.1).
 Pushed to main and tagged v0.27: release.yml builds, signs and publishes, then pages.yml the site.
 
+3y198. **0.27-smk37, the SMK-37 test build of 0.27 (the owner: "Please add the FX routing to the SMK-37 build"), and
+K1's volume shown and remembered (GitHub issue 30, from Reddit: "Is there a way to lower the volume output ... I about
+blasted my ears off"; the owner: "there's no volume control").** The Routing page needs nothing of its own on the
+SMK: the keybed keys 5..31 are the FM-1's 27 note keys in the same numbering (hal/smk_input.h SMK_KEY_F3), so C#4 D#4
+F#4 G#4 A#4 are its black keys above the pads' octave and `cu_rt_block_of` finds them. **The volume**: K1 stands in
+for the FM-1's MASTER pot as a virtual pot (hal/smk_input.h `smk_master`, 0..1023, 24 a detent, 724 at power-on) and
+nothing said so. Now `smk_master_seq` counts the reads that took a detent, `cr_ui.c cu_smk_input` sees it once a
+frame and shows "volume NN %" (the click level's popup), and the session record keeps the level: `cr_session_t
+smk_master[2]` (bytes 22, 23 of the old reserve, the level + 1, 0 = not stored: an older record or an FM-1's leaves
+724; `css_capture` / `css_apply` under BOARD_SMK37; the comment's reserve count corrected to 120). The FM-1 build
+neither writes nor reads it and its package is byte for byte v0.27's (a09f9e19.., checked after the change).
+`tools/emu/web/build_web.sh`: the dev version's sed left the line's comment in the string (pre-existing: `.*` after
+the closing quote now). `tests/cr_fx_test.c`: the Parallel cost guard at 5 % (it tripped at 3.4 % under the loaded
+suite; the samples are proven bit for bit beside it). `web/make_site.py smk_site`: with no SMK build offered it
+removes a previous build's firmware/smk37/ and webapp/smk37/ in the same folder (site_test's release-site links
+failed on leftovers). The tree: `web/releases-smk37.json` with 0.27-smk37 first (base 0.27, dated 2026-10-25, pro
+e9a34a51.. / dfebf477.., elite b3e6cf55.. / a8a6d3c5.., mke c786f00c.. / 9ac2888f..; eight bullets, the notes asking
+the testers for the Routing page and K1); SMK37.md at 0.27-smk37 (the status, the packages, the commands, the
+splash, K1's row) with "What to test" items 11 (the routing) and 12 (the volume); docs/releases/0.27.md's SMK line
+and `web/releases.json`'s 0.27 note name the test build (without the lower-case string pages.yml's link check greps).
+**Built** twice, `BOARD=smk37 ./build.sh --release 0.27-smk37` for the three models and then `tools/hub_build.sh
+0.27-smk37`: the same `SHA256SUMS` (twelve files), "web/releases-smk37.json: 0.27-smk37's 6 sha256s match". Pro: XIP 548 332 B of 573 440 (95.6 %), RAM 81 372, RAMTEXT 16 260, POOL 310 336.
+**Checked**: `CR_SMK_PACKAGES_DIR=build/scratch/smk-packages python3 tests/releases_test.py` releases ALL OK;
+`web/make_site.py .. --require-all` with every FM-1 and SMK package: the SMK page offers 0.27-smk37 first, no public
+page holds "smk37"; `node tools/emu/web/test_web_emu_smk.mjs` PASS with the volume's case (K1 down 724 -> 508 in
+detents of 24, "volume 50 %" read on the screen, SAVE held, a power cycle: 508 again, no popup at power-on);
+`sh tests/run_cr_tests.sh`, `test_cr.sh`, `test_persist.sh` green; CR_VERSION=0.27 `sh tests/run_all.sh`
+ALL SUITES PASSED (23 suites, 105 s; test_cr 1106 ok, test_persist 119; 317 golden renders, 0 changed; 0 lint; the FM-1 dev build still a09f9e19..). Not run on an SMK-37 (the maintainer has none): the testers' build. Tagged v0.27-smk37 on main.
+

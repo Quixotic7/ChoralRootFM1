@@ -1022,6 +1022,10 @@ static void css_capture(cr_session_t *x)
             cr_session_fx_set(x, CSS_FXG[i].tag, *css_fxg_p(i));
     css_part_get(0, &x->part[0]);
     css_part_get(1, &x->part[1]);
+#if BOARD_SMK37
+    x->smk_master[0] = (uint8_t)((uint32_t)(smk_master + 1) & 0xFFu);   /* K1's level + 1 (0: not stored) */
+    x->smk_master[1] = (uint8_t)((uint32_t)(smk_master + 1) >> 8);
+#endif
     cr_session_seal(x);
 }
 
@@ -1054,6 +1058,14 @@ static void css_apply(const cr_session_t *x)
     if (x->bass_on)
         cr_set_bass(&cr, 1);
     fm1_irq_on();
+#if BOARD_SMK37
+    {                                              /* K1's level (a record without it: 724, the power-on default; master.c
+                                                    * master_poll glides to it from there, under the splash) */
+        uint32_t lv = (uint32_t)x->smk_master[0] | (uint32_t)x->smk_master[1] << 8;
+        if (lv >= 1u && lv <= 1024u)
+            smk_master = (int32_t)lv - 1;
+    }
+#endif
     cu.octave = x->octave;                         /* (cu_post_kbd follows: the split key's note moves with it) */
     cs.loop_rate = (uint8_t)((int)x->loop_rate + (int)CRL_RATE_1);   /* (cu_loop_conf posts it with the looper's) */
     if (x->bass_on) {                              /* v15: the bass comes back on, on its sound (ALGORITHM's place:

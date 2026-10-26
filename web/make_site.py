@@ -402,9 +402,10 @@ def smk_site(out, collected, emu=None):
     fw, inst = out / "firmware" / "smk37", out / "webapp" / "smk37"
     for old in fw.glob("*.fwsc") if fw.is_dir() else []:
         old.unlink()
-    if not offered:
-        if (inst / "index.html").is_file():
-            (inst / "index.html").unlink()
+    if not offered:                                   # (a site built again into the same folder: nothing of an earlier
+        for d in (fw, inst):                          # build's SMK pages stays, its firmware/smk37/index.html would link
+            if d.is_dir():                            # a webapp/smk37/ that is not written)
+                shutil.rmtree(d)
         return "no webapp/smk37/ (no SMK-37 test build offered)"
     fw.mkdir(parents=True, exist_ok=True)
     inst.mkdir(parents=True, exist_ok=True)

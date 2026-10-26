@@ -5,10 +5,10 @@ of flash). The FM-1 build is unchanged; everything for the SMK-37 is behind `BOA
 same ChoralRoot: the same sounds and engines (GRAIN among them), screens, boot and [manual](docs/MANUAL.md), with
 velocity-sensitive keys, the chord block and the performance modes on the pads, and the SMK-37's extra controls.
 
-**Status: a community test build of 0.26.** The port is genkigenki's (M. Geisler, genkigenki / makkuro:
+**Status: a community test build of 0.27.** The port is genkigenki's (M. Geisler, genkigenki / makkuro:
 [PR #14](https://github.com/Quixotic7/ChoralRootFM1/pull/14) and the porting guide
 [fm1-to-smk37](https://github.com/genkigenki/fm1-to-smk37)), brought onto 0.24-beta2 here and built from the FM-1's
-releases since (0.26 now). It is **community-tested, not tested by the maintainer**: the maintainer has no SMK-37, so nothing on
+releases since (0.27 now). It is **community-tested, not tested by the maintainer**: the maintainer has no SMK-37, so nothing on
 this page has been tried on a unit by the project. What only a unit can answer is listed under
 [What to test](#what-to-test). Report what you find in the project's issues.
 
@@ -19,14 +19,14 @@ factory package afterwards. The test packages (`build/release-smk37/`, see [Buil
 
 | Model | Package | Identity |
 | --- | --- | --- |
-| SMK-37 Pro (and the Starrykey 37 Play) | `choralroot-0.26-smk37.fwsc` | `SMK-37 Pro_920` |
-| SMK-37 Elite | `choralroot-0.26-smk37-elite.fwsc` | `SMK-37 Elite_920` |
-| MKE-P37 | `choralroot-0.26-smk37-mke.fwsc` | `MKE-P37_920` |
+| SMK-37 Pro (and the Starrykey 37 Play) | `choralroot-0.27-smk37.fwsc` | `SMK-37 Pro_920` |
+| SMK-37 Elite | `choralroot-0.27-smk37-elite.fwsc` | `SMK-37 Elite_920` |
+| MKE-P37 | `choralroot-0.27-smk37-mke.fwsc` | `MKE-P37_920` |
 
-Each has a `-1core` twin (`choralroot-0.26-smk37-1core.fwsc`, ...): the same firmware on one processor core, for
+Each has a `-1core` twin (`choralroot-0.27-smk37-1core.fwsc`, ...): the same firmware on one processor core, for
 a unit that crashes or freezes with the standard package (as the FM-1's, [docs/DUALCORE.md](docs/DUALCORE.md)). The
-version a player sees (the splash, Options > Version, `fm1_install.py --info`) is `ChoralRoot 0.26-smk37`
-(`... 1-core` for the twin). 0.26-smk37 is the FM-1's 0.26 on the SMK-37 ([docs/releases/0.26.md](docs/releases/0.26.md):
+version a player sees (the splash, Options > Version, `fm1_install.py --info`) is `ChoralRoot 0.27-smk37`
+(`... 1-core` for the twin). 0.27-smk37 is the FM-1's 0.27 on the SMK-37 ([docs/releases/0.27.md](docs/releases/0.27.md):
 with Dual Core On, VA and FM6 chords shared between the two cores and the VA's code in RAM, the same sound bit for bit;
 the screen's background pure black), with everything of 0.25-smk37 (GRAIN's MORPH a blend of the two sources,
 [docs/releases/0.25.md](docs/releases/0.25.md)) and of 0.24-beta3-smk37.1, genkigenki's fix for the stock firmware's
@@ -50,7 +50,7 @@ so the whole keybed plays roots. The SMK-37's buttons and knobs map onto the FM-
 | Pads 5-8 (top row) | the free-timing performance modes: Strum, Strum 2 Octaves, Slop, Harp (cyan) |
 | Pads 14-16 (bottom row) | the tempo-synced performance modes: Arpeggiate, Arp 2 Octaves, Pattern (green) |
 | The mode pads | a tap picks that mode and switches the performance on; the playing mode's pad again switches it off, as a PERF tap. Bright: the mode playing; dim: the others. PERF (ARP) and the PERF layer show the same state |
-| K1 | MASTER (volume) |
+| K1 | MASTER (volume): a turn shows the level; it is remembered across power-off |
 | K2 / K3 / K4 | SELECT / ALGORITHM / PRESETS |
 | K5..K8 | KNOB 1..4 (the SAVE menu and the naming help say K5..K8) |
 | SCALE / CHORD / NOTE REPEAT | KEY (printed SEL) / BASS (ENV) / LATCH (LFO) |
@@ -111,7 +111,7 @@ freezes with the standard package.
 **From the command line**: connect the keyboard by USB and run, with the package for your model:
 
 ```sh
-python3 tools/fm1_install.py choralroot-0.26-smk37.fwsc
+python3 tools/fm1_install.py choralroot-0.27-smk37.fwsc
 ```
 
 `fm1_install.py` needs `python-rtmidi` (`pip3 install python-rtmidi`). It checks that the package is for the connected
@@ -227,9 +227,9 @@ models in `build/release-smk37/`, with the `-1core` twins, `SHA256SUMS`, this fi
 [BUILDING.md](BUILDING.md) "An SMK-37 test release"):
 
 ```sh
-BOARD=smk37 ./build.sh --release 0.26-smk37
-BOARD=smk37 MODEL=elite ./build.sh --release 0.26-smk37
-BOARD=smk37 MODEL=mke ./build.sh --release 0.26-smk37
+BOARD=smk37 ./build.sh --release 0.27-smk37
+BOARD=smk37 MODEL=elite ./build.sh --release 0.27-smk37
+BOARD=smk37 MODEL=mke ./build.sh --release 0.27-smk37
 ```
 
 ## What to test
@@ -237,7 +237,7 @@ BOARD=smk37 MODEL=mke ./build.sh --release 0.26-smk37
 What no test here can answer, in the order to try it. Note the model, the package and what you saw.
 
 1. **First boot and the owner change.** From the stock firmware: the first start takes a few seconds longer (the
-   areas cleared, once), then the splash shows `ChoralRoot 0.26-smk37`. A second start is quick. `fm1_install.py
+   areas cleared, once), then the splash shows `ChoralRoot 0.27-smk37`. A second start is quick. `fm1_install.py
    --info` names the firmware. From genkigenki's earlier build: your sounds are there (moved into the pool).
 2. **The pads.** Pads 1-4, 9-12 hold the chord types and extensions, pad 13 is LOCK (tap and hold), pads 5-8 and 14-16
    pick and stop the performance modes; their colours as in [Controls](#controls).
@@ -259,6 +259,15 @@ What no test here can answer, in the order to try it. Note the model, the packag
 10. **Going back with M-UPGRADE.** Install your model's stock package with M-UPGRADE: the stock firmware starts, and the
     keys', pads' and wheels' feel (the calibration) is as before ChoralRoot. Every key sends its own note, the pads,
     knobs and faders their factory messages (the mapping kept, or rebuilt after ChoralRoot wrote into USRFLASH).
+11. **FX routing (0.27).** Hold FX, SELECT to the last page, Routing. On the keybed hold C#4, D#4, F#4 or G#4 (the
+    black keys above the chord pads' octave: the SMK's keys 5..31 are the FM-1's note keys, C4 the eighth of them) and
+    turn KNOB 1: the block moves; A#4 taps between Parallel and Chain; the white keys keep playing. In Chain the
+    effects run one into the next; in Parallel, G#4 held and KNOB 1 anticlockwise puts the Filter before the buses.
+    Say whether the boxes draw and slide cleanly on the SMK's screen and whether the black keys land where the
+    footer says.
+12. **The volume (issue 30).** Turn K1 while a chord plays: a popup reads `volume` and the level in per cent, and the
+    sound follows. Turn it down, hold SAVE (BT) for the global save, switch off and on: the level is where you left
+    it, not back at the default.
 
 Also worth a line: whether `fm1_install.py --info` shows a unit ID (`unit ID: XXXXXXXX`) and whether two SMK-37s show
 different ones (it is read from the flash chip, whose maker differs from the FM-1's).

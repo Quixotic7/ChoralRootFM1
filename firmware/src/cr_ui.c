@@ -5892,6 +5892,16 @@ static void cu_smk_input(uint32_t pe)
         cu_smk_xkey((uint32_t)e >> 8, (uint32_t)e & 0xFFu);
     while ((e = smk_pad_take()) >= 0)
         cu_smk_pad((uint32_t)e >> 8, (uint32_t)e & 0xFFu);
+    {                                              /* K1 turned (hal/smk_input.h smk_master_seq; GitHub issue 30):
+                                                    * the volume, in per cent of the pot's range, as the click level's */
+        static uint8_t seen;
+        uint8_t q = smk_master_seq;
+        if (q != seen) {
+            seen = q;
+            cu_activity();
+            cu_popup_num((smk_master * 100 + 511) / 1023, 0, "%", "volume", CR_COL_WHITE, 0, 100, 10);
+        }
+    }
     if (cu.b3_pend && ((cu_pheld >> CU_KEY_LOCK) & 1u) &&
         cu_now() - cu.b3_t0 >= (uint32_t)HOLD_MS[settings_hold % 4u]) {
         cu.b3_pend = 0;                            /* LOCK's pad held alone past the hold time: the LOCK layer */

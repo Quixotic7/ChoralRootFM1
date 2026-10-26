@@ -3,6 +3,42 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.27-smk37",
+      "base": "0.27",
+      "date": "2026-10-25",
+      "tag": "v0.27-smk37",
+      "title": "ChoralRoot 0.27 on the SMK-37: FX routing, the volume on K1 shown and remembered",
+      "bullets": [
+        "ChoralRoot 0.27 on the M-Vave SMK-37 Pro, SMK-37 Elite, MKE-P37 and Starrykey 37 Play, with everything of 0.26-smk37.",
+        "A Routing page in the FX layer draws the chorus, delay, reverb and master filter as boxes on a wire. Hold a black key of the keybed (C#4 Chorus, D#4 Delay, F#4 Reverb, G#4 Filter) and turn KNOB 1 to move that block.",
+        "The white keys and the chord pads keep playing on the page, so you hear the effects while you route them.",
+        "Parallel is ChoralRoot as it always was: the three send buses side by side. The filter can now go before them (hold G#4, KNOB 1 anticlockwise).",
+        "Chain is the original firmware's way: one path through the four blocks in the order on the screen. A#4 or KNOB 2 switches the mode.",
+        "K1 is the volume (GitHub issue 30): a turn now shows the level on the screen, and the level you set is kept across power-off by SAVE held. A new keyboard starts at about 70 %.",
+        "Where every keyboard starts (Parallel, the filter after the effects) the sound is 0.26-smk37's bit for bit.",
+        "genkigenki's port (the fm1-to-smk37 guide), built from the FM-1's 0.27."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer: please report what works and what does not on GitHub, the Routing page's keys and screen in particular (SMK37.md, What to test, item 11).",
+        "Updating from 0.26-smk37 or an older SMK-37 build keeps your settings, sounds, loops and favourites.",
+        "Going back: M-Vave's package for your model with M-UPGRADE. Going back to 0.26-smk37 keeps everything; the routing's two settings are skipped there and the effects are the buses again."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "e9a34a5196758918302b4282aa81cc335b7e76174914a88447e8dac4977f6b24",
+          "sha256_1core": "dfebf4778792ab09cacf20e122de6159e92b03e79a31e32484e1073fc527a47d"
+        },
+        "elite": {
+          "sha256": "b3e6cf55d095c996ca42feef0d09e40f324556541488ada5a53192c76ecc472d",
+          "sha256_1core": "a8a6d3c5d7d94a0d40b91798468fe48390ac06cfcca7ea9527e56afbfc626f7c"
+        },
+        "mke": {
+          "sha256": "c786f00c69d2f0fdd512bc8b67a1a95574408f44ccf04c5ddf4b56047d04fe31",
+          "sha256_1core": "9ac2888fd379c26aab875b2702574ec21e9646b27979f1d37ce08f7bd20ad095"
+        }
+      }
+    },
+    {
       "version": "0.26-smk37",
       "base": "0.26",
       "date": "2026-10-19",
