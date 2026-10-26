@@ -852,14 +852,16 @@ second: no click.
 
 The very last page, **Routing**, draws the effects as boxes on a wire, from `in` on the left to `out` on the right:
 **Chorus** blue, **Delay** orange, **Reverb** yellow and the master **Filter** white (hollow while the filter is Off;
-the whole picture grey with FX off). On this page the keys do not play: the black keys are its shortcuts.
+the whole picture grey with FX off). On this page five black keys are shortcuts; every other key plays as
+usual, so you hear the effects while you route them.
 
 - **C#4** Chorus, **D#4** Delay, **F#4** Reverb, **G#4** Filter: hold one and its box **lifts** above the row, with
   arrows on the sides it can still move to. Turn **KNOB 1** while you hold it: one click, one place, the other boxes
   sliding over to make room. Let go and it lands where it is.
 - **A#4** (a tap) or **KNOB 2** switches the mode, **Parallel** or **Chain** (KNOB 2 clockwise Chain, anticlockwise
   Parallel). The mode is in the small line at the top: `fx · on · chain`.
-- The other keys do nothing here; the chord keys keep their jobs. SELECT, FX, OCT- work as on every page.
+- Every other key is the keyboard's: the white keys and the chord keys play, the second octave's black keys too.
+  SELECT, FX, OCT- work as on every page.
 
 **Parallel**, where every FM-1 starts, is ChoralRoot as it always was: three buses side by side, each fed by the
 parts' sends, added back into the mix, the filter on the whole output after them. The effects' order you set is kept

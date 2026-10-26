@@ -864,6 +864,10 @@ static int32_t cu_rt_block_of(uint32_t k)         /* a root key's block on the R
     return k == 8u ? XFE_CHORUS : k == 10u ? XFE_DELAY : k == 13u ? XFE_REVERB : k == 15u ? XFE_FILTER
          : k == 17u ? (int32_t)XFE_N : -1;
 }
+static int cu_rt_key(uint32_t l, uint32_t k)      /* key k is one of the Routing page's five shortcuts, the page showing */
+{
+    return l == L_FX && cs.fx_page == CU_FXPG_ROUTE && cu_rt_block_of(k) >= 0;
+}
 /* block b moves s places along the chain (insert: the ones it passes shift back; one place a detent, clamped at the
  * ends); XP_ORDER becomes the permutation it makes (XF_ORD's index). 1: it moved. Parallel (the third pass, the
  * owner: "move the filter to put it before the FX"): only the Filter moves, between its two places, before the buses
@@ -4660,9 +4664,8 @@ static void cu_tk_quiet(void)                      /* PANIC, a layout change: no
  * heard at once (SELECT picks there: docs/PRESETS.md "Also in this pass"), the engine picker plays the preview
  * (always, since 0.18: its roots chose engines until then) */
 static int cu_layer_keys(uint32_t l)
-{
-    if (l == L_FX && cs.fx_page == CU_FXPG_ROUTE)  /* the Routing page: the black keys are its shortcuts */
-        return 1;
+{                                                  /* (the Routing page owns only its five black keys, cu_rt_key:
+                                                    * the rest play, so an effect is heard while it is routed) */
     return l && l != L_PERF && l != L_FX && l != L_LOCK && l != L_EDIT &&
            !(l == L_LOOP && (!cs.loop_keys || cu.ledit)) && !(l == L_KEY && cs.key_play);
 }   /* (the PLAY menu with Keys = Play, the loop editor, the KEY layer with keys: play: they play, docs/LOOPER-MODES.md) */
@@ -4755,6 +4758,13 @@ static void cu_key_press(uint32_t k)
         return;
     }
     l = cu_layer();
+    if (cu_rt_key(l, k)) {                         /* the Routing page's shortcuts (the owner, 2026-10-25: "allow the
+                                                    * rest of the keys to work when on this page ... I can play notes
+                                                    * and hear the effect"): C#4 D#4 F#4 G#4 A#4 alone are its */
+        cu_layer_key(l, k);
+        cu.key_note[k] = 0xFFu;
+        return;
+    }
     if (cu_layer_keys(l)) {                        /* (PERF, FX, the picker with its roots off: they play) */
         cu_layer_key(l, k);
         cu.key_note[k] = 0xFFu;

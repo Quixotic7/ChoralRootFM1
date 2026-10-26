@@ -6414,3 +6414,12 @@ the two. **Checked**: `cr_fx_route.txt` and its block in `test_cr.sh` (Filter fi
 C R D F = Order 2, a held Delay moves nothing), the state "FX Routing (Parallel, Filter first)" in
 `tests/run_cr_draw.sh`. Not run on the device.
 
+3y195. **The Routing page's keys play (the owner, after playing it: "allow the rest of the keys to work when on this
+page. Since the black key shortcuts are not overlapping the chord keys, would be nice to be able to use the chord mod
+keys and also the white keys, thus I can play notes and hear the effect while on this page").** `cr_ui.c
+cu_layer_keys` no longer claims the root keys for the Routing page; `cu_rt_key` says whether a key is one of its
+five shortcuts (C#4 D#4 F#4 G#4 A#4) and `cu_key_press` hands only those to the page, before the layer test; every
+other key, the chord block's, the white roots and the second octave's black keys, plays as in the rest of the FX
+layer. The key LEDs stay the page's (the four blocks' keys glowing, the held one lit). `cr_fx_route.txt` dump 7: D4
+tapped now plays (`touch: key 9`) and the routing is untouched; the manual's Routing section says so.
+

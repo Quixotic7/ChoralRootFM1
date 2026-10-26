@@ -3,7 +3,7 @@
 # FX held and released: the layer on Sends; SELECT +8: Routing, the last page: Parallel, C D R F (dump 1).
 # A#4 tapped: Chain (dump 2). D#4 held: Delay lifts (dump 3); KNOB 1 +1: C R D F (dump 4, the lifted box mid-move in
 # the screenshot); D#4 up: it lands (dump 5). G#4 held, KNOB 1 -2: C F R D (dump 6); G#4 up. D4 (a white key) tapped:
-# nothing plays, nothing changes (dump 7). KNOB 2 -1: Parallel (dump 8). FX off (dump 9) and on (dump 10).
+# it plays (the keys are the keyboard's but the five shortcuts), nothing in the routing changes (dump 7). KNOB 2 -1: Parallel (dump 8). FX off (dump 9) and on (dump 10).
 # The third pass: G#4 held, KNOB 1 -1: the Filter before the buses, F C R D (dump 11); KNOB 1 +1: after, C R D F
 # (dump 12); G#4 up; D#4 held, KNOB 1 +1 in Parallel: nothing moves (dump 13).
 # (The session's Order and Mode: tools/emu/test_persist.sh, session_set.txt)

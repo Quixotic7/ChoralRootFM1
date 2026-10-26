@@ -413,8 +413,8 @@ rpar() { grep -a '^  session fx:' "$L" | sed -n "$1p" | sed -n 's/.* 30=[0-9]*\(
     ok "D#4 held: Delay lifts; KNOB 1 +1: Chorus Reverb Delay Filter (Order 2, tag 35); D#4 up: it lands: $OUT/cr_fx_route_lift.ppm, $OUT/cr_fx_route_moving.ppm" \
     || bad "the Delay's move: '$(rr 3)' / '$(rr 4)' / '$(rr 5)' par '$(rpar 4)'"
 [ "$(rr 6)" = "chain Chorus Filter Reverb Delay held Filter fx 1 filter 0" ] && [ "$(rpar 6)" = " 35=5 36=1" ] &&
-    [ "$(rr 7)" = "chain Chorus Filter Reverb Delay held none fx 1 filter 0" ] && ! has '^touch: key 9 ' "$L" &&
-    ok "G#4 held, KNOB 1 -2: Chorus Filter Reverb Delay (Order 5); D4 tapped: nothing plays, nothing moves: $OUT/cr_fx_route_cfrd.ppm" \
+    [ "$(rr 7)" = "chain Chorus Filter Reverb Delay held none fx 1 filter 0" ] && has '^touch: key 9 ' "$L" &&
+    ok "G#4 held, KNOB 1 -2: Chorus Filter Reverb Delay (Order 5); D4 tapped: it plays (the white keys and the chord keys are the keyboard's on this page), nothing moves: $OUT/cr_fx_route_cfrd.ppm" \
     || bad "the Filter's move / a white key: '$(rr 6)' / '$(rr 7)' par '$(rpar 6)'"
 [ "$(rr 8)" = "parallel Chorus Filter Reverb Delay held none fx 1 filter 0" ] && [ "$(rpar 8)" = " 35=5" ] &&
     ok "KNOB 2 -1: Parallel, the order kept: $OUT/cr_fx_route_parallel.ppm" || bad "KNOB 2: '$(rr 8)' par '$(rpar 8)'"
