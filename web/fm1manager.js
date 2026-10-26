@@ -693,8 +693,14 @@ export function simObjects(count = 6, pool = false) {   // (pool: the 0.22 sound
 // ---- several FM-1s (docs/DEVICE-MANAGER.md "Several FM-1s", docs/INSTALL-COMPAT.md): the manager opens one, by its unit ID
 // the port pairs whose name holds `port`: each input with the output of its name, the k-th input of a name with the
 // k-th output of it (two FM-1s may have ports of one name) -> [{input, output}]
+// the port names an FM-1 running ChoralRoot can have (GitHub issue 32): the firmware's own "ChoralRoot FM-1", and the
+// name macOS keeps for a USB device it saw first with another firmware ("FM-1": CoreMIDI remembers a device's name by its
+// location, so a unit updated from the stock firmware, or swapped for another FM-1 on the same port, keeps it); the
+// page then asks the INFO it needs and refuses anything that does not answer as ChoralRoot (deviceInfo)
+export const MANAGER_PORT_RE = /choralroot|fm-1|felucca|sloop|melodee/i;
 export function managerPorts(access, port) {
-  const live = (m) => [...m.values()].filter((p) => p.name && p.name.includes(port) && p.state !== "disconnected");
+  const hit = (n) => (port instanceof RegExp ? port.test(n) : n.includes(port));
+  const live = (m) => [...m.values()].filter((p) => p.name && hit(p.name) && p.state !== "disconnected");
   const ins = live(access.inputs), outs = live(access.outputs);
   return ins.map((input) => {
     const k = ins.filter((i) => i.name === input.name).indexOf(input), output = outs.filter((o) => o.name === input.name)[k];

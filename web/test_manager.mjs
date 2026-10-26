@@ -25,7 +25,7 @@ import {
   selectOnUnit, selectRequest, playingText, managerDrop, factorySoundFile, factoryFiles, usedSlots, makePack, packFileName, userSoundsPack, renameSoundFile, MANAGER_ENGINES, managerPools, managerLoops, loopSummary, managerPlace, managerPlaceAll, managerSwap, managerRename, managerDelete, managerReplacePlan, managerReplaceFactory, managerRestoreFactory, replaceFactoryText,
   managerKeep, keepLoop, readLoopFile, placeLoop, deleteLoop, swapLoops, ManagerSession, makeSimFM1, simObjects, makeLoopRecord,
   libraryItemsFromFile, libraryItemsFromDnsnd, SIM_POOL_IDS, LibraryStore, loadPackIndex, loadPack, auditionMessages, noteMessage, midiText, writeErrorText, UNDO_DEPTH, retiredNote,
-  managerPorts, pickUnit, favUserSlots, favsClearSlots, replacedRows, replacedOf, managerRestorePresets, managerDeleteAll, managerDeleteRows,
+  managerPorts, MANAGER_PORT_RE, pickUnit, favUserSlots, favsClearSlots, replacedRows, replacedOf, managerRestorePresets, managerDeleteAll, managerDeleteRows,
   restorePresetsText, deleteAllText, managerEngines, favMarks, favOf, favKeyOf, keepable, P5_NO_PACK, simP5Patch,
 } from "./fm1manager.js";
 
@@ -246,6 +246,13 @@ ok(/manager_select|selectOnUnit/.test(readFileSync(join(HERE, "manager.html"), "
   const pairs = managerPorts(acc, P);
   ok(pairs.length === 2 && pairs[0].input === ins[0] && pairs[0].output === outs[1] && pairs[1].input === ins[2] && pairs[1].output === outs[2],
      "managerPorts: two FM-1s with ports of one name: two pairs, the k-th input with the k-th output (a disconnected port left out)");
+  {   // issue 32: a Mac keeps the name it first saw for the device ("FM-1"): the manager's match takes it, and only FM-1 names
+    const ins2 = [port("FM-1"), port("IAC Bus 1"), port("ChoralRoot FM-1")], outs2 = [port("FM-1"), port("IAC Bus 1"), port("ChoralRoot FM-1")];
+    const acc2 = { inputs: new Map(ins2.map((x, i) => [i, x])), outputs: new Map(outs2.map((x, i) => [i, x])) };
+    const pairs2 = managerPorts(acc2, MANAGER_PORT_RE);
+    ok(pairs2.length === 2 && pairs2[0].input === ins2[0] && pairs2[1].input === ins2[2] && !managerPorts(acc2, MANAGER_PORT_RE).some((p) => p.input === ins2[1]),
+       "managerPorts: MANAGER_PORT_RE takes \"FM-1\" (the name macOS kept) and \"ChoralRoot FM-1\", never IAC");
+  }
   const A = { unitId: "A1B2C3D4", version: "ChoralRoot 0.22" }, B = { unitId: "0F0E0D0C", version: "ChoralRoot 0.22" }, C = { unitId: null, version: "ChoralRoot 0.21" };
   const asked = [];
   const ask = (answer) => (text) => { asked.push(text); return answer; };
@@ -267,7 +274,7 @@ ok(["eng-tabs", "dev-rows", "lib-rows", "cap", "dev-fw", "keep-all", "sel-all", 
   .every((id) => html.includes(`id="${id}"`)), "page: the panes, Place / Keep, the bottom bar, the keyboard");
 ok(html.indexOf('id="lib"') < html.indexOf('id="dev"') && html.includes("Place →") && html.includes("← Keep") && html.includes("draggable") && html.includes("shiftKey") && html.includes("metaKey") && html.includes("simObjects(30)"),
   "page: Library left, FM-1 right (Place →, ← Keep), multi-select, drag and drop, the 30-sound simulator");
-ok(html.includes("managerPorts(midiAccess, PORT)") && html.includes("pickUnit(units, { remembered: unitId") && html.includes("unit ID ${unitId}"),
+ok(html.includes("managerPorts(midiAccess, PORT)") && html.includes("const PORT = MANAGER_PORT_RE") && html.includes("pickUnit(units, { remembered: unitId") && html.includes("unit ID ${unitId}"),
    "page: several FM-1s: the pairs of the port name, which one asked by its unit ID, the ID in the header");
 ok(html.includes('"ChoralRoot FM-1"') && html.includes("onstatechange") && html.includes('get("sim")') && html.includes('SIM_ARG === "1"') && html.includes('SIM_ARG === "pool"'), "page: the port name, hot-plug, ?sim=1, ?sim=pool");
 ok(html.includes('id="replace"') && html.includes('id="restore-factory"') && html.includes("replaceFactory(libSel(), devRows()[to].pos)"), "page: Replace factory, Restore factory order, several dropped onto a factory row");

@@ -141,7 +141,7 @@
   <div class="top">
     <div class="conn"><span id="conn" class="pill">not connected</span><span id="fw"></span>
       <button id="connect" style="padding:5px 12px;font-weight:800">Connect</button></div>
-    <p class="small" id="needs">Chrome or Edge on a computer: Web MIDI with SysEx. The FM-1 over USB, as "ChoralRoot FM-1".</p>
+    <p class="small" id="needs">Chrome or Edge on a computer: Web MIDI with SysEx. The FM-1 over USB, as "ChoralRoot FM-1" (or "FM-1").</p>
   </div>
   <p id="status" role="status"></p>
   <progress id="bar" max="100" value="0"></progress>
@@ -215,7 +215,7 @@
 
   <details>
     <summary>Device not found?</summary>
-    <p class="small">Check the USB cable (a data cable, directly on the computer, not through a hub), close other apps that use MIDI (the editor, a DAW holding the port), switch the FM-1 on: the page connects by itself when the port "ChoralRoot FM-1" appears. The FM-1 must run ChoralRoot (the <a href="index.html">installer</a> puts it on).</p>
+    <p class="small">Check the USB cable (a data cable, directly on the computer, not through a hub), close other apps that use MIDI (the editor, a DAW holding the port), switch the FM-1 on: the page connects by itself when the port "ChoralRoot FM-1" appears (a Mac may keep calling it "FM-1": that works too). The FM-1 must run ChoralRoot (the <a href="index.html">installer</a> puts it on).</p>
     <p class="small">Auditioning: selecting a row loads it on the unit (SysEx SELECT: the engine and the position); after a Place, Rename, Swap or Delete the row at that place is loaded again, so a change is heard at once. A firmware without SELECT gets a program change instead, which plays the row only when the unit is already on its engine. Writes stop the sound for about 45 ms per object; a write while a loop plays is refused: stop the loop on the FM-1 first.</p>
     <p class="small">Try the page without a device: <a href="?sim=1">?sim=1</a> (a simulated FM-1; the keyboard shows what it would send).</p>
   </details>
@@ -230,7 +230,7 @@ const EMBED_PACKS = (/*PACKS*/null);
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const SIM_ARG = new URLSearchParams(location.search).get("sim"), SIM = SIM_ARG === "1" || SIM_ARG === "pool";   // ?sim=pool: a 0.22 FM-1 (128 slots)
-const PORT = "ChoralRoot FM-1";
+const PORT = MANAGER_PORT_RE;                  // "ChoralRoot FM-1", or the "FM-1" macOS keeps for the device (issue 32)
 const COLORS = { 12: "#E63829", 15: "#F67918", 13: "#F6B600", 14: "#2950CD", 16: "#29B27B", 2: "#29B27B", 3: "#F6F2EE", 5: "#E63829", 6: "#F67918", 7: "#F6B600", 9: "#29B27B", 11: "#9A999A" };
 const colorOf = (e) => COLORS[poolOf(e)] || "#6A696A";
 const TAB0 = (new URLSearchParams(location.search).get("tab") || "").toUpperCase();   // ?tab=loops / ?tab=CZ-1: the tab to open on
@@ -442,7 +442,7 @@ async function attach() {
     session = null; output = null; firmware = ""; $("fw").textContent = "";
     setConn("off", state); say(msg, kind); renderAll();
   };
-  if (!pairs.length) { off("FM-1 not found", 'Connect the FM-1 over USB: the page waits for the port "ChoralRoot FM-1".'); return; }
+  if (!pairs.length) { off("FM-1 not found", 'Connect the FM-1 over USB: the page waits for the port "ChoralRoot FM-1" (or "FM-1", the name the computer may keep for it).'); return; }
   let pick = pairs[0];
   if (pairs.length > 1 || unitId) {               // several, or not the first open: which one, by its unit ID (pickUnit)
     const units = [];

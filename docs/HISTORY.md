@@ -6423,3 +6423,14 @@ other key, the chord block's, the white roots and the second octave's black keys
 layer. The key LEDs stay the page's (the four blocks' keys glowing, the held one lit). `cr_fx_route.txt` dump 7: D4
 tapped now plays (`touch: key 9`) and the routing is untouched; the manual's Routing section says so.
 
+3y196. **The device manager finds an FM-1 the Mac calls "FM-1" (GitHub issue 32: "the installer page sees the FM-1
+and reads the sounds just fine, but the device manager page is unable to connect").** The firmware names its port
+"ChoralRoot FM-1", but CoreMIDI keeps the name it first saw for a USB device at that location, so a unit updated from
+the stock firmware (or another FM-1 on the same port) stays "FM-1": the installer's loose `PORT_RE` found it, the
+manager's exact match did not. `fm1manager.js MANAGER_PORT_RE` (choralroot, fm-1, felucca, sloop, melodee) is the
+manager's match now (`managerPorts` takes a RegExp or a string); the INFO answer still decides, as it did, and a port
+that is not ChoralRoot is refused. The page's hints name both. **Checked**: `node web/test_manager.mjs` (150 ok, the
+new managerPorts case); the page built by make_site.py's `manager_page()` served on 127.0.0.1 in Brave with the
+owner's unit E81CE2F7 on USB as "FM-1": connected, "ChoralRoot 0.26.1 · unit ID E81CE2F7", its pools read (0 user
+sounds, 0 loops). Not published: the site is built at the next release (web/make_site.py).
+

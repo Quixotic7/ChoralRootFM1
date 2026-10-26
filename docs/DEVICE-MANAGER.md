@@ -88,7 +88,9 @@ docs/SOUNDS.md.
   user sounds (FM6 02 and WHEEL 01 and CZ-1 13 overwritten, VA / FM6 / CZ-1 added) and loops in slots 1 and 4); writes
   change it until the page reloads; it answers busy while `sim.playing`. The keyboard and the audition show what they
   would send.
-- **Connection:** Web MIDI with SysEx, the in and out ports whose name contains "ChoralRoot FM-1"; `onstatechange`
+- **Connection:** Web MIDI with SysEx, the in and out ports whose name is an FM-1's (`fm1manager.js MANAGER_PORT_RE`:
+  "ChoralRoot FM-1", or the "FM-1" a Mac keeps for a device it first saw with another firmware, GitHub issue 32; the
+  INFO answer then decides: a port that does not answer as ChoralRoot is refused); `onstatechange`
   re-attaches on hot-plug; INFO must answer ChoralRoot. Nothing is enabled until the objects are read.
 - **Writes:** `ManagerSession.apply`: the changed objects through `writeSounds` (PUT, no restart), the set before kept
   (20 steps), then a full read-back; busy (rc 3) is not retried: "Stop the loop on the FM-1 first", no undo step. Undo
@@ -215,7 +217,7 @@ Every FM-1's port is "ChoralRoot FM-1"; ChoralRoot gives each unit an ID (8 hex 
 unique ID; under Options > Version on the unit; docs/INSTALL-COMPAT.md "Several FM-1s"), which INFO now carries.
 
 - **The header** shows the version and `unit ID A1B2C3D4` (a ChoralRoot from before the ID: the version alone).
-- **Which FM-1:** the page lists the port pairs whose name holds "ChoralRoot FM-1" (`fm1manager.js managerPorts`: two
+- **Which FM-1:** the page lists the port pairs whose name is an FM-1's (`fm1manager.js managerPorts`, `MANAGER_PORT_RE`: two
   FM-1s may have ports of one name; the k-th input goes with the k-th output of that name). One, at the first
   connection: opened as before. Several: each is asked INFO and the page asks which one to open, by its number in the
   list or its unit ID (`pickUnit`); cancelled: nothing is opened ("choose an FM-1"; Connect asks again). The FM-1 opened
