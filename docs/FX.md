@@ -1085,72 +1085,68 @@ high cut, its D4, F#4 and A4 at the formula's 53, 41 and 33 % of themselves, fal
 
 ## The routing (0.27, GitHub issue 21)
 
-Issue 21: "re-orderable FX ... like how in the original OEM firmware you could re-arrange the FX order". The owner's
-answer there: a new FX page for routing that "shows the entire routing". The FX layer's last page, **Routing**:
-1st, 2nd, 3rd (the chain's order; MANUAL.md section 8 has the knobs) and **Feed**.
+Issue 21: "re-orderable FX ... like how in the original OEM firmware you could re-arrange the FX order". The FX
+layer's last page, **Routing**, draws the signal flow as boxes and holds two settings: the **mode** (`XP_RMODE`: 0
+Parallel, the default; 1 Chain) and the **order** of four blocks (`XP_ORDER`, 0 .. 23: `XF_ORD`'s permutations of
+`XFE_CHORUS`, `XFE_DELAY`, `XFE_REVERB`, `XFE_FILTER`, lexicographic; 0 is Chorus, Delay, Reverb, Filter). MANUAL.md
+section 8 has the black keys that move the boxes. The first design (b1e1222: an order of the three effects and a
+Feed of each return into the next) never shipped; its session tags 35 and 36 are the order and the mode now, and a
+Feed above 1 left on the one dev unit that had it is out of range and falls to Parallel.
 
-**Why it is not a plain reorder**: ChoralRoot has no serial chain. Each part's drive runs before the mix; the chorus,
-the delay and the reverb are three **parallel** mono sends whose stereo returns are added into the mix (`cr_fx.c
-xc_block`, `xf_delay`, `xf_reverb`), and the reverb runs on core 1 while core 0 runs the other two (`fx.c
-mix_fx_split`, DUALCORE.md "What each core runs"). Added in parallel, any order is the same sum. So the order
-(`XP_ORDER`, 0 .. 5: `XF_ORD`'s six permutations; 0 is Chorus, Delay, Reverb) draws a chain over the three, and the
-**feed** (`XP_FEED`, 0 .. 127) is how much of each effect's return goes into the **next** one's input besides the
-parts' sends: position 1 into 2 and 2 into 3, never back (no loop can form; the first gets the sends alone). The
-drive (per part, before the mix) and the master filter (on the master, after everything) are not in the chain, and
-the page does not list them.
+**Parallel is 0.26**, bit for bit, whatever the order says: the three buses fed by the parts' sends, their returns
+added into the mix, the master filter after everything. `fx.c mix_block` runs exactly what it ran (one store a block,
+`xg.key = 0`, touches no sample); the order is kept for Chain and the page draws the buses side by side.
 
-**Feed 0 is 0.26**, bit for bit: the default, and every unit updated hears nothing different until Feed is turned up.
-`fx.c mix_block` calls the stage (`xg_feed`) only while Feed is up or a link's gain is still on its way down to 0
-(one test of two words a block); with it not called, `xg.on` is 0 and no effect captures anything. With Feed 0 the
-order is a picture.
+**Chain** is a serial path, the OEM way. C_0 is the dry mix (the parts mixed: their levels, pans and drives); the
+block at position k makes C_{k+1} of C_k:
 
-**The previous block's return**: the feed an effect receives is what the one before it in the chain returned in the
-**last** block (32 samples, 0.73 ms: no ear hears that as a delay, and it makes the chain's sound a hair's breadth
-from a true series). That is what keeps the three free to run in any order and on either core: each effect, while
-it runs, captures what it added to its output buffers as a mono block, (l + r) / 2 (`xg_pre` before its loop,
-`xg_post` after: whatever else the buffers already held, the difference is its own), into a buffer of its own that
-only the core running it writes; `xg_feed`, on core 0 at the effects stage's start (the parts mixed, the sends whole,
-after the join of the block before), adds the links into this block's inputs before anything reads them. The
-dual-core split is untouched: integer sums in a fixed order, so one core's samples and two cores' are the same
-(`tests/cr_c1_thread_test.c` "routing": every pair at Feed 127, each at an order of its own, on a thread and all on
-core 0, the same digest, and not Feed 0's).
+- the filter: C_{k+1} = F(C_k), the master filter's two cuts as set (Filter Off: C_k itself);
+- an effect: its input is amt x mono(C_k), mono = (l + r) / 2, its stereo wet W_k, and C_{k+1} = C_k + W_k.
 
-**The rates**: a wet at the full rate (the chorus; the delay or the reverb when built at FS) is added into the next
-effect's send at FS (a half-rate one down-samples it with its send). A half-rate wet into a half-rate effect (the
-delay and the reverb in the default build) is added after that effect's `xf_down`, at the half rate and its input's
-scale, through a hook (`xg.h`, `xg.hk`: `xf_delay` and `xf_reverb` add it when it holds something, and `xf_prep`
-counts it as a send, so "nothing sent, tails over: nothing runs" stays right). A half-rate wet into a full-rate
-effect (into the chorus) goes up through a half-band of its own (`xg.up`, one a link: `xf_up`, mono; cleared when the
-link's source is silent or the order changes). No path is down-sampled or up-sampled twice.
+The output is C_4. **amt is the chord part's send** for that effect (what `cr_ui.c cu_fx_apply` writes from the FX
+layer's amounts; Q15 as `fx.c` scales a send, x 258), ramped across the block as `fx_sg` ramps the sends, so a detent
+never steps. The bass part's own sends rest in Chain: the bass is in the dry mix and goes through the chain with the
+chords. The drive stays per part, before the mix, in both modes. **FX off**: the amounts go to 0 and the filter is out,
+so the output is the dry mix (the tails ring out, as a closed send's do in Parallel).
 
-**The gain**: Feed x 258 (Q15: 127 is 32766, unity less a hair), each link's gain in use gliding a 16th of the way a
-block (`XG_GL` 4: 16 blocks, 12 ms; it lands) and a straight line across each block, so a detent never steps the
-signal. A new order restarts both links' gains from 0: the new links fade in, and no block mixes the old topology
-with the new. A wet is held to +-65535 (twice full scale) before its gain and a send it lands in to +-131068, the
-down-sampler's own clamp.
+**The previous block**: an effect at position k >= 1 takes mono C_k of the **last** block (`xg.sn`; 32 samples, 0.73
+ms, not heard as a delay); the one at position 0 takes this block's dry. So every effect's input is whole before any
+effect runs (`cr_fx.c xg_in`, core 0, written into the sends' buffers, which is what `xf_prep` already counts: "nothing
+sent, tails over: nothing runs" stays right), and the three run as in Parallel and on the same cores (`fx.c
+mix_fx_chain`: the reverb on core 1 when it has work, the chorus and the delay on core 0), each into its **own** stereo
+wet (`xg.w`). At the half rate the delay and the reverb each have their own half-rate pair and up-sampler (the
+delay's `xg.ud`, the reverb's `xf.up` as in Parallel; in Parallel the two share one, which a filter between them
+would not allow). After the join core 0 assembles (`xg_join`): acc = dry, then each position in order, the filter on
+acc in place (`xq_block`) or the effect's wet added, and mono acc after a position an effect follows is that
+effect's input for the next block. Integer sums in a fixed order: one core's samples and two cores' are the same
+(`tests/cr_c1_thread_test.c` "routing": Chain on a thread and all on core 0, every one of the 24 orders run by some
+pair, the same digest, and not Parallel's).
 
-**Measured** (`tests/cr_fx_test.c` t_route, the default build; the full-rate build the same in
-`tests/run_cr_fx_rates.sh`):
+A mode or order change takes effect at a block's start: the snapshots, the delay's up-sampler and the amounts start
+from 0 (`xg.key`; the amounts then ramp in). A one-block seam is possible; no click was measured for.
 
-- Feed 0 at each of the six orders renders a chord through the three effects as the build without the stage, every
-  sample.
-- Chorus > Delay > Reverb with a send into the chorus alone: Feed 0 leaves the delay and the reverb off, Feed 127
-  brings both alive; Reverb > Delay > Chorus the mirror.
-- A full-scale square into all three at Feed 127, every order: bounded (peak ~199700, 1.5 x full scale of the mix:
-  well inside the master's clamp, no wrap), exact zeros and every effect off after the tail.
-- Feed swept 0 -> 127 -> 0, a detent every 6 ms, under a held tone into the three: the largest second difference
-  3.9 % of the largest step, the steady signal's own at Feed 127 (no click).
-- **Cost**, host instructions a 128-frame half with all three running: no stage 58305, Feed 0 58296 (noise), Feed
-  127 60796: +2500, 4.3 % (the full-rate build: 80941, 80976, 83799, +2823). On the unit that is the captures' two
-  passes over each effect's block and the links' loops; by the file's ratio of host to unit instructions, a
-  few tens of microseconds a half at most, unmeasured on the unit (`tools/emu/perf.sh` scenario (l) with Feed up is
-  the measurement to take).
-- **Memory**: 560 bytes of POOL (`xg`: three captures, two hooks, a link's scratch, two half-bands; 688 in the
-  full-rate build).
+**Measured** (`tests/cr_fx_test.c` t_route, the default build; the full-rate build and the two mixed ones the same):
 
-**The session**: the order and the feed are the instrument's, as every effect parameter: two new tags of the FX block,
-written only off their defaults (SETTINGS.md has the tags and what an older firmware does with them; the precedent is
-the filter's tags of 0.22).
+- Parallel at each of the 24 orders renders a chord through the three effects and the filter as the build without
+  the routing, every sample.
+- Chain Chorus > Delay > Reverb > Filter, the chord part's sends Chorus 100, Delay 100, Reverb 0: the delay's wet is
+  alive and differs from the same with Chorus 0 (it carries the chorus); the reverb's wet is exactly 0.
+- The filter's place: the High cut at its lowest (200 Hz), a 9 kHz tone, Reverb 127: the reverb's wet energy is 55 dB
+  under with the filter before the reverb than after it (56 dB in the full-rate build).
+- A full-scale square at full sends, five orders, the Low cut in: bounded (peak ~299 000 at the default build, 2.3 x
+  full scale of the mix, inside the master's clamp, no wrap), exact zeros and every effect off after the tail.
+- FX off in Chain, the sends up and the filter on: the output is the dry mix, every sample.
+- **Cost**, host instructions a 128-frame half with all three running: no routing 59 049, Parallel 59 046 (noise),
+  Chain 71 609 (+12 560, 21 %: the delay's second up-sampler pair is most of it, then the inputs, the wets' clearing,
+  the assembly and the snapshots). The full-rate build: 81 425, 81 458, 88 932 (+7 507, no up-sampler added). The
+  test does not render parts, which still compute their sends in Chain (unused there, kept so that Parallel's ramps
+  are where they should be on a switch back). On the unit unmeasured (`tools/emu/perf.sh` with Chain on is the
+  measurement to take).
+- **Memory**: POOL 1 396 bytes (`xg`: the three wets 768, the snapshots 384, the reverb's half-rate pair 128, the
+  delay's up-sampler 96, the amounts and two words 20; the full-rate build 1 172). b1e1222's 560 are gone with it.
+
+**The session**: the order and the mode are the instrument's, as every effect parameter: tags 35 and 36 of the FX
+block, written only off their defaults (SETTINGS.md).
 
 ## The FX layer
 

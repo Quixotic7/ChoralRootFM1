@@ -6376,3 +6376,28 @@ Chorus Reverb with a different screen, KNOB 2 -1 back, KNOB 3 -1 Chorus Reverb D
 Feed 39 %, FX off / on: the page as it was); `test_persist.sh`'s session run sets Order 2 and Feed 14 on the Routing
 page and finds them back after the relaunch (35=2 36=14, Delay 2's page still the one kept); `tests/cr_settings_test.c`
 takes the new layout (29 entries, 128 bytes, 122 bytes of reserve); `tests/run_cr_draw.sh`. Not run on the device.
+## 2026-10-25 (FX routing, second design: the chain, the boxes, the black keys)
+
+3y193. **The Routing page redone as a signal flow (GitHub issue 21; the owner on 3y192: "I don't think this routing
+works or addresses what was asked in the issue. You can only route delay chorus reverb and it's also a bit
+confusing. I think the routing page should show a like route signal flow as boxes. Then on the routing page use the
+black keys for shortcuts ... You can change the routing of an FX by selecting it with the black key shortcut and while
+holding it down, it will raise up and you can use Knob 1 to move it around. We should be able to route and reorder
+the Chorus, Delay, Reverb, and Filter. Since the previous routing was parallel bus sends, there should be an option
+to change the routing to that.")** What changed from 3y192: the Feed is gone; the order is of FOUR blocks (Chorus,
+Delay, Reverb, Filter: `cr_fx.c XP_ORDER` 0..23, `XF_ORD[24][4]`) and a mode `XP_RMODE`, 0 Parallel (0.26 bit for
+bit, the default) or 1 Chain (a real serial path: the dry mix through the four in order, each effect's amount the
+chord part's send; docs/FX.md "The routing"). **The page** is its own screen kind, `CR_K_ROUTE` (`cr_draw.c
+cr_p_route`, modelled on FIZZ's MidiFX rail): Chain draws in, four coloured boxes numbered 1..4, out; Parallel the
+three buses stacked into a sum, the Filter after it; a held block lifts with a shadow and arrows, the others slide
+over (`CR_A_SLIDE`, the new `CR_A_LIFT`), it lands on release. The page owns the root keys (`cu_layer_keys`): C#4
+Chorus, D#4 Delay, F#4 Reverb, G#4 Filter held + KNOB 1 (a place a detent, insert, clamped; Chain only: in Parallel
+the order is not heard and KNOB 1 leaves it), A#4 tap and KNOB 2 the mode; the other keys are silent, the key LEDs
+show the shortcuts (the LEDs have one colour: the four glow, A#4 middle, the held one lit). Traces "fx: routing
+chain Chorus > Delay > Reverb > Filter", "fx: routing hold Delay" / "release Delay"; the emulator's dump prints
+"screen route:". **The session**: tag 35 `XF_ORDER` 0..23, tag 36 now `XF_RMODE` 0..1 (`CSS_FXP_XF_RMODE`; 3y192's
+two tags never shipped in a release, one dev unit; an old Feed above 1 is out of range and reads Parallel).
+**Checked**: `tools/emu/scripts/cr_fx_route.txt` rewritten with its block in `test_cr.sh`, `test_persist.sh` (Order
+2 and Chain set with the keys, back after the relaunch), four new states in `tests/run_cr_draw.sh`. Not run on the
+device.
+

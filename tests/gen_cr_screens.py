@@ -32,7 +32,7 @@ NAMES = {"white": "WHITE", "cream": "WHITE", "red": "RED", "coral": "RED", "mage
          "bg": "BG", "surf": "SURF"}
 KIND = {"stripes": "STRIPES", "chord": "CHORD", "picker": "PICKER", "meter": "METER", "keyboard": "KEYBOARD",
         "arp": "ARP", "geek": "GEEK", "text": "TEXT", "big": "BIG", "scope": "SCOPE", "edit8": "EDIT8",
-        "stack": "STACK", "knobrow": "KNOBROW", "loopmenu": "LOOPMENU"}
+        "stack": "STACK", "knobrow": "KNOBROW", "loopmenu": "LOOPMENU", "route": "ROUTE"}
 ICON = {"none": "NONE", "play": "PLAY", "rec": "REC", "loop": "LOOP", "stop": "NONE"}
 DIAL = {"armed": "ARMED", "rec": "REC", "od": "OD"}         # the corner dial's REC looks (FORMAT.md loop dial `rec`)
 CELL_GLYPH = {"knob": "KNOB", "bar": "BAR", "wave": "WAVE", "saw": "SAW", "square": "SQUARE", "steps": "STEPS",
@@ -337,6 +337,23 @@ def screen(sc, prev_name):
         if len(m.get("items") or []) > 1:
             f.append(f".slide = {1 if (m.get('sel') or 0) > 0 else -1}")
             anim.append("CR_A_SLIDE")
+    elif kind == "route":                              # the FX layer's Routing page (cr_screen.h rt_*)
+        blk = {"chorus": 0, "delay": 1, "reverb": 2, "filter": 3}
+        order = [blk[b] for b in p.get("order") or ["chorus", "delay", "reverb", "filter"]]
+        frm = [blk[b] for b in p["from"]] if p.get("from") else order
+        f.append(".rt_order = {" + ", ".join(map(str, order)) + "}")
+        f.append(".rt_from = {" + ", ".join(map(str, frm)) + "}")
+        f.append(f".rt_mode = {1 if p.get('mode') == 'chain' else 0}")
+        if p.get("held"):
+            f.append(f".rt_held = {blk[p['held']] + 1}")
+            anim.append("CR_A_LIFT")
+        f.append(f".rt_fx_on = {0 if p.get('fxOff') else 1}")
+        f.append(f".rt_filter_on = {0 if p.get('filterOff') else 1}")
+        f.append(f".label = {cstr(p.get('label'), 32)}")
+        f.append(f".title = {cstr(p.get('title', 'Routing'), 24)}")
+        if frm != order:
+            f.append(".slide = 1")
+            anim.append("CR_A_SLIDE")
     elif kind in ("edit8", "stack"):
         f += editor_fields(p, kind)
         if p.get("batt") is not None:                   # the editor's title line: the battery (the MIX screens)
@@ -611,6 +628,23 @@ DEVICE_STATES = [
                                      "dim": True},
                                     {"label": "RAM", "value": "83%", "glyph": "bar", "pct": 0.828, "pct2": 0},
                                     {"label": "POOL", "value": "92%", "glyph": "bar", "pct": 0.917, "pct2": 0}]]}}},
+    # the FX layer's Routing page (GitHub issue 21, second design; cr_draw.c cr_p_route): Chain settled, Chain with
+    # Delay held and lifted mid-move (C D R F -> C R D F), Parallel, FX off
+    {"name": "Device · FX Routing (Chain)",
+     "screen": {"header": {"batt": 3}, "footer": {"text": "hold C# D# F# G# + KNOB 1 \u00b7 A#: mode"},
+                "panel": {"kind": "route", "mode": "chain", "label": "fx \u00b7 on \u00b7 chain"}}},
+    {"name": "Device · FX Routing (Chain, Delay held, moving)",
+     "screen": {"header": {"batt": 3}, "footer": {"text": "hold C# D# F# G# + KNOB 1 \u00b7 A#: mode"},
+                "panel": {"kind": "route", "mode": "chain", "label": "fx \u00b7 on \u00b7 chain", "held": "delay",
+                          "order": ["chorus", "reverb", "delay", "filter"],
+                          "from": ["chorus", "delay", "reverb", "filter"]}}},
+    {"name": "Device · FX Routing (Parallel)",
+     "screen": {"header": {"batt": 3}, "footer": {"text": "hold C# D# F# G# + KNOB 1 \u00b7 A#: mode"},
+                "panel": {"kind": "route", "mode": "parallel", "label": "fx \u00b7 on \u00b7 parallel"}}},
+    {"name": "Device · FX Routing (FX off, Chain C F R D)",
+     "screen": {"header": {"batt": 3}, "footer": {"text": "hold C# D# F# G# + KNOB 1 \u00b7 A#: mode"},
+                "panel": {"kind": "route", "mode": "chain", "label": "fx \u00b7 off \u00b7 chain", "fxOff": True,
+                          "order": ["chorus", "filter", "reverb", "delay"]}}},
     {"name": "Device · Calibration step (press FX)",
      "screen": {"ring": 0, "ringCol": "yellow",
                 "panel": {"kind": "big", "value": "FX", "sub": "1/21", "label": "press", "size": 40}}},

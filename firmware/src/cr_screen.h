@@ -35,6 +35,9 @@ enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOA
                                      * "Step 4"): its elements drawn in the p5 style from the table, cell[lane][slot] every
                                      * lane's values (pct2: an led's on, a switch's position), `active` the lane on the
                                      * knobs, fl_eng / fl_scr the layout and screen */
+       CR_K_ROUTE,                  /* the FX layer's Routing page (GitHub issue 21, second design): the signal flow as
+                                     * boxes, Chain (IN, four boxes in a row, OUT) or Parallel (the three buses stacked
+                                     * into a sum, the Filter after it); a held block lifted (rt_*) */
        CR_K_N };
 
 /* CR_K_LOOPMENU's middle (lm_mid) */
@@ -141,6 +144,7 @@ static const cr_wave_t *(*cr_wave_src)(uint32_t part);   /* set by cr_edit.c (en
 #define CR_A_STRIPES 8u             /* stripes: they slide, a cycle every `period_ms` from `phase` */
 #define CR_A_SWEEP 16u              /* stripes: they are swept off to the right (the first chord) */
 #define CR_A_INTRO 32u              /* stripes: power-on, the bands slide in from the left one after another, the name lands */
+#define CR_A_LIFT 64u               /* route: the held block rises (rt_held), or the one let go lands (rt_drop) */
 
 #define CR_PICK_MAX 8u              /* picker items held (a window of the list around the selection) */
 #define CR_NOTES_MAX 8u
@@ -342,6 +346,17 @@ typedef struct {
                                      * ("G#madd4 JAZZ" the longest), blue, at the LEFT of the picker band's row, where a
                                      * left neighbour would stand (not drawn then); the band's item does not move. "":
                                      * none. Hashed apart (cr_draw.c): a new name redraws its strip (rows 40 .. 79) only */
+
+    /* panel: route (CR_K_ROUTE, the FX layer's Routing page; cr_ui.c builds it from cr_fx.c xfp[XP_ORDER] /
+     * xfp[XP_RMODE]). A block: 0 Chorus, 1 Delay, 2 Reverb, 3 Filter (cr_fx.c XFE_*, cr_ui.c asserts it). `label` is
+     * the line over the picture ("fx \267 on \267 chain"). The slide (CR_A_SLIDE, slide != 0): each block moves from
+     * its place in rt_from to its place in rt_order; the lift (CR_A_LIFT): rt_held rises, rt_drop lands */
+    uint8_t rt_order[4];            /* the blocks by position, left to right (Parallel: the three effects top down in
+                                     * this order, the Filter after the sum wherever it stands) */
+    uint8_t rt_from[4];             /* CR_A_SLIDE: the order before the move */
+    uint8_t rt_mode;                /* 0 Parallel, 1 Chain (xfp[XP_RMODE]) */
+    uint8_t rt_held, rt_drop;       /* the block held (its black key down) + 1, the block let go and landing + 1; 0 none */
+    uint8_t rt_fx_on, rt_filter_on; /* FX off: the whole picture grey; the Filter Off: its box hollow */
 } cr_screen_t;
 
 /* the filter's FTYPE position's name (eng_va.c's names): "LP" "BP" "HP" "NOTCH" at 0 32 64 96, "LP>BP" .. "NT>LP"

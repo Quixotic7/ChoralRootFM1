@@ -854,12 +854,12 @@ static const struct { uint8_t tag, x, id, opt; } CSS_FXG[] = {   /* x: 0 song.g,
     {CSS_FXP_XR_WIDTH, 1, XP_RWIDTH}, {CSS_FXP_XC_WIDTH, 1, XP_CWIDTH},
     {CSS_FXP_XQ_LOW, 1, XP_FLOW, 1}, {CSS_FXP_XQ_HIGH, 1, XP_FHIGH, 1}, {CSS_FXP_XQ_SLOPE, 1, XP_FSLOPE, 1},
     {CSS_FXP_XQ_ON, 1, XP_FON, 1},
-    {CSS_FXP_XF_ORDER, 1, XP_ORDER, 1}, {CSS_FXP_XF_FEED, 1, XP_FEED, 1}};   /* (the routing, issue 21: as the filter's) */
+    {CSS_FXP_XF_ORDER, 1, XP_ORDER, 1}, {CSS_FXP_XF_RMODE, 1, XP_RMODE, 1}};   /* (the routing, issue 21: as the filter's) */
 _Static_assert(NELEM(CSS_FXG) <= CSS_NFXP, "the FX block holds every global parameter");
 _Static_assert(offsetof(cr_session_t, part) == 196 && sizeof(css_fx_t) == 128 && CSS_FXE_ROUTE >= CSS_NFXE,
                "the routing's entry took rsv_fx: the parts where they were; ROUTE is a sel, never an amt[] index");
 _Static_assert(CSS_FXP_DCOLOR == 8 && CSS_FXP_XD_TIME == 9 && CSS_FXP_XR_SIZE == 18 && CSS_FXP_XR_WIDTH == 24 &&
-               CSS_FXP_XD_TIME2 == 25 && CSS_FXP_BS_REV == 26 && CSS_FXP_BS_DRIVE == 29 && CSS_FXP_XC_WIDTH == 30 && CSS_FXP_XQ_LOW == 31 && CSS_FXP_XQ_ON == 34 && CSS_FXE_DRIVE == 3 && CSS_FXE_REVERB2 == 4 && CSS_FXE_DELAY2 == 5 && CSS_FXE_SENDS == 6 && CSS_FXE_FILTER == 7 && CSS_FXP_XF_ORDER == 35 && CSS_FXP_XF_FEED == 36 && CSS_FXE_ROUTE == 8, "the session's FX tags are never renumbered");
+               CSS_FXP_XD_TIME2 == 25 && CSS_FXP_BS_REV == 26 && CSS_FXP_BS_DRIVE == 29 && CSS_FXP_XC_WIDTH == 30 && CSS_FXP_XQ_LOW == 31 && CSS_FXP_XQ_ON == 34 && CSS_FXE_DRIVE == 3 && CSS_FXE_REVERB2 == 4 && CSS_FXE_DELAY2 == 5 && CSS_FXE_SENDS == 6 && CSS_FXE_FILTER == 7 && CSS_FXP_XF_ORDER == 35 && CSS_FXP_XF_RMODE == 36 && CSS_FXE_ROUTE == 8, "the session's FX tags are never renumbered");
 static int16_t *css_fxg_p(uint32_t i)
 {
     if (CSS_FXG[i].x == 2u && CSS_FXG[i].id == P_DIST)

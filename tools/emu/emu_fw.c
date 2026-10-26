@@ -734,6 +734,14 @@ void emu_fw_dump(void)
                     if (sc->cell[r][c].flags & CR_CF_ON)
                         printf(" %u.%u:%s=%s", r, c, sc->cell[r][c].label, sc->cell[r][c].value);
             printf("\n  screen foot: '%s'\n", sc->footer);   /* (the bottom line: a layer's keys, the Options') */
+            if (sc->kind == CR_K_ROUTE) {          /* the FX layer's Routing page: the blocks in order, the mode, the
+                                                    * block held (cr_screen.h rt_*) */
+                static const char *const RB[4] = {"Chorus", "Delay", "Reverb", "Filter"};
+                printf("  screen route: %s %s %s %s %s held %s fx %u filter %u\n", sc->rt_mode ? "chain" : "parallel",
+                       RB[sc->rt_order[0] & 3u], RB[sc->rt_order[1] & 3u], RB[sc->rt_order[2] & 3u],
+                       RB[sc->rt_order[3] & 3u], sc->rt_held ? RB[(sc->rt_held - 1u) & 3u] : "none",
+                       (unsigned)sc->rt_fx_on, (unsigned)sc->rt_filter_on);
+            }
         }
         for (k = 0; k < 2u; k++)
             printf("  session %s: %s / %s edited %u kind %u crc %04X level %d pan %d\n", k ? "bass" : "chord",

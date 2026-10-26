@@ -318,7 +318,7 @@ static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uin
                                          * 0.22 reads it as before; one with more than 24 entries makes such a
                                          * firmware take this block's defaults: cr_session_import. 28 until the
                                          * routing's (issue 21): its two tags, 35 and 36, are written only off their defaults
-                                         * too, so a record holds 29 only when Order AND Feed AND all four of the
+                                         * too, so a record holds 29 only when Order AND Mode AND all four of the
                                          * filter's are off their defaults; a firmware of 0.22 .. 0.26 (28 entries)
                                          * reads a record of 28 or fewer as before, skipping 35 / 36 as unknown
                                          * tags (the chain stays parallel), and one of 29 as another layout: its
@@ -354,9 +354,12 @@ enum { CSS_FXP_NONE, CSS_FXP_RSIZE, CSS_FXP_RDAMP, CSS_FXP_RTYPE, CSS_FXP_CRATE,
        CSS_FXP_XQ_LOW, CSS_FXP_XQ_HIGH, CSS_FXP_XQ_SLOPE, CSS_FXP_XQ_ON,           /* 31..34 (0.22): the master filter's
                                           * Low cut, High cut, Slope, Filter (cr_fx.c XP_FLOW ..): stored only off
                                           * their defaults (above) */
-       CSS_FXP_XF_ORDER, CSS_FXP_XF_FEED };                                        /* 35, 36 (GitHub issue 21):
-                                          * the routing's Order and Feed (cr_fx.c XP_ORDER, XP_FEED): stored only
-                                          * off their defaults (above) */
+       CSS_FXP_XF_ORDER, CSS_FXP_XF_RMODE };                                       /* 35, 36 (GitHub issue 21):
+                                          * the routing's Order 0..23 and Mode 0 Parallel / 1 Chain (cr_fx.c
+                                          * XP_ORDER, XP_RMODE; the second design): stored only off their defaults
+                                          * (above). 36 was the first design's Feed, and 35 its order of three:
+                                          * neither shipped in a release (one dev unit, b1e1222); a value out of
+                                          * range takes the default (css_fxg_ok), so an old Feed > 1 is Parallel */
 typedef struct { uint8_t tag, rsv; int16_t v; } css_fxp_t;
 typedef struct {
     uint8_t version, n, sel, on_rsv;    /* CSS_FX_VERSION, entries of par[] used, the FX layer's picked effect (its

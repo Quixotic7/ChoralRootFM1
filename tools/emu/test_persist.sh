@@ -530,8 +530,8 @@ want_cr="perform 1 mode 2 bass 1 sound 18 voicing 2 octave -1 view 0 layer 0 opt
 # (Stereo), 16 its tone 70 -> 72; 18..24 the reverb; amt: the chord part's sends, the delay's turned 25 -> 33,
 # a flick of three detents in one frame: one, one, six; 30 the chorus's Width (0.21) 127 -> 125, two in one frame:
 # a turn's first two detents count one, the rest the range / 20 each (firmware/src/cr_pages.c kn_turn, 3y93); 35, 36
-# the routing (issue 21, written off their defaults only): Order 2 (Delay > Chorus > Reverb), Feed 14 (four detents))
-want_fx="  session fx: on 1 sel 2 (Delay 2/2) amt 35 45 33 0 sends 35 45 33 0 par 4=40 5=60 26=10 27=0 28=0 29=0 25=91 10=8 11=0 12=1 13=55 14=1 15=0 16=72 17=24 18=88 19=56 20=52 21=16 22=56 23=60 24=127 30=125 35=2 36=14"
+# the routing (issue 21, second design, written off their defaults only): Order 2 (Chorus > Reverb > Delay > Filter), Mode 1 (Chain))
+want_fx="  session fx: on 1 sel 2 (Delay 2/2) amt 35 45 33 0 sends 35 45 33 0 par 4=40 5=60 26=10 27=0 28=0 29=0 25=91 10=8 11=0 12=1 13=55 14=1 15=0 16=72 17=24 18=88 19=56 20=52 21=16 22=56 23=60 24=127 30=125 35=2 36=1"
 c1=$(dl "$S1" 'session chord:' 2); b1=$(dl "$S1" 'session bass:' 2)
 [ "$(sx "$S1" 2 6)" = "$want_state" ] && [ "$(crl "$S1" 2)" = "$want_cr" ] && [ "$(dl "$S1" 'session fx:' 2)" = "$want_fx" ] &&
     echo "$c1" | grep -q 'FM6 / TINE EP edited 1 kind 1 crc [0-9A-F]* level 92 pan 0' &&
@@ -556,7 +556,7 @@ grep -aq '^session: applied (parts 1 1, voicing 2, octave -1, bass 1, lock 1 lat
     ok "session run 2: both parts' unsaved edits are back, the same patch checksums, 'edited', Level and Pan ($(echo "$c1" | sed 's/.*crc //') / $(echo "$b1" | sed 's/.*crc //'))" \
     || bad "session run 2: the parts: $(dl "$S2" 'session chord:' 1) / $(dl "$S2" 'session bass:' 1) want $c1 / $b1"
 [ "$(dl "$S2" 'session fx:' 1)" = "$want_fx" ] &&
-    ok "session run 2: the FX layer in full: Delay's second page picked, its division (1/8.), spread (3:4), feedback (40), mode (Stereo) and tone (82) as turned, the reverb's as they were, the routing's Order (Delay > Chorus > Reverb) and Feed (14), both parts' sends as left (the chord part's 35 45 37 0, the bass part's reverb 10)" \
+    ok "session run 2: the FX layer in full: Delay's second page picked, its division (1/8.), spread (3:4), feedback (40), mode (Stereo) and tone (82) as turned, the reverb's as they were, the routing's Order (Chorus > Reverb > Delay > Filter) and Mode (Chain), both parts' sends as left (the chord part's 35 45 37 0, the bass part's reverb 10)" \
     || bad "session run 2: fx: $(dl "$S2" 'session fx:' 1)"
 dl "$S2" 'loop: state' 1 | grep -q 'state 1 cap 0 layers 1 events 2 .* slot 3 played 0 .* used 004 ' &&
     grep -aq '^expect silence at 800 ms: ok' "$S2" && dl "$S2" 'mods: down' 1 | grep -q 'down 44 active 44 voices free' &&

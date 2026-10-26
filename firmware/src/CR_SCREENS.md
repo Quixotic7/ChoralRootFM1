@@ -43,6 +43,7 @@ the designer resolves in its MOD palette becomes the named colour: THEME red, AC
 | `CR_A_FILL` | `pct_from` → `pct` | one stripe every 30 ms; more than 14 stripes to light (a pool's meter: up to 32): all of them in the 420 ms of 14 |
 | `CR_A_STRIPES` | `phase`, `period_ms` | the bands' phase advances a cycle per `period_ms` (40 px per cycle, as the designer's `phase`) |
 | `CR_A_SWEEP` | — | the bands are swept off to the right, 240 ms each, 40 ms apart (the first chord) |
+| `CR_A_LIFT` | `rt_held`, `rt_drop` (route) | 120 ms ease-out: the held block rises 10 px (Parallel 5), or the one let go lands; `CR_A_SLIDE` on a route: every block eases from its `rt_from` place to its `rt_order` one in 160 ms |
 
 No flag, the producer's motion (`cr_ui.c` `cu_animate`, `cr_anim.c` `cr_spring`): a meter's number and a `big`
 panel's value **spring in** through `size` (meter 92 → 104 px, big ¾ → its size, 240 ms) whenever the value changes:
@@ -224,6 +225,21 @@ last; saved palette ids unchanged).
   (168–240), or 64 (162–226) over `foot` (11 px grey, centred, baseline 237); a `CR_CF_BIG` cell (Keys) draws its
   value 20 px where the glyph and the value would be. Differences from the mock-ups: the used cells' numbers are the
   background colour as the designer draws them; the empty step's name "–" is "-" in the fixtures.
+- **`CR_K_ROUTE`: the FX layer's Routing page** (GitHub issue 21, second design; `cr_p_route`, after FIZZ's MidiFX
+  rail, FMToneSeq core/ui/ui_mfx.c; `cr_ui.c` fills it on that page: "THE ROUTING PAGE"). No knob row: the black
+  keys and KNOB 1 are the gesture, the footer says so. `label` 12 px bold mid at the top left (`fx · on · chain`),
+  `title` ("Routing") 15 px bold green at the right. Wires 2 px FX green with arrowheads, `in` / `out` 12 px bold
+  green. A block (`rt_order[k]`: 0 Chorus, 1 Delay, 2 Reverb, 3 Filter, `cr_fx.c XFE_*`) is a rounded box filled
+  with its colour (Chorus blue with white ink, Delay orange, Reverb yellow, Filter white with black ink); the Filter
+  Off (`rt_filter_on` 0): hollow, a 2 px rim; FX off (`rt_fx_on` 0): every box hollow and every wire grey. `rt_mode`
+  1, Chain: the four boxes in a row, 48 × 64, 10 px apart (rows 86–150, the wire through their middles at 118), each
+  its place 1–4 at 22 px over its name at 13 (squeezed to the box). 0, Parallel: the three effects stacked (92 × 32,
+  x 30, rows 62–174, in `rt_order`'s order), the wire fanning into them from `in` and out into a sum disc with a +,
+  then the Filter (52 × 44) and `out`. `rt_held` (block + 1): lifted (`CR_A_LIFT`) over a grey shadow bar at its
+  place, ringed white (the Filter green), white arrowheads in the gaps on the sides it can still move to (Chain); a
+  move slides every block from `rt_from` to `rt_order` (`CR_A_SLIDE`, its texts flagged sliding for the lint);
+  `rt_drop` lands. **Cache**: nothing hashed apart, a change composes the six strips (the tiles still blit only what
+  changed). Draw test states: Chain, Chain with Delay held mid-move, Parallel, FX off.
 - **`CR_K_KNOBROW`: a layer screen** (FORMAT.md `knobrow`; design/choralroot-fm1-fx-mockups.json, the user-approved
   sheet design/choralroot-fm1-fx-screens.png; `cr_ui.c` fills it for every layer: `cu_fx_cells`, `cu_perf_cells`, `cu_bass_cells`, `cu_key_cells`,
   `cu_loop_cells`, METRO's Click inline, the hot cell `cu_hot_row`; design/choralroot-fm1-layers-mockups.json states

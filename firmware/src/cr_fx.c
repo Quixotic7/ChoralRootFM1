@@ -118,18 +118,25 @@ enum { XP_DTIME,                 /* the delay's time, free: 0..127 = 16 ms .. XD
        XP_FHIGH,                 /* .. the high cut, 0..126 = 200 Hz .. 16 kHz (xq_high_hz), 127 Off */
        XP_FSLOPE,                /* .. 0: 6 dB an octave (one stage a cut), 1: 12 dB (two) */
        XP_FON,                   /* .. 0 Off, 1 On (the cell on KNOB 4; a cutoff turned switches it on) */
-       XP_ORDER,                 /* THE ROUTING (GitHub issue 21; "The routing" below; the FX layer's Routing page): the
-                                  * chain's order of the three bus effects, XF_ORD's index 0..5 (0: Chorus, Delay,
-                                  * Reverb). With Feed 0 (the default) the order is only a picture: the three run in
-                                  * parallel, as to 0.26 */
-       XP_FEED,                  /* .. the feed, 0..127: how much of an effect's return goes into the NEXT effect in the
-                                  * chain (the one before it in the order feeds it; the first gets the parts' sends
-                                  * alone). 0: nothing (bit for bit 0.26) */
+       XP_ORDER,                 /* THE ROUTING (GitHub issue 21, second design; "The routing" below; the FX layer's
+                                  * Routing page): the order of the FOUR chain blocks, XF_ORD's index 0..23 (0: Chorus,
+                                  * Delay, Reverb, Filter). Kept in both modes; in Parallel only a picture */
+       XP_RMODE,                 /* .. the mode: 0 Parallel (the buses fed by the parts' sends, bit for bit 0.26), 1
+                                  * Chain (a serial path through the four, the chord part's sends the amounts). Tags
+                                  * 35 / 36 of the session; b1e1222's Order 0..5 and Feed (36) never shipped (one dev
+                                  * unit): an old Feed > 1 is out of range and falls to Parallel */
        XP_N };
-enum { XFE_CHORUS, XFE_DELAY, XFE_REVERB, XFE_N };   /* the bus effects a chain position holds (XF_ORD) */
-static const uint8_t XF_ORD[6][XFE_N] = {             /* XP_ORDER -> the effect at position 0, 1, 2 */
-    {XFE_CHORUS, XFE_DELAY, XFE_REVERB}, {XFE_CHORUS, XFE_REVERB, XFE_DELAY}, {XFE_DELAY, XFE_CHORUS, XFE_REVERB},
-    {XFE_DELAY, XFE_REVERB, XFE_CHORUS}, {XFE_REVERB, XFE_CHORUS, XFE_DELAY}, {XFE_REVERB, XFE_DELAY, XFE_CHORUS}};
+enum { XFE_CHORUS, XFE_DELAY, XFE_REVERB, XFE_FILTER, XFE_N };   /* the blocks a chain position holds (XF_ORD) */
+#define XFE_NFX XFE_FILTER        /* the three effects (the filter is not a bus) */
+static const uint8_t XF_ORD[24][XFE_N] = {            /* XP_ORDER -> the block at position 0..3, lexicographic */
+    {XFE_CHORUS, XFE_DELAY, XFE_REVERB, XFE_FILTER}, {XFE_CHORUS, XFE_DELAY, XFE_FILTER, XFE_REVERB}, {XFE_CHORUS, XFE_REVERB, XFE_DELAY, XFE_FILTER},
+    {XFE_CHORUS, XFE_REVERB, XFE_FILTER, XFE_DELAY}, {XFE_CHORUS, XFE_FILTER, XFE_DELAY, XFE_REVERB}, {XFE_CHORUS, XFE_FILTER, XFE_REVERB, XFE_DELAY},
+    {XFE_DELAY, XFE_CHORUS, XFE_REVERB, XFE_FILTER}, {XFE_DELAY, XFE_CHORUS, XFE_FILTER, XFE_REVERB}, {XFE_DELAY, XFE_REVERB, XFE_CHORUS, XFE_FILTER},
+    {XFE_DELAY, XFE_REVERB, XFE_FILTER, XFE_CHORUS}, {XFE_DELAY, XFE_FILTER, XFE_CHORUS, XFE_REVERB}, {XFE_DELAY, XFE_FILTER, XFE_REVERB, XFE_CHORUS},
+    {XFE_REVERB, XFE_CHORUS, XFE_DELAY, XFE_FILTER}, {XFE_REVERB, XFE_CHORUS, XFE_FILTER, XFE_DELAY}, {XFE_REVERB, XFE_DELAY, XFE_CHORUS, XFE_FILTER},
+    {XFE_REVERB, XFE_DELAY, XFE_FILTER, XFE_CHORUS}, {XFE_REVERB, XFE_FILTER, XFE_CHORUS, XFE_DELAY}, {XFE_REVERB, XFE_FILTER, XFE_DELAY, XFE_CHORUS},
+    {XFE_FILTER, XFE_CHORUS, XFE_DELAY, XFE_REVERB}, {XFE_FILTER, XFE_CHORUS, XFE_REVERB, XFE_DELAY}, {XFE_FILTER, XFE_DELAY, XFE_CHORUS, XFE_REVERB},
+    {XFE_FILTER, XFE_DELAY, XFE_REVERB, XFE_CHORUS}, {XFE_FILTER, XFE_REVERB, XFE_CHORUS, XFE_DELAY}, {XFE_FILTER, XFE_REVERB, XFE_DELAY, XFE_CHORUS}};
 #define XP_NFX XP_FLOW            /* the delay's, the reverb's and the chorus's (xf_prep's hash); the filter's own after */
 static const struct { int16_t min, max, def; } XFP[XP_N] = {
     [XP_DTIME] = {0, 127, 91}, [XP_DDIV] = {0, 12, 6}, [XP_DSPREAD] = {0, 127, 0}, [XP_DRATIO] = {0, 3, 0},
@@ -138,7 +145,7 @@ static const struct { int16_t min, max, def; } XFP[XP_N] = {
     [XP_RPRE] = {0, 127, 16}, [XP_RMOD] = {0, 127, 56}, [XP_RLOW] = {0, 127, 60}, [XP_RWIDTH] = {0, 127, 127},
     [XP_CWIDTH] = {0, 127, 127},
     [XP_FLOW] = {0, 127, 0}, [XP_FHIGH] = {0, 127, 127}, [XP_FSLOPE] = {0, 1, 1}, [XP_FON] = {0, 1, 0},
-    [XP_ORDER] = {0, 5, 0}, [XP_FEED] = {0, 127, 0}};
+    [XP_ORDER] = {0, 23, 0}, [XP_RMODE] = {0, 1, 0}};
 static int16_t xfp[XP_N];                 /* the values (xf_defaults at power-on, then the session's) */
 static uint16_t xf_bpm = 120;             /* the tempo the synced delay follows (cr_ui.c: the engine's, 20..300) */
 
@@ -866,79 +873,121 @@ static void xf_hb_clear(xf_hb_t *h)
         h->x[i] = h->y[i] = 0;
 }
 /* --------------------------------------------------------------- the routing --- */
-/* THE ROUTING (GitHub issue 21: "re-orderable FX ... like how in the original OEM firmware you could re-arrange the
- * FX order"; docs/FX.md "The routing"; the FX layer's Routing page). ChoralRoot has no serial chain to reorder: the
- * chorus, the delay and the reverb are three PARALLEL mono sends whose stereo returns are added into the mix, and
- * the reverb runs on core 1 while core 0 runs the other two (fx.c mix_fx_split). So the order (XP_ORDER, XF_ORD) is a
- * chain drawn over the three, and the FEED (XP_FEED) is how much of each effect's return goes into the NEXT one's
- * input besides the parts' sends: position 0 -> 1 and 1 -> 2, never back (no loop; the first gets the sends alone).
- * The drive stays on each part before the mix, the master filter on the master after everything: not in the chain.
- * THE PREVIOUS BLOCK'S RETURN. An effect's feed is what the one before it returned in the LAST block (CTL samples,
- * 0.73 ms: no ear hears it as a delay), so the three still run in any order and on either core, the dual-core split
- * untouched: each effect captures its own wet as a mono buffer while it runs (xg_pre / xg_post around its loop: what
- * it ADDED, (l + r) / 2, whatever else the buffers held; its own state, written by the core that ran it), and xg_feed
- * (core 0, at the effects stage's start: the parts mixed, the sends whole, after the join of the block before) adds
- * the links into the inputs before anything reads them. Sums of integers in a fixed order: one core's samples and two
- * cores' are the same, bit for bit (tests/cr_c1_thread_test.c "effects", Feed 127 at every order).
- * THE RATES. A wet at the full rate (the chorus; the delay or the reverb built at FS) is added into the next one's
- * send at FS (a half-rate effect then down-samples it with its send). A half-rate wet into a half-rate effect (the
- * delay <-> the reverb, the default build) is added AFTER that effect's xf_down, at the half rate, at its input's
- * scale (a half: XF_IN), through a hook (xg.h, xg.hk: xf_delay and xf_reverb add it when it holds something, and
- * xf_prep counts it as a send). A half-rate wet into a full-rate effect (into the chorus) goes up through a half-band
- * of its own (xg.up, one a link: xf_up, mono; cleared when the link's source is silent or the order changes).
- * THE GAIN: Feed x 258 (Q15: 127 is 32766), each link's in use going to it by a 2^-XG_GL of the way a block (lands;
- * 16 blocks, 12 ms) and a straight line across each block: a detent of Feed never steps the signal. An order change
- * restarts both links' gains from 0 (the new links fade in; a block of the old topology is never mixed with the new).
- * A wet is held to +-65535 (twice full scale) before its gain (the product fits 32 bits) and a send it lands in to
- * +-131068, the down-sampler's own clamp.
- * FEED 0 IS 0.26: with Feed 0 and both gains arrived at 0, xg_feed is not called (fx.c: one test of two words a
- * block), xg.on is 0 and no effect captures: nothing read, nothing written, every sample as before. The order alone
- * is a picture. */
-#ifndef XG_GL
-#define XG_GL 4                           /* a link's gain glides a 16th of the way a block (16 blocks: 12 ms) */
+/* THE ROUTING (GitHub issue 21, the second design; docs/FX.md "The routing"; the FX layer's Routing page). Two modes
+ * (XP_RMODE) and an order of FOUR blocks (XP_ORDER, XF_ORD: the chorus, the delay, the reverb and the master filter).
+ * b1e1222's first design (an order of the three and a Feed of each return into the next) never shipped: one dev unit
+ * had it; its session tags 35 / 36 are this order and this mode (a Feed > 1 left there is out of range: Parallel).
+ * PARALLEL (0, the default) IS 0.26, BIT FOR BIT, whatever the order says: the three buses fed by the parts' sends,
+ * their returns added into the mix, the master filter after everything (fx.c mix_block: nothing here is called; the
+ * order is kept for Chain and drawn). CHAIN (1) is a serial path, the OEM way. C_0 is the dry mix (the parts mixed:
+ * their levels, pans, drives) and the block at position k makes C_{k+1} of C_k: the filter F(C_k) (the master
+ * filter's two cuts as set; Off: C_k itself), an effect C_k + W_k, its wet from amt x mono(C_k) (mono: (l + r) / 2).
+ * The output is C_4. amt is the CHORD part's send for that effect (cr_ui.c cu_fx_apply writes the FX layer's amounts
+ * there; the bass part's own sends rest in Chain: the bass is in the dry mix and goes through the chain with the
+ * chords), Q15 as fx.c scales a send (x 258) and ramped over the block as fx.c's fx_sg are (a detent never steps).
+ * FX off: the amounts go to 0 and the filter is out (xq_coefs), so the output is the dry mix, the tails ringing out as
+ * a closed send's do in Parallel. The drive stays per part, before the mix, in both modes.
+ * THE PREVIOUS BLOCK. An effect at position k >= 1 takes mono C_k of the LAST block (xg.sn: CTL samples late, 0.73
+ * ms, not heard as a delay); the one at position 0 this block's dry. So the inputs are whole before any effect runs
+ * (xg_in, core 0, into the sends' buffers: xf_prep counts them as it counts the sends, and the effects run as in
+ * Parallel and on the same cores, fx.c mix_fx_chain: the reverb on core 1, the chorus and the delay on core 0), each
+ * into its OWN stereo wet (xg.w; at the half rate the delay and the reverb each with their own half-rate pair and
+ * up-sampler: the delay's is xg.ud, the reverb's xf.up as in Parallel). After the join core 0 assembles (xg_join):
+ * acc = dry, then each position in order: the filter on acc in place (xq_block), or the effect's wet added; mono acc
+ * after positions 0, 1, 2 is the next block's C_1, C_2, C_3. Sums of integers in a fixed order: one core's samples
+ * and two cores' the same (tests/cr_c1_thread_test.c, Chain at every order).
+ * A mode or order change switches at a block's start: the snapshots, the delay's up-sampler and the amounts start
+ * from 0 (xg.key; the amounts then ramp in). After the tail every buffer is exact zeros, the effects switch off as in
+ * Parallel. POOL: xg, 1 396 bytes at the default build (the wets 768, the snapshots 384, the reverb's half-rate pair
+ * 128, the up-sampler pair 96, the rest 20; the full-rate build 1 172) */
+#if XF_HALF
+#define XG_HALF 1
+#else
+#define XG_HALF 0
 #endif
-#define XG_DR CR_FX_DELAY_DS              /* the delay's wet's rate: FS / XG_DR */
-#define XG_RR CR_FX_REVERB_DS
 static struct {
-    uint32_t on;                          /* this block's stage ran a link (or a gain is gliding): the effects capture */
-    uint32_t ord;                         /* the order the gains are for */
-    uint32_t cv[XFE_N];                   /* each effect's capture holds last block's wet (something non-zero). A word
-                                           * each, on, ord and hk too: the reverb's is written on core 1 while core 0
-                                           * writes the chorus's and the delay's (a byte store that read and wrote
-                                           * its word would lose the other core's) */
-    uint32_t hk[2];                       /* the half-rate hook into the delay [0], the reverb [1] holds a feed */
-    int32_t g[2];                         /* each link's gain in use (Q15): 0 -> 1, 1 -> 2 */
-    int32_t cc[CTL], cd[CTL / XG_DR], cr[CTL / XG_RR];   /* the captures: the chorus's, the delay's, the reverb's */
-    int32_t h[2][XF_NH];                  /* the hooks' blocks (the half rate, the lines' input scale) */
-    int32_t tu[XF_NH];                    /* a link's block before its up-sampler */
-    xf_hb_t up[2];                        /* each link's up-sampler (a half-rate wet into a full-rate effect) */
+    uint32_t key;                         /* 1 + the order the chain's state is for (0: none: cleared at the next block) */
+    uint32_t ud_live;                     /* the delay's up-sampler's tail (as xf.up_live) */
+    int32_t g[XFE_NFX];                   /* each effect's amount in use, Q15 (the chord part's send as the last block
+                                           * left it) */
+    int32_t w[XFE_NFX][2][CTL];           /* each effect's wet this block, left and right, at the full rate */
+    int32_t sn[XFE_N - 1u][CTL];          /* mono C_1, C_2, C_3 of the last block */
+#if XG_HALF
+    int32_t rh[2][XF_NH];                 /* the reverb's half-rate wet when core 0 runs it */
+    xf_hb_t ud[2];                        /* the delay's own up-sampler, left and right */
+#endif
 } xg __attribute__((section(".pool")));
-/* (xg_pre, xg_post, xg_hook: out of line, so that xf_delay's and xf_reverb's own loops stay what tests/target_budget.txt
- * counts; they run only while a feed is up) */
-static __attribute__((noinline)) void xg_pre(int32_t *c, const int32_t *l, const int32_t *r, uint32_t n)   /* before the effect adds: the sum */
+static uint32_t xg_ord(void) { return (uint32_t)xfp[XP_ORDER] < 24u ? (uint32_t)xfp[XP_ORDER] : 0u; }
+/* the chain's inputs (core 0, after the parts, before the effects): into sc, sd, sr (the sends' buffers, whatever the
+ * parts put there replaced), from ml / mr (the dry mix, this block's) and the snapshots. amt: the three amounts' targets,
+ * Q15 (fx.c: the chord part's sends, 0 with FX off). Also clears the wets */
+static __attribute__((noinline)) void xg_in(int32_t *sc, int32_t *sd, int32_t *sr, const int32_t *ml, const int32_t *mr,
+                                            const int32_t *amt, uint32_t n)
 {
-    uint32_t i;
-    for (i = 0; i < n; i++)
-        c[i] = l[i] + r[i];
-}
-static __attribute__((noinline)) uint32_t xg_post(int32_t *c, const int32_t *l, const int32_t *r, uint32_t n)   /* after: what it added, mono */
-{
-    uint32_t i;
-    int32_t a = 0;
-    for (i = 0; i < n; i++) {
-        int32_t v = (l[i] + r[i] - c[i]) >> 1;
-        c[i] = v;
-        a |= v;
+    uint32_t o = xg_ord(), k, i;
+    if (xg.key != o + 1u) {                             /* a new chain (or Chain just chosen): from rest */
+        xg.key = o + 1u;
+        xg.ud_live = 0;
+        for (k = 0; k < XFE_NFX; k++)
+            xg.g[k] = 0;
+        for (k = 0; k < XFE_N - 1u; k++)
+            for (i = 0; i < CTL; i++)
+                xg.sn[k][i] = 0;
+#if XG_HALF
+        xf_hb_clear(&xg.ud[0]);
+        xf_hb_clear(&xg.ud[1]);
+#endif
     }
-    return a != 0;
+    for (k = 0; k < XFE_NFX; k++)
+        for (i = 0; i < n; i++)
+            xg.w[k][0][i] = xg.w[k][1][i] = 0;
+    for (k = 0; k < XFE_N; k++) {
+        uint32_t e = XF_ORD[o][k];
+        int32_t *in, g, t, dg, xmax;
+        const int32_t *s = k ? xg.sn[k - 1u] : 0;
+        if (e == XFE_FILTER)
+            continue;
+        in = e == XFE_CHORUS ? sc : e == XFE_DELAY ? sd : sr;
+        g = xg.g[e];
+        t = amt[e];
+        xg.g[e] = t;
+        if (!g && !t) {                                 /* (closed: nothing in) */
+            for (i = 0; i < n; i++)
+                in[i] = 0;
+            continue;
+        }
+        dg = n == CTL ? (t - g) >> CTL_LOG2 : (t - g) / (int32_t)n;   /* (fx.c's ramp, a straight line across the block) */
+        xmax = 0x7FFFFFFF / ((t > g ? t : g) | 1);
+        for (i = 0; i < n; i++) {
+            int32_t m = s ? s[i] : (ml[i] + mr[i]) >> 1;
+            g += dg;
+            in[i] = (xf_clamp(m, -xmax, xmax) * g) >> 15;
+        }
+    }
 }
-static __attribute__((noinline)) void xg_hook(int32_t *b, const int32_t *h, uint32_t nh)   /* a half-rate feed into the
-                                                                                            * lines' input */
+#if XG_HALF
+/* a half-rate wet up into a full-rate pair (xf_reverb's up-sampler, the same steps: the tail counted, the states
+ * cleared at rest), for the chain's delay and reverb each */
+static __attribute__((noinline)) void xg_up(xf_hb_t *h, uint32_t *live, const int32_t *l, const int32_t *r, int32_t *ml,
+                                            int32_t *mr, uint32_t nh)
 {
     uint32_t i;
+    int32_t any = 0;
     for (i = 0; i < nh; i++)
-        b[i] = xf_clamp(b[i] + h[i], -32767, 32767);
+        any |= l[i] | r[i];
+    if (any)
+        *live = 256u;
+    else if (*live)
+        *live = *live > nh ? *live - nh : 0u;
+    if (any || *live) {
+        XF_CALL(xf_up)(&h[0], l, ml, nh);
+        XF_CALL(xf_up)(&h[1], r, mr, nh);
+    } else {
+        xf_hb_clear(&h[0]);
+        xf_hb_clear(&h[1]);
+    }
 }
+#endif
 /* ---------------------------------------------------------------- the chorus --- */
 /* THE CHORUS, STEREO (0.19; docs/FX.md "The chorus, stereo"). Felucca's chorus (fx.c fx_buses) reads its line at one
  * point that an LFO moves (400 + 0 .. 6 x DEPTH samples back: 9 .. 17 ms at the default) and returns that one tap to
@@ -1012,8 +1061,6 @@ CR_HOT_FX static __attribute__((noinline)) void xc_block(const int32_t *in, int3
         da = da * (int32_t)CTL / (int32_t)n;
         db = db * (int32_t)CTL / (int32_t)n;
     }
-    if (xg.on)                                          /* (THE ROUTING: the return captured for the next effect) */
-        xg_pre(xg.cc, ml, mr, n);
     for (i = 0; i < n; i++, w++) {
         int32_t x = in[i], r, c0, c1;
         uint32_t k;
@@ -1032,8 +1079,6 @@ CR_HOT_FX static __attribute__((noinline)) void xc_block(const int32_t *in, int3
         c1 = cho_buf[(k - 1u) & (CHO_LEN - 1u)];
         mr[i] += (c0 + (((c1 - c0) * (r & 255)) >> 8)) * 2;
     }
-    if (xg.on)
-        xg.cv[XFE_CHORUS] = xg_post(xg.cc, ml, mr, n);
     xc_live = any ? CHO_LEN : xc_live > n ? xc_live - n : 0u;
 }
 
@@ -1084,8 +1129,8 @@ static uint32_t xf_prep(const int32_t *dly_in, const int32_t *rev_in, uint32_t n
             in_d |= dly_in[i];
             in_r |= rev_in[i];
         }
-    return (uint32_t)(in_d || xf.d_live || xg.hk[0]) | (uint32_t)(in_r || xf.r_live || xg.hk[1]) << 1 |
-           (uint32_t)!!xf.up_live << 2;                 /* (xg.hk: THE ROUTING's half-rate feeds are sends too) */
+    return (uint32_t)(in_d || xf.d_live) | (uint32_t)(in_r || xf.r_live) << 1 | (uint32_t)!!xf.up_live << 2;   /* (in
+                                                         * Chain mode the sends are THE ROUTING's chain inputs) */
 }
 /* the delay (its line at FS: into ml, mr; at FS / 2: into the half-rate wet, xf.t[2..3]) */
 CR_HOT_FX static __attribute__((noinline)) void xf_delay(const int32_t *dly_in, int32_t *ml, int32_t *mr, uint32_t n)
@@ -1098,20 +1143,10 @@ CR_HOT_FX static __attribute__((noinline)) void xf_delay(const int32_t *dly_in, 
     xf.d_wt = ((osc_sine(xf.d_ph[0]) + (osc_sine(xf.d_ph[1]) >> 3)) * (xf.d_wow >> 3)) >> 12;
 #if CR_FX_DELAY_DS == 2
     XF_CALL(xf_down)(&xf.dn[0], dly_in, hd, n);
-    if (xg.hk[0])                                       /* (THE ROUTING: a half-rate feed into the delay) */
-        xg_hook(hd, xg.h[0], n >> 1);
     CR_PROFX(CRX_DOWN);
-    if (xg.on)
-        xg_pre(xg.cd, ol, orr, n >> 1);
     XF_CALL(xd_run)(hd, ol, orr, n >> 1, 0);
-    if (xg.on)
-        xg.cv[XFE_DELAY] = xg_post(xg.cd, ol, orr, n >> 1);
 #else
-    if (xg.on)
-        xg_pre(xg.cd, ml, mr, n);
     XF_CALL(xd_run)(dly_in, ml, mr, n, XF_IN);
-    if (xg.on)
-        xg.cv[XFE_DELAY] = xg_post(xg.cd, ml, mr, n);
 #endif
     CR_PROFX(CRX_DELAY);
     if (!xf.d_live) {                                   /* silent: the half-band's last fractions with it */
@@ -1148,20 +1183,10 @@ CR_HOT_FX static __attribute__((noinline)) void xf_reverb(const int32_t *rev_in,
             xf.r_mt[i] = (osc_sine(xf.r_ph[i >> 1] + ((i & 1u) << 30)) * xf.r_mod) >> 15;
 #if CR_FX_REVERB_DS == 2
         XF_CALL(xf_down)(&xf.dn[1], rev_in, hr, n);
-        if (xg.hk[1])                                   /* (THE ROUTING: a half-rate feed into the reverb) */
-            xg_hook(hr, xg.h[1], nh);
         XR_MARK(CRX_DOWN);
-        if (xg.on)
-            xg_pre(xg.cr, ol, orr, nh);
         XF_CALL(xr_run)(hr, ol, orr, nh, 0);
-        if (xg.on)
-            xg.cv[XFE_REVERB] = xg_post(xg.cr, ol, orr, nh);
 #else
-        if (xg.on)
-            xg_pre(xg.cr, ml, mr, n);
         XF_CALL(xr_run)(rev_in, ml, mr, n, XF_IN);
-        if (xg.on)
-            xg.cv[XFE_REVERB] = xg_post(xg.cr, ml, mr, n);
 #endif
         XR_MARK(CRX_REVERB);
         if (!xf.r_live)
@@ -1207,69 +1232,6 @@ CR_HOT_FX static __attribute__((noinline)) void xf_block(const int32_t *dly_in, 
         xf_delay(dly_in, ml, mr, n);
     xf_reverb(rev_in, ml, mr, n, (int)(f >> 1 & 1u), 0, 0, xf.t[2], xf.t[3], 1);
 }
-/* the routing's stage (above: THE ROUTING), fx.c mix_block's, core 0, before the effects: the links of the last
- * block's captures into this block's inputs (sc, sd, sr: the chorus's, the delay's, the reverb's sends; n: CTL).
- * Called while Feed is up or a gain is still on its way to 0 (fx.c: xfp[XP_FEED] || xg.on) */
-static int32_t *xg_send(int32_t *sc, int32_t *sd, int32_t *sr, uint32_t e) { return e == XFE_CHORUS ? sc : e == XFE_DELAY ? sd : sr; }
-static uint32_t xg_ds(uint32_t e) { return e == XFE_CHORUS ? 1u : e == XFE_DELAY ? XG_DR : XG_RR; }
-static __attribute__((noinline)) void xg_feed(int32_t *sc, int32_t *sd, int32_t *sr, uint32_t n)
-{
-    uint32_t o = (uint32_t)xfp[XP_ORDER] < 6u ? (uint32_t)xfp[XP_ORDER] : 0u, k, i;
-    int32_t gt = xfp[XP_FEED] * 258;
-    xg.hk[0] = xg.hk[1] = 0;
-    if (o != xg.ord) {                                  /* a new chain: the new links fade in from 0 */
-        xg.ord = o;
-        xg.g[0] = xg.g[1] = 0;
-        xf_hb_clear(&xg.up[0]);
-        xf_hb_clear(&xg.up[1]);
-    }
-    if (!gt && !xg.g[0] && !xg.g[1]) {                  /* arrived at 0: off, nothing captured from here on */
-        xg.on = 0;
-        xg.cv[0] = xg.cv[1] = xg.cv[2] = 0;
-        xf_hb_clear(&xg.up[0]);
-        xf_hb_clear(&xg.up[1]);
-        return;
-    }
-    for (k = 0; k < 2u; k++) {
-        uint32_t s = XF_ORD[o][k], d = XF_ORD[o][k + 1u], ss = xg_ds(s), m = n / ss;
-        int32_t g0 = xg.g[k], g1 = g0 + ((gt - g0 + (gt > g0 ? (1 << XG_GL) - 1 : 0)) >> XG_GL), gq, st;
-        const int32_t *c = s == XFE_CHORUS ? xg.cc : s == XFE_DELAY ? xg.cd : xg.cr;
-        int32_t *in = xg_send(sc, sd, sr, d);
-        xg.g[k] = g1;
-        if (!xg.cv[s] || (!g0 && !g1)) {                /* nothing to feed: the link's up-sampler at rest */
-            xf_hb_clear(&xg.up[k]);
-            continue;
-        }
-        gq = g0 << 8;
-        st = ((g1 - g0) << 8) / (int32_t)m;             /* (the gain a straight line across the block) */
-        if (ss == 1u) {                                 /* a full-rate wet: into the next one's send */
-            for (i = 0; i < m; i++) {
-                gq += st;
-                in[i] = xf_clamp(in[i] + xf_tz15(xf_clamp(c[i], -65535, 65535) * (gq >> 8)), -131068, 131068);
-            }
-        } else if (xg_ds(d) == 2u) {                    /* half into half: the hook, after the next one's xf_down */
-            int32_t *h = xg.h[d == XFE_REVERB];
-            for (i = 0; i < m; i++) {
-                int32_t v;
-                gq += st;
-                v = xf_clamp(c[i], -65535, 65535) * (gq >> 8);
-                h[i] = (v + ((v >> 31) & 65535)) >> (15 + XF_IN);   /* (the lines' input: a half of the send) */
-            }
-            xg.hk[d == XFE_REVERB] = 1;
-        } else {                                        /* half into full: up through the link's own half-band */
-            for (i = 0; i < m; i++) {
-                gq += st;
-                xg.tu[i] = xf_tz15(xf_clamp(c[i], -65535, 65535) * (gq >> 8));
-            }
-            XF_CALL(xf_up)(&xg.up[k], xg.tu, in, m);
-            for (i = 0; i < n; i++)
-                in[i] = xf_clamp(in[i], -131068, 131068);
-        }
-    }
-    xg.cv[0] = xg.cv[1] = xg.cv[2] = 0;                 /* (consumed: this block's effects write their own) */
-    xg.on = 1;
-}
-
 /* ------------------------------------------------------------ the master filter --- */
 /* THE MASTER FILTER (0.22; GitHub issue 16: "many of the patches contain a lot of harsh upper tones", "a simple single
  * knob lpf/hpf"; docs/FX.md "The master filter"). A LOW CUT and a HIGH CUT on the stereo master, after the effects
@@ -1428,5 +1390,28 @@ CR_HOT_FX static __attribute__((noinline)) void xq_block(int32_t *ml, int32_t *m
             xq_fade(mr, n, &xq.s[c][1], k1, k2, c == 0u, w0, w1);
         }
         xq.w[c] = w1;
+    }
+}
+
+/* THE ROUTING's assembly (above), core 0 after the join: ml / mr hold the dry mix and become the chain's output; each
+ * position in order, the filter in place or an effect's wet added, and the snapshots of C_1 .. C_3 (the next block's
+ * inputs) where an effect follows */
+static __attribute__((noinline)) void xg_join(int32_t *ml, int32_t *mr, uint32_t n)
+{
+    uint32_t o = xg_ord(), k, i;
+    for (k = 0; k < XFE_N; k++) {
+        uint32_t e = XF_ORD[o][k];
+        if (e == XFE_FILTER) {
+            xq_block(ml, mr, n);
+        } else {
+            const int32_t *wl = xg.w[e][0], *wr = xg.w[e][1];
+            for (i = 0; i < n; i++) {
+                ml[i] += wl[i];
+                mr[i] += wr[i];
+            }
+        }
+        if (k + 1u < XFE_N && XF_ORD[o][k + 1u] != XFE_FILTER)
+            for (i = 0; i < n; i++)
+                xg.sn[k][i] = (ml[i] + mr[i]) >> 1;
     }
 }

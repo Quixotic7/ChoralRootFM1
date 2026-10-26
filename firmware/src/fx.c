@@ -1543,6 +1543,109 @@ static __attribute__((noinline)) void perf_master(int32_t *out, uint32_t n)
 }
 #endif
 
+#if CR_FX
+/* THE ROUTING's Chain (cr_fx.c, docs/FX.md "The routing"): mix_block's effects stage with XP_RMODE 1, the master filter
+ * inside the chain. The inputs from the dry mix and the last block's snapshots (xg_in: the chord part's sends the
+ * amounts), the effects as mix_fx_split / xf_block run them (the reverb on core 1 when it is alive, the chorus and the
+ * delay here) but each into its own wet (cr_fx.c xg.w), the join, then the assembly (xg_join) in place in the mix */
+#define CR_FX_CHORD 0u                                 /* (cr_out.c CR_PART_CHORD: the chord part) */
+static __attribute__((noinline)) void mix_fx_chain(uint32_t n)
+{
+    const track_t *t = &trk[CR_FX_CHORD];
+    int32_t amt[XFE_NFX], *wd_l = xg.w[XFE_DELAY][0], *wd_r = xg.w[XFE_DELAY][1];
+    int32_t *wr_l = xg.w[XFE_REVERB][0], *wr_r = xg.w[XFE_REVERB][1];
+    uint32_t f, i, mk = 0;
+    int ran = 0, done = 0;
+#if XG_HALF
+    int32_t *rl = xg.rh[0], *rr = xg.rh[1];
+#endif
+    amt[XFE_CHORUS] = fx_off ? 0 : t->p[P_CHOR] * 258;
+    amt[XFE_DELAY] = fx_off ? 0 : t->p[P_DLY] * 258;
+    amt[XFE_REVERB] = fx_off ? 0 : t->p[P_REV] * 258;
+    xg_in(send_c, send_d, send_r, mix_l, mix_r, amt, n);
+    f = xf_prep(send_d, send_r, n);
+#if CR_CPU1 && XF_SPLIT
+    if (cr_dualcore_active() && !CR_C1_TEST_FX0 && (f & C1X_BITS) && cr_c1_check()) {   /* (mix_fx_split's) */
+        uint32_t k;
+        c1x_rev = (uint8_t)(f >> 1 & 1u);
+        for (k = 0; k < CRX_N; k++)
+            c1x_tm[k] = 0;
+        cr_c1_split = 1;
+        ran = cr_c1_run(c1_fx_job, n);
+        if (!ran)
+            cr_c1_split = 0;
+    }
+    if (!ran)
+        cr_dbg.c1_end = 0;
+    cr_dbg.fxmap_cur |= 1u | (f & 1u) << 1 | (f & 6u ? 4u : 0u) | (ran ? 8u : 0u);
+#endif
+    xc_block(send_c, xg.w[XFE_CHORUS][0], xg.w[XFE_CHORUS][1], n);
+#if XF_HALF && CR_FX_DELAY_DS == 2
+    for (i = 0; i < (n >> 1); i++)                      /* (the delay's half-rate wet: its own here, from 0) */
+        xf.t[2][i] = xf.t[3][i] = 0;
+#endif
+    CR_PROFX_START();
+    if (f & 1u)
+        xf_delay(send_d, wd_l, wd_r, n);
+#if XF_HALF && CR_FX_DELAY_DS == 2
+    xg_up(xg.ud, &xg.ud_live, xf.t[2], xf.t[3], wd_l, wd_r, n >> 1);
+#endif
+#if CR_CPU1 && XF_SPLIT
+    if (ran) {
+        CR_PROF(CRP_FX);
+        if (cr_c1_wait())                               /* 8 ms or a fault: core 1 held for good (C1_GAVE_UP) */
+            ran = 0;
+        if (cr_dbg.prof_on) {
+            uint32_t t_ = cr_prof_now(), d = cr_prof_less(t_ - cr_dbg.mark);
+            cr_dbg.cur[CRP_WAIT] += d;
+            cr_dbg.fxw_cur += d;
+            cr_dbg.mark = t_;
+        }
+        cr_c1_split = 0;
+        if (ran) {
+            uint32_t k;
+            cr_dbg.c1x_jobs++;
+            for (k = 0; k < CRX_N; k++)
+                cr_dbg.xcur[k] += c1x_tm[k];
+#if XF_SPLIT_HALF
+            rl = c1h_l;                                 /* (core 1's lines, at the half rate: up-sampled below) */
+            rr = c1h_r;
+#else
+            for (i = 0; i < n; i++) {                   /* (core 1's wet, whole) */
+                wr_l[i] = c1x_l[i];
+                wr_r[i] = c1x_r[i];
+            }
+#endif
+            done = 1;
+        } else {
+            cr_dbg.fxmap_cur &= ~8u;
+        }
+        CR_PROFX_START();
+    }
+#endif
+    if (!done) {                                        /* the reverb here: its lines into its own half-rate pair */
+#if XG_HALF
+        for (i = 0; i < (n >> 1); i++)
+            rl[i] = rr[i] = 0;
+#endif
+        if (f & 2u)
+#if XG_HALF
+            xf_reverb(send_r, wr_l, wr_r, n, 1, 0, &mk, rl, rr, 0);
+#else
+            xf_reverb(send_r, wr_l, wr_r, n, 1, 0, &mk, xf.t[2], xf.t[3], 0);
+#endif
+    }
+#if XF_HALF && CR_FX_REVERB_DS == 2
+#if CR_CPU1 && XF_SPLIT && !XF_SPLIT_HALF
+    if (!done)                                          /* (core 1's job up-sampled its own) */
+#endif
+        xg_up(xf.up, &xf.up_live, rl, rr, wr_l, wr_r, n >> 1);
+#endif
+    (void)done; (void)mk; (void)wr_l; (void)wr_r;
+    xg_join(mix_l, mix_r, n);
+}
+#endif
+
 static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
@@ -1585,9 +1688,11 @@ static void mix_block(int32_t *out, uint32_t n)
         perf_pre(mix_l, mix_r, send_d, send_r, n);
 #endif
 #if CR_FX
-    if (xfp[XP_FEED] | xg.on)
-        xg_feed(send_c, send_d, send_r, n);             /* (cr_fx.c THE ROUTING: last block's returns into the next
-                                                         * effects' inputs; Feed 0: not called, 0.26 to the bit) */
+    if (xfp[XP_RMODE] == 1)
+        mix_fx_chain(n);                                /* (cr_fx.c THE ROUTING: Chain, the master filter inside it) */
+    else {
+    xg.key = 0;                                         /* (Parallel, 0.26 to the bit: a Chain chosen later starts from
+                                                         * rest) */
 #if CR_CHORUS_MONO
     if (CR_CHORUS_MONO == 1 || cho_mono) {              /* 0.18's return: one tap, the same to both sides (a test's
                                                          * reference: the sums are 0.18's, bit for bit) */
@@ -1616,6 +1721,7 @@ static void mix_block(int32_t *out, uint32_t n)
 #if CR_FX
     xq_block(mix_l, mix_r, n);                          /* (cr_fx.c: the master filter, 0.22: after the effects, before
                                                          * the master; Off, the default: nothing read or written) */
+    }
 #endif
     CR_PROF(CRP_FX);
 #if FELUCCA_PERFORM

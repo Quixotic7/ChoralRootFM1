@@ -394,31 +394,35 @@ has '^param: part 0 ENV DRIVE 0 -> 18' "$L" && [ "$(fxamt 8)" = "64 45 31 12" ] 
     ok "GLO + SAVE (the revert, nothing saved): both parts' sends a new unit's on both screens, the layer on Sends: $OUT/cr_fx_sends_reverted.ppm" \
     || bad "the revert: amt $(fxamt 10) sends $(fxsnd 10), the editor: '$(edc 10)' / '$(edb 10)'"
 
-echo "the FX layer's Routing page: the chain's order on KNOB 1..3, the feed on KNOB 4 (GitHub issue 21, docs/FX.md \"The routing\")"
+echo "the FX layer's Routing page: the signal flow as boxes, the black keys hold a block, KNOB 1 moves it, A#4 / KNOB 2 the mode (GitHub issue 21, second design; docs/FX.md \"The routing\")"
 run cr_fx_route
 L="$OUT/cr_fx_route.log"
-rcl() { grep -a '^  screen reads:' "$L" | sed -n "$1p" | sed 's/.* cells //'; }                    # "0.0:1st=Chorus .."
+rr() { grep -a '^  screen route:' "$L" | sed -n "$1p" | sed 's/^  screen route: //'; }              # "chain Chorus .. held none fx 1 filter 0"
 rpar() { grep -a '^  session fx:' "$L" | sed -n "$1p" | sed -n 's/.* 30=[0-9]*\(.*\)$/\1/p'; }      # the routing's tags
-[ "$(rcl 1)" = "0.0:1st=Chorus 0.1:2nd=Delay 0.2:3rd=Reverb 0.3:Feed=0%" ] && [ -z "$(rpar 1)" ] &&
-    grep -a '^  session fx:' "$L" | head -1 | grep -q '(Routing 1/1)' && has '^fx: routing Chorus > Delay > Reverb feed 0' "$L" &&
-    ok "SELECT to the last page, Routing: Chorus Delay Reverb, Feed 0% (the defaults, not written to the session): $OUT/cr_fx_route.ppm" \
-    || bad "the Routing page: '$(rcl 1)' par '$(rpar 1)'"
-[ "$(rcl 2)" = "0.0:1st=Delay 0.1:2nd=Chorus 0.2:3rd=Reverb 0.3:Feed=0%" ] && [ "$(rpar 2)" = " 35=2" ] &&
-    ! cmp -s "$OUT/cr_fx_route.ppm" "$OUT/cr_fx_route_moved.ppm" &&
-    ok "KNOB 1 +1: the chorus moves right, Delay Chorus Reverb (Order 2, tag 35): $OUT/cr_fx_route_moved.ppm" \
-    || bad "KNOB 1 +1: '$(rcl 2)' par '$(rpar 2)'"
-[ "$(rcl 3)" = "$(rcl 1)" ] && [ -z "$(rpar 3)" ] &&
-    [ "$(rcl 4)" = "0.0:1st=Chorus 0.1:2nd=Reverb 0.2:3rd=Delay 0.3:Feed=0%" ] && [ "$(rpar 4)" = " 35=1" ] && [ "$(rcl 5)" = "$(rcl 4)" ] &&
-    ok "KNOB 2 -1: back to Chorus Delay Reverb; KNOB 3 -1: the reverb moves left, Chorus Reverb Delay; KNOB 1 -1: clamped at the end: $OUT/cr_fx_route_rev.ppm" \
-    || bad "the moves: '$(rcl 3)' / '$(rcl 4)' / '$(rcl 5)' par '$(rpar 4)'"
-[ "$(rcl 6)" = "0.0:1st=Chorus 0.1:2nd=Reverb 0.2:3rd=Delay 0.3:Feed=39%" ] && [ "$(rpar 6)" = " 35=1 36=50" ] &&
-    has '^fx: routing Chorus > Reverb > Delay feed 50' "$L" &&
-    ok "KNOB 4 +10: Feed 50, read in per cent as a send (39%; tag 36): $OUT/cr_fx_route_feed.ppm" \
-    || bad "Feed: '$(rcl 6)' par '$(rpar 6)'"
-[ "$(rcl 7)" = "$(rcl 6)" ] && [ "$(rcl 8)" = "$(rcl 6)" ] && has '^fx: off' "$L" && has '^fx: on' "$L" &&
-    grep -a '^  session fx:' "$L" | sed -n 8p | grep -q 'on 1 .*(Routing 1/1)' &&
-    ok "FX off and on: the page stays, its cells as they were: $OUT/cr_fx_route_off.ppm" \
-    || bad "FX off / on on the Routing page: '$(rcl 7)' / '$(rcl 8)'"
+[ "$(rr 1)" = "parallel Chorus Delay Reverb Filter held none fx 1 filter 0" ] && [ -z "$(rpar 1)" ] &&
+    grep -a '^  session fx:' "$L" | head -1 | grep -q '(Routing 1/1)' && has '^fx: routing parallel Chorus > Delay > Reverb > Filter' "$L" &&
+    grep -a '^  screen foot:' "$L" | head -1 | grep -q "hold C# D# F# G# + KNOB 1" &&
+    ok "SELECT to the last page, Routing: Parallel, Chorus Delay Reverb Filter (the defaults, not written to the session): $OUT/cr_fx_route.ppm" \
+    || bad "the Routing page: '$(rr 1)' par '$(rpar 1)'"
+[ "$(rr 2)" = "chain Chorus Delay Reverb Filter held none fx 1 filter 0" ] && [ "$(rpar 2)" = " 36=1" ] &&
+    ok "A#4 tapped: Chain (tag 36): $OUT/cr_fx_route_chain.ppm" || bad "A#4: '$(rr 2)' par '$(rpar 2)'"
+[ "$(rr 3)" = "chain Chorus Delay Reverb Filter held Delay fx 1 filter 0" ] && has '^fx: routing hold Delay' "$L" &&
+    [ "$(rr 4)" = "chain Chorus Reverb Delay Filter held Delay fx 1 filter 0" ] && [ "$(rpar 4)" = " 35=2 36=1" ] &&
+    [ "$(rr 5)" = "chain Chorus Reverb Delay Filter held none fx 1 filter 0" ] && has '^fx: routing release Delay' "$L" &&
+    ! cmp -s "$OUT/cr_fx_route_chain.ppm" "$OUT/cr_fx_route_lift.ppm" &&
+    ok "D#4 held: Delay lifts; KNOB 1 +1: Chorus Reverb Delay Filter (Order 2, tag 35); D#4 up: it lands: $OUT/cr_fx_route_lift.ppm, $OUT/cr_fx_route_moving.ppm" \
+    || bad "the Delay's move: '$(rr 3)' / '$(rr 4)' / '$(rr 5)' par '$(rpar 4)'"
+[ "$(rr 6)" = "chain Chorus Filter Reverb Delay held Filter fx 1 filter 0" ] && [ "$(rpar 6)" = " 35=5 36=1" ] &&
+    [ "$(rr 7)" = "chain Chorus Filter Reverb Delay held none fx 1 filter 0" ] && ! has '^touch: key 9 ' "$L" &&
+    ok "G#4 held, KNOB 1 -2: Chorus Filter Reverb Delay (Order 5); D4 tapped: nothing plays, nothing moves: $OUT/cr_fx_route_cfrd.ppm" \
+    || bad "the Filter's move / a white key: '$(rr 6)' / '$(rr 7)' par '$(rpar 6)'"
+[ "$(rr 8)" = "parallel Chorus Filter Reverb Delay held none fx 1 filter 0" ] && [ "$(rpar 8)" = " 35=5" ] &&
+    ok "KNOB 2 -1: Parallel, the order kept: $OUT/cr_fx_route_parallel.ppm" || bad "KNOB 2: '$(rr 8)' par '$(rpar 8)'"
+[ "$(rr 9)" = "parallel Chorus Filter Reverb Delay held none fx 0 filter 0" ] &&
+    [ "$(rr 10)" = "parallel Chorus Filter Reverb Delay held none fx 1 filter 0" ] && has '^fx: off' "$L" && has '^fx: on' "$L" &&
+    grep -a '^  session fx:' "$L" | sed -n 10p | grep -q 'on 1 .*(Routing 1/1)' &&
+    ok "FX off and on: the page stays, grey while off: $OUT/cr_fx_route_off.ppm" \
+    || bad "FX off / on on the Routing page: '$(rr 9)' / '$(rr 10)'"
 
 echo "a send's read-out and its step are ONE: per cent, 6 a detent, on the Sends page, an effect's Send cell, the editor, KNOB 4's popup, a CC's (docs/FX.md)"
 run cr_fx_send_scale

@@ -88,12 +88,13 @@ static uint32_t rnd(uint32_t n)
  * pressure, a bend on both, a sound change on each part under held notes. Returns the digest of every sample */
 /* mode: 0 the job inline, 1 on the thread, 2 inline and P5's chord voices not shared out (the reference), 3 / 4 on
  * the thread with every chord voice given to core 1 / to core 0; 5 inline with the effects all on core 0 (3y50: the
- * reference for the reverb on core 1, fx.c mix_fx_split); 6 / 7 as 1 / 5 with THE ROUTING's Feed at 127 (cr_fx.c: last
- * block's returns into the next effects, the order the pair's index mod 6: the captures are written by the core
- * that ran the effect and read on core 0 after the join, so the split is the one core's, bit for bit). Every phrase sends to the three effects from both parts
+ * reference for the reverb on core 1, fx.c mix_fx_split); 6 / 7 as 1 / 5 in THE ROUTING's Chain (cr_fx.c: the serial path,
+ * the chord part's sends the amounts; each pair its share of the 24 orders, every order run by some pair: each
+ * effect's wet is written by the core that ran it, the assembly and the snapshots are core 0's after the join, so the
+ * split is the one core's, bit for bit). Every phrase sends to the three effects from both parts
  * (3y50: the reverb's job runs on the thread in every block that has something for it) */
 #define NKEYS 8u
-static int c1_ord;                                  /* modes 6, 7: the routing's order (cr_fx.c XF_ORD), a pair's own */
+static int c1_ord;                                  /* modes 6, 7: Chain's order (cr_fx.c XF_ORD) */
 static void sends_up(void)                          /* the three effects, both parts: up */
 {
     uint32_t k;
@@ -117,7 +118,7 @@ static uint64_t phrase(const pair_t *p, uint32_t nb, int mode)
     cr_c1_test_nosplit = (uint8_t)(mode == 2);
     cr_c1_test_share = (uint8_t)(mode == 3 ? P5_POLY + 1u : mode == 4 ? 1u : 0u);
     cr_c1_test_fx0 = (uint8_t)(mode == 5 || mode == 7);
-    xfp[XP_FEED] = (int16_t)(mode >= 6 ? 127 : 0);      /* (THE ROUTING: the chain's feeds at full, the pair's order) */
+    xfp[XP_RMODE] = (int16_t)(mode >= 6);               /* (THE ROUTING: Chain, at the order given) */
     xfp[XP_ORDER] = (int16_t)(mode >= 6 ? c1_ord : 0);
     cu_pool_load(0, p->ce, p->cpos);
     cu_pool_load(1, p->be, p->bpos);
@@ -228,7 +229,7 @@ static uint64_t fork_phrase(const pair_t *p, uint32_t nb, int thread)
 int main(int argc, char **argv)
 {
     int tsan = argc >= 2 && !strcmp(argv[1], "--tsan");
-    uint32_t i, uni = 0, k, nb = tsan ? 900u : 3000u, nsplit = 0, nvsplit = 0, nfsplit = 0, nfx = 0, nrt = 0, jobs0 = 0, mpad = 0, pbass = 0;
+    uint32_t i, uni = 0, k, nb = tsan ? 900u : 3000u, nsplit = 0, nvsplit = 0, nfsplit = 0, nfx = 0, nrt = 0, nro = 0, jobs0 = 0, mpad = 0, pbass = 0;
     uint32_t tine = 0, dsub = 0, fams = 0;
     pair_t P[24];
     uint32_t np = 0;
@@ -310,14 +311,20 @@ int main(int argc, char **argv)
             uint64_t a = fork_phrase(&P[i], nb, 0), b = fork_phrase(&P[i], nb, 1), c = fork_phrase(&P[i], nb, 1);
             uint32_t c0 = cr_dbg.p5_c0, c1 = cr_dbg.p5_c1, s0 = sx[0], s1 = sx[1], ss = sxs;
             uint64_t z = fork_phrase(&P[i], nb, 5), r6, r7;
-            int ok = a && a == b && a == c && a == z && pmax <= P5_POLY, rok;
-            c1_ord = (int)(i % 6u);
-            r6 = fork_phrase(&P[i], nb, 6);
-            r7 = fork_phrase(&P[i], nb, 7);
-            rok = r6 && r6 == r7 && r6 != a;            /* (and the feed is heard: not Feed 0's samples) */
-            if (!rok)
-                printf("  FAIL %s: the routing at Feed 127 (order %d): on the thread %016llx, all on core 0 %016llx\n", P[i].what,
-                       c1_ord, (unsigned long long)r6, (unsigned long long)r7);
+            int ok = a && a == b && a == c && a == z && pmax <= P5_POLY, rok = 1;
+            uint32_t o;
+            for (o = i; o < 24u || o == i; o += np) {   /* (this pair's orders: i, i + np, ..; all 24 over the pairs) */
+                c1_ord = (int)(o % 24u);
+                r6 = fork_phrase(&P[i], nb, 6);
+                r7 = fork_phrase(&P[i], nb, 7);
+                if (!(r6 && r6 == r7 && r6 != a)) {     /* (and Chain is heard: not Parallel's samples) */
+                    printf("  FAIL %s: Chain (order %d): on the thread %016llx, all on core 0 %016llx\n", P[i].what,
+                           c1_ord, (unsigned long long)r6, (unsigned long long)r7);
+                    rok = 0;
+                } else {
+                    nro++;
+                }
+            }
             ok = ok && rok;
             nfx += a == z;
             nrt += rok;
@@ -369,8 +376,8 @@ int main(int argc, char **argv)
     if (!tsan)
         printf("effects: %u pairs, three sends up: the reverb on core 1 gives the samples of the effects all on core 0\n", (unsigned)nfx);
     if (!tsan)
-        printf("routing: %u pairs at Feed 127, every order: the reverb on core 1 gives the samples of the effects all on core 0\n",
-               (unsigned)nrt);
+        printf("routing: %u pairs in Chain, %u orders run (all 24 among them): the reverb on core 1 gives the samples of the effects "
+               "all on core 0\n", (unsigned)nrt, (unsigned)nro);
     printf(tsan ? "cr_c1_thread: ran (the sanitizer's verdict is its own: no report above, exit 0)\n"
                 : "cr_c1_thread: all tests passed (the job on a thread renders the inline job's samples)\n");
     return 0;

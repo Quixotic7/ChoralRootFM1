@@ -126,7 +126,8 @@ static void cr_text_fit(int32_t x, int32_t y, const char *s, uint32_t px, int bo
 /* ------------------------------------------------------- animation --- */
 #define CR_SQUEEZE_MS 120u               /* the old name squeezes to a column (half), the new one stretches out */
 #define CR_THIN 330                      /* .. the column: 8 % (Q12; cr_gfx.c resamples down to 1/16) */
-#define CR_SLIDE_MS 160u                 /* a picker's slide */
+#define CR_SLIDE_MS 160u                 /* a picker's slide (and the Routing page's blocks making room) */
+#define CR_LIFT_MS 120u                  /* the Routing page: a held block rises, a block let go lands */
 #define CR_FILL_MS 30u                   /* a meter: a stripe every 30 ms */
 #define CR_FILL_MAX 14u                  /* .. more than 14 to light or to darken (a pool's meter: up to 32; a wrap
                                           * from its last preset to INIT, a long jump): all of them in the 420 ms of
@@ -138,6 +139,7 @@ static void cr_text_fit(int32_t x, int32_t y, const char *s, uint32_t px, int bo
 typedef struct {
     int32_t sq;                          /* chord: the squeeze of the name drawn (Q12) */
     int32_t slide;                       /* picker: how far the selection still has to slide (Q12 of its pitch) */
+    int32_t lift;                        /* route: how far the lift (or the landing) has gone (Q12, 4096 done) */
     int32_t shift;                       /* stripes: Q8 px */
     int32_t sweep[4];                    /* stripes: Q8 px each band is swept right */
     int32_t name_dy;                     /* stripes (CR_A_INTRO): Q8 px the name is still above its place */
@@ -178,6 +180,7 @@ static void cr_frame(const cr_screen_t *s, uint32_t t, cr_frame_t *fr)
     for (k = 0; k < sizeof *fr; k++)
         ((uint8_t *)fr)[k] = 0;
     fr->sq = 4096;
+    fr->lift = 4096;
     fr->filled = (uint8_t)cr_filled(s, s->pct);
     fr->shift = (int32_t)(s->phase & 255u) * 40;
     if (s->kind == CR_K_CHORD && (s->anim & CR_A_SQUEEZE) && t < CR_SQUEEZE_MS) {
@@ -192,9 +195,14 @@ static void cr_frame(const cr_screen_t *s, uint32_t t, cr_frame_t *fr)
             fr->sq = CR_THIN + (((4096 - CR_THIN) * cr_ease_out(t, CR_SQUEEZE_MS)) >> 12);
         }
     }
-    if ((s->kind == CR_K_PICKER || s->kind == CR_K_KNOBROW || s->kind == CR_K_LOOPMENU) && (s->anim & CR_A_SLIDE) && s->slide && t < CR_SLIDE_MS) {
+    if ((s->kind == CR_K_PICKER || s->kind == CR_K_KNOBROW || s->kind == CR_K_LOOPMENU || s->kind == CR_K_ROUTE) &&
+        (s->anim & CR_A_SLIDE) && s->slide && t < CR_SLIDE_MS) {
         fr->busy = 1;
         fr->slide = 4096 - cr_ease_out(t, CR_SLIDE_MS);
+    }
+    if (s->kind == CR_K_ROUTE && (s->anim & CR_A_LIFT) && t < CR_LIFT_MS) {
+        fr->busy = 1;
+        fr->lift = cr_ease_out(t, CR_LIFT_MS);
     }
     if (s->kind == CR_K_METER && (s->anim & CR_A_FILL)) {
         uint32_t b = fr->filled;
@@ -2753,6 +2761,164 @@ static void cr_p_loopmenu(const cr_screen_t *s, const cr_frame_t *fr)
     if (s->foot[0] && cr_in_strip(226, 240)) cr_text_fit(P8(120), P8(237), s->foot, 11, 0, CR_C, T_MID, T_BG, P8(228));
 }
 
+/* CR_K_ROUTE (CR_SCREENS.md "The Routing page"; the FX layer's ninth page, GitHub issue 21's second design): the
+ * signal flow as boxes, after FIZZ's MidiFX rail (FMToneSeq core/ui/ui_mfx.c: a held slot lifted over its place,
+ * the others making room, arrows either side while it can move, landing on release) in cr_draw's shapes. `label`
+ * 12 px bold mid at the top left, `title` ("Routing") 15 px bold green at the right. The wires are 2 px FX green
+ * with arrowheads, "in" / "out" 12 px bold green at their ends. A block is a rounded box filled with its colour
+ * (Chorus blue with white ink, Delay orange, Reverb yellow, Filter white with black), its name bold; the Filter Off:
+ * hollow (its colour's 2 px rim, the name in it); FX off: every box hollow and every wire grey.
+ * Chain: the four boxes in a row (48 x 64, 10 px apart, rows 86 .. 150, the wire through their middles at 118),
+ * each its place 1 .. 4 at 22 px over its name at 13. Parallel: the three effects stacked (92 x 32 at x 30, rows
+ * 62 .. 174), the wire fanning into them from "in" and out of them into the sum (a disc with a +), then the Filter
+ * (52 x 44) and "out". A held block (rt_held) rises CR_RT_LIFT px (Parallel: CR_RT_LIFT_P) over a grey shadow bar
+ * at its place, ringed white (the Filter: green), white arrowheads either side where it can still move (Chain);
+ * while a move slides (CR_A_SLIDE) every block eases from its rt_from place to its rt_order one; rt_drop lands
+ * (CR_A_LIFT). No knob row: the black keys and KNOB 1 are the gesture, the footer says so */
+#define CR_RT_LY 118                     /* the wire's row (Chain; Parallel: the sum's) */
+#define CR_RT_BW 48                      /* Chain: a box */
+#define CR_RT_BH 64
+#define CR_RT_GAP 10
+#define CR_RT_X0 ((240 - 4 * CR_RT_BW - 3 * CR_RT_GAP) / 2)
+#define CR_RT_BY (CR_RT_LY - CR_RT_BH / 2)
+#define CR_RT_LIFT 10                    /* px a held block rises (Chain) */
+#define CR_RT_LIFT_P 5                   /* .. (Parallel: the stack's gap is 8) */
+#define CR_RT_PX 30                      /* Parallel: the stack */
+#define CR_RT_PW 92
+#define CR_RT_PH 32
+#define CR_RT_PP 40                      /* .. a box's pitch */
+#define CR_RT_FX 166                     /* .. the Filter's box */
+#define CR_RT_FW 52
+#define CR_RT_FH 44
+static const char *const CR_RT_NAME[4] = {"Chorus", "Delay", "Reverb", "Filter"};
+static const uint8_t CR_RT_COL[4] = {CR_COL_BLUE, CR_COL_ORANGE, CR_COL_YELLOW, CR_COL_WHITE};
+/* bold s centred at cx on baseline y (Q8), squeezed to maxw px where wider */
+static void cr_rt_text(int32_t cx, int32_t y, const char *s, uint32_t px, int32_t maxw, uint16_t fg, uint16_t under,
+                       uint32_t fl)
+{
+    int32_t w = cr_tw(s, px, 1);
+    cr_text(cx, y, s, px, 1, CR_C, w > P8(maxw) ? (P8(maxw) << 12) / w : 4096, fg, under, fl);
+}
+/* a right-pointing arrowhead, its tip at (x, y) px, 6 px long, 5 px either side */
+static void cr_rt_arrow(int32_t x, int32_t y, int32_t dir, uint16_t c)
+{
+    cr_tri(x * 16 + 8, y * 16, (x - 6 * dir) * 16 + 8, (y - 5) * 16, (x - 6 * dir) * 16 + 8, (y + 5) * 16, c);
+}
+/* block b's box at (x, y) w x h; num: its place 1 .. 4 over the name (0: the name alone, npx its size); ring: held;
+ * moving: on its way (its texts sliding: 32, as a picker's, the lint lets them cross) */
+static void cr_rt_box(const cr_screen_t *s, uint32_t b, int32_t x, int32_t y, int32_t w, int32_t h, int32_t num,
+                      uint32_t npx, int ring, int moving)
+{
+    uint32_t fl = moving ? 32u : 0u;
+    int solid = s->rt_fx_on && (b != 3u || s->rt_filter_on);
+    uint16_t c = s->rt_fx_on ? CR_NAMED[CR_RT_COL[b & 3u]] : T_DIM, under = T_BG, ink;
+    int32_t cx = P8(x) + P8(w) / 2, ty = num ? P8(y + h - 12) : P8(y + h / 2) + (int32_t)npx * 92;
+    if (ring) {
+        under = b == 3u ? CR_NAMED[CR_COL_GREEN] : CR_WHITE;
+        cv_rrect(x - 3, y - 3, w + 6, h + 6, 8, under, T_BG);
+    }
+    cv_rrect(x, y, w, h, 6, c, under);
+    if (solid) {
+        ink = b == 0u ? CR_WHITE : CR_NAMED[CR_COL_BLACK];
+        under = c;
+    } else {                                         /* hollow: the rim, the inside the background */
+        cv_rrect(x + 2, y + 2, w - 4, h - 4, 4, T_BG, c);
+        ink = c;
+        under = T_BG;
+    }
+    if (num) {
+        char n[2] = {(char)('0' + num), 0};
+        cr_text(cx, P8(y + 30), n, 22, 1, CR_C, 4096, ink, under, fl);
+    }
+    cr_rt_text(cx, ty, CR_RT_NAME[b & 3u], npx, w - 6, ink, under, fl);
+}
+/* block b's place in o (0 .. 3); Parallel's stack (eff): among the three effects only */
+static int32_t cr_rt_pos(const uint8_t *o, uint32_t b, int eff)
+{
+    int32_t k, n = 0;
+    for (k = 0; k < 4; k++) {
+        if (o[k] == b) return n;
+        if (!eff || o[k] != 3u) n++;
+    }
+    return 0;
+}
+static void cr_p_route(const cr_screen_t *s, const cr_frame_t *fr)
+{
+    uint16_t g = s->rt_fx_on ? CR_NAMED[CR_COL_GREEN] : T_DIM;
+    int32_t held = s->rt_held ? (int32_t)s->rt_held - 1 : -1, drop = s->rt_drop ? (int32_t)s->rt_drop - 1 : -1;
+    int32_t up = held >= 0 ? fr->lift : drop >= 0 ? 4096 - fr->lift : 0, k;   /* Q12 of the lift */
+    uint32_t b;
+    if (s->label[0]) cr_text_fit(P8(8), P8(CR_PY0 + 16), s->label, 12, 1, CR_L, T_MID, T_BG, P8(150));
+    if (s->title[0]) cr_text(P8(232), P8(CR_PY0 + 17), s->title, 15, 1, CR_R, 4096, g, T_BG, 0);
+    if (s->rt_mode) {                                /* Chain: in, the four in a row, out */
+        int32_t lb = held >= 0 ? held : drop, lx = 0, ly = 0, lm = 0;
+        cr_fill(0, CR_RT_LY - 1, 240, 2, g);
+        cr_disc(4 * 16, CR_RT_LY * 16, 3 * 16, g);
+        for (k = 1; k < 4; k++)
+            cr_rt_arrow(CR_RT_X0 + k * (CR_RT_BW + CR_RT_GAP) - 2, CR_RT_LY, 1, g);
+        cr_rt_arrow(238, CR_RT_LY, 1, g);
+        cr_text(P8(2), P8(168), "in", 12, 1, CR_L, 4096, g, T_BG, 0);
+        cr_text(P8(238), P8(168), "out", 12, 1, CR_R, 4096, g, T_BG, 0);
+        for (b = 0; b < 4u; b++) {                   /* (the lifted one last: over its neighbours' gaps) */
+            int32_t pt = cr_rt_pos(s->rt_order, b, 0), pf = cr_rt_pos(s->rt_from, b, 0);
+            int32_t xt = P8(CR_RT_X0 + pt * (CR_RT_BW + CR_RT_GAP)), xf = P8(CR_RT_X0 + pf * (CR_RT_BW + CR_RT_GAP));
+            int32_t x = (xt + (((xf - xt) * fr->slide) >> 12) + 128) >> 8;
+            if ((int32_t)b == lb) {
+                lx = x;
+                lm = fr->slide && pt != pf;
+                ly = CR_RT_BY - ((CR_RT_LIFT * up + 2048) >> 12);
+                if (up > 400) cr_fill(x + 4, CR_RT_BY + CR_RT_BH + 3, CR_RT_BW - 8, 3, T_LINE);   /* its shadow */
+                continue;
+            }
+            cr_rt_box(s, b, x, CR_RT_BY, CR_RT_BW, CR_RT_BH, pt + 1, 13, 0, fr->slide && pt != pf);
+        }
+        if (lb >= 0) {
+            int32_t pt = cr_rt_pos(s->rt_order, (uint32_t)lb, 0);
+            cr_rt_box(s, (uint32_t)lb, lx, ly, CR_RT_BW, CR_RT_BH, pt + 1, 13, held >= 0 && up > 2048, lm);
+            if (held >= 0 && up > 2048) {            /* where it can still go: white arrowheads in the gaps */
+                if (pt > 0) cr_rt_arrow(lx - 6, ly + 16, -1, CR_WHITE);
+                if (pt < 3) cr_rt_arrow(lx + CR_RT_BW + 5, ly + 16, 1, CR_WHITE);
+            }
+        }
+    } else {                                         /* Parallel: the buses stacked into the sum, the Filter, out */
+        int32_t y0 = CR_RT_LY - CR_RT_PP - CR_RT_PH / 2;
+        int32_t sx = 146, lb = held >= 0 ? held : drop;
+        cr_fill(0, CR_RT_LY - 1, 15, 2, g);          /* in, the fan */
+        cr_fill(13, CR_RT_LY - CR_RT_PP - 1, 2, 2 * CR_RT_PP + 2, g);
+        cr_fill(135, CR_RT_LY - CR_RT_PP - 1, 2, 2 * CR_RT_PP + 2, g);   /* the buses' returns, the sum */
+        cr_fill(136, CR_RT_LY - 1, sx - 136, 2, g);
+        for (k = 0; k < 3; k++) {
+            int32_t my = CR_RT_LY + (k - 1) * CR_RT_PP;
+            cr_fill(14, my - 1, CR_RT_PX - 15, 2, g);
+            cr_rt_arrow(CR_RT_PX - 1, my, 1, g);
+            cr_fill(CR_RT_PX + CR_RT_PW, my - 1, 136 - CR_RT_PX - CR_RT_PW, 2, g);
+        }
+        cr_fill(sx + 9, CR_RT_LY - 1, CR_RT_FX - sx - 9, 2, g);
+        cr_rt_arrow(CR_RT_FX - 1, CR_RT_LY, 1, g);
+        cr_disc(sx * 16, CR_RT_LY * 16, 10 * 16, g);
+        cr_fill(sx - 5, CR_RT_LY - 1, 10, 2, T_BG);   /* the sum's + */
+        cr_fill(sx - 1, CR_RT_LY - 5, 2, 10, T_BG);
+        cr_fill(CR_RT_FX + CR_RT_FW, CR_RT_LY - 1, 240 - CR_RT_FX - CR_RT_FW, 2, g);
+        cr_rt_arrow(238, CR_RT_LY, 1, g);
+        cr_text(P8(1), P8(CR_RT_LY - 10), "in", 12, 1, CR_L, 4096, g, T_BG, 0);
+        cr_text(P8(238), P8(CR_RT_LY - 10), "out", 12, 1, CR_R, 4096, g, T_BG, 0);
+        for (b = 0; b < 4u; b++) {
+            int32_t yo = (int32_t)b == lb ? (CR_RT_LIFT_P * up + 2048) >> 12 : 0;
+            int ring = held == (int32_t)b && up > 2048;
+            if (b == 3u) {                           /* the Filter, after the sum */
+                cr_rt_box(s, b, CR_RT_FX, CR_RT_LY - CR_RT_FH / 2 - yo, CR_RT_FW, CR_RT_FH, 0, 15, ring, 0);
+                continue;
+            }
+            {
+                int32_t pt = cr_rt_pos(s->rt_order, b, 1), pf = cr_rt_pos(s->rt_from, b, 1);
+                int32_t yt = P8(y0 + pt * CR_RT_PP), yf = P8(y0 + pf * CR_RT_PP);
+                int32_t y = (yt + (((yf - yt) * fr->slide) >> 12) + 128) >> 8;
+                cr_rt_box(s, b, CR_RT_PX, y - yo, CR_RT_PW, CR_RT_PH, 0, 16, ring, fr->slide && pt != pf);
+            }
+        }
+    }
+}
+
 /* Geek Out's name is centred on x 70: 132 px is what stays on the screen there (x 4 .. 136; the notes' column
  * begins past x 200). The longest names ("G#m add4 JAZZ" 154 px at 40 px, Standard's "G#m add9add4") squeeze to it
  * as the other views' squeeze to 224; a name up to 132 px wide is drawn as before */
@@ -2944,6 +3110,7 @@ static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
     case CR_K_STACK: cr_p_stack(s); break;
     case CR_K_KNOBROW: cr_p_knobrow(s, fr, ph); break;
     case CR_K_LOOPMENU: cr_p_loopmenu(s, fr); break;
+    case CR_K_ROUTE: cr_p_route(s, fr); break;
 #if CR_LAY_FREE
     case CR_K_FREE: cr_p_free(s); break;
 #endif

@@ -88,11 +88,17 @@ knob KNOB2 -1
 wait 200
 knob KNOB3 +2
 wait 300
-knob SELECT +3                # (Drive, Filter) Routing (issue 21): KNOB 1 +1 (Delay > Chorus > Reverb, Order 2, tag 35),
-wait 300                      # Feed +4 (tag 36); then back to Delay 2 (the page the session keeps)
+knob SELECT +3                # (Drive, Filter) Routing (issue 21): A#4 tapped (Chain, tag 36 = 1), D#4 held + KNOB 1 +1
+wait 300                      # (Chorus > Reverb > Delay > Filter, Order 2, tag 35); then back to Delay 2 (the page kept)
+key A#4 down
+wait 100
+key A#4 up
+wait 200
+key D#4 down
+wait 200
 knob KNOB1 +1
 wait 200
-knob KNOB4 +4
+key D#4 up
 wait 300
 knob SELECT -3
 wait 300

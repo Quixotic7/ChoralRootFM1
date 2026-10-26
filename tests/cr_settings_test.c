@@ -1234,7 +1234,7 @@ static void t_session(void)
        "session FX: 29 parameters fit (28 until the routing, 24 until 0.22's master filter); a full block, tag 0 and a tag over 255 are refused");
     ok(CSS_NFXP == 29 && sizeof(css_fx_t) == 128 && offsetof(cr_session_t, fx) == 68 && offsetof(cr_session_t, part) == 196 &&
        offsetof(css_fx_t, par) == 12 && CSS_FXP_XQ_LOW == 31 && CSS_FXP_XQ_ON == 34 && CSS_FXE_FILTER == 7 &&
-       CSS_FXP_XF_ORDER == 35 && CSS_FXP_XF_FEED == 36 && CSS_FXE_ROUTE == 8,
+       CSS_FXP_XF_ORDER == 35 && CSS_FXP_XF_RMODE == 36 && CSS_FXE_ROUTE == 8,
        "session FX: the block's new entries took rsv_fx's bytes (0.22's four, the routing's one): every field before and after them where it was");
     cr_session_seal(&SX);
     ok(cr_session_import(&SR, &SX, sizeof SX) == 1 && SR.fx.n == CSS_NFXP && cr_session_fx_get(&SR, 200, &v) && v == -5,
