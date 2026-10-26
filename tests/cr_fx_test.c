@@ -23,7 +23,11 @@
  *     and again after a cut was in), the response of each cut at a few corners and both slopes against the one-pole's
  *     own formula, the extremes (both cuts in at their far ends, a loud square and noise over the clamp: bounded,
  *     exact zeros after silence), a cutoff swept and the filter and the slope toggled under a held tone (no step
- *     above the tone's own), and the cost a half of one cut and of both.
+ *     above the tone's own), and the cost a half of one cut and of both;
+ * 12. the routing (cr_fx.c THE ROUTING, the FX layer's Routing page): Feed 0 at every order is the render without it,
+ *     every sample; Feed 127 from a chain's first effect alone brings the next two alive (Chorus > Delay > Reverb and
+ *     the mirror), Feed 0 leaves them silent; a full-scale square at Feed 127 and every order bounded, exact zeros
+ *     after the tail; Feed swept under a held tone without a click; the cost a half at Feed 0 and 127.
  * WAVs for tools/fx_plots.py into OUTDIR: the reverb's impulse responses (small, default, large, Inf), the delay's
  * repeats (stereo, ping-pong, spread).
  *   build/host/cr_fx_test --chorus-listen DIR   the chorus's listening files of 0.21 (tools/chorus_glide_listen.sh) */
@@ -70,6 +74,7 @@ static void fx_reset(void)
     memset(xd_buf, 0, sizeof xd_buf);
     memset(xr_buf, 0, sizeof xr_buf);
     memset(xr_pbuf, 0, sizeof xr_pbuf);
+    memset(&xg, 0, sizeof xg);
     xf_defaults();
     xf_bpm = 120;
 }
@@ -1700,6 +1705,191 @@ static void chorus_listen(void)
     cho_reset();
 }
 
+/* ------------------------------------------------------------------ the routing --- */
+/* THE ROUTING (cr_fx.c, docs/FX.md "The routing"): the three effects as fx.c's mix_block runs them, the feed stage
+ * first (called as fx.c calls it: while Feed is up or a gain is on its way down; absent: never), then the chorus, the
+ * delay and the reverb into one mix. which: bit 0 the chorus's send, 1 the delay's, 2 the reverb's. Records how far
+ * each effect came alive (rt_live: the chorus's line, the delay's, the reverb's counters) */
+static uint32_t rt_live[3];
+static uint64_t rt_hash;
+static void rt_reset(void)
+{
+    fx_reset();
+    cho_reset();
+    memset(&xg, 0, sizeof xg);
+}
+static void rt_block(int32_t *sc, int32_t *sd, int32_t *sr, int32_t *ml, int32_t *mr, int absent)
+{
+    if (!absent && (xfp[XP_FEED] | xg.on))
+        xg_feed(sc, sd, sr, CTL);
+    xc_block(sc, ml, mr, CTL);
+    xf_block(sd, sr, ml, mr, CTL);
+}
+static void rt_run(uint32_t n, gen_t gen, uint32_t which, hook_t hook, int absent)
+{
+    static int32_t sc[CTL], sd[CTL], sr[CTL], ml[CTL], mr[CTL];
+    uint32_t i, k;
+    rt_live[0] = rt_live[1] = rt_live[2] = 0;
+    rt_hash = 1469598103934665603ull;
+    for (i = 0; i < n && i + CTL <= MAXS; i += CTL) {
+        if (hook)
+            hook(i);
+        for (k = 0; k < CTL; k++) {
+            int32_t v = gen ? gen(i + k) : 0;
+            sc[k] = which & 1u ? v : 0;
+            sd[k] = which & 2u ? v : 0;
+            sr[k] = which & 4u ? v : 0;
+            ml[k] = mr[k] = 0;
+        }
+        rt_block(sc, sd, sr, ml, mr, absent);
+        if (xc_live > rt_live[0]) rt_live[0] = xc_live;
+        if (xf.d_live > rt_live[1]) rt_live[1] = xf.d_live;
+        if (xf.r_live > rt_live[2]) rt_live[2] = xf.r_live;
+        for (k = 0; k < CTL; k++)
+            rt_hash = (rt_hash ^ (uint32_t)ml[k] ^ ((uint64_t)(uint32_t)mr[k] << 32)) * 1099511628211ull;
+        memcpy(WL + i, ml, sizeof ml);
+        memcpy(WR + i, mr, sizeof mr);
+    }
+}
+static int32_t g_rburst(uint32_t i) { return i < 2205u ? g_chord(i) : 0; }   /* 50 ms of the chord */
+static int32_t g_rsq(uint32_t i) { return i < 3u * 44100u ? ((i / 100u) & 1u ? 131068 : -131068) : 0; }
+static uint32_t rt_sw_from;
+static void h_feed_sweep(uint32_t i)                    /* Feed 0 -> 127 -> 0, a detent every 6 ms */
+{
+    uint32_t per = 6u * 44100u / 1000u / CTL * CTL, k;
+    if (i < rt_sw_from || (i - rt_sw_from) % per)
+        return;
+    k = (i - rt_sw_from) / per;
+    xfp[XP_FEED] = (int16_t)(k < 127u ? k : k < 254u ? 254u - k : 0u);
+}
+static uint64_t rt_cost(const int32_t *s, uint32_t reps)
+{
+    static int32_t sc[CTL], sd[CTL], sr[CTL], ml[CTL], mr[CTL];
+    uint64_t t0 = instr_now();
+    uint32_t j;
+    for (j = 0; j < reps; j++) {
+        memcpy(sc, s, sizeof sc);
+        memcpy(sd, s, sizeof sd);
+        memcpy(sr, s, sizeof sr);
+        rt_block(sc, sd, sr, ml, mr, 0);
+    }
+    return (instr_now() - t0) * 4u / reps;
+}
+static void t_route(void)
+{
+    static const char *NM[3] = {"Chorus", "Delay", "Reverb"};
+    uint32_t o, k, n = 3u * 44100u;
+    uint64_t ref;
+    int ok;
+    char line[220];
+    g_len = 0xFFFFFFFFu;
+    /* (a) Feed 0 at every order: the render with the feature absent, every sample */
+    rt_reset();
+    rt_run(n, g_chord, 7, 0, 1);
+    ref = rt_hash;
+    ok = 1;
+    for (o = 0; o < 6u; o++) {
+        rt_reset();
+        xfp[XP_ORDER] = (int16_t)o;
+        rt_run(n, g_chord, 7, 0, 0);
+        ok = ok && rt_hash == ref && !xg.on;
+    }
+    check("routing: Feed 0 at each of the six orders renders the chord through the three effects as with no routing, every sample",
+          ok);
+    /* (b), (c): a send into the chain's first alone; Feed 127 brings the next two alive, Feed 0 leaves them silent */
+    for (k = 0; k < 2u; k++) {
+        uint32_t ord = k ? 5u : 0u, first = XF_ORD[ord][0], l1[3], l0[3];
+        double late;
+        rt_reset();
+        xfp[XP_ORDER] = (int16_t)ord;
+        rt_run(n, g_rburst, 1u << first, 0, 0);
+        memcpy(l0, rt_live, sizeof l0);
+        rt_reset();
+        xfp[XP_ORDER] = (int16_t)ord;
+        xfp[XP_FEED] = 127;
+        rt_run(n, g_rburst, 1u << first, 0, 0);
+        memcpy(l1, rt_live, sizeof l1);
+        late = rms(WL, 44100u / 2u, 44100u);            /* (the first's own: gone; k 0: the chorus's 17 ms) */
+        ok = l0[XF_ORD[ord][1]] == 0 && l0[XF_ORD[ord][2]] == 0 && l1[XF_ORD[ord][1]] > 0 && l1[XF_ORD[ord][2]] > 0;
+        snprintf(line, sizeof line, "routing: %s > %s > %s, a send into the %s alone: Feed 0 the other two silent, Feed 127 both "
+                 "alive (Feed 127: the wet's rms at 0.5 .. 1 s %.0f)", NM[XF_ORD[ord][0]], NM[XF_ORD[ord][1]], NM[XF_ORD[ord][2]],
+                 NM[first], late);
+        check(line, ok);
+    }
+    /* (d) a loud square at full sends, Feed 127, each order: bounded, no wrap, exact zeros after the tail */
+    ok = 1;
+    {
+        double peak = 0;
+        for (o = 0; o < 6u; o++) {
+            uint32_t i, z = 1, m = 40u * 44100u;
+            rt_reset();
+            xfp[XP_ORDER] = (int16_t)o;
+            xfp[XP_FEED] = 127;
+            rt_run(m, g_rsq, 7, 0, 0);
+            for (i = 0; i < m; i++) {
+                double a = fabs((double)WL[i]) > fabs((double)WR[i]) ? fabs((double)WL[i]) : fabs((double)WR[i]);
+                if (a > peak) peak = a;
+            }
+            for (i = m - 44100u; i < m; i++)
+                z = z && !WL[i] && !WR[i];
+            ok = ok && z && !xc_live && !xf.d_live && !xf.r_live && !xg.cv[0] && !xg.cv[1] && !xg.cv[2];
+        }
+        snprintf(line, sizeof line, "routing: a full-scale square into the three, Feed 127, each order: bounded (peak %.0f), exact zeros "
+                 "and every effect off after the tail", peak);
+        check(line, ok && peak < 1048576.0);
+    }
+    /* (e) Feed swept 0 -> 127 -> 0 under a held tone into the three: no step above the steady signal's */
+    {
+        double d1, base, m;
+        g_f = 220.0;
+        g_a = 16000.0;
+        rt_reset();
+        xfp[XP_FEED] = 127;
+        rt_run(4u * 44100u, g_sine, 7, 0, 0);
+        base = max_step(3u * 44100u, 4u * 44100u, &d1);
+        rt_reset();
+        rt_sw_from = 2u * 44096u;
+        rt_run(6u * 44100u, g_sine, 7, h_feed_sweep, 0);
+        m = max_step(2u * 44096u, 6u * 44100u, &d1);
+        snprintf(line, sizeof line, "routing: no click: Feed swept 0 -> 127 -> 0 at 6 ms a detent under a held tone: second difference "
+                 "%.1f %% of the largest step (steady at Feed 127: %.1f %%)", m * 100.0, base * 100.0);
+        check(line, m <= 0.25 || m <= base * 1.25);
+    }
+    /* (f) the cost of a block */
+    {
+        static int32_t s[CTL];
+        uint64_t c0, c1, ca;
+        uint32_t j;
+        for (j = 0; j < CTL; j++) s[j] = noise(20000);
+        rt_reset();
+        ca = rt_cost(s, 1);
+        if (instr_now()) {
+            rt_reset();
+            c0 = rt_cost(s, 20000);
+            rt_reset();
+            xfp[XP_FEED] = 127;
+            c1 = rt_cost(s, 20000);
+            rt_reset();
+            {
+                static int32_t sc[CTL], sd[CTL], sr[CTL], ml[CTL], mr[CTL];
+                uint64_t t0 = instr_now();
+                for (j = 0; j < 20000u; j++) {
+                    memcpy(sc, s, sizeof sc); memcpy(sd, s, sizeof sd); memcpy(sr, s, sizeof sr);
+                    rt_block(sc, sd, sr, ml, mr, 1);
+                }
+                ca = (instr_now() - t0) * 4u / 20000u;
+            }
+            printf("cr_fx:   route COST, host instructions a 128-frame half, the three effects on: no routing %llu; Feed 0 %llu; "
+                   "Feed 127 %llu (+%lld)\n", (unsigned long long)ca, (unsigned long long)c0, (unsigned long long)c1,
+                   (long long)c1 - (long long)c0);
+            check("routing: the cost: Feed 0 within 2 % of no routing; Feed 127 within 12 % of it",
+                  c0 * 100u <= ca * 102u && c1 * 100u <= ca * 112u);
+        }
+        (void)ca;
+    }
+    rt_reset();
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1)
@@ -1732,6 +1922,7 @@ int main(int argc, char **argv)
     t_bound();
     t_corners();
     t_filter();
+    t_route();
     demos();
     printf(bad ? "cr_fx_test: %d FAILED\n" : "cr_fx_test: all ok\n", bad);
     return bad != 0;

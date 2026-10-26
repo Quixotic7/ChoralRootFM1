@@ -503,8 +503,9 @@ static const char *const CU_DIV[CR_DIV_COUNT] = {"2/1", "1/1", "1/2", "1/2T", "1
                                                  "1/16T", "1/32", "1/32T"};
 static const char *const CU_DIR[6] = {"up", "down", "up-down", "down-up", "as played", "random"};
 
-/* FX (docs/FX.md): four effects on eight pages (SELECT: Sends, Reverb 1, Reverb 2, Chorus, Delay 1, Delay 2, Drive,
- * Filter: the master filter of 0.22, cr_fx.c xq_block, whose four parameters are xfp[] too).
+/* FX (docs/FX.md): four effects on nine pages (SELECT: Sends, Reverb 1, Reverb 2, Chorus, Delay 1, Delay 2, Drive,
+ * Filter: the master filter of 0.22, cr_fx.c xq_block, whose four parameters are xfp[] too; Routing: the chain's
+ * order and feed of GitHub issue 21, cr_fx.c XP_ORDER / XP_FEED, xfp[] as well).
  * A PART has its sends (P_REV, P_CHOR, P_DLY) and its drive (P_DIST), no sound load touches them (but FM TONE's Drive,
  * which is the sound's: "FM TONE'S DRIVE IS ITS PRESET'S" below): the chord part's are
  * cs.fx_amt[] (cu_send / cu_send_set below: the ONE value the Sends page, the "Send" cell on KNOB 4 of an effect's
@@ -513,13 +514,16 @@ static const char *const CU_DIR[6] = {"up", "down", "up-down", "down-up", "as pl
  * part's its track's. The effects' own parameters are GLOBAL: the delay's and the reverb's are cr_fx.c's xfp[], the
  * chorus's song.g; the session keeps them (cr_settings.c CSS_FXG) and no sound load touches them */
 #define CU_NFX 4u                         /* the effects (cs.fx_sel, cs.fx_amt) */
-#define CU_NFXP 8u                        /* SELECT's pages */
+#define CU_NFXP 9u                        /* SELECT's pages */
 #define CU_FXPG_SENDS 2u                  /* cs.fx_page: the Sends page (0, 1: cs.fx_sel's first and second page) */
 #define CU_FXPG_FILTER 3u                 /* .. the Filter page (as Sends: cs.fx_sel stays the effect last picked) */
+#define CU_FXPG_ROUTE 4u                  /* .. the Routing page (the same) */
 /* a cell: an xfp id (cr_fx.c XP_*), FC_G + a song.g id, or one of these */
 enum { FC_NONE = -1, FC_SEND = -2, FC_TIME = -3, FC_SPREAD = -4, FC_G = 64,     /* TIME, SPREAD: by Sync, the free or
                                                                                  * the synced parameter */
-       FC_SND0 = -8 };                    /* FC_SND0 - e: the chord part's send into effect e (CU_FX), the Sends page's */
+       FC_SND0 = -8,                      /* FC_SND0 - e: the chord part's send into effect e (CU_FX), the Sends page's */
+       FC_POS0 = -12 };                   /* FC_POS0 - k: the effect at the chain's position k (cr_fx.c XF_ORD), the
+                                           * Routing page's (-12 .. -14: past the sends' -8 .. -11) */
 static const struct { const char *name; uint8_t send; } CU_FX[CU_NFX] = {
     {"Reverb", P_REV}, {"Chorus", P_CHOR}, {"Delay", P_DLY}, {"Drive", P_DIST}};
 static const struct { uint8_t fx, page, of; int8_t c[4]; const char *label[4]; } CU_FXP[CU_NFXP] = {
@@ -534,7 +538,12 @@ static const struct { uint8_t fx, page, of; int8_t c[4]; const char *label[4]; }
     {3, 0, 1, {FC_NONE, FC_NONE, FC_NONE, FC_SEND}, {"", "", "", "Send"}},
     /* the master filter (0.22, GitHub issue 16; cr_fx.c "The master filter"): the last page, as it is last in the
      * chain. Filter on KNOB 4 is its On / Off; a cutoff turned switches it (and FX) on, as a send does */
-    {0, CU_FXPG_FILTER, 1, {XP_FLOW, XP_FHIGH, XP_FSLOPE, XP_FON}, {"Low cut", "High cut", "Slope", "Filter"}}};
+    {0, CU_FXPG_FILTER, 1, {XP_FLOW, XP_FHIGH, XP_FSLOPE, XP_FON}, {"Low cut", "High cut", "Slope", "Filter"}},
+    /* the routing (GitHub issue 21, the owner: "a new FX page for routing ... Shows the entire routing"; cr_fx.c "The
+     * routing"): the chain of the three bus effects left to right on KNOB 1..3 (a knob moves its effect: cu_fx_move),
+     * the feed on KNOB 4. The drive (per part, before the mix) and the filter (on the master, after) are not in it */
+    {0, CU_FXPG_ROUTE, 1, {FC_POS0, FC_POS0 - 1, FC_POS0 - 2, XP_FEED}, {"1st", "2nd", "3rd", "Feed"}}};
+static const uint8_t CU_XFE[XFE_N] = {1, 2, 0};   /* cr_fx.c XFE_* -> CU_FX: Chorus, Delay, Reverb */
 static const char *const CU_XDIV[XF_NDIV] = {"1/32", "1/16T", "1/32.", "1/16", "1/8T", "1/16.", "1/8", "1/4T", "1/8.",
                                              "1/4", "1/2T", "1/4.", "1/2"};      /* cr_fx.c XF_DIV's order */
 static const char *const CU_BASSMODE[4] = {"Chords Only", "Unison Bass", "Bass Single Notes", "Solo"};
@@ -815,9 +824,11 @@ static uint32_t cu_fx_pg(void)
     uint32_t i, first = 1;
     if (cs.fx_page == CU_FXPG_SENDS)
         return 0;
-    if (cs.fx_page == CU_FXPG_FILTER)
+    if (cs.fx_page == CU_FXPG_ROUTE)
         return CU_NFXP - 1u;
-    for (i = 1; i + 1u < CU_NFXP; i++)
+    if (cs.fx_page == CU_FXPG_FILTER)
+        return CU_NFXP - 2u;
+    for (i = 1; i + 2u < CU_NFXP; i++)
         if (CU_FXP[i].fx == cs.fx_sel % CU_NFX) {
             if (CU_FXP[i].page == cs.fx_page)
                 return i;
@@ -826,9 +837,36 @@ static uint32_t cu_fx_pg(void)
         }
     return first;
 }
-static const char *cu_fx_pgname(void)             /* the page's name: the effect's, Sends, Filter (the traces, the dump) */
+static const char *cu_fx_pgname(void)             /* the page's name: the effect's, Sends, Filter, Routing (the traces,
+                                                   * the dump) */
 {
-    return cs.fx_page == CU_FXPG_SENDS ? "Sends" : cs.fx_page == CU_FXPG_FILTER ? "Filter" : CU_FX[cs.fx_sel % CU_NFX].name;
+    return cs.fx_page == CU_FXPG_SENDS ? "Sends" : cs.fx_page == CU_FXPG_FILTER ? "Filter"
+         : cs.fx_page == CU_FXPG_ROUTE ? "Routing" : CU_FX[cs.fx_sel % CU_NFX].name;
+}
+static const char *cu_fx_posname(uint32_t k)      /* the effect at the chain's position k: "Chorus", "Delay", "Reverb" */
+{
+    return CU_FX[CU_XFE[XF_ORD[(uint32_t)xfp[XP_ORDER] % 6u][k % XFE_N]]].name;
+}
+/* the Routing page's KNOB 1..3: the effect at position k moves s places (clockwise: to the right, swapped with the
+ * one after it; one place a detent, clamped at the ends); XP_ORDER becomes the permutation it makes (XF_ORD's) */
+static void cu_fx_move(uint32_t k, int32_t s)
+{
+    uint8_t o[XFE_N], t;
+    uint32_t i, j;
+    for (i = 0; i < XFE_N; i++)
+        o[i] = XF_ORD[(uint32_t)xfp[XP_ORDER] % 6u][i];
+    for (; s > 0 && k + 1u < XFE_N; s--, k++) {
+        t = o[k]; o[k] = o[k + 1u]; o[k + 1u] = t;
+    }
+    for (; s < 0 && k > 0u; s++, k--) {
+        t = o[k]; o[k] = o[k - 1u]; o[k - 1u] = t;
+    }
+    for (i = 0; i < 6u; i++) {
+        for (j = 0; j < XFE_N && XF_ORD[i][j] == o[j]; j++)
+            ;
+        if (j == XFE_N)
+            xfp[XP_ORDER] = (int16_t)i;
+    }
 }
 /* a cell's parameter: the delay's Time and Spread are the synced or the free one (both kept: Sync changes which) */
 static int32_t cu_fx_id(int32_t c)
@@ -851,6 +889,7 @@ static void cu_fx_hz(char *out, uint32_t hz, uint32_t n)   /* "130 Hz", "2.1 kHz
     cu_int(out + (hz >= 10000u ? 3u : 2u), (int32_t)(hz % 1000u / 100u), 0, n - 3u);
     cu_cat(out, " kHz", n);
 }
+static void cu_send_text(int32_t v, char *out, uint32_t n);
 /* a parameter's value as the knob row shows it: its unit where it has one ("250 ms", "1/8.", "2.4 s", "130 Hz",
  * "0.80 Hz"), a name ("Stereo"), else the number 0..127 */
 static void cu_fx_val(int32_t id, char *out, uint32_t n)
@@ -917,6 +956,7 @@ static void cu_fx_val(int32_t id, char *out, uint32_t n)
         break;
     case XP_FSLOPE: cu_cpy(out, v ? "12 dB" : "6 dB", n); break;
     case XP_FON: cu_cpy(out, v && cs.fx_on ? "On" : "Off", n); break;   /* (FX off: the filter is out, as a send) */
+    case XP_FEED: cu_send_text(v, out, n); break;  /* the routing's feed: per cent, as a send reads ("46%") */
     default: cu_int(out, v, 0, n); break;
     }
 }
@@ -954,6 +994,7 @@ static void cu_fx_glyph(int32_t c0, cr_cell_t *c)
     case XP_FLOW: c->glyph = CR_G_CUT; break;     /* the master filter: the low cut's corner, the high cut's moon
                                                    * (full: open); Slope and Filter are text */
     case XP_FHIGH: c->glyph = CR_G_MOON; break;
+    case XP_FEED: c->glyph = CR_G_MIX; break;     /* (the dry / wet squares, as a send's) */
     case FC_G + G_CRATE: case FC_G + G_CDEPTH:    /* rate, depth (0..127) */
         c->glyph = CR_G_LFO;
         c->pct = (uint8_t)((uint32_t)song.g[G_CRATE] * 255u / 127u);
@@ -1009,6 +1050,11 @@ static void cu_fx_cells(cr_screen_t *s)
             continue;
         c->flags = CR_CF_ON;
         cu_cpy(c->label, CU_FXP[pg].label[k], sizeof c->label);
+        if (c0 <= FC_POS0 && c0 > FC_POS0 - (int32_t)XFE_N) {   /* the Routing page: the effect at that position, a
+                                                   * name (no glyph: the row reads left to right as the chain) */
+            cu_cpy(c->value, cu_fx_posname((uint32_t)(FC_POS0 - c0)), sizeof c->value);
+            continue;
+        }
         if (e >= 0) {
             uint32_t id = CU_FX[e].send;
             int32_t v = cu_send(0, id);
@@ -1474,6 +1520,10 @@ static struct {
 #else
 #define cu_trace(...) ((void)0)
 #endif
+static void cu_fx_route_trace(void)               /* the routing as it is (the emulator's tests) */
+{
+    cu_trace("fx: routing %s > %s > %s feed %d\n", cu_fx_posname(0), cu_fx_posname(1), cu_fx_posname(2), (int)xfp[XP_FEED]);
+}
 static void cu_message(const char *t, uint32_t col);
 static void cu_flash_erase(void);
 static uint32_t cu_batt(void);
@@ -3745,6 +3795,10 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
                 cu_trace("fx: filter\n");
                 break;
             }
+            if (cs.fx_page == CU_FXPG_ROUTE) {    /* (the Routing page: the same) */
+                cu_fx_route_trace();
+                break;
+            }
             cs.fx_sel = CU_FXP[i].fx;
             cu_trace("fx: effect %s %u/%u\n", CU_FX[cs.fx_sel].name, (unsigned)cs.fx_page + 1u, (unsigned)CU_FXP[i].of);
         }
@@ -3957,6 +4011,13 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         lb[0] = (char)(lb[0] | 0x20);
         if (c0 == FC_NONE)
             break;
+        if (c0 <= FC_POS0 && c0 > FC_POS0 - (int32_t)XFE_N) {   /* the Routing page's KNOB 1..3: the effect moves
+                                                   * (a routing setting: FX is not switched on) */
+            cu_fx_move((uint32_t)(FC_POS0 - c0), s);
+            cu_hot_set(L_FX, knob);
+            cu_fx_route_trace();
+            break;
+        }
         if (e >= 0) {                             /* a send: an effect's "Send" cell, a cell of the Sends page: the
                                                    * one step (cu_send_step, the sound editor's for the same knob) */
             uint32_t sid = CU_FX[e].send;
@@ -3997,6 +4058,8 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         *q = (int16_t)v;
         cu_hot_set(L_FX, knob);
         cu_trace("fx: knob %u %s %s %d\n", (unsigned)knob + 1u, cu_fx_pgname(), lb, (int)*q);
+        if (id == XP_FEED)                        /* (Feed: a routing setting, FX is not switched on: the trace) */
+            cu_fx_route_trace();
         break;
     }
     case L_BASS:
@@ -7212,7 +7275,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
 {
     static const char *const PERF_ITEMS[7] = {"Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves",
                                               "Pattern", "Harp"};
-    static const char *const FX_ITEMS[CU_NFX + 2u] = {"Sends", "Reverb", "Chorus", "Delay", "Drive", "Filter"};
+    static const char *const FX_ITEMS[CU_NFX + 3u] = {"Sends", "Reverb", "Chorus", "Delay", "Drive", "Filter",
+                                                      "Routing"};
     const char *eng[NENGINES];
     uint32_t k, n;
     switch (l) {
@@ -7262,7 +7326,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_FX: {                                   /* the knob row: the effect over KNOB 1..4's cells */
         static char seen[48];                      /* (the trace: the row's labels when they change) */
-        cu_picker(s, FX_ITEMS, CU_NFX + 2u, cs.fx_page == CU_FXPG_SENDS ? 0u : cs.fx_page == CU_FXPG_FILTER ? CU_NFX + 1u
+        cu_picker(s, FX_ITEMS, CU_NFX + 3u, cs.fx_page == CU_FXPG_SENDS ? 0u : cs.fx_page == CU_FXPG_FILTER ? CU_NFX + 1u
+                                            : cs.fx_page == CU_FXPG_ROUTE ? CU_NFX + 2u
                                             : cs.fx_sel % CU_NFX + 1u, CR_COL_GREEN,
                   cs.fx_on ? "fx \267 on" : "fx \267 off", "SELECT: effect \267 FX: on/off \267 OCT-: back");
         if (CU_FXP[cu_fx_pg()].of > 1u)            /* the page, quietly (as the KEY layer's): SELECT steps through both */

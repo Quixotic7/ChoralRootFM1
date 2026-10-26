@@ -1,0 +1,45 @@
+# ChoralRoot: the FX layer's Routing page (GitHub issue 21; docs/FX.md "The routing", docs/MANUAL.md section 8): the
+# chain of the three bus effects left to right on KNOB 1..3 (1st, 2nd, 3rd), the feed on KNOB 4.
+# FX held and released: the layer on Sends; SELECT +8: Routing, the last page: Chorus Delay Reverb, Feed 0% (dump 1).
+# KNOB 1 +1: the chorus moves right: Delay Chorus Reverb (dump 2); KNOB 2 -1: it moves back (dump 3); KNOB 3 -1: the
+# reverb moves left: Chorus Reverb Delay (dump 4); KNOB 1 -1: clamped at the left end, nothing moves (dump 5); KNOB 4
+# +10: Feed in per cent, FX not switched (dump 6). FX tapped off and on: the page stays, the cells as they were
+# (dumps 7, 8). (The session's Order and Feed: tools/emu/test_persist.sh, session_set.txt)
+wait 300
+btn FX down
+wait 500
+btn FX up
+wait 400
+knob SELECT +8
+wait 900
+shot build/emu/test/cr_fx_route.ppm
+dump
+knob KNOB1 +1
+wait 300
+shot build/emu/test/cr_fx_route_moved.ppm
+wait 900
+dump
+knob KNOB2 -1
+wait 900
+dump
+knob KNOB3 -1
+wait 300
+shot build/emu/test/cr_fx_route_rev.ppm
+wait 900
+dump
+knob KNOB1 -1
+wait 900
+dump
+knob KNOB4 +10
+wait 300
+shot build/emu/test/cr_fx_route_feed.ppm
+wait 900
+dump
+btn FX
+wait 400
+shot build/emu/test/cr_fx_route_off.ppm
+dump
+btn FX
+wait 400
+dump
+quit

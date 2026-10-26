@@ -38,6 +38,7 @@
 #include "cr_engine.h"
 #endif
 #include "cr_settings.h"
+#include <stddef.h>                         /* (offsetof: the session's layout checks) */
 
 #define CRS_HDR 12u
 static const int16_t CRS_PAR_DEF[CRS_NPM][CRS_NPAR] = {     /* = cr_engine.c CR_PAR_DEFAULT (the test checks) */
@@ -391,7 +392,7 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
 }
 
 /* ------------------------------------------------------ the session record --- */
-typedef char css_size_ok[sizeof(cr_session_t) == CSS_SIZE && sizeof(css_fx_t) == 124 && sizeof(css_part_t) == 384 ? 1 : -1];
+typedef char css_size_ok[sizeof(cr_session_t) == CSS_SIZE && sizeof(css_fx_t) == 128 && sizeof(css_part_t) == 384 ? 1 : -1];
 static uint32_t css_fnv(const cr_session_t *x, uint32_t from, uint32_t size)
 {
     const uint8_t *b = (const uint8_t *)x;
@@ -838,7 +839,8 @@ static void crs_capture(cr_settings_t *s)
  * CSS_FXP_* tags and a line here; a parameter gone loses its line (its tag stays retired) */
 static const uint8_t CSS_FXE[CU_NFX] = {CSS_FXE_REVERB, CSS_FXE_CHORUS, CSS_FXE_DELAY, CSS_FXE_DRIVE};
 static const uint8_t CSS_FXS[CU_NFXP] = {CSS_FXE_SENDS, CSS_FXE_REVERB, CSS_FXE_REVERB2, CSS_FXE_CHORUS, CSS_FXE_DELAY,
-                                         CSS_FXE_DELAY2, CSS_FXE_DRIVE, CSS_FXE_FILTER};   /* CU_FXP's order */
+                                         CSS_FXE_DELAY2, CSS_FXE_DRIVE, CSS_FXE_FILTER, CSS_FXE_ROUTE};   /* CU_FXP's
+                                         * order (ROUTE, 8: a sel only, past amt[]: amt is indexed by CSS_FXE[]) */
 static const struct { uint8_t tag, x, id, opt; } CSS_FXG[] = {   /* x: 0 song.g, 1 xfp[], 2 the bass part's p[]; opt:
                                                                   * written only off its default (the block's room:
                                                                   * cr_settings.h CSS_NFXP) */
@@ -851,10 +853,13 @@ static const struct { uint8_t tag, x, id, opt; } CSS_FXG[] = {   /* x: 0 song.g,
     {CSS_FXP_XR_PRE, 1, XP_RPRE}, {CSS_FXP_XR_MOD, 1, XP_RMOD}, {CSS_FXP_XR_LOW, 1, XP_RLOW},
     {CSS_FXP_XR_WIDTH, 1, XP_RWIDTH}, {CSS_FXP_XC_WIDTH, 1, XP_CWIDTH},
     {CSS_FXP_XQ_LOW, 1, XP_FLOW, 1}, {CSS_FXP_XQ_HIGH, 1, XP_FHIGH, 1}, {CSS_FXP_XQ_SLOPE, 1, XP_FSLOPE, 1},
-    {CSS_FXP_XQ_ON, 1, XP_FON, 1}};
+    {CSS_FXP_XQ_ON, 1, XP_FON, 1},
+    {CSS_FXP_XF_ORDER, 1, XP_ORDER, 1}, {CSS_FXP_XF_FEED, 1, XP_FEED, 1}};   /* (the routing, issue 21: as the filter's) */
 _Static_assert(NELEM(CSS_FXG) <= CSS_NFXP, "the FX block holds every global parameter");
+_Static_assert(offsetof(cr_session_t, part) == 196 && sizeof(css_fx_t) == 128 && CSS_FXE_ROUTE >= CSS_NFXE,
+               "the routing's entry took rsv_fx: the parts where they were; ROUTE is a sel, never an amt[] index");
 _Static_assert(CSS_FXP_DCOLOR == 8 && CSS_FXP_XD_TIME == 9 && CSS_FXP_XR_SIZE == 18 && CSS_FXP_XR_WIDTH == 24 &&
-               CSS_FXP_XD_TIME2 == 25 && CSS_FXP_BS_REV == 26 && CSS_FXP_BS_DRIVE == 29 && CSS_FXP_XC_WIDTH == 30 && CSS_FXP_XQ_LOW == 31 && CSS_FXP_XQ_ON == 34 && CSS_FXE_DRIVE == 3 && CSS_FXE_REVERB2 == 4 && CSS_FXE_DELAY2 == 5 && CSS_FXE_SENDS == 6 && CSS_FXE_FILTER == 7, "the session's FX tags are never renumbered");
+               CSS_FXP_XD_TIME2 == 25 && CSS_FXP_BS_REV == 26 && CSS_FXP_BS_DRIVE == 29 && CSS_FXP_XC_WIDTH == 30 && CSS_FXP_XQ_LOW == 31 && CSS_FXP_XQ_ON == 34 && CSS_FXE_DRIVE == 3 && CSS_FXE_REVERB2 == 4 && CSS_FXE_DELAY2 == 5 && CSS_FXE_SENDS == 6 && CSS_FXE_FILTER == 7 && CSS_FXP_XF_ORDER == 35 && CSS_FXP_XF_FEED == 36 && CSS_FXE_ROUTE == 8, "the session's FX tags are never renumbered");
 static int16_t *css_fxg_p(uint32_t i)
 {
     if (CSS_FXG[i].x == 2u && CSS_FXG[i].id == P_DIST)
@@ -1035,7 +1040,7 @@ static void css_apply(const cr_session_t *x)
     for (i = 0; i < CU_NFXP; i++)
         if (CSS_FXS[i] == x->fx.sel) {             /* (a tag this firmware does not know: the page stays. A record
                                                     * from before the Sends page opens on the effect's page it names) */
-            if (CU_FXP[i].page != CU_FXPG_SENDS && CU_FXP[i].page != CU_FXPG_FILTER)
+            if (CU_FXP[i].page != CU_FXPG_SENDS && CU_FXP[i].page != CU_FXPG_FILTER && CU_FXP[i].page != CU_FXPG_ROUTE)
                 cs.fx_sel = CU_FXP[i].fx;
             cs.fx_page = CU_FXP[i].page;
         }

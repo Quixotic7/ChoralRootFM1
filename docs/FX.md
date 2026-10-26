@@ -1083,6 +1083,75 @@ knobs, the cells, the session's four tags, and the WAV: a D major chord with the
 high cut, its D4, F#4 and A4 at the formula's 53, 41 and 33 % of themselves, falling with the pitch);
 `tests/cr_settings_test.c` (the block's four new entries took `rsv_fx`'s bytes, every other field where it was).
 
+## The routing (0.27, GitHub issue 21)
+
+Issue 21: "re-orderable FX ... like how in the original OEM firmware you could re-arrange the FX order". The owner's
+answer there: a new FX page for routing that "shows the entire routing". The FX layer's last page, **Routing**:
+1st, 2nd, 3rd (the chain's order; MANUAL.md section 8 has the knobs) and **Feed**.
+
+**Why it is not a plain reorder**: ChoralRoot has no serial chain. Each part's drive runs before the mix; the chorus,
+the delay and the reverb are three **parallel** mono sends whose stereo returns are added into the mix (`cr_fx.c
+xc_block`, `xf_delay`, `xf_reverb`), and the reverb runs on core 1 while core 0 runs the other two (`fx.c
+mix_fx_split`, DUALCORE.md "What each core runs"). Added in parallel, any order is the same sum. So the order
+(`XP_ORDER`, 0 .. 5: `XF_ORD`'s six permutations; 0 is Chorus, Delay, Reverb) draws a chain over the three, and the
+**feed** (`XP_FEED`, 0 .. 127) is how much of each effect's return goes into the **next** one's input besides the
+parts' sends: position 1 into 2 and 2 into 3, never back (no loop can form; the first gets the sends alone). The
+drive (per part, before the mix) and the master filter (on the master, after everything) are not in the chain, and
+the page does not list them.
+
+**Feed 0 is 0.26**, bit for bit: the default, and every unit updated hears nothing different until Feed is turned up.
+`fx.c mix_block` calls the stage (`xg_feed`) only while Feed is up or a link's gain is still on its way down to 0
+(one test of two words a block); with it not called, `xg.on` is 0 and no effect captures anything. With Feed 0 the
+order is a picture.
+
+**The previous block's return**: the feed an effect receives is what the one before it in the chain returned in the
+**last** block (32 samples, 0.73 ms: no ear hears that as a delay, and it makes the chain's sound a hair's breadth
+from a true series). That is what keeps the three free to run in any order and on either core: each effect, while
+it runs, captures what it added to its output buffers as a mono block, (l + r) / 2 (`xg_pre` before its loop,
+`xg_post` after: whatever else the buffers already held, the difference is its own), into a buffer of its own that
+only the core running it writes; `xg_feed`, on core 0 at the effects stage's start (the parts mixed, the sends whole,
+after the join of the block before), adds the links into this block's inputs before anything reads them. The
+dual-core split is untouched: integer sums in a fixed order, so one core's samples and two cores' are the same
+(`tests/cr_c1_thread_test.c` "routing": every pair at Feed 127, each at an order of its own, on a thread and all on
+core 0, the same digest, and not Feed 0's).
+
+**The rates**: a wet at the full rate (the chorus; the delay or the reverb when built at FS) is added into the next
+effect's send at FS (a half-rate one down-samples it with its send). A half-rate wet into a half-rate effect (the
+delay and the reverb in the default build) is added after that effect's `xf_down`, at the half rate and its input's
+scale, through a hook (`xg.h`, `xg.hk`: `xf_delay` and `xf_reverb` add it when it holds something, and `xf_prep`
+counts it as a send, so "nothing sent, tails over: nothing runs" stays right). A half-rate wet into a full-rate
+effect (into the chorus) goes up through a half-band of its own (`xg.up`, one a link: `xf_up`, mono; cleared when the
+link's source is silent or the order changes). No path is down-sampled or up-sampled twice.
+
+**The gain**: Feed x 258 (Q15: 127 is 32766, unity less a hair), each link's gain in use gliding a 16th of the way a
+block (`XG_GL` 4: 16 blocks, 12 ms; it lands) and a straight line across each block, so a detent never steps the
+signal. A new order restarts both links' gains from 0: the new links fade in, and no block mixes the old topology
+with the new. A wet is held to +-65535 (twice full scale) before its gain and a send it lands in to +-131068, the
+down-sampler's own clamp.
+
+**Measured** (`tests/cr_fx_test.c` t_route, the default build; the full-rate build the same in
+`tests/run_cr_fx_rates.sh`):
+
+- Feed 0 at each of the six orders renders a chord through the three effects as the build without the stage, every
+  sample.
+- Chorus > Delay > Reverb with a send into the chorus alone: Feed 0 leaves the delay and the reverb off, Feed 127
+  brings both alive; Reverb > Delay > Chorus the mirror.
+- A full-scale square into all three at Feed 127, every order: bounded (peak ~199700, 1.5 x full scale of the mix:
+  well inside the master's clamp, no wrap), exact zeros and every effect off after the tail.
+- Feed swept 0 -> 127 -> 0, a detent every 6 ms, under a held tone into the three: the largest second difference
+  3.9 % of the largest step, the steady signal's own at Feed 127 (no click).
+- **Cost**, host instructions a 128-frame half with all three running: no stage 58305, Feed 0 58296 (noise), Feed
+  127 60796: +2500, 4.3 % (the full-rate build: 80941, 80976, 83799, +2823). On the unit that is the captures' two
+  passes over each effect's block and the links' loops; by the file's ratio of host to unit instructions, a
+  few tens of microseconds a half at most, unmeasured on the unit (`tools/emu/perf.sh` scenario (l) with Feed up is
+  the measurement to take).
+- **Memory**: 560 bytes of POOL (`xg`: three captures, two hooks, a link's scratch, two half-bands; 688 in the
+  full-rate build).
+
+**The session**: the order and the feed are the instrument's, as every effect parameter: two new tags of the FX block,
+written only off their defaults (SETTINGS.md has the tags and what an older firmware does with them; the precedent is
+the filter's tags of 0.22).
+
 ## The FX layer
 
 SELECT steps eight pages; the picker shows the page's name (Sends, the effect, or Filter) over six marks, the label an

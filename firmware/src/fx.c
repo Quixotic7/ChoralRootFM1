@@ -1585,6 +1585,9 @@ static void mix_block(int32_t *out, uint32_t n)
         perf_pre(mix_l, mix_r, send_d, send_r, n);
 #endif
 #if CR_FX
+    if (xfp[XP_FEED] | xg.on)
+        xg_feed(send_c, send_d, send_r, n);             /* (cr_fx.c THE ROUTING: last block's returns into the next
+                                                         * effects' inputs; Feed 0: not called, 0.26 to the bit) */
 #if CR_CHORUS_MONO
     if (CR_CHORUS_MONO == 1 || cho_mono) {              /* 0.18's return: one tap, the same to both sides (a test's
                                                          * reference: the sums are 0.18's, bit for bit) */

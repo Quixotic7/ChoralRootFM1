@@ -394,6 +394,32 @@ has '^param: part 0 ENV DRIVE 0 -> 18' "$L" && [ "$(fxamt 8)" = "64 45 31 12" ] 
     ok "GLO + SAVE (the revert, nothing saved): both parts' sends a new unit's on both screens, the layer on Sends: $OUT/cr_fx_sends_reverted.ppm" \
     || bad "the revert: amt $(fxamt 10) sends $(fxsnd 10), the editor: '$(edc 10)' / '$(edb 10)'"
 
+echo "the FX layer's Routing page: the chain's order on KNOB 1..3, the feed on KNOB 4 (GitHub issue 21, docs/FX.md \"The routing\")"
+run cr_fx_route
+L="$OUT/cr_fx_route.log"
+rcl() { grep -a '^  screen reads:' "$L" | sed -n "$1p" | sed 's/.* cells //'; }                    # "0.0:1st=Chorus .."
+rpar() { grep -a '^  session fx:' "$L" | sed -n "$1p" | sed -n 's/.* 30=[0-9]*\(.*\)$/\1/p'; }      # the routing's tags
+[ "$(rcl 1)" = "0.0:1st=Chorus 0.1:2nd=Delay 0.2:3rd=Reverb 0.3:Feed=0%" ] && [ -z "$(rpar 1)" ] &&
+    grep -a '^  session fx:' "$L" | head -1 | grep -q '(Routing 1/1)' && has '^fx: routing Chorus > Delay > Reverb feed 0' "$L" &&
+    ok "SELECT to the last page, Routing: Chorus Delay Reverb, Feed 0% (the defaults, not written to the session): $OUT/cr_fx_route.ppm" \
+    || bad "the Routing page: '$(rcl 1)' par '$(rpar 1)'"
+[ "$(rcl 2)" = "0.0:1st=Delay 0.1:2nd=Chorus 0.2:3rd=Reverb 0.3:Feed=0%" ] && [ "$(rpar 2)" = " 35=2" ] &&
+    ! cmp -s "$OUT/cr_fx_route.ppm" "$OUT/cr_fx_route_moved.ppm" &&
+    ok "KNOB 1 +1: the chorus moves right, Delay Chorus Reverb (Order 2, tag 35): $OUT/cr_fx_route_moved.ppm" \
+    || bad "KNOB 1 +1: '$(rcl 2)' par '$(rpar 2)'"
+[ "$(rcl 3)" = "$(rcl 1)" ] && [ -z "$(rpar 3)" ] &&
+    [ "$(rcl 4)" = "0.0:1st=Chorus 0.1:2nd=Reverb 0.2:3rd=Delay 0.3:Feed=0%" ] && [ "$(rpar 4)" = " 35=1" ] && [ "$(rcl 5)" = "$(rcl 4)" ] &&
+    ok "KNOB 2 -1: back to Chorus Delay Reverb; KNOB 3 -1: the reverb moves left, Chorus Reverb Delay; KNOB 1 -1: clamped at the end: $OUT/cr_fx_route_rev.ppm" \
+    || bad "the moves: '$(rcl 3)' / '$(rcl 4)' / '$(rcl 5)' par '$(rpar 4)'"
+[ "$(rcl 6)" = "0.0:1st=Chorus 0.1:2nd=Reverb 0.2:3rd=Delay 0.3:Feed=39%" ] && [ "$(rpar 6)" = " 35=1 36=50" ] &&
+    has '^fx: routing Chorus > Reverb > Delay feed 50' "$L" &&
+    ok "KNOB 4 +10: Feed 50, read in per cent as a send (39%; tag 36): $OUT/cr_fx_route_feed.ppm" \
+    || bad "Feed: '$(rcl 6)' par '$(rpar 6)'"
+[ "$(rcl 7)" = "$(rcl 6)" ] && [ "$(rcl 8)" = "$(rcl 6)" ] && has '^fx: off' "$L" && has '^fx: on' "$L" &&
+    grep -a '^  session fx:' "$L" | sed -n 8p | grep -q 'on 1 .*(Routing 1/1)' &&
+    ok "FX off and on: the page stays, its cells as they were: $OUT/cr_fx_route_off.ppm" \
+    || bad "FX off / on on the Routing page: '$(rcl 7)' / '$(rcl 8)'"
+
 echo "a send's read-out and its step are ONE: per cent, 6 a detent, on the Sends page, an effect's Send cell, the editor, KNOB 4's popup, a CC's (docs/FX.md)"
 run cr_fx_send_scale
 L="$OUT/cr_fx_send_scale.log"

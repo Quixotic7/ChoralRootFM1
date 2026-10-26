@@ -88,6 +88,14 @@ knob KNOB2 -1
 wait 200
 knob KNOB3 +2
 wait 300
+knob SELECT +3                # (Drive, Filter) Routing (issue 21): KNOB 1 +1 (Delay > Chorus > Reverb, Order 2, tag 35),
+wait 300                      # Feed +4 (tag 36); then back to Delay 2 (the page the session keeps)
+knob KNOB1 +1
+wait 200
+knob KNOB4 +4
+wait 300
+knob SELECT -3
+wait 300
 btn OCT-
 wait 300
 btn ARP down                  # the PERF layer: Arpeggiate (perform on)

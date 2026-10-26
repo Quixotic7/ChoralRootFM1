@@ -795,7 +795,7 @@ On the panel:
 - **KNOB 4** is the chord part's send into the selected effect (turning it switches the effects on). The selected
   effect is the one whose page the FX layer showed last; the reverb until you pick another. The screen shows the
   send in per cent, 0 to 100.
-- Hold FX for the **FX layer**. SELECT steps through eight pages; the name of the page is big, an effect's page
+- Hold FX for the **FX layer**. SELECT steps through nine pages; the name of the page is big, an effect's page
   number is in the small line above it (`fx · on · 1/2`). KNOB 1 to KNOB 4 turn the four cells, a FX tap is still
   on / off, and the root keys play. OCT-, OCT+, HOME or holding FX again closes the layer.
 
@@ -809,6 +809,7 @@ On the panel:
 | Delay 2 | Sync | Mode | Tone | Wow |
 | Drive | | | | **Send** (the amount of drive) |
 | Filter | Low cut | High cut | Slope | Filter (Off / On) |
+| Routing | 1st | 2nd | 3rd | Feed |
 
 **Sends**, the first page, is the chord part's four sends side by side: its drive, and how much of it goes into the
 chorus, the delay and the reverb. They are the same four, in the same order and on the same knobs, as the FX group
@@ -846,6 +847,26 @@ the effects it is set once for the instrument, every sound plays through it, and
 A new FM-1 has the filter Off with both cuts at their `Off` ends, and with it Off nothing in the sound changes.
 Turning a cutoff while a chord plays is smooth, and switching the filter or the slope fades over a hundredth of a
 second: no click.
+
+### Routing
+
+The very last page, **Routing**, shows how the chorus, the delay and the reverb are joined. On the original
+firmware you could put the effects in another order; this is where ChoralRoot does it. KNOB 1, 2 and 3 are the
+chain from left to right, each cell the name of the effect in that place (`Chorus`, `Delay`, `Reverb` where a new
+FM-1 starts). Turn a knob clockwise and its effect moves one place to the right, swapping with its neighbour;
+anticlockwise, one place to the left. One click, one place.
+
+**Feed** (KNOB 4, in per cent like a send) is how much of each effect goes on into the next one. At `0%`, where every
+FM-1 starts, the three are side by side as they always were: each takes what the parts send it and nothing else,
+and the order is only a picture. Turn Feed up and they become a chain: the first effect hears the parts, the second
+hears the parts and the first effect's sound, the third the parts and the second's. Chorus into Delay into Reverb
+makes the echoes shimmer and then washes them out; Reverb first gives a delay that repeats a whole hall. Nothing
+feeds back the other way. Turning Feed does not switch FX on: it is a setting of the chain, the sends still decide
+what goes in.
+
+The drive and the filter are not in the chain and not on the page: the drive is part of each part's sound, before
+everything, and the filter is on the whole output, after everything. Order and Feed are set once for the instrument
+and kept by SAVE held, like the other effect settings.
 
 ### FM TONE's Drive
 

@@ -1136,9 +1136,9 @@ static void t_session(void)
        !SD.bass_on && !SD.lock && !SD.latched && !SD.part[0].valid && !SD.part[1].valid && SD.fx.version == CSS_FX_VERSION &&
        SD.fx.n == 0 && SD.fx.sel == CSS_FXE_REVERB && SD.fx.amt[0] == CSS_FX_NONE && SD.fx.amt[CSS_NFXE - 1] == CSS_FX_NONE,
        "session defaults: nothing stored (the unit as it powered on until 0.17: bass off, voicing 0, the sounds' own sends)");
-    ok(sizeof SD.rsv + sizeof SD.rsv_fx + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 126u &&
-       CSS_NFXP - 27 == 1 && CSS_NP - 91 == 5,
-       "session: 126 bytes of reserve (142 until 0.22's master filter took 16 of rsv_fx), 1 free FX parameter entry of 28, 5 free part parameters");
+    ok(sizeof SD.rsv + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 122u &&
+       CSS_NFXP - 29 == 0 && CSS_NP - 91 == 5,
+       "session: 122 bytes of reserve (126 until the routing took rsv_fx's last 4, 142 until 0.22's master filter took 16 of it), no free FX parameter entry of 29, 5 free part parameters");
     ok(SD.loop_rate == 0 && (const uint8_t *)&SD.loop_rate - (const uint8_t *)&SD == 21,
        "session: the loop's Rate, byte 21 (the first of the old reserve), 0 = x1: a record written before it reads x1");
     /* every item round-trips */
@@ -1231,10 +1231,11 @@ static void t_session(void)
         if (!cr_session_fx_set(&SX, 20u + i, (int)i))
             break;
     ok(i == CSS_NFXP - 4u && SX.fx.n == CSS_NFXP && !cr_session_fx_set(&SX, 0, 1) && !cr_session_fx_set(&SX, 256, 1),
-       "session FX: 28 parameters fit (24 until 0.22's master filter); a full block, tag 0 and a tag over 255 are refused");
-    ok(CSS_NFXP == 28 && sizeof(css_fx_t) == 124 && offsetof(cr_session_t, fx) == 68 && offsetof(cr_session_t, part) == 196 &&
-       offsetof(css_fx_t, par) == 12 && CSS_FXP_XQ_LOW == 31 && CSS_FXP_XQ_ON == 34 && CSS_FXE_FILTER == 7,
-       "session FX: the block's four new entries took rsv_fx's bytes (0.22): every field before and after them where it was");
+       "session FX: 29 parameters fit (28 until the routing, 24 until 0.22's master filter); a full block, tag 0 and a tag over 255 are refused");
+    ok(CSS_NFXP == 29 && sizeof(css_fx_t) == 128 && offsetof(cr_session_t, fx) == 68 && offsetof(cr_session_t, part) == 196 &&
+       offsetof(css_fx_t, par) == 12 && CSS_FXP_XQ_LOW == 31 && CSS_FXP_XQ_ON == 34 && CSS_FXE_FILTER == 7 &&
+       CSS_FXP_XF_ORDER == 35 && CSS_FXP_XF_FEED == 36 && CSS_FXE_ROUTE == 8,
+       "session FX: the block's new entries took rsv_fx's bytes (0.22's four, the routing's one): every field before and after them where it was");
     cr_session_seal(&SX);
     ok(cr_session_import(&SR, &SX, sizeof SX) == 1 && SR.fx.n == CSS_NFXP && cr_session_fx_get(&SR, 200, &v) && v == -5,
        "session FX: a full block round-trips");

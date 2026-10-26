@@ -470,8 +470,8 @@ and where it lives. "block" is `cr_settings_t` above, "session" is `cr_session_t
 | the bass behaviour, the bass register | yes | yes | block `bass_mode`, `bass_voicing` |
 | the bass level (the BASS layer's Level, BASS held + ALGORITHM; OPT + ALGORITHM until 2026-10-12), each part's Level and Pan (MIX) | no ("bass level 102 came back as 92") | **yes** | session `part[k].p[P_LEVEL]`, `p[P_PAN]`: the part's own parameters travel with its record |
 | FX on / off | yes | yes | block `fx_on` |
-| the page picked in the FX layer (Sends, Reverb 1, Reverb 2, Chorus, Delay 1, Delay 2, Drive, Filter) | no | **yes** | session `fx.sel` (an effect tag; the second pages, Sends and Filter have their own) |
-| the effects' own parameters, GLOBAL (the reverb's 7 and the delay's 9: [FX.md](FX.md); the chorus's rate, depth and width; the master filter's four, 0.22) | no | **yes** | session `fx.par[]` (tag, value) |
+| the page picked in the FX layer (Sends, Reverb 1, Reverb 2, Chorus, Delay 1, Delay 2, Drive, Filter, Routing) | no | **yes** | session `fx.sel` (an effect tag; the second pages, Sends, Filter and Routing have their own) |
+| the effects' own parameters, GLOBAL (the reverb's 7 and the delay's 9: [FX.md](FX.md); the chorus's rate, depth and width; the master filter's four, 0.22; the routing's Order and Feed, issue 21) | no | **yes** | session `fx.par[]` (tag, value) |
 | the chord part's four sends (the FX layer's "Send" cells, KNOB 4) | no (the preset's again) | **yes** | session `fx.amt[]`. The sends are the PART's since 0.18: no sound load touches them (MANUAL section 8) |
 | an FM TONE sound's Drive (its AMP screen; the Sends page's Drive while the part plays FM TONE) | no (the preset's again) | **yes**, with the part's sound as it is | with the SOUND: a user preset's record (`upreset.c`, its `P_DIST` field), a factory preset's table row; the session `part[].p[P_DIST]`. The part's own drive send stays beside it: `fx.amt[DRIVE]` (chord), tag 29 (bass). docs/FX.md "FM TONE's Drive" |
 | the bass part's four sends (its editor's FX group, CC 91 / 93 / 94 on the bass channel) | no (the bass sound's again) | **yes** | session `fx.par[]`, tags 26..29 |
@@ -504,18 +504,20 @@ Header: `magic` `CSS1`, `version` (`CSS_VERSION`, 1), `size`, `check` (FNV-1a ov
 | bass_on | 0/1 | 0 |
 | lock, latched | 0/1, bit `cr_mod_t` (cleared when `lock` is 0) | off, none |
 | loop_rate | -7..3: the loop's Rate in steps from x1 (x1/16 x1/12 x1/8 x1/6 x1/4 x1/2 x3/4 **x1** x1.5 x2 x4; `cr_loop.h CRL_NRATE`; -7 .. -4 since 2026-10-11: a 0.18 dev build of before reads them as x1); the first byte of the old reserve, so a record written before it reads 0 = x1 with no migration | 0 (x1) |
-| fx (`css_fx_t`, 124 bytes: 108 until 0.22, when `par[]` grew by four entries into `rsv_fx`, which is 4 bytes now) | the FX sub-block, below | nothing stored |
+| fx (`css_fx_t`, 128 bytes: 108 until 0.22, when `par[]` grew by four entries into `rsv_fx`; 124 until the routing (issue 21), whose entry took `rsv_fx`'s last 4 bytes: `rsv_fx` is gone, `part[]` where it was, offset 196) | the FX sub-block, below | nothing stored |
 | part[2] (`css_part_t`, 384 bytes each: chord, bass) | `valid`; `eng`, `preset`, `user`, `trim` (the part's `track_t` fields; **`trim` is written and, since 0.19, not read**: a part put back takes the trim of its pool entry from the running firmware's table, `cr_session_part_trim`: a factory preset its `CB_TRIM` row, a user preset bound to one that row, an added user preset and INIT none, as `cu_pool_load`, so a row removed or added by an update holds for a session saved before it); `edited`, `kind`, `fk`, `slot`, `name` (the UI's `cu_snd_t`: the pool entry the sound came from); `np` and `p[96]` (the writer's `P_COUNT`, 91 today, and every parameter: the engine's eight, the envelopes, the LFO, the modulation, the sends, **Level and Pan**); `nblob` and `blob[160]` (the engine's deep patch, `ENG_BLOB_MAX`: FM6 128, VA 110, CZ-1 144, FM TONE 80; none on the other engines) | not valid: the pool's sound (the block's `chord_sound` / `bass_sound`) |
 
-**Reserve: 126 bytes of the 1024** (46 after the state; 4 after the FX block since 0.22's master filter took 16, 8 in each part, 60 at the end), 1 of
-the FX block's 24 parameter entries (23 are stored since 0.21) and 5 of a part's 96 parameters; and the object holds 3840 bytes, so `CSS_SIZE`
+**Reserve: 122 bytes of the 1024** (46 after the state; none after the FX block since the routing took the last 4 of
+`rsv_fx`, 8 in each part, 60 at the end), none of the FX block's 29 parameter entries (all 29 can be stored since the
+routing) and 5 of a part's 96 parameters; and the object holds 3840 bytes, so `CSS_SIZE`
 itself can grow: the import takes a shorter (older) record over the defaults and a longer (newer) one by its prefix,
 and no other firmware and no tool reads this object.
 
 **The FX sub-block is versioned on its own** (`CSS_FX_VERSION`, 1) and stores by TAG, never by position, so that the
 delay and the reverb can change their parameters without a new record: `sel` is an effect tag (`CSS_FXE_REVERB` 0,
-`CHORUS` 1, `DELAY` 2, `DRIVE` 3, and for the FX layer's second pages `REVERB2` 4, `DELAY2` 5, for its Sends page `SENDS` 6: `sel` only, a reader
-that does not know a tag keeps its default page; room for 8), `amt[tag]`
+`CHORUS` 1, `DELAY` 2, `DRIVE` 3, and for the FX layer's second pages `REVERB2` 4, `DELAY2` 5, for its Sends page `SENDS` 6, its Filter page `FILTER` 7 (0.22), its Routing page `ROUTE` 8 (issue 21): `sel` only, a reader
+that does not know a tag keeps its default page; `amt[]` has room for 8 and is indexed only by the four effects' tags
+0..3, so `ROUTE` 8, past it, is never an `amt` index), `amt[tag]`
 that effect's send from the chord part (0..127, `CSS_FX_NONE` = not stored: the sound's own send), and `par[]` up to
 24 pairs of a parameter tag and its value. The rules, for whoever reworks an effect:
 
@@ -545,10 +547,11 @@ that effect's send from the chord part (0..127, `CSS_FX_NONE` = not stored: the 
 
 | 30 `XC_WIDTH` | the chorus's width (0.21; KNOB 3 of the Chorus page) | 0..127, 127 | `XP_CWIDTH`. A record without it (0.19, 0.20): 127, their chorus. 0.19 and 0.20 skip it and write their record without it |
 | 31 `XQ_LOW`, 32 `XQ_HIGH`, 33 `XQ_SLOPE`, 34 `XQ_ON` | the master filter's Low cut, High cut, Slope, Filter (0.22; the FX layer's Filter page, [FX.md](FX.md) "The master filter") | 0..127, 0 (Off); 0..127, 127 (Off); 0..1, 1 (12 dB); 0..1, 0 | `XP_FLOW` .. `XP_FON`. **Written only off their defaults** (`CSS_FXG`'s `opt`): a unit that never touched the filter writes 23 entries as before, and a firmware before 0.22 reads its record as before; one that did writes up to 27, and a firmware before 0.22 reading more than 24 entries takes the whole FX block's defaults (its `cr_session_import`: the effects' settings and the chord part's sends, not the sounds, not the rest of the session) |
+| 35 `XF_ORDER`, 36 `XF_FEED` | the routing's Order and Feed (GitHub issue 21; the FX layer's Routing page, [FX.md](FX.md) "The routing") | 0..5, 0 (Chorus > Delay > Reverb: `cr_fx.c XF_ORD`); 0..127, 0 (parallel, as before) | `XP_ORDER`, `XP_FEED`. **Written only off their defaults**, as the filter's: a unit that never touched the routing writes its record as before. A firmware of 0.22 .. 0.26 (28 entries) reads a record of up to 28 entries as before and skips 35 / 36 as unknown tags (its chain is parallel anyway), and finds `sel` 8 unknown (the FX layer opens on its default page); a record of 29 entries (Order AND Feed AND all four of the filter's tags off their defaults) makes it take the whole FX block's defaults, as above. A firmware before 0.22 takes the defaults from 25 entries on |
 
-27 entries can be stored (28 fit, `CSS_NFXP`: 24 until 0.22, when `par[]` grew by four entries into `rsv_fx`, the
-entries before them where they were and `CSS_FX_VERSION` unchanged; **one is left**; the next effect parameter
-after that needs the layout to change again, or a place outside `par[]`). A session written by 0.17 or by a 0.18 build before the new effects holds
+29 entries can be stored (29 fit, `CSS_NFXP`: 24 until 0.22, when `par[]` grew by four entries into `rsv_fx`, 28 until
+the routing took its last 4 bytes for one more, the entries before them where they were and `CSS_FX_VERSION`
+unchanged; **none is left**; the next effect parameter needs the layout to change, or a place outside `par[]`). A session written by 0.17 or by a 0.18 build before the new effects holds
 tags 1..8: the chorus's two are read, the six retired ones are ignored, and the new delay and reverb start at
 their defaults ([FX.md](FX.md), decision 13). `cr_settings.c` has a static assert on the numbers.
 

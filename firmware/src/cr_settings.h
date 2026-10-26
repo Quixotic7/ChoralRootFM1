@@ -312,11 +312,17 @@ static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uin
  * when `version` is not its CSS_FX_VERSION (bump it only if this struct's layout changes). A parameter whose meaning
  * or range changes gets a NEW tag (the old one retired, never reused); room for 24 parameters and 8 effects */
 #define CSS_FX_VERSION 1u
-#define CSS_NFXP 28                     /* (27 used; 24 until 0.22's master filter: its four tags, 31..34, are
+#define CSS_NFXP 29                     /* (29 used; 24 until 0.22's master filter: its four tags, 31..34, are
                                          * written only when they are not at their defaults, so a record of a
                                          * unit that never touched the filter keeps 23 and a firmware before
                                          * 0.22 reads it as before; one with more than 24 entries makes such a
-                                         * firmware take this block's defaults: cr_session_import) */
+                                         * firmware take this block's defaults: cr_session_import. 28 until the
+                                         * routing's (issue 21): its two tags, 35 and 36, are written only off their defaults
+                                         * too, so a record holds 29 only when Order AND Feed AND all four of the
+                                         * filter's are off their defaults; a firmware of 0.22 .. 0.26 (28 entries)
+                                         * reads a record of 28 or fewer as before, skipping 35 / 36 as unknown
+                                         * tags (the chain stays parallel), and one of 29 as another layout: its
+                                         * css_sanitize takes this block's defaults, the rest of the session kept) */
 #define CSS_NFXE 8
 #define CSS_FX_NONE 0xFFu               /* amt: not stored (the default send) */
 enum { CSS_FXE_REVERB, CSS_FXE_CHORUS, CSS_FXE_DELAY, CSS_FXE_DRIVE,              /* effect tags (amt's index, sel) */
@@ -325,7 +331,11 @@ enum { CSS_FXE_REVERB, CSS_FXE_CHORUS, CSS_FXE_DELAY, CSS_FXE_DRIVE,            
        CSS_FXE_SENDS,                                                              /* .. sel only: the Sends page (a
                                                                                     * record without it: sel is the
                                                                                     * effect's page it was left on) */
-       CSS_FXE_FILTER };                                                           /* .. sel only (0.22): the Filter page */
+       CSS_FXE_FILTER,                                                             /* .. sel only (0.22): the Filter page */
+       CSS_FXE_ROUTE };                                                            /* .. sel only (issue 21): the Routing page.
+                                          * 8 is past amt[] (CSS_NFXE): a sel, never an amt index (only CSS_FXE[]'s
+                                          * four effect tags index amt). A firmware before it does not know 8: its
+                                          * css_apply finds no page for it and the FX layer opens where it would */
 /* parameter tags (1..255). 1..3 and 6..8 were Felucca's ROOM / SPRING reverb and its mono delay (0.17 and the first
  * 0.18 builds: size, damp, type; time, feedback, colour): RETIRED with them, never reused; a record that holds them
  * loses them at its next save. 9..24: the stereo delay's and the large reverb's (cr_fx.c XP_*, docs/FX.md) */
@@ -341,16 +351,20 @@ enum { CSS_FXP_NONE, CSS_FXP_RSIZE, CSS_FXP_RDAMP, CSS_FXP_RTYPE, CSS_FXP_CRATE,
                                           * chord part's are amt[]): the sends are the parts', not the sounds' */
        CSS_FXP_XC_WIDTH,                 /* 30 (0.21): the chorus's Width (cr_fx.c XP_CWIDTH). A record without it:
                                           * 127, the chorus of 0.19 and 0.20 */
-       CSS_FXP_XQ_LOW, CSS_FXP_XQ_HIGH, CSS_FXP_XQ_SLOPE, CSS_FXP_XQ_ON };         /* 31..34 (0.22): the master filter's
+       CSS_FXP_XQ_LOW, CSS_FXP_XQ_HIGH, CSS_FXP_XQ_SLOPE, CSS_FXP_XQ_ON,           /* 31..34 (0.22): the master filter's
                                           * Low cut, High cut, Slope, Filter (cr_fx.c XP_FLOW ..): stored only off
                                           * their defaults (above) */
+       CSS_FXP_XF_ORDER, CSS_FXP_XF_FEED };                                        /* 35, 36 (GitHub issue 21):
+                                          * the routing's Order and Feed (cr_fx.c XP_ORDER, XP_FEED): stored only
+                                          * off their defaults (above) */
 typedef struct { uint8_t tag, rsv; int16_t v; } css_fxp_t;
 typedef struct {
     uint8_t version, n, sel, on_rsv;    /* CSS_FX_VERSION, entries of par[] used, the FX layer's picked effect (its
                                          * tag), 0 (FX on / off is the block's fx_on) */
     uint8_t amt[CSS_NFXE];              /* per effect tag: the chord part's send 0..127 (the "Send" cell), CSS_FX_NONE */
     css_fxp_t par[CSS_NFXP];            /* the effects' own (global) parameters */
-} css_fx_t;                             /* 124 bytes (108 until 0.22: par[] grew by four entries into rsv_fx, the
+} css_fx_t;                             /* 128 bytes (124 until the routing: par[] took rsv_fx's four bytes for one more
+                                         * entry; 108 until 0.22: par[] grew by four entries into rsv_fx, the
                                          * entries before them where they were) */
 typedef struct {
     uint8_t valid;                      /* 1: a sound is stored */
@@ -377,8 +391,7 @@ typedef struct {
                                          * -1 x3/4, 0 x1, 1 x1.5, 2 x2, 3 x4 (cr_loop.h CRL_NRATE; 0 = the default, so
                                          * a record written before it reads x1: no migration) */
     uint8_t rsv[46];
-    css_fx_t fx;
-    uint8_t rsv_fx[4];
+    css_fx_t fx;                        /* (rsv_fx[4] after it until the routing (issue 21): its entry took it) */
     css_part_t part[2];                 /* chord, bass */
     uint8_t rsv_end[60];
 } cr_session_t;

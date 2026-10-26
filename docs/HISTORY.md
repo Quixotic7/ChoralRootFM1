@@ -6343,3 +6343,36 @@ ALL OK, 64 sha256s compared, none skipped. `web/make_site.py build/choralroot.fw
 --packages build/scratch/packages --smk-packages .. --require-all`: the landing page says New in 0.26.1,
 `webapp/smk37/` offers 0.26-smk37 first; no FM-1 page links it. Not pushed, not tagged (the orchestrator pushes main
 and tags v0.26.1). No device.
+
+## 2026-10-25 (FX routing: the chain's order and feed, issue 21)
+
+3y192. **The FX layer's Routing page: the order of the chorus, the delay and the reverb, and a feed that chains them
+(GitHub issue 21: "re-orderable FX ... like how in the original OEM firmware you could re-arrange the FX order"; the
+owner on the issue: "adding a new FX page for routing would work. Shows the entire routing").** ChoralRoot has no
+serial chain to reorder: the drive is per part before the mix, the chorus, the delay and the reverb are three
+parallel send buses whose returns are added into the mix, the master filter is after them. So a reorder alone would
+change nothing, and the feature is two global parameters (`cr_fx.c XP_ORDER` 0..5, an index into `XF_ORD`'s six
+permutations, and `XP_FEED` 0..127): the effect at position k (1, 2) takes, besides the parts' sends, the previous
+block's return of the effect at position k-1, mono, times feed / 127. Feed 0, every unit's, is bit for bit 0.26 and
+the order a picture; the drive and the filter stay where they are and are not on the page. The audio side (the
+captures, the half-rate hooks, the glide, the dual-core split unchanged) is docs/FX.md "The routing".
+**The page** (`cr_ui.c`): `CU_NFXP` 9, `CU_FXPG_ROUTE` 4 (cs.fx_sel stays, as on Sends and Filter), the picker's last
+item "Routing", the row 1st / 2nd / 3rd / Feed. The three position cells (`FC_POS0` -12 .. -14, past the sends'
+codes) read the effect's name at that place (`cu_fx_posname`; "Chorus", "Reverb" fit the knob row's value text, no
+glyph: the row reads as the chain); a position's knob moves its effect one place a detent, clockwise right, clamped
+at the ends (`cu_fx_move`: the permutation searched in `XF_ORD`); Feed is an `xfp` cell read in per cent as a send
+(`cu_send_text`, the dry / wet glyph) at the knob's speed with OPT snap, and does not switch FX on. Traces "fx:
+routing Chorus > Delay > Reverb feed 0" on entering the page and on every change; the dump's "screen reads" and
+"session fx" show the page as any other. OPT + SELECT stays the click level.
+**The session** (`cr_settings.*`): tags 35 `XF_ORDER` and 36 `XF_FEED` in `CSS_FXG`, written only off their defaults
+as the filter's; `CSS_NFXP` 28 -> 29 by `rsv_fx`'s last four bytes (`css_fx_t` 128 bytes, `part[]` still at 196: a
+static assert); `sel` 8 `CSS_FXE_ROUTE` (past `amt[]`, never its index: only `CSS_FXE[]`'s four effects index it).
+An older firmware (0.22 .. 0.26) reads a record of up to 28 entries as before, skipping 35 / 36 (its chain is
+parallel anyway) and `sel` 8 (no page of its own: the layer opens on Sends); a record of 29 (Order, Feed and all four
+of the filter's off their defaults) makes it take the FX block's defaults, the precedent of 0.22's filter tags. The
+FX block has no free entry left now (docs/SETTINGS.md).
+**Checked**: `tools/emu/scripts/cr_fx_route.txt` with its block in `test_cr.sh` (the page's defaults, KNOB 1 +1 Delay
+Chorus Reverb with a different screen, KNOB 2 -1 back, KNOB 3 -1 Chorus Reverb Delay, KNOB 1 -1 clamped, KNOB 4 +10
+Feed 39 %, FX off / on: the page as it was); `test_persist.sh`'s session run sets Order 2 and Feed 14 on the Routing
+page and finds them back after the relaunch (35=2 36=14, Delay 2's page still the one kept); `tests/cr_settings_test.c`
+takes the new layout (29 entries, 128 bytes, 122 bytes of reserve); `tests/run_cr_draw.sh`. Not run on the device.
