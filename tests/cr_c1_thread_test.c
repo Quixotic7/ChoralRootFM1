@@ -95,6 +95,7 @@ static uint32_t rnd(uint32_t n)
  * (3y50: the reverb's job runs on the thread in every block that has something for it) */
 #define NKEYS 8u
 static int c1_ord;                                  /* modes 6, 7: Chain's order (cr_fx.c XF_ORD) */
+static int16_t c1_fon, c1_flo, c1_fhi;              /* the filter's three as the defaults leave them (modes 8, 9 set them) */
 static void sends_up(void)                          /* the three effects, both parts: up */
 {
     uint32_t k;
@@ -114,12 +115,21 @@ static uint64_t phrase(const pair_t *p, uint32_t nb, int mode)
     vmax[0] = vmax[1] = pmax = sx[0] = sx[1] = sxs = sxa = 0;
     cr_dbg.c1 = C1_OK;
     cr_dbg.p5_c0 = cr_dbg.p5_c1 = cr_dbg.p5_bass = cr_dbg.c1x_jobs = 0;
-    cr_c1_test_thread = (uint8_t)(mode == 1 || (mode >= 3 && mode != 5 && mode != 7));
+    cr_c1_test_thread = (uint8_t)(mode == 1 || (mode >= 3 && mode != 5 && mode != 7 && mode != 9));
     cr_c1_test_nosplit = (uint8_t)(mode == 2);
     cr_c1_test_share = (uint8_t)(mode == 3 ? P5_POLY + 1u : mode == 4 ? 1u : 0u);
-    cr_c1_test_fx0 = (uint8_t)(mode == 5 || mode == 7);
-    xfp[XP_RMODE] = (int16_t)(mode >= 6);               /* (THE ROUTING: Chain, at the order given) */
-    xfp[XP_ORDER] = (int16_t)(mode >= 6 ? c1_ord : 0);
+    cr_c1_test_fx0 = (uint8_t)(mode == 5 || mode == 7 || mode == 9);
+    xfp[XP_RMODE] = (int16_t)(mode == 6 || mode == 7);  /* (THE ROUTING: Chain, at the order given) */
+    xfp[XP_ORDER] = (int16_t)(mode == 6 || mode == 7 ? c1_ord : mode >= 8 ? 18 : 0);   /* (18: Parallel, the Filter
+                                                     * first: cr_fx.c xq_pre on core 0 before the effects' job) */
+    if (!c1_fon && !c1_flo && !c1_fhi) {
+        c1_fon = (int16_t)(xfp[XP_FON] + 1);
+        c1_flo = xfp[XP_FLOW];
+        c1_fhi = xfp[XP_FHIGH];
+    }
+    xfp[XP_FON] = (int16_t)(mode >= 8 ? 1 : c1_fon - 1);
+    xfp[XP_FLOW] = (int16_t)(mode >= 8 ? 50 : c1_flo);
+    xfp[XP_FHIGH] = (int16_t)(mode >= 8 ? 40 : c1_fhi);
     cu_pool_load(0, p->ce, p->cpos);
     cu_pool_load(1, p->be, p->bpos);
     usp_on(p);
@@ -229,7 +239,7 @@ static uint64_t fork_phrase(const pair_t *p, uint32_t nb, int thread)
 int main(int argc, char **argv)
 {
     int tsan = argc >= 2 && !strcmp(argv[1], "--tsan");
-    uint32_t i, uni = 0, k, nb = tsan ? 900u : 3000u, nsplit = 0, nvsplit = 0, nfsplit = 0, nfx = 0, nrt = 0, nro = 0, jobs0 = 0, mpad = 0, pbass = 0;
+    uint32_t i, uni = 0, k, nb = tsan ? 900u : 3000u, nsplit = 0, nvsplit = 0, nfsplit = 0, nfx = 0, nrt = 0, nro = 0, npf = 0, jobs0 = 0, mpad = 0, pbass = 0;
     uint32_t tine = 0, dsub = 0, fams = 0;
     pair_t P[24];
     uint32_t np = 0;
@@ -325,6 +335,16 @@ int main(int argc, char **argv)
                     nro++;
                 }
             }
+            {                                           /* Parallel, the Filter first: on the thread = all on core 0 */
+                uint64_t r8 = fork_phrase(&P[i], nb, 8), r9 = fork_phrase(&P[i], nb, 9);
+                if (!(r8 && r8 == r9 && r8 != a)) {
+                    printf("  FAIL %s: Parallel, Filter first: on the thread %016llx, all on core 0 %016llx\n", P[i].what,
+                           (unsigned long long)r8, (unsigned long long)r9);
+                    rok = 0;
+                } else {
+                    npf++;
+                }
+            }
             ok = ok && rok;
             nfx += a == z;
             nrt += rok;
@@ -378,6 +398,9 @@ int main(int argc, char **argv)
     if (!tsan)
         printf("routing: %u pairs in Chain, %u orders run (all 24 among them): the reverb on core 1 gives the samples of the effects "
                "all on core 0\n", (unsigned)nrt, (unsigned)nro);
+    if (!tsan)
+        printf("routing: %u pairs in Parallel with the Filter first (both cuts in): the reverb on core 1 gives the samples of "
+               "the effects all on core 0\n", (unsigned)npf);
     printf(tsan ? "cr_c1_thread: ran (the sanitizer's verdict is its own: no report above, exit 0)\n"
                 : "cr_c1_thread: all tests passed (the job on a thread renders the inline job's samples)\n");
     return 0;

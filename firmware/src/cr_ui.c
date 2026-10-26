@@ -848,7 +848,8 @@ static const char *cu_fx_pgname(void)             /* the page's name: the effect
  * owns the root keys while it shows (cu_layer_keys: nothing plays; the chord block keeps its job): C#4 Chorus, D#4
  * Delay, F#4 Reverb, G#4 Filter held = that block lifted (cu_rt.held), KNOB 1 moves it a place a detent (insert: the
  * others shift; clamped), its release lands it; A#4 tapped and KNOB 2 (one a detent: clockwise Chain) the mode. In
- * Parallel the order is not heard: a held block lifts, KNOB 1 leaves the order as it is (the order is Chain's). The
+ * Parallel the effects' order is not heard: a held effect lifts, KNOB 1 leaves it; the Filter held, KNOB 1 moves it
+ * between its two places, before the buses (left) and after them (right; cu_fx_move). The
  * keys are FM-1's layout's (C4 = key 7); Classic's C#4 is a chord key there, so Chorus has no shortcut in Classic.
  * The rest of the keys do nothing here. Both values are xfp[] (the session's tags 35 and 36) */
 static const char *const CU_RT_NAME[XFE_N] = {"Chorus", "Delay", "Reverb", "Filter"};
@@ -864,7 +865,9 @@ static int32_t cu_rt_block_of(uint32_t k)         /* a root key's block on the R
          : k == 17u ? (int32_t)XFE_N : -1;
 }
 /* block b moves s places along the chain (insert: the ones it passes shift back; one place a detent, clamped at the
- * ends); XP_ORDER becomes the permutation it makes (XF_ORD's index). 1: it moved */
+ * ends); XP_ORDER becomes the permutation it makes (XF_ORD's index). 1: it moved. Parallel (the third pass, the
+ * owner: "move the filter to put it before the FX"): only the Filter moves, between its two places, before the buses
+ * (position 0: left) and after them (position 3: right); the effects keep their order (Chain's, not heard here) */
 static int cu_fx_move(uint32_t b, int32_t s)
 {
     uint8_t o[XFE_N];
@@ -875,7 +878,9 @@ static int cu_fx_move(uint32_t b, int32_t s)
         if (o[i] == b)
             p = (int32_t)i;
     }
-    q = p + s;
+    if (xfp[XP_RMODE] != 1 && b != XFE_FILTER)
+        return 0;
+    q = xfp[XP_RMODE] != 1 ? (s < 0 ? 0 : p ? p : (int32_t)XFE_N - 1) : p + s;   /* (Parallel: already after stays) */
     q = q < 0 ? 0 : q > (int32_t)XFE_N - 1 ? (int32_t)XFE_N - 1 : q;
     if (q == p)
         return 0;
@@ -4053,7 +4058,7 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         if (cs.fx_page == CU_FXPG_ROUTE) {        /* the Routing page: KNOB 1 moves the held block, KNOB 2 the mode */
             if (knob == 1u && ((s > 0) != (xfp[XP_RMODE] == 1)))
                 cu_rt_mode(s > 0);
-            else if (knob == 0u && cu_rt.held && xfp[XP_RMODE] == 1 && cu_fx_move(cu_rt.held - 1u, s))
+            else if (knob == 0u && cu_rt.held && cu_fx_move(cu_rt.held - 1u, s))
                 cu_fx_route_trace();
             break;
         }

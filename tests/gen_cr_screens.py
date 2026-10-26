@@ -629,7 +629,7 @@ DEVICE_STATES = [
                                     {"label": "RAM", "value": "83%", "glyph": "bar", "pct": 0.828, "pct2": 0},
                                     {"label": "POOL", "value": "92%", "glyph": "bar", "pct": 0.917, "pct2": 0}]]}}},
     # the FX layer's Routing page (GitHub issue 21, second design; cr_draw.c cr_p_route): Chain settled, Chain with
-    # Delay held and lifted mid-move (C D R F -> C R D F), Parallel, FX off
+    # Delay held and lifted mid-move (C D R F -> C R D F), Parallel, Parallel with the Filter first (the third pass), FX off
     {"name": "Device · FX Routing (Chain)",
      "screen": {"header": {"batt": 3}, "footer": {"text": "hold C# D# F# G# + KNOB 1 \u00b7 A#: mode"},
                 "panel": {"kind": "route", "mode": "chain", "label": "fx \u00b7 on \u00b7 chain"}}},
@@ -641,6 +641,10 @@ DEVICE_STATES = [
     {"name": "Device · FX Routing (Parallel)",
      "screen": {"header": {"batt": 3}, "footer": {"text": "hold C# D# F# G# + KNOB 1 \u00b7 A#: mode"},
                 "panel": {"kind": "route", "mode": "parallel", "label": "fx \u00b7 on \u00b7 parallel"}}},
+    {"name": "Device · FX Routing (Parallel, Filter first)",
+     "screen": {"header": {"batt": 3}, "footer": {"text": "hold C# D# F# G# + KNOB 1 \u00b7 A#: mode"},
+                "panel": {"kind": "route", "mode": "parallel", "label": "fx \u00b7 on \u00b7 parallel",
+                          "order": ["filter", "chorus", "delay", "reverb"]}}},
     {"name": "Device · FX Routing (FX off, Chain C F R D)",
      "screen": {"header": {"batt": 3}, "footer": {"text": "hold C# D# F# G# + KNOB 1 \u00b7 A#: mode"},
                 "panel": {"kind": "route", "mode": "chain", "label": "fx \u00b7 off \u00b7 chain", "fxOff": True,

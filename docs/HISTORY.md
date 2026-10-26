@@ -6401,3 +6401,16 @@ two tags never shipped in a release, one dev unit; an old Feed above 1 is out of
 2 and Chain set with the keys, back after the relaunch), four new states in `tests/run_cr_draw.sh`. Not run on the
 device.
 
+3y194. **In Parallel the Filter can go before the buses (GitHub issue 21, third pass; the owner, looking at the
+Parallel picture: "With them in parallel it looks like filter always comes after the other FX, it would be good if you
+could move the filter to put it before the FX which is probably the main reason people want to reorder.")** The
+Filter at position 0 of `XP_ORDER` in Parallel puts it before the buses: the dry mix and the three sends are filtered
+on core 0 before the effects stage (docs/FX.md "The routing", "The master filter"); anywhere else it is after the sum,
+as before. **The page**: G#4 held + KNOB 1 in Parallel moves the Filter between its two places (`cr_ui.c
+cu_fx_move`: anticlockwise to position 0, clockwise to position 3, the effects' order kept; a Filter already after
+stays), arrows pointing to the other place; a held effect lifts and does not move. `cr_draw.c cr_p_route` draws in,
+the Filter, then the fan, the stack and the sum 62 px to the right, and out; a move slides the whole picture between
+the two. **Checked**: `cr_fx_route.txt` and its block in `test_cr.sh` (Filter first F C R D = Order 19, back after =
+C R D F = Order 2, a held Delay moves nothing), the state "FX Routing (Parallel, Filter first)" in
+`tests/run_cr_draw.sh`. Not run on the device.
+

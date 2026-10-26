@@ -235,11 +235,13 @@ last; saved palette ids unchanged).
   1, Chain: the four boxes in a row, 48 × 64, 10 px apart (rows 86–150, the wire through their middles at 118), each
   its place 1–4 at 22 px over its name at 13 (squeezed to the box). 0, Parallel: the three effects stacked (92 × 32,
   x 30, rows 62–174, in `rt_order`'s order), the wire fanning into them from `in` and out into a sum disc with a +,
-  then the Filter (52 × 44) and `out`. `rt_held` (block + 1): lifted (`CR_A_LIFT`) over a grey shadow bar at its
-  place, ringed white (the Filter green), white arrowheads in the gaps on the sides it can still move to (Chain); a
+  then the Filter (52 × 44) and `out`; with the Filter first (`rt_order[0]` 3) it is `in`, the Filter at x 14, then
+  the fan, stack and sum 62 px to the right, and `out` (a move between the two slides it all). `rt_held` (block + 1): lifted (`CR_A_LIFT`) over a grey shadow bar at its
+  place, ringed white (the Filter green), white arrowheads in the gaps on the sides it can still move to (Chain; Parallel: the Filter only, toward its other place); a
   move slides every block from `rt_from` to `rt_order` (`CR_A_SLIDE`, its texts flagged sliding for the lint);
   `rt_drop` lands. **Cache**: nothing hashed apart, a change composes the six strips (the tiles still blit only what
-  changed). Draw test states: Chain, Chain with Delay held mid-move, Parallel, FX off.
+  changed). Draw test states: Chain, Chain with Delay held mid-move, Parallel, Parallel with the Filter first,
+  FX off.
 - **`CR_K_KNOBROW`: a layer screen** (FORMAT.md `knobrow`; design/choralroot-fm1-fx-mockups.json, the user-approved
   sheet design/choralroot-fm1-fx-screens.png; `cr_ui.c` fills it for every layer: `cu_fx_cells`, `cu_perf_cells`, `cu_bass_cells`, `cu_key_cells`,
   `cu_loop_cells`, METRO's Click inline, the hot cell `cu_hot_row`; design/choralroot-fm1-layers-mockups.json states

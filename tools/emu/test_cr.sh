@@ -423,6 +423,13 @@ rpar() { grep -a '^  session fx:' "$L" | sed -n "$1p" | sed -n 's/.* 30=[0-9]*\(
     grep -a '^  session fx:' "$L" | sed -n 10p | grep -q 'on 1 .*(Routing 1/1)' &&
     ok "FX off and on: the page stays, grey while off: $OUT/cr_fx_route_off.ppm" \
     || bad "FX off / on on the Routing page: '$(rr 9)' / '$(rr 10)'"
+[ "$(rr 11)" = "parallel Filter Chorus Reverb Delay held Filter fx 1 filter 0" ] && [ "$(rpar 11)" = " 35=19" ] &&
+    has '^fx: routing parallel Filter > Chorus > Reverb > Delay' "$L" &&
+    [ "$(rr 12)" = "parallel Chorus Reverb Delay Filter held Filter fx 1 filter 0" ] && [ "$(rpar 12)" = " 35=2" ] &&
+    [ "$(rr 13)" = "parallel Chorus Reverb Delay Filter held Delay fx 1 filter 0" ] && [ "$(rpar 13)" = " 35=2" ] &&
+    ! cmp -s "$OUT/cr_fx_route_par_first.ppm" "$OUT/cr_fx_route_par_after.ppm" &&
+    ok "Parallel, G#4 held: KNOB 1 -1 the Filter before the buses (Order 19), +1 after them (Order 2, the effects' order kept); a held Delay + KNOB 1 moves nothing: $OUT/cr_fx_route_par_first.ppm, $OUT/cr_fx_route_par_after.ppm" \
+    || bad "the Filter's two places in Parallel: '$(rr 11)' / '$(rr 12)' / '$(rr 13)' par '$(rpar 11)' '$(rpar 12)' '$(rpar 13)'"
 
 echo "a send's read-out and its step are ONE: per cent, 6 a detent, on the Sends page, an effect's Send cell, the editor, KNOB 4's popup, a CC's (docs/FX.md)"
 run cr_fx_send_scale

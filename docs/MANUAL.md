@@ -862,8 +862,11 @@ the whole picture grey with FX off). On this page the keys do not play: the blac
 - The other keys do nothing here; the chord keys keep their jobs. SELECT, FX, OCT- work as on every page.
 
 **Parallel**, where every FM-1 starts, is ChoralRoot as it always was: three buses side by side, each fed by the
-parts' sends, added back into the mix, the filter on the whole output after them. The order you set is kept but not
-heard in this mode (holding a block lifts it; KNOB 1 leaves it where it is).
+parts' sends, added back into the mix, the filter on the whole output after them. The effects' order you set is kept
+but not heard in this mode (holding an effect lifts it; KNOB 1 leaves it where it is). The **Filter** has two places
+in Parallel: hold **G#4** and turn KNOB 1 anticlockwise to put it **before** the buses, clockwise to put it back
+**after** them. Before, the effects hear the filtered signal: a high cut keeps the fizz out of the reverb, a low cut
+the bass out of the delay; the dry sound is filtered too.
 
 **Chain** is the original firmware's way: one path through the four blocks in the order on the screen. The dry mix
 goes into the first block; each effect adds its sound to everything before it and passes it all on, and the filter

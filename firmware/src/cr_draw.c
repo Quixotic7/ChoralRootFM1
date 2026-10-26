@@ -2771,8 +2771,10 @@ static void cr_p_loopmenu(const cr_screen_t *s, const cr_frame_t *fr)
  * Chain: the four boxes in a row (48 x 64, 10 px apart, rows 86 .. 150, the wire through their middles at 118),
  * each its place 1 .. 4 at 22 px over its name at 13. Parallel: the three effects stacked (92 x 32 at x 30, rows
  * 62 .. 174), the wire fanning into them from "in" and out of them into the sum (a disc with a +), then the Filter
- * (52 x 44) and "out". A held block (rt_held) rises CR_RT_LIFT px (Parallel: CR_RT_LIFT_P) over a grey shadow bar
- * at its place, ringed white (the Filter: green), white arrowheads either side where it can still move (Chain);
+ * (52 x 44) and "out"; the Filter first (rt_order[0]): in, the Filter at x 14, then the fan, the stack, the sum
+ * 62 px further right, and out (a move between the two places slides it all). A held block (rt_held) rises
+ * CR_RT_LIFT px (Parallel: CR_RT_LIFT_P) over a grey shadow bar at its place, ringed white (the Filter: green),
+ * white arrowheads either side where it can still move (Chain; Parallel: the Filter alone, toward its other place);
  * while a move slides (CR_A_SLIDE) every block eases from its rt_from place to its rt_order one; rt_drop lands
  * (CR_A_LIFT). No knob row: the black keys and KNOB 1 are the gesture, the footer says so */
 #define CR_RT_LY 118                     /* the wire's row (Chain; Parallel: the sum's) */
@@ -2790,6 +2792,8 @@ static void cr_p_loopmenu(const cr_screen_t *s, const cr_frame_t *fr)
 #define CR_RT_FX 166                     /* .. the Filter's box */
 #define CR_RT_FW 52
 #define CR_RT_FH 44
+#define CR_RT_FX0 14                     /* .. the Filter before the buses: its box, the rest shifted right */
+#define CR_RT_SHIFT 62
 static const char *const CR_RT_NAME[4] = {"Chorus", "Delay", "Reverb", "Filter"};
 static const uint8_t CR_RT_COL[4] = {CR_COL_BLUE, CR_COL_ORANGE, CR_COL_YELLOW, CR_COL_WHITE};
 /* bold s centred at cx on baseline y (Q8), squeezed to maxw px where wider */
@@ -2880,40 +2884,47 @@ static void cr_p_route(const cr_screen_t *s, const cr_frame_t *fr)
                 if (pt < 3) cr_rt_arrow(lx + CR_RT_BW + 5, ly + 16, 1, CR_WHITE);
             }
         }
-    } else {                                         /* Parallel: the buses stacked into the sum, the Filter, out */
-        int32_t y0 = CR_RT_LY - CR_RT_PP - CR_RT_PH / 2;
-        int32_t sx = 146, lb = held >= 0 ? held : drop;
-        cr_fill(0, CR_RT_LY - 1, 15, 2, g);          /* in, the fan */
-        cr_fill(13, CR_RT_LY - CR_RT_PP - 1, 2, 2 * CR_RT_PP + 2, g);
-        cr_fill(135, CR_RT_LY - CR_RT_PP - 1, 2, 2 * CR_RT_PP + 2, g);   /* the buses' returns, the sum */
-        cr_fill(136, CR_RT_LY - 1, sx - 136, 2, g);
+    } else {                                         /* Parallel: the buses stacked into the sum, the Filter after
+                                                      * the sum or (rt_order[0] the Filter) before the fan */
+        int32_t y0 = CR_RT_LY - CR_RT_PP - CR_RT_PH / 2, lb = held >= 0 ? held : drop;
+        int32_t ft = s->rt_order[0] == 3u ? 4096 : 0, ff = s->rt_from[0] == 3u ? 4096 : 0;
+        int32_t f = ft + (((ff - ft) * fr->slide) >> 12);   /* Q12: 0 the Filter after, 4096 before */
+        int32_t dx = (CR_RT_SHIFT * f + 2048) >> 12;        /* the fan, the stack, the sum shift right by this */
+        int32_t fx = CR_RT_FX + (((CR_RT_FX0 - CR_RT_FX) * f) >> 12), fan = 13 + dx, px = CR_RT_PX + dx;
+        int32_t rx = 135 + dx, sx = 146 + dx, fmove = fr->slide && ft != ff;
+        cr_fill(0, CR_RT_LY - 1, 240, 2, g);         /* the row: in .. out, the boxes over it */
+        cr_fill(fan, CR_RT_LY - CR_RT_PP - 1, 2, 2 * CR_RT_PP + 2, g);   /* the fan */
+        cr_fill(rx, CR_RT_LY - CR_RT_PP - 1, 2, 2 * CR_RT_PP + 2, g);    /* the buses' returns, the sum */
         for (k = 0; k < 3; k++) {
             int32_t my = CR_RT_LY + (k - 1) * CR_RT_PP;
-            cr_fill(14, my - 1, CR_RT_PX - 15, 2, g);
-            cr_rt_arrow(CR_RT_PX - 1, my, 1, g);
-            cr_fill(CR_RT_PX + CR_RT_PW, my - 1, 136 - CR_RT_PX - CR_RT_PW, 2, g);
+            cr_fill(fan + 1, my - 1, px - fan - 2, 2, g);
+            cr_rt_arrow(px - 1, my, 1, g);
+            cr_fill(px + CR_RT_PW, my - 1, rx + 1 - px - CR_RT_PW, 2, g);
         }
-        cr_fill(sx + 9, CR_RT_LY - 1, CR_RT_FX - sx - 9, 2, g);
-        cr_rt_arrow(CR_RT_FX - 1, CR_RT_LY, 1, g);
+        cr_rt_arrow(fx - 1, CR_RT_LY, 1, g);
         cr_disc(sx * 16, CR_RT_LY * 16, 10 * 16, g);
         cr_fill(sx - 5, CR_RT_LY - 1, 10, 2, T_BG);   /* the sum's + */
         cr_fill(sx - 1, CR_RT_LY - 5, 2, 10, T_BG);
-        cr_fill(CR_RT_FX + CR_RT_FW, CR_RT_LY - 1, 240 - CR_RT_FX - CR_RT_FW, 2, g);
         cr_rt_arrow(238, CR_RT_LY, 1, g);
         cr_text(P8(1), P8(CR_RT_LY - 10), "in", 12, 1, CR_L, 4096, g, T_BG, 0);
         cr_text(P8(238), P8(CR_RT_LY - 10), "out", 12, 1, CR_R, 4096, g, T_BG, 0);
-        for (b = 0; b < 4u; b++) {
+        for (b = 0; b < 4u; b++) {                   /* (the Filter last: over the stack while it crosses) */
             int32_t yo = (int32_t)b == lb ? (CR_RT_LIFT_P * up + 2048) >> 12 : 0;
             int ring = held == (int32_t)b && up > 2048;
-            if (b == 3u) {                           /* the Filter, after the sum */
-                cr_rt_box(s, b, CR_RT_FX, CR_RT_LY - CR_RT_FH / 2 - yo, CR_RT_FW, CR_RT_FH, 0, 15, ring, 0);
+            if (b == 3u) {
+                int32_t fy = CR_RT_LY - CR_RT_FH / 2 - yo;
+                cr_rt_box(s, b, fx, fy, CR_RT_FW, CR_RT_FH, 0, 15, ring, fmove);
+                if (ring && !fmove) {                /* where it can go: the other place */
+                    if (ft) cr_rt_arrow(fx + CR_RT_FW + 7, fy + CR_RT_FH / 2, 1, CR_WHITE);
+                    else cr_rt_arrow(fx - 8, fy + CR_RT_FH / 2, -1, CR_WHITE);
+                }
                 continue;
             }
             {
                 int32_t pt = cr_rt_pos(s->rt_order, b, 1), pf = cr_rt_pos(s->rt_from, b, 1);
                 int32_t yt = P8(y0 + pt * CR_RT_PP), yf = P8(y0 + pf * CR_RT_PP);
                 int32_t y = (yt + (((yf - yt) * fr->slide) >> 12) + 128) >> 8;
-                cr_rt_box(s, b, CR_RT_PX, y - yo, CR_RT_PW, CR_RT_PH, 0, 16, ring, fr->slide && pt != pf);
+                cr_rt_box(s, b, px, y - yo, CR_RT_PW, CR_RT_PH, 0, 16, ring, (fr->slide && pt != pf) || fmove);
             }
         }
     }

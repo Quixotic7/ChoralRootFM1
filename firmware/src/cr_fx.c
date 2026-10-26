@@ -879,7 +879,8 @@ static void xf_hb_clear(xf_hb_t *h)
  * had it; its session tags 35 / 36 are this order and this mode (a Feed > 1 left there is out of range: Parallel).
  * PARALLEL (0, the default) IS 0.26, BIT FOR BIT, whatever the order says: the three buses fed by the parts' sends,
  * their returns added into the mix, the master filter after everything (fx.c mix_block: nothing here is called; the
- * order is kept for Chain and drawn). CHAIN (1) is a serial path, the OEM way. C_0 is the dry mix (the parts mixed:
+ * order is kept for Chain and drawn), UNLESS THE FILTER IS FIRST (XF_ORD[o][0], 3y194): then the filter runs before
+ * the buses, on the dry and the three sends (xq_pre, "The master filter" below), nothing after. CHAIN (1) is a serial path, the OEM way. C_0 is the dry mix (the parts mixed:
  * their levels, pans, drives) and the block at position k makes C_{k+1} of C_k: the filter F(C_k) (the master
  * filter's two cuts as set; Off: C_k itself), an effect C_k + W_k, its wet from amt x mono(C_k) (mono: (l + r) / 2).
  * The output is C_4. amt is the CHORD part's send for that effect (cr_ui.c cu_fx_apply writes the FX layer's amounts
@@ -1253,19 +1254,29 @@ CR_HOT_FX static __attribute__((noinline)) void xf_block(const int32_t *dly_in, 
  * goes to 4096 (y = x, exactly) when 12 dB goes to 6, and the stage is skipped once there; 6 to 12 starts it at its
  * stage's input and eases its k down (a quarter of the way a block there stepped the stage's slew by a third at
  * once: a click under a tone; cr_fx_test.c). Only a cut that is in costs anything.
+ * TWO PLACES (3y194): after the effects (xq_block: Chain's, and Parallel's) and, in Parallel with the Filter first,
+ * BEFORE the buses (xq_pre: the dry pair and the three mono sends, five channels, all clamped to XQ_MAX: the products'
+ * bound). Each place has its own k, w and states (xq.pl); a move fades one out and the other in from rest.
  * COST on the unit (the listing, tools/fx_loops.py; docs/FX.md "The master filter"): a cut's loop is ~20
  * instructions a sample at 12 dB (~13 at 6 dB) a side: one 12 dB cut ~25 us a half, both ~50; 6 dB half of that. */
 #define XQ_MAX 98304                      /* the input's clamp: 3 x 32768 */
 #define XQ_STEP 256                       /* a cut fades in or out over 4096 / XQ_STEP = 16 blocks */
 #define XQ_KS 3                           /* a k eases an eighth of itself a block (xq_ease): an octave in 6 */
-typedef struct { int32_t y[2], e[2]; } xq_st_t;       /* a cut's two stages on one side: the one-poles, their remainders */
+typedef struct { int32_t y[2], e[2]; } xq_st_t;       /* a cut's two stages on one channel: the one-poles, their remainders */
+#define XQ_NCH 5                          /* a place's channels at most: before the buses the dry pair and the three sends */
+typedef struct {                          /* a PLACE of the filter (xq.pl: 0 after the effects, 1 before the buses) */
+    int32_t k[2][2];                      /* each cut's two stages' k in use (Q12) */
+    int32_t w[2];                         /* each cut's wet share here, 0 .. 4096 */
+    xq_st_t s[2][XQ_NCH];                 /* [cut][channel] */
+    uint8_t idle;                         /* both cuts out and at rest here, the k at the knobs' (xq_run's quick return;
+                                           * cleared when the knobs move) */
+} xq_pl_t;
 static struct {
     uint32_t hash;                        /* the four parameters and fx_off as last seen */
     uint8_t on;                           /* the coefficients are set (power-on: no fades, no eases) */
     uint8_t in[2];                        /* each cut wanted in: 0 the low cut, 1 the high cut */
-    int32_t kt[2][2], k[2][2];            /* each cut's two stages' k (Q12): the knob's, and the one in use */
-    int32_t w[2];                         /* each cut's wet share, 0 .. 4096 */
-    xq_st_t s[2][2];                      /* [cut][side] */
+    int32_t kt[2][2];                     /* each cut's two stages' k (Q12): the knob's */
+    xq_pl_t pl[2];                        /* 0: after the effects (Chain's, Parallel's after); 1: before the buses */
     int32_t t[CTL];                       /* a fade's block of the wet */
 } xq __attribute__((section(".pool")));
 
@@ -1351,8 +1362,12 @@ static int32_t xq_ease(int32_t k, int32_t t)          /* a 2^-XQ_KS of ITSELF a 
     }
     return k;
 }
-/* the master's block (fx.c mix_block: after the effects, before out_master); ml, mr: the mix, in place */
-CR_HOT_FX static __attribute__((noinline)) void xq_block(int32_t *ml, int32_t *mr, uint32_t n)
+/* Parallel with the Filter at position 0 (XF_ORD[o][0]): the filter's place is before the buses (xq_pre) */
+static int xq_first(void)
+{
+    return xfp[XP_RMODE] != 1 && XF_ORD[(uint32_t)xfp[XP_ORDER] < 24u ? (uint32_t)xfp[XP_ORDER] : 0u][0] == XFE_FILTER;
+}
+static void xq_upd(void)                              /* the coefficients as the knobs are (either place's first call) */
 {
     uint32_t h = (uint32_t)fx_off, c, i;
     for (i = XP_NFX; i <= XP_FON; i++)                  /* (the filter's four: not the routing's two after them) */
@@ -1360,37 +1375,74 @@ CR_HOT_FX static __attribute__((noinline)) void xq_block(int32_t *ml, int32_t *m
     if (h != xq.hash || !xq.on) {
         xq.hash = h;
         xq_coefs();
-        if (!xq.on) {                                   /* power-on: as set, no fade, no ease */
-            for (c = 0; c < 2u; c++) {
-                xq.k[c][0] = xq.kt[c][0];
-                xq.k[c][1] = xq.kt[c][1];
-                xq.w[c] = xq.in[c] ? 4096 : 0;
-            }
+        xq.pl[0].idle = xq.pl[1].idle = 0;
+        if (!xq.on) {                                   /* power-on: as set, no fade, no ease, at the place it is */
+            for (i = 0; i < 2u; i++)
+                for (c = 0; c < 2u; c++) {
+                    xq.pl[i].k[c][0] = xq.kt[c][0];
+                    xq.pl[i].k[c][1] = xq.kt[c][1];
+                    xq.pl[i].w[c] = xq.in[c] && (int)i == xq_first() ? 4096 : 0;
+                }
             xq.on = 1;
         }
     }
+}
+/* one place's block over nch channels in place; want: the filter is at this place (the other's fades out as a cut
+ * switched Off does, from its own w, and this one's in from rest: no click) */
+CR_HOT_FX static __attribute__((noinline)) void xq_run(xq_pl_t *p, int32_t *const *b, uint32_t nch, uint32_t n, int want)
+{
+    uint32_t c, i;
+    if (p->idle && !(want && (xq.in[0] | xq.in[1])))
+        return;                                         /* (Off: the block reads nothing) */
+    p->idle = 1;
     for (c = 0; c < 2u; c++) {
-        int32_t w0 = xq.w[c], wt = xq.in[c] ? 4096 : 0, w1 = w0 + xf_clamp(wt - w0, -XQ_STEP, XQ_STEP), k1, k2;
+        int32_t w0 = p->w[c], wt = want && xq.in[c] ? 4096 : 0, w1 = w0 + xf_clamp(wt - w0, -XQ_STEP, XQ_STEP), k1, k2;
         if (!w0 && !w1) {                               /* out: nothing runs, nothing read; at rest for the next time */
-            if (xq.k[c][0] != xq.kt[c][0] || xq.k[c][1] != xq.kt[c][1] || xq.s[c][0].y[0] | xq.s[c][0].y[1] | xq.s[c][1].y[0] | xq.s[c][1].y[1]) {
-                xq.k[c][0] = xq.kt[c][0];
-                xq.k[c][1] = xq.kt[c][1];
-                for (i = 0; i < 2u; i++)
-                    xq.s[c][i].y[0] = xq.s[c][i].y[1] = xq.s[c][i].e[0] = xq.s[c][i].e[1] = 0;
+            int32_t z = 0;
+            for (i = 0; i < XQ_NCH; i++)
+                z |= p->s[c][i].y[0] | p->s[c][i].y[1];
+            if (p->k[c][0] != xq.kt[c][0] || p->k[c][1] != xq.kt[c][1] || z) {
+                p->k[c][0] = xq.kt[c][0];
+                p->k[c][1] = xq.kt[c][1];
+                for (i = 0; i < XQ_NCH; i++)
+                    p->s[c][i].y[0] = p->s[c][i].y[1] = p->s[c][i].e[0] = p->s[c][i].e[1] = 0;
             }
             continue;
         }
-        k1 = xq.k[c][0] = xq_ease(xq.k[c][0], xq.kt[c][0]);
-        k2 = xq.k[c][1] = xq_ease(xq.k[c][1], xq.kt[c][1]);
-        if (w0 == 4096 && w1 == 4096) {
-            xq_cut(ml, n, &xq.s[c][0], k1, k2, c == 0u);
-            xq_cut(mr, n, &xq.s[c][1], k1, k2, c == 0u);
-        } else {
-            xq_fade(ml, n, &xq.s[c][0], k1, k2, c == 0u, w0, w1);
-            xq_fade(mr, n, &xq.s[c][1], k1, k2, c == 0u, w0, w1);
-        }
-        xq.w[c] = w1;
+        p->idle = 0;
+        k1 = p->k[c][0] = xq_ease(p->k[c][0], xq.kt[c][0]);
+        k2 = p->k[c][1] = xq_ease(p->k[c][1], xq.kt[c][1]);
+        for (i = 0; i < nch; i++)
+            if (w0 == 4096 && w1 == 4096)
+                xq_cut(b[i], n, &p->s[c][i], k1, k2, c == 0u);
+            else
+                xq_fade(b[i], n, &p->s[c][i], k1, k2, c == 0u, w0, w1);
+        p->w[c] = w1;
     }
+}
+/* the master's block (fx.c mix_block: after the effects, before out_master; xg_join: the filter's place in Chain);
+ * ml, mr: the mix, in place */
+CR_HOT_FX static __attribute__((noinline)) void xq_block(int32_t *ml, int32_t *mr, uint32_t n)
+{
+    int32_t *b[2];
+    b[0] = ml;
+    b[1] = mr;
+    xq_upd();
+    xq_run(&xq.pl[0], b, 2u, n, !xq_first());
+}
+/* .. BEFORE the buses (fx.c mix_block, Parallel: the parts mixed, before the effects stage): the dry pair and the
+ * three mono sends, in place, when the Filter is at position 0; otherwise this place's fade out (or nothing) */
+CR_HOT_FX static __attribute__((noinline)) void xq_pre(int32_t *ml, int32_t *mr, int32_t *sc, int32_t *sd, int32_t *sr,
+                                                       uint32_t n)
+{
+    int32_t *b[XQ_NCH];
+    b[0] = ml;
+    b[1] = mr;
+    b[2] = sc;
+    b[3] = sd;
+    b[4] = sr;
+    xq_upd();
+    xq_run(&xq.pl[1], b, XQ_NCH, n, xq_first());
 }
 
 /* THE ROUTING's assembly (above), core 0 after the join: ml / mr hold the dry mix and become the chain's output; each

@@ -1693,6 +1693,8 @@ static void mix_block(int32_t *out, uint32_t n)
     else {
     xg.key = 0;                                         /* (Parallel, 0.26 to the bit: a Chain chosen later starts from
                                                          * rest) */
+    xq_pre(mix_l, mix_r, send_c, send_d, send_r, n);    /* (cr_fx.c: the master filter BEFORE the buses when the Filter
+                                                         * is first, 3y194: the dry and the three sends; else nothing) */
 #if CR_CHORUS_MONO
     if (CR_CHORUS_MONO == 1 || cho_mono) {              /* 0.18's return: one tap, the same to both sides (a test's
                                                          * reference: the sums are 0.18's, bit for bit) */

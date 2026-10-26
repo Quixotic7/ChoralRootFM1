@@ -29,7 +29,10 @@
  *     sends 100 / 100 / 0: the delay's wet carries the chorus, the reverb's is exactly 0; the filter's place (a high
  *     tone, the High cut at its lowest: the reverb's wet far smaller with the filter before it); a full-scale square
  *     at full sends and five orders bounded, exact zeros after the tail; FX off in Chain the dry mix bit for bit; the
- *     cost a half of Parallel and Chain against no routing.
+ *     cost a half of Parallel and Chain against no routing. 3y194, PARALLEL WITH THE FILTER FIRST (before the buses,
+ *     cr_fx.c xq_pre): Filter Off it is Parallel-after's every sample; the High cut low and a 9 kHz tone sent to the
+ *     reverb: the reverb's wet far smaller than with the filter after, the dry cut the same, every sample; the filter
+ *     moved before <-> after under a held tone: no step above 1.3 x the tone's; the cost of both cuts in at each place.
  * WAVs for tools/fx_plots.py into OUTDIR: the reverb's impulse responses (small, default, large, Inf), the delay's
  * repeats (stereo, ping-pong, spread).
  *   build/host/cr_fx_test --chorus-listen DIR   the chorus's listening files of 0.21 (tools/chorus_glide_listen.sh) */
@@ -930,7 +933,7 @@ static int fq_rest(void)                                /* every state of the fi
     uint32_t c, i;
     for (c = 0; c < 2u; c++)
         for (i = 0; i < 2u; i++)
-            if (xq.s[c][i].y[0] | xq.s[c][i].y[1])
+            if (xq.pl[0].s[c][i].y[0] | xq.pl[0].s[c][i].y[1])
                 return 0;
     return 1;
 }
@@ -1713,7 +1716,8 @@ static void chorus_listen(void)
  * fx.c's mix_fx_chain itself, the dry mix given (both sides the same), the chord part's sends the amounts; each
  * effect's wet (cr_fx.c xg.w) hashed and its energy summed (rt_wh, rt_we) */
 static uint64_t rt_hash, rt_wh[XFE_NFX];
-static double rt_we[XFE_NFX];
+static double rt_we[XFE_NFX], rt_pwe;                   /* rt_pwe: Parallel's chorus + delay + reverb wet energy */
+static int rt_dry, rt_sm = 7;                           /* rt_run: the signal into the dry too; the sends it feeds (C, D, R bits) */
 static void rt_reset(void)
 {
     fx_reset();
@@ -1729,10 +1733,17 @@ static void rt_amt(int c, int d, int r)
 }
 static void rt_par(int32_t *sc, int32_t *sd, int32_t *sr, int32_t *ml, int32_t *mr, int absent)
 {
-    if (!absent)
+    static int32_t b0[CTL];
+    uint32_t k;
+    if (!absent) {
         xg.key = 0;
+        xq_pre(ml, mr, sc, sd, sr, CTL);
+    }
+    memcpy(b0, ml, sizeof b0);
     xc_block(sc, ml, mr, CTL);
     xf_block(sd, sr, ml, mr, CTL);
+    for (k = 0; k < CTL; k++)
+        rt_pwe += (double)(ml[k] - b0[k]) * (ml[k] - b0[k]);
     xq_block(ml, mr, CTL);
 }
 static uint64_t rt_fnv(uint64_t h, const int32_t *l, const int32_t *r)
@@ -1742,15 +1753,23 @@ static uint64_t rt_fnv(uint64_t h, const int32_t *l, const int32_t *r)
         h = (h ^ (uint32_t)l[k] ^ ((uint64_t)(uint32_t)r[k] << 32)) * 1099511628211ull;
     return h;
 }
+static uint32_t rt_mv;                                  /* rt_run: the Filter moved first <-> after every rt_mv samples */
+static uint32_t rt_ordof(uint32_t a, uint32_t b, uint32_t c, uint32_t d);
 static void rt_run(uint32_t n, gen_t gen, int absent)   /* Parallel: the signal into the three sends */
 {
     static int32_t sc[CTL], sd[CTL], sr[CTL], ml[CTL], mr[CTL];
     uint32_t i, k;
     rt_hash = 1469598103934665603ull;
+    rt_pwe = 0;
     for (i = 0; i < n && i + CTL <= MAXS; i += CTL) {
+        if (rt_mv)
+            xfp[XP_ORDER] = (int16_t)((i / rt_mv) & 1u ? rt_ordof(XFE_FILTER, XFE_CHORUS, XFE_DELAY, XFE_REVERB) : 0u);
         for (k = 0; k < CTL; k++) {
-            sc[k] = sd[k] = sr[k] = gen(i + k);
-            ml[k] = mr[k] = 0;
+            int32_t x = gen(i + k);
+            sc[k] = rt_sm & 1 ? x : 0;
+            sd[k] = rt_sm & 2 ? x : 0;
+            sr[k] = rt_sm & 4 ? x : 0;
+            ml[k] = mr[k] = rt_dry ? x : 0;
         }
         rt_par(sc, sd, sr, ml, mr, absent);
         rt_hash = rt_fnv(rt_hash, ml, mr);
@@ -1930,6 +1949,106 @@ static void t_route(void)
                "Chain %llu (+%lld)\n", (unsigned long long)ca, (unsigned long long)cp, (unsigned long long)cc,
                (long long)cc - (long long)ca);
         check("routing: the cost: Parallel within 2 % of no routing; Chain (its own up-sampler for the delay) within 25 % of it", cp * 100u <= ca * 102u && cc * 100u <= ca * 125u);
+    }
+    /* (g) Parallel, Filter first, Filter Off (the cuts set): Parallel-after's render, every sample */
+    {
+        uint64_t ha;
+        rt_reset();
+        xfp[XP_FLOW] = 60;
+        xfp[XP_FHIGH] = 30;
+        rt_run(n, g_chord, 0);
+        ha = rt_hash;
+        rt_reset();
+        xfp[XP_FLOW] = 60;
+        xfp[XP_FHIGH] = 30;
+        xfp[XP_ORDER] = (int16_t)rt_ordof(XFE_FILTER, XFE_REVERB, XFE_DELAY, XFE_CHORUS);
+        rt_run(n, g_chord, 0);
+        check("routing: Parallel, Filter first, Filter Off (the cuts set): the render with the filter after, every sample", rt_hash == ha);
+    }
+    /* (h) Parallel, High cut at 200 Hz, a 9 kHz tone in the dry and sent to the reverb: the reverb's wet with the
+     * filter first against after; the dry alone (nothing sent) the same in both, every sample */
+    {
+        double eb, ea;
+        uint64_t hb, ha;
+        uint32_t f;
+        for (f = 0; f < 2u; f++) {
+            rt_reset();
+            xfp[XP_FON] = 1;
+            xfp[XP_FHIGH] = 0;
+            xfp[XP_ORDER] = (int16_t)(f ? rt_ordof(XFE_FILTER, XFE_CHORUS, XFE_DELAY, XFE_REVERB) : 0u);
+            rt_dry = 1;
+            rt_sm = 4;
+            rt_run(n, g_rhi, 0);
+            *(f ? &eb : &ea) = rt_pwe;
+            rt_reset();
+            xfp[XP_FON] = 1;
+            xfp[XP_FHIGH] = 0;
+            xfp[XP_ORDER] = (int16_t)(f ? rt_ordof(XFE_FILTER, XFE_CHORUS, XFE_DELAY, XFE_REVERB) : 0u);
+            rt_sm = 0;
+            rt_run(n, g_rhi, 0);
+            *(f ? &hb : &ha) = rt_hash;
+        }
+        rt_dry = 0;
+        rt_sm = 7;
+        snprintf(line, sizeof line, "routing: Parallel, High cut at 200 Hz, a 9 kHz tone: the reverb's wet with the Filter first %.1f dB under "
+                 "after; the dry cut the same", 10.0 * log10((ea + 1e-9) / (eb + 1e-9)));
+        check(line, ea > 0 && eb * 100.0 < ea && hb == ha);
+    }
+    /* (i) Parallel, the Filter moved first <-> after every 100 ms under a held 440 Hz tone (the dry and the three sends
+     * at 0: the move alone heard), the High cut at ~500 Hz, 12 dB: no step above 1.3 x the tone's own */
+    {
+        uint32_t i, m = 2u * 44100u;
+        double ref, mv;
+        rt_reset();
+        xfp[XP_FON] = 1;
+        xfp[XP_FHIGH] = 27;
+        g_f = 440.0;
+        g_a = 20000.0;
+        rt_dry = 1;
+        rt_sm = 0;
+        rt_mv = 4410u;
+        rt_run(m, g_sine, 0);
+        rt_mv = 0;
+        rt_dry = 0;
+        rt_sm = 7;
+        for (i = 0; i < m; i++)
+            WI[i] = g_sine(i);
+        ref = fq_maxstep(WI, 0, m);
+        mv = fq_maxstep(WL, 0, m);
+        printf("cr_fx:   routing: the largest sample step: the tone's %.0f, the Filter moved every 100 ms %.0f\n", ref, mv);
+        check("routing: Parallel, the Filter moved first <-> after every 100 ms under a 440 Hz tone: no step above 1.3 x the tone's",
+              mv < 1.3 * ref);
+    }
+    /* (j) the cost: Parallel, both 12 dB cuts in, the Filter after against first (five channels) */
+    if (instr_now()) {
+        static int32_t s[CTL], sc[CTL], sd[CTL], sr[CTL], ml[CTL], mr[CTL];
+        uint64_t cn, cf, cb, t0;
+        uint32_t j, f, rep = 20000u;
+        for (j = 0; j < CTL; j++) s[j] = noise(20000);
+        for (f = 0; f < 3u; f++) {
+            rt_reset();
+            if (f) {
+                xfp[XP_FON] = 1;
+                xfp[XP_FLOW] = 60;
+                xfp[XP_FHIGH] = 60;
+                xfp[XP_ORDER] = (int16_t)(f == 2u ? rt_ordof(XFE_FILTER, XFE_CHORUS, XFE_DELAY, XFE_REVERB) : 0u);
+            }
+            for (j = 0; j < 40u; j++) {                 /* (past the fades) */
+                memcpy(sc, s, sizeof sc); memcpy(sd, s, sizeof sd); memcpy(sr, s, sizeof sr); memcpy(ml, s, sizeof ml); memcpy(mr, s, sizeof mr);
+                rt_par(sc, sd, sr, ml, mr, 0);
+            }
+            t0 = instr_now();
+            for (j = 0; j < rep; j++) {
+                memcpy(sc, s, sizeof sc); memcpy(sd, s, sizeof sd); memcpy(sr, s, sizeof sr); memcpy(ml, s, sizeof ml); memcpy(mr, s, sizeof mr);
+                rt_par(sc, sd, sr, ml, mr, 0);
+            }
+            *(f == 0u ? &cn : f == 1u ? &cf : &cb) = (instr_now() - t0) * 4u / rep;
+        }
+        printf("cr_fx:   route COST, host instructions a 128-frame half, Parallel, the three effects on: the filter off %llu; both 12 dB "
+               "cuts after %llu (+%lld); first, five channels, %llu (+%lld)\n", (unsigned long long)cn, (unsigned long long)cf,
+               (long long)cf - (long long)cn, (unsigned long long)cb, (long long)cb - (long long)cn);
+        check("routing: the cost: Parallel, both cuts, the Filter first adds at most 3 x what it adds after",
+              cb > cn && cf > cn && (cb - cn) <= 3u * (cf - cn));
     }
     rt_reset();
 }
