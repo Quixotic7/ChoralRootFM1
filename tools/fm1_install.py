@@ -346,6 +346,10 @@ def classify_firmware(identity, info, port=None):
         return "refuse", "unknown", identity
     if BUBBA_PORT.search(port or ""):             # Bubba Machine answers FM-1_003, as an old official firmware would
         return "refuse", "bubba", f"Bubba Machine ({identity})"
+    r = REMOTEFM1_ID.fullmatch(m[3])
+    if r:                                         # RemoteFM1 0.2 on (fm1-base's identity, see REMOTEFM1_ID)
+        return "allow", "remotefm1", (f"RemoteFM1 {int(r[1])}.{int(r[2])}.{int(r[3])}" if r[1]
+                                      else "RemoteFM1 (development build)")
     if 1 <= num < 100:
         return "allow", "stock", f"the official M-VAVE firmware ({identity})"
     if num == 0:
@@ -389,6 +393,11 @@ def classify_smk(identity, model, num, v):
 # unit's boot head (hal/fm1/fm1_update.c), so it refuses every Felucca-family package, ChoralRoot's included, before
 # it writes anything; the official V15 goes through (docs/INSTALL-COMPAT.md "Bubba Machine")
 BUBBA_PORT = re.compile(r"bubba", re.I)
+# RemoteFM1 0.2 on (github.com/Quixotic7/RemoteFM1; on fm1-base + felucca-bsp, felucca-bsp's updater): fm1-base's
+# identity, its fm1.toml id_prefix "FM-1_52" + "00" (a development build) or + XXYYZZ (release X.Y.Z, two digits
+# each: 0.2.1 = FM-1_52000201). No INFO answer. RemoteFM1 0.1 answered as the official V15 (FM-1_015). Only
+# RemoteFM1's prefix: other fm1-base firmwares' update paths are not known here (docs/INSTALL-COMPAT.md "RemoteFM1")
+REMOTEFM1_ID = re.compile(r"52(?:00|(\d\d)(\d\d)(\d\d))")
 BUBBA_TEXT = ("Bubba Machine's updater takes only M-VAVE's official package, so ChoralRoot cannot be installed over it "
               "directly. Return to the official V15 first: this tool "
               "with M-VAVE's FM-1.fwsc (python3 tools/fm1_install.py FM-1.fwsc), the web installer's \"Return to "

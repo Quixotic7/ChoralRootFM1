@@ -285,6 +285,16 @@ GUARD_CASES = [
     ("FM-1_500", None, "refuse", "unknown"),
     ("FM-1_910", "SOMETHING 3.0", "refuse", "unknown"),
     ("ota-FM-1_920", None, "loader", "loader"),                 # update mode: the resume path
+    # RemoteFM1 0.2 on (fm1-base's identity: "FM-1_52" + "00" or + XXYYZZ, no INFO); its neighbours keep their verdicts
+    ("FM-1_52000201", None, "allow", "remotefm1"),              # RemoteFM1 0.2.1
+    ("FM-1_52000200", None, "allow", "remotefm1"),              # RemoteFM1 0.2.0
+    ("FM-1_5200", None, "allow", "remotefm1"),                  # a RemoteFM1 development build
+    ("FM-1_5201", None, "refuse", "unknown"),                   # not fm1-base's scheme
+    ("FM-1_520002", None, "refuse", "unknown"),
+    ("FM-1_520", None, "refuse", "unknown"),
+    ("FM-1_4600", None, "refuse", "unknown"),                   # FIZZ (fm1-base, another firmware): not ours to judge
+    ("FM-1_46000120", None, "refuse", "unknown"),
+    ("ota-FM-1_52000201", None, "loader", "loader"),
     # the M-Vave SMK-37 (SMK37.md): the official firmware, ChoralRoot and the other ports on the SMK board layer;
     # ChanceTheMaker's SMK firmwares (SMK-37_9NN) have their own updater
     ("SMK-37 Pro_016", None, "allow", "stock"),
@@ -306,6 +316,7 @@ PORT_CASES = [
     ("FM-1_015", None, "FM-1", "allow", "stock"),
     ("FM-1_003", None, None, "allow", "stock"),
     ("FM-1_920", "ChoralRoot 0.25.1", "FM-1", "allow", "choralroot"),
+    ("FM-1_52000201", None, "FM-1", "allow", "remotefm1"),      # RemoteFM1's USB product name is "FM-1", as 0.1's
     ("ota-FM-1_015", None, "ota-FM-1", "loader", "loader"),     # update mode (the official loader Bubba starts)
 ]
 
@@ -341,10 +352,15 @@ def guard():
     rc, out, err, dev = over("FM-1_900", None)
     ok(rc == 8 and dev.upgrades == 0 and "unknown" in err, "over a 9xx firmware that does not answer INFO: refused")
     for ident, ver in (("FM-1_910", "FELUCCA v1.0.1"), ("FM-1_90111", "MELODEE v0.11.1"), ("FM-1_920", "ChoralRoot 0.12"), ("FM-1_920", "ChoralRoot 0.22 1-core"),
-                       ("FM-1_015", None)):
+                       ("FM-1_015", None), ("FM-1_52000201", None), ("FM-1_5200", None)):
         rc, out, err, dev = over(ident, ver)
         ok(rc == 0 and dev.identity == "FM-1_920" and dev.bad == 0 and (not ver or ver in out),
-           f"over {ver or 'the stock ' + ident}: installed")
+           f"over {ver or ('RemoteFM1 ' if ident.startswith('FM-1_52') else 'the stock ') + ident}: installed")
+    names = [I.classify_firmware(i, None)[2] for i in ("FM-1_52000201", "FM-1_52011203", "FM-1_5200")]
+    ok(names == ["RemoteFM1 0.2.1", "RemoteFM1 1.12.3", "RemoteFM1 (development build)"],
+       f"RemoteFM1's version read from its identity: {names}")
+    rc, out, err = cli(["--info"], FakeFM1(image, identity="FM-1_52000201"))
+    ok(rc == 0 and "ChoralRoot can be installed over RemoteFM1 0.2.1" in out, "--info on RemoteFM1 0.2.1: named, installed over")
     for extra in ((), ("--force",)):              # Bubba Machine: its updater refuses our loader, so never
         rc, out, err, dev = over("FM-1_003", None, *extra, name="FM-1 Bubba Machine")
         ok(rc == 8 and dev.upgrades == 0 and "Bubba Machine (FM-1_003)" in err and "official V15" in err

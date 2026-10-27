@@ -16,6 +16,7 @@ host checks found, and the policy the installers follow (`web/fm1ota.js` `classi
 | Felucca 1.0 or later | `FM-1_9XY`, INFO `FELUCCA v1.0`, `v1.0.1`, `v1.1-rc1` ... | **allowed** |
 | Melodee | `FM-1_9...`, INFO `MELODEE v0.11.1` ... | **allowed** |
 | ChoralRoot | `FM-1_920`, INFO `ChoralRoot 0.12` ... | **allowed** |
+| RemoteFM1 0.2 and later | `FM-1_52XXYYZZ` (release X.Y.Z, two digits each: 0.2.1 `FM-1_52000201`), dev builds `FM-1_5200`; no INFO | **allowed** (RemoteFM1 below) |
 | Sloop | INFO `FELUCCA SLOOP 2.2` (dev build), `FELUCCA 2.2 BETA` (release build) | **refused** |
 | Sloop's rescue mode | `FM-1_000` | **refused** |
 | Felucca 0.x betas (0.9-beta and older) | `FM-1_909` ..., INFO `FELUCCA 0.9-BETA`, `FELUCCA 0.5 BETA` | **refused** |
@@ -37,6 +38,16 @@ A refusal says:
 Overrides: `tools/fm1_install.py --force` (exit code 8 without it); on the page an "I understand the risk" box that
 appears only after a refusal, then a second confirm. The return to the official V15 (the page's "Return to official
 V15", or `fm1_install.py FM-1.fwsc`) is never refused: it is the way out.
+
+## RemoteFM1 (2026-10-27)
+
+RemoteFM1 (github.com/Quixotic7/RemoteFM1, the FM-1 as a panel for a computer) 0.1 answered as the official V15
+(`FM-1_015`) and was installed over as stock. 0.2 on is built on fm1-base + felucca-bsp and answers with fm1-base's
+identity: its `fm1.toml` `id_prefix` `FM-1_52` + `00` (a development build) or + XXYYZZ (a release; fm1-base
+`tools/build.py --release`). It does not answer INFO (no `backup` in its `fm1.toml`), so the page asks before
+installing without a backup, as over V15. Its updater is felucca-bsp's `ota_stage`, which stages the package's own
+loader (any well-formed one; ours carries `FELUCCA-LOADER-1`), the same path as over Felucca 1.0. Only RemoteFM1's
+prefix is allowed: other fm1-base firmwares (FIZZ `FM-1_46...`, ...) stay "unknown" until their path is checked.
 
 ## Bubba Machine (2026-10-17, HISTORY 3y176)
 

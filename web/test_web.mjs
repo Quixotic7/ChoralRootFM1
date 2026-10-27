@@ -1293,6 +1293,10 @@ function firmwareGuard() {
     ["FM-1_920", "FELUCCA 2.0 BETA", "refuse", "felucca-beta"], ["FM-1_000", null, "refuse", "sloop"],
     ["FM-1_900", null, "refuse", "unknown"], ["FM-1_920", null, "refuse", "unknown"], ["FM-1_500", null, "refuse", "unknown"],
     ["FM-1_910", "SOMETHING 3.0", "refuse", "unknown"], ["ota-FM-1_920", null, "loader", "loader"],
+    // RemoteFM1 0.2 on (fm1-base's identity: "FM-1_52" + "00" or + XXYYZZ, no INFO); its neighbours keep their verdicts
+    ["FM-1_52000201", null, "allow", "remotefm1"], ["FM-1_52000200", null, "allow", "remotefm1"], ["FM-1_5200", null, "allow", "remotefm1"],
+    ["FM-1_5201", null, "refuse", "unknown"], ["FM-1_520002", null, "refuse", "unknown"], ["FM-1_520", null, "refuse", "unknown"],
+    ["FM-1_4600", null, "refuse", "unknown"], ["FM-1_46000120", null, "refuse", "unknown"], ["ota-FM-1_52000201", null, "loader", "loader"],
     // the M-Vave SMK-37 (SMK37.md): the official firmware, ChoralRoot and the other ports on the SMK board layer;
     // ChanceTheMaker's SMK firmwares (SMK-37_9NN) have their own updater
     ["SMK-37 Pro_016", null, "allow", "stock"], ["MKE-P37_016", null, "allow", "stock"],
@@ -1305,6 +1309,8 @@ function firmwareGuard() {
   ok(!wrong.length, `fm1ota.js classifyFirmware: ${cases.length} identity / version cases${wrong.length ? " wrong: " + JSON.stringify(wrong) : ""}`);
   ok(classifyFirmware("FM-1_900", "FELUCCA SLOOP 2.2").name === "Sloop" && classifyFirmware("FM-1_910", "FELUCCA v1.0.1").name === "Felucca v1.0.1" &&
      classifyFirmware("FM-1_90111", "MELODEE v0.11.1").name === "Melodee (v0.11.1)", "fm1ota.js classifyFirmware: names (Sloop, Felucca v1.0.1, Melodee)");
+  ok(classifyFirmware("FM-1_52000201", null).name === "RemoteFM1 0.2.1" && classifyFirmware("FM-1_52011203", null, "FM-1").name === "RemoteFM1 1.12.3" &&
+     classifyFirmware("FM-1_5200", null).name === "RemoteFM1 (development build)", "fm1ota.js classifyFirmware: RemoteFM1's version from its identity");
   const t = refusalText("Sloop");
   ok(t.startsWith("Installing over Sloop is not supported: ") && t.includes("with the installer you used for Sloop first, then install ChoralRoot.") &&
      t.endsWith(RECOVERY_URL) && RECOVERY_URL === "https://github.com/Quixotic7/MvaveFM1Unbricker", "fm1ota.js refusalText: the message and the recovery link");
