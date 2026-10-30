@@ -3,6 +3,37 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.27-smk37.1",
+      "base": "0.27",
+      "date": "2026-10-29",
+      "tag": "v0.27-smk37.1",
+      "title": "0.27-smk37 with the pedal jack: sustain or expression",
+      "bullets": [
+        "The SMK-37's pedal jack works: Options > Pedal picks Sustain (the default) or Expression.",
+        "Sustain: a switch pedal holds the notes of the keys and pads on both parts until it comes up, and sends CC 64 on the CHORD and BASS channels. Pedals of either polarity work: plug yours in before switching on.",
+        "Expression: an expression pedal sets both parts' level (CC 11, also sent out). Sweep it heel to toe once after plugging it in so it learns the range.",
+        "Everything else as 0.27-smk37."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer: the pedal has not been tried on a unit. Please report what your pedal does (SMK37.md, What to test, item 13) on GitHub.",
+        "Updating from 0.27-smk37 keeps your settings, sounds, loops and favourites. Going back to 0.27-smk37 works too (it ignores the Pedal setting)."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "573c2b0d9f1f197e39dcae99738fd4c544474e698fcffdfa5073944062a10327",
+          "sha256_1core": "3bc5a4cbc5fcc172060eaec64e517486e05a6d3cf0ac2d297749f20a09425930"
+        },
+        "elite": {
+          "sha256": "a0ce234446fcc710df00234f8bc0b3baf409b25b7e0c603a12cf000f6c4c78da",
+          "sha256_1core": "29b5d1c15250ece9d88effcccdd306b8cb7379353c0de4eaa925c862779c63db"
+        },
+        "mke": {
+          "sha256": "6d7150015f6c8ebe5cf5a130d95fb9cdaac65f70cf00406c873bfa7515e224d4",
+          "sha256_1core": "b88a1d2a8ad4b55269d7c49cf174f138b378816e27567c7c965bd3be2da5512c"
+        }
+      }
+    },
+    {
       "version": "0.27-smk37",
       "base": "0.27",
       "date": "2026-10-25",
