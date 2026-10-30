@@ -389,6 +389,7 @@ void emu_fw_idle(void)                            /* main.c: the input scan whil
     fm1_irq_on();
 #if EMU_SMK37
     cr_smk_wheels();                              /* main.c (SMK-37): the bends follow the wheel, not the screen */
+    cr_smk_pedal();                               /* .. and the pedal jack */
 #endif
 #if FELUCCA_GRAIN
     grain_poll();                                 /* main.c's idle loop: GRAIN's render, a slice a turn */

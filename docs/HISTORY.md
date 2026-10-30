@@ -6482,3 +6482,21 @@ detents of 24, "volume 50 %" read on the screen, SAVE held, a power cycle: 508 a
 `sh tests/run_cr_tests.sh`, `test_cr.sh`, `test_persist.sh` green; CR_VERSION=0.27 `sh tests/run_all.sh`
 ALL SUITES PASSED (23 suites, 105 s; test_cr 1106 ok, test_persist 119; 317 golden renders, 0 changed; 0 lint; the FM-1 dev build still a09f9e19..). Not run on an SMK-37 (the maintainer has none): the testers' build. Tagged v0.27-smk37 on main.
 
+## 2026-10-29 (the SMK-37's pedal jack)
+
+3y199. **The SMK-37's pedal jack: Options > Pedal, Sustain or Expression (SMK-37 only).** The jack (mux C address 6,
+`fm1_in.pedal`, ~985 empty: a pull-up, no plug detect) was read and never used. Nobody here has a unit, so both modes
+learn what the pedal reads: `cr_ui.c cr_smk_pedal` (with the wheels, once per scan frame, after the readings settle)
+smooths it and, in **Sustain**, learns the rest at power-on and at every change of the option (either polarity: down
+400 counts away from it, up within 250, 8 frames steady); in **Expression** it learns the range the pedal reaches
+(once it has rested plugged in ~0.3 s; nothing sent until it has moved 48 counts, the empty jack's 940 and up = no
+pedal, back to full), lower raw = more as the stock firmware's inversion, a dead band at each end and a step of 2.
+`cr_out.c cr_smk_pedal_block` (the audio ISR, after the wheels) plays it: a stream's note let go under the pedal keeps
+its part's note-off back (`cr_smk_held`, CR_OPART kept so the transposition's count stays right; the MIDI note-off
+goes at once), the pedal up ends them, a re-struck held note ends the held one first, a panic forgets the marks; the
+parts' MIDI-in notes are held too (`CR_MPEDAL`: the jack or the channel's CC 64, either holds); CC 64 / CC 11 go out
+on the CHORD and BASS channels; Expression sets both parts' EXPR (`mod_midi` CC 11). Leaving a mode lets go of what
+it held. The option is in the session (`smk_pedal`, byte 24 of the old reserve, 0 = Sustain; the reserve 119). The
+emulators: `emu_smk.pedal_raw`, `web_smk_pedal`, a Pedal button on the SMK page; `test_web_emu_smk.mjs` checks a
+key held by the pedal past its release and ended by it, CC 64, and Expression's CC 11 and ex_off. The FM-1 package
+is byte for byte origin/main's. Not tried on an SMK-37 (SMK37.md "What to test" 13).

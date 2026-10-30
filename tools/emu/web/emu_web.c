@@ -156,6 +156,20 @@ WEB_EXPORT void web_smk_enc(uint32_t e, int32_t n) { if (e < FM1_NENC) emu_smk.e
 WEB_EXPORT void web_smk_pad(uint32_t p, uint32_t vel) { emu_smk_pad(p, vel); }
 WEB_EXPORT void web_smk_fader(uint32_t i, uint32_t v) { if (i < 4u) emu_smk.fader_raw[i] = (uint16_t)((v > 127u ? 127u : v) * 8u + 4u); }
 WEB_EXPORT void web_smk_wheel(uint32_t i, uint32_t raw) { if (i < 2u) emu_smk.wheel_raw[i] = (uint16_t)(raw > 1023u ? 1023u : raw); }
+/* the pedal jack as a raw reading (985: nothing plugged in; a switch pedal shorts it to ~0 when pressed) */
+WEB_EXPORT void web_smk_pedal(uint32_t raw) { emu_smk.pedal_raw = (uint16_t)(raw > 1023u ? 1023u : raw); }
+/* part p (0 chord, 1 bass): its voices with the key down (gate) | its expression's offset (mod.c ex_off, 0 = full) << 8:
+ * what the pedal does to the parts (test_web_emu_smk.mjs) */
+WEB_EXPORT uint32_t web_smk_part(uint32_t p)
+{
+    uint32_t v, g = 0;
+    if (p > 1u)
+        return 0;
+    for (v = 0; v < NVOICE; v++)
+        g += trk[p].v[v].active && trk[p].v[v].gate;
+    return g | (uint32_t)trk[p].ex_off << 8;
+}
+WEB_EXPORT void web_smk_pedal_mode(uint32_t v) { opt_set(O_PEDAL, (int32_t)v); }   /* Options > Pedal: 0 Sustain, 1 Expression */
 /* the lights: the 19 button LEDs (0 / 1, hal/smk_input.h's ids: SEQ PLAY's red half is 18), the 16 pads' colours
  * (0xRRGGBB as the firmware set them: dim, as the LEDs are), K1's volume (0..1023), the screen's state (a line) */
 WEB_EXPORT uint8_t *web_smk_leds(void) { return fm1_led; }

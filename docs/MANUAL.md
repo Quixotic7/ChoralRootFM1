@@ -1712,6 +1712,7 @@ Tap **OPT** (printed GLO). One setting fills the screen:
 | **MIDI Keys** | Off, ch 1 to ch 16 | Off | the channel whose notes 53 to 79 press the FM-1's keys F3 to G5 ([MIDI in](#midi-in-usb-and-the-trs-jack)); the MIDI Perform and MIDI Bass channels are skipped |
 | **6th with 7th** | In place, Octave up | In place | where the 6th sounds in a chord that also has a seventh (7 or M7). In place: 9 semitones above the root, under the seventh, as the Orchid plays it. Octave up: an octave higher, on top, which makes it a 13th chord (D + 7 + 6: D F# A C B). Chords without a seventh never change; the name does not change ([Types and extensions](#types-and-extensions)) |
 | **Velocity** | 1 to 127 | 100 | the velocity of every key, for the sound and for MIDI out |
+| **Pedal** | Sustain, Expression | Sustain | the SMK-37 only: what its pedal jack does. Sustain: a switch pedal holds the notes; Expression: an expression pedal sets both parts' expression (CC 11). Kept by the global save ([SMK37.md](../SMK37.md#the-pedal-jack)) |
 | **Bass Behaviour** | Chords Only, Unison Bass, Bass Single Notes, Solo | Chords Only | what the bass plays ([Bass](#6-bass)) |
 | **Single Notes** | Full Octave, Split Oct, Split Bass | Full Octave | Split Oct: single notes below the split point sound an octave lower. Split Bass: the keys below it play the bass part ([Key Mode](#key-mode)) |
 | **Split Point** | C to B | F | where that split is on the Chords keyboard; reads `(Split off)` while Single Notes is Full Octave. The Full keyboard splits at its second F |

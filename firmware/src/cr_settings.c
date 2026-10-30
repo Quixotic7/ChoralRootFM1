@@ -1025,6 +1025,7 @@ static void css_capture(cr_session_t *x)
 #if BOARD_SMK37
     x->smk_master[0] = (uint8_t)((uint32_t)(smk_master + 1) & 0xFFu);   /* K1's level + 1 (0: not stored) */
     x->smk_master[1] = (uint8_t)((uint32_t)(smk_master + 1) >> 8);
+    x->smk_pedal = cs.smk_pedal;                   /* Options > Pedal */
 #endif
     cr_session_seal(x);
 }
@@ -1065,6 +1066,8 @@ static void css_apply(const cr_session_t *x)
         if (lv >= 1u && lv <= 1024u)
             smk_master = (int32_t)lv - 1;
     }
+    cs.smk_pedal = (uint8_t)(x->smk_pedal == 1u);  /* Options > Pedal (0, an older record: Sustain; cr_ui.c cr_smk_pedal
+                                                    * takes the change) */
 #endif
     cu.octave = x->octave;                         /* (cu_post_kbd follows: the split key's note moves with it) */
     cs.loop_rate = (uint8_t)((int)x->loop_rate + (int)CRL_RATE_1);   /* (cu_loop_conf posts it with the looper's) */
@@ -1560,6 +1563,9 @@ static void crs_reinit(void)
     cs.bass_sound = 0;                             /* ALGORITHM at OFF: the bass off */
     cs.bass_on = 0;
     cs.loop_rate = CRL_RATE_1;                     /* the loop's Rate: x1 */
+#if BOARD_SMK37
+    cs.smk_pedal = 0;                              /* Options > Pedal: Sustain */
+#endif
 }
 
 /* Options > Reset Settings (the owner, 2026-10-12): every option back to what a new unit has, now and in flash. The

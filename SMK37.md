@@ -65,14 +65,31 @@ so the whole keybed plays roots. The SMK-37's buttons and knobs map onto the FM-
 | Faders 1..4 | the sends into Drive, Chorus, Delay and Reverb (the order of the FX layer's Sends page), shown as they move; a fader takes over only once it moves, also after FADER BANK |
 | Pitch wheel | bends the chord and the bass part (their channels' bend range: 2 semitones unless set over MIDI); also sent on the CHORD and BASS MIDI channels |
 | Mod wheel | vibrato on both parts (5.5 Hz, up to half a semitone at the top) and the sounds' mod wheel source; also sent as CC 1 |
+| Pedal jack | Options > Pedal: `Sustain` (the default), a switch pedal holds the notes of both parts, sent as CC 64; `Expression`, an expression pedal sets both parts' expression, sent as CC 11 ([The pedal jack](#the-pedal-jack)) |
 | Options > Key Touch | `Dynamic` (the SMK-37's default): every key as played, its two contacts through the unit's factory curve; `Fixed`: every key at Options > Velocity (1..127). Velocity Sens shapes how much the velocity changes the level, as on the FM-1 |
 | OCTAVE- held at power-on | update mode (OCTAVE-'s light flashes three times; install a package, or switch off and on) |
 | OCTAVE- + OCTAVE+ held at power-on | HARDWARE CALIBRATION (the screen asks for the FM-1's names, the table above) |
 | OCTAVE- + OCTAVE+ + PATCH held 5 s | update mode |
 
 The SMK-37's TRS jack is a MIDI output, and this build does not use it; there is no TRS MIDI IN. MIDI works over USB.
-The SMK-37's button lights are on or off: the FM-1's dim glow of idle buttons does not show. The pedal input is not
-used.
+The SMK-37's button lights are on or off: the FM-1's dim glow of idle buttons does not show.
+
+### The pedal jack
+
+The 1/4" pedal jack works in one of two ways, set in Options > Pedal (kept by the global save, SAVE held). Nobody on
+the project has an SMK-37, so it has not been tried with a real pedal: it learns what the pedal reads instead of
+assuming it.
+
+- **Sustain** (the default): a switch pedal, of either polarity. The reading at rest is learnt a moment after power-on
+  and again whenever Options > Pedal is changed; the pedal is down when the reading moves far from it. While it is down,
+  the keys' and pads' notes let go keep sounding on both parts (and the parts' notes from MIDI in, as their channel's
+  own CC 64 does), until the pedal comes up; a note struck again under the pedal starts again. CC 64 goes out on the
+  CHORD and BASS MIDI channels, and the notes' MIDI note-offs go out as you let go. Plug the pedal in before switching
+  on: a normally-closed pedal plugged in later reads as held until you switch off and on or change the option.
+- **Expression**: an expression pedal sets both parts' expression (CC 11: full at 127) and sends CC 11 on the CHORD and
+  BASS channels. Toe down (a lower reading, as the stock firmware reads the jack) is more. The range is learnt as you
+  move the pedal: after plugging it in, sweep it once heel to toe. Nothing is sent until the pedal moves, so an empty
+  jack leaves the parts at full expression; pulling the pedal out puts them back at full.
 
 ### What the FM-1 has and the SMK-37 does not
 
@@ -268,6 +285,13 @@ What no test here can answer, in the order to try it. Note the model, the packag
 12. **The volume (issue 30).** Turn K1 while a chord plays: a popup reads `volume` and the level in per cent, and the
     sound follows. Turn it down, hold SAVE (BT) for the global save, switch off and on: the level is where you left
     it, not back at the default.
+
+13. **The pedal jack.** With a switch pedal plugged in before power-on, Options > Pedal `Sustain`: hold a chord, press
+    the pedal, let go of the keys: the chord rings until the pedal comes up. Say whether your pedal is normally open or
+    normally closed (or has a polarity switch) and whether both settings of it work. Then an expression pedal with
+    Options > Pedal `Expression`: sweep it heel to toe once, then hold a chord and move it: the level follows, toe down
+    louder. Say which end is louder, whether it reaches silence and full, whether it jitters at rest, and whether a TRS
+    and a TS cable (or pedal) behave differently. A MIDI monitor shows CC 64 / CC 11 on the CHORD and BASS channels.
 
 Also worth a line: whether `fm1_install.py --info` shows a unit ID (`unit ID: XXXXXXXX`) and whether two SMK-37s show
 different ones (it is read from the flash chip, whose maker differs from the FM-1's).

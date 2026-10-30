@@ -95,6 +95,10 @@
   ["change", "pointerup", "pointercancel", "lostpointercapture"].forEach((t) => pitch.addEventListener(t, () => { if (+pitch.value !== 535) pitchHome(); }));
   addEventListener("pointerup", () => { if (pitchHeld) pitchHome(); });
   mod.addEventListener("input", () => post({ type: "wheel", i: 1, raw: 629 - +mod.value }));   // up = lower readings
+  // the pedal jack: a switch pedal, down while the button is held (it shorts the jack: ~0; let go: 985, as empty)
+  const pedal = $("pedal");
+  pedal.addEventListener("pointerdown", (ev) => { pedal.setPointerCapture(ev.pointerId); post({ type: "pedal", raw: 0 }); });
+  ["pointerup", "pointercancel", "lostpointercapture"].forEach((t) => pedal.addEventListener(t, () => post({ type: "pedal", raw: 985 })));
   // the keys: 37, C3..C6, across the width
   const keyEl = [], WHITE = [0, 2, 4, 5, 7, 9, 11];
   for (let k = 0, wx = 0; k < 37; k++) {

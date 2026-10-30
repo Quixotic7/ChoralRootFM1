@@ -45,6 +45,7 @@ static struct {
     uint8_t enc_phase[FM1_NENC], enc_hold[FM1_NENC];   /* 0..3 along 0 -> 2 -> 3 -> 1 (+), frames held */
     uint16_t pad_raw[EMU_SMK_NPAD];                    /* the pad's reading (100: at rest) */
     uint16_t fader_raw[4], wheel_raw[2];
+    uint16_t pedal_raw;                                /* the pedal jack (985: nothing plugged in, a pull-up) */
     uint32_t pad_rgb[EMU_SMK_NPAD];                    /* 0xRRGGBB as padled_set got it */
     uint32_t us, frame_us, slot_us;                    /* the model's clock: the next frame, the next slot */
     uint8_t slot, ready;
@@ -72,6 +73,8 @@ static void emu_smk_init(void)                     /* fm1_input_init's RAM side 
     emu_smk.wheel_raw[1] = 629;                        /* the mod wheel at the bottom (up = lower readings) */
     for (i = 0; i < 2u; i++)
         fm1_in.wheel[i] = emu_smk.wheel_raw[i];
+    emu_smk.pedal_raw = 985;                           /* the guide's unit with the jack empty */
+    fm1_in.pedal = emu_smk.pedal_raw;
     emu_smk.ready = 1;
 }
 
@@ -157,7 +160,7 @@ static uint32_t emu_smk_slot_raw(uint32_t slot)    /* analog slot s: mux address
         return emu_smk.fader_raw[SMK_FADMUX[a]];
     if (a < 6u)
         return emu_smk.wheel_raw[a - 4u];
-    return a == 6u ? 985u : 620u;
+    return a == 6u ? emu_smk.pedal_raw : 620u;
 }
 /* the 1 ms tick: ten 100 us scan ticks (one analog slot each), a frame every 16 */
 static void emu_smk_tick(uint32_t ms)

@@ -1136,11 +1136,12 @@ static void t_session(void)
        !SD.bass_on && !SD.lock && !SD.latched && !SD.part[0].valid && !SD.part[1].valid && SD.fx.version == CSS_FX_VERSION &&
        SD.fx.n == 0 && SD.fx.sel == CSS_FXE_REVERB && SD.fx.amt[0] == CSS_FX_NONE && SD.fx.amt[CSS_NFXE - 1] == CSS_FX_NONE,
        "session defaults: nothing stored (the unit as it powered on until 0.17: bass off, voicing 0, the sounds' own sends)");
-    ok(sizeof SD.rsv + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 120u && sizeof SD.smk_master == 2u &&
+    ok(sizeof SD.rsv + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 119u && sizeof SD.smk_master == 2u &&
        (const uint8_t *)SD.smk_master - (const uint8_t *)&SD == 22 && !SD.smk_master[0] && !SD.smk_master[1] &&
+       &SD.smk_pedal - (const uint8_t *)&SD == 24 && !SD.smk_pedal &&
        (const uint8_t *)&SD.fx - (const uint8_t *)&SD == 68 &&
        CSS_NFXP - 29 == 0 && CSS_NP - 91 == 5,
-       "session: 120 bytes of reserve (the SMK-37's MASTER at bytes 22, 23, 0 = not stored; 122 until issue 30, 126 until the routing took rsv_fx's last 4, 142 until 0.22's master filter took 16 of it), no free FX parameter entry of 29, 5 free part parameters");
+       "session: 119 bytes of reserve (the SMK-37's MASTER at bytes 22, 23, 0 = not stored; its Pedal at byte 24, 0 = Sustain; 120 until the pedal, 122 until issue 30, 126 until the routing took rsv_fx's last 4, 142 until 0.22's master filter took 16 of it), no free FX parameter entry of 29, 5 free part parameters");
     ok(SD.loop_rate == 0 && (const uint8_t *)&SD.loop_rate - (const uint8_t *)&SD == 21,
        "session: the loop's Rate, byte 21 (the first of the old reserve), 0 = x1: a record written before it reads x1");
     /* every item round-trips */

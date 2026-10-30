@@ -67,6 +67,13 @@ static void motion_unguard(uint32_t f)
  * Felucca's chords (CHRD), its arpeggiator and live recording were the sequencer's: gone. A part's MIDI notes and the
  * engine's stream share its voices exactly as before (a MIDI note-off ends that note, whoever started it). */
 #define CR_MPED 0x80u                            /* cr_mnote: the key is up, the pedal holds the note */
+#if BOARD_SMK37
+static uint8_t cr_smk_sus_on;                    /* the SMK-37's pedal jack holds notes (cr_smk_pedal_block): the parts'
+                                                  * MIDI notes too, as their channel's CC 64 does (either holds them) */
+#define CR_MPEDAL(c) ((c)->pedal || cr_smk_sus_on)
+#else
+#define CR_MPEDAL(c) ((c)->pedal)
+#endif
 typedef struct {
     int16_t bend;                                /* signed 14-bit, 0 = centre */
     uint8_t pedal, semis, cents, rpn_msb, rpn_lsb, ready;
@@ -105,6 +112,10 @@ static void cr_mpedal_up(uint32_t p)
 {
     uint32_t n;
     cr_mchan(p)->pedal = 0;
+#if BOARD_SMK37
+    if (cr_smk_sus_on)
+        return;                                  /* (the pedal jack still holds them: cr_smk_pedal_block) */
+#endif
     for (n = 0; n < 128u; n++)
         if (cr_mnote[p][n] & CR_MPED)
             cr_mrelease(p, n);
@@ -146,7 +157,7 @@ static void cr_mcontrol(uint32_t p, uint32_t cc, uint32_t v)
     case 123:                                    /* all notes off: normal releases, the pedal honoured */
         for (n = 0; n < 128u; n++)
             if (cr_mnote[p][n] && !(cr_mnote[p][n] & CR_MPED)) {
-                if (c->pedal)
+                if (CR_MPEDAL(c))
                     cr_mnote[p][n] |= CR_MPED;
                 else
                     cr_mrelease(p, n);
@@ -183,7 +194,7 @@ static void __attribute__((noinline)) midi_event(uint32_t st, uint32_t p, uint32
         if (cr_mheld[p] < 128u)
             cr_mheld[p]++;
     } else if (st == 0x80u || st == 0x90u) {
-        if (cr_mnote[p][d1] && cr_mchan(p)->pedal)
+        if (cr_mnote[p][d1] && CR_MPEDAL(cr_mchan(p)))
             cr_mnote[p][d1] |= CR_MPED;
         else
             cr_mrelease(p, d1);
@@ -338,11 +349,34 @@ static void cr_tr_end(uint32_t p)                /* a note of part p ended */
         cr_tr_n[p]--;
 }
 
+#if BOARD_SMK37
+/* SMK-37, the pedal jack's sustain (cr_ui.c cr_smk_pedal): a stream's note let go while it is down keeps sounding on
+ * its part (its part's note-off waits, CR_OPART kept: the transposition's count with it) and is marked here; its MIDI
+ * note-off goes out at once (the channel has CC 64). The pedal up ends every marked note; the note struck again ends
+ * the held one first (it restarts, and one note-off ends it); a panic (cr_cb_all_off) forgets the marks with the notes */
+static uint8_t cr_smk_held[CR_NSTREAM][16];      /* bit n: stream s's note n, held by the pedal */
+#define CR_HELD(s, n) ((cr_smk_held[s][(n) >> 3] >> ((n) & 7u)) & 1u)
+static void cr_smk_unhold(uint32_t s, uint32_t note)   /* the held note's part note-off now (cr_cb_note_off's) */
+{
+    cr_smk_held[s][note >> 3] &= (uint8_t)~(1u << (note & 7u));
+    if (CR_OPART(s, note)) {
+        uint32_t p = CR_OPART(s, note) - 1u;
+        trk_note_off(&trk[p], cr_tr_note(p, note));
+        cr_tr_end(p);
+        CR_OPART_SET(s, note, 0u);
+    }
+}
+#endif
+
 static void cr_cb_note_on(void *ud, cr_stream_t s, uint8_t note, uint8_t vel)
 {
     uint32_t p = cr_route.part[s], old;
     (void)ud;
     note &= 0x7Fu;
+#if BOARD_SMK37
+    if (CR_HELD(s, note))
+        cr_smk_unhold(s, note);                  /* (struck again under the pedal: the held one ends) */
+#endif
     if (p < NPART) {
         old = CR_OPART(s, note);
         if (old != p + 1u) {                     /* (a note already on for this part: counted once) */
@@ -374,6 +408,11 @@ static void cr_cb_note_off(void *ud, cr_stream_t s, uint8_t note)
 {
     (void)ud;
     note &= 0x7Fu;
+#if BOARD_SMK37
+    if (CR_OPART(s, note) && cr_smk_sus_on)
+        cr_smk_held[s][note >> 3] |= (uint8_t)(1u << (note & 7u));   /* the pedal holds it: the part's note-off waits */
+    else
+#endif
     if (CR_OPART(s, note)) {
         uint32_t p = CR_OPART(s, note) - 1u;
         trk_note_off(&trk[p], cr_tr_note(p, note));
@@ -400,6 +439,9 @@ static void cr_cb_all_off(void *ud, cr_stream_t s)
             cr_midi(0xB0u | (CR_OCH(s, n) - 1u), 123, 0);
         cr_ono[s][n] = 0;
     }
+#if BOARD_SMK37
+    memset(cr_smk_held[s], 0, sizeof cr_smk_held[s]);   /* (the held notes went with the part's) */
+#endif
     if (p < NPART)
         trk_all_off(&trk[p]);
     cr_midi(0xB0u | (cr_route.ch[s] & 15u), 123, 0);   /* (always: the channel may hold another device's notes) */
@@ -413,6 +455,43 @@ static void cr_cb_gesture(void *ud, uint32_t gid, int16_t root, uint8_t q, uint8
 }
 
 static const cr_out_t CR_OUT = {cr_cb_note_on, cr_cb_note_off, cr_cb_all_off, 0, cr_cb_gesture};
+
+#if BOARD_SMK37
+/* SMK-37: the pedal jack (cr_ui.c cr_smk_pedal writes these, the audio ISR plays them, once a block, after the wheels).
+ * Sustain: the streams' notes held (above) and the parts' MIDI notes (CR_MPEDAL), CC 64 127 / 0 out on the CHORD and
+ * BASS streams' MIDI channels; up: the held notes end (a part's MIDI notes unless its channel's own CC 64 still holds
+ * them). Expression: both parts' EXPR (mod.c, CC 11: 127 full) and CC 11 out on the same channels */
+static volatile uint8_t cr_smk_sus;              /* 0 up, 1 down */
+static volatile uint8_t cr_smk_expr = 127;       /* 0..127 */
+static void cr_smk_pedal_block(void)
+{
+    static uint8_t expr_was = 127;
+    uint32_t on = cr_smk_sus != 0u, x = cr_smk_expr, s, n, p;
+    if (on != cr_smk_sus_on) {
+        cr_smk_sus_on = (uint8_t)on;
+        if (!on) {
+            for (s = 0; s < CR_NSTREAM; s++)
+                for (n = 0; n < 128u; n++)
+                    if (CR_HELD(s, n))
+                        cr_smk_unhold(s, n);
+            for (p = 0; p < 2u; p++)
+                if (!cr_mchan(p)->pedal)
+                    cr_mpedal_up(p);
+        }
+        for (s = CR_STREAM_MAIN; s <= CR_STREAM_BASS; s++)
+            if (cr_route.midi_en[s])
+                cr_midi(0xB0u | (cr_route.ch[s] & 15u), 64u, on ? 127u : 0u);
+    }
+    if (x != expr_was) {
+        expr_was = (uint8_t)x;
+        for (p = 0; p < 2u; p++)
+            mod_midi(&trk[p], 0xB0u, 11u, x);
+        for (s = CR_STREAM_MAIN; s <= CR_STREAM_BASS; s++)
+            if (cr_route.midi_en[s])
+                cr_midi(0xB0u | (cr_route.ch[s] & 15u), 11u, x);
+    }
+}
+#endif
 
 /* the keys' aftertouch (docs/VELOCITY.md): both parts hear it as channel pressure (mod.c's AT source and the default
  * AT -> CUT of Velocity + Aftertouch), and it goes out as channel pressure on the Perform and Bass channels */
@@ -802,6 +881,7 @@ static void cr_audio_block(uint32_t n)
     cr_midi_in();
 #if BOARD_SMK37
     cr_smk_wheel_block(n);
+    cr_smk_pedal_block();
 #endif
     cr_ms_rem += n * 1000u;                      /* samples -> ms, the remainder kept (no drift) */
     while (cr_ms_rem >= FS) {

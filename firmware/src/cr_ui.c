@@ -612,6 +612,10 @@ static struct {
     uint8_t full_short;                   /* .. Full K Shorts: F#5 / G5 are the Full keyboard's shortcut keys */
     uint8_t midi_keys;                    /* .. MIDI Keys: the channel (1 .. 16) whose notes 53 .. 79 press the keys F3 ..
                                            * G5; 0 Off */
+#if BOARD_SMK37
+    uint8_t smk_pedal;                    /* Options > Pedal: the pedal jack 0 Sustain, 1 Expression (the session's:
+                                           * cr_settings.h smk_pedal; cr_smk_pedal) */
+#endif
 } cs;
 
 /* the layout (docs/CHORD-LAYOUT.md): Classic unless Options > Chord Keys says FM-1 (never on the SMK-37: its chord keys
@@ -1139,7 +1143,11 @@ static void cu_route(void)                        /* Options > MIDI: channels an
 enum { O_STYLE, O_EXTADD, O_SECRET,
        O_LAYOUT, O_SUSWIN, O_FULLSHORT, O_MIDI_KEYS,   /* the chord layouts (0.24, docs/CHORD-LAYOUT.md): together, after
                                           * Secret Chords (the owner, 2026-10-16) */
-       O_SIXTH, O_VEL, O_TOUCH, O_VSENS, O_VCURVE, O_ATSENS, O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
+       O_SIXTH, O_VEL, O_TOUCH, O_VSENS, O_VCURVE, O_ATSENS,
+#if BOARD_SMK37
+       O_PEDAL,                           /* the SMK-37's pedal jack (cr_smk_pedal): not in the FM-1's list */
+#endif
+       O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
        O_CLOCK, O_VIEW, O_MOTION, O_NAMES, O_LEDS, O_HOLD, O_USB_IN, O_USB_LEVEL, O_USB_RATE, O_DUALCORE, O_OUTPUT,
        O_VERSION,
        O_CALIB,
@@ -1150,11 +1158,18 @@ enum { O_STYLE, O_EXTADD, O_SECRET,
 static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Secret Chords",
     "Chord Keys", "SUS Window", "Full K Shorts", "MIDI Keys", "6th with 7th",
     "Velocity", "Key Touch", "Velocity Sens", "Velocity Curve", "Aftertouch Sens",
+#if BOARD_SMK37
+    "Pedal",
+#endif
     "Bass Behaviour", "Single Notes", "Split Point", "MIDI Perform", "MIDI Bass", "MIDI Raw Chord", "Raw Chord Sound",
     "MIDI Clock", "View", "Motion", "Chord Names", "LEDs", "Hold Time", "USB Record", "USB Level", "USB Rate", "Dual Core", "Output",
     "Version",
     "Calibrate", "Reset Settings", "Safe Mode", "Flash Data"};
-static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 2, CU_VCURVE_MAX, CU_ATSENS_MAX, 3, 2, 11, 16, 16,
+static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 2, CU_VCURVE_MAX, CU_ATSENS_MAX,
+#if BOARD_SMK37
+                                   1,
+#endif
+                                   3, 2, 11, 16, 16,
                                    16, 1, 2, V_N - 1, CR_MOTION_N - 1, 1, 1, 3, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0};
 static uint32_t cu_opt_n(void) { return cr_safe ? O_N : O_N_NORMAL; }
 /* an entry listed (docs/CHORD-LAYOUT.md): the chord layouts' four not on the SMK-37 (its chord keys are pads), the
@@ -1230,6 +1245,9 @@ static int32_t opt_get(uint32_t o)
     case O_VSENS: return cs.vel_sens;
     case O_VCURVE: return cs.vel_curve + 3;
     case O_ATSENS: return cs.at_sens;
+#if BOARD_SMK37
+    case O_PEDAL: return cs.smk_pedal;
+#endif
     case O_BASSMODE: return cs.bass_mode;
     case O_SINGLE: return cs.single;
     case O_SPLIT: return cs.split;
@@ -1275,6 +1293,10 @@ static void opt_set(uint32_t o, int32_t v)
     case O_VSENS: cs.vel_sens = (uint8_t)v; cu_touch_apply(); break;
     case O_VCURVE: cs.vel_curve = (int8_t)(v - 3); cu_touch_apply(); break;
     case O_ATSENS: cs.at_sens = (uint8_t)v; cu_touch_apply(); break;
+#if BOARD_SMK37
+    case O_PEDAL: cs.smk_pedal = (uint8_t)v; break;   /* (cr_smk_pedal takes the change: a held sustain let go, the
+                                                       * expression back to full, the rest learnt again) */
+#endif
     case O_BASSMODE: cs.bass_mode = (uint8_t)v; cr_post(CRE_BASS_MODE, 0, 0, v); break;
     case O_SINGLE: cs.single = (uint8_t)v; cu_post_single(); break;
     case O_SPLIT: cs.split = (uint8_t)v; cu_post_single(); break;
@@ -1377,6 +1399,7 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
 #if BOARD_SMK37
     case O_VCURVE: case O_ATSENS: cu_cpy(d, "FM-1 only", n); break;   /* (CU_VCURVE_MAX, CU_ATSENS_MAX) */
     case O_VSENS: cu_cpy(d, v == 2 ? "High" : v ? "Low" : "Mid", n); break;
+    case O_PEDAL: cu_cpy(d, v ? "Expression" : "Sustain", n); break;
 #else
     case O_VSENS: case O_ATSENS: cu_cpy(d, v == 2 ? "High" : v ? "Low" : "Mid", n); break;
     case O_VCURVE: cu_int(d, v - 3, 1, n); break;
@@ -5986,10 +6009,92 @@ static void cr_smk_wheels(void)
     cr_smk_modw = (uint8_t)mw;
 }
 
+/* the pedal jack (mux C address 6, hal/smk_input.h fm1_in.pedal): a pull-up, ~985 with nothing plugged in, no plug
+ * detect. What a pedal reads is not known here (no unit to try; the stock firmware takes 1023 - raw through its
+ * calibration record's fifth curve: raw ~0..170 the active range), so both modes learn. Options > Pedal:
+ *   Sustain     a switch pedal of either polarity: its rest is learnt once the readings settle at power-on and again
+ *               at every change of the option; down = more than 400 counts from it (up again within 250), steady for
+ *               8 scan frames (~13 ms). A normally-closed pedal plugged in after power-on reads as held until then
+ *   Expression  0..127, lower raw = more (as the stock firmware's inversion). The range is what the pedal has
+ *               reached (a dead band inside each end: both reachable), learnt once it has rested plugged in ~0.3 s;
+ *               nothing is sent until that range spans 48 counts (an empty jack sets nothing: the parts stay at full
+ *               expression, 127). The empty jack's reading (940 and up) is no pedal: back to 127, the range learnt
+ *               again from the next pedal. A step of 2 or an end, as the faders (no jitter)
+ * Leaving a mode lets go of what it held: a sustain up, the expression back to 127. Once per scan frame (~1.6 ms),
+ * called with the wheels; a change is a touch (the screensaver). The audio ISR plays them (cr_out.c
+ * cr_smk_pedal_block) */
+static void cr_smk_pedal(void)
+{
+    enum { OPEN = 940, DOWN = 400, UP = 250, DEB = 8, PLUG = 200, SPAN = 48, DEAD = 6 };
+    static uint32_t seen, t_flip, t_open;
+    static int32_t acc, rest, lo, hi;
+    static uint8_t ready, mode, on, moved;
+    uint32_t fr = fm1_in.frames;
+    int32_t r, d, e, x;
+    if (fr < 300u || fr == seen)                   /* (the readings settle) */
+        return;
+    seen = fr;
+    if (!ready)
+        acc = (int32_t)fm1_in.pedal * 16;
+    acc += ((int32_t)fm1_in.pedal * 16 - acc) / 4; /* x16 IIR */
+    r = acc / 16;
+    if (!ready || mode != cs.smk_pedal) {          /* power-on, or the option changed: start again */
+        if (on || cr_smk_expr != 127u)
+            cu.last_input = cu.last_local = cu_now();
+        cr_smk_sus = 0;
+        cr_smk_expr = 127;
+        ready = 1;
+        mode = cs.smk_pedal;
+        on = moved = 0;
+        rest = r;
+        t_flip = t_open = fr;
+        lo = 1023;
+        hi = 0;
+        return;
+    }
+    if (!mode) {                                   /* Sustain */
+        d = r > rest ? r - rest : rest - r;
+        if ((on ? d > UP : d > DOWN) == on)
+            t_flip = fr;
+        else if (fr - t_flip >= DEB) {
+            on ^= 1u;
+            cr_smk_sus = on;
+            cu.last_input = cu.last_local = cu_now();
+        }
+        return;
+    }
+    if (r >= OPEN) {                               /* Expression: the jack empty */
+        t_open = fr;
+        lo = 1023;
+        hi = 0;
+        if (moved) {
+            moved = 0;
+            cr_smk_expr = 127;
+            cu.last_input = cu.last_local = cu_now();
+        }
+        return;
+    }
+    if (fr - t_open < PLUG)                        /* (a plug going in: its contacts settle) */
+        return;
+    lo = r < lo ? r : lo;
+    hi = r > hi ? r : hi;
+    if (!moved && hi - lo < SPAN)
+        return;
+    moved = 1;
+    e = hi - r <= DEAD ? 0 : r - lo <= DEAD ? 127 : (hi - DEAD - r) * 127 / (hi - lo - 2 * DEAD);
+    e = e < 0 ? 0 : e > 127 ? 127 : e;
+    x = cr_smk_expr;
+    if (e > x + 1 || e + 1 < x || (e != x && (e == 0 || e == 127))) {
+        cr_smk_expr = (uint8_t)e;
+        cu.last_input = cu.last_local = cu_now();
+    }
+}
+
 static void cr_smk_frame(void)                     /* main.c, once a frame */
 {
     cu_smk_faders();
     cr_smk_wheels();
+    cr_smk_pedal();
 }
 #endif
 
@@ -7542,6 +7647,10 @@ static void cu_options_screen(cr_screen_t *s)
         cu_cpy(s->label, "notes 53..79 press F3..G5", sizeof s->label);
     else if (cu.opt_sel == O_SIXTH)                /* (docs/CHORD-NAMES.md "The 6th above a seventh": C7 + 6 and the like) */
         cu_cpy(s->label, cs.sixth_up ? "6 + 7: the 6th on top, a 13th" : "6 + 7: the 6th under the 7th", sizeof s->label);
+#if BOARD_SMK37
+    else if (cu.opt_sel == O_PEDAL)                /* (SMK37.md "The pedal jack") */
+        cu_cpy(s->label, cs.smk_pedal ? "the jack: CC 11, both parts" : "the jack: CC 64, both parts", sizeof s->label);
+#endif
     else if (cu.opt_sel == O_NAMES)                /* (docs/CHORD-NAMES.md: the same notes under either name) */
         cu_cpy(s->label, cs.names_std ? "A9 \267 Aadd9 \267 A9sus4" : "A7 9 \267 A9 \267 Asus m7 9", sizeof s->label);
     else if (cu.opt_sel == O_VERSION) {            /* the unit's ID under the version (3y66: several FM-1s on one

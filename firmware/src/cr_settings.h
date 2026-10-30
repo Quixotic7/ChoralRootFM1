@@ -292,8 +292,8 @@ static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uin
  * CR_BLOCK), so the block keeps its size and its layout and an older firmware reads a v15 block as it read v14's.
  * The record has its own header (magic, version, size, check: FNV-1a over [12, size)), the block's import rules (a
  * shorter, older record over the defaults; a longer, newer one by its prefix; anything else: the defaults = the unit as
- * 0.17 powered on) and real reserve: CSS_SIZE is 1024 of the object's 3840 bytes, 120 of them unused today (44 in the
- * state, 8 in each part, 60 at the end; the SMK-37's MASTER took two of the state's).
+ * 0.17 powered on) and real reserve: CSS_SIZE is 1024 of the object's 3840 bytes, 119 of them unused today (43 in the
+ * state, 8 in each part, 60 at the end; the SMK-37's MASTER took two of the state's, its Pedal one).
  * `bind`: the CRC of the settings object in flash when the session was written (0: none). The session is used at
  * power-on if the settings block was read as current (written by a v15 firmware: an older one in between would have
  * left its own version there) or, with any other block, if the settings object is still the one the session was
@@ -398,7 +398,10 @@ typedef struct {
                                          * 0.26-smk37 one: 724 as before). The FM-1 build neither writes nor reads it
                                          * (its MASTER is a physical pot): 0 in its records. Bytes 22, 23 (the first
                                          * two of the old reserve) */
-    uint8_t rsv[44];
+    uint8_t smk_pedal;                  /* the SMK-37's only: Options > Pedal, what its pedal jack does: 0 Sustain (the
+                                         * default: an older record, a record of the FM-1 build), 1 Expression. The
+                                         * FM-1 build neither writes nor reads it. Byte 24 (the old reserve's third) */
+    uint8_t rsv[43];
     css_fx_t fx;                        /* (rsv_fx[4] after it until the routing (issue 21): its entry took it) */
     css_part_t part[2];                 /* chord, bass */
     uint8_t rsv_end[60];

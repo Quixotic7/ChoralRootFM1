@@ -67,6 +67,7 @@ class SMK37 extends AudioWorkletProcessor {
       case "pad": ex.web_smk_pad(m.p | 0, m.vel | 0); break;
       case "fader": ex.web_smk_fader(m.i | 0, m.v | 0); break;
       case "wheel": ex.web_smk_wheel(m.i | 0, m.raw | 0); break;
+      case "pedal": ex.web_smk_pedal(m.raw | 0); break;
       case "midi": for (const p of m.pkts) this.midiIn.push(p >>> 0); break;
     }
   }

@@ -407,6 +407,7 @@ static void fm1_main(void)
             ui_input();
 #if BOARD_SMK37
             cr_smk_wheels();                    /* (bends follow the wheel, not the screen) */
+            cr_smk_pedal();                     /* (the pedal jack: its sustain, its expression) */
 #endif
 #if FELUCCA_OTA
             ed_service();                       /* editor replies without waiting for the next frame */

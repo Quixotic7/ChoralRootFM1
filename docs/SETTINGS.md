@@ -45,6 +45,7 @@ from a layer: it goes with the layer (manual).
 | 6th with 7th (0.20) | Options | block `pick_roots` bit 4 | **automatic** |
 | Velocity | Options | block `vel` | **automatic** |
 | Key Touch (Fixed, Dynamic, Vel + Aftertouch, Vel + Poly AT), Velocity Sens, Aftertouch Sens (docs/VELOCITY.md) | Options | block `bass_on` bits 2..7 (`CRS_TOUCH`, `CRS_VSENS`, `CRS_ATSENS`; 0 = Fixed / Mid, the defaults: no version) | **automatic** |
+| Pedal (the SMK-37 only: Sustain, Expression; SMK37.md "The pedal jack") | Options | session `smk_pedal` (byte 24; 0 = Sustain, an older record's too; the FM-1 build neither writes nor reads it) | manual (the global save) |
 | Velocity Curve -3 .. +3 (docs/VELOCITY.md "fm1-ctl") | Options | block `pick_roots` bits 5..7 (`CRS_VCURVE`, two's complement; 0 = 0, the default: no version) | **automatic** |
 | MIDI Perform, MIDI Bass, MIDI Raw Chord | Options | block `midi_en[3]`, `midi_ch[3]` | **automatic** |
 | Raw Chord Sound | Options | block `raw_sound` bit 0 | **automatic** |

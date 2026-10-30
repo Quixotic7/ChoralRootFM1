@@ -5,7 +5,9 @@
 //    imports: boots and draws; MAJ's pad and C4 held: the chord C major sounds (notes 60 64 67), the screen's chord
 //    name is "C M", the pad lights; a key struck soft and loud goes out at a lower and a higher velocity (the keys' two
 //    contacts through the factory curve, hal/smk_input.h, Key Touch Dynamic); K1 turns the volume down; SCALE (KEY)
-//    lights; the same input twice gives the same samples.
+//    lights; the same input twice gives the same samples. K1's volume kept over a power cycle. The pedal jack: Sustain
+//    holds a key's note past its release until the pedal comes up (CC 64 out); Expression sets CC 11 and the parts'
+//    ex_off, nothing before the pedal moves, full again back on Sustain.
 // 2. The page: build/emu-web-smk37 served by python3 -m http.server, a headless Chromium screenshot of ?demo (its
 //    processes stopped by their PID).
 import fs from "node:fs";
@@ -152,6 +154,60 @@ console.log("K1, the volume (GitHub issue 30): its popup, and the level back aft
   ok(e.ex.web_smk_master() === lv, `after SAVE held and a power cycle: ${lv} again (${e.ex.web_smk_master()})`);
   const sr2 = (e.dump().match(/screen reads:.*/) || [""])[0];
   ok(!/label 'volume'/.test(sr2), "no volume popup at power-on (the level set, K1 not turned)");
+}
+
+console.log("the pedal jack: Sustain holds a released key's note until it comes up; Expression sets CC 11");
+{
+  const d = await load(), ex = d.ex;
+  const cc = (pkts, n) => pkts.filter((p) => (p & 15) === 11 && ((p >>> 8) & 0xf0) === 0xb0 && ((p >>> 16) & 127) === n)
+    .map((p) => (p >>> 24) & 127);
+  const gates = () => ex.web_smk_part(0) & 255, exOff = (p) => ex.web_smk_part(p) >>> 8;
+  ex.web_boot();
+  d.render(ms(3000));                         // (past the splash; the jack empty: 985)
+  d.midi();
+  ex.web_smk_key(19, 100);                    // G4 without the pedal: let go, it ends
+  d.render(ms(200));
+  const g0 = gates();
+  ex.web_smk_key(19, 0);
+  d.render(ms(200));
+  ok(g0 > 0 && gates() === 0, `no pedal: G4 sounds (${g0} keyed voices) and ends when let go (${gates()})`);
+  ok(cc(d.midi(), 64).length === 0, "the empty jack sends no CC 64");
+  ex.web_smk_pedal(0);                        // a normally-open switch pedal pressed: the jack shorted
+  d.render(ms(100));
+  const down = cc(d.midi(), 64);
+  ex.web_smk_key(19, 100);
+  d.render(ms(200));
+  ex.web_smk_key(19, 0);
+  d.render(ms(300));
+  const held = gates(), offs = d.midi().filter((p) => ((p >>> 8) & 0xf0) === 0x80 || (((p >>> 8) & 0xf0) === 0x90 && !((p >>> 24) & 127)));
+  ex.web_smk_pedal(985);                      // up
+  d.render(ms(100));
+  const up = cc(d.midi(), 64);
+  ok(down.length >= 1 && down.every((v) => v === 127), `pedal down: CC 64 127 out (${down.join(",")})`);
+  ok(held > 0, `G4 let go under the pedal: it still sounds (${held} keyed voices)`);
+  ok(offs.length >= 1, `.. its MIDI note-off went out at once (${offs.length})`);
+  ok(gates() === 0 && up.length >= 1 && up.every((v) => v === 0), `pedal up: the note ends (${gates()}), CC 64 0 out (${up.join(",")})`);
+  ex.web_smk_pedal_mode(1);                   // Options > Pedal: Expression; an expression pedal plugged in
+  ex.web_smk_pedal(170);
+  d.render(ms(600));
+  const still = cc(d.midi(), 11);
+  ok(still.length === 0 && exOff(0) === 0, `Expression, the pedal resting: nothing sent, the parts at full (${still.join(",")} ex_off ${exOff(0)})`);
+  const sweep = (from, to, step) => {         // 15 ms a step, the MIDI out taken as it goes (its queue is short)
+    const m = [];
+    for (let r = from; step < 0 ? r >= to : r <= to; r += step) { ex.web_smk_pedal(r); d.render(ms(15)); m.push(...d.midi()); }
+    d.render(ms(200));
+    return cc(m.concat(d.midi()), 11);
+  };
+  sweep(170, 10, -10);                        // toe down (lower raw = more)
+  const sw = sweep(10, 170, 10);              // heel down
+  ok(sw.length > 2 && sw[sw.length - 1] === 0 && exOff(0) === 127 && exOff(1) === 127,
+     `the pedal back to the heel: CC 11 down to 0 (${sw.slice(-4).join(",")}), both parts' ex_off 127 (${exOff(0)}, ${exOff(1)})`);
+  const half = sweep(170, 90, -10), hv = half[half.length - 1];   // half way
+  ok(hv > 40 && hv < 90 && exOff(0) === 127 - hv, `half way: CC 11 ${hv}, ex_off ${exOff(0)}`);
+  ex.web_smk_pedal_mode(0);                   // back to Sustain: the parts at full again
+  d.render(ms(100));
+  const back = cc(d.midi(), 11);
+  ok(back[back.length - 1] === 127 && exOff(0) === 0 && exOff(1) === 0, `back to Sustain: CC 11 127, ex_off 0 (${back.join(",")})`);
 }
 
 if (!args.has("--no-page")) {
