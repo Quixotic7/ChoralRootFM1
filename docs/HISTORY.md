@@ -6677,3 +6677,8 @@ web importer). docs/QUAD.md "AHD and CRUSH", docs/MANUAL.md (FM TONE's screens).
 `cr_quad_test t_ahd_crush` (ATK 20 / HOLD 40 / DEC 40 on their tables, the key up in a timed hold changes nothing, the
 voice ends; HOLD NOTE at the top 2 s, DEC INF endless; AHD -> ADSR mid-note; SRR 127 = 64 new values in 4096; BITS 127
 one bit, BITS 64 steps of 128; CRUSH PRE and POST differ). Size: XIP 555,188 B (+1,312; 18,252 B free).
+
+3y210. **The dev build reads "ChoralRoot 0.28".** The first firmware that plays FM TONE version 6 (3y202..3y209); the
+web device manager (claude/dn2-import) writes version-6 sounds only to a unit whose version string reads 0.28 or later
+and a version-5 copy (`quadToV5`) to older ones, so the dev build now reads as the next tag (choralroot.c
+`FELUCCA_VERSION`, as 0.27's tree did). No tag, no release notes, no releases.json entry.
