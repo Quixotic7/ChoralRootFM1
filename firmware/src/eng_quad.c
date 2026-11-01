@@ -424,6 +424,10 @@ typedef struct {
                                                   * the block to this block's */
     int16_t fsm, rsm;                            /* FREQ and RESO as the filter runs them (quad_glide_v, FIZZ's P2.6b) */
     int32_t dh, dl1, dl2;                        /* DRIVE before the filter (QP_DRPRE): the voice's DIST (dsp.c) */
+    uint8_t cline, cfresh;                       /* COMB: the line lent to it + 1 (0 none: MULTI; quad_comb_lend), its
+                                                  * line from rest at the next render */
+    uint16_t cw;                                 /* .. the line's write place */
+    int32_t clp, clen;                           /* .. its damping low-pass, its length as the last block ended (Q8) */
 } quad_voice_t;
 #define QUAD_FON_NEW 0xFFu
 #define QUAD_MIX_NEW (-128)
@@ -961,6 +965,7 @@ static int32_t quad_lfo_wave(uint32_t w, uint32_t ph, int32_t r)
     }
 }
 
+static void quad_comb_lend(const track_t *t, uint32_t tr, const int16_t *p);   /* (the combs' lines, below) */
 /* once a block and part: the macros into the patch, the FREE LFOs' phases */
 static void quad_block(track_t *t)
 {
@@ -970,6 +975,7 @@ static void quad_block(track_t *t)
         return;
     p = quad_patch[tr];
     quad_dro[tr] = quad_fx_off[tr][0];
+    quad_comb_lend(t, tr, p);
     for (k = 0; k < 8u; k++)                     /* a knob, the editor, the matrix, motion moved a macro */
         if (t->p[P_E0 + k] != quad_mlast[tr][k]) {
             quad_mlast[tr][k] = t->p[P_E0 + k];
@@ -1069,6 +1075,7 @@ static void quad_note_on(track_t *t, voice_t *v)
         s->bh = s->bl = 0;
         s->dc = 0;
         s->dh = s->dl1 = s->dl2 = 0;
+        s->cfresh = 1;                           /* (a comb from rest) */
         s->fon = QUAD_FON_NEW;
         s->mixp = QUAD_MIX_NEW;
         quad_env_start(s, 0, p[QP_ADLY], 1);
@@ -1323,7 +1330,98 @@ static inline void quad_svf_tick(const quad_svf_t *c, int32_t *ic1, int32_t *ic2
     *ic1 = clamp(2 * *v1 - a, -150000, 150000);
     *ic2 = clamp(2 * *v2 - b, -150000, 150000);
 }
-/* MULTI and EQ (the combs: MULTI until 3y208) on n samples of acc: c the SVF's coefficients at the cut and RESO's
+/* COMB+ / COMB- (3y208, FIZZ's E2): a 1024-sample line a voice, FREQ its pitch (the length QE_COMB_LEN by the cut,
+ * Q8 samples: ChoralRoot's cutoff law, 30 Hz .. 16 kHz, at most 1022: 43 Hz the lowest), RESO its feedback (0 .. 0.985),
+ * SHAPE the damping of what it feeds back; y = x +- g lp(d[n - L]) into the line, out y (1 - g / 2). The lines are
+ * LENT, as FIZZ's device build lends them: QUAD_NCOMB (8, 16 KB of POOL) for the two parts' 16 voices; a voice that
+ * starts a comb (or is switched to one) takes a free line, and keeps it while it runs a comb and sounds; none free:
+ * that voice runs MULTI (FIZZ's rule). quad_block lends and takes back, on the part's own core before its voices (the
+ * two parts' blocks never run at once: part 0's is before the hand-over, part 1's in core 1's job), so the voices of a
+ * chord on two cores only use the line they were given */
+static const uint32_t QE_COMB_LEN[128] = {
+    261632, 261632, 261632, 261632, 261632, 261632, 261632, 261632, 253383, 241160, 229527, 218454,
+    207916, 197886, 188340, 179255, 170608, 162378, 154544, 147089, 139994, 133240, 126813, 120696,
+    114873, 109332, 104058, 99038, 94260, 89713, 85386, 81267, 77346, 73615, 70064, 66684,
+    63467, 60406, 57492, 54718, 52079, 49566, 47175, 44900, 42734, 40672, 38710, 36843,
+    35066, 33374, 31764, 30232, 28773, 27385, 26064, 24807, 23610, 22471, 21387, 20356,
+    19374, 18439, 17550, 16703, 15897, 15130, 14400, 13706, 13045, 12415, 11816, 11246,
+    10704, 10188, 9696, 9228, 8783, 8359, 7956, 7572, 7207, 6859, 6529, 6214,
+    5914, 5629, 5357, 5099, 4853, 4619, 4396, 4184, 3982, 3790, 3607, 3433,
+    3267, 3110, 2960, 2817, 2681, 2552, 2429, 2312, 2200, 2094, 1993, 1897,
+    1805, 1718, 1635, 1556, 1481, 1410, 1342, 1277, 1216, 1157, 1101, 1048,
+    997, 949, 903, 860, 818, 779, 741, 706,
+};
+#define QUAD_NCOMB 8u
+#define QUAD_COMB_N 1024u
+static int16_t qe_comb[QUAD_NCOMB][QUAD_COMB_N] __attribute__((section(".pool")));
+static uint8_t qe_by[QUAD_NCOMB];                /* the voice holding line k: part x QUAD_POLY + voice + 1, 0 free */
+static int32_t qe_comb_len(int32_t cut)
+{
+    int32_t i;
+    cut = clamp(cut, 0, 127 << 8);
+    i = cut >> 8;
+    if (i >= 127)
+        return (int32_t)QE_COMB_LEN[127];
+    return (int32_t)QE_COMB_LEN[i] + (((int32_t)QE_COMB_LEN[i + 1] - (int32_t)QE_COMB_LEN[i]) * (cut & 255)) / 256;
+}
+/* quad_block: part tr's voices that run a comb and sound get a line (their own place's first, then any free), the
+ * others give theirs back */
+static void quad_comb_lend(const track_t *t, uint32_t tr, const int16_t *p)
+{
+    int comb = p[QP_FTYPE] == QF_COMBP || p[QP_FTYPE] == QF_COMBN;
+    uint32_t i, k;
+    for (k = 0; k < QUAD_NCOMB; k++)             /* (lines held by a part no longer on FM TONE: free) */
+        if (qe_by[k] && (qe_by[k] - 1u) / QUAD_POLY != tr && trk[(qe_by[k] - 1u) / QUAD_POLY].engine != ENGI_QUAD)
+            qe_by[k] = 0;
+    for (i = 0; i < QUAD_POLY; i++) {
+        quad_voice_t *s = &quad_vs[tr][i];
+        uint8_t id = (uint8_t)(tr * QUAD_POLY + i + 1u);
+        int want = comb && s->live && t->v[i].active;
+        if (s->cline && (!want || qe_by[s->cline - 1u] != id)) {
+            if (qe_by[s->cline - 1u] == id)
+                qe_by[s->cline - 1u] = 0;
+            s->cline = 0;
+        }
+        if (want && !s->cline)
+            for (k = 0; k < QUAD_NCOMB; k++) {
+                uint32_t at = (id - 1u + k) % QUAD_NCOMB;
+                if (!qe_by[at]) {
+                    qe_by[at] = id;
+                    s->cline = (uint8_t)(at + 1u);
+                    s->cfresh = 1;
+                    break;
+                }
+            }
+    }
+}
+/* the comb on n samples of acc (the voice's line s->cline) */
+static void quad_comb(quad_voice_t *s, int neg, int32_t *acc, uint32_t n, int32_t cut, int32_t reso, int32_t shape)
+{
+    int16_t *line = qe_comb[s->cline - 1u];
+    const int32_t g = clamp(reso, 0, 12700) * 32276 / 12700;   /* (0 .. 0.985, Q15) */
+    const int32_t ka = 1024 + shape * 31744 / 127, outk = 32768 - g / 2;
+    int32_t l1 = qe_comb_len(cut), l0, dl, lp;
+    uint32_t i, w;
+    if (s->cfresh) {                             /* (from rest: a fresh note, a line just lent) */
+        memset(line, 0, sizeof qe_comb[0]);
+        s->cw = 0, s->clp = 0, s->clen = l1, s->cfresh = 0;
+    }
+    l0 = s->clen, dl = (l1 - l0) * 16 / (int32_t)(n ? n : 1u), lp = s->clp, w = s->cw;
+    for (i = 0; i < n; i++) {
+        const int32_t len = l0 + ((dl * (int32_t)i) >> 4), di = len >> 8, fr = len & 255;
+        const int32_t a0 = line[(w - (uint32_t)di) & (QUAD_COMB_N - 1u)];
+        const int32_t a1 = line[(w - (uint32_t)di - 1u) & (QUAD_COMB_N - 1u)];
+        const int32_t d = a0 + (((a1 - a0) * fr) >> 8);
+        int32_t y;
+        lp += (int32_t)(((int64_t)(d - lp) * ka) >> 15);
+        y = acc[i] + (neg ? -1 : 1) * (int32_t)(((int64_t)g * lp) >> 15);
+        line[w & (QUAD_COMB_N - 1u)] = (int16_t)clamp(y, -32768, 32767);
+        w++;
+        acc[i] = soft_knee(clamp((int32_t)(((int64_t)y * outk) >> 15), -200000, 200000), 16000);
+    }
+    s->clp = lp, s->clen = l1, s->cw = (uint16_t)(w & (QUAD_COMB_N - 1u));
+}
+/* MULTI and EQ (the combs without a line: MULTI) on n samples of acc: c the SVF's coefficients at the cut and RESO's
  * damping kd, shape / gain SHAPE and GAIN; the integrators the voice's (a switch among the SVF's types keeps them) */
 static void quad_machine(uint32_t fty, int32_t *acc, uint32_t n, const quad_svf_t *c, int32_t kd, int32_t cut,
                          int32_t shape, int32_t gain, int32_t *ic1, int32_t *ic2)
@@ -1787,7 +1885,9 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         ic2 = clamp(2 * v2 - ic2, -150000, 150000);                        \
         acc[i] = soft_knee(clamp((Y), -200000, 200000), 16000);            \
     }
-        if (fty >= QF_MULTI)                     /* the machines (version 6) */
+        if ((fty == QF_COMBP || fty == QF_COMBN) && s->cline)   /* (a comb with its line) */
+            quad_comb(s, fty == QF_COMBN, acc, n, cut, reso, p[QP_FSHAPE]);
+        else if (fty >= QF_MULTI)                /* the machines (version 6) */
             quad_machine((uint32_t)fty, acc, n, &c, kd, cut, p[QP_FSHAPE], p[QP_FGAIN], &ic1, &ic2);
         else if (fty == QF_HP12)
             QUAD_SVF(, x - ((kd * v1) >> 12) - v2)

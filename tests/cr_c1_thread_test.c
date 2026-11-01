@@ -81,6 +81,12 @@ static void usp_on(const pair_t *p)                 /* (after a sound load: the 
         quad_patch[0][QP_LFO(0, QL_DEPTH)] = 5000;
         trk[0].p[P_DIST] = 80;
     }
+    if (p->usp == 5u && p->ce == ENGI_QUAD) {           /* (3y208: COMB+ on the chord, COMB- on the bass: the 8 lines lent
+                                                         * across both parts, chord voices on two cores) */
+        quad_patch[0][QP_FTYPE] = QF_COMBP, quad_patch[0][QP_RESO] = 9000, quad_patch[0][QP_FSHAPE] = 90;
+        if (p->be == ENGI_QUAD)
+            quad_patch[1][QP_FTYPE] = QF_COMBN, quad_patch[1][QP_RESO] = 8000;
+    }
 }                              /* 3y177: the most chord voices of a split engine (not P5: its
                                                      * own counts are cr_dbg's) that core 0 / core 1 rendered in a
                                                      * block (fx.c p5x_run's list, as the block left it) */
@@ -305,6 +311,8 @@ int main(int argc, char **argv)
     PAIR(ENGI_QUAD, 10, ENGI_VA, 2, "FM TONE chord WOBBLE, VA bass");
     PAIR(ENGI_QUAD, 1, ENGI_QUAD, 3, "FM TONE chord with DRIVE PRE and LFO 1 on DRIVE, FM TONE bass");
     P[np - 1u].usp = 4;                                 /* (4: DRIVE 80 PRE, LFO 1 -> DRIVE) */
+    PAIR(ENGI_QUAD, 5, ENGI_QUAD, 6, "FM TONE chord COMB+, FM TONE bass COMB- (the lent lines)");
+    P[np - 1u].usp = 5;
     fams = np - 1u;
     printf("cr_c1_thread: the bass part's job on a second thread (%u pairs, %u blocks each%s)\n", (unsigned)np, (unsigned)nb,
            tsan ? "; the sanitizer's run" : "");

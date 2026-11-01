@@ -6651,3 +6651,16 @@ unchanged, `tests/quad_goldens` unchanged (TYPE 0..3 untouched). Tests: `cr_quad
 MULTI 0 / 127 = LP12 / HP12 within 1 LSB; EQ within 0.3 dB of its table at four gains; BWPOST; no overflow at the
 extremes). Web: `DN_QUAD_RANGES` FTYPE 0..7 (= the firmware's), a Digitone 1 type clamped to 0..3. Size: XIP 552,196 B
 (+1,664).
+
+3y208. **FM TONE's COMB+ and COMB- with 8 lent lines** (FIZZ's E2 combs, as its device build lends them). TYPE 5 / 6
+now run the comb: FREQ its pitch, RESO its feedback, SHAPE its damping (`quad_comb`, FIZZ's `QE_COMB_LEN`; the line
+length's ramp over a block in 32-bit steps instead of FIZZ's 64-bit division a sample). 8 lines of 1024 (16 KB of
+POOL) for the two parts' 16 voices, lent in `quad_block` (`quad_comb_lend`: a sounding comb voice takes a free line,
+its own place's first; gives it back when it ends or leaves the combs; a part off FM TONE gives back its lines); no
+line: MULTI, sample for sample. The lending is on each part's own core before its voices, so the chord's voices on two
+cores (3y206) only read their own line. docs/QUAD.md "The filter machines". Goldens: 317 unchanged. Tests:
+`cr_quad_test t_combs` (COMB+'s pitch on noise at 110 / 440 / 1760 Hz within ~1 %, COMB-'s odd harmonics, COMB+'s every
+harmonic, 8 voices 8 lines and the other part's comb voice MULTI, a line given back goes to it, a part off FM TONE
+frees its line, no line = MULTI's samples, full resonance with DRIVE 127: no overflow); `cr_c1_thread_test` 25 pairs
+(+1: COMB+ chord over a COMB- bass; inline = thread = unsplit; ThreadSanitizer 0). Size: XIP 553,876 B (+1,680), POOL
+327,212 of 344,064 (+16,576: 16.5 KB spare).

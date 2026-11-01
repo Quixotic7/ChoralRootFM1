@@ -384,6 +384,14 @@ t_machines` (FIZZ's t_machines: MULTI 0 / 127 = LP12 / HP12 within 1 LSB, 64 the
 0.3 dB of its table; BWPOST; every machine at full resonance with DRIVE 127 PRE: no overflow, the voice ends). The editor's
 filter band draws MULTI by its SHAPE; EQ and the combs flat.
 
+**COMB+ / COMB-** (3y208): y = x +- g lp(d[n - L]) through a 1024-sample line, L by FREQ (`QE_COMB_LEN`, ChoralRoot's
+cutoff law: 43 Hz the lowest), g by RESO (0 .. 0.985), the feedback's low-pass by SHAPE; COMB- has the odd harmonics of
+f / 2. The lines are **lent**: 8 (`qe_comb`, 16 KB of POOL) for both parts' 16 voices; `quad_comb_lend` in `quad_block`
+gives a comb voice that sounds a free line and takes it back when the voice ends or leaves the combs (and frees a part's
+lines once it is off FM TONE); a voice without one runs MULTI, sample for sample (FIZZ's rule). Both parts' blocks never
+run at once, and a chord voice on core 1 only uses the line it was given: `cr_c1_thread_test` (COMB+ chord over a COMB-
+bass) inline = thread, ThreadSanitizer 0. Cost: ~+18 us a comb voice (FIZZ's figure).
+
 ### Two cores (2026-10-31, 3y206)
 
 FM TONE's chord voices are shared out between the cores as the VA's, FM6's and P5's (`ENG_QUAD.split` 20, fx.c

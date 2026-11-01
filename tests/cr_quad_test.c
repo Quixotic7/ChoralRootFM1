@@ -70,6 +70,7 @@ static void drv_reset(track_t *t)
     memset(t, 0, sizeof *t);
     memset(quad_vs, 0, sizeof quad_vs);
     memset(quad_lfo, 0, sizeof quad_lfo);
+    memset(qe_by, 0, sizeof qe_by);
     t->p[P_VOICE] = V_POLY;
     t->eng_req = t->engine = ENGI_QUAD;
     song.g[G_BPM] = 120;
@@ -931,6 +932,135 @@ static void t_machines(void)
                 ok &= a[k] > -2000000000 && a[k] < 2000000000;
         }
         CHECK(ok, "MULTI, COMB+, COMB-, EQ at full resonance / gain, DRIVE 127 PRE, a low note: no overflow, the voice ends");
+    }
+}
+
+/* the combs (3y208, FIZZ's t_machines): COMB+'s pitch on noise at 110 / 440 / 1760 Hz within about 1 %, COMB-'s odd
+ * harmonics of f / 2, COMB+'s every harmonic of f; the lines lent: 8 comb voices a line each, the ninth (the other part)
+ * MULTI sample for sample, a line given back goes to it; a comb at full resonance: no overflow */
+static void e2_comb(int neg, int32_t shape, const int32_t *in, int32_t *out, uint32_t n, int32_t cut, int32_t reso)
+{
+    static quad_voice_t s;
+    uint32_t o;
+    memset(&s, 0, sizeof s);
+    memset(qe_by, 0, sizeof qe_by);
+    s.cline = 1, s.cfresh = 1, qe_by[0] = 1;
+    for (o = 0; o + CTL <= n; o += CTL) {
+        memcpy(out + o, in + o, CTL * sizeof *out);
+        quad_comb(&s, neg, out + o, CTL, cut, reso, shape);
+    }
+    memset(qe_by, 0, sizeof qe_by);
+}
+static void t_combs(void)
+{
+    static int32_t noise[16384], y[16384], a[60 * CTL], b[60 * CTL];
+    static const double HZ[3] = {110.0, 440.0, 1760.0};
+    int16_t p[QP_NP];
+    uint32_t i;
+    int k, ok = 1;
+    for (i = 0; i < 16384u; i++)
+        noise[i] = (int32_t)(rnd() % 4001u) - 2000;
+    for (k = 0; k < 3; k++) {
+        int lag, best = 0;
+        double bv = -1e300, f;
+        e2_comb(0, 127, noise, y, 16384, e2_cut_of(HZ[k]), 11500);
+        for (lag = 20; lag < 1100; lag++) {
+            double r = 0.0;
+            for (i = 4096; i < 16384 - 1100; i++)
+                r += (double)y[i] * (double)y[i + (uint32_t)lag];
+            if (r > bv)
+                bv = r, best = lag;
+        }
+        f = (double)FS / (double)best;
+        ok &= fabs(f - HZ[k]) / HZ[k] < 0.012;
+        if (getenv("VERBOSE") || fabs(f - HZ[k]) / HZ[k] >= 0.012)
+            printf("    COMB+ at %.0f Hz: the period %d samples, %.1f Hz\n", HZ[k], best, f);
+    }
+    CHECK(ok, "COMB+: its pitch on noise at 110, 440, 1760 Hz within about 1 %% (a whole-sample lag)");
+    {
+        const double f = 440.0, f0 = f / 2.0;
+        double odd = 0.0, even = 0.0;
+        int h;
+        e2_comb(1, 127, noise, y, 16384, e2_cut_of(f), 11500);
+        for (h = 1; h <= 6; h++) {
+            const double m = e2_goertzel(y + 4096, 12288, f0 * (double)h);
+            if (h & 1)
+                odd += m;
+            else
+                even += m;
+        }
+        CHECK(odd > 4.0 * even, "COMB-: odd harmonics only (of f / 2: odd %.1f, even %.1f)", odd, even);
+        e2_comb(0, 127, noise, y, 16384, e2_cut_of(f), 11500);
+        for (odd = even = 0.0, h = 1; h <= 6; h++) {
+            even += e2_goertzel(y + 4096, 12288, f * (double)h);
+            odd += e2_goertzel(y + 4096, 12288, f * ((double)h - 0.5));
+        }
+        CHECK(even > 4.0 * odd, "COMB+: every harmonic of f (on %.1f, between %.1f)", even, odd);
+    }
+    CHECK(sizeof qe_comb == QUAD_NCOMB * 2048u && QUAD_NCOMB == 8u, "the comb lines: 8 of 1024 (16 KB of POOL)");
+    {   /* the lending: part 0's eight voices on COMB+ take the eight lines; part 1's voice runs MULTI (its samples
+         * MULTI's), and takes the line part 0's voice 4 gives back when it ends */
+        track_t *t0 = &trk[0], *t1 = &trk[1];
+        int32_t o[CTL];
+        uint32_t lines = 0, n;
+        memset(qe_by, 0, sizeof qe_by);
+        quad_init_patch4(p);
+        p[QP_FTYPE] = QF_COMBP, p[QP_FSHAPE] = 100, p[QP_RESO] = 9000, p[QP_FREQ] = 6000;
+        drv_reset(t1);
+        t1->engine = t1->eng_req = ENGI_QUAD;
+        memcpy(quad_patch[1], p, sizeof p);
+        quad_macros_out(t1);
+        drv_reset(t0);
+        drv_patch4(t0, p);
+        for (i = 0; i < 8u; i++)
+            drv_on(t0, i, 48 + i, 100);
+        drv_tick(t0, o);
+        for (i = 0; i < 8u; i++)
+            lines += quad_vs[0][i].cline != 0;
+        t1->v[0].note = 50, t1->v[0].vel = t1->v[0].mvel = 100, t1->v[0].gate = t1->v[0].active = 1;
+        t1->v[0].pitch16 = t1->v[0].pitch_cur = 50 * 16, t1->m_vi = 0;
+        quad_note_on(t1, &t1->v[0]);
+        drv_tick(t1, a);
+        CHECK(lines == 8u && !quad_vs[1][0].cline, "8 comb voices: %u lines; the other part's comb voice none (MULTI)", lines);
+        quad_vs[0][3].live = 0, t0->v[3].active = 0;   /* part 0's voice 4 ends */
+        drv_tick(t0, o);
+        drv_tick(t1, a);
+        CHECK(quad_vs[1][0].cline == 4u && !quad_vs[0][3].cline && qe_by[3] == QUAD_POLY + 1u,
+              "the line voice 4 gave back went to the other part's comb voice (line %u)", quad_vs[1][0].cline);
+        t1->engine = t1->eng_req = 0;            /* the bass leaves FM TONE: part 0's block frees its line */
+        drv_tick(t0, o);
+        CHECK(!qe_by[3], "a part that left FM TONE: its line free again");
+        for (n = 0; n < 3u; n++)
+            drv_tick(t0, o);
+        memset(qe_by, 0, sizeof qe_by);
+        drv_reset(t1);
+    }
+    {   /* MULTI's samples where a comb voice has no line */
+        static const uint8_t N1[1] = {52};
+        int32_t maxd = 0;
+        quad_init_patch4(p);
+        p[QP_FTYPE] = QF_MULTI, p[QP_FSHAPE] = 100, p[QP_RESO] = 9000;
+        pre_render(p, 0, N1, 1, 60, a);
+        p[QP_FTYPE] = QF_COMBP;
+        drv_reset(&trk[0]);
+        drv_patch4(&trk[0], p);
+        for (i = 0; i < QUAD_NCOMB; i++)         /* (every line taken: by part 1's voices, on FM TONE) */
+            qe_by[i] = (uint8_t)(QUAD_POLY + 1u + i);
+        trk[1].engine = ENGI_QUAD;
+        drv_on(&trk[0], 0, N1[0], 110);
+        for (i = 0; i < 60u; i++)
+            drv_tick(&trk[0], b + i * CTL);
+        for (i = 0; i < 60u * CTL; i++)
+            maxd = abs(a[i] - b[i]) > maxd ? abs(a[i] - b[i]) : maxd;
+        CHECK(!maxd && !quad_vs[0][0].cline, "no line free: COMB+ runs MULTI, sample for sample (%d)", maxd);
+        trk[1].engine = 0;
+        memset(qe_by, 0, sizeof qe_by);
+        p[QP_RESO] = 12700, p[QP_FSHAPE] = 0;
+        pre_render(p, 127, N1, 1, 60, b);
+        for (i = 0, k = 1; i < 60u * CTL; i++)
+            k &= b[i] > -2000000000 && b[i] < 2000000000;
+        CHECK(k && quad_vs[0][0].cline, "COMB+ with its line, RESO 127.00, DRIVE 127: no overflow");
+        memset(qe_by, 0, sizeof qe_by);
     }
 }
 
@@ -2758,6 +2888,7 @@ int main(int argc, char **argv)
     t_dests();
     t_drive_pre();
     t_machines();
+    t_combs();
     if (argc > 1 && !strcmp(argv[1], "cpu"))
         t_cpu();
     printf("cr_quad_test: %d checks, %d failed\n", checks, fails);
