@@ -265,8 +265,53 @@ bit). One core (`EMU_C1=nostart`) is not the same WAV: eight FM TONE voices are 
 note takes one (7 + 1), as before this change. GRAIN would still need its audit first
 (docs/notes/melodee-p5-dualcore-review.md "The other engines"); CZ-1's chord stays on core 0.
 
-Publishing job 1 before core 0 has prepared all of the chord's voices (Melodee's per-job publishing) needs a mailbox
-deeper than `fm1_c1_post`'s one job (core 1's voices are prepared by core 0 in `track_render_x`): not done.
+### The early hand-over (3y212, 2026-11-01)
+
+The owner, asked "Should I rebalance the two cores so heavy driven chords stop clicking?": "Yes, rebalance". The
+unit's readings (`tools/perf_unit.py`, an 8-note chord and a bass note, both FM TONE): WOBBLE + BASS c0busy 2,516,
+c1busy 1,660, c0wait 272, c1idle 406 us; C64 EP (DRIVE 120 PRE) + BASS c0busy 2,824, c1busy 1,777, c0wait 304, block
+2,720 .. 2,780, 7 late halves. **What the ~1,000 us between the two busy times is**: core 0's work that no voice
+overlaps (the tick and the events, both parts' matrix and LFO tick, part 0's block and its voices' preparation, after
+join 1 the parts' DIST / level / sends, the chorus, the delay, the up-sampler, the master). The joins make the half
+the tick + the longer render + the mix + the longer of (chorus + delay, reverb) + the master: moving chord voices
+from core 0 to core 1 shortens core 0's busy time but not the half (core 1's side gets longer by as much), and an
+8-note chord over a bass voice is nine voices of about one cost on two cores (4 + 4 + the bass is already the best
+whole split: 3y212 changes no split of an 8-note FM TONE chord). What could still overlap: **core 0's preparation of
+the chord's voices** (`track_render_x`: each voice's envelope, pitch, matrix) with the bass, which until 3y211 core 1
+began only after it, and then its chord voices after the bass (the emulator, per half: preparation 29, bass 98, core
+0's four voices 392, core 1's 394: the window 527 one job, 498 now).
+
+So (`fx.c` "THE EARLY HAND-OVER", `p5x_run`; `P5X_EARLY`, 1): for FM6, the VA and FM TONE on the chord part (not
+P5: its voice pool is both parts'; not during part 0's engine fade), core 0 runs part 0's `engine_t.block`, hands
+over **job A** (`c1_bass_job`: the bass part), prepares the chord's voices, shares them out and publishes the list
+(`p5x_go`, the block's token), then renders its own. Core 1, done with the bass, takes its share in the same job when
+the token is there (`p5x_took`); when it is not yet, job A ends and core 0 hands the share over as **job B**
+(`c1_chord_job`) at the first look between two of its voices that finds job A done (`cr_c1_idle`, else after its
+last). The voices' list and marks are written before the token (`fm1_c1_pub`: csync, the store, csync; core 1 reads
+with `fm1_c1_peek`), and core 0 reads `p5x_took` after the job's end (the mailbox's fence). A misread token does not
+match (the block's count is in job A's checked argument): no share taken, job B brings it. Core 1 failing in either
+job: core 0 renders the bass part anew and core 1's share itself, as one job's fallback does. The bass weighs its own
+engine's voice when that engine splits (FM TONE 200 us, not 2 units x 75) less what core 0's preparation hides
+(`P5X_PREP_US` 10 a chord voice).
+
+What runs at once that did not: part 1's render beside part 0's voices' preparation, as in the unsplit path (and as
+FM TONE's chord ran before 3y206). The two parts' blocks still never run at once (part 0's before job A, part 1's
+inside it), so `quad_comb_lend`'s lines (`qe_by`, both parts') keep their one writer at a time; CRUSH's and DRIVE
+PRE's state is the voice's own. 78 PEAK's c1busy counts both jobs; c1idle stays core 1's idle stretch before the
+reverb.
+
+Proof: `tests/cr_c1_thread_test.c` (26 pairs, +1: an FM TONE chord with CRUSH before the filter and DRIVE PRE over an
+FM TONE bass with COMB- and CRUSH): inline = thread = unsplit = all to core 1 = none, every sample; ThreadSanitizer 0
+reports, with both ways run under it (the share taken in job A in 13,802 blocks, a job B in 99; the jobs counted:
+one a block plus the job B's). The goldens unchanged; `cr_quad_eight` inline = `EMU_C1=thread`.
+
+**Expected on the unit** (not measured: no flashing in this session): c0busy and c1busy about as they were (core 0 a
+token and a look between voices more), c0wait and the block shorter by about the preparation, ~75 us (WOBBLE + BASS)
+.. ~95 us (C64 EP), the emulator's 29 us scaled by the unit's part1 against the emulator's. That does not reach the
+2,467 us shed line for C64 EP; what remains is core 0's own work above.
+
+Publishing core 1's share from inside the job (above) needed no mailbox deeper than `fm1_c1_post`'s one job: the
+token is a word of its own.
 
 The shed (`audio.c shed_check`) times core 0's whole half, both joins' waits in it: the figure that misses the
 deadline. 78 PEAK 55..61 (docs/FX.md "Each core's half") reads each core's busy time apart.

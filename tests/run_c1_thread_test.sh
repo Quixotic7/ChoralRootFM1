@@ -40,4 +40,5 @@ echo "c1 thread: ThreadSanitizer: 0 reports over $(grep -ac '^  ran ' build/host
     echo "run_c1_thread_test.sh: a planted shared word gives no report: the sanitizer's run proves nothing"; exit 1; }
 grep -aq "WARNING: ThreadSanitizer: data race" build/host/cr_c1_thread_plant.log && grep -aq "c1_plant" build/host/cr_c1_thread_plant.log || {
     echo "run_c1_thread_test.sh: the planted word's run failed without naming it:"; head -20 build/host/cr_c1_thread_plant.log; exit 1; }
+echo "c1 thread: $(sed -n 's/^early: //p' build/host/cr_c1_thread_tsan.log)"
 echo "c1 thread: a planted word that both parts write is reported (the sanitizer sees the two threads)"

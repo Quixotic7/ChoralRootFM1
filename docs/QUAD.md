@@ -410,7 +410,9 @@ FM TONE's chord voices are shared out between the cores as the VA's, FM6's and P
 `p5x_run`; docs/DUALCORE.md). A voice's render writes its own state and the buffers it is given; the part's work
 (`quad_block`: the macros, the FREE LFOs' phases, and since 3y206 `quad_dro`, the LFOs' DRIVE as the last block left
 it, which DRIVE PRE reads) runs on core 0 before the hand-over. Bit for bit the one core's samples
-(`tests/cr_c1_thread_test.c`, test_cr.sh `cr_quad_eight`).
+(`tests/cr_c1_thread_test.c`, test_cr.sh `cr_quad_eight`). Since 3y212 the bass part is handed over before core 0
+prepares the chord's voices (docs/DUALCORE.md "The early hand-over"); part 0's `quad_block` still runs before it, so
+the two parts' `quad_comb_lend` never run at once.
 
 
 

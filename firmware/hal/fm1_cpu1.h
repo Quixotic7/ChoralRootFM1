@@ -242,6 +242,25 @@ static inline int fm1_cpu1_wait(void)
     }
 }
 
+/* 3y212: one look, no wait: 1 = core 1 finished the last job it was handed (fm1_cpu1_wait then returns at once) */
+static inline int fm1_cpu1_idle(void)
+{
+    FM1_C1_SYNC();
+    return fm1_c1_done == fm1_c1_job;
+}
+/* a word one core publishes after what it guards (csync, the store, csync) and the other reads (csync, the load) */
+static inline void fm1_c1_pub(volatile uint32_t *w, uint32_t v)
+{
+    FM1_C1_SYNC();
+    *w = v;
+    FM1_C1_SYNC();
+}
+static inline uint32_t fm1_c1_peek(volatile uint32_t *w)
+{
+    FM1_C1_SYNC();
+    return *w;
+}
+
 static inline uint32_t fm1_cnum(void) { uint32_t v; __asm__ volatile("%0 = cnum" : "=r"(v)); return v; }
 
 /* 1: a fault about core 1, handled (core 0 resumes); 0: core 0's own (the crash report). After Melodee PR 21's
