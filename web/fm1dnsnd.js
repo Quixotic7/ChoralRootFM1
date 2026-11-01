@@ -14,8 +14,10 @@
 // byte on the hi-res ones). Slot s (offset 28 + 2 s) is also LFO destination number s (proved by the owner's controlled
 // exports, 2026-10-14: docs/SOUNDS.md ".dnsnd import").
 //
-//   parseDnsnd(bytes)   -> Promise<{name, tags, firmware, product, version, params, confidence, warnings, record}>
-//   dnsndToQuad(parsed) -> {blob: Uint8Array(96) FM TONE version 5, pan, drive, notes: [what was lost / approximated]}
+//   parseDnsnd(bytes)   -> Promise<{name, tags, firmware, product, version, params, confidence, warnings, record}>; a
+//                          Digitone II .dn2pst / .dn2snd (3y211, "Digitone II sounds" below): + model 2, the machines
+//   dnsndToQuad(parsed) -> {blob: Uint8Array(96) FM TONE version 5 or 6, pan, drive, sends, notes: [what was lost /
+//                          approximated]}; a Digitone II sound's also glide and mods (the record's GLIDE and matrix)
 //   quadToV4(blob)      -> (= quadToV5) a 96-byte FM TONE patch of the current version 5: version 5 as it is, a
 //                          version 4 converted (FREQ DTUN RESO BASE clamped to 127.00, AMP REL 127.xx -> 127 INF, below
 //                          it rounded but at most 126, LEVEL rounded), an 80-byte version 3 converted (best effort, as
@@ -34,8 +36,8 @@ export const DN_QUAD_RANGES = [[1,8,1],[0,18,3],[0,63,3],[0,18,3],[-2600,2600,0]
   [0,1,0],[0,127,127],[0,1,0],[0,127,0],[-64,63,0],[0,1,0],[0,127,0],[0,127,0],[0,1,0],[0,1,0]];
 export const DN_QP = { ALGO: 0, RC: 1, RA: 2, RB1: 3, HARM: 4, DTUN: 5, FDBK: 6, MIX: 7, OFSC: 8, OFSA: 9, OFSB1: 10, OFSB2: 11,
   AATK: 12, ADEC: 13, AEND: 14, ALEV: 15, BATK: 16, BDEC: 17, BEND: 18, BLEV: 19, ADLY: 20, ATRIG: 21, ARST: 22, PHRT: 23,
-  BDLY: 24, BTRIG: 25, BRST: 26, FATK: 30, FDEC: 31, FSUS: 32, FREL: 33, FREQ: 34, RESO: 35, FTYPE: 36, FDEPTH: 37,
-  FDLY: 38, BASE: 40, WIDTH: 41, EATK: 42, EDEC: 43, ESUS: 44, EREL: 45, LEVEL: 46, RB2: 71,
+  BDLY: 24, BTRIG: 25, BRST: 26, VEL: 27, AKEY: 28, B1KEY: 29, FATK: 30, FDEC: 31, FSUS: 32, FREL: 33, FREQ: 34, RESO: 35, FTYPE: 36, FDEPTH: 37,
+  FDLY: 38, FKTRK: 39, BASE: 40, WIDTH: 41, EATK: 42, EDEC: 43, ESUS: 44, EREL: 45, LEVEL: 46, RB2: 71, B2KEY: 72,
   // version 6 (eng_quad.c QP_AMOD .., 2026-10-31: FIZZ's engine values; their defaults are today's sound)
   AMOD: 73, HOLD: 74, DRPRE: 75, FSHAPE: 76, FGAIN: 77, BWPOST: 78, BITS: 79, SRR: 80, CRPRE: 81, SENDS: 82 };
 const DN_QL = { SPEED: 0, MULT: 1, FADE: 2, DEST: 3, WAVE: 4, PHASE: 5, TRIG: 6, DEPTH: 7 };
@@ -125,7 +127,7 @@ export const DN_LFO_DEST_NAMES = {
   67: "REVERB SEND", 68: "DELAY SEND", 69: "CHORUS SEND", 73: "RATIO C OFFSET", 74: "RATIO A OFFSET", 75: "RATIO B1 OFFSET",
   76: "RATIO B2 OFFSET", 77: "FILTER ENV DELAY",
 };
-const DN_QD = { NONE: 0, PITCH: 1, PAB2: 2, ALGO: 3, RC: 4, RA: 5, RB: 6, OFSC: 7, OFSA: 8, OFSB1: 9, OFSB2: 10, HARM: 11, DTUN: 12,
+export const DN_QD = { NONE: 0, PITCH: 1, PAB2: 2, ALGO: 3, RC: 4, RA: 5, RB: 6, OFSC: 7, OFSA: 8, OFSB1: 9, OFSB2: 10, HARM: 11, DTUN: 12,
   FDBK: 13, MIX: 14, ALEV: 15, BLEV: 16, AATK: 17, ADEC: 18, AEND: 19, BATK: 20, BDEC: 21, BEND: 22, ADLY: 23, BDLY: 24, FREQ: 25,
   RESO: 26, FENV: 27, BASE: 28, WIDTH: 29, FATK: 30, FDEC: 31, FSUS: 32, FREL: 33, EATK: 34, EDEC: 35, ESUS: 36, EREL: 37, LEVEL: 38, PAN: 39,
   L1SPD: 40, L1MUL: 41, L1FAD: 42, L1WAV: 43, L1SPH: 44, L1MOD: 45, L1DEP: 46, RALL: 47, ABLEV: 48, ABATK: 49, ABDEC: 50, ABEND: 51,
@@ -247,8 +249,8 @@ const DN_HDR = 0x1f;
 const dnU16 = (b, o) => b[o] | b[o + 1] << 8, dnU32 = (b, o) => (b[o] | b[o + 1] << 8 | b[o + 2] << 16 | b[o + 3] << 24) >>> 0;
 const dnU16be = (b, o) => b[o] << 8 | b[o + 1], dnU32be = (b, o) => (b[o] << 24 | b[o + 1] << 16 | b[o + 2] << 8 | b[o + 3]) >>> 0;
 const DN_NOT = "not a Digitone sound file";
-// a Digitone II sound (its own 359-byte record: other parameter numbers, the machine bytes; FIZZ reads them)
-const DN_DN2 = "a Digitone II sound: its parameters are numbered differently, this importer reads Digitone sounds";
+const dnMagic = (b, o, m) => o + 4 <= b.length && b[o] === m[0] && b[o + 1] === m[1] && b[o + 2] === m[2] && b[o + 3] === m[3];
+const DN_BEEF = [0xbe, 0xef, 0xba, 0xce], DN_BOX = [0xac, 0x11, 0xd3, 0x03];
 // a raw deflate stream -> its bytes: the browser's DecompressionStream, else node's zlib
 export async function dnInflateRaw(bytes) {
   if (typeof DecompressionStream !== "undefined") {
@@ -298,23 +300,31 @@ export function dnLz4Block(src, p, want, stop = src.length, o = new Uint8Array(w
   return { data: o, end: p, n };
 }
 
-// a .dnsnd's bytes -> the sound (throws with a clear message on anything that is not a Digitone sound)
+// a .dnsnd's bytes -> the sound (throws with a clear message on anything that is not a Digitone sound). Also a Digitone
+// II file (3y211): a .dn2pst (the same ZIP, the container's device 15) or a .dn2snd (the container alone, as a +Drive
+// backup keeps it): parsed.model 2, read by dn2Parse; dnsndToQuad takes either
 export async function parseDnsnd(bytes) {
   if (!(bytes instanceof Uint8Array)) bytes = Uint8Array.from(bytes || []);
-  if (bytes.length < 4 || dnU32(bytes, 0) !== 0x04034b50) throw new Error(`${DN_NOT} (not a ZIP archive)`);
-  const zip = await dnReadZip(bytes), warnings = [];
-  const mt = await zip.get("manifest.json");
-  if (!mt) throw new Error(`${DN_NOT} (no manifest.json)`);
-  let man;
-  try { man = JSON.parse(new TextDecoder().decode(mt)); } catch (_) { throw new Error(`${DN_NOT} (manifest.json is not JSON)`); }
-  if (!man || man.FileType !== "Sound") throw new Error(`${DN_NOT} (FileType ${man && JSON.stringify(man.FileType)}, not "Sound")`);
-  const pl = typeof man.Payload === "string" && await zip.get(man.Payload);
-  if (!pl) throw new Error(`${DN_NOT} (the payload ${JSON.stringify(man.Payload)} is missing)`);
-  if (pl.length < DN_HDR + 12 || dnU32(pl, 0) !== 0x03d311ac) throw new Error(`${DN_NOT} (the payload's magic)`);
+  const warnings = [];
+  let man = null, pl = bytes;
+  if (!dnMagic(bytes, 0, DN_BOX)) {
+    if (bytes.length < 4 || dnU32(bytes, 0) !== 0x04034b50) throw new Error(`${DN_NOT} (not a ZIP archive)`);
+    const zip = await dnReadZip(bytes);
+    const mt = await zip.get("manifest.json");
+    if (!mt) throw new Error(`${DN_NOT} (no manifest.json)`);
+    try { man = JSON.parse(new TextDecoder().decode(mt)); } catch (_) { throw new Error(`${DN_NOT} (manifest.json is not JSON)`); }
+    // (a Digitone II's Transfer may say "Preset": FIZZ reads it as a sound, so does this)
+    if (!man || (man.FileType !== "Sound" && man.FileType !== "Preset")) throw new Error(`${DN_NOT} (FileType ${man && JSON.stringify(man.FileType)}, not "Sound")`);
+    if (man.FileType !== "Sound") warnings.push(`FileType "${man.FileType}": read as a sound`);
+    pl = typeof man.Payload === "string" && await zip.get(man.Payload);
+    if (!pl) throw new Error(`${DN_NOT} (the payload ${JSON.stringify(man.Payload)} is missing)`);
+  }
+  if (pl.length < DN_HDR + 12 || !dnMagic(pl, 0, DN_BOX)) throw new Error(`${DN_NOT} (the payload's magic)`);
   // the body's length and its compression from the header (before 3y201: a u16le at 0x1c, the length's low byte and the
-  // flag, 302 by luck); any length is read (dnRecord takes what its layout covers). The build at 9 is the OS that saved it
-  const size = dnU32be(pl, 0x19), packed = pl[0x1d];
-  if (dnU16be(pl, 7) === 15) throw new Error(DN_DN2);
+  // flag, 302 by luck); any length is read (dnRecord takes what its layout covers). The build at 9 is the OS that saved
+  // it; the kind at 0x0d is 3, a sound (DNX: the firmware checks it; so do all 512 .dnsnd here); the device at 7: 9 the Digitone, 15 the Digitone II
+  const size = dnU32be(pl, 0x19), packed = pl[0x1d], device = dnU16be(pl, 7), kind = dnU32be(pl, 0x0d);
+  if (kind !== 3) warnings.push(`the container says content kind ${kind} (a sound is 3): read as a sound`);
   if (size < 28 || size > 0x8000 || packed > 1) throw new Error(`${DN_NOT} (the payload's header: a ${size}-byte body${packed > 1 ? `, compression ${packed}` : ""})`);
   let d, end = DN_HDR + size;
   if (packed) {                                   // an LZ4 chain: u32be size, the block, .., u32be 0
@@ -332,17 +342,19 @@ export async function parseDnsnd(bytes) {
   else d = pl.slice(DN_HDR, end);
   const tail = pl.subarray(end);
   if (tail.length < 4 || dnU32(tail, tail.length - 4) !== 0xaadaa1aa) warnings.push("the payload's trailer is not the usual one");
-  if (man.FirmwareVersion !== "1.42A") warnings.push(`made on Digitone firmware ${man.FirmwareVersion}: read as 1.42A`);
-  if (JSON.stringify(man.ProductType) !== '["24","30"]') warnings.push(`product ${JSON.stringify(man.ProductType)}: read as a Digitone`);
-  const tags = Array.isArray(man.MetaInfo && man.MetaInfo.Tags) ? man.MetaInfo.Tags.map(String) : [];
-  return dnRecord(d, warnings, { tags, firmware: man.FirmwareVersion ?? null, product: man.ProductType ?? null });
+  const tags = man && Array.isArray(man.MetaInfo && man.MetaInfo.Tags) ? man.MetaInfo.Tags.map(String) : [];
+  const meta = { tags, firmware: man ? man.FirmwareVersion ?? null : null, product: man ? man.ProductType ?? null : null };
+  if (device === 15 || dn2Prefixed(d)) return dn2Parse(d, warnings, { ...meta, manTags: man ? tags : null }, device);
+  if (man && man.FirmwareVersion !== "1.42A") warnings.push(`made on Digitone firmware ${man.FirmwareVersion}: read as 1.42A`);
+  if (man && JSON.stringify(man.ProductType) !== '["24","30"]') warnings.push(`product ${JSON.stringify(man.ProductType)}: read as a Digitone`);
+  return dnRecord(d, warnings, meta);
 }
 // the record (from a .dnsnd or a SysEx dump; 302 bytes in version 5, 283 in a version-1 dump, any length read) -> the
 // parsed sound; version: the layout's (dnsndToQuad's laws go by it), fileVersion: the record's own. A version not known
 // is read with the newest layout (DN_NEWEST); a record cut short (no end marker, shorter than its layout): the fields it
 // holds, the others left at FM TONE's defaults; either with a note. Only a record that is not a Digitone sound is refused
 function dnRecord(d, warnings, meta) {
-  if (d.length >= 9 && d[0] === 0 && d[5] === 0xbe && d[6] === 0xef && d[7] === 0xba && d[8] === 0xce) throw new Error(DN_DN2);
+  if (dn2Prefixed(d)) return dn2Parse(d, warnings, meta, 15);    // (a Digitone II body: its 5-byte prefix, 3y211)
   if (d.length < 28 || !(d[0] === 0xbe && d[1] === 0xef && d[2] === 0xba && d[3] === 0xce)) throw new Error(`${DN_NOT} (the sound's magic)`);
   const version = (d[4] << 24 | d[5] << 16 | d[6] << 8 | d[7]) >>> 0, known = DN_LAYOUT[version] !== undefined;
   const layout = known ? DN_LAYOUT[version] : DN_NEWEST;
@@ -418,6 +430,269 @@ export function parseDnSyx(bytes) {
   return { sounds, notes };
 }
 
+// ---- Digitone II sounds (3y211: .dn2pst, the same ZIP and container as a .dnsnd with the device 15; .dn2snd, the
+// container alone, as a +Drive backup keeps it). Ported from FIZZ's site/js/dn2pst.js (the owner's, MPL-2.0, reused
+// here under GPL-3.0 by its author); FIZZ research/DN2-FORMAT.md cites each fact (DNX's captures and its DN1 -> DN2
+// map from Elektron's own conversions, syxgrid's firmware tables, the owner's BASSSINE and crackle). The body: a 5-byte
+// prefix (the record's version u32be, a 0) and the 359-byte record: be ef ba ce, the version u32be (2: OS 1.10, the
+// owner's BASSSINE; 1: crackle, saved on 1.10; 3: OS 1.11), the tag bits u32be at 8, the name (16 bytes, Windows-1252) at
+// 12, parameter id at 28 + 2 x id (the DN1's coarse and fine bytes: DNX found no FM TONE value rescaled, so the DN1's
+// laws above hold), the machine at 244 (0 FM TONE), the filter machine at 245, the OCTAVE at 251, the modulation
+// records at 252 + 3k, the end marker ba ce f0 0c at 355. Into FM TONE version 6 (docs/QUAD.md "Version 6"): the filter
+// machines, AHD, CRUSH, DRIVE's route and the sends; portamento and the modulation records into the record (the part's
+// GLIDE, mod.c's matrix: dnsndToQuad's glide and mods, fm1sounds.js soundFromDnsnd)
+export const DN2_MACHINES = ["FM TONE", "WAVETONE", "FM DRUM", "SWARMER", "MIDI"];
+export const DN2_FILTERS = ["MULTI-MODE", "LOWPASS 4", "EQUALIZER", "COMB-", "LEGACY LP/HP", "COMB+"];
+// the 32 tag bits at +8, bit t = tag t (DNX tags.ts; Transfer spells ATMOSPHERIC)
+export const DN2_TAGS = ["KICK", "SNARE", "DEEP", "BRASS", "STRINGS", "PERCUSSION", "HI-HAT", "CYMBAL", "EVOLVING", "EXPRESSIVE",
+  "BASS", "LEAD", "PAD", "TEXTURE", "CHORD", "SOUND FX", "ARPEGGIO", "METALLIC", "ACOUSTIC", "ATMOSPHERIC", "NOISY", "GLITCH",
+  "HARD", "SOFT", "DARK", "BRIGHT", "VINTAGE", "EPIC", "FAIL", "LOOP", "MINE", "FAVOURITE"];
+// RATIO A, the firmware's own strings (syxgrid PLOCK_STRTAB): quarters to 5, halves to 10, whole numbers to 16; every
+// DN1 step proved by an export lands on it, and every one is a quarter, so FM TONE's RATIO A holds each exactly
+export const DN2_RATIO_A = Array.from({ length: 36 }, (_, i) => i < 20 ? (i + 1) / 4 : i < 30 ? 5 + (i - 19) / 2 : i - 19);
+// LFO MULT in runs of six (syxgrid read 0..11 off a DN2: x1..x32 at the BPM, then at 120): -> FM TONE's (0..11 at the
+// BPM, 12..23 at 120)
+export const dn2Mult = (n) => { const f = Math.floor(n / 6); return (n % 6) + 6 * (f >> 1) + 12 * (f & 1); };
+// an LFO DESTINATION is a parameter id (DNX's selector table lands every DN1 number on the id of the same parameter) ->
+// FM TONE's; the ids FM TONE has no destination for (LFO 2's own, the DN2's KEY.T HOLD BR SRR ..): off, with a note
+export const DN2_LFO_DEST = { 0: DN_QD.NONE, 1: DN_QD.L1SPD, 5: DN_QD.L1MUL, 9: DN_QD.L1FAD, 17: DN_QD.L1WAV, 21: DN_QD.L1SPH,
+  25: DN_QD.L1MOD, 29: DN_QD.L1DEP, 33: DN_QD.ALGO, 34: DN_QD.RC, 35: DN_QD.RA, 36: DN_QD.RB, 37: DN_QD.HARM, 38: DN_QD.DTUN,
+  39: DN_QD.FDBK, 40: DN_QD.MIX, 43: DN_QD.AATK, 44: DN_QD.ADEC, 45: DN_QD.AEND, 46: DN_QD.ALEV, 47: DN_QD.BATK, 48: DN_QD.BDEC,
+  49: DN_QD.BEND, 50: DN_QD.BLEV, 51: DN_QD.ADLY, 54: DN_QD.BDLY, 58: DN_QD.PITCH, 59: DN_QD.PAB2, 60: DN_QD.RALL, 61: DN_QD.ABLEV,
+  62: DN_QD.ABATK, 63: DN_QD.ABDEC, 64: DN_QD.ABEND, 65: DN_QD.ABDLY, 66: DN_QD.OFSC, 67: DN_QD.OFSA, 68: DN_QD.OFSB1,
+  69: DN_QD.OFSB2, 74: DN_QD.FREQ, 75: DN_QD.RESO, 76: DN_QD.FENV, 77: DN_QD.FDLY, 78: DN_QD.FATK, 79: DN_QD.FDEC, 80: DN_QD.FSUS,
+  81: DN_QD.FREL, 83: DN_QD.BASE, 84: DN_QD.WIDTH, 87: DN_QD.EATK, 89: DN_QD.EDEC, 90: DN_QD.ESUS, 91: DN_QD.EREL, 92: DN_QD.SCHO,
+  93: DN_QD.SDLY, 94: DN_QD.SREV, 95: DN_QD.PAN, 96: DN_QD.LEVEL, 104: DN_QD.DRIVE };
+// the names of the ids FM TONE has no destination for (DNX plockparams.ts, syxgrid PLOCK_NAMES), for the notes
+const DN2_ID_NAMES = { 2: "LFO2 SPEED", 6: "LFO2 MULT", 10: "LFO2 FADE", 14: "LFO2 DEST", 18: "LFO2 WAVE", 22: "LFO2 SPH",
+  26: "LFO2 MODE", 30: "LFO2 DEPTH", 41: "PHASE RESET", 52: "A TRIG", 53: "A RESET", 55: "B TRIG", 56: "B RESET",
+  70: "KEY TRACK A", 71: "KEY TRACK B1", 72: "KEY TRACK B2", 73: "FILTER TYPE", 82: "FILTER KEY TRACK", 85: "FILTER RESET",
+  86: "AMP DELAY", 88: "AMP HOLD", 97: "AMP MODE", 98: "AMP RESET", 99: "PORTAMENTO", 100: "PORTAMENTO TIME",
+  101: "BIT REDUCTION", 102: "SAMPLE RATE REDUCTION", 103: "SRR ROUTING", 105: "BW ROUTING", 106: "OVERDRIVE ROUTING" };
+const dn2Name = (id) => DN2_ID_NAMES[id] ?? (DN2_LFO_DEST[id] !== undefined ? dnQdName(DN2_LFO_DEST[id]) : `#${id}`);
+// the record's fields: [key, offset, hi-res, confidence, decode, apply] as DNSND_FIELDS; confidence (FIZZ's): "confirmed"
+// (the offset measured on a DN2 by DNX, the law a DN1 one proved by the owner's exports), "fw" (offset and law from the
+// firmware's tables, syxgrid), "inferred", "guess"; "info": decoded, not imported. apply null: dn2ToQuad's own
+const dn2Lfo = (k) => [
+  [`lfo${k + 1}.speed`, 30 + 2 * k, 1, "confirmed", (d, o) => dnHi(d, o) - 64, dnTo100(dnQlfo(k, "SPEED"))],
+  [`lfo${k + 1}.mult`, 38 + 2 * k, 0, "fw", dnLo, dnTo(dnQlfo(k, "MULT"), dn2Mult)],
+  [`lfo${k + 1}.fade`, 46 + 2 * k, 0, "confirmed", (d, o) => d[o] - 64, dnTo(dnQlfo(k, "FADE"))],
+  [`lfo${k + 1}.dest`, 54 + 2 * k, 0, "confirmed", dnLo, (v, out) => {
+    let q = DN2_LFO_DEST[v];
+    if (k === 0 && q >= DN_QD.L1SPD && q <= DN_QD.L1DEP) q = undefined;     // (LFO 1 on itself: FM TONE has none)
+    out.set(dnQlfo(k, "DEST"), q ?? DN_QD.NONE);
+    if (q === undefined) out.note(`LFO ${k + 1} destination ${dn2Name(v)}: FM TONE has none, off`);
+  }],
+  [`lfo${k + 1}.wave`, 62 + 2 * k, 0, "confirmed", dnLo, (v, out) => out.set(dnQlfo(k, "WAVE"), DN_WAVE_TO_QUAD[v] ?? 0)],
+  [`lfo${k + 1}.phase`, 70 + 2 * k, 0, "confirmed", dnLo, dnTo(dnQlfo(k, "PHASE"))],
+  [`lfo${k + 1}.mode`, 78 + 2 * k, 0, "confirmed", dnLo, dnTo(dnQlfo(k, "TRIG"))],
+  // (the DN2 shows DEPTH doubled, -128..127.99: the bytes are the DN1's, copied unscaled)
+  [`lfo${k + 1}.depth`, 86 + 2 * k, 1, "confirmed", (d, o) => dnHi(d, o) - 64, dnTo100(dnQlfo(k, "DEPTH"))],
+];
+const dn2Env = (x, base) => ["atk", "dec", "end", "lev"].map((f, i) => [`env${x}.${f}`, base + 2 * i, 0, "confirmed", dnLo,
+  dnTo(DN_QP[`${x}${f.toUpperCase()}`], i < 2 ? dnT : undefined)]);
+export const DN2_FIELDS = [
+  ...dn2Lfo(0), ...dn2Lfo(1), ...dn2Lfo(2),
+  ["algo", 94, 0, "confirmed", (d, o) => d[o] + 1, dnTo(DN_QP.ALGO)],
+  ["ratioC", 96, 0, "confirmed", (d, o) => DN_RATIO_CB[Math.min(18, d[o])], (v, out) => out.set(DN_QP.RC, Math.max(0, DN_RATIO_CB.indexOf(v)))],
+  ["ratioA", 98, 0, "confirmed", (d, o) => DN2_RATIO_A[Math.min(35, d[o])], (v, out) => out.set(DN_QP.RA, dnR(v * 4) - 1)],
+  ["ratioB", 100, 1, "confirmed", (d, o) => Math.min(360, (d[o] << 8 | d[o + 1]) >> 1), (v, out) => {
+    out.set(DN_QP.RB1, Math.floor(v / 19)); out.set(DN_QP.RB2, v % 19);
+  }],
+  ["harm", 102, 1, "confirmed", (d, o) => dnHi(d, o) - 63, dnTo100(DN_QP.HARM)],
+  ["dtun", 104, 1, "confirmed", dnHi, dnTo100(DN_QP.DTUN)],
+  ["fdbk", 106, 0, "confirmed", dnLo, dnTo(DN_QP.FDBK)],
+  ["mix", 108, 0, "confirmed", (d, o) => d[o] - 64, dnTo(DN_QP.MIX)],
+  ["phrt", 110, 0, "confirmed", dnLo, dnTo(DN_QP.PHRT)],
+  ...dn2Env("A", 114), ...dn2Env("B", 122),
+  ["envA.delay", 130, 0, "confirmed", dnLo, dnTo(DN_QP.ADLY)],
+  ["envA.trig", 132, 0, "confirmed", dnLo, dnTo(DN_QP.ATRIG)],
+  ["envA.reset", 134, 0, "confirmed", dnLo, dnTo(DN_QP.ARST)],
+  ["envB.delay", 136, 0, "confirmed", dnLo, dnTo(DN_QP.BDLY)],
+  ["envB.trig", 138, 0, "confirmed", dnLo, dnTo(DN_QP.BTRIG)],
+  ["envB.reset", 140, 0, "confirmed", dnLo, dnTo(DN_QP.BRST)],
+  ["unk142", 142, 0, "info", dnLo, null],                                   // (id 57: the DN1's unk110)
+  ["ofsC", 160, 1, "confirmed", (d, o) => dnHi(d, o) - 64, dnTo(DN_QP.OFSC, (v) => dnR(v * 100 / 64))],   // -1.00..+0.99
+  ["ofsA", 162, 1, "confirmed", (d, o) => dnHi(d, o) - 64, dnTo(DN_QP.OFSA, (v) => dnR(v * 100 / 64))],
+  ["ofsB1", 164, 1, "confirmed", (d, o) => dnHi(d, o) - 64, dnTo(DN_QP.OFSB1, (v) => dnR(v * 100 / 64))],
+  ["ofsB2", 166, 1, "confirmed", (d, o) => dnHi(d, o) - 64, dnTo(DN_QP.OFSB2, (v) => dnR(v * 100 / 64))],
+  ["keyA", 168, 0, "inferred", dnLo, dnTo(DN_QP.AKEY)],                    // KEY TRACK A B1 B2 (the DN1 keeps them at 274..276)
+  ["keyB1", 170, 0, "inferred", dnLo, dnTo(DN_QP.B1KEY)],
+  ["keyB2", 172, 0, "inferred", dnLo, dnTo(DN_QP.B2KEY)],
+  ["filter.type", 174, 0, "fw", dnLo, null],                                // (per filter machine: dn2ToQuad)
+  ["filter.freq", 176, 1, "confirmed", dnHi, dnTo100(DN_QP.FREQ)],
+  ["filter.reso", 178, 1, "confirmed", dnHi, dnTo100(DN_QP.RESO)],
+  ["filter.env", 180, 1, "confirmed", (d, o) => dnHi(d, o) - 64, dnTo100(DN_QP.FDEPTH)],
+  ["filter.delay", 182, 0, "confirmed", dnLo, dnTo(DN_QP.FDLY)],
+  ["filter.atk", 184, 0, "confirmed", dnLo, dnTo(DN_QP.FATK, dnT)],
+  ["filter.dec", 186, 0, "confirmed", dnLo, dnTo(DN_QP.FDEC, dnT)],         // (127 INF: dn2ToQuad)
+  ["filter.sus", 188, 0, "confirmed", dnLo, dnTo(DN_QP.FSUS)],
+  ["filter.rel", 190, 0, "confirmed", dnLo, dnTo(DN_QP.FREL, dnTRel)],
+  // KEY.T 0..100 % (syxgrid "pct") -> FM TONE's KTRK 0..127: the scale is a guess (FIZZ's)
+  ["filter.keytrack", 192, 0, "guess", dnLo, dnTo(DN_QP.FKTRK, (v) => dnR(Math.min(100, v) * 127 / 100))],
+  ["filter.base", 194, 1, "confirmed", dnHi, dnTo100(DN_QP.BASE)],
+  ["filter.width", 196, 0, "confirmed", dnLo, dnTo(DN_QP.WIDTH)],
+  ["filter.reset", 198, 0, "fw", dnLo, null],
+  ["amp.atk", 202, 0, "confirmed", dnLo, dnTo(DN_QP.EATK, dnT)],
+  ["amp.hold", 204, 0, "confirmed", dnLo, null],                            // 0..126, 127 NOTE (dn2ToQuad)
+  ["amp.dec", 206, 0, "confirmed", dnLo, null],
+  ["amp.sus", 208, 0, "confirmed", dnLo, null],
+  ["amp.rel", 210, 1, "confirmed", dnHi, null],
+  ["send.chorus", 212, 1, "confirmed", dnHi, dnSend("chorus")],
+  ["send.delay", 214, 1, "confirmed", dnHi, dnSend("delay")],
+  ["send.reverb", 216, 1, "confirmed", dnHi, dnSend("reverb")],
+  ["amp.pan", 218, 0, "confirmed", (d, o) => d[o] - 64, (v, out) => { out.pan = Math.max(-64, Math.min(63, v)); }],
+  ["amp.vol", 220, 1, "confirmed", dnHi, dnTo(DN_QP.LEVEL)],
+  ["amp.mode", 222, 0, "confirmed", dnLo, null],                            // 0 AHD, 1 ADSR
+  ["amp.reset", 224, 0, "confirmed", dnLo, null],
+  ["portamento", 226, 0, "fw", dnLo, null],                                 // 64 ON (syxgrid; BASSSINE's 63: off)
+  ["portamento.time", 228, 0, "fw", dnLo, null],
+  ["fx.bitreduction", 230, 0, "confirmed", dnLo, null],
+  ["fx.srr", 232, 0, "confirmed", dnLo, null],
+  ["fx.srrRouting", 234, 0, "fw", dnLo, null],
+  ["fx.overdrive", 236, 1, "confirmed", dnHi, (v, out) => { out.drive = Math.max(0, Math.min(127, dnR(v))); }],
+  ["fx.bwRouting", 238, 0, "fw", dnLo, null],
+  ["fx.odRouting", 240, 0, "fw", dnLo, null],
+  ["octave", 251, 0, "inferred", (d, o) => (d[o] << 24) >> 24, null],      // (the DN1 v5's +280, copied)
+];
+export const DN2_RECORD = 359, DN2_VERSIONS = [1, 2, 3], DN2_LAYOUT = 2;
+const DN2_END = 355;                              // the end marker's offset
+const DN2_CP1252 = "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f\u0090‘’“”•–—˜™š›œ\u009džŸ";
+const dn2Text = (b) => Array.from(b, (c) => (c >= 0x80 && c < 0xa0 ? DN2_CP1252[c - 0x80] : String.fromCharCode(c))).join("");
+// a Digitone II body (the 5-byte prefix, then the record)
+function dn2Prefixed(d) { return d.length >= 9 && d[4] === 0 && dnMagic(d, 5, DN_BEEF); }
+// the body (with its prefix, or a bare record) -> the parsed sound, as parseDnsnd's + model 2, the machines, the tag
+// bits; device: the container's (15). A version not known is read with version 2's layout and a note, a record cut short
+// gives the fields it holds (FM TONE's defaults for the rest), a longer one is read to 359 bytes, each with a note. Not
+// read: a body that is no record (DN1S: a Digitone sound kept on a Digitone II, its layout not decoded) and a sound of
+// another machine (WAVETONE, FM DRUM, SWARMER, MIDI reuse the ids for other parameters: no FM TONE patch in them)
+function dn2Parse(d, warnings, meta, device) {
+  if (dnMagic(d, 0, [0x44, 0x4e, 0x31, 0x53]))
+    throw new Error("a Digitone sound kept on a Digitone II (its body opens \"DN1S\"): import its .dnsnd, or save it on the Digitone II once as its own sound");
+  let rec;
+  if (dn2Prefixed(d)) {
+    rec = d.subarray(5);
+    if (dnU32be(d, 0) !== dnU32be(rec, 4)) warnings.push("the body's prefix is not the record's version: read anyway");
+  } else if (dnMagic(d, 0, DN_BEEF)) { rec = d; warnings.push("a Digitone II record without its 5-byte prefix: read as one"); }
+  else throw new Error(`${DN_NOT} (the sound's magic)`);
+  if (device !== 15) warnings.push(`the container's device is ${device}, not 15 (the Digitone II): read as one`);
+  const version = rec.length >= 8 ? dnU32be(rec, 4) : 0;
+  if (version !== DN2_LAYOUT) warnings.push(DN2_VERSIONS.includes(version) ? `a version-${version} Digitone II sound: read as version ${DN2_LAYOUT} (the same layout, as FIZZ reads it)` :
+    `a version-${version} Digitone II sound (${version > Math.max(...DN2_VERSIONS) ? "newer than" : "not one of"} the versions known, ${DN2_VERSIONS.join(" ")}): read as version ${DN2_LAYOUT}; fields the FM-1 does not know were skipped`);
+  if (rec.length > DN2_RECORD) warnings.push(`a ${rec.length}-byte record: read as ${DN2_RECORD} bytes (the rest skipped)`);
+  else if (rec.length >= DN2_END + 4 && !dnMagic(rec, DN2_END, [0xba, 0xce, 0xf0, 0x0c])) warnings.push("the record does not end ba ce f0 0c: read anyway");
+  let n = 0;
+  while (n < 16 && 12 + n < rec.length && rec[12 + n]) n++;
+  const name = dn2Text(rec.subarray(12, 12 + n)), tagBits = rec.length >= 12 ? dnU32be(rec, 8) : 0;
+  const tags = DN2_TAGS.filter((_, t) => (tagBits >>> t) & 1);
+  if (meta.manTags && meta.manTags.join() !== tags.join()) warnings.push(`the manifest's tags (${meta.manTags.join(", ") || "none"}) are not the record's (${tags.join(", ") || "none"}): the record's kept`);
+  const machine = rec.length > 244 ? rec[244] : 0, filterMachine = rec.length > 245 ? rec[245] : 4;
+  const machineName = DN2_MACHINES[machine] ?? `machine ${machine}`, filterMachineName = DN2_FILTERS[filterMachine] ?? `filter machine ${filterMachine}`;
+  if (machine !== 0) throw new Error(`"${name}" is a ${machineName} sound: only Digitone II FM TONE sounds import (the others hold no FM TONE patch)`);
+  const params = {}, confidence = {}, missing = [];
+  for (const [k, o, hi, c, dec] of DN2_FIELDS) {
+    if (o + (hi ? 2 : 1) > Math.min(rec.length, DN2_END)) { if (c !== "info") missing.push(k); continue; }
+    params[k] = +dec(rec, o).toFixed(2); confidence[k] = c;
+  }
+  if (missing.length) warnings.push(`the sound is cut short (${rec.length} bytes): ${missing.length} of its settings not in it, FM TONE's defaults instead`);
+  const { manTags, ...m } = meta;
+  return { name, firmware: null, product: null, ...m, tags, tagBits, model: 2, machine, machineName, filterMachine, filterMachineName,
+    version: DN2_LAYOUT, fileVersion: version, params, confidence, warnings, record: rec.slice(0, DN2_RECORD) };
+}
+
+// ChoralRoot's matrix (mod.c: four slots of SRC, DST, AMT -64..63; the record's P_M1SRC ..): the Digitone II's
+// modulation records (FIZZ's reading, not verified: 24 of 3 bytes at 252, four a source in the order PB VEL MW BR AT KEY,
+// the depth in the first two bytes about 64, the destination's id the third) -> the slots where an equivalent exists.
+// mod.c's sources MS_VEL 3, MS_KEY 4, MS_MODW 6, MS_AT 7 (pitch bend and breath: none); its destinations for an FM TONE
+// sound: PITCH 1, AMP 4, PAN 5, DIST 6 (the sound's drive), CHO 7, DLY 8, REV 9, E1..E8 12..19 (FM TONE's macros, eng_quad.c
+// QUAD_MAC: ALGO RATIO C RATIO A RATIO B2 HARM DTUNE FDBK MIX); CUT and SHP move nothing in FM TONE (its filter is its
+// own): FREQ and every other destination are notes. Slot 3 is the sound's velocity routing and 4 its aftertouch's (the
+// editor's EXPR screen): a VEL record takes slot 3, an AT one slot 4, the others (and more of them) slots 1 and 2
+export const DN2_MOD_SRC = ["PB", "VEL", "MW", "BR", "AT", "KEY"];
+const DN2_MOD_MS = { VEL: 3, KEY: 4, MW: 6, AT: 7 };
+export const DN2_MOD_MD = { 58: 1, 96: 4, 95: 5, 104: 6, 92: 7, 93: 8, 94: 9, 33: 12, 34: 13, 35: 14, 36: 15, 37: 16, 38: 17, 39: 18, 40: 19 };
+const DN2_MOD_AT = 252, DN2_MOD_N = 24;
+function dn2Mods(rec, notes) {
+  const slots = [null, null, null, null], want = { VEL: [2, 0, 1], AT: [3, 0, 1] };
+  let n = 0, lost = 0;
+  for (let k = 0; k < DN2_MOD_N && DN2_MOD_AT + 3 * k + 2 < Math.min(rec.length, DN2_END); k++) {
+    const o = DN2_MOD_AT + 3 * k, id = rec[o + 2], src = DN2_MOD_SRC[k >> 2];
+    const amt = Math.max(-64, Math.min(63, dnR(rec[o] + rec[o + 1] / 256 - 64))), md = DN2_MOD_MD[id];
+    if (!id || !amt) continue;
+    if (!DN2_MOD_MS[src]) { notes.push(`MOD ${src} -> ${dn2Name(id)}: the FM-1's matrix has no ${src === "PB" ? "pitch bend" : "breath"} source, not imported`); continue; }
+    if (md === undefined) { notes.push(`MOD ${src} -> ${dn2Name(id)}: the FM-1's matrix has no such destination for FM TONE, not imported`); continue; }
+    const at = (want[src] || [0, 1]).find((s) => !slots[s]);
+    if (at === undefined) { lost++; continue; }
+    slots[at] = [DN2_MOD_MS[src], md, amt]; n++;
+    if (id === 36) notes.push(`MOD ${src} -> RATIO B: the FM-1's matrix moves RATIO B2 only`);
+  }
+  if (n) notes.push(`MOD: ${n} routing${n === 1 ? "" : "s"} from the Digitone II's modulation records into the FM-1's matrix (their layout and depth are FIZZ's reading, not verified)`);
+  if (lost) notes.push(`MOD: ${lost} more routing${lost === 1 ? "" : "s"} not imported (the matrix has four slots, 3 the velocity's, 4 the aftertouch's)`);
+  return n ? slots : null;
+}
+
+// the parsed Digitone II sound -> as dnsndToQuad's, + glide (the part's GLIDE 0..127, TIME mode; null: off) and mods
+// (the matrix's four slots [SRC, DST, AMT] or null each; null: none)
+function dn2ToQuad(parsed) {
+  const P = parsed.params, Q = DN_QP, F = DN_QF6, p = DN_QUAD_RANGES.map((r) => r[2]), notes = [];
+  const out = {
+    pan: 0, drive: 0, sends: { reverb: 0, delay: 0, chorus: 0 }, note: (s) => notes.push(s),
+    set: (i, v) => { const [mn, mx, df] = DN_QUAD_RANGES[i]; p[i] = Math.max(mn, Math.min(mx, Number.isFinite(v) ? v : df)); },
+  };
+  for (const [k, , , c, , apply] of DN2_FIELDS) if (apply && c !== "info" && P[k] !== undefined) apply(P[k], out);
+  // the filter: the machine and its TYPE (FM TONE version 6's FTYPE 4..7, FIZZ's machines; TYPE their third control,
+  // FSHAPE: MULTI's LP -> BP -> HP morph, the combs' damping, EQ's Q; EQ's GAIN is RESO's coarse - 64)
+  const fm = parsed.filterMachine, ty = P["filter.type"] ?? 0;
+  if (fm === 1) p[Q.FTYPE] = F.LP24;                                                   // LOWPASS 4
+  else if (fm === 4) {                                                                 // LEGACY LP/HP: LP HP OFF (3: the DN1's OFF)
+    p[Q.FTYPE] = ty === 0 ? F.LP12 : ty === 1 ? F.HP12 : F.OFF;
+    if (ty > 3) notes.push(`LEGACY LP/HP type ${ty}: not a known value, the filter off`);
+  } else if (fm === 0 || fm === 2 || fm === 3 || fm === 5) {                          // MULTI-MODE, EQUALIZER, COMB-, COMB+
+    p[Q.FTYPE] = fm === 0 ? F.MULTI : fm === 2 ? F.EQ : fm === 3 ? F.COMBN : F.COMBP;
+    out.set(Q.FSHAPE, ty);
+    if (fm === 2) out.set(Q.FGAIN, dnR(P["filter.reso"] || 0) - 64);
+    if (fm === 0 && ty) notes.push(`MULTI-MODE TYPE ${ty} taken 1:1 as FM TONE's MULTI shape (FIZZ's law, not verified)`);
+  } else { p[Q.FTYPE] = F.OFF; notes.push(`${parsed.filterMachineName}: not a known filter machine, the filter off`); }
+  if (P["fx.bwRouting"]) p[Q.BWPOST] = 1;                                             // BW ROUTING 1: after the filter
+  if (P["filter.dec"] === 127) { p[Q.FSUS] = 127; notes.push("filter DEC INF: FM TONE's filter SUS set to 127"); }
+  if (P["filter.reset"] === 0) notes.push("FILTER ENV RESET off not imported (FM TONE's filter envelope always resets)");
+  // the amp: ADSR as it is; MODE 0 AHD: FM TONE's AHD (AMOD, HOLD 1:1, 127 NOTE). HOLD and SUS are kept in either mode
+  // (stored though the mode does not use them: a switch of mode has them, as on the Digitone II)
+  const adec = P["amp.dec"], rel = P["amp.rel"];
+  if (P["amp.hold"] !== undefined) out.set(Q.HOLD, P["amp.hold"]);
+  if (P["amp.mode"] === 0) p[Q.AMOD] = 1;
+  if (adec !== undefined) p[Q.EDEC] = adec >= 127 ? 127 : P["amp.mode"] === 0 ? adec : Math.min(126, adec);
+  if (P["amp.sus"] !== undefined) out.set(Q.ESUS, P["amp.sus"]);
+  if (rel !== undefined) p[Q.EREL] = rel >= 127 ? 127 : Math.min(126, dnR(rel));
+  if (P["amp.reset"] === 0) notes.push("AMP ENV RESET off not imported (FM TONE's amp envelope always resets)");
+  // CRUSH: BIT REDUCTION and SAMPLE RATE REDUCTION 1:1, SRR ROUTING 0 before the filter (FIZZ's reading of both laws)
+  if (P["fx.bitreduction"] || P["fx.srr"]) {
+    out.set(Q.BITS, P["fx.bitreduction"] | 0); out.set(Q.SRR, P["fx.srr"] | 0); p[Q.CRPRE] = P["fx.srrRouting"] ? 0 : 1;
+    notes.push(`BIT REDUCTION ${P["fx.bitreduction"] | 0}, SAMPLE RATE REDUCTION ${P["fx.srr"] | 0}: taken 1:1 (the laws are not verified)`);
+  }
+  // OVERDRIVE: the DN1's DRIVE (Elektron copied the byte); OD ROUTING 0 read as before the filter (FIZZ's guess):
+  // DRIVE ROUTE PRE; else after it, where the FM-1 drives the part
+  if (out.drive > 0) {
+    if (!P["fx.odRouting"]) { p[Q.DRPRE] = 1; notes.push("OVERDRIVE before the filter (OD ROUTING 0 read as PRE: the encoding is not verified)"); }
+    else notes.push(`OVERDRIVE after the filter (OD ROUTING ${P["fx.odRouting"]}): the FM-1 drives the part after its voices`);
+  }
+  p[Q.SENDS] = 1;                                                                      // (the sends travel with the sound)
+  // portamento (64 ON, syxgrid): the part's GLIDE, TIME mode (FIZZ's PTIM 1:1 on ChoralRoot's voice.c law: TIME 1 + t^2 /
+  // 8 ticks whatever the interval); the FM-1 glides in MONO and LEGATO, so on the bass part
+  let glide = null;
+  if (P.portamento === 64) {
+    glide = Math.max(0, Math.min(127, P["portamento.time"] | 0));
+    notes.push(`PORTAMENTO TIME ${glide}: the part's GLIDE (TIME mode; the FM-1 glides on the bass part, MONO and LEGATO)`);
+  }
+  const oct = P.octave | 0;
+  if (oct) {
+    notes.push(dnOctave(p, oct) ? `the sound's OCTAVE ${oct > 0 ? "+" : ""}${oct / 12}: every ratio x ${2 ** (oct / 12)}` :
+      `the sound's OCTAVE ${oct > 0 ? "+" : ""}${oct / 12} not imported (a ratio has no such value in FM TONE): it plays ${Math.abs(oct / 12)} octave(s) ${oct > 0 ? "lower" : "higher"} than on the Digitone II`);
+  }
+  const mods = dn2Mods(parsed.record || new Uint8Array(0), notes);
+  return { blob: dnQuadPack(p), values: p, pan: out.pan, drive: out.drive, sends: out.sends, glide, mods, notes };
+}
+
 // the sound's OCTAVE (semitones, a multiple of 12) into FM TONE values p: each operator's ratio (its table step + OFS
 // / 100) x 2^(oct / 12), as a step + OFS within DN_OCT_TOL; all four or none (true: done). A step's OFS is -100..100
 const DN_RA_Q = Array.from({ length: 64 }, (_, i) => (i + 1) / 4);
@@ -444,6 +719,7 @@ function dnOctave(p, oct) {
 // the parsed sound (or its params: read as version 1) -> FM TONE's blob, the track PAN, DRIVE and sends (P_PAN, P_DIST,
 // P_REV P_DLY P_CHOR: not in the patch; the patch's SENDS says the sends are the sound's), and what was lost or approximated
 export function dnsndToQuad(parsed) {
+  if (parsed && parsed.model === 2) return dn2ToQuad(parsed);       // (a Digitone II sound, 3y211)
   const params = parsed && parsed.params ? parsed.params : parsed;
   const p = DN_QUAD_RANGES.map((r) => r[2]), notes = [];
   const out = {

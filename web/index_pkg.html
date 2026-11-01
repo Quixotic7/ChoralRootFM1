@@ -243,7 +243,7 @@
     <p class="small" data-t="sndSyxText"></p>
     <p class="small" data-t="sndDnText"></p>
     <p><button id="snd-read" disabled data-t="sndReadGo"></button></p>
-    <input id="snd-file" type="file" accept=".json,.syx,.dnsnd,application/json" hidden>
+    <input id="snd-file" type="file" accept=".json,.syx,.dnsnd,.dn2pst,.dn2snd,application/json" hidden>
     <div class="snd-wrap">
       <table class="snd" id="snd-table" hidden>
         <thead><tr><th data-t="sndColSlot"></th><th data-t="sndColName"></th><th data-t="sndColEngine"></th><th data-t="sndColPatch"></th><th data-t="sndColPool"></th><th></th></tr></thead>
@@ -434,7 +434,7 @@ const TEXT = {
     sndRenamePrompt: "New name for {slot} (1 to 12 characters):",
     sndBadName: "A name is 1 to 12 characters: letters, digits, symbols or spaces (no accents). Nothing was written.",
     sndBadFile: "Not a usable sound file: ",
-    sndDnText: "Import also reads Elektron Digitone sounds (.dnsnd) as FM TONE sounds, on this computer (nothing is uploaded). Some settings have no FM TONE equal or are not decoded yet: the import lists them before anything is written.",
+    sndDnText: "Import also reads Elektron Digitone sounds (.dnsnd) and Digitone II FM TONE sounds (.dn2pst, .dn2snd) as FM TONE sounds, on this computer (nothing is uploaded). Some settings have no FM TONE equal or are not decoded yet: the import lists them before anything is written. ChoralRoot 0.27 and older play a version-5 copy (no filter machines, AHD, CRUSH or the sound's own sends).",
     sndDnConfirm: "Write the Digitone sound \"{name}\" into {slot} as an FM TONE sound?\n\nApproximated or not imported:\n{notes}",
     sndExportSyx: "Export .syx",
     sndSyxText: "FM6 and CZ-1 sounds also export as .syx: a DX7 voice (Dexed and other DX7 editors) or a CZ-1 tone (Casio tools). Import takes these .syx files too (and raw DX7 / CZ-1 dumps): the voice or tone becomes the slot's sound, with every other setting at the engine's default.",
@@ -652,7 +652,8 @@ $("snd-file").addEventListener("change", async () => {
     let i = 0;
     while (i < bytes.length && (bytes[i] === 0x20 || bytes[i] === 0x09 || bytes[i] === 0x0A || bytes[i] === 0x0D || bytes[i] === 0xEF || bytes[i] === 0xBB || bytes[i] === 0xBF)) i++;
     if (bytes[i] === 0x7B) sound = readSoundFile(new TextDecoder().decode(bytes));
-    else if (bytes[0] === 0x50 && bytes[1] === 0x4B) {    // a ZIP: a Digitone .dnsnd (docs/SOUNDS.md ".dnsnd import")
+    else if ((bytes[0] === 0x50 && bytes[1] === 0x4B) || (bytes[0] === 0xAC && bytes[1] === 0x11 && bytes[2] === 0xD3 && bytes[3] === 0x03)) {
+      // a ZIP: a Digitone .dnsnd or a Digitone II .dn2pst; Elektron's container alone: a .dn2snd (docs/SOUNDS.md ".dnsnd import")
       const parsed = await parseDnsnd(bytes);
       sound = soundFromDnsnd(parsed);
       dnNotes = [...parsed.warnings, ...sound.notes];
@@ -685,7 +686,8 @@ $("snd-file").addEventListener("change", async () => {
     const now = sndTable[slot - 1];                // as the FM-1 holds it now (read afresh)
     if (dnNotes && !confirm(tf("sndDnConfirm", { name: sound.name, slot: label, notes: dnNotes.map((n) => "- " + n).join("\n") }))) { sayK("cancelled"); return; }
     if (now.used && !confirm(tf("sndOverwrite", { slot: label, name: now.name, new: sound.name }))) { sayK("cancelled"); return; }
-    const res = importSound(ctx.objs, slot, sound);   // (res.notes: what an FM-1 before 0.22 will not have of the patch)
+    // (res.notes: what the FM-1 will not have of the patch: before 0.22 any, 0.22 .. 0.27 FM TONE's version 6, 3y211)
+    const res = importSound(ctx.objs, slot, sound, { quadV6: quadV6Of(ctx.info.version) });
     await writeSlot(ctx, slot, res.changed);
     for (const n of res.notes) log(`sounds: ${label}: ${n}`);
     sayK("sndImported", `${label}: ${sound.name}${res.notes.length ? ` (${res.notes.join("; ")})` : ""}`);

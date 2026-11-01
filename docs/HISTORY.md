@@ -6682,3 +6682,37 @@ one bit, BITS 64 steps of 128; CRUSH PRE and POST differ). Size: XIP 555,188 B (
 web device manager (claude/dn2-import) writes version-6 sounds only to a unit whose version string reads 0.28 or later
 and a version-5 copy (`quadToV5`) to older ones, so the dev build now reads as the next tag (choralroot.c
 `FELUCCA_VERSION`, as 0.27's tree did). No tag, no release notes, no releases.json entry.
+
+3y211. **The device manager and the installer read Digitone II sounds; FM TONE's version 6 only goes to a firmware
+that plays it.** The owner: "Ok, lets let these presets change the FX send amounts when you load. Lets build the whole
+thing and also the Digitone II import features into the web manager." Web only, no firmware change. **The reader**
+(`fm1dnsnd.js` "Digitone II sounds"): FIZZ's `site/js/dn2pst.js` (the owner's, MPL-2.0) ported into the Digitone
+importer, so `parseDnsnd` takes a `.dn2pst` (the same ZIP and container, the device 15), a `.dn2snd` (the container
+alone, a +Drive backup's file) and a Digitone II body met in a Digitone container or dump (its 5-byte prefix): the
+359-byte record by FIZZ's field table (`DN2_FIELDS`, 28 + 2 x id, the DN1's laws; RATIO A the firmware's table, LFO
+MULT in its runs of six, LFO 3, KEY TRACK A B1 B2 and the filter's), into FM TONE version 6: the filter machines
+(LOWPASS 4 LP24, LEGACY LP / HP / OFF, MULTI-MODE, COMB+, COMB-, EQUALIZER as FTYPE 4..7, TYPE into FSHAPE, EQ's GAIN
+from RESO), BW ROUTING into BWPOST, AMP MODE AHD and HOLD, BIT and SAMPLE RATE REDUCTION with SRR ROUTING (CRPRE),
+OVERDRIVE with OD ROUTING 0 as DRIVE ROUTE PRE, the sends with the sound (SENDS, the record's P_REV P_DLY P_CHOR, as
+3y202 does for the Digitone). Into the record beside the patch: PORTAMENTO (64 ON) as the part's GLIDE in TIME mode,
+and the modulation records (FIZZ's reading: 24 of 3 bytes at 252, six sources of four) as mod.c's matrix where an
+equivalent exists (VEL into slot 3 and AT into slot 4, the sound's EXPR routings; MW and KEY into 1 and 2; PITCH ALL,
+VOL as AMP, PAN, OVERDRIVE as DIST, the sends, FM TONE's eight macros), a note for each that has none (pitch bend,
+breath, the filter's FREQ: the matrix's CUT does not reach FM TONE's filter). A version other than 2 is read with
+version 2's layout and a note (as 3y201), a record cut short or longer with a note; refused only what has no FM TONE
+sound in a Digitone framing: another machine (WAVETONE, FM DRUM, SWARMER, MIDI), a "DN1S" body, no record. A
+container's kind other than 3 is now a note (all 512 `.dnsnd` here say 3). **The gate**: every Digitone import is
+version 6, which ChoralRoot 0.22 .. 0.27 refuse (INIT); `importSound` / `placeSound` take `quadV6` and write
+`quadToV5`'s copy without it, its notes after "On this firmware:"; `fm1sounds.js quadV6Of` reads INFO's version (0.28
+and later: version 6); the manager's Place, Place all and Replace factory pass the unit's version, the installer's
+Import its INFO's; the simulator says 0.22 (`?sim=pool&fw=0.28` for a newer one). The pages accept `.dn2pst` and
+`.dn2snd`, the manager counts the Digitone II sounds read. **The owner's two files** (Digitone2Presets, read in place):
+BASSSINE: MULTI, FSHAPE 127, BWPOST, DRIVE 1 PRE, OCTAVE -2, four notes; crackle (BACKHANDED, version 1): LP12, SRR
+84, DRIVE 69 PRE, the sends 56 / 20 / 41, three notes; neither has portamento or a modulation record. The whole
+Presets/Digitone tree (524 files, 2,015 sounds) gives the same blobs, notes and warnings as before. Tests: the new
+`web/test_dn2.mjs` (suite `web_dn2` in tests/run_all.sh; our own records: 63 values through their laws, the machines,
+AHD, CRUSH, the routes, the glide and the matrix in the record, the versions, sizes and containers, the refusals, the
+library item, `quadV6Of`, the pool written as version 5 / 6; 19 blobs through the firmware's `quad_blob_ok`),
+`web/test_manager.mjs` (the gate through Place, Place all, Replace factory and the 0.22 simulator, the page passing
+the version), `web/test_dnsnd.mjs` (a device-15 container and a prefixed body are read now). Not done: a Digitone II
+`.syx` (its framing is not known), `.dn2prj` projects, the DN1's PORTAMENTO and KEY TRACK bytes.

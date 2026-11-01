@@ -770,9 +770,9 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
 {
   // .syx (docs/SOUNDS.md ".syx export and import"): the fixtures of tests/sound_templates.c (factory F1 TINE EP's blob,
   // Casio's A-1 BRASS 1)
-  ok(html.includes('id="snd-file" type="file" accept=".json,.syx,.dnsnd,application/json"') && html.includes('"export-syx"') &&
-     ["exportSyx", "parseSyx", "soundFromSyx", "syxCount", "saveBytes", "parseDnsnd", "soundFromDnsnd", "sndDnConfirm"].every((f) => html.includes(f)),
-     "page: Export .syx on the rows, the Import picker accepts .json, .syx and .dnsnd (asks with the notes)");
+  ok(html.includes('id="snd-file" type="file" accept=".json,.syx,.dnsnd,.dn2pst,.dn2snd,application/json"') && html.includes('"export-syx"') &&
+     ["exportSyx", "parseSyx", "soundFromSyx", "syxCount", "saveBytes", "parseDnsnd", "soundFromDnsnd", "sndDnConfirm", "quadV6Of(ctx.info.version)"].every((f) => html.includes(f)),
+     "page: Export .syx on the rows, the Import picker accepts .json, .syx, .dnsnd, .dn2pst and .dn2snd (asks with the notes, gates FM TONE version 6)");
   ok(["sndExportSyx", "sndSyxText", "sndSyxSaved", "sndSyxPick", "sndSyxBadPick"].every((k) => en[k]) && dataT.includes("sndSyxText") &&
      en.sndExportSyx === "Export .syx", "texts: the .syx button, its section text, the statuses and the voice prompt");
   const B = (x) => Uint8Array.from(Buffer.from(x, "base64"));

@@ -154,7 +154,7 @@
         <button id="lib-files" class="sm">Add files…</button>
         <button id="keep-all" class="sm" disabled title="Keep every item of this source in This browser">Keep all in this browser</button>
         <label><input type="checkbox" id="lib-this" checked> this engine only</label>
-        <input id="lib-file" type="file" multiple accept=".json,.syx,.dnsnd,application/json" hidden>
+        <input id="lib-file" type="file" multiple accept=".json,.syx,.dnsnd,.dn2pst,.dn2snd,application/json" hidden>
       </div>
       <ol class="rows" id="lib-rows"></ol>
     </section>
@@ -230,6 +230,8 @@ const EMBED_PACKS = (/*PACKS*/null);
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const SIM_ARG = new URLSearchParams(location.search).get("sim"), SIM = SIM_ARG === "1" || SIM_ARG === "pool";   // ?sim=pool: a 0.22 FM-1 (128 slots)
+// ?sim=pool&fw=0.28: the simulated FM-1 says that version (the FM TONE version gate, 3y211: 0.28 takes version 6)
+const SIM_FW = /^\d+\.\d+[\w.-]*$/.test(new URLSearchParams(location.search).get("fw") || "") ? new URLSearchParams(location.search).get("fw") : null;
 const PORT = MANAGER_PORT_RE;                  // "ChoralRoot FM-1", or the "FM-1" macOS keeps for the device (issue 32)
 const COLORS = { 12: "#E63829", 15: "#F67918", 13: "#F6B600", 14: "#2950CD", 16: "#29B27B", 2: "#29B27B", 3: "#F6F2EE", 5: "#E63829", 6: "#F67918", 7: "#F6B600", 9: "#29B27B", 11: "#9A999A" };
 const colorOf = (e) => COLORS[poolOf(e)] || "#6A696A";
@@ -333,7 +335,7 @@ function renderLib() {
   const vis = libVisible();
   if (!vis.length) {
     const what = ui.tab === "loops" ? "loops" : $("lib-this").checked ? `${ENGINE_NAMES[ui.tab]} sounds` : "sounds";
-    $("lib-rows").innerHTML = `<li class="empty-note" style="display:block">No ${esc(what)} here. ${ui.libSrc === "browser" ? "Keep sounds from the FM-1, or add files (sound files, packs, .syx, Digitone .dnsnd and .syx dumps, backups, loop files)." : ""}</li>`;
+    $("lib-rows").innerHTML = `<li class="empty-note" style="display:block">No ${esc(what)} here. ${ui.libSrc === "browser" ? "Keep sounds from the FM-1, or add files (sound files, packs, .syx, Digitone .dnsnd and .syx dumps, Digitone II .dn2pst and .dn2snd, backups, loop files)." : ""}</li>`;
     return;
   }
   $("lib-rows").innerHTML = vis.map(({ it, i }, n) => `<li draggable="true" data-i="${i}" class="user${ui.lib.sel.has(i) ? " sel" : ""}"><span class="pos">${String(n + 1).padStart(2, "0")}</span>` +
@@ -473,8 +475,9 @@ async function attach() {
 }
 async function startSim() {
   const pool = SIM_ARG === "pool";
-  sim = pool ? makeSimFM1(simObjects(30, true), { version: "ChoralRoot 0.22", ids: SIM_POOL_IDS }) : makeSimFM1(simObjects(30));
-  firmware = `ChoralRoot ${pool ? "0.22" : "0.15"} (simulated)`; $("fw").textContent = firmware; $("connect").hidden = true;
+  const ver = SIM_FW || (pool ? "0.22" : "0.15");
+  sim = pool ? makeSimFM1(simObjects(30, true), { version: `ChoralRoot ${ver}`, ids: SIM_POOL_IDS }) : makeSimFM1(simObjects(30), { version: `ChoralRoot ${ver}` });
+  firmware = `ChoralRoot ${ver} (simulated)`; $("fw").textContent = firmware; $("connect").hidden = true;
   setConn("sim", "simulated FM-1"); $("needs").textContent = "Simulator: a pretend FM-1 in this page. Writes change it only until the page reloads.";
   session = new ManagerSession(sim.request);
   await readDevice("Reading the simulated FM-1…");
@@ -549,7 +552,8 @@ function askDialog({ title, paras, ok }, { backup = true } = {}) {
   });
 }
 const act = (f) => async () => { try { await f(); } catch (e) { say(e.message, "err"); } };
-// what an FM-1 before the pool (0.21) will not have of a placed patch (fm1sounds.js importSound: converted down for it)
+// what the FM-1's firmware will not have of a placed patch (fm1sounds.js importSound: converted down for it): before the
+// pool (0.21) any; 0.22 .. 0.27 FM TONE's version 6 (keepOpts' firmware: managerPlace's version gate, 3y211)
 const downText = (res) => (res.notes && res.notes.length ? ` On this firmware: ${res.notes.join("; ")}.` : "");
 const keepOpts = () => ({ firmware, packs: ui.fpacks });
 
@@ -563,12 +567,12 @@ async function placeItems(items, target) {
     return run(`Place into loop slot ${slot}`, placeLoop(session.objs, slot, items[0].file), `Placed into loop slot ${slot}.`);
   }
   if (items.length > 1) {
-    const res = managerPlaceAll(session.objs, items.map((it) => it.file));
+    const res = managerPlaceAll(session.objs, items.map((it) => it.file), keepOpts());
     return run(`Place ${items.length}`, res, `Placed ${res.placed} sound${res.placed === 1 ? "" : "s"}${res.skipped ? `; ${res.skipped} did not fit (no free slot: delete or overwrite)` : ""}.${downText(res)}`);
   }
   const r = items[0], t = target && target.type !== "empty" ? target : null;
   if (t && t.type === "user" && t.engine === r.pool && !confirm(`Replace ${t.label} ${t.name} with ${r.name}?`)) return;
-  const res = managerPlace(session.objs, r.file, t);
+  const res = managerPlace(session.objs, r.file, t, keepOpts());
   const where = res.where === "over-factory" ? "over a factory preset" : res.where === "over-user" ? `into ${slotLabel(res.slot)}` : `as a new ${ENGINE_NAMES[r.pool]} sound`;
   if (r.pool !== ui.tab) ui.tab = r.pool;
   await run(`Place ${r.name}`, res, `Placed ${r.name} ${where} (${slotLabel(res.slot)}).${downText(res)}`, { engine: r.pool, slot: res.slot });
@@ -590,7 +594,7 @@ $("place").addEventListener("click", act(() => placeItems(libSel(), devPrimary()
 $("place-all").addEventListener("click", act(async () => {
   const items = libVisible().map(({ it }) => it).filter((it) => it.type === "sound");
   if (!confirm(`Place all ${items.length} sounds? ${freeSlots()} user slots are free; what does not fit is left out.`)) return;
-  const res = managerPlaceAll(session.objs, items.map((it) => it.file));
+  const res = managerPlaceAll(session.objs, items.map((it) => it.file), keepOpts());
   await run("Place all", res, `Placed ${res.placed} sounds${res.skipped ? `; ${res.skipped} did not fit (all ${usedSlots(session.objs)} user slots are used: delete or overwrite to place more)` : ""}.${downText(res)}`);
 }));
 // Replace factory: the library's selection (or every sound shown) over the open engine's factory presets, from `from`
@@ -600,7 +604,7 @@ async function replaceFactory(items, from = 1) {
   if (!plan.items.length) throw new Error(`None of the ${items.length} selected is a ${ENGINE_NAMES[ui.tab]} sound`);
   if (!plan.replace && !plan.extra) throw new Error(plan.free ? `No factory ${ENGINE_NAMES[ui.tab]} preset left to replace` : "No free user slot: delete a user sound first");
   if (!confirm(replaceFactoryText(plan, ui.tab, items.length))) return;
-  const res = managerReplaceFactory(session.objs, ui.tab, files, from);
+  const res = managerReplaceFactory(session.objs, ui.tab, files, from, keepOpts());
   await run("Replace factory", res, `Replaced ${res.replaced} factory ${ENGINE_NAMES[ui.tab]} sounds${res.added ? `; ${res.added} more placed` : ""}${res.refused ? `; ${res.refused} did not fit` : ""}.${downText(res)}`, { engine: ui.tab, pos: from });
 }
 $("replace").addEventListener("click", act(() => replaceFactory(replaceItems())));
@@ -790,7 +794,8 @@ $("lib-file").addEventListener("change", act(async () => {
   if (items.length) ui.fileItems = [...(ui.fileItems || []), ...items];
   ui.libSrc = pack ? pack.id : items.length ? "files" : ui.libSrc; renderSources();
   await loadLibrary();
-  const dnSay = dn.length ? ` (${dn.length} Digitone sound${dn.length > 1 ? "s" : ""} as FM TONE: each row lists what is approximated; Place writes them)` : "";
+  const dn2 = dn.filter((it) => it.file && it.file.dnsnd && it.file.dnsnd.model === 2).length;
+  const dnSay = dn.length ? ` (${dn.length} Digitone sound${dn.length > 1 ? "s" : ""}${dn2 ? `, ${dn2} of them Digitone II` : ""} as FM TONE: each row lists what is approximated; Place writes them)` : "";
   say(`${items.length + (pack ? pack.items.length : 0)} item(s) read${dnSay}${pack ? ` (pack ${pack.name}: Keep all in this browser keeps it)` : ""}${errs.length ? `; ${errs.join("; ")}` : ""}.`, errs.length ? "err" : "");
 }));
 $("connect").addEventListener("click", () => connectMidi());

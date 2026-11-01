@@ -366,9 +366,13 @@ ok(await rejects(parseDnsnd(dnsnd(rec0, { man: { Payload: "GONE" } })), /payload
 ok(await rejects(parseDnsnd(dnsnd(rec0, { hdrMagic: [1, 2, 3, 4] })), /payload's magic/), "error: the payload's magic");
 ok(await rejects(parseDnsnd(dnsnd(rec0, { size: 400 })), /cut short/), "error: a body shorter than its header says");
 ok(await rejects(parseDnsnd(dnsnd(rec0, { size: 0x9000 })), /the payload's header: a 36864-byte body/), "error: a body no sound could be");
-ok(await rejects(parseDnsnd(dnsnd(rec0, { device: 15 })), /a Digitone II sound/), "error: a Digitone II sound (device 15)");
-{ const d2 = new Uint8Array(364); d2.set([0, 0, 0, 2, 0, 0xbe, 0xef, 0xba, 0xce, 0, 0, 0, 2]);
-  ok(await rejects(parseDnsnd(dnsnd(d2)), /a Digitone II sound/), "error: a Digitone II body (its 5-byte prefix, then the record)"); }
+// (a Digitone II sound is read since 3y211, web/test_dn2.mjs: by the device 15, or by its body's 5-byte prefix)
+{ const x = await parseDnsnd(dnsnd(rec0, { device: 15 }));
+  ok(x.model === 2 && x.warnings.some((w) => /without its 5-byte prefix/.test(w)) && !x.warnings.some((w) => /cut short/.test(w)),
+     "a device-15 container: read as a Digitone II record (no prefix: a note; its 302 bytes hold every field)"); }
+{ const d2 = new Uint8Array(364); d2.set([0, 0, 0, 2, 0, 0xbe, 0xef, 0xba, 0xce, 0, 0, 0, 2]); d2.set([0xba, 0xce, 0xf0, 0x0c], 360);
+  const x = await parseDnsnd(dnsnd(d2));
+  ok(x.model === 2 && x.warnings.some((w) => /device is 9, not 15/.test(w)) && !x.warnings.some((w) => /end ba ce/.test(w)), "a Digitone II body (its 5-byte prefix) in a device-9 container: read as one, a note"); }
 ok(await rejects(parseDnsnd(dnsnd(record("X", {}, { magic: [1, 2, 3, 4] }))), /the sound's magic/), "error: the record's magic");
 ok(await rejects(parseDnsnd(dnsnd(rec0, { block: lz4Literal(rec0).subarray(0, 100) })), /cut short/), "error: the LZ4 block cut short");
 ok(await rejects(parseDnsnd(dnsnd(rec0, { block: Uint8Array.from([0x10, 7, 9, 0]) })), /does not decompress/), "error: an LZ4 match before the start");
