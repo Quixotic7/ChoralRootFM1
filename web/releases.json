@@ -8,6 +8,25 @@
   },
   "releases": [
     {
+      "version": "0.28",
+      "date": "2026-10-31",
+      "tag": "v0.28",
+      "sha256": "8adefde995a2db700803e54d9cd10bb4b9cde070ec5e37914e92bdc742c0575b",
+      "sha256_1core": "88c4f22b51eab407f5e3c28386837278e1b968affdb6474049ff6ee9a678a200",
+      "title": "Digitone sounds from .syx dumps and every record version",
+      "bullets": [
+        "The web device manager and the installer's Sounds section read Digitone .syx dumps: one sound, a bank or a project, each sound converted as from a .dnsnd file, with the same notes.",
+        "Sounds of every record version import: the ones saved on Digitone OS 1.31 and 1.42 were refused as a newer format; a version newer than the known ones is read with the known layout and says so.",
+        "A record cut short gets FM TONE's defaults for what is missing instead of a silent level and a shut filter.",
+        "The installers recognise an FM-1 running RemoteFM1 0.2 or later and install ChoralRoot over it.",
+        "The firmware is 0.27's: the same sound and features, your settings, sounds, loops, favorites and FX routing stored as before. Only the version line reads 0.28."
+      ],
+      "notes": [
+        "Updating from 0.27 is optional: nothing changes but the version line, and the new importing is on the web pages. From 0.26.1 or older, this is 0.27's update with the FX routing.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.27",
       "date": "2026-10-25",
       "tag": "v0.27",
@@ -25,7 +44,14 @@
       "notes": [
         "Updating from 0.26.1 or 0.26 keeps your settings, sounds, loops and favorites; the effects sound as they did until you open the Routing page. From 0.25.1 or older, your FM-1 also moves to the FM-1 chord keys once.",
         "The Single core package has the routing too. 0.27 also comes as a community test build for the M-Vave SMK-37 (see SMK37.md in the repository)."
-      ]
+      ],
+      "going_back": {
+        "short": "Nothing changes: 0.28 is the same firmware as 0.27 and stores everything the same way, so your settings, sounds, loops, favorites and FX routing stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.27 again.",
+          "Sounds imported from .syx files or newer records are ordinary FM TONE sounds on the FM-1 and stay."
+        ]
+      }
     },
     {
       "version": "0.26.1",
