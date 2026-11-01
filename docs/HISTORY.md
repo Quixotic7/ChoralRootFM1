@@ -6608,3 +6608,19 @@ built: `cr_edit.c` `ce_ftype` / `ce_fheld` / `ce_fpick`, `ce_kmod` 4, `ce_select
 +640 B (550,468). Tests: `tools/emu/scripts/cr_quad_fpick.txt` (test_cr.sh: the hold, KNOB 1, SELECT, the release
 with no tap, a tap, a knob before the hold time; the screenshots differ). docs/MANUAL.md (the editor, the buttons
 table). No golden changed (the picker is `cr_draw.c`'s existing `CR_K_PICKER`).
+
+3y205. **FM TONE's DRIVE before the filter, per voice (DRIVE ROUTE PRE).** The owner: "they sound quite a bit better
+with FIZZ's engine". The survey's first finding: 62 % of the owner's Digitone sounds have DRIVE, and the Digitone
+drives each voice before its filter, where ChoralRoot drove the part's chord after it (docs/QUAD.md "DRIVE ROUTE").
+AMP+ gets a fourth cell, `Route` (POST / PRE: version 6's DRPRE, no page inserted); PRE runs the part's DIST in every
+voice before the multimode filter (FIZZ's place), the LFOs' DRIVE on it, and the part's own DIST then stands aside
+(fx.c `track_dist` -> `quad_drive_pre`). The DIST loop moved from fx.c into dsp.c (`dsp_dist`, the same code) so the
+part and the voices share it. With it, FIZZ's FREQ / RESO glide on a live change (P2.6b: no zipper or click on a
+resonant filter turned while a note sounds; a note whose FREQ and RESO stay put is bit-identical) and its `quad_bwk`
+guard (no read past `QUAD_BW_K` at BASE 127.00). The importer has set PRE for driven sounds since 3y202. Goldens: 317
+unchanged (`tests/golden.txt`), `tests/quad_goldens` unchanged. Tests: `cr_quad_test t_drive_pre` (DRPRE 0 and DRIVE 0
+as before; PRE drives; a chord equals its notes driven alone; LFO -> DRIVE; FREQ's glide 40.00 -> 80.00 a quarter a
+block, a new note at its own; `quad_bwk(127.00)`). CPU (host, `run_quad_test.sh`): WOBBLE 8 voices DRIVE 80 PRE 1,939
+instructions a sample, 33.0 % of the half, +5.8 % (~+170 us) over WOBBLE: with the unit's WOBBLE + BASS 2,345 us that
+crosses the 2,467 us shed line, so 3y206 splits FM TONE's chord over both cores. Size: XIP 550,516 B (+48 over
+3y204: the DIST loop shared), POOL +256 B (16 voices' drive and glide state).

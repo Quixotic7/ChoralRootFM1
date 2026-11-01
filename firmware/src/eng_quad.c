@@ -147,6 +147,7 @@ static const char *const N_QUAD_FTYPE[QF_N] = {"OFF", "LP12", "HP12", "LP24"};
 static const char *const N_QUAD_WAVE[QW_N] = {"TRI", "SINE", "SQR", "SAW", "RAMP", "EXP", "RAND"};
 static const char *const N_QUAD_TRIG[QT_N] = {"FREE", "TRIG", "HOLD", "ONE", "HALF"};
 static const char *const N_QUAD_PHRT[QR_N] = {"OFF", "ALL", "C", "A+B", "A+B2"};
+static const char *const N_QUAD_ROUTE[2] = {"POST", "PRE"};   /* DRIVE ROUTE (version 6): after the voice, before the filter */
 static const char *const N_QUAD_DEST[QD_N] = {   /* <= 5 characters (params.c prints 5) */
     "NONE", "PITCH", "P AB2", "ALGO", "RAT C", "RAT A", "RAT B", "OFS C", "OFS A", "OFSB1", "OFSB2", "HARM", "DTUN",
     "FDBK", "MIX", "A LEV", "B LEV", "A ATK", "A DEC", "A END", "B ATK", "B DEC", "B END", "A DLY", "B DLY", "FREQ",
@@ -206,6 +207,7 @@ static const quad_algo_t QUAD_ALGO[8] = {
 #define QC_PCT(l, d) {l, F_PCT, 0, 127, d, 0, 0}
 #define QC_ON(l, d) {l, F_ONOFF, 0, 1, d, 0, 0}
 #define QC_PHRT {"PHRT", F_ENUM, 0, QR_N - 1, QR_ALL, N_QUAD_PHRT, 0}
+#define QC_ROUTE {"ROUTE", F_ENUM, 0, 1, 0, N_QUAD_ROUTE, 0}
 #define QC_FREQ {"FREQ", F_FIX2, 0, 12700, 12700, 0, 0}
 #define QC_FTYPE {"TYPE", F_ENUM, 0, QF_N - 1, QF_LP12, N_QUAD_FTYPE, 0}
 #define QC_DEPTH(l) {l, F_FIX2, -6400, 6399, 0, 0, 0}
@@ -238,7 +240,7 @@ static const eng_page_t QUAD_PAGES[] = {
     {"ENV 2+", {QC_T("B DLY", 0), QC_ON("B TRIG", 1), QC_ON("B RESET", 1), QC_P("VEL", 64)}},
     {"ENV 3", {QC_P("A KEY", 0), QC_P("B1 KEY", 0), QC_P("B2 KEY", 0), QC_NONE}},
     {"AMP", {QC_T("ATK", 8), QC_EI("DEC", 32), QC_PCT("SUS", 96), QC_EI("REL", 24)}},
-    {"AMP+", {QC_P("LEVEL", 110), QC_PAN, QC_PCT("DRIVE", 0), QC_NONE}},
+    {"AMP+", {QC_P("LEVEL", 110), QC_PAN, QC_PCT("DRIVE", 0), QC_ROUTE}},   /* (ROUTE: DRIVE's, version 6) */
     {"LFO 1", {QC_SPEED, QC_MULT, QC_FADE, QC_DEST}},                       /* 14 LFO */
     {"LFO 1+", {QC_WAVE, QC_P("PHASE", 0), QC_LTRIG, QC_DEPTH("DEPTH")}},
     {"LFO 2", {QC_SPEED, QC_MULT, QC_FADE, QC_DEST}},
@@ -268,7 +270,7 @@ static const uint8_t QUAD_MAP[NELEM(QUAD_PAGES)][4] = {
     {QP_BDLY, QP_BTRIG, QP_BRST, QP_VEL},
     {QP_AKEY, QP_B1KEY, QP_B2KEY, QUAD_X},
     {QP_EATK, QP_EDEC, QP_ESUS, QP_EREL},
-    {QP_LEVEL, QUAD_XPAN, QUAD_XDIST, QUAD_X},
+    {QP_LEVEL, QUAD_XPAN, QUAD_XDIST, QP_DRPRE},
     QUAD_LPG(0), QUAD_LPG(1), QUAD_LPG(2),
 };
 
@@ -411,6 +413,8 @@ typedef struct {
                                                   * none before it); a filter switched in or out crossfades its block */
     int8_t mixp;                                 /* MIX in the last block (QUAD_MIX_NEW: a fresh voice): ramped over
                                                   * the block to this block's */
+    int16_t fsm, rsm;                            /* FREQ and RESO as the filter runs them (quad_glide_v, FIZZ's P2.6b) */
+    int32_t dh, dl1, dl2;                        /* DRIVE before the filter (QP_DRPRE): the voice's DIST (dsp.c) */
 } quad_voice_t;
 #define QUAD_FON_NEW 0xFFu
 #define QUAD_MIX_NEW (-128)
@@ -1054,6 +1058,7 @@ static void quad_note_on(track_t *t, voice_t *v)
         s->f1 = s->f2 = s->f3 = s->f4 = 0;
         s->bh = s->bl = 0;
         s->dc = 0;
+        s->dh = s->dl1 = s->dl2 = 0;
         s->fon = QUAD_FON_NEW;
         s->mixp = QUAD_MIX_NEW;
         quad_env_start(s, 0, p[QP_ADLY], 1);
@@ -1067,6 +1072,7 @@ static void quad_note_on(track_t *t, voice_t *v)
         if (p[QP_BTRIG])
             quad_env_start(s, 1, p[QP_BDLY], p[QP_BRST]);
     }
+    s->fsm = p[QP_FREQ], s->rsm = p[QP_RESO];    /* (a note at its own FREQ and RESO: no glide into it) */
     quad_env_start(s, 2, p[QP_FDLY], fresh);     /* filter and amp: the attack from the current level */
     quad_env_start(s, 3, 0, fresh);
     quad_lfo_on(t, s, p);
@@ -1199,11 +1205,23 @@ static void quad_blev(int32_t v, int32_t *u1, int32_t *u2)
 }
 static int32_t quad_lev(int32_t u) { return u >= 4096 ? 32767 : (u * u) >> 9; }   /* a share (Q12) squared, Q15 */
 
-/* QUAD_BW_K at x hundredths (0..12699), interpolated */
+/* QUAD_BW_K at x hundredths (0..12700), interpolated (a whole number: its entry, no read past the table at 127.00:
+ * an LFO on BASE takes it there; FIZZ's QUADRILLE (d), the same values) */
 static int32_t quad_bwk(int32_t x)
 {
     int32_t i = x / 100, k0 = QUAD_BW_K[i];
+    if (!(x % 100))
+        return k0;
     return k0 + (((int32_t)QUAD_BW_K[i + 1] - k0) * (x % 100)) / 100;
+}
+
+/* a value gliding to its target: a quarter of the way a block, the last 7 at once (FIZZ's P2.6b: FREQ and RESO turned
+ * on a sounding voice reach the new value over ~7 ms for a detent, not in one 32-sample step: no zipper, no click at
+ * high resonance; a note whose FREQ and RESO stay put renders as before, sample for sample) */
+static int32_t quad_glide_v(int32_t cur, int32_t tgt)
+{
+    int32_t d = tgt - cur;
+    return d > -8 && d < 8 ? tgt : cur + d / 4;
 }
 
 /* the HARM wave: tables a and b (HARM's neighbours, one index), b's share f (Q15). The tables are the stored first
@@ -1506,9 +1524,11 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     dlb2 = ((tl[2] << 16) - lb2) >> CTL_LOG2;
     /* the multimode filter: FREQ, its envelope by DEPTH, key track, the LFOs */
     fdep = QMV(QP_FDEPTH, QD_FENV, 12700, -6400, 6399);          /* (hundredths: FREQ, RESO, DEPTH, BASE) */
-    cut = (QMV(QP_FREQ, QD_FREQ, 12700, 0, 12700) * 256 + 50) / 100 + (eF * fdep) / 6400 +
+    s->fsm = (int16_t)quad_glide_v(s->fsm, p[QP_FREQ]);
+    s->rsm = (int16_t)quad_glide_v(s->rsm, p[QP_RESO]);
+    cut = (clamp(s->fsm + ((dst[QD_FREQ] * 12700) >> 15), 0, 12700) * 256 + 50) / 100 + (eF * fdep) / 6400 +
           (((m->pitch16 - 60 * 16) * p[QP_FKTRK] * 150) >> 10);
-    reso = QMV(QP_RESO, QD_RESO, 12700, 0, 12700);
+    reso = clamp(s->rsm + ((dst[QD_RESO] * 12700) >> 15), 0, 12700);
     fty = p[QP_FTYPE];
     svf = fty != QF_OFF && !(fty != QF_HP12 && cut >= (127 << 8) && !reso);   /* LP wide open, no resonance: none */
     kd = 8192 - reso * 3 / 5;                    /* (60 a whole step) */
@@ -1620,6 +1640,16 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         s->dc = d;
         s->bh = bh, s->bl = bl;
     }
+    /* DRIVE ROUTE PRE (version 6's DRPRE, FIZZ's E1; the Digitone's place: "distortion of the signal entering the
+     * filter", per voice): the part's DIST (dsp.c) on this voice's signal before its filter and its amp, its state the
+     * voice's, the LFOs' DRIVE on it; the part's own after the voices then none (fx.c track_dist: quad_drive_pre).
+     * Each note driven alone (no intermodulation of a chord in one clipper), the filter shaping the drive, the grit
+     * kept as the amp envelope falls */
+    if (p[QP_DRPRE]) {
+        int32_t dr = clamp(t->p[P_DIST] + quad_fx_off[tr][0], 0, 127);
+        if (dr)
+            dsp_dist(&s->dh, &s->dl1, &s->dl2, dr, acc, n);
+    }
     /* the multimode SVF, a loop per type (LP12 v2, HP12 x - kd v1 - v2, LP24 a plain LP12 then the resonant one; the
      * products rounded: truncation's bias, integrated, was DC), the soft knee after it. Switched in (its envelope or
      * an LFO bringing a wide-open LP down): its states start at the input (the LP's at the input, the band's at 0)
@@ -1705,6 +1735,13 @@ static int32_t quad_pan(const track_t *t, int32_t pan)
     return clamp(pan + quad_pan_off[tr], -64, 63);
 }
 
+/* fx.c track_dist: the part's DRIVE runs in its voices (DRIVE ROUTE PRE), not after them */
+static int quad_drive_pre(const track_t *t)
+{
+    uint32_t tr = quad_tr(t);
+    return t->engine == ENGI_QUAD && tr < QUAD_NPART && quad_patch[tr][QP_DRPRE];
+}
+
 /* fx.c: the part's DRIVE (track_dist) and its sends (mix_part_out: c d r, x 258) with the LFOs' (QD_DRIVE, QD_SREV ..);
  * read once a block, the sends ramped over it as any send change */
 static int32_t quad_drive(const track_t *t, int32_t d)
@@ -1750,8 +1787,8 @@ static const eng_screen_t QUAD_SCREENS[] = {
     {2, {9, 10}, ENG_B_NONE, 0, "ENV 2", {{QS_N, QS_T, QS_T, QS_T}, {QS_N, QS_T, QS_T, QS_N}},
      {{"A Delay", "A Trig", "A Reset", "Phase"}, {"B Delay", "B Trig", "B Reset", "Velocity"}}},
     {2, {11, 0xFF}, ENG_B_NONE, 0, "ENV 3", {{QS_N, QS_N, QS_N}}, {{"A Key", "B1 Key", "B2 Key"}}},
-    {2, {12, 13}, ENG_B_ENV, 1, "AMP", {{QS_N, QS_N, QS_N, QS_N}, {QS_N, QS_N, QS_N}},
-     {{"Attack", "Decay", "Sustain", "Release"}, {"Level", "Pan", "Drive"}}},
+    {2, {12, 13}, ENG_B_ENV, 1, "AMP", {{QS_N, QS_N, QS_N, QS_N}, {QS_N, QS_N, QS_N, QS_T}},
+     {{"Attack", "Decay", "Sustain", "Release"}, {"Level", "Pan", "Drive", "Route"}}},
     QUAD_LSCR(1), QUAD_LSCR(2), QUAD_LSCR(3),
 };
 #undef QS_N

@@ -68,6 +68,25 @@ static inline int32_t softclip(int32_t x)
     return x < 0 ? -y : y;
 }
 
+/* DIST (fx.c track_dist, a part's insert; eng_quad.c, FM TONE's DRIVE before the filter, a voice's): low cut -> drive
+ * d 1..127 (1x..~9x) -> asymmetric soft clip (a little bias = even harmonics) -> a tone low-pass that closes with the
+ * drive -> make-up gain; its state hp lp1 lp2. Moved here from fx.c (3y205) unchanged, bit for bit */
+static void dsp_dist(int32_t *hp, int32_t *lp1, int32_t *lp2, int32_t d, int32_t *b, uint32_t n)
+{
+    int32_t i, g = 4096 + d * d * 2, k = 32000 - d * 95, mk = 30000 - d * 120, bias = 2400, b0 = softclip(bias);
+    int32_t h = *hp, l1 = *lp1, l2 = *lp2;
+    for (i = 0; i < (int32_t)n; i++) {
+        int32_t x = b[i], y;
+        h += (x - h + 64) >> 7;                             /* ~55 Hz low cut: keep the bass out of the clipper */
+        x = clamp(x - h, -230000, 230000);                  /* (x >> 2) * g fits 32 bits; the clip is flat out there */
+        y = softclip((((x >> 2) * g) >> 10) + bias) - b0;   /* >> 2 first: no overflow for loud poly */
+        l1 += mulq15(y - l1, k);                            /* two poles: tames the fizz */
+        l2 += mulq15(l1 - l2, k);
+        b[i] = mulq15(l2, mk);
+    }
+    *hp = h, *lp1 = l1, *lp2 = l2;
+}
+
 /* xorshift32 */
 static inline uint32_t noise32(int32_t *st)
 {

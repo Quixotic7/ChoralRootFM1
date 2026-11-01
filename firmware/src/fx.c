@@ -86,25 +86,16 @@ _Static_assert(sizeof rev_comb / 2u >= SP_LEN && sizeof rev_u.sp / 4u >= 4u * (S
  * broken digital fuzz). State per part (track_t dist_*). */
 static void track_dist(track_t *t, int32_t *b, uint32_t n)
 {
-    int32_t d = t->p[P_DIST], i, g, k, mk, bias = 2400, b0;
+    int32_t d = t->p[P_DIST];
 #if FELUCCA_QUAD
+    if (quad_drive_pre(t))                              /* eng_quad.c: FM TONE's DRIVE ROUTE PRE: every voice drives
+                                                         * itself, before its filter (the part: none) */
+        return;
     d = quad_drive(t, d);                               /* eng_quad.c: FM TONE's LFO -> DRIVE */
 #endif
     if (!d)
         return;                                         /* states kept: switching on does not click */
-    g = 4096 + d * d * 2;                                /* Q12: 1x .. ~9x, gentle at first */
-    k = 32000 - d * 95;                                  /* tone: transparent at low drive .. ~3 kHz, Q15 */
-    mk = 30000 - d * 120;                                /* make-up */
-    b0 = softclip(bias);
-    for (i = 0; i < (int32_t)n; i++) {
-        int32_t x = b[i], y;
-        t->dist_hp += (x - t->dist_hp + 64) >> 7;           /* ~55 Hz low cut: keep the bass out of the clipper */
-        x = clamp(x - t->dist_hp, -230000, 230000);         /* (x >> 2) * g fits 32 bits; the clip is flat out there */
-        y = softclip((((x >> 2) * g) >> 10) + bias) - b0;   /* >> 2 first: no overflow for loud poly */
-        t->dist_lp1 += mulq15(y - t->dist_lp1, k);         /* two poles: tames the fizz */
-        t->dist_lp2 += mulq15(t->dist_lp1 - t->dist_lp2, k);
-        b[i] = mulq15(t->dist_lp2, mk);
-    }
+    dsp_dist(&t->dist_hp, &t->dist_lp1, &t->dist_lp2, d, b, n);   /* (dsp.c: g 1x .. ~9x, the tone, the make-up) */
 }
 
 /* master: peak limiter in front of the soft clipper. Fast attack (~0.1 ms),

@@ -353,6 +353,24 @@ and versions 1..3 convert on load (`quad_unpack`, `quad_v5_of_v4`): FREQ DTUN RE
 rounded (110.40 -> 110). Factory presets, pool slots, sessions, backups, sound files (web/fm1sounds.js, the importer
 web/fm1dnsnd.js `quadToV4`) and tools/fm1_install.py (versions 1..6 accepted) all go through it.
 
+### DRIVE ROUTE (2026-10-31, version 6's DRPRE, 3y205)
+
+AMP+ column 4, `ROUTE`: `POST` (0, every sound before) leaves DRIVE where it was, the part's DIST after the voices
+(fx.c `track_dist`, on the chord's sum, after the amp envelope and LEVEL). `PRE` (1) runs the same DIST (dsp.c
+`dsp_dist`, moved there from fx.c bit for bit) in every voice, on the operators' signal after the DC blocker and the
+base-width filter, before the multimode filter and the amp (FIZZ's E1 place, `quad_ext_drive_pre`; the Digitone's
+"distortion of the signal entering the filter", OS 1.44 manual l. 2826), its state the voice's (`quad_voice_t.dh dl1
+dl2`, from rest on a fresh note), the LFOs' DRIVE added; the part's DIST then does nothing (`quad_drive_pre`). A chord
+is the sum of its notes driven one by one (no intermodulation, `cr_quad_test t_drive_pre`); the drive's input does not
+follow the amp envelope or LEVEL. The Digitone importer sets PRE on every sound with DRIVE > 0 (FIZZ's `digitone.js`
+the same). Cost: one DIST loop a driven voice; the host figure (`tests/run_quad_test.sh`): WOBBLE's 8 voices at DRIVE
+80 PRE +5.8 % of the half (~+170 us) over WOBBLE as it is, so FM TONE's chord is split over both cores (3y206).
+
+**FREQ and RESO glide** (FIZZ's P2.6b): the filter runs `quad_voice_t.fsm / rsm`, which move a quarter of the way to
+the patch's FREQ / RESO a block (the last 7 hundredths at once, ~7 ms for a detent); a note starts at its own values,
+so a note whose FREQ and RESO stay put renders as before, sample for sample (no golden moved). `quad_bwk` returns
+the entry for a whole number (BASE 127.00 read one past `QUAD_BW_K` times 0: the same value, without the read).
+
 ### Version 6 (2026-10-31: FIZZ's engine values, the sound's sends)
 
 The owner: "Ok, I've imported some syx, however they sound quite a bit better with FIZZ's engine, can we look into

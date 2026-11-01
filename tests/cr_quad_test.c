@@ -748,6 +748,88 @@ static void t_blob6(void)
     }
 }
 
+/* DRIVE ROUTE PRE (3y205, version 6's DRPRE): off or DRIVE 0 the voice as before; on, every voice driven alone before
+ * its filter (a chord = its notes rendered one by one: no intermodulation), the LFOs' DRIVE on it, the part's drive
+ * after the voices none (quad_drive_pre); FREQ / RESO turned on a sounding voice glide (~7 ms), a note at its own
+ * values as before; quad_bwk at 127.00 its last entry */
+static uint32_t pre_render(const int16_t *p, int16_t dist, const uint8_t *notes, uint32_t nn, uint32_t nt, int32_t *buf)
+{
+    track_t *t = &trk[0];
+    uint32_t i, k;
+    drv_reset(t);
+    drv_patch4(t, p);
+    t->p[P_DIST] = dist;
+    for (i = 0; i < nn; i++)
+        drv_on(t, i, notes[i], 110);
+    for (k = 0; k < nt; k++)
+        drv_tick(t, buf + k * CTL);
+    return nt * CTL;
+}
+static void t_drive_pre(void)
+{
+    static int32_t a[200 * CTL], b[200 * CTL], c[200 * CTL], d[200 * CTL];
+    static const uint8_t CH[3] = {48, 55, 64};
+    int16_t p[QP_NP];
+    uint32_t i, n, diff = 0, sum_bad = 0;
+    double e0 = 0, e1 = 0;
+    quad_preset_patch4(9, p);                    /* WOBBLE: LP24, resonance, two LFOs */
+    p[QP_LFO(0, QL_DEPTH)] = p[QP_LFO(1, QL_DEPTH)] = 0;   /* (no LFO: the per-voice sum below is exact) */
+    n = pre_render(p, 0, CH, 3, 200, a);
+    pre_render(p, 90, CH, 3, 200, b);            /* DRPRE 0: the part's drive is fx.c's, the voices the same */
+    for (i = 0; i < n; i++)
+        diff += a[i] != b[i];
+    CHECK(!diff && !quad_drive_pre(&trk[0]), "DRPRE 0: DRIVE 90 leaves the voices (%u samples differ)", diff);
+    p[QP_DRPRE] = 1;
+    pre_render(p, 0, CH, 3, 200, b);
+    for (i = diff = 0; i < n; i++)
+        diff += a[i] != b[i];
+    CHECK(!diff && quad_drive_pre(&trk[0]), "DRPRE 1, DRIVE 0: as before, the part's drive off (%u differ)", diff);
+    pre_render(p, 90, CH, 3, 200, b);
+    for (i = diff = 0; i < n; i++) {
+        diff += a[i] != b[i];
+        e0 += (double)a[i] * a[i], e1 += (double)b[i] * b[i];
+    }
+    CHECK(diff > n / 2 && e1 > 0 && e0 > 0, "DRPRE 1, DRIVE 90: the voices driven (%u of %u differ, %.1f dB)", diff, n,
+          db(sqrt(e1), sqrt(e0)));
+    memset(d, 0, sizeof d);                      /* the chord = its three notes driven alone, summed */
+    for (i = 0; i < 3u; i++) {
+        uint32_t j;
+        pre_render(p, 90, CH + i, 1, 200, c);
+        for (j = 0; j < n; j++)
+            d[j] += c[j];
+    }
+    for (i = 0; i < n; i++)
+        sum_bad += b[i] != d[i];
+    CHECK(!sum_bad, "DRPRE: a chord is its notes driven one by one (%u samples differ: no intermodulation)", sum_bad);
+    p[QP_LFO(0, QL_DEST)] = QD_DRIVE, p[QP_LFO(0, QL_DEPTH)] = 6000;   /* LFO 1 on DRIVE */
+    pre_render(p, 90, CH, 3, 200, c);
+    for (i = diff = 0; i < n; i++)
+        diff += c[i] != b[i];
+    CHECK(diff > n / 4, "DRPRE: LFO 1 on DRIVE moves the voices' drive (%u differ)", diff);
+    {   /* FREQ turned on a sounding note: a quarter of the way a block, there within a few blocks */
+        track_t *t = &trk[0];
+        int32_t o[CTL];
+        uint32_t k;
+        quad_init_patch4(p);
+        p[QP_FREQ] = 4000;
+        drv_reset(t);
+        drv_patch4(t, p);
+        drv_on(t, 0, 60, 100);
+        drv_tick(t, o);
+        CHECK(quad_vs[0][0].fsm == 4000, "a note starts at its FREQ (%d)", quad_vs[0][0].fsm);
+        quad_patch[0][QP_FREQ] = 8000;
+        drv_tick(t, o);
+        CHECK(quad_vs[0][0].fsm == 5000, "FREQ 40.00 -> 80.00: a quarter of the way in a block (%d)", quad_vs[0][0].fsm);
+        for (k = 0; k < 40u && quad_vs[0][0].fsm != 8000; k++)
+            drv_tick(t, o);
+        CHECK(quad_vs[0][0].fsm == 8000 && k < 30u, "FREQ there in %u more blocks", k);
+        drv_on(t, 0, 62, 100);
+        CHECK(quad_vs[0][0].fsm == 8000 && quad_vs[0][0].rsm == p[QP_RESO], "a new note at its own FREQ / RESO");
+    }
+    CHECK(quad_bwk(12700) == QUAD_BW_K[127] && quad_bwk(12600) == QUAD_BW_K[126] && quad_bwk(0) == QUAD_BW_K[0],
+          "quad_bwk: 127.00 its last entry, no read past it");
+}
+
 /* version 2 (2026-10-08, before the Digitone review) -> 3: every changed meaning */
 static void t_blob_v2(void)
 {
@@ -1567,7 +1649,9 @@ static uint64_t instr_now(void)
     struct rusage_info_v4 ri;
     return proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri) ? 0 : ri.ri_instructions;
 }
-/* host instructions a sample of 8 voices held (an 8-note chord, 1 s after 0.2 s), the part's block included */
+/* host instructions a sample of 8 voices held (an 8-note chord, 1 s after 0.2 s), the part's block included; cpu_dist:
+ * the part's DRIVE (a version-5 patch, cpu_v5: as it is) */
+static int16_t cpu_dist, cpu_v5;
 static double cpu_quad(const int16_t *p)
 {
     static const uint8_t CH[8] = {50, 57, 62, 66, 69, 71, 73, 76};
@@ -1576,7 +1660,11 @@ static double cpu_quad(const int16_t *p)
     uint32_t i, n;
     uint64_t i0;
     drv_reset(t);
-    drv_patch(t, p);
+    if (cpu_v5)
+        drv_patch4(t, p);
+    else
+        drv_patch(t, p);
+    t->p[P_DIST] = cpu_dist;
     for (i = 0; i < 8u; i++)
         drv_on(t, i, CH[i], 100);
     for (n = 0; n < (uint32_t)(0.2 * FS / CTL); n++)
@@ -1659,6 +1747,20 @@ static void t_cpu(void)
             p[QP_LFO(k, QL_DEST)] = (int16_t)(QD_HARM + k), p[QP_LFO(k, QL_DEPTH)] = 20, p[QP_LFO(k, QL_TRIG)] = QT_TRIG;
         c = cpu_quad(p);
         printf("    QUAD worst case (algo 7, HARM + on A and B1, LP24, base-width, 3 LFOs) %6.0f  %5.1f %%\n", c, dev_pct(c));
+    }
+    {   /* DRIVE ROUTE PRE (3y205): WOBBLE's 8 voices each driven (DRIVE 80) against WOBBLE as it is (its drive the
+         * part's, fx.c: not in this figure) */
+        int16_t p[QP_NP];
+        double c0, c1;
+        quad_preset_patch4(9, p);
+        cpu_v5 = 1;
+        c0 = cpu_quad(p);
+        p[QP_DRPRE] = 1;
+        cpu_dist = 80;
+        c1 = cpu_quad(p);
+        cpu_v5 = 0, cpu_dist = 0;
+        printf("    QUAD WOBBLE, DRIVE 80 PRE (8 voices driven) %6.0f  %5.1f %% (+%.1f %% = +%.0f us of the half)\n", c1,
+               dev_pct(c1), dev_pct(c1) - dev_pct(c0), (dev_pct(c1) - dev_pct(c0)) * 29.02);
     }
 }
 #else
@@ -2550,6 +2652,7 @@ int main(int argc, char **argv)
     t_fade_phrt();
     t_switch();
     t_dests();
+    t_drive_pre();
     if (argc > 1 && !strcmp(argv[1], "cpu"))
         t_cpu();
     printf("cr_quad_test: %d checks, %d failed\n", checks, fails);
