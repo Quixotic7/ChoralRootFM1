@@ -6500,3 +6500,27 @@ it held. The option is in the session (`smk_pedal`, byte 24 of the old reserve, 
 emulators: `emu_smk.pedal_raw`, `web_smk_pedal`, a Pedal button on the SMK page; `test_web_emu_smk.mjs` checks a
 key held by the pedal past its release and ended by it, CC 64, and Expression's CC 11 and ex_off. The FM-1 package
 is byte for byte origin/main's. Not tried on an SMK-37 (SMK37.md "What to test" 13).
+
+## 2026-10-31 (Digitone import: FIZZ's fixes, .syx dumps)
+
+3y200. **The Digitone import takes FIZZ's fix and Digitone SysEx dumps.** The owner: "Not sure we have the resources
+to bring the Digitone II support features like the new Filter types to ChoralRoot, but it would be good to update the
+importer to bring in the Import fixes from FIZZ for the Digitone Presets ... It would also be nice to be able to load
+in presets from Digitone .syx files, example .../Dissonant-World-Vol-1/SysEx/DW_Play.syx". FIZZ's copy of
+`web/fm1dnsnd.js` (forked at 9b69580) and its site's `digitone.js` were compared with ours. **Ported**: a version-4
+record (a sound saved on OS 1.31 / 1.42, payload header "0095") is read with version 5's layout, with a note
+(FIZZ b67df20; `DN_LAYOUT`, `fileVersion`); it was refused as "a newer Digitone format (version 4)", which turned away
+every `.dnsnd` of the Dissonant World pack. **Left out** (engine work ChoralRoot has not taken): the DRIVE before the
+filter (FIZZ 0f3032e, its version-6 blob with DRIVE ROUTE PRE): a DRIVE above 0 now gets a note instead ("DRIVE n: the
+FM-1 drives after the filter (the Digitone before it)"); the pan / sends / tags kept with the preset (FIZZ 56bb5fe:
+ChoralRoot already keeps PAN and DRIVE in the record; the sends stay notes, the effects being global here; its sounds
+have no tags); everything Digitone II (`.dn2pst`: the filter machines, AHD, portamento, the modulation slots), which
+ChoralRoot does not read at all. **New**: Digitone `.syx` dumps (`parseDnSyx`, framing in SOUNDS.md ".dnsnd import"):
+the device manager's library lists each sound with its notes, the installer page asks which one; other messages of a
+project dump are skipped with a note. Checked on `DW_Play.syx` (read in place, not in the repo: the pack has no
+licence file): 128 sounds, the names as on the Digitone, and the 123 that have a `.dnsnd` in the pack give the same
+FM TONE blob from either. Tests (`web/test_dnsnd.mjs`): version 4 = version 5's blob and its note; the 8:7 packing; a
+synthetic dump of our own records (a 283-byte version 1, a version 5, a kit message) read, each sound as its `.dnsnd`;
+checksum / length notes; a record it cannot read skipped; errors; the manager's items. **Imported sounds that change**:
+version-4 `.dnsnd` now import (before: refused); a sound with DRIVE above 0 has one more note (its blob, PAN, DRIVE
+unchanged). No golden changed.

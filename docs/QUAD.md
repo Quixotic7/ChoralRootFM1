@@ -571,7 +571,9 @@ s = 274,000 ticks; the two bytes were padding).
 step to -1 a sample: the tail saw-toothed up to 31 LSB below its level, and a 1 s T60 read 2.2 % short; now 0.5 %).
 
 **The cells** show the times as numbers 0..127, as the Digitone does (`QC_T` `F_INT`, the filter REL `F_INTI`;
-F_TIME's 1 ms .. 10 s text was the old curve's). The `.dnsnd` import takes the times 1:1 ([SOUNDS.md](SOUNDS.md)).
+F_TIME's 1 ms .. 10 s text was the old curve's). The `.dnsnd` import takes the times 1:1 ([SOUNDS.md](SOUNDS.md)). The import also reads Digitone
+SysEx dumps (`.syx`: a sound, the pool or a project's) and version-4 records (OS 1.42) since 3y200; a DRIVE above 0
+gets a note: the FM-1's drive comes after FM TONE's filter, the Digitone's before it (SOUNDS.md ".dnsnd import").
 **Digitone sounds imported before this change should be imported again**: their times were converted to FM TONE's
 old curve.
 

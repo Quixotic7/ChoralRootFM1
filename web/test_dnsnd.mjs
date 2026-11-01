@@ -9,12 +9,12 @@ import { deflateRawSync } from "node:zlib";
 import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { parseDnsnd, dnsndToQuad, DNSND_FIELDS, DN_QUAD_RANGES, DN_QP, DN_RATIO_A, DN_LFO_DEST, dnLz4Block, DN_TIME_TO_QUAD, dnTimeQ,
-  DN_QUAD_HIRES, DN_QUAD_RANGES_V4, DN_QUAD_HIRES_V4, quadToV4, quadToV3, dnQuadPack } from "./fm1dnsnd.js";
+  DN_QUAD_HIRES, DN_QUAD_RANGES_V4, DN_QUAD_HIRES_V4, quadToV4, quadToV3, dnQuadPack, parseDnSyx, isDnSyx, dnPack87, dnUnpack87 } from "./fm1dnsnd.js";
 // AMP REL (version 5): the whole number (times are 1:1), below 127.00 at most 126; 127.xx = INF 127 (fm1dnsnd.js dnTRelA)
 const R100 = (v) => v >= 127 ? 127 : Math.min(126, Math.round(dnTimeQ(v)));
 const T = (v) => DN_TIME_TO_QUAD[v], DN_RATIO_CB_OF = (i) => [0.25, 0.5, 0.75, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16][i];                       // the envelope time curve (fm1dnsnd.js DN_TIME_*)
 import { soundFromDnsnd, recordValid, SOUND_IDS, POOL_IDS, placeSound, parseSoundObjects, firstFreeSlot } from "./fm1sounds.js";
-import { libraryItemsFromDnsnd } from "./fm1manager.js";
+import { libraryItemsFromDnsnd, libraryItemsFromFile } from "./fm1manager.js";
 
 let fails = 0;
 const ok = (c, what) => { console.log(`${what.padEnd(78)} ${c ? "ok" : "FAIL"}`); if (!c) fails++; };
@@ -195,7 +195,8 @@ ok(DN_RATIO_A.length === 36 && [[0, 0.25], [3, 1], [9, 2.5], [15, 4], [25, 8], [
 ok(q.pan === -5 && q.drive === 30, "convert: PAN and DRIVE -> the track's PAN and DRIVE");
 const has = (re) => q.notes.some((n) => re.test(n));
 ok(!has(/filter type/) && has(/delay send 20\.00 not imported/) &&
-   has(/chorus send 3\.00/) && !has(/reverb send/) && !has(/RATIO/) && q.notes.length === 2, "notes: the sends (0 sends say nothing), no others (version-1 type 2 = HP: no note)");
+   has(/chorus send 3\.00/) && !has(/reverb send/) && !has(/RATIO/) && has(/^DRIVE 30: the FM-1 drives after the filter/) && q.notes.length === 3,
+   "notes: the sends (0 sends say nothing), the DRIVE's place, no others (version-1 type 2 = HP: no note)");
 // clamping: out-of-range raw values
 const qc = dnsndToQuad(await parseDnsnd(dnsnd(record("CLAMP", { algo: 200, ratioC: 99, ratioA: 99, ratioB: [255, 255], harm: [127, 255], fdbk: 255, "lfo1.mult": 90,
   "lfo1.wave": 40, "lfo1.mode": 77, "lfo1.dest": 5, "lfo2.dest": 99, "lfo1.depth": [127, 255], "envA.trig": 9, "filter.type": 9, "amp.pan": 250, "amp.drive": [255, 0] }))));
@@ -347,6 +348,47 @@ ok(w.warnings.length === 2 && /firmware 1\.50/.test(w.warnings[0]) && /product \
 // the LZ4 decoder with a match (an overlapping copy)
 const m = dnLz4Block(Uint8Array.from([0x26, 1, 2, 1, 0, 0x30, 7, 8, 9]), 0, 15).data;
 ok([...m].join() === "1,2,2,2,2,2,2,2,2,2,2,2,7,8,9", "lz4: literals, an overlapping match, the last literals");
+
+/* FIZZ's import fix (b67df20): a version-4 record (a sound saved on OS 1.42) has version 5's layout: read so, with a
+ * note; it was refused as "a newer Digitone format (version 4)" (the Dissonant World pack's .dnsnd are all version 4) */
+{
+  const set = { ofsC: [96, 0], "filter.delay": 40, "filter.type": 3, mix: 127 };
+  const v4 = await parseDnsnd(dnsnd(record("V4 SOUND", set, { version: 4 }))), v5 = await parseDnsnd(dnsnd(record("V4 SOUND", set, V5)));
+  ok(v4.version === 5 && v4.fileVersion === 4 && v4.params.ofsC === 32 && v4.params["filter.delay"] === 40 &&
+     [...dnsndToQuad(v4).blob].join() === [...dnsndToQuad(v5).blob].join(), "version 4: read with version 5's layout (OFS, filter DELAY), the same blob");
+  ok(v4.warnings.includes("a version-4 sound: read as version 5 (the same layout)") && !v5.warnings.length, "version 4: a note says so");
+}
+
+/* Digitone SysEx dumps (.syx): F0 00 20 3C 0D 00 53 01 01 nn <the record 8:7 packed> <sum 14 bits> <length 14 bits> F7;
+ * the record as a .dnsnd's (a version-1 one 283 bytes). Our own messages around our own records (no preset's bytes) */
+const dnMsg = (rec, { type = 0x53, nn = 0, sum, len } = {}) => {
+  const e = dnPack87(rec), s = sum ?? e.reduce((a, x) => a + x, 0) & 0x3FFF, l = len ?? e.length + 5;
+  return Uint8Array.from([0xF0, 0x00, 0x20, 0x3C, 0x0D, 0x00, type, 1, 1, nn, ...e, s >> 7, s & 127, l >> 7, l & 127, 0xF7]);
+};
+const cat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let p = 0; for (const x of a) { o.set(x, p); p += x.length; } return o; };
+{
+  const r = new Uint8Array(64).map((_, i) => i * 37 & 255);
+  ok([...dnUnpack87(dnPack87(r))].join() === [...r].join() && dnPack87(r).every((x) => x < 128), "8:7 packing: round trip, 7-bit bytes");
+  const setA = { mix: 100, "filter.type": 2, "amp.vol": [90, 0] }, setB = { ratioC: 4, fdbk: 20 };
+  const a = record("SYX ONE", setA).subarray(0, 283), b5 = record("SYX TWO", { ...setB, ofsC: [96, 0] }, V5);
+  const kit = dnMsg(new Uint8Array(100), { type: 0x52 }), file = cat(dnMsg(a), kit, dnMsg(b5, { nn: 5 }));
+  const g = parseDnSyx(file);
+  ok(isDnSyx(file) && g.sounds.length === 2 && g.sounds[0].name === "SYX ONE" && g.sounds[1].name === "SYX TWO" && g.sounds[1].slot === 5,
+     "syx: a pool dump's sounds with their names (a version-1 283-byte record, a version-5 one)");
+  const f1 = await parseDnsnd(dnsnd(record("SYX ONE", setA))), f2 = await parseDnsnd(dnsnd(b5));
+  ok([...dnsndToQuad(g.sounds[0]).blob].join() === [...dnsndToQuad(f1).blob].join() && [...dnsndToQuad(g.sounds[1]).blob].join() === [...dnsndToQuad(f2).blob].join(),
+     "syx: each sound imports as the same record in a .dnsnd does");
+  ok(g.notes.length === 1 && /^1 kit message skipped/.test(g.notes[0]) && !g.sounds[0].warnings.length, "syx: a project's other messages skipped, with a note");
+  const bad = parseDnSyx(cat(dnMsg(a, { sum: 1 }), dnMsg(a, { len: 3 })));
+  ok(/checksum does not match/.test(bad.sounds[0].warnings[0]) && /length field does not match/.test(bad.sounds[1].warnings[0]), "syx: a wrong checksum or length is read, with a note");
+  const v2 = parseDnSyx(cat(dnMsg(record("NEWER", {}, { version: 2 })), dnMsg(a)));
+  ok(v2.sounds.length === 1 && /message 1: a newer Digitone format \(version 2\)/.test(v2.notes[0]), "syx: a sound it cannot read skipped, with a note");
+  ok(await rejects(Promise.resolve().then(() => parseDnSyx(kit)), /no Digitone sound in this SysEx dump/), "error: a dump with no sound");
+  ok(await rejects(Promise.resolve().then(() => parseDnSyx(Uint8Array.from([0xF0, 0x43, 0, 0, 0xF7]))), /not a Digitone SysEx dump/), "error: not a Digitone dump");
+  const its = libraryItemsFromFile("pool.syx", file);
+  ok(its.length === 2 && its.every((x) => x.engine === 15 && x.patch && Array.isArray(x.notes)) && its[0].name === "SYX ONE" && /kit message skipped/.test(its[0].notes[0]) &&
+     its[1].file.dnsnd.name === "SYX TWO", "manager: a Digitone .syx gives FM TONE library items with their notes");
+}
 
 console.log(fails ? `DNSND TESTS FAILED (${fails})` : "dnsnd tests passed");
 process.exit(fails ? 1 : 0);

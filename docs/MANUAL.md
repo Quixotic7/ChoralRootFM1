@@ -1945,7 +1945,9 @@ The installer page (<https://quixotic7.github.io/ChoralRootFM1/>) has **Back up*
 - Restore checks the file, writes it back and restarts the FM-1. Stop any loop first.
 - Install saves a backup before it writes, unless you skip it.
 - The page's Sounds section exports, imports, renames and deletes single sounds as files (FM6 voices also as DX7
-  `.syx`, CZ-1 tones as Casio dumps).
+  `.syx`, CZ-1 tones as Casio dumps). It also imports Elektron Digitone sounds as FM TONE: a `.dnsnd` file or a
+  Digitone `.syx` dump (a sound, the pool or a whole project; you choose which sound). The device manager's library
+  takes the same files and lists every sound of a dump, each with what was approximated.
 
 The same from the command line: `tools/fm1_install.py` (see the [README](../README.md) and [SOUNDS.md](SOUNDS.md)).
 

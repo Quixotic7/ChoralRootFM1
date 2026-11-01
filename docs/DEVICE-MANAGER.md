@@ -38,7 +38,7 @@ record. Selecting a row auditions it (see below). The Loops tab: ten rows, "hold
 and layer count read from the record (`cr_loop_unpack`'s header: len ticks, nlayers, nev).
 
 **Right: Library.** Sources in a dropdown: **This browser** (sounds the user saved as files or kept here:
-IndexedDB), **a folder / files** (choralroot-sound JSON, .syx DX7 single or bank, Casio tone dumps, Digitone .dnsnd (docs/SOUNDS.md), loop files,
+IndexedDB), **a folder / files** (choralroot-sound JSON, .syx DX7 single or bank, Casio tone dumps, Digitone .dnsnd and Digitone .syx dumps (a sound, the pool, a project: docs/SOUNDS.md), loop files,
 whole backups), and **packs** served from the site (`web/packs/*.json`: a pack = a name, an author, a licence, a
 list of sounds in the choralroot-sound format; the first packs: the factory sounds of each engine as files, and
 Melodee's CZ-1 banks). Rows as on the left.

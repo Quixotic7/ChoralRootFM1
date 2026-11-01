@@ -333,7 +333,7 @@ function renderLib() {
   const vis = libVisible();
   if (!vis.length) {
     const what = ui.tab === "loops" ? "loops" : $("lib-this").checked ? `${ENGINE_NAMES[ui.tab]} sounds` : "sounds";
-    $("lib-rows").innerHTML = `<li class="empty-note" style="display:block">No ${esc(what)} here. ${ui.libSrc === "browser" ? "Keep sounds from the FM-1, or add files (sound files, packs, .syx, Digitone .dnsnd, backups, loop files)." : ""}</li>`;
+    $("lib-rows").innerHTML = `<li class="empty-note" style="display:block">No ${esc(what)} here. ${ui.libSrc === "browser" ? "Keep sounds from the FM-1, or add files (sound files, packs, .syx, Digitone .dnsnd and .syx dumps, backups, loop files)." : ""}</li>`;
     return;
   }
   $("lib-rows").innerHTML = vis.map(({ it, i }, n) => `<li draggable="true" data-i="${i}" class="user${ui.lib.sel.has(i) ? " sel" : ""}"><span class="pos">${String(n + 1).padStart(2, "0")}</span>` +
@@ -780,6 +780,7 @@ $("lib-file").addEventListener("change", act(async () => {
       if (isDnsndName(f.name)) { const got = await libraryItemsFromDnsnd(f.name, new Uint8Array(await f.arrayBuffer())); items.push(...got); dn.push(...got); continue; }
       const content = /\.syx$/i.test(f.name) ? new Uint8Array(await f.arrayBuffer()) : await f.text();
       const got = libraryItemsFromFile(f.name, content);
+      if (got.some((it) => it.notes)) { items.push(...got); dn.push(...got); continue; }   // a Digitone .syx dump
       let j = null; try { j = typeof content === "string" ? JSON.parse(content) : null; } catch (_) {}
       if (j && j.format === "choralroot-pack") { pack = { id: `filepack:${ui.filePacks.length}`, name: j.name || f.name, items: got }; ui.filePacks.push(pack); }
       else items.push(...got);

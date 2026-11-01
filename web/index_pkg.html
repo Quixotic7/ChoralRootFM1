@@ -656,6 +656,18 @@ $("snd-file").addEventListener("change", async () => {
       const parsed = await parseDnsnd(bytes);
       sound = soundFromDnsnd(parsed);
       dnNotes = [...parsed.warnings, ...sound.notes];
+    } else if (isDnSyx(bytes)) {                          // a Digitone SysEx dump: one of its sounds, as a .dnsnd's
+      const dn = parseDnSyx(bytes), n = dn.sounds.length;
+      let pick = 1;
+      if (n > 1) {
+        const answer = prompt(tf("sndSyxPick", { n, slot: label }), "1");
+        if (answer === null) { sayK("cancelled"); return; }
+        pick = Number(answer.trim());
+        if (!Number.isInteger(pick) || pick < 1 || pick > n) { say(tf("sndSyxBadPick", { n })); return; }
+      }
+      const parsed = dn.sounds[pick - 1];
+      sound = soundFromDnsnd(parsed);
+      dnNotes = [...dn.notes, ...parsed.warnings, ...sound.notes];
     } else {
       const syx = parseSyx(bytes), n = syxCount(syx);
       let pick = 1;

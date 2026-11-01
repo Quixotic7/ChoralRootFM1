@@ -9,7 +9,7 @@
 // make_site.py inlines them (and fm1dnsnd.js) into one script.
 import { BACKUP_CMD, bkU32, bkR32, bkPack, bkUnpack, bkCrc, bkManifest, objectName, readBackup, CR_LOOP_IDS, CR_BACKUP_IDS, loopHeader } from "./fm1backup.js";
 import { nameValid, SOUND_IDS, POOL_IDS, ENGINE_NAMES, FACTORY_PRESETS, FACTORY_FIRST, FACTORY_IDS, SOUND_TEMPLATES, SOUND_FORMAT, PATCH_SIZE, poolOf, engineRetired, patchKindOf, parseSoundObjects, exportSound, readSoundFile, renameSound, deleteSound, writeSounds, placeSound, bindSound, swapSounds, firstFreeSlot, rawBindings, recordValid, slotLabel, isPool, parseSyx, syxCount, soundFromSyx, soundFromDnsnd } from "./fm1sounds.js";
-import { parseDnsnd } from "./fm1dnsnd.js";
+import { parseDnsnd, parseDnSyx, isDnSyx } from "./fm1dnsnd.js";
 
 // the engine picker's order (docs/PRESETS.md; the EDIT picker since 0.14; five engines since 0.18: PHASE, LOFI, VOICE,
 // TRIO, NOISE and PHYS retired, their records rows of the VA's pool with recEngine = the engine they were saved on;
@@ -523,8 +523,10 @@ const mgItemOfSound = (file, source) => {
   return { type: "sound", name: s.name, engine: s.engine, pool: poolOf(s.engine), kind: s.kind, patch: !!s.patch, source, file };
 };
 // a file's content (text for JSON, a Uint8Array for .syx) -> library items; a pack, a backup and a .syx bank give many
+// (a Digitone SysEx dump: its sounds as FM TONE, each with its notes, as a .dnsnd's)
 export function libraryItemsFromFile(name, content) {
   const source = name;
+  if (content instanceof Uint8Array && isDnSyx(content)) return libraryItemsFromDnSyx(name, content);
   if (/\.syx$/i.test(name) || content instanceof Uint8Array && content[0] === 0xF0) {
     const parsed = parseSyx(content instanceof Uint8Array ? content : new TextEncoder().encode(content));
     return Array.from({ length: syxCount(parsed) }, (_, i) => mgItemOfSound(soundToFile(soundFromSyx(parsed, i + 1)), source));
@@ -551,6 +553,16 @@ export async function libraryItemsFromDnsnd(name, bytes) {
   const s = soundFromDnsnd(parsed), notes = [...parsed.warnings, ...s.notes];
   const item = mgItemOfSound(soundToFile(s, { dnsnd: { name: parsed.name, tags: parsed.tags, notes } }), name);
   return [{ ...item, notes }];
+}
+// a Digitone .syx's bytes -> its sounds as library items (FM TONE), as libraryItemsFromDnsnd's; the file's own notes
+// (messages skipped) go on the first
+export function libraryItemsFromDnSyx(name, bytes) {
+  let got;
+  try { got = parseDnSyx(bytes); } catch (e) { throw new Error(`${name}: ${e.message}`); }
+  return got.sounds.map((parsed, k) => {
+    const s = soundFromDnsnd(parsed), notes = [...(k ? [] : got.notes), ...parsed.warnings, ...s.notes];
+    return { ...mgItemOfSound(soundToFile(s, { dnsnd: { name: parsed.name, tags: parsed.tags, notes } }), name), notes };
+  });
 }
 export const isDnsndName = (name) => /\.dnsnd$/i.test(name);
 export function readPack(pack) {

@@ -52,7 +52,11 @@ const dnV5OfV4 = (i, v) => {
   return Math.max(DN_QUAD_RANGES[i][0], Math.min(DN_QUAD_RANGES[i][1], w));
 };
 const DN_QF = { OFF: 0, LP12: 1, HP12: 2, LP24: 3 };
-export const DN_VERSIONS = [1, 5];                // the record versions read (others: "not supported")
+export const DN_VERSIONS = [1, 4, 5];             // the record versions read (others: "not supported")
+// the layout each is read with: version 4 (a sound saved on OS 1.42, payload header "0095") has version 5's, byte for
+// byte (FIZZ b67df20, the owner's F186 KICK01: the tail and its end marker at version 5's offsets, OFS and the filter
+// DELAY in place); it was refused as "a newer Digitone format (version 4)"
+export const DN_LAYOUT = { 1: 1, 4: 5, 5: 5 };
 
 // ---- the Digitone's tables (the manual OS 1.44 and the owner's controlled exports, 2026-10-14)
 // RATIO C, B1, B2: 19 steps (= FM TONE's QUAD_RCB); exports: C 0 = 0.25, 3 = 1, 4 = 2, 18 = 16; B 0.25 0.5 1 16
@@ -287,19 +291,80 @@ export async function parseDnsnd(bytes) {
   const size = dnU16(pl, 0x1c);
   if (size !== DN_SIZE) throw new Error(`a newer Digitone format (a ${size}-byte sound, not ${DN_SIZE}): not supported`);
   const { data: d, end } = dnLz4Block(pl, DN_HDR, size);
-  if (!(d[0] === 0xbe && d[1] === 0xef && d[2] === 0xba && d[3] === 0xce)) throw new Error(`${DN_NOT} (the sound's magic)`);
-  const version = (d[4] << 24 | d[5] << 16 | d[6] << 8 | d[7]) >>> 0;
-  if (!DN_VERSIONS.includes(version)) throw new Error(`a newer Digitone format (version ${version}): not supported`);
   const tail = pl.subarray(end);
   if (tail.length < 4 || dnU32(tail, tail.length - 4) !== 0xaadaa1aa) warnings.push("the payload's trailer is not the usual one");
   if (man.FirmwareVersion !== "1.42A") warnings.push(`made on Digitone firmware ${man.FirmwareVersion}: read as 1.42A`);
   if (JSON.stringify(man.ProductType) !== '["24","30"]') warnings.push(`product ${JSON.stringify(man.ProductType)}: read as a Digitone`);
+  const tags = Array.isArray(man.MetaInfo && man.MetaInfo.Tags) ? man.MetaInfo.Tags.map(String) : [];
+  return dnRecord(d, warnings, { tags, firmware: man.FirmwareVersion ?? null, product: man.ProductType ?? null });
+}
+// the 302-byte record (from a .dnsnd or a SysEx dump) -> the parsed sound; version: the layout's (dnsndToQuad's laws go
+// by it), fileVersion: the record's own
+function dnRecord(d, warnings, meta) {
+  if (!(d[0] === 0xbe && d[1] === 0xef && d[2] === 0xba && d[3] === 0xce)) throw new Error(`${DN_NOT} (the sound's magic)`);
+  const version = (d[4] << 24 | d[5] << 16 | d[6] << 8 | d[7]) >>> 0;
+  if (!DN_VERSIONS.includes(version)) throw new Error(`a newer Digitone format (version ${version}): not supported`);
+  const layout = DN_LAYOUT[version];
+  if (layout !== version) warnings.push(`a version-${version} sound: read as version ${layout} (the same layout)`);
   let name = "";
   for (let i = 12; i < 28 && d[i]; i++) name += String.fromCharCode(d[i]);
   const params = {}, confidence = {};
-  for (const [k, o, , c, dec, , since = 1] of DNSND_FIELDS) if (version >= since) { params[k] = +dec(d, o).toFixed(2); confidence[k] = c; }
-  const tags = Array.isArray(man.MetaInfo && man.MetaInfo.Tags) ? man.MetaInfo.Tags.map(String) : [];
-  return { name, tags, firmware: man.FirmwareVersion ?? null, product: man.ProductType ?? null, version, params, confidence, warnings, record: d };
+  for (const [k, o, , c, dec, , since = 1] of DNSND_FIELDS) if (layout >= since) { params[k] = +dec(d, o).toFixed(2); confidence[k] = c; }
+  return { name, tags: [], firmware: null, product: null, ...meta, version: layout, fileVersion: version, params, confidence, warnings, record: d };
+}
+
+// ---- Digitone SysEx dumps (.syx: one sound, the pool's 128, or a whole project's dump). Decoded from the files (the
+// Dissonant World pack's DW_Play.syx, 2018: 128 messages of 339 bytes, each the same sound as the pack's .dnsnd):
+//   F0 00 20 3C (Elektron) 0D (Digitone) 00 53 (a sound) 01 01 nn | the data, 8:7 packed (each group of 8: a byte of
+//   the next seven's top bits, bit 6 first, then the seven) | the checksum (the packed data's byte sum & 0x3FFF, 7 + 7
+//   bits) | the length (the message's bytes after nn up to F7: 7 + 7 bits) | F7
+// The data is the .dnsnd's record, without the LZ4: a version-1 record is 283 bytes (its end marker ba ce f0 0c at 279,
+// as in the factory .dnsnd), zero-padded to 302. Other messages (kits, patterns, songs, settings: a project's dump) hold
+// no sound of their own here: skipped and counted. The kits' sounds are not read (their layout is not decoded)
+export const isDnSyx = (b) => b && b.length > 5 && b[0] === 0xF0 && b[1] === 0x00 && b[2] === 0x20 && b[3] === 0x3C && b[4] === 0x0D;
+export const DN_SYX_SOUND = 0x53;
+export const dnUnpack87 = (e) => {
+  const o = [];
+  for (let i = 0; i < e.length; i += 8) for (let j = 1; j < 8 && i + j < e.length; j++) o.push(e[i + j] | (e[i] << j & 0x80));
+  return Uint8Array.from(o);
+};
+export const dnPack87 = (d) => {
+  const o = [];
+  for (let i = 0; i < d.length; i += 7) {
+    const g = d.subarray(i, i + 7);
+    o.push(g.reduce((m, x, j) => m | (x >> 7) << 6 - j, 0), ...Array.from(g, (x) => x & 0x7F));
+  }
+  return Uint8Array.from(o);
+};
+// a Digitone .syx's bytes -> { sounds: [parsed, as parseDnsnd's, + slot: the message's nn], notes: the file's }; throws
+// when it is not a Digitone dump or holds no sound
+export function parseDnSyx(bytes) {
+  if (!(bytes instanceof Uint8Array)) bytes = Uint8Array.from(bytes || []);
+  if (!isDnSyx(bytes)) throw new Error("not a Digitone SysEx dump (no F0 00 20 3C 0D)");
+  const sounds = [], notes = [], other = {};
+  let bad = 0;
+  for (let i = 0; i < bytes.length;) {
+    if (bytes[i] !== 0xF0) { i++; continue; }
+    let e = i + 1;
+    while (e < bytes.length && bytes[e] !== 0xF7) e++;
+    const m = bytes.subarray(i, e + 1), n = sounds.length + bad + Object.values(other).reduce((a, x) => a + x, 0) + 1;
+    i = e + 1;
+    if (e >= bytes.length || m.length < 15 || !isDnSyx(m)) { bad++; notes.push(`message ${n}: not a Digitone message, skipped`); continue; }
+    if (m[6] !== DN_SYX_SOUND) { other[m[6]] = (other[m[6]] || 0) + 1; continue; }
+    const data = m.subarray(10, m.length - 5), w = [];
+    const sum = data.reduce((a, x) => a + x, 0) & 0x3FFF, len = m[m.length - 3] << 7 | m[m.length - 2];
+    if ((m[m.length - 5] << 7 | m[m.length - 4]) !== sum) w.push("the message's checksum does not match: read as it is");
+    if (len !== m.length - 10) w.push("the message's length field does not match: read as it is");
+    if (m[7] !== 1 || m[8] !== 1) w.push(`a sound message of version ${m[7]}.${m[8]}: read as 1.1`);
+    const raw = dnUnpack87(data);
+    if (raw.length > DN_SIZE) { bad++; notes.push(`message ${n}: a ${raw.length}-byte sound, not supported`); continue; }
+    const d = new Uint8Array(DN_SIZE); d.set(raw);
+    try { sounds.push({ ...dnRecord(d, w, {}), slot: m[9] }); } catch (x) { bad++; notes.push(`message ${n}: ${x.message}`); }
+  }
+  const kinds = { 0x52: "kit", 0x54: "pattern", 0x55: "song", 0x56: "settings", 0x57: "global" };
+  for (const [k, c] of Object.entries(other)) notes.push(`${c} ${kinds[k] || `type ${(+k).toString(16).toUpperCase()}`} message${c === 1 ? "" : "s"} skipped (only the sounds are read; a kit's own sounds are not)`);
+  if (!sounds.length) throw new Error(`no Digitone sound in this SysEx dump${notes.length ? ` (${notes.join("; ")})` : ""}`);
+  return { sounds, notes };
 }
 
 // the sound's OCTAVE (semitones, a multiple of 12) into FM TONE values p: each operator's ratio (its table step + OFS
@@ -342,6 +407,9 @@ export function dnsndToQuad(parsed) {
   // the Digitone's filter and amp DEC 127 is INF (the owner's exports C126, C135): the level holds after the attack.
   // FM TONE's AMP DEC has INF (127, version 5: taken as it is); its filter DEC has none: the filter's SUS at 127
   if (params["filter.dec"] === 127) { p[DN_QP.FSUS] = 127; notes.push("filter DEC INF: FM TONE's filter SUS set to 127"); }
+  // the Digitone's DRIVE sits before its filter; the FM-1's (the part's P_DIST, fx.c track_dist) after the voice, its
+  // filter included. FIZZ moved it in front (its DRIVE ROUTE PRE, an engine change ChoralRoot has not taken): a note
+  if (out.drive > 0) notes.push(`DRIVE ${out.drive}: the FM-1 drives after the filter (the Digitone before it)`);
   const oct = params.octave | 0;
   if (oct) {
     const r = dnOctave(p, oct);

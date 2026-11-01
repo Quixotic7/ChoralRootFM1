@@ -373,6 +373,22 @@ the installer page's Sounds section (Import on a row: a `.dnsnd` always asks fir
 --import-sound N OUT.json` writes (the CLI has no `.dnsnd` option of its own: the field table stays in one place,
 `web/fm1dnsnd.js`).
 
+**Digitone SysEx dumps (.syx, 3y200).** The same two places take a Digitone `.syx`: one sound, the pool's 128 or a
+whole project's dump (the device manager: each sound a library item with its notes; the installer page: asks which
+one). `fm1dnsnd.js parseDnSyx`, decoded from the Dissonant World pack's `DW_Play.syx` (128 messages of 339 bytes,
+each the same sound as the pack's own `.dnsnd`: all 123 that have one give the same FM TONE blob): `F0 00 20 3C`
+(Elektron) `0D` (Digitone) `00 53` (a sound) `01 01 nn`, the data 8:7 packed (a byte of the next seven's top bits,
+bit 6 first, then the seven), the checksum (the packed bytes' sum & 0x3FFF, 7 + 7 bits), the length (the bytes after
+`nn` up to `F7`, 7 + 7 bits), `F7`. The data is the record below without the LZ4 (a version-1 record 283 bytes, its end
+marker at 279 as in the factory files; zero-padded to 302). A wrong checksum or length is read with a note; the
+project's other messages (kits, patterns, songs, settings) are skipped and counted in the first sound's notes (a
+kit's own sounds are not read: their layout is not decoded). A `.syx` holds no tags or firmware version. The CLI
+(`fm1_install.py --import-syx`) still takes DX7 and CZ-1 dumps only.
+
+**Record version 4** (3y200, from FIZZ b67df20): a sound saved on Digitone OS 1.31 / 1.42 (payload header "0095",
+the Dissonant World pack's `.dnsnd`) has version 5's layout byte for byte and is read as version 5 with a note ("a
+version-4 sound: read as version 5"); it was refused as "a newer Digitone format (version 4)".
+
 **The file** (`web/fm1dnsnd.js parseDnsnd`). A ZIP (stored or deflated: `DecompressionStream("deflate-raw")` in a
 browser, zlib in node) of `manifest.json` (`FileType` "Sound", `Payload` the payload's name, `FirmwareVersion`,
 `ProductType`, `MetaInfo.Tags`) and the payload: a 0x23-byte header (magic `ac 11 d3 03`, "0097" at 9, the record's
