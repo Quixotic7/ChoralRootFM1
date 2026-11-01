@@ -3,7 +3,7 @@
   "version": 1,
   "generated": "by lay_catalog from the firmware's built-in tables: do not edit (tools/layout/dump_catalogs.mjs writes it; read-only in step 2, docs/LAYOUT-TOOL.md). The firmware version is not in it: params_hash binds it to the parameters",
   "engine": {"index": 15, "name": "FM TONE"},
-  "params_hash": "f340a2b6181372cf",
+  "params_hash": "93563d3b1feb7964",
   "pages": [
     {
       "page": 0,
@@ -51,7 +51,7 @@
       "cols": [
         {"short": "FREQ", "fmt": "fix2", "min": 0, "max": 12700, "def": 12700, "names": null, "unit": null},
         {"short": "RESO", "fmt": "fix2", "min": 0, "max": 12700, "def": 0, "names": null, "unit": null},
-        {"short": "TYPE", "fmt": "enum", "min": 0, "max": 3, "def": 1, "names": ["OFF", "LP12", "HP12", "LP24"], "unit": null},
+        {"short": "TYPE", "fmt": "enum", "min": 0, "max": 7, "def": 1, "names": ["OFF", "LP12", "HP12", "LP24", "MULTI", "COMB+", "COMB-", "EQ"], "unit": null},
         {"short": "DEPTH", "fmt": "fix2", "min": -6400, "max": 6399, "def": 0, "names": null, "unit": null}
       ]
     },
@@ -61,8 +61,8 @@
       "cols": [
         {"short": "DELAY", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
         {"short": "KTRK", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
-        null,
-        null
+        {"short": "SHAPE", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+        {"short": "GAIN", "fmt": "ofs", "min": -64, "max": 63, "def": 0, "names": null, "unit": null}
       ]
     },
     {
@@ -71,7 +71,7 @@
       "cols": [
         {"short": "BASE", "fmt": "fix2", "min": 0, "max": 12700, "def": 0, "names": null, "unit": null},
         {"short": "WIDTH", "fmt": "int", "min": 0, "max": 127, "def": 127, "names": null, "unit": null},
-        null,
+        {"short": "BW RT", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["PRE", "POST"], "unit": null},
         null
       ]
     },
@@ -142,7 +142,7 @@
         {"short": "LEVEL", "fmt": "int", "min": 0, "max": 127, "def": 110, "names": null, "unit": null},
         {"short": "PAN", "fmt": "ofs", "min": -64, "max": 63, "def": 0, "names": null, "unit": null},
         {"short": "DRIVE", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
-        null
+        {"short": "ROUTE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["POST", "PRE"], "unit": null}
       ]
     },
     {
@@ -204,9 +204,29 @@
         {"short": "TRIG", "fmt": "enum", "min": 0, "max": 4, "def": 0, "names": ["FREE", "TRIG", "HOLD", "ONE", "HALF"], "unit": null},
         {"short": "DEPTH", "fmt": "fix2", "min": -6400, "max": 6399, "def": 0, "names": null, "unit": null}
       ]
+    },
+    {
+      "page": 20,
+      "title": "AMP 2",
+      "cols": [
+        {"short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["ADSR", "AHD"], "unit": null},
+        {"short": "HOLD", "fmt": "inti", "min": 0, "max": 127, "def": 127, "names": null, "unit": null},
+        null,
+        null
+      ]
+    },
+    {
+      "page": 21,
+      "title": "CRUSH",
+      "cols": [
+        {"short": "BITS", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+        {"short": "SRR", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+        {"short": "ROUTE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["POST", "PRE"], "unit": null},
+        null
+      ]
     }
   ],
-  "page_cells": 74,
+  "page_cells": 83,
   "header": null,
   "groups": [
     {
@@ -304,7 +324,7 @@
               "cells": [
                 {"knob": 1, "bind": "deep", "page": 4, "col": 0, "page_title": "FILTER+", "label": "Freq", "short": "FREQ", "fmt": "fix2", "min": 0, "max": 12700, "def": 12700, "names": null, "unit": null, "style": "val"},
                 {"knob": 2, "bind": "deep", "page": 4, "col": 1, "page_title": "FILTER+", "label": "Reso", "short": "RESO", "fmt": "fix2", "min": 0, "max": 12700, "def": 0, "names": null, "unit": null, "style": "num"},
-                {"knob": 3, "bind": "deep", "page": 4, "col": 2, "page_title": "FILTER+", "label": "Type", "short": "TYPE", "fmt": "enum", "min": 0, "max": 3, "def": 1, "names": ["OFF", "LP12", "HP12", "LP24"], "unit": null, "style": "text"},
+                {"knob": 3, "bind": "deep", "page": 4, "col": 2, "page_title": "FILTER+", "label": "Type", "short": "TYPE", "fmt": "enum", "min": 0, "max": 7, "def": 1, "names": ["OFF", "LP12", "HP12", "LP24", "MULTI", "COMB+", "COMB-", "EQ"], "unit": null, "style": "text"},
                 {"knob": 4, "bind": "deep", "page": 4, "col": 3, "page_title": "FILTER+", "label": "Env depth", "short": "DEPTH", "fmt": "fix2", "min": -6400, "max": 6399, "def": 0, "names": null, "unit": null, "style": "num"}
               ]
             }
@@ -327,8 +347,8 @@
               "cells": [
                 {"knob": 1, "bind": "deep", "page": 5, "col": 0, "page_title": "FILT 2", "label": "Env delay", "short": "DELAY", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null, "style": "num"},
                 {"knob": 2, "bind": "deep", "page": 5, "col": 1, "page_title": "FILT 2", "label": "Key track", "short": "KTRK", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null, "style": "num"},
-                {"knob": 3, "bind": "none"},
-                {"knob": 4, "bind": "none"}
+                {"knob": 3, "bind": "deep", "page": 5, "col": 2, "page_title": "FILT 2", "label": "Shape", "short": "SHAPE", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null, "style": "num"},
+                {"knob": 4, "bind": "deep", "page": 5, "col": 3, "page_title": "FILT 2", "label": "Gain", "short": "GAIN", "fmt": "ofs", "min": -64, "max": 63, "def": 0, "names": null, "unit": null, "style": "num"}
               ]
             },
             {
@@ -337,7 +357,30 @@
               "cells": [
                 {"knob": 1, "bind": "deep", "page": 6, "col": 0, "page_title": "FILT 2+", "label": "Base", "short": "BASE", "fmt": "fix2", "min": 0, "max": 12700, "def": 0, "names": null, "unit": null, "style": "num"},
                 {"knob": 2, "bind": "deep", "page": 6, "col": 1, "page_title": "FILT 2+", "label": "Width", "short": "WIDTH", "fmt": "int", "min": 0, "max": 127, "def": 127, "names": null, "unit": null, "style": "num"},
-                {"knob": 3, "bind": "none"},
+                {"knob": 3, "bind": "deep", "page": 6, "col": 2, "page_title": "FILT 2+", "label": "BW route", "short": "BW RT", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["PRE", "POST"], "unit": null, "style": "text"},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 2,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "plan": 12,
+          "plan_band": "none",
+          "pages": [21],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "CRUSH",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 21, "col": 0, "page_title": "CRUSH", "label": "Bits", "short": "BITS", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null, "style": "num"},
+                {"knob": 2, "bind": "deep", "page": 21, "col": 1, "page_title": "CRUSH", "label": "Rate", "short": "SRR", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null, "style": "num"},
+                {"knob": 3, "bind": "deep", "page": 21, "col": 2, "page_title": "CRUSH", "label": "Route", "short": "ROUTE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["POST", "PRE"], "unit": null, "style": "text"},
                 {"knob": 4, "bind": "none"}
               ]
             }
@@ -467,6 +510,29 @@
                 {"knob": 1, "bind": "deep", "page": 13, "col": 0, "page_title": "AMP+", "label": "Level", "short": "LEVEL", "fmt": "int", "min": 0, "max": 127, "def": 110, "names": null, "unit": null, "style": "num"},
                 {"knob": 2, "bind": "deep", "page": 13, "col": 1, "page_title": "AMP+", "label": "Pan", "short": "PAN", "fmt": "ofs", "min": -64, "max": 63, "def": 0, "names": null, "unit": null, "style": "num"},
                 {"knob": 3, "bind": "deep", "page": 13, "col": 2, "page_title": "AMP+", "label": "Drive", "short": "DRIVE", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null, "style": "num"},
+                {"knob": 4, "bind": "deep", "page": 13, "col": 3, "page_title": "AMP+", "label": "Route", "short": "ROUTE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["POST", "PRE"], "unit": null, "style": "text"}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 4,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "plan": 11,
+          "plan_band": "none",
+          "pages": [20],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "AMP 2",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 20, "col": 0, "page_title": "AMP 2", "label": "Amp mode", "short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["ADSR", "AHD"], "unit": null, "style": "text"},
+                {"knob": 2, "bind": "deep", "page": 20, "col": 1, "page_title": "AMP 2", "label": "Hold", "short": "HOLD", "fmt": "inti", "min": 0, "max": 127, "def": 127, "names": null, "unit": null, "style": "num"},
+                {"knob": 3, "bind": "none"},
                 {"knob": 4, "bind": "none"}
               ]
             }

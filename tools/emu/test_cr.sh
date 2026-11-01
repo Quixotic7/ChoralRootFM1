@@ -523,7 +523,7 @@ rd() { grep -a '^  screen reads:' "$L" | sed -n "$1p" | sed 's/.* cells //'; }
     has '^sound: part 0 pos 10 WOBBLE' "$L" && has '^sound: part 0 pos 9 METAL' "$L" &&
     ok "two FM TONE presets with different Drive: FM6 with the part's send 12 -> 01 EP: 0 -> 10 WOBBLE: 10 -> 09 METAL: 0 (the part's send, 12, waits)" \
     || bad "FM TONE's presets' Drive: '$(drc 1)' / '$(drc 2)' / '$(drc 3)' / '$(drc 4)'"
-has '^param: part 0 ENV DRIVE 10 -> 28' "$L" && [ "$(drc 5)" = "chord FM TONE track 28 send 12 edited 1" ] && rd 5 | grep -q '1.2:Drive=28$' &&
+has '^param: part 0 ENV DRIVE 10 -> 28' "$L" && [ "$(drc 5)" = "chord FM TONE track 28 send 12 edited 1" ] && rd 5 | grep -q '1.2:Drive=28 1.3:Route=Post$' &&
     has '^save: part 0 overwrite slot U001 FM TONE 10 WOBBLE rc 0' "$L" && [ "$(drc 6)" = "chord FM TONE track 28 send 12 edited 0" ] &&
     [ "$(drc 7)" = "chord FM TONE track 0 send 12 edited 0" ] && [ "$(drc 8)" = "chord FM TONE track 28 send 12 edited 0" ] &&
     ok "the AMP page's Drive (0..127: 10 -> 28) marks the sound edited; saved (U01, over WOBBLE), METAL: 0, back: 28 again: $OUT/cr_quad_drive_amp.ppm" \

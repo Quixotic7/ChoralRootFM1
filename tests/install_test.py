@@ -1342,7 +1342,7 @@ def sounds():
     badq = []
     q4 = b"Q\x04" + bytes(94)
     for data, word in ((b"R" + qb[1:], "bytes, not 96"), (qb[:1] + b"\x04" + qb[2:], "bytes, not 96"), (qb[:79], "bytes, not 96"),
-                       (b"R" + q4[1:], "FM TONE"), (q4[:1] + b"\x06" + q4[2:], "FM TONE"), (qb + b"\x01" + bytes(15), "FM TONE")):
+                       (b"R" + q4[1:], "FM TONE"), (q4[:1] + b"\x07" + q4[2:], "FM TONE"), (qb + b"\x01" + bytes(15), "FM TONE")):
         try:
             I.read_sound_file({**json.loads(fq.read_text()), "patch": {"kind": "quad", "data": base64.b64encode(data).decode()}})
             badq.append((word, "accepted"))
