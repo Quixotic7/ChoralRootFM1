@@ -12,8 +12,9 @@ cz_native_line_mv 7333
 cz_native_noise 161
 cz_env_tick 36
 quad_render 10511
-quad_block 37
+quad_block 48
 quad_drv_run 137
+quad_comb_lend 81
 p5_samples 1147
 p5_render 63
 p5_mod_samples 99

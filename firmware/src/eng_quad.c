@@ -988,6 +988,7 @@ static int32_t quad_lfo_wave(uint32_t w, uint32_t ph, int32_t r)
 }
 
 static void quad_comb_lend(const track_t *t, uint32_t tr, const int16_t *p);   /* (the combs' lines, below) */
+static uint8_t quad_comb_was[QUAD_NPART];        /* the part's FTYPE was a comb in its last block (quad_block) */
 /* the part's DRIVE PRE for this block at drive d (0: off; the LFOs' DRIVE in it: the last block's, quad_dro) */
 static void quad_drv_set(quad_drv_t *q, int32_t d)
 {
@@ -1017,7 +1018,11 @@ static void quad_block(track_t *t)
     p = quad_patch[tr];
     quad_dro[tr] = quad_fx_off[tr][0];
     quad_drv_set(&quad_drv[tr], p[QP_DRPRE] ? clamp(t->p[P_DIST] + quad_dro[tr], 0, 127) : 0);
-    quad_comb_lend(t, tr, p);
+    k = p[QP_FTYPE] == QF_COMBP || p[QP_FTYPE] == QF_COMBN;
+    if (k || quad_comb_was[tr])                  /* (the lines: while a comb runs, and once after, to give them
+                                                  * back; a part on no comb holds none) */
+        quad_comb_lend(t, tr, p);
+    quad_comb_was[tr] = (uint8_t)k;
     for (k = 0; k < 8u; k++)                     /* a knob, the editor, the matrix, motion moved a macro */
         if (t->p[P_E0 + k] != quad_mlast[tr][k]) {
             quad_mlast[tr][k] = t->p[P_E0 + k];
@@ -1459,8 +1464,9 @@ static int32_t qe_comb_len(int32_t cut)
     return (int32_t)QE_COMB_LEN[i] + (((int32_t)QE_COMB_LEN[i + 1] - (int32_t)QE_COMB_LEN[i]) * (cut & 255)) / 256;
 }
 /* quad_block: part tr's voices that run a comb and sound get a line (their own place's first, then any free), the
- * others give theirs back */
-static void quad_comb_lend(const track_t *t, uint32_t tr, const int16_t *p)
+ * others give theirs back. Called while the part's TYPE is a comb and the block after (3y214: not in every block of
+ * every FM TONE part; out of quad_block's code: tests/target_budget.py) */
+static __attribute__((noinline)) void quad_comb_lend(const track_t *t, uint32_t tr, const int16_t *p)
 {
     int comb = p[QP_FTYPE] == QF_COMBP || p[QP_FTYPE] == QF_COMBN;
     uint32_t i, k;

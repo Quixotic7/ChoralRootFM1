@@ -6760,3 +6760,13 @@ algorithms' loop ends now share a tail the compiler placed before them, and the 
 6,900-byte loop (counted only where a branch back closes a cycle, the same listing reads 3,840 -> 3,827; fm6_render's
 42,969, va_render's 88,220 and cz_native_line's 45,287 are mostly such tails too: 3,096, 2,715, 6,273). Size: XIP
 556,020 B (+832 over 3y212), POOL +4,152 B (the two tables: 331,492 of 344,064).
+
+3y214. **The combs' lines only lent in a comb's blocks; `quad_block`'s budget.** `tests/target_budget.py` failed on
+`quad_block`: cost 128, budget 37. Since 3y208, `quad_comb_lend` (inlined in it) walked the 8 lines and the 8 voices
+in every block of every FM TONE part, comb or none (and 3y206's `quad_dro` and 3y213's `quad_drv_set` beside them);
+real work only while a comb runs. Now `quad_block` calls it (noinline) while the part's TYPE is COMB+ / COMB- and
+once after (`quad_comb_was`: to give the lines back); a part on no comb holds none, and a part that left FM TONE has its
+lines freed by the next part that lends, as before. `quad_block` 128 -> 48 (its macro and LFO loops; the budget 37 ->
+48: 3y206's `quad_dro` and the drive's table call are in it now), `quad_comb_lend` watched (81). Tests:
+`cr_quad_test` (the lending, a part leaving FM TONE, no line free) unchanged; `cr_c1_thread_test` 26 pairs (COMB+ / COMB-
+across the parts) unchanged. Goldens unchanged.
