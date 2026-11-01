@@ -6594,3 +6594,17 @@ they are, as before. A save of a chord-part sound with SENDS writes the part's a
 record came from by its values, now leaves the sends out of the comparison. Size: XIP +272 B (549,828). Tests:
 `cr_pool_test` (saved with FX off: the amounts in the record; loaded: the chord part's sends set, FX still off; a
 factory preset after it: kept; on the bass part: its track's). docs/MANUAL.md (FX), docs/FX.md. No golden changed.
+
+3y204. **SEL held in the sound editor: the filter type picker.** The owner: "For changing the filter mode, when you are
+in the edit mode, then hold down the SEL key(Filter pages), which should bring up page for filter selection." SEL
+(printed; FILT in the editor) held past the hold time on an engine with a filter TYPE column (the FILT section's
+F_ENUM "TYPE": FM TONE's FILTER+ TYPE; no other engine has one) opens the FILT group and a picker of the types
+(`CR_K_PICKER`, the current one big in orange, its neighbours above and below, "filter type"); while SEL is down
+KNOB 1..4 or SELECT step the type, a detent a type, heard at once (the same `quad_set` as KNOB 3, the sound marked
+edited); the release closes it on FILT with the type kept and no tap. A knob turned while SEL is down before the hold
+time opens it at once (FIZZ's FILTERS key does the same: `ctl_snd.c`). A tap of SEL still cycles FILT's screens. As
+built: `cr_edit.c` `ce_ftype` / `ce_fheld` / `ce_fpick`, `ce_kmod` 4, `ce_select`, `ce_screen` (the picker while
+`cx.fpick` and SEL held). The four types today; MULTI, COMB+, COMB-, EQ join it when the engine has them. Size: XIP
++640 B (550,468). Tests: `tools/emu/scripts/cr_quad_fpick.txt` (test_cr.sh: the hold, KNOB 1, SELECT, the release
+with no tap, a tap, a knob before the hold time; the screenshots differ). docs/MANUAL.md (the editor, the buttons
+table). No golden changed (the picker is `cr_draw.c`'s existing `CR_K_PICKER`).

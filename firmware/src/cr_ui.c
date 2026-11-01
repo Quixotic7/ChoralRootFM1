@@ -3650,6 +3650,8 @@ static void cu_pick_open(void)                     /* PRESETS turned in the edit
     cu_pick_begin();
 }
 
+static void cu_picker(cr_screen_t *s, const char *const *items, uint32_t n, uint32_t sel, uint32_t col,
+                      const char *label, const char *footer);   /* (below: the editor's filter picker) */
 #include "cr_edit.c"                       /* the sound editor: its state, input and screen */
 static void cu_edit_open(uint32_t part) { ce_open(part); }
 

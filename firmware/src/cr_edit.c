@@ -9,7 +9,11 @@
  * EDIT switches chord <-> bass inside. Navigation: GROUPS -> SCREENS -> LANES. The function buttons are the groups by
  * their PRINTED names: FX = OSC, SEL = FILT, ENV = ENV, LFO = LFO, SEQ = MOD, PLAY = FX (the sends), REC = MIX. A
  * group's button opens it (at its remembered screen and lane), tapped again it cycles the group's screens; held it
- * does nothing (reserved). SELECT moves the LANE (the four parameters on KNOB 1..4: a row, an oscillator, a slot)
+ * does nothing (reserved), but SEL (FILT) on an engine with a filter TYPE column: THE FILTER PICKER (3y204, the owner
+ * 2026-10-31: "when you are in the edit mode, then hold down the SEL key(Filter pages), which should bring up page for
+ * filter selection"): SEL held past the hold time opens FILT and a picker of the types; while SEL is down KNOB 1..4 or
+ * SELECT step the type (a knob turned before the hold time opens it at once, as FIZZ's FILTERS key); the release
+ * closes it and keeps the choice (ce_fpick). SELECT moves the LANE (the four parameters on KNOB 1..4: a row, an oscillator, a slot)
  * and runs on across the screens (past the last lane: the next screen's first, wrapping), so SELECT alone reaches
  * everything. GLO = SHIFT (OPT): a tap latches it (snap, its LED lit, "snap" in the title line), held it is
  * momentary. KNOB 1..4 edit the active lane's cells (accelerated: cr_pages.c kn_lin; enums and named choices one by one;
@@ -96,6 +100,7 @@ static struct {
     uint8_t hot_slot, hot_src;            /* .. by a quick mapping: its matrix page + 1 (0: an edit), the source */
     uint32_t hot_t0;
     uint8_t msrc[2][2];                   /* per part: the ENV n / LFO n last shown (0: none yet, ENV 2 / LFO 1) */
+    uint8_t fpick;                        /* the filter picker is up (while SEL is held) */
 } cx __attribute__((section(".pool")));   /* (zero-initialised: OSC, screen 1, lane 1 for both parts) */
 
 static track_t *ce_trk(void) { return &trk[ce.part ? CR_PART_BASS : CR_PART_CHORD]; }
@@ -964,6 +969,62 @@ static int ce_owns(uint32_t b)
     return 0;
 }
 
+/* THE FILTER PICKER: the engine's filter type, the FILT section's F_ENUM column "TYPE" (FM TONE's FILTER+ TYPE); 0
+ * none (that engine's SEL hold stays reserved) */
+static const param_desc_t *ce_ftype(const track_t *t, uint32_t *pg, uint32_t *col)
+{
+    const eng_deep_t *d = ce_deep(t);
+    uint32_t a, b;
+    int32_t k;
+    if (!d)
+        return 0;
+    ce_range(d, CE_FILT, &a, &b);
+    for (*pg = a; *pg < b; (*pg)++)
+        if ((k = cp_dcol(&d->pages[*pg], "TYPE")) >= 0 && d->pages[*pg].col[k].fmt == F_ENUM && d->pages[*pg].col[k].names) {
+            *col = (uint32_t)k;
+            return &d->pages[*pg].col[k];
+        }
+    return 0;
+}
+/* SEL down on an engine with a filter type (the picker's knobs and SELECT) */
+static int ce_fheld(void)
+{
+    uint32_t pg, col;
+    return cu.page == PG_EDIT && cu.armed == B_SCL && ((cu.bheld >> B_SCL) & 1u) && ce_ftype(ce_trk(), &pg, &col);
+}
+/* the picker up (FILT the group), the type stepped s (0: only opened) */
+static void ce_fpick(int32_t s)
+{
+    track_t *t = ce_trk();
+    const eng_deep_t *d = ce_deep(t);
+    uint32_t pg, col, p = ce.part & 1u;
+    const param_desc_t *c = ce_ftype(t, &pg, &col);
+    int32_t v0, v;
+    ce_scr_t sc;
+    if (!c)
+        return;
+    if (!cx.fpick || cx.grp[p] != CE_FILT) {
+        cx.fpick = 1;
+        if (cx.grp[p] != CE_FILT) {
+            cx.grp[p] = CE_FILT;
+            ce_fix(t, p, &sc);
+        }
+        cx.hot_r = 0;
+        cu_trace("edit: filter picker\n");
+    }
+    if (!s)
+        return;
+    v0 = d->get(t, pg, col);
+    v = clamp(v0 + s, c->min, c->max);
+    if (v == v0)
+        return;
+    d->set(t, pg, col, v);
+    v = d->get(t, pg, col);
+    cu_edited(ce.part);
+    cu_trace("deep: part %u page %u %s col %u %s %d -> %d (%s)%s\n", (unsigned)ce.part, (unsigned)pg, d->pages[pg].title,
+             (unsigned)col, c->label, (int)v0, (int)v, c->names[v], psnd[ce.part].edited ? " edited" : "");
+}
+
 static int ce_button(uint32_t b, uint32_t ev)
 {
     uint32_t s;
@@ -989,8 +1050,10 @@ static int ce_button(uint32_t b, uint32_t ev)
     }
     for (s = 0; s < CE_NSEC; s++)
         if (CE_SEC_BTN[s] == b) {
-            if (ev == CE_TAP)                     /* (held: nothing, reserved) */
+            if (ev == CE_TAP)                     /* (held: nothing, reserved; SEL: the filter picker) */
                 ce_group(s);
+            else if (ev == CE_HOLD && b == B_SCL)
+                ce_fpick(0);
             return 1;
         }
     return 0;                                     /* SAVE, PERF, HOME, OCT: as outside */
@@ -1002,6 +1065,10 @@ static void ce_select(int32_t s)
     track_t *t = ce_trk();
     uint32_t p = ce.part & 1u, g, ns, k, ln, k0, l0;
     ce_scr_t sc;
+    if (ce_fheld()) {                             /* SEL held: the filter picker's */
+        ce_fpick(s);
+        return;
+    }
     g = ce_fix(t, p, &sc);
     ns = ce_scr(t, g, 0, &sc);
     k = k0 = cx.scr[p][g];
@@ -1205,11 +1272,14 @@ static void ce_unmap(uint32_t knob)
     cu_trace("mod: clear %s, %u slots\n", ce_dst_name(d, dst), (unsigned)n);
 }
 
-/* the editor's modifiers on the knobs: ENV / LFO held (the quick mapping), OCT- held (clear); 0 none */
+/* the editor's modifiers on the knobs: ENV / LFO held (the quick mapping), OCT- held (clear), SEL held (the filter
+ * picker); 0 none */
 static uint32_t ce_kmod(void)
 {
     if ((cu.bheld >> B_OCTDN) & 1u)
         return 3u;
+    if (ce_fheld())
+        return 4u;
     if (cu.armed == B_ENV && ((cu.bheld >> B_ENV) & 1u))
         return 1u;
     if (cu.armed == B_LFO && ((cu.bheld >> B_LFO) & 1u))
@@ -1283,6 +1353,10 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t snap)
     if (m == 3u) {                                 /* OCT- held: clear the parameter's modulation */
         cu.oct_mod = 1;                            /* (its release: no octave step) */
         ce_unmap(knob);
+        return;
+    }
+    if (m == 4u) {                                 /* SEL held: the filter type, a detent a type */
+        ce_fpick(s);
         return;
     }
     if (m) {                                       /* ENV / LFO held: map */
@@ -1797,6 +1871,24 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     uint32_t p = ce.part & 1u, r, c, g;
     ce_view_t vw;
     uint8_t band[20], mc[CE_NDST];
+    if (cx.fpick && !ce_fheld())                  /* SEL released: the picker closes, the type kept */
+        cx.fpick = 0;
+    if (cx.fpick) {
+        uint32_t pg, col;
+        const param_desc_t *c = ce_ftype(t, &pg, &col);
+        int32_t v = clamp(cp_deep(t)->get(t, pg, col), c->min, c->max);
+        cu_picker(s, c->names + c->min, (uint32_t)(c->max - c->min + 1), (uint32_t)(v - c->min), CR_COL_ORANGE,
+                  "filter type", "");
+        cu_cpy(s->title, psnd[p].name, sizeof s->title);
+        if (psnd[p].edited)
+            cu_cat(s->title, "*", sizeof s->title);
+        s->title_col = p ? CR_COL_ORANGE : CR_COL_NONE;
+        s->header = 0;
+        s->ring_on = 0;
+        s->batt = 255;
+        (void)now;
+        return;
+    }
     ce_view(t, p, &vw);
     g = cx.grp[p] % CE_NSEC;
     s->kind = vw.kind;

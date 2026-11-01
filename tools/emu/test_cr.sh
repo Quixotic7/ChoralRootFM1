@@ -1084,6 +1084,17 @@ r=$(dv REL)
     ok "AMP REL (0..126 + INF, an integer since version 5): 1 slow, 6 quick to the end (127: INF); GLO held: the 16 grid 112 96, back 112: $OUT/cr_quad_hires_rel.ppm" \
     || bad "AMP REL: '$r'"
 
+echo "FM TONE's filter picker: SEL held in the editor (3y204)"
+run cr_quad_fpick
+L="$OUT/cr_quad_fpick.log"
+[ "$(grep -c '^edit: filter picker$' "$L")" = 2 ] && has '^deep: part 0 page 4 FILTER+ col 2 TYPE 1 -> 2 (HP12) edited$' "$L" &&
+    has '^deep: part 0 page 4 FILTER+ col 2 TYPE 2 -> 3 (LP24) edited$' "$L" && has '^deep: part 0 page 4 FILTER+ col 2 TYPE 3 -> 2 (HP12) edited$' "$L" &&
+    [ "$(grep -c '^edit: group' "$L")" = 2 ] && has '^edit: group FILT screen 2 lane 1 part 0$' "$L" &&
+    ok "SEL held: the picker over FILT (LP12: $OUT/cr_fpick_open.ppm), KNOB 1 +1 HP12, SELECT +1 LP24, released: kept, no tap ($OUT/cr_fpick_closed.ppm); SEL tapped: FILT's next screen; SEL down + KNOB 3 at once: the picker, HP12" \
+    || bad "the filter picker: $(grep -E '^(edit|deep):' "$L" | tr '\n' '|')"
+differ cr_fpick_open cr_fpick_hp "the picker's big name follows the type (LP12 -> HP12)"
+differ cr_fpick_closed cr_fpick_hp "the release: the editor's FILTER screen again"
+
 echo "VA's synced LFO RATE: the list one item a detent both ways, GLO held the straight ones; FENV in hundredths"
 run cr_va_sync_list
 L="$OUT/cr_va_sync_list.log"

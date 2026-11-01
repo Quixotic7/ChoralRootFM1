@@ -1,0 +1,39 @@
+# ChoralRoot: FM TONE's filter picker (3y204, the owner 2026-10-31: "when you are in the edit mode, then hold down the
+# SEL key(Filter pages), which should bring up page for filter selection"). FM TONE (01 EP: TYPE LP12), EDIT (OSC):
+# 1. SEL held 700 ms: the FILT group and the picker ("edit: filter picker"; LP12 big); KNOB 1 +1: HP12; SELECT +1:
+#    LP24; SEL up: the picker closes, LP24 kept, no tap (FILT stays on its screen)
+# 2. SEL tapped: FILT's next screen (a tap is still a tap)
+# 3. SEL down, KNOB 3 -1 at once (before the hold time): the picker opens, HP12; SEL up
+# tools/emu/test_cr.sh reads the "deep:" and "edit:" lines and the screenshots.
+wait 300
+btn EDIT down
+wait 400
+knob SELECT +1               # the engine picker: FM6 -> FM TONE
+wait 300
+btn EDIT up
+btn OCT+                      # FM TONE (01 EP)
+wait 300
+btn EDIT                      # OSC: SYN 1
+wait 400
+shot build/emu/test/cr_fpick_osc.ppm
+btn SEL down
+wait 700
+shot build/emu/test/cr_fpick_open.ppm
+knob KNOB1 +1
+wait 300
+shot build/emu/test/cr_fpick_hp.ppm
+knob SELECT +1
+wait 300
+btn SEL up
+wait 400
+shot build/emu/test/cr_fpick_closed.ppm
+btn SEL
+wait 400
+shot build/emu/test/cr_fpick_tap.ppm
+btn SEL down
+wait 100
+knob KNOB3 -1
+wait 200
+shot build/emu/test/cr_fpick_quick.ppm
+btn SEL up
+wait 400

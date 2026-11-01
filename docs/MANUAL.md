@@ -1485,6 +1485,10 @@ their buttons are the editor's groups.
   spin crosses the whole range. A list (a wave, a mode, an algorithm, a ratio) is always one item a click.
 - **SHIFT** (printed GLO, OPT outside) **snaps**: while it is held each click goes to the next common value
   ([Knob speed and OPT snap](#knob-speed-and-opt-snap)). Tap it to latch it (`snap` in the top line, the button lit).
+- **SEL held** (FILT) brings up the **filter type picker** on FM TONE (an engine with a filter Type column): the
+  types in a list, the current one big. While SEL is down, any of KNOB 1 to KNOB 4 or SELECT steps the type, one a
+  click, and you hear it at once; let go of SEL and the picker closes on the FILT group with the type kept. A knob
+  turned while SEL is still going down opens the picker straight away. A tap of SEL still goes to FILT's next screen.
 
 ### Knob speed and OPT snap
 
@@ -2154,7 +2158,7 @@ A held layer button opens its layer and it stays; holding the same button again 
 | Button (printed label) | In the editor | Tap | Hold |
 | --- | --- | --- | --- |
 | FX | OSC | the group; again: its next screen | |
-| SEL | FILT | the same | |
+| SEL | FILT | the same | the filter type picker (FM TONE): a knob or SELECT picks, the release keeps it |
 | ENV | ENV | the same | + a knob: that envelope modulates the knob's parameter (VA) |
 | LFO | LFO | the same | + a knob: that LFO modulates it (VA) |
 | SEQ | MOD | the same | |
