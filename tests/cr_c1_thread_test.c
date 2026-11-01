@@ -81,14 +81,6 @@ static void usp_on(const pair_t *p)                 /* (after a sound load: the 
         quad_patch[0][QP_LFO(0, QL_DEPTH)] = 5000;
         trk[0].p[P_DIST] = 80;
     }
-    if (p->usp == 6u && p->ce == ENGI_QUAD) {           /* (3y212: CRUSH's held sample per voice, DRIVE PRE's state) */
-        quad_patch[0][QP_BITS] = 100, quad_patch[0][QP_SRR] = 40, quad_patch[0][QP_CRPRE] = 1;
-        quad_patch[0][QP_DRPRE] = 1;
-        trk[0].p[P_DIST] = 90;
-        if (p->be == ENGI_QUAD)
-            quad_patch[1][QP_FTYPE] = QF_COMBN, quad_patch[1][QP_RESO] = 8000, quad_patch[1][QP_BITS] = 90,
-            quad_patch[1][QP_SRR] = 20;
-    }
     if (p->usp == 5u && p->ce == ENGI_QUAD) {           /* (3y208: COMB+ on the chord, COMB- on the bass: the 8 lines lent
                                                          * across both parts, chord voices on two cores) */
         quad_patch[0][QP_FTYPE] = QF_COMBP, quad_patch[0][QP_RESO] = 9000, quad_patch[0][QP_FSHAPE] = 90;
@@ -134,8 +126,7 @@ static uint64_t phrase(const pair_t *p, uint32_t nb, int mode)
     rs = 0x1234567u + p->ce * 131u + p->be * 17u + p->cpos;
     vmax[0] = vmax[1] = pmax = sx[0] = sx[1] = sxs = sxa = 0;
     cr_dbg.c1 = C1_OK;
-    cr_dbg.p5_c0 = cr_dbg.p5_c1 = cr_dbg.p5_bass = cr_dbg.c1x_jobs = cr_dbg.c1_jobs = 0;
-    p5x_ntook = p5x_njb = 0;
+    cr_dbg.p5_c0 = cr_dbg.p5_c1 = cr_dbg.p5_bass = cr_dbg.c1x_jobs = 0;
     cr_c1_test_thread = (uint8_t)(mode == 1 || (mode >= 3 && mode != 5 && mode != 7 && mode != 9));
     cr_c1_test_nosplit = (uint8_t)(mode == 2);
     cr_c1_test_share = (uint8_t)(mode == 3 ? P5_POLY + 1u : mode == 4 ? 1u : 0u);
@@ -261,8 +252,8 @@ int main(int argc, char **argv)
 {
     int tsan = argc >= 2 && !strcmp(argv[1], "--tsan");
     uint32_t i, uni = 0, k, nb = tsan ? 900u : 3000u, nsplit = 0, nvsplit = 0, nfsplit = 0, nqsplit = 0, nfx = 0, nrt = 0, nro = 0, npf = 0, jobs0 = 0, mpad = 0, pbass = 0;
-    uint32_t tine = 0, dsub = 0, fams = 0, ntook = 0, njb = 0;
-    pair_t P[32];                                       /* (3y212: 24 held 25 since 3y208) */
+    uint32_t tine = 0, dsub = 0, fams = 0;
+    pair_t P[24];
     uint32_t np = 0;
     emu_flash_open();
     memset(emu_flash, 0xFF, sizeof emu_flash);
@@ -322,20 +313,16 @@ int main(int argc, char **argv)
     P[np - 1u].usp = 4;                                 /* (4: DRIVE 80 PRE, LFO 1 -> DRIVE) */
     PAIR(ENGI_QUAD, 5, ENGI_QUAD, 6, "FM TONE chord COMB+, FM TONE bass COMB- (the lent lines)");
     P[np - 1u].usp = 5;
-    PAIR(ENGI_QUAD, 1, ENGI_QUAD, 6, "FM TONE chord, CRUSH before the filter and DRIVE PRE, FM TONE bass COMB- with CRUSH");
-    P[np - 1u].usp = 6;                                 /* (6, 3y212: the per-voice CRUSH and DIST state on two cores) */
     fams = np - 1u;
     printf("cr_c1_thread: the bass part's job on a second thread (%u pairs, %u blocks each%s)\n", (unsigned)np, (unsigned)nb,
            tsan ? "; the sanitizer's run" : "");
     for (i = 0; i < np; i++) {
         if (tsan) {
             uint64_t h = phrase(&P[i], nb, 1);
-            uint32_t fxj = cr_dbg.c1x_jobs, vj = cr_dbg.c1_jobs;   /* (3y212: the voices' jobs, two in a block when the
-                                                         * bass part is handed over early and core 1 has chord voices) */
+            uint32_t fxj = cr_dbg.c1x_jobs;
             int p5c = P[i].ce == ENGI_PROPHET, vac = P[i].ce == ENGI_VA || P[i].ce == ENGI_FM6 || P[i].ce == ENGI_QUAD;
             int ok = (!vac || (sx[0] >= 1u && sx[1] >= 1u)) && vmax[0] >= 3u && vmax[1] >= 1u && (i || !uni || vmax[1] == P5_STACK) && cr_c1_th_done == cr_c1_th_posted &&
-                     cr_c1_th_done - jobs0 == vj + fxj && vj == nb + p5x_njb && fxj > nb / 2u &&
-                     (!vac || P[i].be == ENGI_PROPHET || p5x_ntook + p5x_njb > nb / 4u) && (!p5c || vj == nb) &&
+                     cr_c1_th_done - jobs0 == nb + fxj && fxj > nb / 2u &&
                      pmax <= P5_POLY && (!p5c || (vmax[0] > P5_CORE && cr_dbg.p5_c0 >= 2u && cr_dbg.p5_c0 <= P5_CORE && cr_dbg.p5_c1 >= 2u &&
                                cr_dbg.p5_c1 <= P5_CORE));
             fails += !ok;
@@ -346,10 +333,7 @@ int main(int argc, char **argv)
                 printf("  %s chord voices in a block at most: core 0 %u, core 1 %u\n", P[i].ce == ENGI_FM6 ? "FM6" :
                        P[i].ce == ENGI_QUAD ? "FM TONE" : "VA",
                        (unsigned)sx[0], (unsigned)sx[1]);
-            printf("  fx: %u of %u blocks ran the reverb on the thread; the bass handed over early (3y212), core 1's chord "
-                   "voices taken in its job in %u blocks, a second job in %u\n", (unsigned)fxj, (unsigned)nb,
-                   (unsigned)p5x_ntook, (unsigned)p5x_njb);
-            ntook += p5x_ntook, njb += p5x_njb;
+            printf("  fx: %u of %u blocks ran the reverb on the thread\n", (unsigned)fxj, (unsigned)nb);
             jobs0 = cr_c1_th_done;
         } else {
             uint64_t a = fork_phrase(&P[i], nb, 0), b = fork_phrase(&P[i], nb, 1), c = fork_phrase(&P[i], nb, 1);
@@ -417,12 +401,6 @@ int main(int argc, char **argv)
             printf("  %s %s: inline %016llx, on a thread %016llx, again %016llx\n", ok ? "ok  " : "FAIL", P[i].what,
                    (unsigned long long)a, (unsigned long long)b, (unsigned long long)c);
         }
-    }
-    if (tsan) {                                         /* (3y212: the early hand-over's two ways, both under the
-                                                         * sanitizer; which one a block takes is the threads' timing) */
-        printf("early: the bass part handed over before the chord's preparation: core 1's chord voices taken in the bass's "
-               "job in %u blocks, handed over as a second job in %u\n", (unsigned)ntook, (unsigned)njb);
-        fails += !(ntook + njb);
     }
     if (fails) {
         printf("cr_c1_thread: %d FAILED\n", fails);

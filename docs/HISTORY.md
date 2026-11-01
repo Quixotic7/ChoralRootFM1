@@ -6716,29 +6716,3 @@ library item, `quadV6Of`, the pool written as version 5 / 6; 19 blobs through th
 `web/test_manager.mjs` (the gate through Place, Place all, Replace factory and the 0.22 simulator, the page passing
 the version), `web/test_dnsnd.mjs` (a device-15 container and a prefixed body are read now). Not done: a Digitone II
 `.syx` (its framing is not known), `.dn2prj` projects, the DN1's PORTAMENTO and KEY TRACK bytes.
-
-3y212. **The early hand-over: the bass part to core 1 before core 0 prepares the chord** (docs/DUALCORE.md "The
-early hand-over"). The owner, asked "Should I rebalance the two cores so heavy driven chords stop clicking?": "Yes,
-rebalance". The unit's readings of 3y206..3y211 (8 FM TONE notes + an FM TONE bass): WOBBLE + BASS c0busy 2,516 /
-c1busy 1,660 / c0wait 272 / c1idle 406 us, C64 EP DRIVE 120 PRE + BASS 2,824 / 1,777 / 304 / 370, block 2,720 ..
-2,780, 7 late. **What was found**: the bass part was already core 1's (its job, then its four chord voices; 4 + 4 for
-eight notes by `p5x_assign`); the ~1,000 us core 0 carries more is its own work that no voice can overlap (the tick,
-both parts' matrix and LFO, part 0's block and voice preparation, then the parts' mix, the chorus, the delay, the
-up-sampler, the master: the reverb is core 1's), and nine voices of about one cost have no better whole split than 4
-+ 4 + the bass. Weighing the split by each core's other load would lengthen the half (the joins: tick + the longer
-render + mix + the longer of the effects + master). What did overlap nothing: the chord's preparation, before which
-core 1 had no work. **Now** (`fx.c` `mix_parts_split`, `p5x_run`; FM6, the VA, FM TONE; not P5, not during an engine
-fade): part 0's `engine_t.block`, then job A (`c1_bass_job`, the bass part), then the preparation and the share-out
-while core 1 renders the bass; the list published by a token (`p5x_go`; `fm1_c1_pub` / `fm1_c1_peek` in
-hal/fm1_cpu1.h: csync around the store); core 1 takes its share in job A when the token is there, else core 0 hands
-it over as job B (`c1_chord_job`) at the first look between its voices that finds job A done (`cr_c1_idle`). The
-bass weighs its own engine's voice when that engine splits, less the preparation it overlaps (`P5X_PREP_US` 10 a
-voice). The two parts' blocks still never run at once (`quad_comb_lend`'s lent lines). Fallbacks: a failing job,
-core 0 renders the bass anew and the share. **Tests**: `tests/cr_c1_thread_test.c` 26 pairs (+1: FM TONE CRUSH PRE
-and DRIVE PRE over an FM TONE bass with COMB- and CRUSH; the pairs' array was 24 for 25 since 3y208, now 32): inline =
-thread = unsplit = all to core 1 = none; ThreadSanitizer 0 reports with both ways run under it (the share taken in
-job A in 13,802 blocks, a job B in 99); the jobs on the thread counted exactly. The goldens unchanged. **Expected on
-the unit** (not flashed here): c0busy and c1busy about as before (core 0 a token and a look between voices more),
-c0wait and the block about 75 us (WOBBLE + BASS) .. 95 us (C64 EP) shorter: the emulator's preparation, 29 us a half
-against core 1's 492, scaled by the unit's part1. C64 EP stays above the 2,467 us shed line: what remains is core 0's
-own work. Size: XIP 556,708 B (+1,520), RAM +32 B.

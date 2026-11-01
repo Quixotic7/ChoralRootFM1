@@ -939,8 +939,6 @@ typedef struct { voice_t *v; vmod_t m; uint8_t c1; } p5x_item_t;   /* c1: core 1
 static struct {
     uint8_t on;                         /* this block: part 0's voices go on the list (core 0 sets and clears it) */
     uint8_t n, n1;                      /* voices on the list; how many of them are core 1's */
-    uint8_t blk;                        /* 3y212: part 0's engine_t.block ran before the bass part was handed over
-                                         * (fx.c mix_parts_split): not again here */
     p5x_item_t it[NVOICE];
 } p5x __attribute__((section(".pool")));              /* (cleared at power-on with the pool; RAM is the tight region) */
 static void p5x_run(track_t *t, int32_t *out, int32_t *side, uint8_t *side_on, uint32_t n);
@@ -981,11 +979,7 @@ CR_HOT_CORE static uint32_t track_render_x(track_t *t, int32_t *out, int32_t *si
         }
     if (!lfo_pre)
         track_lfo_tick(t);
-#if P5_SPLIT
-    if (e->block && !(t == &trk[0] && p5x.blk))         /* the engine's per-part work (WHEEL: bars, rotor) */
-#else
-    if (e->block)
-#endif
+    if (e->block)                                       /* the engine's per-part work (WHEEL: bars, rotor) */
         e->block(t);
     for (i = 0; i < NVOICE; i++) {
         voice_t *v = &t->v[i];

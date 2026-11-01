@@ -133,12 +133,6 @@ static const char *const CRX_NAME[CRX_N] = {"down", "delay", "reverb", "up"};
 static inline uint32_t cr_prof_now(void) { return fm1_ticks(); }
 static int cr_c1_run(void (*fn)(uint32_t), uint32_t arg) { return fm1_cpu1_run(fn, arg); }
 static int cr_c1_wait_core(void) { return fm1_cpu1_wait(); }
-/* 3y212: one look, no wait: 1 = core 1 has finished the job it was handed (cr_c1_wait then returns at once); 0 = not
- * yet, or never (a stall, a fault: cr_c1_wait finds out) */
-static inline int cr_c1_idle(void) { return fm1_cpu1_idle(); }
-/* 3y212: a word one core publishes after everything it guards and the other reads, the mailbox's own fences */
-#define CR_C1_PUB(w, v) fm1_c1_pub(&(w), (v))
-static inline uint32_t cr_c1_peek(volatile uint32_t *w) { return fm1_c1_peek(w); }
 #define CR_C1_SELF() (fm1_cnum() != 0u)      /* 1: this code runs on core 1 (the cnum register, hal/fm1_cpu1.h) */
 static void cr_c1_hold(void) { fm1_cpu1_hold(); }
 static inline uint32_t cr_c1_rejected(void) { return fm1_c1_rejected; }
@@ -306,20 +300,6 @@ static int cr_c1_wait_core(void)
         cr_c1_fn(cr_c1_arg);
     return 0;
 }
-static int cr_c1_idle(void)                         /* (3y212, the device's above: inline, the job ran when handed) */
-{
-    int r = !cr_c1_test_hang && !cr_c1_test_late;
-#if CR_C1_THREAD
-    if (r && cr_c1_test_thread) {
-        pthread_mutex_lock(&cr_c1_mx);
-        r = cr_c1_th_done == cr_c1_th_posted;
-        pthread_mutex_unlock(&cr_c1_mx);
-    }
-#endif
-    return r;
-}
-#define CR_C1_PUB(w, v) __atomic_store_n(&(w), (v), __ATOMIC_RELEASE)   /* (the device's: csync around a store) */
-static inline uint32_t cr_c1_peek(volatile uint32_t *w) { return __atomic_load_n(w, __ATOMIC_ACQUIRE); }
 static void cr_c1_hold(void) {}
 static inline uint32_t cr_c1_rejected(void) { return cr_c1_test_rejected; }
 static inline uint32_t cr_c1_faults(void) { return cr_c1_test_faults; }
