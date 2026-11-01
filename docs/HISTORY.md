@@ -6561,3 +6561,19 @@ shut); the Haunted Hearts and every other sound as at 3y200, one note fewer (the
 5), a version 7 of 302 bytes without a marker, a version-3 `.syx` record of 282 bytes, a 113-byte message, a raw body,
 a two-block LZ4 chain, a Digitone II payload and body refused, a version 2 in a `.syx` read; the test encoders
 (`test_dnsnd.mjs`, `test_manager.mjs`) now write the real header. No golden changed.
+
+## 2026-10-31 (0.28, the release tree)
+
+3y202. **0.28, the release tree (the owner: "Cut 0.28"): the Digitone importing of 3y200 and 3y201 (every record
+version, .syx dumps, records cut short), the installers' RemoteFM1 rule (bd7f431), FM-1 only; the SMK-37 build stays
+v0.27-smk37.1.** From origin/main de3a479. The firmware's source since v0.27 differs under BOARD_SMK37 alone (3y198's
+volume, 3y199's pedal: SMK-37 code) and in `FELUCCA_VERSION` ("ChoralRoot 0.28"): the FM-1 package is 0.27's
+firmware with the version line, as 0.26.1 was 0.26's. `docs/releases/0.28.md` for players (the importing, RemoteFM1,
+Installing, "Going back to 0.27": nothing changes); README's "New in 0.28"; the manual's first line.
+`web/releases.json`: 0.28 first, dated 2026-10-31, sha256 8adefde995a2db700803e54d9cd10bb4b9cde070ec5e37914e92bdc742c0575b, 1-core 88c4f22b51eab407f5e3c28386837278e1b968affdb6474049ff6ee9a678a200, five bullets; 0.27's entry gets
+its `going_back`. `web/releases-smk37.json` unchanged: 0.27-smk37.1 first on base 0.27, still a listed version.
+**Built** twice, `./build.sh --release 0.28` and then `tools/hub_build.sh 0.28` (the hub's command, Docker), in the
+worktree .claude/worktrees/rel-028 on main: the same `SHA256SUMS` (the four files), "web/releases.json: 0.28's 2 sha256s match".
+**Checked**: `python3 tests/releases_test.py` releases ALL OK; CR_VERSION=0.28 `sh tests/run_all.sh` ALL SUITES PASSED (23 suites, 118 s; test_cr 1106 ok, test_persist 119; 317 golden renders, 0 changed; 0 lint; the dev build the release package's bytes, 8adefde9..).
+Pushed to main and tagged v0.28: release.yml builds, signs and publishes, then pages.yml the site with the new
+device manager and installer.
