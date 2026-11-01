@@ -249,6 +249,7 @@ static int cu_kept(uint32_t i) { return param_kept(i); }
 /* FM TONE's Drive is its preset's (below, at cu_fx_apply): every load that changes a part's engine or loads an FM
  * TONE sound says so BEFORE it writes eng_req: engine e is coming, with Drive d if e is FM TONE */
 static void cu_drive_load(track_t *t, uint32_t e, int32_t d);
+static void cu_sends_load(track_t *t, const int16_t *v);   /* (an FM TONE sound that carries its sends, below) */
 static int32_t cu_preset_drive(const preset_t *pr) { return pr->fx[0] ? (int32_t)pr->fx[0] - 1 : 0; }   /* core.h FX() */
 
 /* engine e's preset pi into part t, as ui.c set_engine_of + apply_preset_to: the sound only (not its sends: they are
@@ -405,6 +406,7 @@ static void cu_load_user(track_t *t, uint32_t k, int bass)
         t->preset = 0;
         fm1_irq_on();
         fm6_track_loaded(t);
+        cu_sends_load(t, v);                      /* (an FM TONE sound with SENDS: its sends become the part's) */
     }
     t->user = (uint8_t)(k + 1u);
     t->trim = 0;                                  /* an added user preset: no trim (a bound one: cu_pool_load) */
@@ -741,6 +743,60 @@ static void cu_drive_load(track_t *t, uint32_t e, int32_t d)     /* (declared at
     (void)t; (void)e; (void)d;
 #endif
 }
+/* AN FM TONE SOUND THAT CARRIES ITS SENDS (3y203, the owner 2026-10-31: "Ok, lets let these presets change the FX send
+ * amounts when you load"). The 0.18 rule above stands for every other sound; a sound whose patch has SENDS (version 6,
+ * eng_quad.c: the Digitone importer sets it, its record's P_REV P_DLY P_CHOR hold the preset's amounts) sets its
+ * PART's three sends when it loads (a user slot or a pool entry, cu_load_user): the chord part's cs.fx_amt[] (FX on or
+ * off stays as it is), the bass part's track values; Drive as ever (cu_drive_load). Nothing else changes them: the next
+ * sound without SENDS leaves them where this one put them. A save of such a sound writes the part's amounts into the
+ * record (cu_store), so it loads them again */
+static void cu_sends_load(track_t *t, const int16_t *v)
+{
+#if FELUCCA_QUAD
+    uint32_t i;
+    if (!quad_sends_own(t))
+        return;
+    for (i = 0; i < CU_NFX; i++) {
+        uint32_t id = CU_FX[i].send;
+        int16_t x = (int16_t)clamp(v[id], 0, 127);
+        if (id == P_DIST)
+            continue;
+        if (t == &trk[CR_PART_CHORD]) {
+            cs.fx_amt[i] = (uint8_t)x;
+        } else {
+            fm1_irq_off();
+            t->p[id] = x;
+            fm1_irq_on();
+        }
+    }
+    if (t == &trk[CR_PART_CHORD])
+        cu_fx_apply();
+#if defined(CR_TRACE) && CR_TRACE
+    printf("load: part %u FM TONE sends: reverb %d delay %d chorus %d\n", t == &trk[CR_PART_CHORD] ? 0u : 1u,
+           (int)v[P_REV], (int)v[P_DLY], (int)v[P_CHOR]);
+#endif
+#else
+    (void)t;
+    (void)v;
+#endif
+}
+/* cr_bank.c cb_store for the part's sound: a chord-part sound with SENDS stores the part's amounts (cs.fx_amt), not the
+ * track's (0 with FX off) */
+static int cu_store(const track_t *t, uint32_t part, uint32_t k, const char *name, uint32_t bind)
+{
+#if FELUCCA_QUAD
+    if (!part && quad_sends_own(t)) {
+        int16_t s[3];
+        uint32_t i;
+        for (i = 0; i < CU_NFX; i++)
+            if (CU_FX[i].send >= P_CHOR && CU_FX[i].send <= P_REV)
+                s[CU_FX[i].send - P_CHOR] = (int16_t)cs.fx_amt[i];
+        return cb_store_s(t, part, k, name, bind, s);
+    }
+#endif
+    return cb_store(t, part, k, name, bind);
+}
+
 /* a new unit's, and Options > Reset Settings': what the power-on sounds were made with (FM6 TINE EP: reverb 35,
  * chorus 45, delay 25, no drive; VA DEEP SUB: a little reverb, 10) */
 static void cu_sends_default(void)
@@ -3698,7 +3754,7 @@ static void cu_save_take(void)
             cu_trace("save: no free slot\n");
             return;
         }
-        rc = cb_store(t, part, k, nm, f != PF_NONE ? f + 1u : 0u);
+        rc = cu_store(t, part, k, nm, f != PF_NONE ? f + 1u : 0u);
         up_slot_label(l, k);
         cu_trace("save: part %u overwrite slot %s %s %02u %s rc %d\n", (unsigned)part, l, ENGINES[e]->name,
                  (unsigned)(f != PF_NONE ? pool_pos_factory(e, f) : pool_pos_slot(e, k)), nm, rc);
@@ -3751,7 +3807,7 @@ static void cu_save_commit(void)
             return;
         }
     }
-    rc = cb_store(t, part, k, name, 0);
+    rc = cu_store(t, part, k, name, 0);
     up_slot_label(l, k);
     cu_trace("save: part %u slot %s name %s rc %d\n", (unsigned)part, l, name, rc);
     cu_save_done(part, k, rc, "saved ");

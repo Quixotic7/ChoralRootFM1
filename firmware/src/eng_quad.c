@@ -1689,6 +1689,13 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
 #undef QUAD_LOOP
 #undef QUAD_ALGOS
 
+/* the part's sound carries its sends (version 6's SENDS: a Digitone import; cr_ui.c cu_sends_load, cu_store) */
+static int quad_sends_own(const track_t *t)
+{
+    uint32_t tr = quad_tr(t);
+    return tr < QUAD_NPART && t->eng_req == ENGI_QUAD && quad_patch[tr][QP_SENDS];
+}
+
 /* fx.c mix_part: the part's pan with the LFOs' PAN */
 static int32_t quad_pan(const track_t *t, int32_t pan)
 {

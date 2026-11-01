@@ -6581,3 +6581,16 @@ with notes; `fm1sounds.js` and tools/fm1_install.py take a version-6 file. Size:
 POOL +40 B. Tests: `cr_quad_test` `t_blob6` (each value alone at its ends, the byte layout, version 5 when none set,
 FTYPE 4..7 in version 6 only, bytes 92..95, 2000 random patches), `web/test_dnsnd.mjs` (the round trip, the layout,
 `quadToV5`'s notes); no golden changed.
+
+3y203. **An imported Digitone sound brings its sends.** The owner: "Ok, lets let these presets change the FX send
+amounts when you load." The 0.18 rule (the sends are the part's, no load writes them: `cr_bank.c param_kept`) stays
+for every sound but one kind: an FM TONE sound whose patch has SENDS (version 6, 3y202; the Digitone importer sets it
+on every import and writes the preset's reverb, delay and chorus into the record's P_REV P_DLY P_CHOR, which were
+there all along and ignored). Its load (a user slot or a pool entry, `cu_load_user` -> `cu_sends_load`) sets its
+part's three sends: the chord part's `cs.fx_amt[]` (FX on or off left as it is), the bass part's track values; Drive as
+ever (`cu_drive_load`). A sound without SENDS (every factory preset, every sound saved before) leaves the sends where
+they are, as before. A save of a chord-part sound with SENDS writes the part's amounts into the record (`cu_store` ->
+`cr_bank.c cb_store_s`), not the zeros FX off leaves in the track; `upool.c up_patch_of`, which finds the part a
+record came from by its values, now leaves the sends out of the comparison. Size: XIP +272 B (549,828). Tests:
+`cr_pool_test` (saved with FX off: the amounts in the record; loaded: the chord part's sends set, FX still off; a
+factory preset after it: kept; on the bass part: its track's). docs/MANUAL.md (FX), docs/FX.md. No golden changed.

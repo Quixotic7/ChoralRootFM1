@@ -321,7 +321,16 @@ static uint32_t cb_free_slot(void)                 /* the first free user slot, 
  * named name (0 or "": the automatic name); every parameter, no pattern (ChoralRoot has none: the two binding bytes
  * are the only pattern bytes set). A bass is saved MONO (a chord part loads it POLY, cu_load_user). up_put's result
  * (0 saved, 2 flash error, 3 RAM only) */
+static int cb_store_s(const track_t *t, uint32_t part, uint32_t k, const char *name, uint32_t bind,
+                      const int16_t *sends);
 static int cb_store(const track_t *t, uint32_t part, uint32_t k, const char *name, uint32_t bind)
+{
+    return cb_store_s(t, part, k, name, bind, 0);
+}
+/* .. sends (0: the track's): P_CHOR P_DLY P_REV as these (an FM TONE sound that carries its sends on the chord part:
+ * the amounts, not what FX off leaves the track, cr_ui.c cu_store) */
+static int cb_store_s(const track_t *t, uint32_t part, uint32_t k, const char *name, uint32_t bind,
+                      const int16_t *sends)
 {
     up_rec_t r;
     uint32_t i;
@@ -335,6 +344,8 @@ static int cb_store(const track_t *t, uint32_t part, uint32_t k, const char *nam
         int16_t v = t->p[i];
         if (i == P_VOICE && part && v != V_MONO && v != V_LEGATO)
             v = V_MONO;
+        if (sends && i >= P_CHOR && i <= P_REV)
+            v = sends[i - P_CHOR];
         up_set_value(&r, i, (int16_t)clamp(v, -64, 127));
     }
     r.note[15] = CB_BIND_MARK;                    /* the binding (docs/PRESETS.md "Storage") */

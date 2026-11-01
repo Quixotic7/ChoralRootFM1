@@ -28,7 +28,7 @@ through the presets and experience the effect on each instrument."
 
 | What | Where it lives | Changed by a sound load |
 | --- | --- | --- |
-| each **part's sends** into the reverb, the chorus and the delay, and its **drive** | one value a send (`cr_ui.c cu_send` / `cu_send_set`): the chord part's in `cs.fx_amt[]`, the bass part's in its track (`P_REV`, `P_CHOR`, `P_DLY`, `P_DIST` of `trk[]`), which no load writes (`cr_bank.c param_kept`, as Level and Pan). See "The sends: one value" below | **never** (but FM TONE's Drive, the sound's: "FM TONE's Drive" below) |
+| each **part's sends** into the reverb, the chorus and the delay, and its **drive** | one value a send (`cr_ui.c cu_send` / `cu_send_set`): the chord part's in `cs.fx_amt[]`, the bass part's in its track (`P_REV`, `P_CHOR`, `P_DLY`, `P_DIST` of `trk[]`), which no load writes (`cr_bank.c param_kept`, as Level and Pan). See "The sends: one value" below | **never** (but FM TONE's Drive, the sound's: "FM TONE's Drive" below; and an FM TONE sound with SENDS, version 6: a Digitone import sets its part's three sends, `cr_ui.c cu_sends_load`, 3y203) |
 | every effect's **own parameters** (16 of the delay and the reverb: `cr_fx.c` `xfp[]`; the chorus's rate and depth: `song.g`) | global | never |
 | all of it over a power-off | the session's FX block, by tag (`cr_settings.h`: `fx.amt[]` the chord part's sends, `CSS_FXP_BS_*` the bass part's, `CSS_FXP_*` the parameters; [SETTINGS.md](SETTINGS.md)) | |
 | FX on / off | the settings block (`fx_on`) | no |

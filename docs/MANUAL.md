@@ -828,6 +828,11 @@ The Sends page and the Send cells are the chord part's. The bass part's four sen
 group (BASS held + EDIT, then the FX button); it plays into the same reverb and delay as the chords. A new FM-1 has a
 little reverb on the bass and nothing else.
 
+A sound load leaves the sends where they are, with one exception: a Digitone sound imported into FM TONE (the web
+device manager's import) carries its own reverb, delay and chorus sends, as it had them on the Digitone. Loading it
+sets its part's three sends to them (the chord part's Sends page, or the bass part's), FX on or off staying as it is;
+the next sound you load leaves them there. Save such a sound and it keeps the sends the part has at that moment.
+
 ### The Filter page
 
 The last page, **Filter** (0.22), is a low cut and a high cut on the whole sound, chords, bass and the effects' tails
@@ -1417,7 +1422,7 @@ To **delete** a sound you added, or to **reset** a factory preset you saved over
 SAVE for a second. The screen asks `delete?` or `reset to factory?`; OCT+ does it, OCT- keeps it.
 
 There is room for **128 saved sounds** in all (32 until 0.21), numbered U001 to U128, shared by the engines and the
-two parts (`no free slot` when they are used up). A saved sound holds the engine's whole patch, its envelopes and modulation. (It also holds four send values, which are no longer used: the sends are the part's. An FM TONE sound's Drive is the one that is used: [FM TONE's Drive](#fm-tones-drive).)
+two parts (`no free slot` when they are used up). A saved sound holds the engine's whole patch, its envelopes and modulation. (It also holds four send values, which are no longer used: the sends are the part's. An FM TONE sound's Drive is the one that is used: [FM TONE's Drive](#fm-tones-drive); an imported Digitone sound's sends are used too, see [FX](#8-fx).)
 Changes you have not saved are lost when you load another sound. A **global save** (SAVE held) keeps each part's
 sound as it is, edited or not, without making it a preset: the FM-1 comes back with it after a power-off, and GLO +
 SAVE brings it back (new in 0.18). The pool still holds the sound as it was saved as a preset, so turning PRESETS
@@ -2095,7 +2100,7 @@ More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), 
 | Every sound is dull, or thin, whatever I load | the master filter is on (0.22) | FX layer, Filter: KNOB 4 to `Off`, or the cuts to `Off` |
 | The echoes are on one side, then the other | the delay's Mode is Ping-pong | FX layer, Delay 2, KNOB 2: Stereo |
 | The bass has reverb or echo | the bass part has sends of its own | BASS held + EDIT, the FX group; or FX off |
-| A sound I saved with lots of reverb loads dry (or the other way round) | sends are no longer loaded with a sound: they are the part's | set the sends once in the FX layer (its first page); they stay for every sound |
+| A sound I saved with lots of reverb loads dry (or the other way round) | sends are no longer loaded with a sound: they are the part's (only an imported Digitone sound brings its own) | set the sends once in the FX layer (its first page); they stay for every sound |
 | An FM TONE sound is distorted although FX is off, or the drive changes when I turn PRESETS | on FM TONE the Drive is the sound's: saved with it, loaded with it, not switched off by FX | the sound editor, ENV group, AMP screen, Drive (or the Sends page's Drive); SAVE to keep it |
 | In the engine picker the white keys no longer choose the engine | they always play now, so that you hear what you turn to | SELECT steps the engines |
 | After updating to 0.18 the reverb and the delay sound different | they are new, and start at their defaults | [FX](#8-fx) |

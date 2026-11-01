@@ -141,6 +141,42 @@ int main(void)
         OK(up_put(127, 0) == 0 && !up_used(127), "FM TONE: U128 erased");
     }
 
+    /* ---- an FM TONE sound that carries its sends (3y203, version 6's SENDS: a Digitone import): its load sets the part's
+     * three sends (the chord part's cs.fx_amt with FX left as it is, the bass part's track values), Drive as ever; a
+     * sound without SENDS leaves them; a save of the chord part's stores the amounts, not FX off's zeros ---- */
+    {
+        track_t *bs = &trk[CR_PART_BASS];
+        uint32_t pos;
+        int16_t v[P_COUNT];
+        cu_pool_load(0, ENGI_QUAD, 1);
+        quad_patch[0][QP_SENDS] = 1;
+        cs.fx_on = 0;
+        cs.fx_amt[0] = 70, cs.fx_amt[1] = 50, cs.fx_amt[2] = 30;       /* (CU_FX: Reverb, Chorus, Delay) */
+        cu_fx_apply();
+        OK(cu_store(t, 0, 127, "SENDS", 0) == 0 && up_used(127), "sends: an FM TONE sound with SENDS saved into U128");
+        up_values(up_rec(127), v);
+        OK(v[P_REV] == 70 && v[P_CHOR] == 50 && v[P_DLY] == 30, "sends: the record holds the amounts (FX off: not 0) %d %d %d",
+           v[P_REV], v[P_CHOR], v[P_DLY]);
+        cs.fx_amt[0] = cs.fx_amt[1] = cs.fx_amt[2] = 5;
+        pos = pool_pos_slot(ENGI_QUAD, 127);
+        cu_pool_load(0, ENGI_QUAD, pos);
+        OK(quad_patch[0][QP_SENDS] == 1 && cs.fx_amt[0] == 70 && cs.fx_amt[1] == 50 && cs.fx_amt[2] == 30 && !cs.fx_on &&
+           t->p[P_REV] == 0, "sends: its load sets the chord part's sends (%u %u %u), FX off stays off",
+           cs.fx_amt[0], cs.fx_amt[1], cs.fx_amt[2]);
+        cs.fx_on = 1;
+        cu_fx_apply();
+        cu_pool_load(0, ENGI_QUAD, 1);                                  /* a factory preset: the 0.18 rule */
+        OK(cs.fx_amt[0] == 70 && t->p[P_REV] == 70 && !quad_patch[0][QP_SENDS], "sends: a sound without SENDS leaves them");
+        bs->p[P_REV] = bs->p[P_DLY] = bs->p[P_CHOR] = 1;
+        cu_pool_load(1, ENGI_QUAD, pos);
+        OK(bs->p[P_REV] == 70 && bs->p[P_CHOR] == 50 && bs->p[P_DLY] == 30, "sends: on the bass part, its track's (%d %d %d)",
+           bs->p[P_REV], bs->p[P_CHOR], bs->p[P_DLY]);
+        quad_patch[0][QP_SENDS] = 0;
+        cs.fx_amt[0] = 9;
+        cu_pool_load(0, ENGI_QUAD, 1);
+        OK(up_put(127, 0) == 0 && !up_used(127) && cs.fx_amt[0] == 9, "sends: U128 erased");
+    }
+
     /* ---- GRAIN's first build (3y136) saved 20-byte version-1 records (the owner's U033 DARK HAZE): such a slot loads as
      * the sound it saved (its 18 values, SCAN halved and forward, the rest INIT's), the record read whole with zeros
      * after it (3y139; before: refused for its length, the slot played a scrambled INIT) ---- */

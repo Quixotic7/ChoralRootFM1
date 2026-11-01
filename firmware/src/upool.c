@@ -161,8 +161,9 @@ static uint32_t up_patch_of(uint32_t k, const up_rec_t *r, uint8_t *b)
         t = &trk[tr];
         if (t->eng_req != e)
             continue;
-        for (i = 0; i < P_COUNT && i < r->np; i++)
-            if (i != P_VOICE && up_value(r, i) != (int16_t)clamp(t->p[i], -64, 127))
+        for (i = 0; i < P_COUNT && i < r->np; i++)   /* (the sends aside too: an FM TONE sound with SENDS stores the
+                                                      * part's amounts, cr_ui.c cu_store) */
+            if (i != P_VOICE && !(i >= P_CHOR && i <= P_REV) && up_value(r, i) != (int16_t)clamp(t->p[i], -64, 127))
                 break;
         if (i < P_COUNT && i < r->np)
             continue;
