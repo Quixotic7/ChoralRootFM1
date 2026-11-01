@@ -225,9 +225,9 @@ const blobs = [];
   const items = await libraryItemsFromDnsnd("lib.dn2pst", dn2pst(rec));
   ok(items.length === 1 && items[0].engine === 15 && items[0].file.dnsnd.model === 2 && items[0].notes.length >= 2, "manager: a library item (FM TONE, model 2, its notes)");
   const blob = dnsndToQuad(await parseDnsnd(dn2pst(rec))).blob, notes = [], v5 = quadToV5(blob, notes);
-  ok(v5[1] === 5 && notes.length === 5 && /filter EQ: .*OFF instead/.test(notes[0]), "gate: quadToV5 for 0.27 (EQ -> OFF, ROUTE PRE, AHD, CRUSH, the sends: a note each)");
-  ok(!quadV6Of("ChoralRoot 0.27") && !quadV6Of("ChoralRoot 0.22 (simulated)") && !quadV6Of("ChoralRoot 0.27 1-core") && !quadV6Of("Felucca 1.2") && !quadV6Of(null) &&
-     quadV6Of("ChoralRoot 0.28") && quadV6Of("ChoralRoot 0.28-beta1 1-core") && quadV6Of("ChoralRoot 1.0") && quadV6Of("ChoralRoot 0.30"), "gate: quadV6Of (0.28 and later read version 6)");
+  ok(v5[1] === 5 && notes.length === 5 && /filter EQ: .*OFF instead/.test(notes[0]), "gate: quadToV5 for 0.28 (EQ -> OFF, ROUTE PRE, AHD, CRUSH, the sends: a note each)");
+  ok(!quadV6Of("ChoralRoot 0.27") && !quadV6Of("ChoralRoot 0.28") && !quadV6Of("ChoralRoot 0.28 1-core") && !quadV6Of("ChoralRoot 0.22 (simulated)") && !quadV6Of("ChoralRoot 0.27 1-core") && !quadV6Of("Felucca 1.2") && !quadV6Of(null) &&
+     quadV6Of("ChoralRoot 0.29") && quadV6Of("ChoralRoot 0.29-beta1 1-core") && quadV6Of("ChoralRoot 1.0") && quadV6Of("ChoralRoot 0.30"), "gate: quadV6Of (0.29 and later read version 6)");
   // (the pool, fm1sounds.js: slot 1's patch at 196 of bank 50, after the 192-byte record and its kind, size)
   const pool = new Map(POOL_IDS.map((id) => [id, new Uint8Array(0)])), s = soundFromDnsnd(await parseDnsnd(dn2pst(rec)));
   const old = placeSound(pool, 1, s, -1, { quadV6: false }), now = placeSound(pool, 1, s, -1, { quadV6: true });

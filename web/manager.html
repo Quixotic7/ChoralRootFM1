@@ -230,7 +230,7 @@ const EMBED_PACKS = (/*PACKS*/null);
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const SIM_ARG = new URLSearchParams(location.search).get("sim"), SIM = SIM_ARG === "1" || SIM_ARG === "pool";   // ?sim=pool: a 0.22 FM-1 (128 slots)
-// ?sim=pool&fw=0.28: the simulated FM-1 says that version (the FM TONE version gate, 3y211: 0.28 takes version 6)
+// ?sim=pool&fw=0.29: the simulated FM-1 says that version (the FM TONE version gate, 3y211, 3y219: 0.29 takes version 6)
 const SIM_FW = /^\d+\.\d+[\w.-]*$/.test(new URLSearchParams(location.search).get("fw") || "") ? new URLSearchParams(location.search).get("fw") : null;
 const PORT = MANAGER_PORT_RE;                  // "ChoralRoot FM-1", or the "FM-1" macOS keeps for the device (issue 32)
 const COLORS = { 12: "#E63829", 15: "#F67918", 13: "#F6B600", 14: "#2950CD", 16: "#29B27B", 2: "#29B27B", 3: "#F6F2EE", 5: "#E63829", 6: "#F67918", 7: "#F6B600", 9: "#29B27B", 11: "#9A999A" };
@@ -553,7 +553,7 @@ function askDialog({ title, paras, ok }, { backup = true } = {}) {
 }
 const act = (f) => async () => { try { await f(); } catch (e) { say(e.message, "err"); } };
 // what the FM-1's firmware will not have of a placed patch (fm1sounds.js importSound: converted down for it): before the
-// pool (0.21) any; 0.22 .. 0.27 FM TONE's version 6 (keepOpts' firmware: managerPlace's version gate, 3y211)
+// pool (0.21) any; 0.22 .. 0.28 FM TONE's version 6 (keepOpts' firmware: managerPlace's version gate, 3y211)
 const downText = (res) => (res.notes && res.notes.length ? ` On this firmware: ${res.notes.join("; ")}.` : "");
 const keepOpts = () => ({ firmware, packs: ui.fpacks });
 

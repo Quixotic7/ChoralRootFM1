@@ -139,6 +139,10 @@ each part:
   and Felucca 1.1.5) at 48 kHz too when Options > USB Rate offers it; Options > USB Record switches it (Off:
   the serial console instead) ([docs/USB-AUDIO.md](docs/USB-AUDIO.md)).
 - **On the computer**: the web installer with backup, restore and sounds as files, and the web device manager.
+- **New in 0.29** ([docs/releases/0.29.md](docs/releases/0.29.md)): FIZZ's engine in FM TONE: the Digitone II's
+  filter types MULTI, COMB+, COMB- and EQ (hold SEL in the editor to pick one), DRIVE before the filter, the AHD amp
+  envelope and CRUSH; an imported Digitone sound brings its own sends; Digitone II sounds (.dn2pst, .dn2snd) in the web
+  device manager and the installer; FM TONE's chord voices on both cores.
 - **New in 0.28** ([docs/releases/0.28.md](docs/releases/0.28.md)): Digitone sounds from .syx dumps and from every record
   version (the ones saved on Digitone OS 1.31 / 1.42 were refused), a record cut short filled with defaults; the
   installers recognise RemoteFM1. The firmware is 0.27's with the version line changed.

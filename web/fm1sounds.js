@@ -319,7 +319,7 @@ export function vaToV3(blob, notes = []) {
 // notes: what a firmware before the pool will not have of the blob (the patches converted down for it), one line each
 function sndPutBlob(m, kind, slot, blob, notes = [], quadV6 = true) {
   if (m.pool) {                          // (the pool: one patch a slot, its engine named in the slot)
-    if (kind === "quad" && blob && !quadV6) blob = quadToV5(blob, notes);   // (0.22 .. 0.27: version 6 plays INIT there)
+    if (kind === "quad" && blob && !quadV6) blob = quadToV5(blob, notes);   // (0.22 .. 0.28: version 6 plays INIT there)
     const p = poolAt(slot), old = m.get(p.id), o = p.off + POOL_HDR;
     if (!blob && (old.length !== POOL_BANK || old[o] !== KIND_ENGINE[kind] + 1)) return;
     const b = old.length === POOL_BANK ? old.slice() : new Uint8Array(POOL_BANK);
@@ -372,7 +372,7 @@ const sndWriteName = (rec, name) => { rec.fill(0, 4, 4 + SND_NAME); for (let i =
 
 // a sound (readSoundFile's result, or the file / its text) into slot. -> {changed, objs, notes}: notes, on a firmware
 // before the pool (0.21 and older), what of the patch it will not have (an FM TONE or VA patch converted down for it).
-// quadV6 false (quadV6Of: a ChoralRoot 0.22 .. 0.27, whose quad_blob_ok refuses FM TONE's version 6 and plays INIT): a
+// quadV6 false (quadV6Of: a ChoralRoot 0.22 .. 0.28, whose quad_blob_ok refuses FM TONE's version 6 and plays INIT): a
 // version-6 FM TONE patch is written as version 5 (quadToV5), its notes what was dropped
 export function importSound(objs, slot, sound, { quadV6 = true } = {}) {
   sndCheckSlot(slot);
@@ -743,9 +743,9 @@ export function placeSound(objs, slot, sound, f = -1, opts = {}) {
   if (!sound || !(sound.record instanceof Uint8Array)) sound = readSoundFile(sound);
   return importSound(objs, slot, { ...sound, record: withBinding(sound.record, f) }, opts);
 }
-// does this firmware (INFO's version: "ChoralRoot 0.28", "ChoralRoot 0.28-beta1 1-core", "ChoralRoot 0.22 (simulated)")
-// read FM TONE's version 6 (3y202)? 0.28 and later; 0.27 and older, and a version not read as ChoralRoot X.Y, not
-export const QUAD_V6_FROM = [0, 28];
+// does this firmware (INFO's version: "ChoralRoot 0.29", "ChoralRoot 0.29-beta1 1-core", "ChoralRoot 0.22 (simulated)")
+// read FM TONE's version 6 (3y202)? 0.29 and later; 0.28 and older, and a version not read as ChoralRoot X.Y, not
+export const QUAD_V6_FROM = [0, 29];
 export function quadV6Of(version) {
   const m = /ChoralRoot\s+(\d+)\.(\d+)/i.exec(String(version || ""));
   return !!m && (+m[1] > QUAD_V6_FROM[0] || (+m[1] === QUAD_V6_FROM[0] && +m[2] >= QUAD_V6_FROM[1]));

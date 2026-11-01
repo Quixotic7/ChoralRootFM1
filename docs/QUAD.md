@@ -474,7 +474,7 @@ default is today's sound.
 - **Written only when needed** (`quad_pack`): a sound with all five bytes 0 and FTYPE 0..3 is packed as version 5, byte
   for byte as 0.27 wrote it, so a factory preset, an untouched saved sound and every golden stay as they were and an
   older firmware or tool still plays them. One value set (or a machine FTYPE): version 6.
-- **Older firmware** (ChoralRoot 0.22 .. 0.27, FM1VST, fm1emu: `QUAD_VER` 5) refuses version 6 in `quad_blob_ok` (its
+- **Older firmware** (ChoralRoot 0.22 .. 0.28, FM1VST, fm1emu: `QUAD_VER` 5) refuses version 6 in `quad_blob_ok` (its
   version test) and plays the init patch; the slot's bytes are untouched. The web's `quadToV5` (web/fm1dnsnd.js) writes
   a version-5 copy with a note for each value dropped (a machine FTYPE becomes LP12, EQ becomes OFF).
 - **No record size changed**: the pool, the session (`nblob == blob_size`), the backup, the installer

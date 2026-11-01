@@ -8,6 +8,26 @@
   },
   "releases": [
     {
+      "version": "0.29",
+      "date": "2026-11-01",
+      "tag": "v0.29",
+      "sha256": "b0f10a772b0c155eb08aa04dc88912bd2fe1b92637b036c20e44ca65a082297c",
+      "sha256_1core": "725a38b93eecceb755402b9c512bee7d702adbc06334d6fdcdd7db3ca14e07e0",
+      "title": "FIZZ's engine in FM TONE, Digitone II sounds",
+      "bullets": [
+        "FM TONE gets the Digitone II's filter types: MULTI (with Morph), COMB+, COMB- and EQ. Hold SEL in the sound editor to pick one; the FILTER screen's third knob follows the type.",
+        "DRIVE before the filter, the AHD amp envelope and CRUSH (bit and sample-rate reduction) for FM TONE, as in FIZZ.",
+        "An imported Digitone sound brings its own reverb, delay and chorus sends; any other sound leaves the sends as they are.",
+        "The web device manager and the installer's Sounds section import Digitone II FM TONE sounds (.dn2pst, .dn2snd) with their filter, envelope, crush, drive, sends and glide.",
+        "FM TONE's chord voices share the two cores, so the heavier sounds play without clicks.",
+        "Your settings, sounds, loops, favorites and FX routing stay; factory presets and saved FM TONE sounds sound as before."
+      ],
+      "notes": [
+        "Onto 0.28 or older the web pages write a Digitone sound without the new filter types, AHD, crush and sends: update to 0.29 first to get the whole sound.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.28",
       "date": "2026-10-31",
       "tag": "v0.28",
@@ -24,7 +44,15 @@
       "notes": [
         "Updating from 0.27 is optional: nothing changes but the version line, and the new importing is on the web pages. From 0.26.1 or older, this is 0.27's update with the FX routing.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "Your settings, sounds, loops, favorites and FX routing stay, but an FM TONE sound that uses something new in 0.29 plays as FM TONE's INIT sound on 0.28.",
+        "points": [
+          "That means the new filter types, DRIVE before the filter, the AHD envelope, crush, the base-width filter after the main one, or a sound's own sends (every imported Digitone sound has them).",
+          "The sound stays in its slot, untouched: install 0.29 again and it is back.",
+          "Options > Version reads ChoralRoot 0.28 again."
+        ]
+      }
     },
     {
       "version": "0.27",

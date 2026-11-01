@@ -6873,3 +6873,24 @@ worktree .claude/worktrees/rel-028 on main: the same `SHA256SUMS` (the four file
 **Checked**: `python3 tests/releases_test.py` releases ALL OK; CR_VERSION=0.28 `sh tests/run_all.sh` ALL SUITES PASSED (23 suites, 118 s; test_cr 1106 ok, test_persist 119; 317 golden renders, 0 changed; 0 lint; the dev build the release package's bytes, 8adefde9..).
 Pushed to main and tagged v0.28: release.yml builds, signs and publishes, then pages.yml the site with the new
 device manager and installer.
+
+## 2026-11-01 (0.29, the release tree)
+
+3y219. **0.29, the release tree: FIZZ's engine in FM TONE (3y202..3y217) and the Digitone II importing (3y211).** The
+owner, after the filter fix (3y217): "This seems good, lets get it released". 0.28 had been released from main
+meanwhile (3y218: 0.27's firmware with the web's Digitone importing), so this branch ships as 0.29: main merged in
+(its 3y202 renumbered 3y218), `FELUCCA_VERSION` "ChoralRoot 0.29", and **the version gate moved to 0.29**:
+`fm1sounds.js QUAD_V6_FROM` [0, 29], since a unit on the released 0.28 runs 0.27's `quad_blob_ok` and plays INIT for a
+version-6 sound; `quadToV5`'s note says "0.28 or older"; `web/test_dn2.mjs` (0.28 and 0.28 1-core refused, 0.29
+taken) and `web/test_manager.mjs` (Place onto 0.28 -> version 5, onto 0.29 -> version 6); DEVICE-MANAGER.md,
+SOUNDS.md, QUAD.md, MANUAL.md, the pages' comments and `?sim=pool&fw=0.29` to match. `docs/releases/0.29.md` for
+players (FIZZ's engine, the sound's sends, Digitone II in the web pages, Installing, "Going back to 0.28": a sound
+that uses something new plays INIT there, untouched in its slot); README's "New in 0.29"; the manual's first line.
+`web/releases.json`: 0.29 first, dated 2026-11-01, sha256 b0f10a772b0c155eb08aa04dc88912bd2fe1b92637b036c20e44ca65a082297c,
+1-core 725a38b93eecceb755402b9c512bee7d702adbc06334d6fdcdd7db3ca14e07e0, six bullets; 0.28's entry gets its
+`going_back`. `web/releases-smk37.json` unchanged (0.27-smk37.1). **Built** twice, `./build.sh --release 0.29` and
+`tools/hub_build.sh 0.29`: the same `SHA256SUMS`. Size: XIP 557,336 of 573,440 (97.2 %), RAMTEXT 21,660 of 24,576,
+POOL 96.3 %.
+**Checked**: `python3 tests/releases_test.py` releases ALL OK; CR_VERSION=0.29 `sh tests/run_all.sh` ALL SUITES PASSED
+(24 suites, 95 s; test_cr 1119 ok, test_persist 119; 317 golden renders, 0 changed; 0 lint; the browser emulator
+test). Pushed to main and tagged v0.29: release.yml builds, signs and publishes, then pages.yml the site.

@@ -375,16 +375,16 @@ ok(site.includes('"manager.html"') && site.includes("fm1manager.js") && site.inc
      `pool: Place all 127 into ${nfree} free slots -> ${nfree} placed, ${all.skipped} did not fit, read back the same`);
   let full = null; try { managerPlace(rb, lib[0].file, null); } catch (e) { full = e; }
   ok(full && /All 128 user slots/.test(full.message), "pool: 128 used -> Place refused, \"All 128 user slots\"");
-  // the FM TONE version gate (3y211): a Digitone import is version 6 (its SENDS at least); onto a ChoralRoot 0.27 or older
-  // (quad_blob_ok refuses version 6: INIT) it is written as version 5 with the notes, onto 0.28 as it is
+  // the FM TONE version gate (3y211): a Digitone import is version 6 (its SENDS at least); onto a ChoralRoot 0.28 or older
+  // (quad_blob_ok refuses version 6: INIT) it is written as version 5 with the notes, onto 0.29 as it is
   {
     const o0 = simObjects(30, true), item = lib[0].file, html = readFileSync(join(HERE, "manager.html"), "utf8");
     const patchAt = (objs, n) => objs.get(50 + Math.floor((n - 1) / 10)).subarray(((n - 1) % 10) * 384 + 196, ((n - 1) % 10) * 384 + 196 + 96);
-    const old = managerPlace(o0, item, null, { firmware: "ChoralRoot 0.27" }), now = managerPlace(o0, item, null, { firmware: "ChoralRoot 0.28" });
+    const old = managerPlace(o0, item, null, { firmware: "ChoralRoot 0.28" }), now = managerPlace(o0, item, null, { firmware: "ChoralRoot 0.29" });
     const none = managerPlace(o0, item, null);
-    ok(patchAt(old.objs, old.slot)[1] === 5 && old.notes.length === 1 && /the sound's own sends: .*0\.27 or older/.test(old.notes[0]) &&
+    ok(patchAt(old.objs, old.slot)[1] === 5 && old.notes.length === 1 && /the sound's own sends: .*0\.28 or older/.test(old.notes[0]) &&
        patchAt(now.objs, now.slot)[1] === 6 && !now.notes.length && patchAt(none.objs, none.slot)[1] === 6,
-       "gate: Place onto 0.27 -> FM TONE version 5 and a note; onto 0.28 (or no version given) -> version 6");
+       "gate: Place onto 0.28 -> FM TONE version 5 and a note; onto 0.29 (or no version given) -> version 6");
     const pa = managerPlaceAll(o0, [item, lib[1].file], { firmware: "ChoralRoot 0.22 (simulated)" });
     const rf = managerReplaceFactory(o0, 15, [item], 1, { firmware: "ChoralRoot 0.27 1-core" });
     ok(pa.placed === 2 && pa.notes.length === 2 && /^DN 000: the sound's own sends/.test(pa.notes[0]) && rf.notes.length === 1 && rf.replaced === 1,

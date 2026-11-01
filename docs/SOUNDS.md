@@ -453,12 +453,12 @@ DTUN FDBK MIX (E1..E8, FM TONE's macros; RATIO B moves B2 only, noted). A VEL re
 other destination (the filter's FREQ among them: the matrix's CUT does not reach FM TONE's own filter) are notes; a
 zero depth is skipped. Both owner files have none.
 
-**The version gate.** A Digitone import is FM TONE version 6 (its SENDS bit at least); a ChoralRoot 0.22 .. 0.27
+**The version gate.** A Digitone import is FM TONE version 6 (its SENDS bit at least); a ChoralRoot 0.22 .. 0.28
 refuses version 6 (`quad_blob_ok`: INIT). The device manager knows the unit's version (INFO): Place, Place all and
-Replace factory onto 0.27 or older write `quadToV5`'s copy (the machines to LP12 / OFF, ROUTE PRE, AHD, base-width
-after, CRUSH and the sends dropped) and its notes after "On this firmware:"; onto 0.28 and later version 6
+Replace factory onto 0.28 or older write `quadToV5`'s copy (the machines to LP12 / OFF, ROUTE PRE, AHD, base-width
+after, CRUSH and the sends dropped) and its notes after "On this firmware:"; onto 0.29 and later version 6
 (`fm1sounds.js quadV6Of`, `importSound`'s `quadV6`); the installer's Import the same. The simulator says 0.22
-(`?sim=pool`: the gate converts; `?sim=pool&fw=0.28`: it does not). Before the pool, `quadToV3` goes through it.
+(`?sim=pool`: the gate converts; `?sim=pool&fw=0.29`: it does not). Before the pool, `quadToV3` goes through it.
 
 **The owner's two files** (read in place, `Digitone2Presets/`): BASSSINE (version 2, MULTI-MODE TYPE 127): FTYPE
 MULTI, FSHAPE 127, BWPOST, DRIVE 1 PRE, OCTAVE -2 into the ratios; notes: MULTI's law, FILTER ENV RESET off, OD

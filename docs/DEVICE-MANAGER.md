@@ -340,11 +340,11 @@ The owner: P5 is a current engine (engine 16, Melodee's Prophet-5 model: docs/PR
   Digitone sounds, 2 of them Digitone II, as FM TONE"). A WAVETONE, FM DRUM, SWARMER or MIDI sound is refused with its
   machine's name (no FM TONE patch in it).
 - **The version gate.** Every Digitone import is FM TONE version 6 (the filter machines, AHD, CRUSH, DRIVE's route,
-  the sound's own sends); ChoralRoot 0.22 .. 0.27 refuse version 6 and play INIT. Place, Place all and Replace factory
-  pass the unit's version (INFO's, `keepOpts`): onto 0.27 or older the patch is written as version 5 (`quadToV5`) and
+  the sound's own sends); ChoralRoot 0.22 .. 0.28 refuse version 6 and play INIT. Place, Place all and Replace factory
+  pass the unit's version (INFO's, `keepOpts`): onto 0.28 or older the patch is written as version 5 (`quadToV5`) and
   the status line lists what was dropped ("On this firmware: filter MULTI: this firmware has none, LP12 instead; ...");
-  onto 0.28 and later as it is (`fm1sounds.js quadV6Of`, `managerPlace(objs, sound, target, { firmware })`). The
+  onto 0.29 and later as it is (`fm1sounds.js quadV6Of`, `managerPlace(objs, sound, target, { firmware })`). The
   installer's Sounds Import does the same with its INFO. The simulator says 0.22 (`?sim=pool`: the gate converts);
-  `?sim=pool&fw=0.28` makes it say 0.28.
-- Tests: `web/test_manager.mjs` (Place onto 0.27 / 0.28 / no version, Place all onto 0.22, Replace factory onto 0.27
+  `?sim=pool&fw=0.29` makes it say 0.29.
+- Tests: `web/test_manager.mjs` (Place onto 0.28 / 0.29 / no version, Place all onto 0.22, Replace factory onto 0.27
   1-core, the 0.22 simulator written and read back as version 5, the page passing the version), `web/test_dn2.mjs`.

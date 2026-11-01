@@ -1,6 +1,6 @@
 # ChoralRoot FM-1: the manual
 
-For ChoralRoot 0.28 on the M-VAVE FM-1 (what is new since 0.22 is marked so; 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
+For ChoralRoot 0.29 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
 FM-1, has installed ChoralRoot with
 the web installer and wants to play it. Nothing here needs the design documents; where one goes deeper, the manual
 links to it.
@@ -1977,7 +1977,7 @@ The installer page (<https://quixotic7.github.io/ChoralRootFM1/>) has **Back up*
   Digitone `.syx` dump (a sound, the pool or a whole project; you choose which sound), and a Digitone II FM TONE sound
   (`.dn2pst`, or a `.dn2snd` from a backup) with its filter machine, AHD envelope, bit and sample-rate reduction,
   drive, sends, portamento (the part's Glide) and modulation where the FM-1 has them. The device manager's library
-  takes the same files and lists every sound of a dump, each with what was approximated. On ChoralRoot 0.27 or older
+  takes the same files and lists every sound of a dump, each with what was approximated. On ChoralRoot 0.28 or older
   the import writes a copy those versions play, without the Digitone II's filter machines, AHD, crush and the
   sound's own sends, and says so.
 

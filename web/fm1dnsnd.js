@@ -819,13 +819,13 @@ export function quadToV4(blob) {
   if (blob[1] !== 3) { const b = new Uint8Array(DN_QUAD_BLOB); b.set(blob); return b; }
   return dnQuadPack(dnQuadValues(blob));
 }
-// a blob for a firmware that reads up to version 5 (ChoralRoot 0.22 .. 0.27, FM1VST, fm1emu: their quad_blob_ok refuses
+// a blob for a firmware that reads up to version 5 (ChoralRoot 0.22 .. 0.28, FM1VST, fm1emu: their quad_blob_ok refuses
 // version 6 and plays INIT): version 6's values dropped (each a note, as the importer's notes), a machine FTYPE -> its
 // nearest (MULTI, the combs: LP12; EQ: OFF); 1..5 as quadToV4
 const DN_QF6_TO_5 = [0, 1, 2, 3, 1, 1, 1, 0];
 export function quadToV5(blob, notes = []) {
   if (!(blob instanceof Uint8Array) || blob.length !== DN_QUAD_BLOB || blob[0] !== 0x51 || blob[1] !== 6) return quadToV4(blob);
-  const p = dnQuadValues(blob), Q = DN_QP, said = (c, s) => { if (c) notes.push(`${s}: this firmware has none (ChoralRoot 0.27 or older)`); };
+  const p = dnQuadValues(blob), Q = DN_QP, said = (c, s) => { if (c) notes.push(`${s}: this firmware has none (ChoralRoot 0.28 or older)`); };
   if (p[Q.FTYPE] > DN_QF.LP24) {
     notes.push(`filter ${["MULTI", "COMB+", "COMB-", "EQ"][p[Q.FTYPE] - 4]}: this firmware has none, ${["OFF", "LP12"][DN_QF6_TO_5[p[Q.FTYPE]]]} instead`);
     p[Q.FTYPE] = DN_QF6_TO_5[p[Q.FTYPE]];
