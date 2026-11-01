@@ -50,7 +50,10 @@
 #define QUAD_BLOB 96u            /* packed patch: 'Q', version, QP_NP values (the hi-res ones 2 bytes), zeros */
 #define QUAD_BLOB_V3 80u         /* versions 1..3's blob (the legacy store's records, older pool slots, sessions) */
 #define QUAD_MAGIC 0x51u         /* 'Q' */
-#define QUAD_VER 5u              /* 5 (2026-10-14, the owner's corrections): AMP REL, AMP DEC 0..126 + INF, LEVEL
+#define QUAD_VER 6u              /* 6 (2026-10-31, FIZZ's engine): version 5 + the values QP_AMOD .. QP_SENDS in
+                                  * bytes 87..91 (quad_pack6), FTYPE 0..7; written only when one of them is set (a
+                                  * sound without them stays version 5, as before: older firmware and tools play it);
+                                  * 5 (2026-10-14, the owner's corrections): AMP REL, AMP DEC 0..126 + INF, LEVEL
                                   * 0..127 integers (bytes), FREQ DTUN RESO BASE top 127.00; 4: the Digitone's ranges
                                   * (2026-10-14): the hi-res values in hundredths (u16le), FDBK 0..127; 3 (the Digitone review 2026-10-08), 2 and 1 are read (quad_unpack
                                   * converts) */
@@ -74,6 +77,21 @@ enum {
     QP_LFO0,
     QP_RB2 = QP_LFO0 + 3 * QL_N,                                           /* B2's step (version 2) */
     QP_B2KEY,                                                              /* B2's key scaling (version 3) */
+    QP_NP5,                                                                /* version 5's values end here */
+    /* version 6 (2026-10-31, FIZZ's engine: "they sound quite a bit better with FIZZ's engine"): FIZZ's E1..E3 values
+     * (FMToneSeq quad_voice.h QD_QP_AMOD ..), each one's default today's sound; packed in bytes 87..91 (quad_pack6) */
+    QP_AMOD = QP_NP5,                                                      /* the amp envelope: 0 ADSR, 1 AHD */
+    QP_HOLD,                                                               /* AHD's HOLD 0..126 (a time), 127 NOTE */
+    QP_DRPRE,                                                              /* DRIVE: 0 after the voice, 1 before the filter */
+    QP_FSHAPE,                                                             /* the filter machine's own (MULTI, COMB, EQ) */
+    QP_FGAIN,                                                              /* EQ's gain -64..63 */
+    QP_BWPOST,                                                             /* base-width: 0 before the filter, 1 after */
+    QP_BITS,                                                               /* CRUSH: bits 0 OFF, 1..127 */
+    QP_SRR,                                                                /* .. sample-rate reduction 0 OFF, 1..127 */
+    QP_CRPRE,                                                              /* .. 0 after the filter, 1 before (FIZZ's
+                                                                            * CRPOST 1 / 0) */
+    QP_SENDS,                                                              /* 1: the sound carries its sends (its record's
+                                                                            * P_REV P_DLY P_CHOR; cr_ui.c cu_sends_load) */
     QP_NP
 };
 #define QP_LFO(k, f) (QP_LFO0 + (k) * QL_N + (f))
@@ -88,9 +106,11 @@ static int quad_hires(uint32_t i)
 /* version 4's hi-res fields: these and AMP REL, LEVEL */
 static int quad_hires_v4(uint32_t i) { return quad_hires(i) || i == QP_EREL || i == QP_LEVEL; }
 #define QUAD_NHIRES 12u
-#define QUAD_V4_LEN (2u + QP_NP + QUAD_NHIRES + 2u)   /* 89: version 4's (the rest of the 96 is zeros) */
-#define QUAD_V5_LEN (2u + QP_NP + QUAD_NHIRES)        /* 87 */
-_Static_assert(QP_NP == 73 && QP_RB2 == QUAD_NP_V1 && QP_B2KEY == QUAD_NP_V2 && QP_NP + 2u + 2u <= QUAD_BLOB_V3 &&
+#define QUAD_V4_LEN (2u + QP_NP5 + QUAD_NHIRES + 2u)  /* 89: version 4's (the rest of the 96 is zeros) */
+#define QUAD_V5_LEN (2u + QP_NP5 + QUAD_NHIRES)       /* 87 */
+#define QUAD_V6_LEN (QUAD_V5_LEN + 5u)                /* 92: version 6's (bytes 92..95 zeros) */
+_Static_assert(QP_NP5 == 73 && QP_NP == 83 && QP_RB2 == QUAD_NP_V1 && QP_B2KEY == QUAD_NP_V2 && QP_NP5 + 2u + 2u <= QUAD_BLOB_V3 &&
+               QUAD_V6_LEN <= QUAD_BLOB &&
                QUAD_V4_LEN <= QUAD_BLOB && QUAD_V5_LEN <= QUAD_BLOB && QUAD_BLOB <= ENG_BLOB_MAX && QUAD_BLOB <= 160u /* CSS_BLOB */ &&
                QUAD_BLOB <= 188u /* upool.c UPP_MAX */, "QUAD patch layout");
 /* the macros P_E0..P_E7: these patch values (RATIO B's is B2's step, the fast hand) */
@@ -255,10 +275,17 @@ static const uint8_t QUAD_MAP[NELEM(QUAD_PAGES)][4] = {
 /* the range and the init value of patch value i: the page column that shows it (every value is on one page; B1 and
  * B2 share RATIO B's: a C/B step each) */
 typedef struct { int16_t min, max, def; } quad_rng_t;
+/* version 6's values (QP_AMOD ..): their ranges and defaults (today's sound) */
+static const quad_rng_t QUAD_RNG6[QP_NP - QP_NP5] = {
+    {0, 1, 0}, {0, 127, 127}, {0, 1, 0}, {0, 127, 0}, {-64, 63, 0}, {0, 1, 0}, {0, 127, 0}, {0, 127, 0}, {0, 1, 0},
+    {0, 1, 0}};
+#define QUAD_FT6 7               /* version 6's FTYPE top (FIZZ's machines: MULTI COMB+ COMB- EQ, 4..7) */
 static quad_rng_t quad_range(uint32_t i)
 {
     quad_rng_t r = {0, 0, 0};
     uint32_t pg, c;
+    if (i >= QP_NP5)
+        return QUAD_RNG6[i < QP_NP ? i - QP_NP5 : 0];
     if (i == QP_RB1 || i == QP_RB2) {
         r.max = (int16_t)(QUAD_NRCB - 1u);
         r.def = 3;                               /* 1.00 */
@@ -422,37 +449,68 @@ static int16_t quad_mac_patch(uint32_t k, int32_t m)
     return quad_clampv(QUAD_MAC[k], quad_hires(QUAD_MAC[k]) ? m * 100 : m);
 }
 
-/* the patch -> blob (version 5): 'Q', version, per value (value - min): the hi-res ones u16 little-endian
- * (0..12700), the rest a byte (0..200), zeros to QUAD_BLOB */
+/* version 6's five bytes (87..91, docs/QUAD.md "Version 6"): each a 7-bit value with a flag in bit 7, every default
+ * 0: 87 127 - HOLD | AMOD, 88 FSHAPE | BWPOST, 89 FGAIN (7-bit two's complement) | DRPRE, 90 BITS | CRPRE, 91 SRR |
+ * SENDS. All five 0 (and FTYPE 0..3): a version-5 sound */
+static void quad_pack6(const int16_t *p, uint8_t *t)
+{
+#define QB(i) (uint32_t)quad_clampv(i, p[i])
+    t[0] = (uint8_t)((127u - QB(QP_HOLD)) | QB(QP_AMOD) << 7);
+    t[1] = (uint8_t)(QB(QP_FSHAPE) | QB(QP_BWPOST) << 7);
+    t[2] = (uint8_t)((QB(QP_FGAIN) & 127u) | QB(QP_DRPRE) << 7);
+    t[3] = (uint8_t)(QB(QP_BITS) | QB(QP_CRPRE) << 7);
+    t[4] = (uint8_t)(QB(QP_SRR) | QB(QP_SENDS) << 7);
+#undef QB
+}
+static void quad_unpack6(const uint8_t *t, int16_t *p)
+{
+    p[QP_HOLD] = (int16_t)(127 - (t[0] & 127)), p[QP_AMOD] = (int16_t)(t[0] >> 7);
+    p[QP_FSHAPE] = (int16_t)(t[1] & 127), p[QP_BWPOST] = (int16_t)(t[1] >> 7);
+    p[QP_FGAIN] = (int16_t)((int32_t)((uint32_t)t[2] << 25) >> 25), p[QP_DRPRE] = (int16_t)(t[2] >> 7);
+    p[QP_BITS] = (int16_t)(t[3] & 127), p[QP_CRPRE] = (int16_t)(t[3] >> 7);
+    p[QP_SRR] = (int16_t)(t[4] & 127), p[QP_SENDS] = (int16_t)(t[4] >> 7);
+}
+
+/* the patch -> blob: 'Q', version, per value (value - min): the hi-res ones u16 little-endian (0..12700), the rest a
+ * byte (0..200); version 6's five bytes when one is set or FTYPE is a machine (4..7), else version 5; zeros to
+ * QUAD_BLOB */
 static void quad_pack(const int16_t *p, uint8_t *b)
 {
     uint32_t i, o = 2;
+    uint8_t t[5];
     b[0] = QUAD_MAGIC;
-    b[1] = QUAD_VER;
-    for (i = 0; i < QP_NP; i++) {
+    for (i = 0; i < QP_NP5; i++) {
         uint32_t u = (uint32_t)(quad_clampv(i, p[i]) - quad_range(i).min);
         b[o++] = (uint8_t)u;
         if (quad_hires(i))
             b[o++] = (uint8_t)(u >> 8);
     }
+    quad_pack6(p, t);
+    b[1] = (t[0] | t[1] | t[2] | t[3] | t[4]) || quad_clampv(QP_FTYPE, p[QP_FTYPE]) > QF_LP24 ? 6u : 5u;
+    if (b[1] == 6u)
+        for (i = 0; i < 5u; i++)
+            b[o++] = t[i];
     while (o < QUAD_BLOB)
         b[o++] = 0;
 }
 
-/* a valid blob: version 5 / 4 (QUAD_V5_LEN / QUAD_V4_LEN bytes in QUAD_BLOB), 3, 2 (QUAD_NP_V2 values) or 1 (QUAD_NP_V1 values, RATIO B
+/* a valid blob: version 6 (version 5's values, FTYPE 0..7, its five bytes, zeros), version 5 / 4 (QUAD_V5_LEN / QUAD_V4_LEN bytes in QUAD_BLOB), 3, 2 (QUAD_NP_V2 values) or 1 (QUAD_NP_V1 values, RATIO B
  * 0..QUAD_NRB_V1 - 1), versions 1..3 in QUAD_BLOB_V3 bytes (the rest of a QUAD_BLOB buffer zeros). An older firmware
- * (QUAD_VER 3 / 4) refuses a newer blob here: it loads the init patch for it */
+ * (QUAD_VER 3 / 4 / 5) refuses a newer blob here: it loads the init patch for it (a version-6 blob on 0.27 or
+ * older: INIT) */
 static int quad_blob_ok(const uint8_t *b)
 {
     uint32_t i, np, ver, o = 2;
     if (!b || b[0] != QUAD_MAGIC || b[1] < 1u || b[1] > QUAD_VER)
         return 0;
     ver = b[1];
-    np = ver == 1u ? QUAD_NP_V1 : ver == 2u ? QUAD_NP_V2 : QP_NP;
+    np = ver == 1u ? QUAD_NP_V1 : ver == 2u ? QUAD_NP_V2 : QP_NP5;
     for (i = 0; i < np; i++) {
         if (ver >= 4u) {
             quad_rng_t r = ver == 4u ? quad_range_v4(i) : quad_range(i);
             uint32_t u = b[o++];
+            if (i == QP_FTYPE)                   /* (the machines 4..7: version 6 only) */
+                r.max = ver == 6u ? QUAD_FT6 : QF_LP24;
             if (ver == 4u ? quad_hires_v4(i) : quad_hires(i))
                 u |= (uint32_t)b[o++] << 8;
             if (u > (uint32_t)(r.max - r.min))
@@ -463,6 +521,8 @@ static int quad_blob_ok(const uint8_t *b)
                 return 0;
         }
     }
+    if (ver == 6u)
+        o += 5u;                                 /* (its five bytes: any value is one) */
     for (i = o; i < (ver >= 4u ? QUAD_BLOB : QUAD_BLOB_V3); i++)
         if (b[i])
             return 0;
@@ -537,7 +597,7 @@ static int quad_unpack(const uint8_t *b, int16_t *p)
         return 0;
     if (b[1] >= 4u) {
         uint32_t o = 2, v4 = b[1] == 4u;
-        for (i = 0; i < QP_NP; i++) {
+        for (i = 0; i < QP_NP5; i++) {
             int32_t u = b[o++];
             if (v4 ? quad_hires_v4(i) : quad_hires(i))
                 u |= (int32_t)b[o++] << 8;
@@ -545,10 +605,14 @@ static int quad_unpack(const uint8_t *b, int16_t *p)
             if (v4)                              /* version 4 -> 5 */
                 p[i] = quad_clampv(i, quad_v5_of_v4(i, p[i]));
         }
+        if (b[1] == 6u) {
+            quad_unpack6(b + o, p);
+            p[QP_FTYPE] = quad_clampv(QP_FTYPE, p[QP_FTYPE]);   /* (a machine this build has not: its nearest) */
+        }
         return 1;
     }
     if (b[1] == 3u) {
-        for (i = 0; i < QP_NP; i++)
+        for (i = 0; i < QP_NP5; i++)
             p[i] = (int16_t)(b[2 + i] + quad_range_v3(i).min);
     } else {
         np = b[1] == 1u ? QUAD_NP_V1 : QUAD_NP_V2;   /* version 1 / 2: their values, then converted */
@@ -559,7 +623,7 @@ static int quad_unpack(const uint8_t *b, int16_t *p)
             quad_rb_v1(b[2 + QP_RB1], p);
         quad_v2_to_v3(p);
     }
-    for (i = 0; i < QP_NP; i++)                  /* version 3's values -> 4's (best effort: x 100, FDBK) -> 5's */
+    for (i = 0; i < QP_NP5; i++)                 /* version 3's values -> 4's (best effort: x 100, FDBK) -> 5's */
         p[i] = quad_clampv(i, quad_v5_of_v4(i, quad_v4_of_v3(i, p[i])));
     return 1;
 }

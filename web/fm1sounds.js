@@ -240,7 +240,7 @@ export function readSoundFile(file) {
     if (patch.length !== PATCH_SIZE[kind]) throw new Error(`The sound file's ${kind} patch is ${patch.length} bytes, not ${PATCH_SIZE[kind]}`);
     if (kind === "va" && (patch[0] !== 0x56 || patch[1] < 1 || patch[1] > 5)) throw new Error("The sound file's VA patch is not a VA patch (magic or version)");
     if (kind === "fm6" && (patch[112] !== 0x46 || patch[113] !== 1)) throw new Error("The sound file's FM6 patch is not an FM6 patch (magic)");
-    if (kind === "quad" && (patch[0] !== 0x51 || patch[1] < 1 || patch[1] > 5)) throw new Error("The sound file's FM TONE patch is not an FM TONE patch (magic or version)");
+    if (kind === "quad" && (patch[0] !== 0x51 || patch[1] < 1 || patch[1] > 6)) throw new Error("The sound file's FM TONE patch is not an FM TONE patch (magic or version)");
   }
   return { record, name, engine, engineName: ENGINE_NAMES[engine], kind, patch };
 }
@@ -683,7 +683,7 @@ export function soundFromSyx(parsed, index = 1) {
 // a Digitone sound (fm1dnsnd.js parseDnsnd's result) -> an FM TONE sound as readSoundFile returns it, plus notes (what
 // was lost or approximated): the template's record with the name (cut to 12), the PAN and the macros (P_E0..P_E7 =
 // eng_quad.c QUAD_MAC's values, as quad_macros_out leaves them), added to FM TONE's pool; the patch dnsndToQuad's blob
-const SND_P_DIST = 33, SND_P_PAN = 39, SND_P_E0 = 83, SND_QUAD_MAC = [0, 1, 2, 71, 4, 5, 6, 7];
+const SND_P_DIST = 33, SND_P_CHOR = 34, SND_P_DLY = 35, SND_P_REV = 36, SND_P_PAN = 39, SND_P_E0 = 83, SND_QUAD_MAC = [0, 1, 2, 71, 4, 5, 6, 7];
 export function soundFromDnsnd(parsed) {
   if (!parsed || !parsed.params) throw new Error("Not a parsed .dnsnd");
   const q = dnsndToQuad(parsed), record = sndUnB64(SOUND_TEMPLATES.quad, "template");
@@ -691,6 +691,8 @@ export function soundFromDnsnd(parsed) {
   sndWriteName(record, name);
   record[16 + SND_P_PAN] = q.pan + 64;
   record[16 + SND_P_DIST] = q.drive + 64;                       // the Digitone's DRIVE 0..127 -> the sound's (cr_ui.c cu_drive_load)
+  // its sends: the sound's (the patch's SENDS, version 6: an FM TONE load sets the part's, cr_ui.c cu_sends_load)
+  record[16 + SND_P_REV] = q.sends.reverb + 64; record[16 + SND_P_DLY] = q.sends.delay + 64; record[16 + SND_P_CHOR] = q.sends.chorus + 64;
   SND_QUAD_MAC.forEach((i, k) => { record[16 + SND_P_E0 + k] = dnQuadMacro(i, q.values[i]) + 64; });   // (HARM, DTUNE: coarse)
   record[SND_BIND_NOTE] = SND_BIND_MARK; record[SND_BIND_FLAGS] = 0;
   if (!recordValid(record) || !nameValid(name)) throw new Error("The template record is not valid");

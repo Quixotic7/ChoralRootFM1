@@ -9,7 +9,7 @@ import { deflateRawSync } from "node:zlib";
 import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { parseDnsnd, dnsndToQuad, DNSND_FIELDS, DN_QUAD_RANGES, DN_QP, DN_RATIO_A, DN_LFO_DEST, dnLz4Block, DN_TIME_TO_QUAD, dnTimeQ,
-  DN_QUAD_HIRES, DN_QUAD_RANGES_V4, DN_QUAD_HIRES_V4, quadToV4, quadToV3, dnQuadPack, parseDnSyx, isDnSyx, dnPack87, dnUnpack87 } from "./fm1dnsnd.js";
+  DN_QUAD_HIRES, DN_QUAD_RANGES_V4, DN_QUAD_HIRES_V4, quadToV4, quadToV3, dnQuadPack, parseDnSyx, quadToV5, dnQuadValues, DN_QF6, DN_QUAD_VER, isDnSyx, dnPack87, dnUnpack87 } from "./fm1dnsnd.js";
 // AMP REL (version 5): the whole number (times are 1:1), below 127.00 at most 126; 127.xx = INF 127 (fm1dnsnd.js dnTRelA)
 const R100 = (v) => v >= 127 ? 127 : Math.min(126, Math.round(dnTimeQ(v)));
 const T = (v) => DN_TIME_TO_QUAD[v], DN_RATIO_CB_OF = (i) => [0.25, 0.5, 0.75, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16][i];                       // the envelope time curve (fm1dnsnd.js DN_TIME_*)
@@ -108,8 +108,28 @@ ok(p.params.algo === 6 && p.params["lfo1.speed"] === 20.5 && p.params.harm === 1
 const pd = await parseDnsnd(dnsnd(record("MY TEST TONE", SET), { deflate: true }));
 ok(pd.record.every((x, i) => x === p.record[i]), "parse: a deflated ZIP reads the same");
 const q = dnsndToQuad(p), v = q.values, L = (k, f) => 47 + k * 8 + { SPEED: 0, MULT: 1, FADE: 2, DEST: 3, WAVE: 4, PHASE: 5, TRIG: 6, DEPTH: 7 }[f];
-ok(q.blob.length === 96 && q.blob[0] === 0x51 && q.blob[1] === 5 && q.blob.subarray(87).every((x) => !x) && DN_QUAD_HIRES.length === 12,
-   "blob: 'Q' 5, 73 values (12 of them two bytes), zero padding");
+ok(q.blob.length === 96 && q.blob[0] === 0x51 && q.blob[1] === 6 && q.blob.subarray(92).every((x) => !x) && DN_QUAD_HIRES.length === 12,
+   "blob: 'Q' 6, 73 values (12 of them two bytes), version 6's five bytes, zero padding");
+{ // version 6 (eng_quad.c quad_pack6): every value of 73..82 round trips through the five bytes; none set: version 5,
+  // byte for byte as before; quadToV5 (a firmware up to 0.27) drops them, a note each, and keeps the rest
+  const Q = DN_QP, init = DN_QUAD_RANGES.map((r) => r[2]), same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const b5 = dnQuadPack(init);
+  let bad = 0;
+  for (let i = 73; i < 83; i++) for (const v of [DN_QUAD_RANGES[i][0], DN_QUAD_RANGES[i][1]]) {
+    const p = init.slice(); p[i] = v;
+    const b = dnQuadPack(p);
+    bad += b[1] !== (v === DN_QUAD_RANGES[i][2] ? 5 : 6) || !same(dnQuadValues(b), p);
+  }
+  const p = init.slice();
+  Object.assign(p, { [Q.AMOD]: 1, [Q.HOLD]: 40, [Q.DRPRE]: 1, [Q.FSHAPE]: 99, [Q.FGAIN]: -7, [Q.BWPOST]: 1, [Q.BITS]: 12, [Q.SRR]: 127, [Q.CRPRE]: 1, [Q.SENDS]: 1, [Q.FTYPE]: DN_QF6.EQ });
+  const b6 = dnQuadPack(p), notes = [], d5 = quadToV5(b6, notes);
+  ok(!bad && b5[1] === 5 && b5.subarray(87).every((x) => !x) && same([...b6.subarray(87, 92)], [87 | 128, 99 | 128, 121 | 128, 12 | 128, 255]) &&
+     b6[2 + Q.FTYPE + 4] === 7 && same(dnQuadValues(b6), p) && DN_QUAD_VER === 6,
+     "version 6: each value round trips (version 5 when none set), the layout of bytes 87..91, FTYPE EQ 7");
+  ok(d5[1] === 5 && d5.subarray(87).every((x) => !x) && dnQuadValues(d5)[Q.FTYPE] === 0 && notes.length === 6 &&
+     same(dnQuadValues(d5).slice(0, 73).filter((x, i) => i !== Q.FTYPE), p.slice(0, 73).filter((x, i) => i !== Q.FTYPE)) &&
+     same(quadToV5(b5), b5) && quadToV3(b6).length === 80, `version 6 -> 5 for 0.27: dropped with a note each (${notes.join(" | ")})`);
+}
 { // the blob's values back: a byte each, the hi-res ones u16le (eng_quad.c quad_unpack)
   let o = 2, good = true;
   for (let i = 0; i < 73; i++) {
@@ -199,9 +219,11 @@ ok(DN_RATIO_A.length === 36 && [[0, 0.25], [3, 1], [9, 2.5], [15, 4], [25, 8], [
    DN_RATIO_A.every((r, i) => !i || r > DN_RATIO_A[i - 1]), "convert: RATIO A's table holds the proved steps (0.25 1 2.5 4 8 16), rising");
 ok(q.pan === -5 && q.drive === 30, "convert: PAN and DRIVE -> the track's PAN and DRIVE");
 const has = (re) => q.notes.some((n) => re.test(n));
-ok(!has(/filter type/) && has(/delay send 20\.00 not imported/) &&
-   has(/chorus send 3\.00/) && !has(/reverb send/) && !has(/RATIO/) && has(/^DRIVE 30: the FM-1 drives after the filter/) && q.notes.length === 3,
-   "notes: the sends (0 sends say nothing), the DRIVE's place, no others (version-1 type 2 = HP: no note)");
+ok(!has(/filter type/) && !has(/send/) && !has(/RATIO/) && !has(/DRIVE/) && q.notes.length === 0,
+   "notes: none (the sends the sound's, the DRIVE before the filter: version 6; version-1 type 2 = HP: no note)");
+ok(q.sends.delay === 20 && q.sends.chorus === 3 && q.sends.reverb === 0 && v[DN_QP.SENDS] === 1 && v[DN_QP.DRPRE] === 1 &&
+   q.blob[1] === 6 && q.blob[89] === 128 && q.blob[91] === 128 && q.blob.subarray(92).every((x) => !x),
+   "version 6: the sends the sound's (SENDS, byte 91 bit 7), DRIVE 30 before the filter (DRPRE, byte 89 bit 7)");
 // clamping: out-of-range raw values
 const qc = dnsndToQuad(await parseDnsnd(dnsnd(record("CLAMP", { algo: 200, ratioC: 99, ratioA: 99, ratioB: [255, 255], harm: [127, 255], fdbk: 255, "lfo1.mult": 90,
   "lfo1.wave": 40, "lfo1.mode": 77, "lfo1.dest": 5, "lfo2.dest": 99, "lfo1.depth": [127, 255], "envA.trig": 9, "filter.type": 9, "amp.pan": 250, "amp.drive": [255, 0] }))));
@@ -249,8 +271,8 @@ provedBad.forEach((s) => console.log(`  ${s}`));
 { // the fields the exports placed but that have no FM TONE value: DRIVE, PAN, the sends, AENR
   const pp = await parseDnsnd(dnsnd(record("PROVED", { "amp.drive": [0, 4], "amp.pan": 0, "send.reverb": [127, 0], "send.delay": [127, 0], "send.chorus": [127, 0], "amp.reset": 0 }, V5)));
   const qq = dnsndToQuad(pp), n = qq.notes.join("|");
-  ok(pp.params["amp.drive"] === 0.02 && qq.drive === 0 && qq.pan === -64 && /reverb send 127\.00/.test(n) && /delay send 127\.00/.test(n) && /chorus send 127\.00/.test(n) &&
-     /AMP ENV RESET off/.test(n), "proved: DRIVE (fine), PAN L64, the three sends, AENR off (version 5)");
+  ok(pp.params["amp.drive"] === 0.02 && qq.drive === 0 && qq.pan === -64 && qq.sends.reverb === 127 && qq.sends.delay === 127 && qq.sends.chorus === 127 &&
+     !qq.values[DN_QP.DRPRE] && /AMP ENV RESET off/.test(n), "proved: DRIVE (fine), PAN L64, the three sends, AENR off (version 5)");
 }
 { // DEC 127 = INF: AMP DEC INF is FM TONE's AMP DEC 127 (version 5: it holds the level), SUS as it was, no note; the
   // filter's DEC has no INF: its SUS 127, a note. A DEC below 127 is never INF (126 at most)

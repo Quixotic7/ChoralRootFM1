@@ -6561,3 +6561,23 @@ shut); the Haunted Hearts and every other sound as at 3y200, one note fewer (the
 5), a version 7 of 302 bytes without a marker, a version-3 `.syx` record of 282 bytes, a 113-byte message, a raw body,
 a two-block LZ4 chain, a Digitone II payload and body refused, a version 2 in a `.syx` read; the test encoders
 (`test_dnsnd.mjs`, `test_manager.mjs`) now write the real header. No golden changed.
+
+## 2026-10-31 (FM TONE: FIZZ's engine, the sound's sends)
+
+3y202. **FM TONE's sound gets version 6: room for FIZZ's engine values and the sound's own sends.** The owner: "Ok,
+I've imported some syx, however they sound quite a bit better with FIZZ's engine, can we look into bringing in the
+engine updates?" and "Ok, lets let these presets change the FX send amounts when you load." The format first, alone,
+so the web's Digitone II importer can be built on it (docs/QUAD.md "Version 6"): the blob stays 96 bytes; bytes
+87..91 (zeros in version 5) hold HOLD | AMOD, FSHAPE | BWPOST, FGAIN | DRPRE, BITS | CRPRE, SRR | SENDS (a 7-bit value
+and a flag each, every default 0), FTYPE takes 0..7 (MULTI, COMB+, COMB-, EQ after LP24). `quad_patch` 73 -> 83 values
+a part (`QP_NP5` = 73: version 5's). A sound with none of them set is still written as version 5, byte for byte, so
+the factory presets, saved sounds and goldens do not move and 0.27 still plays them; an older firmware refuses a
+version-6 blob (`quad_blob_ok`'s version test: INIT, the slot untouched). The engine does not use the new values yet
+(the stages after this one). Web: `fm1dnsnd.js` packs and reads version 6 (`dnQuadPack`, `dnQuadValues`, `DN_QP.AMOD
+.. SENDS`, `DN_QF6`), `quadToV5` writes a version-5 copy for 0.27 and older with a note per value dropped,
+`quadToV3` goes through it; the Digitone importer now marks DRIVE before the filter (DRPRE, as FIZZ's `digitone.js`)
+and the sends as the sound's (SENDS, the three amounts in the record's P_REV P_DLY P_CHOR) instead of dropping them
+with notes; `fm1sounds.js` and tools/fm1_install.py take a version-6 file. Size: XIP 549,076 -> 549,556 B (+480),
+POOL +40 B. Tests: `cr_quad_test` `t_blob6` (each value alone at its ends, the byte layout, version 5 when none set,
+FTYPE 4..7 in version 6 only, bytes 92..95, 2000 random patches), `web/test_dnsnd.mjs` (the round trip, the layout,
+`quadToV5`'s notes); no golden changed.

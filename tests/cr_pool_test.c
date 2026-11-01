@@ -110,7 +110,7 @@ int main(void)
         OK(cb_store(t, 0, 127, "QUAD V3", 0) == 0 && up_used(127), "FM TONE: saved into U128");
         memset(v3, 0, sizeof v3);
         v3[0] = 'Q', v3[1] = 3;
-        for (j = 0; j < QP_NP; j++)
+        for (j = 0; j < QP_NP5; j++)
             v3[2 + j] = (uint8_t)(quad_range_v3(j).def - quad_range_v3(j).min);
         v3[2 + QP_FREQ] = 42, v3[2 + QP_HARM] = (uint8_t)(-19 + 26), v3[2 + QP_FDBK] = 120, v3[2 + QP_LEVEL] = 100;
         v3[2 + QP_EREL] = 127, v3[2 + QP_LFO(0, QL_SPEED)] = (uint8_t)(-10 + 64);

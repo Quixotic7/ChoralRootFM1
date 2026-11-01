@@ -196,7 +196,7 @@ static void pack_v3(const int16_t *p, uint8_t *b)
     memset(b, 0, QUAD_BLOB);
     b[0] = QUAD_MAGIC;
     b[1] = 3u;
-    for (i = 0; i < QP_NP; i++)
+    for (i = 0; i < QP_NP5; i++)
         b[2 + i] = (uint8_t)(p[i] - quad_range_v3(i).min);
 }
 /* the byte offset of value i in a version-4 blob */
@@ -219,8 +219,9 @@ static void t_blob(void)
     quad_init_patch4(init);
     for (i = 0; i < QP_NP; i++)
         nh += (uint32_t)quad_hires(i);
-    CHECK(QUAD_DEEP.blob_size == QUAD_BLOB && QUAD_BLOB == 96u && QUAD_BLOB_V3 == 80u && QP_NP == 73 &&
-              nh == QUAD_NHIRES && nh == 12u && QUAD_V5_LEN == 87u && v4_off(QP_NP) == QUAD_V5_LEN && QUAD_VER == 5u,
+    CHECK(QUAD_DEEP.blob_size == QUAD_BLOB && QUAD_BLOB == 96u && QUAD_BLOB_V3 == 80u && QP_NP5 == 73 && QP_NP == 83 &&
+              nh == QUAD_NHIRES && nh == 12u && QUAD_V5_LEN == 87u && v4_off(QP_NP5) == QUAD_V5_LEN && QUAD_VER == 6u &&
+              QUAD_V6_LEN == 92u,
           "blob %u bytes, %d values, %u hi-res", QUAD_DEEP.blob_size, QP_NP, nh);
     for (n = 0; n < 2000u; n++) {
         rnd_patch(p);
@@ -229,8 +230,8 @@ static void t_blob(void)
         CHECK(quad_unpack(b, q) == 1 && !memcmp(p, q, QP_NP * sizeof(int16_t)), "random patch %u: round trip differs", n);
         quad_pack(q, b2);
         CHECK(!memcmp(b, b2, QUAD_BLOB), "random patch %u: blob round trip differs", n);
-        CHECK(b[0] == 'Q' && b[1] == 5u, "magic / version");
-        for (i = QUAD_V5_LEN; i < QUAD_BLOB; i++)
+        CHECK(b[0] == 'Q' && (b[1] == 5u || b[1] == 6u), "magic / version");
+        for (i = b[1] == 6u ? QUAD_V6_LEN : QUAD_V5_LEN; i < QUAD_BLOB; i++)
             CHECK(!b[i], "padding byte %u not 0", i);
     }
     for (w = 0; w < 3u; w++) {                   /* every value at its min, its max, its default */
@@ -257,7 +258,9 @@ static void t_blob(void)
     memcpy(b2, b, QUAD_BLOB);
     b2[1] = QUAD_VER + 1u;
     CHECK(quad_unpack(b2, q) == 0 && !memcmp(q, init, QP_NP * sizeof(int16_t)), "bad version: not the init patch");
-    for (i = 0; i < QP_NP; i++) {                /* every value one past its range */
+    quad_init_patch4(p);
+    quad_pack(p, b);                             /* (version 5: the values 0..72) */
+    for (i = 0; i < QP_NP5; i++) {               /* every value one past its range */
         quad_rng_t r = quad_range(i);
         uint32_t o = v4_off(i), u = (uint32_t)(r.max - r.min + 1);
         memcpy(b2, b, QUAD_BLOB);
@@ -275,7 +278,8 @@ static void t_blob(void)
         uint32_t bad = 0;
         for (n = 0; n < 500u; n++) {
             int16_t e[QP_NP];
-            for (i = 0; i < QP_NP; i++) {
+            t_init3(p);
+            for (i = 0; i < QP_NP5; i++) {
                 quad_rng_t r = quad_range_v3(i);
                 p[i] = (int16_t)(r.min + (int32_t)(rnd() % (uint32_t)(r.max - r.min + 1)));
             }
@@ -391,7 +395,7 @@ static void t_pages(void)
         }
     }
     for (i = 0; i < QP_NP; i++)
-        CHECK(used[i] == 1u, "patch value %u on %u page columns", i, used[i]);
+        CHECK(i < QP_NP5 ? used[i] == 1u : used[i] <= 1u, "patch value %u on %u page columns", i, used[i]);
     for (i = 0; i < 8u; i++) {                   /* the macros = SYN 1's eight, as ENG_QUAD.edit */
         const param_desc_t *d = &QUAD_PAGES[i >> 2].col[i & 3u], *e = &ENG_QUAD.edit[i];
         CHECK(QUAD_MAP[i >> 2][i & 3u] == i && (i == 3u ? QUAD_MAC[i] == QP_RB2 : QUAD_MAC[i] == i),
@@ -657,7 +661,7 @@ static void t_ratio_b(void)
                     CHECK(q[j] == e[j], "v1 %u: value %u %d, want %d", k, j, q[j], e[j]);
             quad_blob_set(t, b);                 /* -> the patch, the macro B2; blob_get writes version 3 */
             quad_blob_get(t, b);
-            CHECK(t->p[P_E3] == V1[k].b2 && b[1] == QUAD_VER && quad_blob_ok(b), "v1 %u: blob_set / get", k);
+            CHECK(t->p[P_E3] == V1[k].b2 && b[1] == 5u && quad_blob_ok(b), "v1 %u: blob_set / get", k);
         }
         rnd_patch_v2(p);
         pack_v2(p, b, 1u);
@@ -677,6 +681,70 @@ static void t_ratio_b(void)
         quad_track_loaded(t);
         CHECK(quad_patch[0][QP_RB1] == 3 && quad_patch[0][QP_RB2] == 3 && quad_patch[0][QP_OFSB2] == 50 &&
                   t->p[P_E3] == 3, "v1 macros: 1.00/1.50 as 1.00/1.00 + 0.50");
+    }
+}
+
+/* version 6 (2026-10-31, FIZZ's engine values): a sound with none of them set packs as version 5, byte for byte what
+ * 0.27 wrote (older firmware and the web's tools read it); one set: version 6, its five bytes; an older firmware (QUAD_VER
+ * 5) refuses it (INIT); each value round trips alone and at its ends; FTYPE 4..7 only in version 6 */
+static int v5_fw_takes(const uint8_t *b) { return b && b[0] == QUAD_MAGIC && b[1] >= 1u && b[1] <= 5u; }
+static void t_blob6(void)
+{
+    uint8_t b[QUAD_BLOB], b2[QUAD_BLOB];
+    int16_t p[QP_NP], q[QP_NP], init[QP_NP];
+    uint32_t i, w, n;
+    quad_init_patch4(init);
+    for (i = QP_NP5; i < QP_NP; i++)
+        CHECK(init[i] == quad_range(i).def, "value %u: init %d", i, init[i]);
+    CHECK(init[QP_HOLD] == 127 && init[QP_CRPRE] == 0 && init[QP_SENDS] == 0 && init[QP_FGAIN] == 0, "v6 defaults");
+    quad_pack(init, b);
+    CHECK(b[1] == 5u && v5_fw_takes(b), "the init patch: version %u", b[1]);
+    for (i = QUAD_V5_LEN; i < QUAD_BLOB; i++)
+        CHECK(!b[i], "init: byte %u not 0", i);
+    for (n = 0; n < 500u; n++) {                 /* version 5 as before: the new values at their defaults */
+        rnd_patch(p);
+        for (i = QP_NP5; i < QP_NP; i++)
+            p[i] = quad_range(i).def;
+        quad_pack(p, b);
+        CHECK(b[1] == 5u && quad_unpack(b, q) == 1 && !memcmp(p, q, sizeof p), "v5 patch %u: not version 5", n);
+    }
+    for (i = QP_NP5; i < QP_NP; i++)             /* each value alone at its min, its max: version 6, round trip */
+        for (w = 0; w < 2u; w++) {
+            quad_rng_t r = quad_range(i);
+            memcpy(p, init, sizeof p);
+            p[i] = w ? r.max : r.min;
+            quad_pack(p, b);
+            CHECK(b[1] == (p[i] == r.def ? 5u : 6u) && quad_blob_ok(b) && quad_unpack(b, q) == 1 &&
+                      !memcmp(p, q, sizeof p), "value %u at %d: version %u, round trip", i, p[i], b[1]);
+            CHECK(b[1] == 5u || !v5_fw_takes(b), "value %u: an older firmware takes version 6", i);
+            for (n = QUAD_V6_LEN; n < QUAD_BLOB; n++)
+                CHECK(!b[n], "value %u: byte %u not 0", i, n);
+        }
+    memcpy(p, init, sizeof p);
+    p[QP_AMOD] = 1, p[QP_HOLD] = 40, p[QP_DRPRE] = 1, p[QP_FSHAPE] = 99, p[QP_FGAIN] = -7, p[QP_BWPOST] = 1;
+    p[QP_BITS] = 12, p[QP_SRR] = 127, p[QP_CRPRE] = 1, p[QP_SENDS] = 1;
+    quad_pack(p, b);
+    CHECK(b[1] == 6u && b[87] == (87u | 128u) && b[88] == (99u | 128u) && b[89] == (121u | 128u) &&
+              b[90] == (12u | 128u) && b[91] == 255u, "the layout: %02x %02x %02x %02x %02x", b[87], b[88], b[89], b[90], b[91]);
+    CHECK(quad_unpack(b, q) == 1 && !memcmp(p, q, sizeof p), "every v6 value: round trip");
+    memcpy(b2, b, QUAD_BLOB);
+    b2[QUAD_V6_LEN] = 1;
+    CHECK(quad_unpack(b2, q) == 0 && !memcmp(q, init, sizeof q), "v6: byte 92 not 0 taken");
+    {
+        uint32_t o = v4_off(QP_FTYPE);
+        memcpy(b2, b, QUAD_BLOB);
+        b2[o] = QUAD_FT6;
+        CHECK(quad_blob_ok(b2), "v6: FTYPE 7 refused");
+        b2[o] = QUAD_FT6 + 1;
+        CHECK(!quad_blob_ok(b2), "v6: FTYPE 8 taken");
+        quad_pack(init, b2);
+        b2[o] = 4;
+        CHECK(!quad_blob_ok(b2), "v5: FTYPE 4 taken");
+    }
+    for (n = 0; n < 2000u; n++) {                /* every value random: the round trip */
+        rnd_patch(p);
+        quad_pack(p, b);
+        CHECK(quad_unpack(b, q) == 1 && !memcmp(p, q, sizeof p), "random v6 patch %u", n);
     }
 }
 
@@ -846,14 +914,15 @@ static void t_golden(void)
         CHECK(s != 0, "%s: missing (python3 tests/quad_ref.py)", fn);
         if (!s)
             continue;
-        np = jarr(s, "patch", pv, QP_NP);
+        np = jarr(s, "patch", pv, QP_NP5);
         nf = jarr(s, "first", first, 2048);
         nr = jarr(s, "rms", rms, 64);
         free(s);
-        CHECK(np == QP_NP && nf == 2048u && nr == 29u, "%s: patch %u, first %u, rms %u", fn, np, nf, nr);
-        if (np != QP_NP || nf != 2048u || !nr)
+        CHECK(np == QP_NP5 && nf == 2048u && nr == 29u, "%s: patch %u, first %u, rms %u", fn, np, nf, nr);
+        if (np != QP_NP5 || nf != 2048u || !nr)
             continue;
-        for (i = 0; i < QP_NP; i++)
+        quad_init_patch4(p);                     /* (the model's 73 values; version 6's at their defaults) */
+        for (i = 0; i < QP_NP5; i++)
             p[i] = (int16_t)pv[i];
         if (g >= 8u) {                           /* a preset: the model's copy is the firmware's */
             int16_t q[QP_NP];
@@ -2300,7 +2369,7 @@ static void t_dests(void)
         quad_init_patch(p);
         p[QP_LFO(1, QL_DEST)] = QD_FDLY;
         quad_pack(p, b);
-        CHECK(b[1] == QUAD_VER && quad_blob_ok(b) && quad_unpack(b, q) && q[QP_LFO(1, QL_DEST)] == QD_FDLY,
+        CHECK(b[1] == 5u && quad_blob_ok(b) && quad_unpack(b, q) && q[QP_LFO(1, QL_DEST)] == QD_FDLY,
               "a blob with DEST F DLY: version 5, taken");
         CHECK(b[v4_off(QP_LFO(1, QL_DEST))] > QD_N_V3A - 1u && !old_fw_takes(b), "an older firmware refuses it");
         pack_v3(p, b);
@@ -2356,7 +2425,7 @@ static void v4_pack(const int16_t *p4, uint8_t *b)  /* a version-4 blob of a ver
     memset(b, 0, QUAD_BLOB);
     b[0] = QUAD_MAGIC;
     b[1] = 4u;
-    for (i = 0; i < QP_NP; i++) {
+    for (i = 0; i < QP_NP5; i++) {
         uint32_t u = (uint32_t)(p4[i] - quad_range_v4(i).min);
         b[o++] = (uint8_t)u;
         if (quad_hires_v4(i))
@@ -2454,6 +2523,7 @@ static void t_v5(void)
 int main(int argc, char **argv)
 {
     t_blob();
+    t_blob6();
     t_v5();
     t_pages();
     t_set_macros();

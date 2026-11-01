@@ -351,7 +351,41 @@ byte: 87 used). Version 4 blobs (3y61's: AMP REL and LEVEL u16 hundredths, the t
 and versions 1..3 convert on load (`quad_unpack`, `quad_v5_of_v4`): FREQ DTUN RESO BASE clamped to 127.00; AMP REL
 127.00 and up -> 127 (INF), below it rounded to the nearest whole number but at most 126 (126.85 -> 126); LEVEL
 rounded (110.40 -> 110). Factory presets, pool slots, sessions, backups, sound files (web/fm1sounds.js, the importer
-web/fm1dnsnd.js `quadToV4` = `quadToV5`) and tools/fm1_install.py (versions 1..5 accepted) all go through it.
+web/fm1dnsnd.js `quadToV4`) and tools/fm1_install.py (versions 1..6 accepted) all go through it.
+
+### Version 6 (2026-10-31: FIZZ's engine values, the sound's sends)
+
+The owner: "Ok, I've imported some syx, however they sound quite a bit better with FIZZ's engine, can we look into
+bringing in the engine updates?" and "Ok, lets let these presets change the FX send amounts when you load." Version 6
+keeps the 96 bytes: version 5's 87 bytes as they are, then five bytes, then zeros. `quad_patch` grows to 83 values
+(`QP_NP`; version 5's 73 are `QP_NP5`); the ten new ones are FIZZ's E1..E3 values (FMToneSeq `quad_voice.h`
+`QD_QP_AMOD ..`, the glide and the mod slots left out: ChoralRoot has its part glide and `mod.c`) and SENDS. Every
+default is today's sound.
+
+| byte | bits 0..6 | bit 7 |
+| --- | --- | --- |
+| 0, 1 | 'Q' (0x51), 6 | |
+| 2..86 | version 5's 73 values (value - min; HARM DTUN FREQ RESO filter DEPTH BASE, the LFOs' SPEED / DEPTH u16le) | |
+| (42) | FTYPE: 0 OFF, 1 LP12, 2 HP12, 3 LP24, **4 MULTI, 5 COMB+, 6 COMB-, 7 EQ** (version 5: 0..3) | |
+| 87 | 127 - HOLD (HOLD 0..126 a time on the amp attack's table, 127 NOTE; 0 here = NOTE) | AMOD: 0 ADSR, 1 AHD |
+| 88 | FSHAPE 0..127 (MULTI's LP / BP / HP morph, the combs' damping, EQ's Q) | BWPOST: base-width 0 before the filter, 1 after |
+| 89 | FGAIN -64..63 (EQ's gain), 7-bit two's complement | DRPRE: DRIVE 0 after the voice (the part's, as before), 1 before the filter, per voice |
+| 90 | BITS: 0 OFF, 1..127 (16 .. 1 bits) | CRPRE: CRUSH 0 after the filter, 1 before (FIZZ's CRPOST 1 / 0) |
+| 91 | SRR: 0 OFF, 1..127 (a sample and hold, 1 / 1 .. 1 / 64 of the rate) | SENDS: 1 the sound carries its sends |
+| 92..95 | zeros (refused otherwise) | |
+
+- **Written only when needed** (`quad_pack`): a sound with all five bytes 0 and FTYPE 0..3 is packed as version 5, byte
+  for byte as 0.27 wrote it, so a factory preset, an untouched saved sound and every golden stay as they were and an
+  older firmware or tool still plays them. One value set (or a machine FTYPE): version 6.
+- **Older firmware** (ChoralRoot 0.22 .. 0.27, FM1VST, fm1emu: `QUAD_VER` 5) refuses version 6 in `quad_blob_ok` (its
+  version test) and plays the init patch; the slot's bytes are untouched. The web's `quadToV5` (web/fm1dnsnd.js) writes
+  a version-5 copy with a note for each value dropped (a machine FTYPE becomes LP12, EQ becomes OFF).
+- **No record size changed**: the pool, the session (`nblob == blob_size`), the backup, the installer
+  (tools/fm1_install.py takes versions 1..6) and the web's codec stay at 96 bytes.
+- **SENDS** is not a page value: its sends are the record's P_REV, P_DLY, P_CHOR (as an FM TONE sound's Drive is its
+  P_DIST); a load of a sound with SENDS sets the part's sends to them (cr_ui.c `cu_sends_load`, docs/MANUAL.md). The
+  Digitone importer sets it on every imported sound and fills the three fields; a save writes the part's sends back.
+- FIZZ's own version 6 is 128 bytes (DRIVE at 87, values 74..109, the VOICE page): a different layout, not read here.
 
 The macros P_E4 HARM and P_E5 DTUNE hold the coarse part (`quad_mac_val`: a record's macro bytes, the editor
 protocol's v14, the matrix, motion and a CC are 7-bit; a macro move sets the coarse value with fine 0,

@@ -241,7 +241,7 @@ static void qb_v3(uint8_t *b)
     uint32_t i;
     memset(b, 0, QUAD_BLOB);
     b[0] = QUAD_MAGIC, b[1] = 3;
-    for (i = 0; i < QP_NP; i++)
+    for (i = 0; i < QP_NP5; i++)
         b[2 + i] = (uint8_t)(quad_range_v3(i).def - quad_range_v3(i).min);
 }
 
@@ -773,7 +773,7 @@ int main(void)
             int16_t lp[QP_NP], wp[QP_NP];
             uint32_t erases, pos, ok = 1, off;
             qb_v3(qb2);
-            for (i = 0; i < QP_NP; i += 3u)
+            for (i = 0; i < QP_NP5; i += 3u)
                 qb2[2 + i] = 0;                      /* (another version-3 patch than the init: each third value its min) */
             ok &= quad_blob_ok(qb2) && quad_unpack(qb2, wp) && t_list() == 0 && find(man, nman, 50)->size == sizeof pb;
             for (off = 0; ok && off < sizeof pb; off += 256u)
