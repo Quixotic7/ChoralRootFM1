@@ -1689,7 +1689,7 @@ static void quad_bw_post(quad_voice_t *s, int32_t *acc, uint32_t n, int32_t hpk,
  * filter", per voice): the part's DIST (dsp.c dsp_dist) on voice s's signal before its filter and its amp, its state
  * the voice's, the LFOs' DRIVE on it; the part's own after the voices then none (fx.c track_dist: quad_drive_pre).
  * Each note driven alone (no intermodulation of a chord in one clipper), the filter shaping the drive, the grit kept
- * as the amp envelope falls. 3y213, its cost a third of dsp_dist's: the clip and the make-up one interpolation in the
+ * as the amp envelope falls. 3y213, under half dsp_dist's cost: the clip and the make-up one interpolation in the
  * part's table (quad_drv), and the voice's DC blocker and base-width (hpk, lpk: quad_render's) in the same loop, the
  * blocker in 32 bits (its mean before the sample's step, within 0.1 % of quad_render's). hpk -1: the drive alone (a
  * block in which a base-width pole fades: quad_render ran them). A function of its own: in quad_render the loop moved
