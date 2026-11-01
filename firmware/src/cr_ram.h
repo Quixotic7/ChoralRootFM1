@@ -17,6 +17,11 @@
  *   CR_RAM_VA      VA: va_render (the oscillators and the filter are inlined in it), va_morph, va_render_mono,
  *                  and memset (libc.c: va_render calls it every voice and block)                        eng_va.c
  *   CR_RAM_FM6     FM6: fm6_render (the operators' kernel is inlined in it), fm6_control, fm6_eg_step, fm6_mulhi
+ *   CR_RAM_NOTE    the note path of the tick: trk_note_on (voice_alloc and mod_note inlined in it), voice_start,
+ *                  glide_set, mono_play / _pick / _remove, trk_note_off, the budget (trk_nvoice, voice_units,
+ *                  voices_busy_of, voice_room, voice_victim, lowest_held), vsq_push / _drop, P5's pool (p5_pool_*
+ *                  but _enforce, p5_sounding, p5_part_victim) and FM TONE's quad_note_on: a long release steals
+ *                  all 8 voices at every chord change, each note through it twice (3y216)       voice.c, eng_quad.c
  *
  * THE COMPILER IS NOT TOLD. Two things were tried and are not used, because each changed the code it moved:
  *   - a section attribute on the function: this compiler does not inline a function into one that is in another
@@ -41,7 +46,8 @@
  * mix_part_out) and need nothing. A build without a switch has no .rhot section, no veneer and an untouched object:
  * it is the build it was before this file.
  * The audio ISR's own body (audio.c fm1_alnk0_irq: 5.6 KB with mix_block, audio_block and the event dispatch inlined)
- * stays in flash under every switch. */
+ * stays in flash under every switch. CR_RAM_VA (since 3y177) and CR_RAM_NOTE (since 3y216) are 1 in a device build
+ * (tools/build.py RAM_DEFAULT_ON; =0 for the flash build to measure against). */
 #pragma once
 #ifndef CR_RAM_FX
 #define CR_RAM_FX 0
@@ -61,10 +67,14 @@
 #ifndef CR_RAM_FM6
 #define CR_RAM_FM6 0
 #endif
-#define CR_RAM_ANY (CR_RAM_FX || CR_RAM_MASTER || CR_RAM_CORE || CR_RAM_CZ || CR_RAM_VA || CR_RAM_FM6)
+#ifndef CR_RAM_NOTE
+#define CR_RAM_NOTE 0
+#endif
+#define CR_RAM_ANY (CR_RAM_FX || CR_RAM_MASTER || CR_RAM_CORE || CR_RAM_CZ || CR_RAM_VA || CR_RAM_FM6 || CR_RAM_NOTE)
 #define CR_HOT_FX                       /* the markers (above): nothing for the compiler */
 #define CR_HOT_MASTER
 #define CR_HOT_CORE
 #define CR_HOT_CZ
 #define CR_HOT_VA
 #define CR_HOT_FM6
+#define CR_HOT_NOTE

@@ -487,8 +487,8 @@ functions are the same 1149 and 155 instructions in both builds). Melodee's note
 run, and ChoralRoot's own count for CZ-1 has an unexplained gap of the same kind (1066 us measured, 630 counted:
 docs/CZ1.md). The effects' four loops in RAM changed nothing in 0.18 (`CR_FX_RAM`, above): small loops that run many
 passes stay in the cache; a 3.3 KB loop body that runs once a sample apparently does not. **That is a hypothesis.**
-What follows is the means to measure it, stage by stage; nothing but `P5_RAM` and (since 3y177) `CR_RAM_VA` is on by
-default.
+What follows is the means to measure it, stage by stage; nothing but `P5_RAM`, (since 3y177) `CR_RAM_VA` and (since
+3y216) `CR_RAM_NOTE` is on by default.
 
 **`P5_RAM` is 1 in a device build since 3y41** (`tools/build.py`; `P5_RAM=0 ./build.sh` is the all-flash build, byte
 for byte 40acb01's default). The host and the emulator never see the flag.
@@ -500,6 +500,16 @@ cores"), MORPH PAD 8 notes + PUNCH BASS: the block 2389 -> 2103 us dry and 2574 
 -> 249, the block 2917 -> 2565 recording and its 10 late halves / 31 sheds gone. So for the VA the flash WAS the cost
 (two cores running `va_render` from XIP at once, or one: the bass alone gains 57 %). RAMTEXT 16 120 of 24 576 with it
 (8456 B left); another CR_RAM_* switch beside it must fit there too, or be built with `CR_RAM_VA=0`.
+
+**`CR_RAM_NOTE` is 1 in a device build since 3y216** (`CR_RAM_NOTE=0 ./build.sh`: the note path from flash). The
+tick's note path: `trk_note_on` (with `voice_alloc` and `mod_note` inlined), what it calls directly, `trk_note_off`,
+`vsq_drop` and FM TONE's `quad_note_on`. A long release (C64 EP) has all 8 voices sounding at every chord change, so
+each note of the chord goes through it twice in one half (the steal, then the start a block later: docs/HISTORY.md
+3y215), all of it from XIP. 5542 B; RAMTEXT 21 660 of 24 576 with VA's (2916 B left). It reads from flash still: the
+engine table (`ENGINES`, each `engine_t`'s hooks) and `QUAD_PHRT_MASK`, a cache line or two a note; it calls the other
+engines' `note_on` through `engine_t` (P5's, VA's, CZ-1's: flash). The callers that stay in flash (the ISR's note
+dispatch and `engine_block`'s waiting notes, MIDI in's callbacks, `trk_all_off`, P5's `p5_pool_enforce` and `p5x_run`,
+`shed_voice`) go through 11 veneers there (88 B of XIP).
 
 ### The switches
 
@@ -515,6 +525,7 @@ second core's loop 128). Environment variables of `./build.sh`, all off unless s
 | `CR_RAM_CZ` | `cz_native_line_mv` 7340, `cz_native_line` 6098, `cz_native_render` 1464, `cz_native_noise` 554, `cz_native_defs` 218, `cz_env_tick` 206, `cz_native_vibrato` 134, `cz_native_pd` 122, `cz_native_krate` 106, `cz_native_amp` 90, `cz_hw_rate` 58 | 16 390 | 23 200 |
 | `CR_RAM_VA` (default 1 since 3y177) | `va_render` 8378 (the oscillators and the filter are inlined in it), `va_morph` 582, `va_render_mono` 24, `memset` 12, the veneer `cr_v_va_fweights` 8 | 9046 | 16 120 |
 | `CR_RAM_FM6` | `fm6_render` 3518 (the operators' kernel is inlined in it), `fm6_control` 2476, `fm6_eg_step` 138, `fm6_mulhi` 74 | 6206 + 28 B of veneers | 13 044 |
+| `CR_RAM_NOTE` (default 1 since 3y216) | `trk_note_on` 1910 (`voice_alloc`, `mod_note` inlined), `quad_note_on` 874, `mono_play` 398, `voice_start` 282, `voice_victim` 270, `trk_note_off` 252, `p5_pool_victim` 220, `p5_part_victim` 172, `voice_room` 158, `voices_busy_of` 118, `p5_sounding` 104, `vsq_push` 102, `vsq_drop` 102, `p5_pool_room` 98, `p5_pool_used` 92, `p5_pool_take` 74, `mono_pick` 66, `mono_remove` 56, `glide_set` 52, `lowest_held` 52, `trk_nvoice` 48, `voice_units` 42 | 5542 + 88 B of veneers in XIP | 12 612 (21 660 with VA's) |
 | `CR_RAM_TABLES_P5` | not code: `P5_TANH_Q15` 4098, `P5_EXP2_Q14` 514, `P5_INV_DEN` 514, `P5_TPT_G` 256, the tables `p5_samples` reads every sample | 5376 B of RAM `.data` | RAM 86 820 of 98 304 |
 
 Together: FX + MASTER 19 072; **FX + MASTER + CORE 23 140** (1436 B spare); every switch at once would need about
@@ -605,6 +616,7 @@ one address must be their target's, on the other side. Anything else fails. Resu
 | `CR_RAM_CZ` | 11 | 0 | 0 |
 | `CR_RAM_VA` | 4 | 0 | 1 (8) |
 | `CR_RAM_FM6` | 4 | 0 | 3 (40) |
+| `CR_RAM_NOTE` (3y216, against `CR_RAM_NOTE=0`) | 22 | 0 | 11 (88) |
 | FX + MASTER (package B) | 20 | 0 | 8 (80) |
 | FX + MASTER + CORE (C) | 29 | 0 | 13 (152) |
 | C + `CR_RAM_TABLES_P5` (D) | 29 | 0 | 13 (152) |

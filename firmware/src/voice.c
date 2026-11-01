@@ -59,7 +59,7 @@ CR_HOT_CORE static void track_lfo_tick(track_t *t)
 }
 
 /* voices the engine may use (POLY and UNISON): its cap, else NPOLY */
-static uint32_t trk_nvoice(const track_t *t)
+CR_HOT_NOTE static uint32_t trk_nvoice(const track_t *t)
 {
     const engine_t *e = ENGINES[t->engine];
     uint32_t c = e->cap ? e->cap(t) : e->poly;
@@ -73,7 +73,7 @@ static uint32_t trk_vmode(const track_t *t)
 }
 
 /* ------------------------------------------------- the shared voice budget --- */
-static uint32_t voice_units(const track_t *t)
+CR_HOT_NOTE static uint32_t voice_units(const track_t *t)
 {
     const engine_t *e = ENGINES[t->engine];
     return e->units ? e->units(t) : trk_nvoice(t) > NPOLY ? 1u : 2u;
@@ -95,8 +95,8 @@ static uint32_t voice_units(const track_t *t)
 #else
 #define VB_NPART 2u
 #endif
-static uint32_t voices_busy_of(const track_t *self)        /* budget units of the sounding voices (not fading) of the
-                                                         * parts that share self's budget */
+/* budget units of the sounding voices (not fading) of the parts that share self's budget */
+CR_HOT_NOTE static uint32_t voices_busy_of(const track_t *self)
 {
     uint32_t p, i, n, u = 0, sp = (uint32_t)(self - trk);
     for (p = 0; p < VB_NPART; p++) {
@@ -120,7 +120,8 @@ static uint32_t voices_busy(void)                       /* budget units of all p
     return u;
 }
 
-static uint32_t lowest_held(const track_t *t)           /* index of the lowest held note (the bass), NVOICE = none */
+/* index of the lowest held note (the bass), NVOICE = none */
+CR_HOT_NOTE static uint32_t lowest_held(const track_t *t)
 {
     uint32_t i, low = NVOICE;
     for (i = 0; i < NVOICE; i++)
@@ -132,7 +133,7 @@ static uint32_t lowest_held(const track_t *t)           /* index of the lowest h
 /* the voice to give up for a new one (see the top); soft: only released voices and
  * extra voices of other non-POLY parts (also ones left after a mode change).
  * Returns its index, *pp its part; NVOICE = none */
-static uint32_t voice_victim(const track_t *self, int soft, track_t **pp)
+CR_HOT_NOTE static uint32_t voice_victim(const track_t *self, int soft, track_t **pp)
 {
     uint32_t p, i, best = NVOICE, cat = 4;
     for (p = 0; p < NPART; p++) {
@@ -201,7 +202,7 @@ static uint32_t p5_bass_gave;           /* held bass voices given up to the chor
 /* the part's voices that are a whole voice's work: sounding, or stolen for a waiting note and fading as a whole voice
  * (eng_prophet_test.c P5_STEAL_BLOCKS: the pool has no room for another voice until the fade has ended). Not a voice
  * given up for the pool, the budget or the shed: that one is its last sample's line */
-static uint32_t p5_sounding(const track_t *t)
+CR_HOT_NOTE static uint32_t p5_sounding(const track_t *t)
 {
     const p5_part_t *s = p5_part((uint32_t)(t - trk));
     uint32_t i, n = 0;
@@ -210,7 +211,7 @@ static uint32_t p5_sounding(const track_t *t)
     return n;
 }
 static uint32_t voice_units(const track_t *t);
-static uint32_t p5_pool_used(void)
+CR_HOT_NOTE static uint32_t p5_pool_used(void)
 {
     const track_t *bt = &trk[P5_PART_BASS];
     uint32_t u = 0;
@@ -226,7 +227,7 @@ static uint32_t p5_pool_size(void) { return cr_dualcore_active() ? P5_POLY : P5_
 #define P5_HELD(v) ((v)->active && (v)->gate && (v)->stage != 4u)
 /* a held voice of part t to give up: a stack's (MONO, LEGATO, UNISON: voice 0 is the lead) from the top, a POLY
  * part's oldest that is not its lowest note; last: the lead / the lowest note too. NVOICE: none */
-static uint32_t p5_part_victim(const track_t *t, int last)
+CR_HOT_NOTE static uint32_t p5_part_victim(const track_t *t, int last)
 {
     uint32_t i, best = NVOICE, low;
     if (trk_vmode(t) != V_POLY) {
@@ -243,7 +244,7 @@ static uint32_t p5_part_victim(const track_t *t, int last)
 }
 /* the voice the pool gives up for a new voice of part self (soft: an extra voice of a stack asks); its index, *pp its
  * part. NVOICE: none (the caller takes one of its own, or does without) */
-static uint32_t p5_pool_victim(const track_t *self, int soft, track_t **pp)
+CR_HOT_NOTE static uint32_t p5_pool_victim(const track_t *self, int soft, track_t **pp)
 {
     track_t *ct = &trk[0], *bt = &trk[P5_PART_BASS];
     uint32_t p, i, best = NVOICE, two = (uint32_t)cr_dualcore_active(), chord = self == ct;
@@ -275,13 +276,14 @@ static uint32_t p5_pool_victim(const track_t *self, int soft, track_t **pp)
     return NVOICE;
 }
 static void voice_kill(voice_t *v);
-static void p5_pool_take(const track_t *self, track_t *vp, uint32_t k)
+CR_HOT_NOTE static void p5_pool_take(const track_t *self, track_t *vp, uint32_t k)
 {
     if (self == &trk[0] && vp == &trk[P5_PART_BASS] && vp->v[k].gate)
         p5_bass_gave++;
     voice_kill(&vp->v[k]);
 }
-static __attribute__((noinline)) int p5_pool_room(track_t *t, int soft)   /* room in the pool for a voice of part t; 0: none to be had */
+/* room in the pool for a voice of part t; 0: none to be had */
+CR_HOT_NOTE static __attribute__((noinline)) int p5_pool_room(track_t *t, int soft)
 {
     while (p5_pool_used() >= p5_pool_size()) {
         track_t *vp = 0;
@@ -335,7 +337,7 @@ static __attribute__((noinline)) void p5_pool_enforce(void)
 #endif
 
 /* the budget is full: free room for a voice of part t. 0 = nothing to take (soft) */
-static int voice_room(track_t *t, int soft)
+CR_HOT_NOTE static int voice_room(track_t *t, int soft)
 {
 #if FELUCCA_PROPHET
     if (P5_POOLED(t) && !p5_pool_room(t, soft))
@@ -399,7 +401,8 @@ static __attribute__((noinline)) int32_t voice_fade_level(track_t *t, voice_t *v
 #endif
 #define VSQ 8u
 static struct { uint8_t note[VSQ], vel[VSQ], armed[VSQ], n; } vsq[NPART];   /* armed: its block rendered */
-static int vsq_push(track_t *t, uint32_t note, uint32_t vel)   /* 0: full (the caller restarts in place) */
+/* a note waits for a stolen voice's fade; 0: full (the caller restarts in place) */
+CR_HOT_NOTE static int vsq_push(track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t p = (uint32_t)(t - trk), i;
     if (p >= NPART)
@@ -416,7 +419,7 @@ static int vsq_push(track_t *t, uint32_t note, uint32_t vel)   /* 0: full (the c
     vsq[p].vel[vsq[p].n++] = (uint8_t)vel;
     return 1;
 }
-static void vsq_drop(track_t *t, uint32_t note)            /* note 128: all */
+CR_HOT_NOTE static void vsq_drop(track_t *t, uint32_t note)   /* note 128: all */
 {
     uint32_t p = (uint32_t)(t - trk), i, k = 0;
     if (p >= NPART)
@@ -584,7 +587,7 @@ static voice_t *voice_alloc(track_t *t, uint32_t note, uint32_t vel)
 }
 
 /* glide: RATE = a fixed speed, TIME = the same time for any interval */
-static void glide_set(track_t *t, voice_t *v, int glide)
+CR_HOT_NOTE static void glide_set(track_t *t, voice_t *v, int glide)
 {
     if (!glide || !v->pitch_cur) {
         v->pitch_cur = v->pitch16;
@@ -600,7 +603,7 @@ static void glide_set(track_t *t, voice_t *v, int glide)
     }
 }
 
-static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int glide)
+CR_HOT_NOTE static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int glide)
 {
     const engine_t *e = ENGINES[t->engine];
     int sounding = v->active && v->stage != 0;
@@ -645,7 +648,7 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
 
 /* MONO / LEGATO / UNISON: one note on one voice (NPOLY for UNISON, or the
  * engine's voice cap, spread by DETUNE over the same width) */
-static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int glide)
+CR_HOT_NOTE static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int glide)
 {
     uint32_t mode = (uint32_t)t->p[P_VOICE], nv = mode == V_UNISON ? trk_nvoice(t) : 1u, i;
     for (i = 0; i < nv; i++) {
@@ -680,7 +683,7 @@ static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int g
 }
 
 /* the note the mono stack asks for (PRIO: LAST / LOW / HIGH), 0 = none */
-static uint32_t mono_pick(const track_t *t)
+CR_HOT_NOTE static uint32_t mono_pick(const track_t *t)
 {
     uint32_t i, n;
     if (!t->nmono)
@@ -695,7 +698,7 @@ static uint32_t mono_pick(const track_t *t)
     return n;
 }
 
-static void mono_remove(track_t *t, uint32_t note)
+CR_HOT_NOTE static void mono_remove(track_t *t, uint32_t note)
 {
     uint32_t j, k = 0;
     for (j = 0; j < t->nmono; j++)
@@ -704,7 +707,7 @@ static void mono_remove(track_t *t, uint32_t note)
     t->nmono = (uint8_t)k;
 }
 
-static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
+CR_HOT_NOTE static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t any = 0, i, mode = trk_vmode(t);
     if (t->p[P_MUTE])
@@ -754,7 +757,7 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
     }
 }
 
-static void trk_note_off(track_t *t, uint32_t note)
+CR_HOT_NOTE static void trk_note_off(track_t *t, uint32_t note)
 {
     uint32_t i, k = 0, mode = trk_vmode(t);
     for (i = 0; i < t->xp_n; i++)                       /* not sounding yet (engine switch): forget it */

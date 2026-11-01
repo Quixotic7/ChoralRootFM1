@@ -68,3 +68,23 @@ CR_VENEER(void, fm6_peg_go, (fm6_peg_t *e, uint32_t ix), (e, ix))
 /* fm6_block (flash: the AMS shares figured before the hand-over since 3y187, fm6_ams_pt inlined there) -> fm6_mulhi */
 CR_VENEER(uint64_t, fm6_mulhi, (uint64_t a, uint64_t b), (a, b))
 #endif
+#if CR_RAM_NOTE
+/* the tick (flash: the audio ISR's note dispatch and engine_block's waiting notes, inlined there; the callbacks of
+ * MIDI in) -> a note's start and end */
+CR_VENEER(void, trk_note_on, (track_t *t, uint32_t note, uint32_t vel), (t, note, vel))
+CR_VENEER(void, trk_note_off, (track_t *t, uint32_t note), (t, note))
+/* trk_all_off (flash: a panic, a preset) -> the waiting notes dropped */
+CR_VENEER(void, vsq_drop, (track_t *t, uint32_t note), (t, note))
+/* shed_voice (flash: the overload's) -> the bass protected */
+CR_VENEER(uint32_t, lowest_held, (const track_t *t), (t))
+#if FELUCCA_PROPHET
+/* P5 once a block (flash: p5_pool_enforce, shed_p5_bass, p5x_run and its counts) -> the pool's own reads */
+CR_VENEER(uint32_t, trk_nvoice, (const track_t *t), (t))
+CR_VENEER(uint32_t, voice_units, (const track_t *t), (t))
+CR_VENEER(uint32_t, p5_sounding, (const track_t *t), (t))
+CR_VENEER(uint32_t, p5_pool_used, (void), ())
+CR_VENEER(uint32_t, p5_part_victim, (const track_t *t, int last), (t, last))
+CR_VENEER(uint32_t, p5_pool_victim, (const track_t *self, int soft, track_t **pp), (self, soft, pp))
+CR_VENEER(void, p5_pool_take, (const track_t *self, track_t *vp, uint32_t k), (self, vp, k))
+#endif
+#endif

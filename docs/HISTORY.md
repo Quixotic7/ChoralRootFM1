@@ -6807,3 +6807,28 @@ or the note path (`trk_note_on`, `voice_alloc`, `voice_start`, `vsq`) in RAM (RA
 it from XIP). Size: XIP 556,036 B (+16 over 3y214), POOL 331,492 of 344,064 (96.3 %, unchanged). Tests:
 `run_all.sh` all PASS but the two release checks (v0.28 not tagged / not in the list); `test_cr` 1114 ok; no budget
 over (`target_budget.py`).
+3y216. **The note path in RAM (`CR_RAM_NOTE`, on in a device build).** The owner: "Note path in RAM", chosen over
+delaying the stolen notes, after: "Run the note-start code from RAM: right now it runs from flash. There's room in RAM
+for it (8 KB free) and the sound stays exactly the same." On the unit after 3y215: C64 EP's tick 450 .. 455 us (its
+block 2,650 .. 2,670, 4 .. 5 late halves in 15 s), WOBBLE's 323 .. 331 (block 2,530, none late); every note of C64
+EP's chord goes through `trk_note_on` twice in one half (3y215), from XIP. Now a CR_RAM_* switch like the VA's
+(firmware/src/cr_ram.h, docs/FX.md "Code in RAM"): the `CR_HOT_NOTE` markers in voice.c and eng_quad.c, and
+tools/build.py renames those 22 functions' sections in the object, so they link at RAMTEXT: `trk_note_on` 1910
+(`voice_alloc` and `mod_note` inlined in it), `quad_note_on` 874, `mono_play` 398, `voice_start` 282, `voice_victim`
+270, `trk_note_off` 252, P5's pool (`p5_pool_victim` 220, `p5_part_victim` 172, `p5_sounding` 104, `p5_pool_room`
+98, `p5_pool_used` 92, `p5_pool_take` 74: in `trk_note_on`'s own calls, and P5's chord is stolen at every change
+too), `voice_room` 158, `voices_busy_of` 118, `vsq_push` 102, `vsq_drop` 102, `mono_pick` 66, `mono_remove` 56,
+`glide_set` 52, `lowest_held` 52, `trk_nvoice` 48, `voice_units` 42: 5542 B, every function the note path reaches
+by a direct call (`tools/ram_code.py reach`), so no call from it goes back to flash. The callers that stay in flash
+(the ISR's note dispatch and `engine_block`'s waiting notes, both inlined in `fm1_alnk0_irq`; MIDI in's callbacks;
+`trk_all_off`; `p5_pool_enforce`, `shed_p5_bass`, `p5x_run`, `shed_voice`) reach them through 11 veneers (88 B of
+XIP). Still read from flash by the moved code: the engine table (`ENGINES` and each `engine_t`'s hooks) and
+`QUAD_PHRT_MASK` (a line or two a note, not copied); the other engines' `note_on` (P5, VA, CZ-1, FM6) are called
+through `engine_t` and stay in flash; `events_block` / `engine_block`'s loop over the waiting notes is the ISR's
+own body (flash under every switch). The same code: `tools/ram_code.py cmp` against `CR_RAM_NOTE=0` (whose listing
+is df70460's byte for byte): 22 moved, 0 functions differ (`quad_note_on` gains a `nop` after its return: the
+section's alignment), 11 veneers. Host and emulator builds never see the switch: the goldens are unchanged. RAMTEXT
+16,120 -> 21,660 of 24,576 (2,916 B left), XIP 556,036 -> 556,120 (the veneers), RAM and POOL unchanged; the
+single-core package and `BOARD=smk37` build (RAMTEXT 21,468 / 21,816). What it saves on the unit is not known until
+measured (no tool here weighs XIP against RAM): the C64 EP tick's excess over WOBBLE (~125 us) is mostly this code's
+second pass, and WOBBLE's tick runs its first pass, so both should drop if the 8 x is the flash's stalls.

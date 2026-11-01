@@ -85,10 +85,11 @@ SMK_DATA_FAMILY = "CHORAL"          # SMK store owner tag (storage.c st_owner_ch
 SMK_DATA_UNTAGGED_OK = 0            # an untagged SMK store is another firmware's: cleared (FELUCCA_DATA_UNTAGGED_OK)
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/choralroot.c)
 RAMTEXT_LEN, RAMTEXT_SPARE = 0x6000, 512            # firmware/app.ld RAMTEXT; what a build must leave of it
-RAM_SWITCHES = ("CR_RAM_FX", "CR_RAM_MASTER", "CR_RAM_CORE", "CR_RAM_CZ", "CR_RAM_VA", "CR_RAM_FM6")
+RAM_SWITCHES = ("CR_RAM_FX", "CR_RAM_MASTER", "CR_RAM_CORE", "CR_RAM_CZ", "CR_RAM_VA", "CR_RAM_FM6", "CR_RAM_NOTE")
 # on in a device build unless set to 0: CR_RAM_VA since 3y177 (the unit, the VA chord shared between the cores: the
-# block 2389 -> 2103 us, no late half and no shed while recording; docs/VA.md "Two cores")
-RAM_DEFAULT_ON = ("CR_RAM_VA",)
+# block 2389 -> 2103 us, no late half and no shed while recording; docs/VA.md "Two cores"); CR_RAM_NOTE since 3y216 (the
+# tick's note path: a long release steals all 8 voices at every chord change, each note through it twice)
+RAM_DEFAULT_ON = ("CR_RAM_VA", "CR_RAM_NOTE")
 
 
 def ram_on(flag):

@@ -1096,7 +1096,7 @@ static uint32_t quad_phrt_mask(const quad_voice_t *s, const int16_t *p, uint32_t
     return mask;
 }
 
-static void quad_note_on(track_t *t, voice_t *v)
+CR_HOT_NOTE static void quad_note_on(track_t *t, voice_t *v)
 {
     quad_voice_t *s = quad_voice(t, v);
     const int16_t *p;
