@@ -1566,10 +1566,16 @@ More: [FM6.md](FM6.md).
 | Group | Screens |
 | --- | --- |
 | OSC | (1) `SYN 1`, under a drawing of the algorithm: Algo · Ratio C · Ratio A · Ratio B, and Harm · Dtune · Feedback · Mix. (2) `SYN 2`: Offset C · Offset A · Offset B1 · Offset B2 |
-| FILT | (1) `FILTER`, under the filter curve: Attack · Decay · Sustain · Release (the filter's envelope), and Freq · Reso · Type · Env depth. (2) `FILTER 2`: Env delay · Key track, and Base · Width |
+| FILT | (1) `FILTER`, under the filter curve: Attack · Decay · Sustain · Release (the filter's envelope), and Freq · Reso · Type · Env depth. (2) `FILTER 2`: Env delay · Key track · Shape · Gain, and Base · Width · BW route |
 | ENV | (1) `ENV A/B`, the two operator envelopes: Attack · Decay · End · Level for A and for B. (2) `ENV 2`: Delay · Trig · Reset for A and B, Phase, Velocity. (3) `ENV 3`: A Key · B1 Key · B2 Key. (4) `AMP`: Attack · Decay · Sustain · Release, and Level · Pan · Drive (0 to 127, saved with the sound, heard with FX off too) · Route (`POST`: the drive works on the part's whole sound after the voices, as before; `PRE`: every note is driven on its own, before the filter, as on the Digitone: a chord stays clean between its notes, the filter shapes the grit and a fading note keeps it; an imported Digitone sound with Drive comes as PRE) |
 | LFO | three screens, `LFO 1` to `LFO 3`: Speed · Mult · Fade · Dest, and Wave · Phase · Trig · Depth |
 | MOD | four fixed routes with an Amount each: ENV to FILT, ENV to PITCH, ENV to SHAPE, LFO to AMP |
+
+**Filter types.** Type has eight: OFF, LP12, HP12, LP24, and four from the Digitone II: **MULTI** (low-pass at Shape 0,
+band-pass at 64, high-pass at 127, morphing in between), **COMB+** and **COMB-** (a tuned resonator: Freq is its pitch,
+Reso its feedback, Shape its damping; COMB- has only the odd harmonics), **EQ** (a bell at Freq: Shape its width, Gain
+its boost or cut, -18 to +18 dB). **BW route** puts the Base / Width filter before the main filter (PRE, as before) or
+after it (POST). Hold SEL to pick the type from a list.
 
 Ratio B is two values in one cell: a click steps the upper one (B2), a click with SHIFT the lower one (B1); the top
 line then reads `snap · B1`. More: [QUAD.md](QUAD.md) (the engine's working name was QUAD).

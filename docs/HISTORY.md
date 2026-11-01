@@ -6639,3 +6639,15 @@ inline = `EMU_C1=thread` bit for bit; the emulator's estimate (device us a half,
 budget, as before). The 317 goldens unchanged. **Not measured on the unit** (no flashing in this session): by FM6's
 3y187 readings (part0 1524 -> 1023 us, the worst half -456 us) FM TONE's 8-voice worst half should fall by a similar
 300 .. 500 us, which more than pays for DRIVE PRE. Size: XIP 550,532 B (+16).
+
+3y207. **FM TONE's filter machines MULTI and EQ, and the base-width after the filter** (FIZZ's E2; the owner: "they
+sound quite a bit better with FIZZ's engine"). TYPE now 0..7: OFF LP12 HP12 LP24 MULTI COMB+ COMB- EQ (version 6's
+FTYPE; the combs run MULTI until 3y208, as FIZZ's do when no line is free). MULTI morphs the SVF's LP / BP / HP by
+SHAPE, EQ is a bell at FREQ (SHAPE its Q, GAIN -18 .. +17.7 dB): `quad_machine`, the SVF's arithmetic in
+`quad_svf_tick`, FIZZ's tables. BWPOST puts the base-width poles after the filter (`quad_bw_post`). The free cells
+(no page inserted): FILT 2 Shape and Gain, FILT 2+ BW route; the SEL picker lists the eight; the band draws MULTI by
+its SHAPE (EQ and the combs flat). docs/QUAD.md "The filter machines", docs/MANUAL.md (FM TONE). Goldens: 317
+unchanged, `tests/quad_goldens` unchanged (TYPE 0..3 untouched). Tests: `cr_quad_test t_machines` (FIZZ's checks:
+MULTI 0 / 127 = LP12 / HP12 within 1 LSB; EQ within 0.3 dB of its table at four gains; BWPOST; no overflow at the
+extremes). Web: `DN_QUAD_RANGES` FTYPE 0..7 (= the firmware's), a Digitone 1 type clamped to 0..3. Size: XIP 552,196 B
+(+1,664).

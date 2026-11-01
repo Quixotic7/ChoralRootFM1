@@ -371,6 +371,19 @@ the patch's FREQ / RESO a block (the last 7 hundredths at once, ~7 ms for a dete
 so a note whose FREQ and RESO stay put renders as before, sample for sample (no golden moved). `quad_bwk` returns
 the entry for a whole number (BASE 127.00 read one past `QUAD_BW_K` times 0: the same value, without the read).
 
+### The filter machines (2026-10-31, 3y207; COMB 3y208)
+
+FTYPE 4..7 (version 6): MULTI, COMB+, COMB-, EQ, FIZZ's E2 (`quad_machine`, its tables `QE_EQ_K` / `QE_EQ_G`). They run
+in the multimode SVF's place, always on (no "wide open: off"), the soft knee after them. MULTI: the SVF's LP (v2), BP
+(kd v1) and HP (x - BP - LP) morphed by SHAPE (FILT 2 col 3): 0 = LP12 and 127 = HP12 to the LSB, 64 the band. EQ: a
+peaking bell from the SVF with its own damping k = QE_EQ_K[SHAPE] (Q 0.5 .. 10), y = x + G k v1 (G = QE_EQ_G[GAIN + 64],
+-18 .. +17.7 dB; GAIN FILT 2 col 4). A switch among the SVF types and MULTI / EQ keeps the integrators (no dip in
+ChoralRoot to hide a reset). **BWPOST** (FILT 2+ col 3, `BW RT` PRE / POST): the base-width poles after the filter
+(`quad_bw_post`) instead of before it (a pole switched in or out there steps, as FIZZ's). Tests: `cr_quad_test
+t_machines` (FIZZ's t_machines: MULTI 0 / 127 = LP12 / HP12 within 1 LSB, 64 the band; EQ at -60 -20 +25 +63 within
+0.3 dB of its table; BWPOST; every machine at full resonance with DRIVE 127 PRE: no overflow, the voice ends). The editor's
+filter band draws MULTI by its SHAPE; EQ and the combs flat.
+
 ### Two cores (2026-10-31, 3y206)
 
 FM TONE's chord voices are shared out between the cores as the VA's, FM6's and P5's (`ENG_QUAD.split` 20, fx.c

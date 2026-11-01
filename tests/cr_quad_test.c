@@ -705,6 +705,7 @@ static void t_blob6(void)
         rnd_patch(p);
         for (i = QP_NP5; i < QP_NP; i++)
             p[i] = quad_range(i).def;
+        p[QP_FTYPE] = (int16_t)(p[QP_FTYPE] & 3);   /* (the machines 4..7: version 6) */
         quad_pack(p, b);
         CHECK(b[1] == 5u && quad_unpack(b, q) == 1 && !memcmp(p, q, sizeof p), "v5 patch %u: not version 5", n);
     }
@@ -828,6 +829,109 @@ static void t_drive_pre(void)
     }
     CHECK(quad_bwk(12700) == QUAD_BW_K[127] && quad_bwk(12600) == QUAD_BW_K[126] && quad_bwk(0) == QUAD_BW_K[0],
           "quad_bwk: 127.00 its last entry, no read past it");
+}
+
+/* the filter machines (3y207, FIZZ's E2 and its test_quad t_machines): MULTI at SHAPE 0 / 127 is LP12 / HP12 (to the
+ * LSB: the same SVF), at 64 the band; the EQ's gain at its centre within 0.3 dB of its table; BWPOST the same without a
+ * base-width, another sound with one; every machine at full resonance / gain on a low note: no overflow, the voice ends */
+static int32_t e2_cut_of(double hz) { return (int32_t)(256.0 * 127.0 * log(hz / 30.0) / log(16000.0 / 30.0) + 0.5); }
+static double e2_goertzel(const int32_t *x, uint32_t n, double f)
+{
+    double w = 2.0 * M_PI * f / FS, s0, s1 = 0.0, s2 = 0.0, cw = 2.0 * cos(w);
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        s0 = (double)x[i] + cw * s1 - s2;
+        s2 = s1, s1 = s0;
+    }
+    return sqrt(s1 * s1 + s2 * s2 - cw * s1 * s2) / (double)n;
+}
+/* machine fty alone on a buffer, block by block (as quad_render calls it) */
+static void e2_machine(uint32_t fty, int32_t shape, int32_t gain, const int32_t *in, int32_t *out, uint32_t n, int32_t cut,
+                       int32_t reso)
+{
+    quad_svf_t c;
+    int32_t ic1 = 0, ic2 = 0, kd = 8192 - reso * 3 / 5;
+    uint32_t o;
+    quad_svf_coef(&c, cut, kd);
+    for (o = 0; o + CTL <= n; o += CTL) {
+        memcpy(out + o, in + o, CTL * sizeof *out);
+        quad_machine(fty, out + o, CTL, &c, kd, cut, shape, gain, &ic1, &ic2);
+    }
+}
+static void t_machines(void)
+{
+    enum { NB = 400 };
+    static int32_t a[NB * CTL], b[NB * CTL], in[16384], y[16384];
+    static const uint8_t N48[1] = {48}, N24[1] = {24};
+    int16_t p[QP_NP];
+    uint32_t i, k;
+    int32_t maxd;
+    CHECK(QF_N == 8 && !strcmp(N_QUAD_FTYPE[QF_MULTI], "MULTI") && !strcmp(N_QUAD_FTYPE[QF_EQ], "EQ") &&
+              quad_range(QP_FTYPE).max == QUAD_FT6, "FTYPE 0..7: OFF LP12 HP12 LP24 MULTI COMB+ COMB- EQ");
+    quad_init_patch4(p);
+    p[QP_FREQ] = 6000, p[QP_RESO] = 5000, p[QP_FDEPTH] = 2000;
+    for (i = 0; i < 2u; i++) {
+        p[QP_FTYPE] = (int16_t)(i ? QF_HP12 : QF_LP12);
+        p[QP_FSHAPE] = 0;
+        pre_render(p, 0, N48, 1, NB, a);
+        p[QP_FTYPE] = QF_MULTI;
+        p[QP_FSHAPE] = (int16_t)(i ? 127 : 0);
+        pre_render(p, 0, N48, 1, NB, b);
+        for (maxd = 0, k = 0; k < NB * CTL; k++)
+            maxd = abs(a[k] - b[k]) > maxd ? abs(a[k] - b[k]) : maxd;
+        CHECK(maxd <= 1, "MULTI at %d: %s within 1 LSB (%d)", i ? 127 : 0, i ? "HP12" : "LP12", maxd);
+    }
+    p[QP_FSHAPE] = 64;
+    pre_render(p, 0, N48, 1, NB, b);
+    for (maxd = 0, k = 0; k < NB * CTL; k++)
+        maxd = abs(a[k] - b[k]) > maxd ? abs(a[k] - b[k]) : maxd;
+    CHECK(maxd > 100, "MULTI at 64: the band, not the high-pass (%d)", maxd);
+    {
+        static const int GAINS[4] = {-60, -20, 25, 63};
+        int ok = 1, g;
+        for (g = 0; g < 4; g++) {
+            const double f = 1000.0, want = 20.0 * log10(1.0 + (double)QE_EQ_G[GAINS[g] + 64] / 4096.0);
+            double gi, go, got;
+            for (i = 0; i < 16384u; i++)
+                in[i] = (int32_t)(2000.0 * sin(2.0 * M_PI * f * (double)i / FS));
+            e2_machine(QF_EQ, 60, GAINS[g], in, y, 16384, e2_cut_of(f), 0);
+            gi = e2_goertzel(in + 8192, 8192, f), go = e2_goertzel(y + 8192, 8192, f);
+            got = 20.0 * log10(go / gi);
+            ok &= fabs(got - want) < 0.3;
+            if (getenv("VERBOSE") || fabs(got - want) >= 0.3)
+                printf("    EQ %+d: %.2f dB (its table %.2f)\n", GAINS[g], got, want);
+        }
+        CHECK(ok, "EQ: its gain at its centre within 0.3 dB of its table (-17, -6, +7, +17.7 dB)");
+    }
+    quad_init_patch4(p);                         /* BWPOST: no base-width the same either way; with one, not */
+    p[QP_FREQ] = 7000, p[QP_RESO] = 3000, p[QP_BASE] = 0, p[QP_WIDTH] = 127;
+    pre_render(p, 0, N48, 1, 120, a);
+    p[QP_BWPOST] = 1;
+    pre_render(p, 0, N48, 1, 120, b);
+    CHECK(!memcmp(a, b, 120 * CTL * sizeof a[0]), "BWPOST with no base-width: the same");
+    p[QP_BASE] = 3000, p[QP_WIDTH] = 40, p[QP_BWPOST] = 0;
+    pre_render(p, 0, N48, 1, 120, a);
+    p[QP_BWPOST] = 1;
+    pre_render(p, 0, N48, 1, 120, b);
+    CHECK(memcmp(a, b, 120 * CTL * sizeof a[0]) != 0, "BWPOST with a base-width: after the filter, a different sound");
+    {
+        int m, ok = 1;
+        for (m = QF_MULTI; m <= QF_EQ; m++) {
+            track_t *t = &trk[0];
+            uint32_t n;
+            quad_init_patch4(p);
+            p[QP_FTYPE] = (int16_t)m, p[QP_RESO] = 12700, p[QP_FSHAPE] = (int16_t)(m & 1 ? 127 : 0);
+            p[QP_FGAIN] = 63, p[QP_FDEPTH] = 6399, p[QP_LEVEL] = 127, p[QP_DRPRE] = 1;
+            pre_render(p, 127, N24, 1, NB, a);
+            t->v[0].gate = 0;
+            for (n = 0; n < 8u * FS / CTL && drv_tick(t, a); n++)
+                ;
+            ok &= !t->v[0].active;
+            for (k = 0; k < NB * CTL; k++)
+                ok &= a[k] > -2000000000 && a[k] < 2000000000;
+        }
+        CHECK(ok, "MULTI, COMB+, COMB-, EQ at full resonance / gain, DRIVE 127 PRE, a low note: no overflow, the voice ends");
+    }
 }
 
 /* version 2 (2026-10-08, before the Digitone review) -> 3: every changed meaning */
@@ -2653,6 +2757,7 @@ int main(int argc, char **argv)
     t_switch();
     t_dests();
     t_drive_pre();
+    t_machines();
     if (argc > 1 && !strcmp(argv[1], "cpu"))
         t_cpu();
     printf("cr_quad_test: %d checks, %d failed\n", checks, fails);

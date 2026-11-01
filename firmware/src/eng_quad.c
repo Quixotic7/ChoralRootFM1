@@ -118,7 +118,8 @@ _Static_assert(QP_NP5 == 73 && QP_NP == 83 && QP_RB2 == QUAD_NP_V1 && QP_B2KEY =
 /* the macros P_E0..P_E7: these patch values (RATIO B's is B2's step, the fast hand) */
 static const uint8_t QUAD_MAC[8] = {QP_ALGO, QP_RC, QP_RA, QP_RB2, QP_HARM, QP_DTUN, QP_FDBK, QP_MIX};
 
-enum { QF_OFF, QF_LP12, QF_HP12, QF_LP24, QF_N };                          /* FTYPE */
+enum { QF_OFF, QF_LP12, QF_HP12, QF_LP24,                                  /* FTYPE */
+       QF_MULTI, QF_COMBP, QF_COMBN, QF_EQ, QF_N };                        /* (version 6: FIZZ's machines, E2) */
 enum { QW_TRI, QW_SINE, QW_SQR, QW_SAW, QW_RAMP, QW_EXP, QW_RAND, QW_N };   /* LFO WAVE */
 enum { QT_FREE, QT_TRIG, QT_HOLD, QT_ONE, QT_HALF, QT_N };                 /* LFO TRIG */
 enum { QR_OFF, QR_ALL, QR_C, QR_AB, QR_AB2, QR_N };                        /* PHRT: the operators reset at a note */
@@ -145,7 +146,8 @@ enum {                                                                     /* LF
 };
 #define QD_N_V3A 40u             /* the destinations before 2026-10-14 (an older firmware refuses a blob with more) */
 #define QUAD_NMULT 24u           /* 0..11 x1 .. x2k at the part's BPM, 12..23 the same at 120 BPM */
-static const char *const N_QUAD_FTYPE[QF_N] = {"OFF", "LP12", "HP12", "LP24"};
+static const char *const N_QUAD_FTYPE[QF_N] = {"OFF", "LP12", "HP12", "LP24", "MULTI", "COMB+", "COMB-", "EQ"};
+static const char *const N_QUAD_BWRT[2] = {"PRE", "POST"};    /* base-width: before the filter, after it (BWPOST) */
 static const char *const N_QUAD_WAVE[QW_N] = {"TRI", "SINE", "SQR", "SAW", "RAMP", "EXP", "RAND"};
 static const char *const N_QUAD_TRIG[QT_N] = {"FREE", "TRIG", "HOLD", "ONE", "HALF"};
 static const char *const N_QUAD_PHRT[QR_N] = {"OFF", "ALL", "C", "A+B", "A+B2"};
@@ -210,6 +212,7 @@ static const quad_algo_t QUAD_ALGO[8] = {
 #define QC_ON(l, d) {l, F_ONOFF, 0, 1, d, 0, 0}
 #define QC_PHRT {"PHRT", F_ENUM, 0, QR_N - 1, QR_ALL, N_QUAD_PHRT, 0}
 #define QC_ROUTE {"ROUTE", F_ENUM, 0, 1, 0, N_QUAD_ROUTE, 0}
+#define QC_BWRT {"BW RT", F_ENUM, 0, 1, 0, N_QUAD_BWRT, 0}
 #define QC_FREQ {"FREQ", F_FIX2, 0, 12700, 12700, 0, 0}
 #define QC_FTYPE {"TYPE", F_ENUM, 0, QF_N - 1, QF_LP12, N_QUAD_FTYPE, 0}
 #define QC_DEPTH(l) {l, F_FIX2, -6400, 6399, 0, 0, 0}
@@ -234,8 +237,9 @@ static const eng_page_t QUAD_PAGES[] = {
     {"SYN 2", {QC_OFS("OFS C"), QC_OFS("OFS A"), QC_OFS("OFS B1"), QC_OFS("OFS B2")}},
     {"FILTER", {QC_T("ATK", 0), QC_T("DEC", 64), QC_P("SUS", 0), QC_TI("REL", 64)}},   /* 3  FILTER */
     {"FILTER+", {QC_FREQ, QC_FX("RESO", 0, 12700, 0), QC_FTYPE, QC_DEPTH("DEPTH")}},
-    {"FILT 2", {QC_T("DELAY", 0), QC_P("KTRK", 0), QC_NONE, QC_NONE}},
-    {"FILT 2+", {QC_FX("BASE", 0, 12700, 0), QC_P("WIDTH", 127), QC_NONE, QC_NONE}},
+    {"FILT 2", {QC_T("DELAY", 0), QC_P("KTRK", 0), QC_P("SHAPE", 0), {"GAIN", F_OFS, -64, 63, 0, 0, 0}}},   /* (SHAPE, GAIN:
+                                                  * the machines', version 6) */
+    {"FILT 2+", {QC_FX("BASE", 0, 12700, 0), QC_P("WIDTH", 127), QC_BWRT, QC_NONE}},
     {"ENV A", {QC_T("A ATK", 0), QC_T("A DEC", 32), QC_P("A END", 127), QC_P("A LEV", 0)}},   /* 7  ENV */
     {"ENV B", {QC_T("B ATK", 0), QC_T("B DEC", 32), QC_P("B END", 127), QC_P("B LEV", 0)}},
     {"ENV 2", {QC_T("A DLY", 0), QC_ON("A TRIG", 1), QC_ON("A RESET", 1), QC_PHRT}},
@@ -264,8 +268,8 @@ static const uint8_t QUAD_MAP[NELEM(QUAD_PAGES)][4] = {
     {QP_OFSC, QP_OFSA, QP_OFSB1, QP_OFSB2},
     {QP_FATK, QP_FDEC, QP_FSUS, QP_FREL},
     {QP_FREQ, QP_RESO, QP_FTYPE, QP_FDEPTH},
-    {QP_FDLY, QP_FKTRK, QUAD_X, QUAD_X},
-    {QP_BASE, QP_WIDTH, QUAD_X, QUAD_X},
+    {QP_FDLY, QP_FKTRK, QP_FSHAPE, QP_FGAIN},
+    {QP_BASE, QP_WIDTH, QP_BWPOST, QUAD_X},
     {QP_AATK, QP_ADEC, QP_AEND, QP_ALEV},
     {QP_BATK, QP_BDEC, QP_BEND, QP_BLEV},
     {QP_ADLY, QP_ATRIG, QP_ARST, QP_PHRT},
@@ -1277,6 +1281,101 @@ static void quad_svf_coef(quad_svf_t *c, int32_t cut, int32_t k)
     c->a3 = (int32_t)(a3 >> 5);
 }
 
+/* ---------------------------------------- the filter machines (version 6) --- */
+/* FIZZ's E2 (FMToneSeq quad_ext.c, the owner's; research/FMTONE-DN2-PLAN.md section 4.3), FTYPE 4..7 in the place of
+ * the multimode SVF, the soft knee after it as the SVF's: MULTI (the SVF's LP, BP, HP morphed by SHAPE: 0 LP12, 64
+ * BP, 127 HP12, each to the LSB), EQ (a peaking bell from the SVF: FREQ its centre, SHAPE its Q 0.5 .. 10, GAIN -18 ..
+ * +17.7 dB), COMB+ / COMB- (3y208). The EQ's damping k = 1 / Q (Q12) by SHAPE, its gain 10^(dB / 20) - 1 (Q12) by
+ * GAIN + 64 */
+static const uint16_t QE_EQ_K[128] = {
+    8192, 8001, 7815, 7632, 7454, 7281, 7111, 6945, 6783, 6625, 6471, 6320,
+    6172, 6029, 5888, 5751, 5617, 5486, 5358, 5233, 5111, 4992, 4875, 4762,
+    4651, 4542, 4436, 4333, 4232, 4133, 4037, 3943, 3851, 3761, 3674, 3588,
+    3504, 3423, 3343, 3265, 3189, 3114, 3042, 2971, 2902, 2834, 2768, 2703,
+    2640, 2579, 2519, 2460, 2403, 2347, 2292, 2238, 2186, 2135, 2086, 2037,
+    1989, 1943, 1898, 1854, 1810, 1768, 1727, 1687, 1647, 1609, 1571, 1535,
+    1499, 1464, 1430, 1397, 1364, 1332, 1301, 1271, 1241, 1212, 1184, 1156,
+    1129, 1103, 1077, 1052, 1028, 1004, 980, 958, 935, 913, 892, 871,
+    851, 831, 812, 793, 774, 756, 739, 721, 705, 688, 672, 657,
+    641, 626, 612, 597, 583, 570, 557, 544, 531, 519, 506, 495,
+    483, 472, 461, 450, 440, 429, 419, 410,
+};
+static const int16_t QE_EQ_G[128] = {
+    -3580, -3563, -3546, -3528, -3509, -3490, -3470, -3449, -3428, -3406, -3383, -3360,
+    -3335, -3310, -3285, -3258, -3230, -3202, -3172, -3142, -3111, -3078, -3045, -3010,
+    -2974, -2937, -2899, -2860, -2819, -2777, -2734, -2689, -2643, -2595, -2545, -2494,
+    -2442, -2387, -2331, -2273, -2213, -2151, -2087, -2021, -1953, -1882, -1809, -1734,
+    -1656, -1576, -1493, -1407, -1319, -1227, -1133, -1035, -935, -831, -723, -612,
+    -498, -379, -257, -131, 0, 135, 274, 418, 566, 720, 878, 1042,
+    1211, 1386, 1566, 1753, 1945, 2144, 2349, 2561, 2780, 3007, 3240, 3482,
+    3731, 3989, 4255, 4530, 4814, 5107, 5410, 5723, 6046, 6379, 6724, 7080,
+    7448, 7828, 8220, 8626, 9044, 9477, 9924, 10385, 10862, 11354, 11862, 12387,
+    12930, 13490, 14069, 14667, 15284, 15922, 16581, 17261, 17964, 18690, 19440, 20215,
+    21015, 21841, 22695, 23576, 24487, 25428, 26399, 27403,
+};
+
+/* the SVF's one sample (QUAD_SVF's arithmetic: the integrators ic1 ic2, the band v1, the low v2) */
+static inline void quad_svf_tick(const quad_svf_t *c, int32_t *ic1, int32_t *ic2, int32_t x, int32_t *v1, int32_t *v2)
+{
+    int32_t a = *ic1, b = *ic2, v3 = x - b;
+    *v1 = (c->a1 * a + c->a2 * v3 + ((c->f2 * v3) >> 5) + 4096) >> 13;
+    *v2 = b + ((c->a2 * a + c->a3 * v3 + ((c->f2 * a) >> 5) + 4096) >> 13);
+    *ic1 = clamp(2 * *v1 - a, -150000, 150000);
+    *ic2 = clamp(2 * *v2 - b, -150000, 150000);
+}
+/* MULTI and EQ (the combs: MULTI until 3y208) on n samples of acc: c the SVF's coefficients at the cut and RESO's
+ * damping kd, shape / gain SHAPE and GAIN; the integrators the voice's (a switch among the SVF's types keeps them) */
+static void quad_machine(uint32_t fty, int32_t *acc, uint32_t n, const quad_svf_t *c, int32_t kd, int32_t cut,
+                         int32_t shape, int32_t gain, int32_t *ic1, int32_t *ic2)
+{
+    quad_svf_t ce;
+    const quad_svf_t *cc = c;
+    int32_t k = kd, g = 0, wm = 0, a = *ic1, b = *ic2;
+    uint32_t i;
+    if (fty == QF_EQ) {                          /* the bell: its own damping (SHAPE: Q), GAIN its height */
+        k = QE_EQ_K[shape & 127];
+        quad_svf_coef(&ce, cut, k);
+        cc = &ce;
+        g = QE_EQ_G[clamp(gain + 64, 0, 127)];
+    } else {
+        wm = shape <= 64 ? shape * 512 : (shape - 64) * 32768 / 63;   /* (Q15: LP -> BP, then BP -> HP) */
+    }
+    for (i = 0; i < n; i++) {
+        int32_t v1, v2, x = acc[i], y;
+        quad_svf_tick(cc, &a, &b, x, &v1, &v2);
+        if (fty == QF_EQ) {
+            y = x + (int32_t)(((int64_t)g * ((k * v1) >> 12)) >> 12);
+        } else {
+            int32_t bp = (kd * v1) >> 12, hp = x - bp - v2;
+            y = shape == 0 ? v2 : shape == 127 ? hp
+              : shape <= 64 ? v2 + (int32_t)(((int64_t)(bp - v2) * wm) >> 15)
+                            : bp + (int32_t)(((int64_t)(hp - bp) * wm) >> 15);
+        }
+        acc[i] = soft_knee(clamp(y, -200000, 200000), 16000);
+    }
+    *ic1 = a, *ic2 = b;
+}
+/* BWPOST: the base-width filter (BASE: a one-pole high-pass hpk, BASE + WIDTH: a one-pole low-pass lpk, the voice's
+ * bh / bl) after the multimode filter (FIZZ's quad_ext_bw_post; a pole switched in or out steps: no crossfade here) */
+static void quad_bw_post(quad_voice_t *s, int32_t *acc, uint32_t n, int32_t hpk, int32_t lpk)
+{
+    int32_t bh = s->bh, bl = s->bl;
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        int32_t y = acc[i];
+        if (hpk) {
+            bh += (int32_t)(((int64_t)((y << 8) - bh) * hpk) >> 16);
+            y -= bh >> 8;
+        }
+        if (lpk) {
+            bl += (int32_t)(((int64_t)((y << 8) - bl) * lpk) >> 16);
+            y = bl >> 8;
+        }
+        acc[i] = y;
+    }
+    s->bh = bh, s->bl = bl;
+}
+
 /* the operator outputs: WS the sine (B2 always), WC / WA / WB1 C's, A's, B1's wave (HARM: defined per loop), QM a
  * modulator's output as a phase offset (Q15 -> 2 cycles at full level), QFB the feedback operator's self-modulation
  * (its wave's last two values fb1, fb2: their sum x fbq << 2, 2^32 = a cycle), QLV an output at a level */
@@ -1352,7 +1451,7 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     const int16_t *p;
     int32_t eA, eB, eF, eE, dst[QD_N], A0, A1, dA, a, x, y;
     int32_t hq, dt, mix, ra, rb, cut, kd, reso, gy, gq, dgq, fbq, hf, fdep, base, wid;
-    int32_t la, lb1, lb2, dla, dlb1, dlb2, tl[3], hpk, lpk, svf, fty, fb1, fb2, bh, bl;
+    int32_t la, lb1, lb2, dla, dlb1, dlb2, tl[3], hpk, lpk, svf, fty, fb1, fb2, bh, bl, bwh, bwl;
     uint32_t fon, fon0;
     const int16_t *ha_t = QUAD_HARM[0], *hb_t = QUAD_HARM[0];
     uint32_t p0, p1, p2, p3, i0, i1, i2, i3;
@@ -1537,11 +1636,16 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     reso = clamp(s->rsm + ((dst[QD_RESO] * 12700) >> 15), 0, 12700);
     fty = p[QP_FTYPE];
     svf = fty != QF_OFF && !(fty != QF_HP12 && cut >= (127 << 8) && !reso);   /* LP wide open, no resonance: none */
+    if (fty >= QF_MULTI)                         /* (the machines always run) */
+        svf = 1;
     kd = 8192 - reso * 3 / 5;                    /* (60 a whole step) */
     base = QMV(QP_BASE, QD_BASE, 12700, 0, 12700);
     wid = QMV(QP_WIDTH, QD_WIDTH, 127, 0, 127);
     hpk = base ? quad_bwk(base) : 0;
     lpk = base + wid * 100 < 12700 ? quad_bwk(base + wid * 100) : 0;
+    bwh = hpk, bwl = lpk;
+    if (p[QP_BWPOST])                            /* (BWPOST: the base-width after the filter, quad_bw_post) */
+        hpk = lpk = 0;
     /* the filters running now (fon) and in the last block (fon0): one switched in or out (an envelope or an LFO taking
      * the multimode past its open top, BASE to 0, BASE + WIDTH to the top) runs this block too and crossfades (below) */
     fon = (svf ? 1u : 0u) | (hpk ? 2u : 0u) | (lpk ? 4u : 0u);
@@ -1683,7 +1787,9 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         ic2 = clamp(2 * v2 - ic2, -150000, 150000);                        \
         acc[i] = soft_knee(clamp((Y), -200000, 200000), 16000);            \
     }
-        if (fty == QF_HP12)
+        if (fty >= QF_MULTI)                     /* the machines (version 6) */
+            quad_machine((uint32_t)fty, acc, n, &c, kd, cut, p[QP_FSHAPE], p[QP_FGAIN], &ic1, &ic2);
+        else if (fty == QF_HP12)
             QUAD_SVF(, x - ((kd * v1) >> 12) - v2)
         else if (fty == QF_LP24)
             QUAD_SVF(v3 = x - ic4; v1 = (c2.a1 * ic3 + c2.a2 * v3 + 4096) >> 13;
@@ -1702,6 +1808,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         }
         s->f1 = ic1, s->f2 = ic2, s->f3 = ic3, s->f4 = ic4;
     }
+    if (p[QP_BWPOST] && (bwh | bwl))
+        quad_bw_post(s, acc, n, bwh, bwl);
     /* the amplitude, into the part at the engine's output scale: >> 12, 6 dB under the >> 11 of before 2026-10-16. At
      * the Digitone's levels (VOL 100 .. 127: INIT's 110, a .dnsnd import's own) a sound was 6 dB over the other
      * engines' (tests/va_levels.c loud / dnsnd; docs/QUAD.md "Level"); the factory presets' LEVELs went up by the same
@@ -1786,8 +1894,8 @@ static const eng_screen_t QUAD_SCREENS[] = {
      {{"Offset C", "Offset A", "Offset B1", "Offset B2"}}},
     {1, {3, 4}, ENG_B_FILTER, 1, "FILTER", {{QS_N, QS_N, QS_N, QS_N}, {ENG_C_VAL, QS_N, QS_T, QS_N}},
      {{"Attack", "Decay", "Sustain", "Release"}, {"Freq", "Reso", "Type", "Env depth"}}},
-    {1, {5, 6}, ENG_B_WINDOW, 1, "FILTER 2", {{QS_N, QS_N}, {QS_N, QS_N}},
-     {{"Env delay", "Key track"}, {"Base", "Width"}}},
+    {1, {5, 6}, ENG_B_WINDOW, 1, "FILTER 2", {{QS_N, QS_N, QS_N, QS_N}, {QS_N, QS_N, QS_T}},
+     {{"Env delay", "Key track", "Shape", "Gain"}, {"Base", "Width", "BW route"}}},
     {2, {7, 8}, ENG_B_ADE2, 0, "ENV A/B", {{QS_N, QS_N, QS_N, QS_N}, {QS_N, QS_N, QS_N, QS_N}},
      {{"A Attack", "A Decay", "A End", "A Level"}, {"B Attack", "B Decay", "B End", "B Level"}}},
     {2, {9, 10}, ENG_B_NONE, 0, "ENV 2", {{QS_N, QS_T, QS_T, QS_T}, {QS_N, QS_T, QS_T, QS_N}},

@@ -1657,6 +1657,14 @@ static uint32_t ce_band_plan(const track_t *t, const ce_view_t *vw, uint8_t *o)
                     o[2] = (uint8_t)(nm[0] == 'H' ? 64 : nm[0] == 'B' ? 32 : 0);
                     o[7] = (uint8_t)(cp_eq(nm, "OFF") ? 1 : ln > 2u && nm[ln - 2u] == '1' && nm[ln - 1u] == '2' ? 2
                                      : ln > 2u && nm[ln - 2u] == '2' && nm[ln - 1u] == '4' ? 3 : 0);
+                    if (cp_eq(nm, "MULTI")) {      /* (FM TONE's MULTI: LP -> BP -> HP by its SHAPE, 12 dB) */
+                        int32_t sv;
+                        ce_dget(t, d, a, b, "SHAPE", &sv);
+                        o[2] = (uint8_t)(clamp(sv, 0, 127) * 64 / 127);
+                        o[7] = 2;
+                    } else if (nm[0] == 'E' || nm[0] == 'C') {
+                        o[7] = 1;                  /* (EQ, the combs: drawn flat) */
+                    }
                 }
                 break;
             }
