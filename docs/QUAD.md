@@ -392,6 +392,18 @@ lines once it is off FM TONE); a voice without one runs MULTI, sample for sample
 run at once, and a chord voice on core 1 only uses the line it was given: `cr_c1_thread_test` (COMB+ chord over a COMB-
 bass) inline = thread, ThreadSanitizer 0. Cost: ~+18 us a comb voice (FIZZ's figure).
 
+### AHD and CRUSH (2026-10-31, 3y209)
+
+Two pages appended (20 `AMP 2`, 21 `CRUSH`: the pages before keep their numbers), shown as ENV's fifth screen and
+FILT's third. **AHD** (AMOD 1, FIZZ's E1 `fz_ahd_step` as `quad_ahd`): the amp envelope's ATK to the top on the amp
+attack's table, HOLD (a time on the same table, its progress in `dly[3]`; 127 = while the key is down), then DEC to 0
+on the amp decay's table (127 INF: held, `quad_endless`), the voice ends; SUS and REL unread; a timed HOLD ignores the
+key's end (one-shot). Stages 6 and 7; a switch mid-note maps ADSR's 3 / 4 into them and back. **CRUSH** (FIZZ's E3,
+`quad_crush`): SRR 1..127 a sample and hold at 1 / 1 .. 1 / 64 of the rate (`QE_SRR_INC`, a log table), BITS 1..127
+the sample to 16 .. 1 bits of +-32768 (rounded; 0 stays 0); CRPRE 1 before the filter (after DRIVE PRE), 0 after it
+(after BWPOST); BITS and SRR 0: none. Not LFO destinations (the Digitone's list has none of them). Tests: `cr_quad_test
+t_ahd_crush`.
+
 ### Two cores (2026-10-31, 3y206)
 
 FM TONE's chord voices are shared out between the cores as the VA's, FM6's and P5's (`ENG_QUAD.split` 20, fx.c

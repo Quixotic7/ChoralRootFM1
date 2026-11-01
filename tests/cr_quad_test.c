@@ -354,9 +354,10 @@ static const char *rb_txt(int32_t v)
 static void t_pages(void)
 {
     uint32_t pg, c, i, used[QP_NP] = {0};
-    static const char *const TITLES[20] = {"SYN 1", "SYN 1+", "SYN 2", "FILTER", "FILTER+", "FILT 2", "FILT 2+", "ENV A",
-        "ENV B", "ENV 2", "ENV 2+", "ENV 3", "AMP", "AMP+", "LFO 1", "LFO 1+", "LFO 2", "LFO 2+", "LFO 3", "LFO 3+"};
-    CHECK(QUAD_DEEP.npages == 20u, "pages %u", QUAD_DEEP.npages);
+    static const char *const TITLES[22] = {"SYN 1", "SYN 1+", "SYN 2", "FILTER", "FILTER+", "FILT 2", "FILT 2+", "ENV A",
+        "ENV B", "ENV 2", "ENV 2+", "ENV 3", "AMP", "AMP+", "LFO 1", "LFO 1+", "LFO 2", "LFO 2+", "LFO 3", "LFO 3+",
+        "AMP 2", "CRUSH"};
+    CHECK(QUAD_DEEP.npages == 22u, "pages %u", QUAD_DEEP.npages);
     CHECK(QUAD_DEEP.section[0] == 0 && QUAD_DEEP.section[1] == 3 && QUAD_DEEP.section[2] == 7 &&
               QUAD_DEEP.section[3] == 14 && QUAD_DEEP.section[4] == 0xFF, "sections");
     for (pg = 0; pg < QUAD_NPAGES; pg++) {
@@ -396,7 +397,7 @@ static void t_pages(void)
         }
     }
     for (i = 0; i < QP_NP; i++)
-        CHECK(i < QP_NP5 ? used[i] == 1u : used[i] <= 1u, "patch value %u on %u page columns", i, used[i]);
+        CHECK(used[i] == (i == QP_SENDS ? 0u : 1u), "patch value %u on %u page columns", i, used[i]);
     for (i = 0; i < 8u; i++) {                   /* the macros = SYN 1's eight, as ENG_QUAD.edit */
         const param_desc_t *d = &QUAD_PAGES[i >> 2].col[i & 3u], *e = &ENG_QUAD.edit[i];
         CHECK(QUAD_MAP[i >> 2][i & 3u] == i && (i == 3u ? QUAD_MAC[i] == QP_RB2 : QUAD_MAC[i] == i),
@@ -1061,6 +1062,90 @@ static void t_combs(void)
             k &= b[i] > -2000000000 && b[i] < 2000000000;
         CHECK(k && quad_vs[0][0].cline, "COMB+ with its line, RESO 127.00, DRIVE 127: no overflow");
         memset(qe_by, 0, sizeof qe_by);
+    }
+}
+
+/* AHD and CRUSH (3y209, FIZZ's E1 / E3 and its test_quad checks): AHD's attack, timed HOLD (one-shot: the key's end
+ * unread) and decay on the amp tables, the voice ends; HOLD NOTE at the top while the key is down; DEC INF endless; a
+ * switch back to ADSR mid-note; CRUSH: SRR holds a value N samples, BITS rounds to 2^(16 - b) steps, both 0 none, before
+ * or after the filter different sounds */
+static void t_ahd_crush(void)
+{
+    track_t *t = &trk[0];
+    int16_t p[QP_NP];
+    int32_t o[CTL];
+    uint32_t n, na = 0, nh = 0, nd = 0, i;
+    quad_voice_t *s = &quad_vs[0][0];
+    quad_init_patch4(p);
+    p[QP_AMOD] = 1, p[QP_EATK] = 20, p[QP_HOLD] = 40, p[QP_EDEC] = 40, p[QP_ESUS] = 0;
+    drv_reset(t);
+    drv_patch4(t, p);
+    drv_on(t, 0, 60, 127);
+    for (n = 0; n < 20000u && s->stage[3] == 2u; n++, na++)
+        drv_tick(t, o);
+    t->v[0].gate = 0;                            /* (the key up in a timed HOLD: nothing) */
+    for (; n < 20000u && s->stage[3] == 6u; n++, nh++)
+        drv_tick(t, o);
+    for (; n < 40000u && t->v[0].active; n++, nd++)
+        drv_tick(t, o);
+    {
+        uint32_t wa = ((1u << 24) + QUAD_T_AATK[20] - 1u) / QUAD_T_AATK[20], wh = ((1u << 24) + QUAD_T_AATK[40] - 1u) / QUAD_T_AATK[40];
+        CHECK(na + 1u >= wa && na <= wa + 1u && nh + 1u >= wh && nh <= wh + 1u && nd > 0u && !t->v[0].active,
+              "AHD: ATK 20 %u ticks (want %u), HOLD 40 %u (want %u, the key up meanwhile), DEC 40 %u, the voice ends", na, wa,
+              nh, wh, nd);
+    }
+    p[QP_HOLD] = 127, p[QP_EDEC] = 127;          /* HOLD NOTE, DEC INF */
+    drv_reset(t);
+    drv_patch4(t, p);
+    drv_on(t, 0, 60, 127);
+    for (n = 0; n < 2u * FS / CTL; n++)
+        drv_tick(t, o);
+    CHECK(s->stage[3] == 6u && s->env[3] == 1 << 24, "HOLD NOTE: at the top 2 s on (stage %u)", s->stage[3]);
+    t->v[0].gate = 0;
+    for (n = 0; n < FS / CTL; n++)
+        drv_tick(t, o);
+    CHECK(s->stage[3] == 7u && s->env[3] == 1 << 24 && quad_endless(t, &t->v[0]) && t->v[0].active,
+          "HOLD NOTE released: the decay, DEC INF holds it (endless)");
+    quad_patch[0][QP_AMOD] = 0;                  /* back to ADSR mid-note: AHD's decay is ADSR's release */
+    drv_tick(t, o);
+    CHECK(s->stage[3] == 4u || s->stage[3] == 0u, "AHD -> ADSR mid-note: the release (stage %u)", s->stage[3]);
+    {   /* CRUSH on a ramp: SRR 127 holds each value 64 samples (1 / 64 of the rate), BITS 127 (1 bit): -32768 0 +32768 */
+        static int32_t r[4096], q[4096];
+        quad_voice_t cs;
+        uint32_t ch = 0, bad = 0;
+        for (i = 0; i < 4096u; i++)
+            r[i] = (int32_t)i * 16 - 32768;
+        memset(&cs, 0, sizeof cs);
+        memcpy(q, r, sizeof q);
+        for (i = 0; i < 4096u; i += CTL)
+            quad_crush(&cs, 0, 127, q + i, CTL);
+        for (i = 1; i < 4096u; i++)
+            ch += q[i] != q[i - 1];
+        CHECK(ch >= 62u && ch <= 64u, "SRR 127: %u new values in 4096 samples (1 / 64)", ch);
+        memset(&cs, 0, sizeof cs);
+        memcpy(q, r, sizeof q);
+        for (i = 0; i < 4096u; i += CTL)
+            quad_crush(&cs, 127, 0, q + i, CTL);
+        for (i = 0; i < 4096u; i++)
+            bad += q[i] != -32768 && q[i] != 0 && q[i] != 32768;
+        CHECK(!bad, "BITS 127: one bit, -32768 0 +32768 (%u others)", bad);
+        memset(&cs, 0, sizeof cs);
+        memcpy(q, r, sizeof q);
+        for (i = 0; i < 4096u; i += CTL)
+            quad_crush(&cs, 64, 0, q + i, CTL);
+        for (i = bad = 0; i < 4096u; i++)
+            bad += q[i] % 128 != 0;
+        CHECK(!bad, "BITS 64: 9 bits, steps of 128 (%u off)", bad);
+    }
+    {
+        static int32_t a[100 * CTL], b[100 * CTL];
+        static const uint8_t N1[1] = {48};
+        quad_init_patch4(p);
+        p[QP_FREQ] = 5000, p[QP_RESO] = 4000, p[QP_BITS] = 100, p[QP_SRR] = 60;
+        pre_render(p, 0, N1, 1, 100, a);
+        p[QP_CRPRE] = 1;
+        pre_render(p, 0, N1, 1, 100, b);
+        CHECK(memcmp(a, b, sizeof a) != 0, "CRUSH before the filter: another sound than after it");
     }
 }
 
@@ -2889,6 +2974,7 @@ int main(int argc, char **argv)
     t_drive_pre();
     t_machines();
     t_combs();
+    t_ahd_crush();
     if (argc > 1 && !strcmp(argv[1], "cpu"))
         t_cpu();
     printf("cr_quad_test: %d checks, %d failed\n", checks, fails);

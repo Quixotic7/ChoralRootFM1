@@ -6664,3 +6664,16 @@ harmonic, 8 voices 8 lines and the other part's comb voice MULTI, a line given b
 frees its line, no line = MULTI's samples, full resonance with DRIVE 127: no overflow); `cr_c1_thread_test` 25 pairs
 (+1: COMB+ chord over a COMB- bass; inline = thread = unsplit; ThreadSanitizer 0). Size: XIP 553,876 B (+1,680), POOL
 327,212 of 344,064 (+16,576: 16.5 KB spare).
+
+3y209. **FM TONE's AHD amp envelope and CRUSH** (FIZZ's E1 AHD and E3; the last of the engine values version 6
+carries). AHD: attack, a hold (a time or NOTE: while the key is down), a decay to 0, on the Digitone's amp tables
+(`quad_ahd`, FIZZ's `fz_ahd_step`); a switch mid-note keeps the level. CRUSH: bit reduction (16 .. 1 bits) and a
+sample-rate reduction (1 / 1 .. 1 / 64), before or after the filter (`quad_crush`). No free cell was left for five
+values, so two pages are APPENDED (20 `AMP 2`: Amp mode, Hold; 21 `CRUSH`: Bits, Rate, Route), each a screen of its
+own at the end of ENV and FILT; the twenty pages before keep their numbers (layouts, the web editor, CC maps). Every
+version-6 value but SENDS is now on exactly one page column (`cr_quad_test t_pages`). Mod slots and FIZZ's
+portamento are not ported (the brief: Digitone II mod records and PORT go to ChoralRoot's mod.c and part glide in the
+web importer). docs/QUAD.md "AHD and CRUSH", docs/MANUAL.md (FM TONE's screens). Goldens: 317 unchanged. Tests:
+`cr_quad_test t_ahd_crush` (ATK 20 / HOLD 40 / DEC 40 on their tables, the key up in a timed hold changes nothing, the
+voice ends; HOLD NOTE at the top 2 s, DEC INF endless; AHD -> ADSR mid-note; SRR 127 = 64 new values in 4096; BITS 127
+one bit, BITS 64 steps of 128; CRUSH PRE and POST differ). Size: XIP 555,188 B (+1,312; 18,252 B free).

@@ -147,7 +147,8 @@ enum {                                                                     /* LF
 #define QD_N_V3A 40u             /* the destinations before 2026-10-14 (an older firmware refuses a blob with more) */
 #define QUAD_NMULT 24u           /* 0..11 x1 .. x2k at the part's BPM, 12..23 the same at 120 BPM */
 static const char *const N_QUAD_FTYPE[QF_N] = {"OFF", "LP12", "HP12", "LP24", "MULTI", "COMB+", "COMB-", "EQ"};
-static const char *const N_QUAD_BWRT[2] = {"PRE", "POST"};    /* base-width: before the filter, after it (BWPOST) */
+static const char *const N_QUAD_BWRT[2] = {"PRE", "POST"};
+static const char *const N_QUAD_AMOD[2] = {"ADSR", "AHD"};    /* the amp envelope's mode (version 6) */    /* base-width: before the filter, after it (BWPOST) */
 static const char *const N_QUAD_WAVE[QW_N] = {"TRI", "SINE", "SQR", "SAW", "RAMP", "EXP", "RAND"};
 static const char *const N_QUAD_TRIG[QT_N] = {"FREE", "TRIG", "HOLD", "ONE", "HALF"};
 static const char *const N_QUAD_PHRT[QR_N] = {"OFF", "ALL", "C", "A+B", "A+B2"};
@@ -253,13 +254,18 @@ static const eng_page_t QUAD_PAGES[] = {
     {"LFO 2+", {QC_WAVE, QC_P("PHASE", 0), QC_LTRIG, QC_DEPTH("DEPTH")}},
     {"LFO 3", {QC_SPEED, QC_MULT, QC_FADE, QC_DEST}},
     {"LFO 3+", {QC_WAVE, QC_P("PHASE", 0), QC_LTRIG, QC_DEPTH("DEPTH")}},
+    /* appended 2026-10-31 (version 6; the pages before keep their numbers: layouts, the web editor, the CC map) */
+    {"AMP 2", {{"MODE", F_ENUM, 0, 1, 0, N_QUAD_AMOD, 0}, QC_TI("HOLD", 127), QC_NONE, QC_NONE}},   /* 20: AHD */
+    {"CRUSH", {QC_P("BITS", 0), QC_P("SRR", 0), QC_ROUTE, QC_NONE}},    /* 21: CRUSH, its ROUTE (POST after the filter) */
 };
 #define QUAD_NPAGES ((uint32_t)NELEM(QUAD_PAGES))
 #define QUAD_PG_OSC 0u
 #define QUAD_PG_FILTER 3u
 #define QUAD_PG_ENV 7u
 #define QUAD_PG_LFO 14u
-_Static_assert(NELEM(QUAD_PAGES) == 20, "QUAD pages");
+#define QUAD_PG_AMP2 20u
+#define QUAD_PG_CRUSH 21u
+_Static_assert(NELEM(QUAD_PAGES) == 22, "QUAD pages");
 #define QUAD_LPG(k) {QP_LFO(k, QL_SPEED), QP_LFO(k, QL_MULT), QP_LFO(k, QL_FADE), QP_LFO(k, QL_DEST)}, \
                     {QP_LFO(k, QL_WAVE), QP_LFO(k, QL_PHASE), QP_LFO(k, QL_TRIG), QP_LFO(k, QL_DEPTH)}
 static const uint8_t QUAD_MAP[NELEM(QUAD_PAGES)][4] = {
@@ -278,6 +284,8 @@ static const uint8_t QUAD_MAP[NELEM(QUAD_PAGES)][4] = {
     {QP_EATK, QP_EDEC, QP_ESUS, QP_EREL},
     {QP_LEVEL, QUAD_XPAN, QUAD_XDIST, QP_DRPRE},
     QUAD_LPG(0), QUAD_LPG(1), QUAD_LPG(2),
+    {QP_AMOD, QP_HOLD, QUAD_X, QUAD_X},
+    {QP_BITS, QP_SRR, QP_CRPRE, QUAD_X},
 };
 
 /* the range and the init value of patch value i: the page column that shows it (every value is on one page; B1 and
@@ -424,6 +432,8 @@ typedef struct {
                                                   * the block to this block's */
     int16_t fsm, rsm;                            /* FREQ and RESO as the filter runs them (quad_glide_v, FIZZ's P2.6b) */
     int32_t dh, dl1, dl2;                        /* DRIVE before the filter (QP_DRPRE): the voice's DIST (dsp.c) */
+    uint32_t crph;                               /* CRUSH: SRR's phase, the value it holds */
+    int32_t crheld;
     uint8_t cline, cfresh;                       /* COMB: the line lent to it + 1 (0 none: MULTI; quad_comb_lend), its
                                                   * line from rest at the next render */
     uint16_t cw;                                 /* .. the line's write place */
@@ -1075,6 +1085,7 @@ static void quad_note_on(track_t *t, voice_t *v)
         s->bh = s->bl = 0;
         s->dc = 0;
         s->dh = s->dl1 = s->dl2 = 0;
+        s->crph = 0, s->crheld = 0;
         s->cfresh = 1;                           /* (a comb from rest) */
         s->fon = QUAD_FON_NEW;
         s->mixp = QUAD_MIX_NEW;
@@ -1176,6 +1187,55 @@ static int32_t quad_env_tick(quad_voice_t *s, uint32_t k, int32_t atk, int32_t d
     return x >> 9;
 }
 
+/* AHD (version 6's AMOD 1, FIZZ's E1 fz_ahd_step): the amp envelope's ATK to 1 (the amp attack's table), a HOLD (a
+ * time on the same table: dly[3] its progress, the amp has no DELAY; 127 NOTE: while the key is down), then DEC to 0
+ * (the amp decay's table; 127 INF: held) and the voice ends; SUS and REL unread, the key's end unread in a timed HOLD
+ * (one-shot). Stages 6 hold, 7 decay; ADSR's met at a switch mid-note (its decay / sustain the hold, its release the
+ * decay; back to ADSR: 6 -> 3, 7 -> 4). Q15 */
+static int32_t quad_ahd(quad_voice_t *s, int32_t atk, int32_t hold, int32_t dec, int gate)
+{
+    int32_t x = s->env[3];
+    if (s->stage[3] == 3u)
+        s->stage[3] = 6, s->dly[3] = 0;
+    else if (s->stage[3] == 1u)
+        s->stage[3] = 2, s->dly[3] = 0;
+    else if (s->stage[3] == 4u || s->stage[3] == 5u)
+        s->stage[3] = 7;
+    switch (s->stage[3]) {
+    case 2:
+        x += (int32_t)QUAD_T_AATK[atk & 127];
+        if (x >= (1 << 24)) {
+            x = 1 << 24;
+            s->stage[3] = 6, s->dly[3] = 0;
+        }
+        break;
+    case 6:
+        if (hold >= 127) {
+            if (!gate)
+                s->stage[3] = 7;
+        } else {
+            s->dly[3] += QUAD_T_AATK[hold & 127];
+            if (s->dly[3] >= (1u << 24))
+                s->stage[3] = 7;
+        }
+        break;
+    case 7:
+        if (dec < 127) {
+            x -= (int32_t)(((int64_t)x * QUAD_T_ADEC[dec & 127] + 0xFFFFFF) >> 24);
+            if (x < 4096) {
+                x = 0;
+                s->stage[3] = 0;
+            }
+        }
+        break;
+    default:
+        x = 0;
+        break;
+    }
+    s->env[3] = x;
+    return x >> 9;
+}
+
 static int quad_done(track_t *t, voice_t *v)    /* the amp envelope has ended (voice.c, engine_t.done) */
 {
     quad_voice_t *s = quad_voice(t, v);
@@ -1193,6 +1253,8 @@ static int quad_endless(const track_t *t, const voice_t *v)
 {
     uint32_t tr = quad_tr(t), i = (uint32_t)(v - t->v);
     const quad_voice_t *s = tr < QUAD_NPART && i < QUAD_POLY ? &quad_vs[tr][i] : 0;
+    if (s && quad_patch[tr][QP_AMOD])            /* (AHD: its DEC at INF holds the level for ever) */
+        return s->live && s->stage[3] && quad_patch[tr][QP_EDEC] >= 127;
     return s && s->live && s->stage[3] && (quad_patch[tr][QP_EREL] >= 127 || s->stage[3] == 5u);
 }
 
@@ -1453,6 +1515,50 @@ static void quad_machine(uint32_t fty, int32_t *acc, uint32_t n, const quad_svf_
     }
     *ic1 = a, *ic2 = b;
 }
+/* CRUSH (version 6, FIZZ's E3): SRR a sample and hold (a new value when its phase wraps: 1 / N of the rate, N 1..64 on
+ * a log table by SRR 1..127), BITS the sample to b bits of +-32768 (b 16 .. 1 over BITS 1..127, rounded; 0 stays 0);
+ * CRPRE 1 before the filter, 0 after it; both 0: none */
+static const uint32_t QE_SRR_INC[128] = {
+    0u, 4156597496u, 4022685519u, 3893087748u, 3767665193u, 3646283343u, 3528812018u, 3415125236u,
+    3305101070u, 3198621523u, 3095572399u, 2995843180u, 2899326911u, 2805920080u, 2715522512u, 2628037257u,
+    2543370492u, 2461431413u, 2382132143u, 2305387636u, 2231115586u, 2159236339u, 2089672806u, 2022350382u,
+    1957196867u, 1894142385u, 1833119312u, 1774062203u, 1716907721u, 1661594569u, 1608063426u, 1556256882u,
+    1506119375u, 1457597134u, 1410638122u, 1365191975u, 1321209954u, 1278644891u, 1237451134u, 1197584506u,
+    1159002250u, 1121662988u, 1085526674u, 1050554555u, 1016709123u, 983954080u, 952254298u, 921575779u,
+    891885621u, 863151983u, 835344050u, 808431996u, 782386961u, 757181012u, 732787116u, 709179112u,
+    686331680u, 664220318u, 642821312u, 622111712u, 602069307u, 582672603u, 563900797u, 545733758u,
+    528152001u, 511136671u, 494669519u, 478732885u, 463309677u, 448383354u, 433937909u, 419957849u,
+    406428181u, 393334394u, 380662446u, 368398747u, 356530144u, 345043909u, 333927723u, 323169664u,
+    312758194u, 302682148u, 292930719u, 283493449u, 274360217u, 265521228u, 256967003u, 248688366u,
+    240676441u, 232922633u, 225418627u, 218156376u, 211128091u, 204326235u, 197743512u, 191372863u,
+    185207455u, 179240676u, 173466128u, 167877617u, 162469149u, 157234924u, 152169329u, 147266931u,
+    142522472u, 137930864u, 133487183u, 129186662u, 125024691u, 120996804u, 117098683u, 113326146u,
+    109675148u, 106141774u, 102722233u, 99412859u, 96210101u, 93110527u, 90110810u, 87207734u,
+    84398186u, 81679153u, 79047718u, 76501059u, 74036445u, 71651233u, 69342864u, 67108864u,
+};
+static void quad_crush(quad_voice_t *s, int32_t bits, int32_t srr, int32_t *acc, uint32_t n)
+{
+    const uint32_t inc = srr ? QE_SRR_INC[srr & 127] : 0u;
+    const int32_t sh = bits ? 16 - (16 - (bits - 1) * 15 / 126) : 0;
+    uint32_t ph = s->crph, i;
+    int32_t held = s->crheld;
+    for (i = 0; i < n; i++) {
+        int32_t y = acc[i];
+        if (inc) {
+            const uint32_t np = ph + inc;
+            if (np <= ph)
+                held = y;
+            ph = np;
+            y = held;
+        }
+        if (sh) {
+            y = clamp(y, -32768, 32767);
+            y = ((y + (1 << (sh - 1))) >> sh) << sh;
+        }
+        acc[i] = y;
+    }
+    s->crph = ph, s->crheld = held;
+}
 /* BWPOST: the base-width filter (BASE: a one-pole high-pass hpk, BASE + WIDTH: a one-pole low-pass lpk, the voice's
  * bh / bl) after the multimode filter (FIZZ's quad_ext_bw_post; a pole switched in or out steps: no crossfade here) */
 static void quad_bw_post(quad_voice_t *s, int32_t *acc, uint32_t n, int32_t hpk, int32_t lpk)
@@ -1644,8 +1750,14 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     eF = quad_env_tick(s, 2, QMV(QP_FATK, QD_FATK, 127, 0, 127), QMV(QP_FDEC, QD_FDEC, 127, 0, 127),
                        QMV(QP_FSUS, QD_FSUS, 127, 0, 127) << 17, QMV(QP_FREL, QD_FREL, 127, 0, 127),
                        QMV(QP_FDLY, QD_FDLY, 127, 0, 127), v->gate, 1);
-    eE = quad_env_tick(s, 3, QMV(QP_EATK, QD_EATK, 127, 0, 127), QMV(QP_EDEC, QD_EDEC, 127, 0, 127),
-                       QMV(QP_ESUS, QD_ESUS, 127, 0, 127) << 17, QMV(QP_EREL, QD_EREL, 127, 0, 127), 0, v->gate, 1);
+    if (p[QP_AMOD]) {                            /* AHD (version 6) */
+        eE = quad_ahd(s, QMV(QP_EATK, QD_EATK, 127, 0, 127), p[QP_HOLD], QMV(QP_EDEC, QD_EDEC, 127, 0, 127), v->gate);
+    } else {
+        if (s->stage[3] >= 6u)                   /* (back from AHD mid-note) */
+            s->stage[3] = s->stage[3] == 6u ? 3u : 4u;
+        eE = quad_env_tick(s, 3, QMV(QP_EATK, QD_EATK, 127, 0, 127), QMV(QP_EDEC, QD_EDEC, 127, 0, 127),
+                           QMV(QP_ESUS, QD_ESUS, 127, 0, 127) << 17, QMV(QP_EREL, QD_EREL, 127, 0, 127), 0, v->gate, 1);
+    }
     if (v - t->v == t->m_vi)                     /* the part's PAN: from the latest note's voice */
     {
         quad_pan_off[tr] = (int8_t)clamp((dst[QD_PAN] * 64) >> 15, -64, 63);
@@ -1858,6 +1970,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         if (dr)
             dsp_dist(&s->dh, &s->dl1, &s->dl2, dr, acc, n);
     }
+    if ((p[QP_BITS] || p[QP_SRR]) && p[QP_CRPRE])   /* CRUSH before the filter */
+        quad_crush(s, p[QP_BITS], p[QP_SRR], acc, n);
     /* the multimode SVF, a loop per type (LP12 v2, HP12 x - kd v1 - v2, LP24 a plain LP12 then the resonant one; the
      * products rounded: truncation's bias, integrated, was DC), the soft knee after it. Switched in (its envelope or
      * an LFO bringing a wide-open LP down): its states start at the input (the LP's at the input, the band's at 0)
@@ -1910,6 +2024,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     }
     if (p[QP_BWPOST] && (bwh | bwl))
         quad_bw_post(s, acc, n, bwh, bwl);
+    if ((p[QP_BITS] || p[QP_SRR]) && !p[QP_CRPRE])  /* CRUSH after it */
+        quad_crush(s, p[QP_BITS], p[QP_SRR], acc, n);
     /* the amplitude, into the part at the engine's output scale: >> 12, 6 dB under the >> 11 of before 2026-10-16. At
      * the Digitone's levels (VOL 100 .. 127: INIT's 110, a .dnsnd import's own) a sound was 6 dB over the other
      * engines' (tests/va_levels.c loud / dnsnd; docs/QUAD.md "Level"); the factory presets' LEVELs went up by the same
@@ -2004,6 +2120,9 @@ static const eng_screen_t QUAD_SCREENS[] = {
     {2, {12, 13}, ENG_B_ENV, 1, "AMP", {{QS_N, QS_N, QS_N, QS_N}, {QS_N, QS_N, QS_N, QS_T}},
      {{"Attack", "Decay", "Sustain", "Release"}, {"Level", "Pan", "Drive", "Route"}}},
     QUAD_LSCR(1), QUAD_LSCR(2), QUAD_LSCR(3),
+    /* appended (version 6): the group's last screens (ENV's fifth, FILT's third) */
+    {2, {QUAD_PG_AMP2, 0xFF}, ENG_B_NONE, 0, "AMP 2", {{QS_T, QS_N}}, {{"Amp mode", "Hold"}}},
+    {1, {QUAD_PG_CRUSH, 0xFF}, ENG_B_NONE, 0, "CRUSH", {{QS_N, QS_N, QS_T}}, {{"Bits", "Rate", "Route"}}},
 };
 #undef QS_N
 #undef QS_T
