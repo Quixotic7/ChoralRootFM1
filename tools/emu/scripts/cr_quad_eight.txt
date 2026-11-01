@@ -1,0 +1,74 @@
+# ChoralRoot, FM TONE's chord voices on two cores (HISTORY 3y206; docs/QUAD.md "Two cores"), with DRIVE ROUTE PRE
+# (3y205): tools/emu/test_cr.sh runs this as cr_fm6_eight (inline, EMU_C1=thread, nostart, hang). The chord part on
+# FM TONE 01 EP, its AMP page's Drive 127 (KNOB 3) and Route PRE (KNOB 4): every voice driven before its filter; DEEP
+# SUB on the bass part; eight notes over MIDI, a bass note, the chord a semitone up, released.
+wait 300
+btn EDIT down
+wait 400
+knob SELECT +1               # the engine picker: FM6 -> FM TONE
+wait 300
+btn EDIT up
+btn OCT+                      # FM TONE (01 EP)
+wait 300
+btn EDIT                      # OSC
+wait 300
+btn ENV                       # ENV A/B
+wait 300
+btn ENV                       # ENV 2
+wait 300
+btn ENV                       # ENV 3
+wait 300
+btn ENV                       # AMP
+wait 300
+knob SELECT +1                # row B: Level Pan Drive Route
+wait 300
+knob KNOB3 +60                # Drive 0 -> 127 (the most: the heaviest voices)
+wait 300
+knob KNOB4 +1                 # Route POST -> PRE
+wait 300
+btn EDIT                      # leave
+wait 500
+dump                          # 1: FM TONE, DEEP SUB, no voice
+midi 90 30 64                 # channel 1 (CHORD): C3 E3 G3 B3 D4 F#4 A4 C5
+midi 90 34 64
+midi 90 37 64
+midi 90 3B 64
+midi 90 3E 64
+midi 90 42 64
+midi 90 45 64
+midi 90 48 64
+wait 1200
+dump                          # 2: eight voices
+midi 91 24 64                 # channel 2 (BASS): C2
+wait 1200
+dump                          # 3: the chord eight, the bass one
+midi 80 30 00                 # the chord a semitone up
+midi 80 34 00
+midi 80 37 00
+midi 80 3B 00
+midi 80 3E 00
+midi 80 42 00
+midi 80 45 00
+midi 80 48 00
+midi 90 31 64
+midi 90 35 64
+midi 90 38 64
+midi 90 3C 64
+midi 90 3F 64
+midi 90 43 64
+midi 90 46 64
+midi 90 49 64
+wait 1500
+dump                          # 4: eight voices, the bass one
+midi 80 31 00
+midi 80 35 00
+midi 80 38 00
+midi 80 3C 00
+midi 80 3F 00
+midi 80 43 00
+midi 80 46 00
+midi 80 49 00
+midi 81 24 00
+wait 6000
+dump                          # 5: none
+quit

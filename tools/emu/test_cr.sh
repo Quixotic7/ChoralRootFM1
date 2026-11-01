@@ -2615,6 +2615,25 @@ cmp -s -n 1128964 "${F8}_hang.wav" "${F8}_one.wav" && LC_ALL=C grep -aq 'c1 gave
     ok "core 1 never answering a job under the FM6 chord (EMU_C1=hang): given up in the first block, one core's WAV (the first 6.4 s), Dual Core Off" ||
     bad "EMU_C1=hang on the FM6 chord: the WAV differs from one core's in the first 6.4 s, or core 1 was not given up"
 
+echo "FM TONE's chord voices on two cores (3y206, docs/QUAD.md \"Two cores\"): eight EP voices with DRIVE 127 ROUTE PRE over DEEP SUB, shared out; on a thread the same, bit for bit"
+Q8="$OUT/cr_quad_eight"
+EMU_STAGES=1 "$EMU" --headless --script "$S/cr_quad_eight.txt" --wav "${Q8}_inline.wav" >"${Q8}_inline.log" 2>&1 &&
+    ok "cr_quad_eight: exit 0" || bad "cr_quad_eight: see ${Q8}_inline.log"
+st=$(LC_ALL=C grep -a '^cpu: stages' "${Q8}_inline.log")
+p0=$(echo "$st" | sed -n 's/.* part0 \([0-9]*\) .*/\1/p'); p1=$(echo "$st" | sed -n 's/.* part1 \([0-9]*\) .*/\1/p')
+grep -aq '^deep: part 0 page 13 AMP+ col 3 ROUTE 0 -> 1 (PRE) edited$' "${Q8}_inline.log" &&
+    grep -aq '^param: part 0 ENV DRIVE 0 -> 127' "${Q8}_inline.log" && grep -aq '^  part 0: FM TONE / EP' "${Q8}_inline.log" &&
+    [ "$(fv "${Q8}_inline.log" 0)" = "0 8 8 8 0 " ] && [ "$(fv "${Q8}_inline.log" 1)" = "0 0 1 1 0 " ] &&
+    echo "$st" | grep -q 'c1 ok, jobs [1-9]' && [ "${p0:-0}" -ge 1 ] && [ "$((2 * ${p1:-0}))" -ge "${p0:-0}" ] &&
+    ok "two cores: eight FM TONE voices driven before the filter and the bass; core 1's job averages $p1 us a half against core 0's $p0 (the chord is shared)" ||
+    bad "FM TONE's chord on two cores: the voices $(fv "${Q8}_inline.log" 0)/ the bass's $(fv "${Q8}_inline.log" 1)/ part0 ${p0:-?} part1 ${p1:-?} ($st)"
+echo "$st" | cut -c6- | sed 's/^/      /'
+silent_end cr_quad_eight_inline
+EMU_C1=thread "$EMU" --headless --script "$S/cr_quad_eight.txt" --wav "${Q8}_thread.wav" >"${Q8}_thread.log" 2>&1
+[ -s "${Q8}_inline.wav" ] && cmp -s "${Q8}_inline.wav" "${Q8}_thread.wav" &&
+    ok "EMU_C1=thread: core 1's share of the FM TONE chord and the bass part on a second thread: the WAV is the inline job's, bit for bit" ||
+    bad "EMU_C1=thread, FM TONE's chord voices on two threads: the WAV differs from the inline job's"
+
 echo "P5, the click at a short release's end (3y44): the part's DC blocker discharges after the last voice, it is not cut"
 p5pos=$(python3 tools/gen_prophet_factory.py --pos 168)          # PERC ORGAN: a release of 20 ms, in the tree's list
 if [ "${p5pos:-0}" -ge 2 ]; then

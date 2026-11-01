@@ -75,6 +75,12 @@ static void usp_on(const pair_t *p)                 /* (after a sound load: the 
         ed[FP_LFD] = 0;
         fm6_pgen[0]++;
     }
+    if (p->usp == 4u && p->ce == ENGI_QUAD) {           /* (3y206: FM TONE's chord with DRIVE PRE, LFO 1 on DRIVE) */
+        quad_patch[0][QP_DRPRE] = 1;
+        quad_patch[0][QP_LFO(0, QL_DEST)] = QD_DRIVE;
+        quad_patch[0][QP_LFO(0, QL_DEPTH)] = 5000;
+        trk[0].p[P_DIST] = 80;
+    }
 }                              /* 3y177: the most chord voices of a split engine (not P5: its
                                                      * own counts are cr_dbg's) that core 0 / core 1 rendered in a
                                                      * block (fx.c p5x_run's list, as the block left it) */
@@ -239,7 +245,7 @@ static uint64_t fork_phrase(const pair_t *p, uint32_t nb, int thread)
 int main(int argc, char **argv)
 {
     int tsan = argc >= 2 && !strcmp(argv[1], "--tsan");
-    uint32_t i, uni = 0, k, nb = tsan ? 900u : 3000u, nsplit = 0, nvsplit = 0, nfsplit = 0, nfx = 0, nrt = 0, nro = 0, npf = 0, jobs0 = 0, mpad = 0, pbass = 0;
+    uint32_t i, uni = 0, k, nb = tsan ? 900u : 3000u, nsplit = 0, nvsplit = 0, nfsplit = 0, nqsplit = 0, nfx = 0, nrt = 0, nro = 0, npf = 0, jobs0 = 0, mpad = 0, pbass = 0;
     uint32_t tine = 0, dsub = 0, fams = 0;
     pair_t P[24];
     uint32_t np = 0;
@@ -296,6 +302,9 @@ int main(int argc, char **argv)
     PAIR(ENGI_FM6, tine ? tine : 1u, ENGI_VA, dsub ? dsub : 1u, "FM6 chord TINE EP, VA bass DEEP SUB (the power-on sounds)");
     PAIR(ENGI_FM6, 3, ENGI_VA, 2, "FM6 chord with AMS and the LFO's AMD, VA bass");
     P[np - 1u].usp = 3;                                 /* (3: the FM6 chord's patch gets AMS on every operator) */
+    PAIR(ENGI_QUAD, 10, ENGI_VA, 2, "FM TONE chord WOBBLE, VA bass");
+    PAIR(ENGI_QUAD, 1, ENGI_QUAD, 3, "FM TONE chord with DRIVE PRE and LFO 1 on DRIVE, FM TONE bass");
+    P[np - 1u].usp = 4;                                 /* (4: DRIVE 80 PRE, LFO 1 -> DRIVE) */
     fams = np - 1u;
     printf("cr_c1_thread: the bass part's job on a second thread (%u pairs, %u blocks each%s)\n", (unsigned)np, (unsigned)nb,
            tsan ? "; the sanitizer's run" : "");
@@ -303,7 +312,7 @@ int main(int argc, char **argv)
         if (tsan) {
             uint64_t h = phrase(&P[i], nb, 1);
             uint32_t fxj = cr_dbg.c1x_jobs;
-            int p5c = P[i].ce == ENGI_PROPHET, vac = P[i].ce == ENGI_VA || P[i].ce == ENGI_FM6;
+            int p5c = P[i].ce == ENGI_PROPHET, vac = P[i].ce == ENGI_VA || P[i].ce == ENGI_FM6 || P[i].ce == ENGI_QUAD;
             int ok = (!vac || (sx[0] >= 1u && sx[1] >= 1u)) && vmax[0] >= 3u && vmax[1] >= 1u && (i || !uni || vmax[1] == P5_STACK) && cr_c1_th_done == cr_c1_th_posted &&
                      cr_c1_th_done - jobs0 == nb + fxj && fxj > nb / 2u &&
                      pmax <= P5_POLY && (!p5c || (vmax[0] > P5_CORE && cr_dbg.p5_c0 >= 2u && cr_dbg.p5_c0 <= P5_CORE && cr_dbg.p5_c1 >= 2u &&
@@ -313,7 +322,8 @@ int main(int argc, char **argv)
                    "on the thread: %u)\n", ok ? "ran " : "FAIL", P[i].what, (unsigned long long)h, (unsigned)vmax[0],
                    (unsigned)vmax[1], (unsigned)cr_dbg.p5_c0, (unsigned)cr_dbg.p5_c1, (unsigned)cr_c1_th_done);
             if (vac)
-                printf("  %s chord voices in a block at most: core 0 %u, core 1 %u\n", P[i].ce == ENGI_FM6 ? "FM6" : "VA",
+                printf("  %s chord voices in a block at most: core 0 %u, core 1 %u\n", P[i].ce == ENGI_FM6 ? "FM6" :
+                       P[i].ce == ENGI_QUAD ? "FM TONE" : "VA",
                        (unsigned)sx[0], (unsigned)sx[1]);
             printf("  fx: %u of %u blocks ran the reverb on the thread\n", (unsigned)fxj, (unsigned)nb);
             jobs0 = cr_c1_th_done;
@@ -359,12 +369,15 @@ int main(int argc, char **argv)
                 fails += !ok;
                 continue;
             }
-            if (P[i].ce == ENGI_VA || P[i].ce == ENGI_FM6) {   /* 3y177, 3y187: the same three for the VA's and FM6's */
+            if (P[i].ce == ENGI_VA || P[i].ce == ENGI_FM6 || P[i].ce == ENGI_QUAD) {   /* 3y177, 3y187, 3y206: the same
+                                                         * three for the VA's, FM6's and FM TONE's */
                 uint64_t d = fork_phrase(&P[i], nb, 2), e = fork_phrase(&P[i], nb, 3), f = fork_phrase(&P[i], nb, 4);
                 uint32_t sa = sxa;
                 ok = ok && a == d && a == e && a == f && s0 >= 2u && s1 >= 2u &&
-                     (P[i].ce == ENGI_FM6 ? (P[i].usp != 3u || sa > nb / 4u) : (!P[i].usp || ss > nb / 4u));
-                if (P[i].ce == ENGI_FM6)
+                     (P[i].ce == ENGI_FM6 ? (P[i].usp != 3u || sa > nb / 4u) : P[i].ce == ENGI_QUAD ? 1 : (!P[i].usp || ss > nb / 4u));
+                if (P[i].ce == ENGI_QUAD)
+                    nqsplit += ok;
+                else if (P[i].ce == ENGI_FM6)
                     nfsplit += ok;
                 else
                     nvsplit += ok;
@@ -390,6 +403,9 @@ int main(int argc, char **argv)
     if (!tsan)
         printf("fm6 split: %u pairs with FM6 on the chord part: the two cores' sums are the unsplit render's samples\n",
                (unsigned)nfsplit);
+    if (!tsan)
+        printf("quad split: %u pairs with FM TONE on the chord part: the two cores' sums are the unsplit render's samples\n",
+               (unsigned)nqsplit);
     if (!tsan)
         printf("va split: %u pairs with the VA on the chord part: the two cores' sums (the mid and the side) are the unsplit "
                "render's samples\n", (unsigned)nvsplit);

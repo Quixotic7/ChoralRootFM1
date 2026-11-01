@@ -6624,3 +6624,18 @@ block, a new note at its own; `quad_bwk(127.00)`). CPU (host, `run_quad_test.sh`
 instructions a sample, 33.0 % of the half, +5.8 % (~+170 us) over WOBBLE: with the unit's WOBBLE + BASS 2,345 us that
 crosses the 2,467 us shed line, so 3y206 splits FM TONE's chord over both cores. Size: XIP 550,516 B (+48 over
 3y204: the DIST loop shared), POOL +256 B (16 voices' drive and glide state).
+
+3y206. **FM TONE's chord voices on both cores** (the survey's stage 1b; FM6's 3y187 the model). Why: DRIVE PRE
+(3y205) adds one DIST loop a driven voice, ~+170 us of the half for an 8-note chord (host), and the unit's FM TONE
+WOBBLE + BASS already took 2,345 of the 2,467 us shed line. `ENG_QUAD.split` 20 (`QUAD_VOICE_US` 200). **The audit**
+(docs/DUALCORE.md, docs/QUAD.md "Two cores"): one shared read, DRIVE PRE's LFO offset from `quad_fx_off`, which the
+latest voice writes in the same block, perhaps on the other core: now `quad_dro`, the last block's, kept by
+`quad_block` on core 0. Without it the DRIVE-PRE pair's thread render differs from the inline one (tried). **Tests**:
+`tests/cr_c1_thread_test.c` 24 pairs (+2: FM TONE WOBBLE over a VA bass; DRIVE 80 PRE with LFO 1 on DRIVE over an FM
+TONE bass; the FM TONE / FM TONE pair now split too): inline = thread = unsplit = every voice to core 1 = none, every
+sample; ThreadSanitizer 0 reports. test_cr.sh `cr_quad_eight` (new): eight EP voices at DRIVE 127 PRE over DEEP SUB,
+inline = `EMU_C1=thread` bit for bit; the emulator's estimate (device us a half, avg / max) part0 114 / 591, part1
+113 / 436 (one core, `EMU_C1=nostart`: part0 179 / 766, and 7 + 1 voices: eight FM TONE voices are the 16-unit
+budget, as before). The 317 goldens unchanged. **Not measured on the unit** (no flashing in this session): by FM6's
+3y187 readings (part0 1524 -> 1023 us, the worst half -456 us) FM TONE's 8-voice worst half should fall by a similar
+300 .. 500 us, which more than pays for DRIVE PRE. Size: XIP 550,532 B (+16).

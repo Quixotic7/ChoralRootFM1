@@ -251,8 +251,19 @@ six FM6-chord pairs (an FM6, VA, P5, CZ-1 bass; TINE EP over DEEP SUB; a patch w
 LFO's AMD: its shares in use in 2948 of 3000 blocks), test_cr.sh `cr_fm6_eight` (inline = `EMU_C1=thread` =
 `EMU_C1=nostart`, one core's WAV, bit for bit); the goldens, one core and two, unchanged.
 
-CZ-1, FM TONE and GRAIN would each need their audit first (docs/notes/melodee-p5-dualcore-review.md "The other
-engines").
+**FM TONE's chord (3y206, 2026-10-31)**: `ENG_QUAD.split` 20 (`QUAD_VOICE_US` 200: WOBBLE's 8 voices part0 1509 us on
+the unit, ~190 a voice, DRIVE PRE ~+20). The audit (docs/QUAD.md "Two cores"): a voice's render writes its own
+`quad_vs[part][i]` and the buffers it is given; the part's LFO phases are `quad_block`'s (core 0, before the hand-over),
+the voices read them; the latest note's voice alone writes `quad_pan_off` / `quad_fx_off` (fx.c reads them after the
+join). One shared read: DRIVE PRE (3y205) took the LFOs' DRIVE from `quad_fx_off`, which the latest voice may be
+writing on the other core in the same block: now `quad_dro`, the last block's value, kept by `quad_block`. Proof that
+it was needed: with the old read the DRIVE-PRE pair's thread render differs from the inline one. Proof:
+`tests/cr_c1_thread_test.c` FM TONE chord pairs (WOBBLE over a VA bass; DRIVE 80 PRE with LFO 1 on DRIVE over an FM
+TONE bass; the old FM TONE / FM TONE pair now split): inline = thread = unsplit = all to core 1 = none, ThreadSanitizer
+0 reports; test_cr.sh `cr_quad_eight` (eight EP voices DRIVE 127 PRE over DEEP SUB: inline = `EMU_C1=thread` bit for
+bit). One core (`EMU_C1=nostart`) is not the same WAV: eight FM TONE voices are the whole 16-unit budget, so the bass
+note takes one (7 + 1), as before this change. GRAIN would still need its audit first
+(docs/notes/melodee-p5-dualcore-review.md "The other engines"); CZ-1's chord stays on core 0.
 
 Publishing job 1 before core 0 has prepared all of the chord's voices (Melodee's per-job publishing) needs a mailbox
 deeper than `fm1_c1_post`'s one job (core 1's voices are prepared by core 0 in `track_render_x`): not done.

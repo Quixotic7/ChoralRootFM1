@@ -371,7 +371,15 @@ the patch's FREQ / RESO a block (the last 7 hundredths at once, ~7 ms for a dete
 so a note whose FREQ and RESO stay put renders as before, sample for sample (no golden moved). `quad_bwk` returns
 the entry for a whole number (BASE 127.00 read one past `QUAD_BW_K` times 0: the same value, without the read).
 
-### Version 6 (2026-10-31: FIZZ's engine values, the sound's sends)
+### Two cores (2026-10-31, 3y206)
+
+FM TONE's chord voices are shared out between the cores as the VA's, FM6's and P5's (`ENG_QUAD.split` 20, fx.c
+`p5x_run`; docs/DUALCORE.md). A voice's render writes its own state and the buffers it is given; the part's work
+(`quad_block`: the macros, the FREE LFOs' phases, and since 3y206 `quad_dro`, the LFOs' DRIVE as the last block left
+it, which DRIVE PRE reads) runs on core 0 before the hand-over. Bit for bit the one core's samples
+(`tests/cr_c1_thread_test.c`, test_cr.sh `cr_quad_eight`).
+
+
 
 The owner: "Ok, I've imported some syx, however they sound quite a bit better with FIZZ's engine, can we look into
 bringing in the engine updates?" and "Ok, lets let these presets change the FX send amounts when you load." Version 6

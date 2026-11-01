@@ -47,6 +47,8 @@
 #endif
 #define QUAD_NPART 2u            /* parts with a QUAD patch (ChoralRoot: chord, bass) */
 #define QUAD_POLY 8              /* engine_t.poly (docs/QUAD.md: CPU) */
+#define QUAD_VOICE_US 200u       /* a chord voice at the unit's worst (WOBBLE: part0 1509 us for 8, ~190; DRIVE PRE
+                                  * ~+20): engine_t.split, fx.c p5x_assign (3y206) */
 #define QUAD_BLOB 96u            /* packed patch: 'Q', version, QP_NP values (the hi-res ones 2 bytes), zeros */
 #define QUAD_BLOB_V3 80u         /* versions 1..3's blob (the legacy store's records, older pool slots, sessions) */
 #define QUAD_MAGIC 0x51u         /* 'Q' */
@@ -386,6 +388,9 @@ static int (*quad_store_read)(uint32_t k, uint8_t *blob);   /* the patch store: 
 static int8_t quad_pan_off[QUAD_NPART];          /* the LFOs' PAN (fx.c mix_part adds it: quad_pan) */
 static int8_t quad_fx_off[QUAD_NPART][4];        /* .. DRIVE, the reverb, delay, chorus sends (fx.c: quad_drive,
                                                   * quad_sends; read once a block) */
+static int8_t quad_dro[QUAD_NPART];              /* the LFOs' DRIVE as the last block left it, for DRIVE PRE (quad_block:
+                                                  * the voices on two cores read it while the latest one writes
+                                                  * quad_fx_off, 3y206) */
 static struct {                                  /* per part: the LFOs' FREE phases */
     uint32_t ph[3], rnd[3];
 } quad_lfo[QUAD_NPART] __attribute__((section(".pool")));
@@ -960,6 +965,7 @@ static void quad_block(track_t *t)
     if (tr >= QUAD_NPART)
         return;
     p = quad_patch[tr];
+    quad_dro[tr] = quad_fx_off[tr][0];
     for (k = 0; k < 8u; k++)                     /* a knob, the editor, the matrix, motion moved a macro */
         if (t->p[P_E0 + k] != quad_mlast[tr][k]) {
             quad_mlast[tr][k] = t->p[P_E0 + k];
@@ -1646,7 +1652,7 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
      * Each note driven alone (no intermodulation of a chord in one clipper), the filter shaping the drive, the grit
      * kept as the amp envelope falls */
     if (p[QP_DRPRE]) {
-        int32_t dr = clamp(t->p[P_DIST] + quad_fx_off[tr][0], 0, 127);
+        int32_t dr = clamp(t->p[P_DIST] + quad_dro[tr], 0, 127);   /* (the LFOs' DRIVE: the last block's) */
         if (dr)
             dsp_dist(&s->dh, &s->dl1, &s->dl2, dr, acc, n);
     }
@@ -1825,4 +1831,5 @@ static const engine_t ENG_QUAD = {
     .endless = quad_endless,
     .legato = quad_legato,
     .deep = &QUAD_DEEP,
+    .split = QUAD_VOICE_US / 10u,  /* the chord's voices on both cores (3y206, fx.c p5x_run; docs/QUAD.md "Two cores") */
 };

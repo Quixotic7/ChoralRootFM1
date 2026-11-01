@@ -20,6 +20,7 @@ echo "c1 thread: $(grep -c '^  ok ' build/host/cr_c1_thread_test.log) pairs of e
 echo "c1 thread: P5's chord voices on both cores: $(sed -n 's/^split: //p' build/host/cr_c1_thread_test.log)"
 echo "c1 thread: the VA's chord voices on both cores: $(sed -n 's/^va split: //p' build/host/cr_c1_thread_test.log)"
 echo "c1 thread: FM6's chord voices on both cores: $(sed -n 's/^fm6 split: //p' build/host/cr_c1_thread_test.log)"
+echo "c1 thread: FM TONE's chord voices on both cores: $(sed -n 's/^quad split: //p' build/host/cr_c1_thread_test.log)"
 echo "c1 thread: $(sed -n "s/^effects: //p" build/host/cr_c1_thread_test.log)"
 if ! sh tests/hostcc.sh cc -std=gnu11 -O1 -g -w -fsanitize=thread $I -o build/host/cr_c1_thread_tsan tests/cr_c1_thread_test.c -lm 2> build/host/cr_c1_thread_tsan.cc.log; then
     echo "c1 thread: skip: this compiler has no -fsanitize=thread (the sanitizer's run and its proof are not done)"
