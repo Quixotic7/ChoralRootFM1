@@ -101,6 +101,24 @@ export function managerPlace(objs, sound, target = null, opts = {}) {
 const mgOpts = (opts) => ({ quadV6: !opts || opts.firmware == null ? true : quadV6Of(opts.firmware) });
 // a sound's notes for the confirm / the status line, with its name: ["NAME: note", ..]
 const mgNotes = (sound, res) => (res.notes || []).map((n) => `${sound && sound.name ? sound.name : "a sound"}: ${n}`);
+// the status line's summary of those notes (one line, however many sounds): what was left out, counted per kind
+// ("new filter types (2), DRIVE before the filter (61)"); each sound's own notes stay in the library list
+const MG_DOWN = [[/filter (MULTI|COMB[+-]|EQ):/, "new filter types"], [/DRIVE before the filter/, "DRIVE before the filter"],
+  [/AMP MODE AHD/, "the AHD envelope"], [/base-width after the filter/, "base-width after the filter"], [/CRUSH/, "CRUSH"],
+  [/sound's own sends/, "own sends"]];
+export function managerNotesSummary(notes, firmware = "", many = true) {
+  if (!notes || !notes.length) return "";
+  const counts = new Map(); let other = 0;
+  for (const n of notes) {
+    const k = MG_DOWN.find(([re]) => re.test(n));
+    if (k) counts.set(k[1], (counts.get(k[1]) || 0) + 1); else other++;
+  }
+  const v6 = !other, fw = /ChoralRoot\s+\d+\.\d+/i.exec(String(firmware || ""));
+  const what = [...counts].map(([k, c]) => (many ? `${k} (${c})` : k));
+  if (other) what.push(many ? `other changes (${other})` : "other changes");
+  return ` Your FM-1 runs ${fw ? fw[0] : "an older ChoralRoot"}, so ${many ? "these were written without" : "it was written without"} ` +
+    `what it cannot play: ${what.join(", ")}. Install ${v6 ? "0.29 or later" : "the newest ChoralRoot"} and place again for the whole sound.`;
+}
 // several sounds (a pack): each as a new sound (added, or back over its factory position when the file names one); stops at the last free slot (-> placed, skipped counts)
 export function managerPlaceAll(objs, sounds, opts = {}) {
   let m = new Map(objs), placed = 0;

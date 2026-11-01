@@ -554,7 +554,11 @@ function askDialog({ title, paras, ok }, { backup = true } = {}) {
 const act = (f) => async () => { try { await f(); } catch (e) { say(e.message, "err"); } };
 // what the FM-1's firmware will not have of a placed patch (fm1sounds.js importSound: converted down for it): before the
 // pool (0.21) any; 0.22 .. 0.28 FM TONE's version 6 (keepOpts' firmware: managerPlace's version gate, 3y211)
-const downText = (res) => (res.notes && res.notes.length ? ` On this firmware: ${res.notes.join("; ")}.` : "");
+// (managerNotesSummary: one line; the whole list in the browser console)
+const downText = (res, many = true) => {
+  if (res.notes && res.notes.length) console.info("On this firmware:\n" + res.notes.join("\n"));
+  return managerNotesSummary(res.notes, firmware, many);
+};
 const keepOpts = () => ({ firmware, packs: ui.fpacks });
 
 // Place: the library's selection into the FM-1; one sound onto a target row (over it), several as new sounds
@@ -575,7 +579,7 @@ async function placeItems(items, target) {
   const res = managerPlace(session.objs, r.file, t, keepOpts());
   const where = res.where === "over-factory" ? "over a factory preset" : res.where === "over-user" ? `into ${slotLabel(res.slot)}` : `as a new ${ENGINE_NAMES[r.pool]} sound`;
   if (r.pool !== ui.tab) ui.tab = r.pool;
-  await run(`Place ${r.name}`, res, `Placed ${r.name} ${where} (${slotLabel(res.slot)}).${downText(res)}`, { engine: r.pool, slot: res.slot });
+  await run(`Place ${r.name}`, res, `Placed ${r.name} ${where} (${slotLabel(res.slot)}).${downText(res, false)}`, { engine: r.pool, slot: res.slot });
 }
 async function keepRows(rows) {
   let n = 0;

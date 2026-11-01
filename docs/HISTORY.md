@@ -6894,3 +6894,18 @@ POOL 96.3 %.
 **Checked**: `python3 tests/releases_test.py` releases ALL OK; CR_VERSION=0.29 `sh tests/run_all.sh` ALL SUITES PASSED
 (24 suites, 95 s; test_cr 1119 ok, test_persist 119; 317 golden renders, 0 changed; 0 lint; the browser emulator
 test). Pushed to main and tagged v0.29: release.yml builds, signs and publishes, then pages.yml the site.
+
+3y220. **The device manager's status line after Place: one summary instead of every sound's notes.** The owner, after
+placing 128 Digitone sounds onto the unit's dev build (which reads 0.28, so the gate wrote version 5) and getting a
+screenful of "this firmware has none" per sound: "When importing in the FIZZ manager, each preset themselve in the list
+has a nice little summary of what imported and what did not. But yes shorten the main summary". `fm1manager.js
+managerNotesSummary(notes, firmware, many)`: what was left out counted per kind (new filter types, DRIVE before the
+filter, own sends, the AHD envelope, base-width after the filter, CRUSH; anything else "other changes"), the unit's
+version and what to install ("0.29 or later" for the version-6 kinds, "the newest ChoralRoot" otherwise); manager.html's
+`downText` uses it for Place, Place all and Replace factory (one sound: "it was written without ..."), the whole list
+to the browser console. Each library row keeps its own Digitone notes, as FIZZ's manager does. Tests:
+`web/test_manager.mjs` (128 sounds' notes -> 211 characters, counted per kind; one sound; none; a pre-pool firmware);
+the built page with `?sim=pool&fw=0.28` (three made-up Digitone II sounds: "Placed 3 sounds. Your FM-1 runs ChoralRoot
+0.28, so these were written without what it cannot play: new filter types (1), DRIVE before the filter (2), own sends
+(2), the AHD envelope (1), CRUSH (2). Install 0.29 or later and place again for the whole sound.") and `fw=0.29`
+("Placed 3 sounds."). Web only: the firmware and the 0.29 packages are unchanged; pages.yml rebuilds the site.

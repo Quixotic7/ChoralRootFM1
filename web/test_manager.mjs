@@ -26,7 +26,7 @@ import {
   managerKeep, keepLoop, readLoopFile, placeLoop, deleteLoop, swapLoops, ManagerSession, makeSimFM1, simObjects, makeLoopRecord,
   libraryItemsFromFile, libraryItemsFromDnsnd, SIM_POOL_IDS, LibraryStore, loadPackIndex, loadPack, auditionMessages, noteMessage, midiText, writeErrorText, UNDO_DEPTH, retiredNote,
   managerPorts, MANAGER_PORT_RE, pickUnit, favUserSlots, favsClearSlots, replacedRows, replacedOf, managerRestorePresets, managerDeleteAll, managerDeleteRows,
-  restorePresetsText, deleteAllText, managerEngines, favMarks, favOf, favKeyOf, keepable, P5_NO_PACK, simP5Patch,
+  restorePresetsText, deleteAllText, managerEngines, favMarks, favOf, favKeyOf, keepable, P5_NO_PACK, simP5Patch, managerNotesSummary,
 } from "./fm1manager.js";
 
 let failed = 0;
@@ -385,6 +385,20 @@ ok(site.includes('"manager.html"') && site.includes("fm1manager.js") && site.inc
     ok(patchAt(old.objs, old.slot)[1] === 5 && old.notes.length === 1 && /the sound's own sends: .*0\.28 or older/.test(old.notes[0]) &&
        patchAt(now.objs, now.slot)[1] === 6 && !now.notes.length && patchAt(none.objs, none.slot)[1] === 6,
        "gate: Place onto 0.28 -> FM TONE version 5 and a note; onto 0.29 (or no version given) -> version 6");
+    {   // the status line: one summary, counted per kind, however many sounds (the whole list stays in the console)
+      const n = [], N = 128;
+      for (let i = 0; i < N; i++) {
+        n.push(`S${i}: the sound's own sends: the part's stay: this firmware has none (ChoralRoot 0.28 or older)`);
+        if (i < 61) n.push(`S${i}: DRIVE before the filter (ROUTE PRE): driven after it: this firmware has none (ChoralRoot 0.28 or older)`);
+        if (i < 2) n.push(`S${i}: filter COMB+: this firmware has none, LP12 instead`);
+      }
+      const t = managerNotesSummary(n, "ChoralRoot 0.28"), one = managerNotesSummary(old.notes, "ChoralRoot 0.28 1-core", false);
+      ok(t.length < 260 && /runs ChoralRoot 0\.28/.test(t) && /own sends \(128\)/.test(t) && /DRIVE before the filter \(61\)/.test(t) &&
+         /new filter types \(2\)/.test(t) && /Install 0\.29 or later/.test(t) && !/S5/.test(t) &&
+         /it was written without .*own sends/.test(one) && managerNotesSummary([], "x") === "" &&
+         /other changes \(1\)\..*the newest ChoralRoot/.test(managerNotesSummary(["X: an LFO dest: none"], "ChoralRoot 0.21")),
+         "status line: 128 sounds' notes -> one summary line, counted per kind (" + t.length + " chars)");
+    }
     const pa = managerPlaceAll(o0, [item, lib[1].file], { firmware: "ChoralRoot 0.22 (simulated)" });
     const rf = managerReplaceFactory(o0, 15, [item], 1, { firmware: "ChoralRoot 0.27 1-core" });
     ok(pa.placed === 2 && pa.notes.length === 2 && /^DN 000: the sound's own sends/.test(pa.notes[0]) && rf.notes.length === 1 && rf.replaced === 1,

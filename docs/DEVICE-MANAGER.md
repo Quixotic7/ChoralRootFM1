@@ -342,7 +342,9 @@ The owner: P5 is a current engine (engine 16, Melodee's Prophet-5 model: docs/PR
 - **The version gate.** Every Digitone import is FM TONE version 6 (the filter machines, AHD, CRUSH, DRIVE's route,
   the sound's own sends); ChoralRoot 0.22 .. 0.28 refuse version 6 and play INIT. Place, Place all and Replace factory
   pass the unit's version (INFO's, `keepOpts`): onto 0.28 or older the patch is written as version 5 (`quadToV5`) and
-  the status line lists what was dropped ("On this firmware: filter MULTI: this firmware has none, LP12 instead; ...");
+  the status line sums up what was dropped in one line, counted per kind ("Your FM-1 runs ChoralRoot 0.28, so these
+  were written without what it cannot play: DRIVE before the filter (61), own sends (128). Install 0.29 or later ...",
+  `managerNotesSummary`; each sound's notes stay on its library row and the whole list goes to the browser console);
   onto 0.29 and later as it is (`fm1sounds.js quadV6Of`, `managerPlace(objs, sound, target, { firmware })`). The
   installer's Sounds Import does the same with its INFO. The simulator says 0.22 (`?sim=pool`: the gate converts);
   `?sim=pool&fw=0.29` makes it say 0.29.
