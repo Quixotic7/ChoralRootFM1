@@ -6770,3 +6770,40 @@ lines freed by the next part that lends, as before. `quad_block` 128 -> 48 (its 
 48: 3y206's `quad_dro` and the drive's table call are in it now), `quad_comb_lend` watched (81). Tests:
 `cr_quad_test` (the lending, a part leaving FM TONE, no line free) unchanged; `cr_c1_thread_test` 26 pairs (COMB+ / COMB-
 across the parts) unchanged. Goldens unchanged.
+
+3y215. **What made C64 EP's tick heavy: its voices stolen at every chord change; the note path's budget scan cut.** The
+owner: "Yes, find it" (to "Should I find out what makes C64 EP's tick stage so heavy?"). On the unit
+(`tools/perf_unit.py`'s pattern: 8 notes moved up a semitone every 2 s, the note-offs 50 ms before the note-ons, the
+bass under it) WOBBLE's tick was 348 .. 369 us and C64 EP's (a Digitone import) 492 .. 508, with DRIVE PRE or without.
+The tick stage is everything before the parts render (choralroot.c's `mix_block` shim to fx.c's `CR_PROF(CRP_TICK)`):
+`cr_audio_block` (the UI's events, MIDI in, the engine, the loop: every note-on and its voice allocation) and
+`events_block` (engine switches and the notes waiting for a stolen voice), summed over a half's four blocks. Nothing
+of FM TONE's sound is in it but `quad_note_on` (about 200 host instructions a note, the same for both sounds); the
+LFOs, the drive's table, the combs are `quad_block`'s, in the part's render. The emulator, with the sound in a pool
+slot and the same MIDI, counted the tick's host instructions per half at each chord change: WOBBLE 11,169 .. 11,347,
+C64 EP 16,365 .. 16,543 (+47 %, the unit's +41 %; the unit runs this flash code at about 8 x the emulator's
+estimate: 358 / 44 us, 500 / 64). The cause: C64 EP's amp release still sounds 50 ms after the note-off, so each of
+the 8 new notes finds all 8 voices busy and steals one; ChoralRoot never restarts a sounding voice in place (voice.c
+`voice_fade_steal`): the voice fades over a block and the note waits in `vsq` and starts in the next block's
+`events_block`. Every note of the chord goes through `trk_note_on` and `voice_alloc` twice (56 steals in 15 s);
+WOBBLE's voices are silent by then (0 steals). Confirmed: the same C64 EP with 3 s between the note-offs and the
+note-ons (no steal) has WOBBLE's tick (11,698 .. 11,923). Both passes usually land in one half (the waiting notes start
+one block later), which is the peak. Where `voice_alloc`'s instructions went: `voices_busy_of`, the shared budget's
+count, about 490 host instructions for every note that finds a free voice (16 voice slots of each part sharing the
+budget: with two cores parts 0, 2 and 3, of which 2 and 3 never sound in ChoralRoot), and a stolen note's search for a
+free voice that cannot be there. Now: `voices_busy_of` counts parts 0..1 in ChoralRoot (`VB_NPART`: cr_out.c gives no
+note to parts 2..3, fx.c never renders them; Felucca's build counts four) and skips `voice_units` of a part with no
+voice sounding; `voice_alloc` skips the free-voice searches when its first loop found none free (`nfree` 0: ROTATE's
+pointer still moves on, as the loop moved it). The same choices, the same samples: both scenarios' WAVs byte for byte
+the same before and after. The emulator's tick at a chord change: WOBBLE 11,169 .. 11,347 -> 9,027 .. 9,205 (-20 %),
+C64 EP 16,365 .. 16,543 -> 13,519 .. 13,697 (-18 %), C64 EP without steals 9,131 .. 9,216. On the unit, if its 8 x
+holds for loop iterations too: WOBBLE's tick ~285 us, C64 EP's ~410 (its block ~2,660 .. 2,780); less if the tick's cost
+there is the flash cache's cold lines rather than instructions (the loops removed run warm after their first pass):
+to be measured. What stays is the steal itself (C64 EP's tick ~4,500 host instructions over WOBBLE's: the second pass
+of 8 notes), what a long release asks for under this design. Options, not done: start the waiting notes at the next
+half's first block, so the steal's pass and the start are never in one half (the peak becomes the larger of the two;
+a stolen note's start 0.7 .. 2.9 ms after its key instead of 0.7 .. 1.5, the samples move: goldens with steals change);
+or the note path (`trk_note_on`, `voice_alloc`, `voice_start`, `vsq`) in RAM (RAMTEXT has 8,456 B free; the tick runs
+it from XIP). Size: XIP 556,036 B (+16 over 3y214), POOL 331,492 of 344,064 (96.3 %, unchanged). Tests:
+`run_all.sh` all PASS but the two release checks (v0.28 not tagged / not in the list); `test_cr` 1114 ok; no budget
+over (`target_budget.py`).

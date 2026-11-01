@@ -86,16 +86,26 @@ static uint32_t voice_units(const track_t *t)
 #else
 #define VB_SAME(a, b) 1
 #endif
+/* the parts that can sound: Felucca's four; ChoralRoot's chord and bass (cr_out.c gives a note to parts 0 / 1 alone:
+ * midi_event stops at part 2, a stream plays part 0, 1 or none; fx.c renders 2..3 idle, so a voice there would never
+ * end). voices_busy_of counts these alone: it runs for every note that finds a free voice (voice_alloc), in the
+ * audio ISR's tick, and two silent parts of 16 slots were two thirds of its loop (3y215) */
+#if FELUCCA_SEQ
+#define VB_NPART NPART
+#else
+#define VB_NPART 2u
+#endif
 static uint32_t voices_busy_of(const track_t *self)        /* budget units of the sounding voices (not fading) of the
                                                          * parts that share self's budget */
 {
     uint32_t p, i, n, u = 0, sp = (uint32_t)(self - trk);
-    for (p = 0; p < NPART; p++) {
+    for (p = 0; p < VB_NPART; p++) {
         if (!VB_SAME(p, sp))
             continue;
         for (i = n = 0; i < NVOICE; i++)
             n += trk[p].v[i].active && trk[p].v[i].stage != 4u;
-        u += n * voice_units(&trk[p]);
+        if (n)
+            u += n * voice_units(&trk[p]);
     }
     return u;
 }
@@ -494,6 +504,11 @@ static voice_t *voice_alloc(track_t *t, uint32_t note, uint32_t vel)
         }
 #endif
     if (VA_NOPOOL) {
+    } else if (!nfree) {                                /* every voice sounds (nothing above freed one): neither search
+                                                         * finds one, ROTATE moves on (a steal at every chord change of
+                                                         * a long release: 3y215) */
+        if (!t->p[P_ALLOC] && !t->p[P_GLIDE])
+            t->rr = (uint8_t)((t->rr + 1u) % np);
     } else if (t->p[P_ALLOC] || t->p[P_GLIDE]) {
         for (i = 0; i < np; i++) {
             int32_t d = t->v[i].pitch_cur - (int32_t)note * 16;
