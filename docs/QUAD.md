@@ -574,6 +574,10 @@ step to -1 a sample: the tail saw-toothed up to 31 LSB below its level, and a 1 
 F_TIME's 1 ms .. 10 s text was the old curve's). The `.dnsnd` import takes the times 1:1 ([SOUNDS.md](SOUNDS.md)). The import also reads Digitone
 SysEx dumps (`.syx`: a sound, the pool or a project's) and version-4 records (OS 1.42) since 3y200; a DRIVE above 0
 gets a note: the FM-1's drive comes after FM TONE's filter, the Digitone's before it (SOUNDS.md ".dnsnd import").
+Since 3y201 no Digitone sound is refused for its record version: a version it does not know (a newer one, or 2 / 3) is
+read with the newest layout, version 5's (the parameters in their slots, the OCTAVE found from the end marker), with a
+note naming the version and saying the fields the FM-1 does not know were skipped; a record cut short gives what it
+holds, FM TONE's defaults for the rest. Only a file that is not a Digitone sound (or is a Digitone II one) is refused.
 **Digitone sounds imported before this change should be imported again**: their times were converted to FM TONE's
 old curve.
 

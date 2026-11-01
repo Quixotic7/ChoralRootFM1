@@ -5,8 +5,10 @@
 // on this computer, nothing is uploaded.
 //
 // A .dnsnd is a ZIP of manifest.json ({FormatVersion, ProductType, Payload, FileType "Sound", FirmwareVersion,
-// MetaInfo.Tags}) and the payload named by Payload: a 0x23-byte header (magic ac 11 d3 03, ASCII "0097" at 9, the
-// decompressed size u16le at 0x1c = 302), an LZ4 block, a 14-byte trailer (.. end magic aa a1 da aa). The 302-byte
+// MetaInfo.Tags}) and the payload named by Payload: a 0x1f-byte header (magic ac 11 d3 03, the device u16be at 7: 9 the
+// Digitone, 15 the Digitone II; the build in ASCII at 9: "0051" OS 1.31, "0095" 1.42, "0097" 1.44; the body's length
+// u32be at 0x19 = 302, the compressed flag at 0x1d), the body (flag 1: an LZ4 chain, u32be size + block .. u32be 0; flag
+// 0: as it is), a 12-byte trailer (CRC, length, end magic aa a1 da aa; FIZZ research/DN2-FORMAT.md §2). The 302-byte
 // record: be ef ba ce, u32be version (1: the factory sounds; 5: a sound saved on OS 1.44, the owner's exports), u32 tag
 // bits, the name (16 bytes, NUL padded) at 12, then the parameters as byte pairs from 30 (the coarse value, the fine
 // byte on the hi-res ones). Slot s (offset 28 + 2 s) is also LFO destination number s (proved by the owner's controlled
@@ -52,11 +54,22 @@ const dnV5OfV4 = (i, v) => {
   return Math.max(DN_QUAD_RANGES[i][0], Math.min(DN_QUAD_RANGES[i][1], w));
 };
 const DN_QF = { OFF: 0, LP12: 1, HP12: 2, LP24: 3 };
-export const DN_VERSIONS = [1, 4, 5];             // the record versions read (others: "not supported")
+export const DN_VERSIONS = [1, 4, 5];             // the record versions known
 // the layout each is read with: version 4 (a sound saved on OS 1.42, payload header "0095") has version 5's, byte for
 // byte (FIZZ b67df20, the owner's F186 KICK01: the tail and its end marker at version 5's offsets, OFS and the filter
 // DELAY in place); it was refused as "a newer Digitone format (version 4)"
 export const DN_LAYOUT = { 1: 1, 4: 5, 5: 5 };
+// Any other version (3y201, the owner: "Presets with a newer format should still import.") is read with the newest
+// layout, with a note: no file is refused for its version number. The parameters sit at 28 + 2 x id, the law the
+// Digitone II kept for its own 359-byte record (FIZZ research/DN2-FORMAT.md §3: what grew was the tail, the machine
+// bytes, the mod and arp records after the parameters), so the head reads where the newest layout has it; the tail (the
+// sound's OCTAVE) is found from the record's end marker ba ce f0 0c, at the newest layout's distance from it; what the
+// record holds past the fields known is skipped. A version-3 dump (a 2018 .syx: 159 sounds of 282 bytes)
+// bears it out: the head as version 5's to 182 (its constants at 170 / 172, OFS 64-centred), the end marker at 278 (20
+// before version 5's), the byte 18 before it the multiples of 12 an OCTAVE holds
+export const DN_NEWEST = 5;
+const DN_END = { 1: 279, 5: 298 };                // the end marker's offset in each layout
+const DN_TAIL = 183;                              // the tail: fields from here are read relative to the end marker
 
 // ---- the Digitone's tables (the manual OS 1.44 and the owner's controlled exports, 2026-10-14)
 // RATIO C, B1, B2: 19 steps (= FM TONE's QUAD_RCB); exports: C 0 = 0.25, 3 = 1, 4 = 2, 18 = 16; B 0.25 0.5 1 16
@@ -125,7 +138,7 @@ export const DN_LFO_DEST = {
 // ---- the field table: [name, offset, hi-res, confidence, decode(d, o) -> the Digitone's value, apply(value, out), since]
 // confidence: "verified" (a controlled export changed exactly this field: offset and encoding proved), "slot" (the offset
 // proved by the LFO destination numbering, the encoding inferred), "inferred" (corpus ranges, the manual), "guess",
-// "unknown" (decoded for the diff tool, not imported). since: the first record version that has the field (default 1)
+// "unknown" (decoded for the diff tool, not imported). since / until: the first / last layout that has the field
 // a hi-res value: the coarse byte and the fine byte, in hundredths: coarse + round(fine x 100 / 256) / 100
 const dnLo = (d, o) => d[o], dnHi = (d, o) => (d[o] * 100 + Math.round(d[o + 1] * 100 / 256)) / 100;
 const dnR = Math.round;
@@ -217,14 +230,17 @@ export const DNSND_FIELDS = [
   ["ofsB1", 178, 1, "slot", (d, o) => dnHi(d, o) - 64, dnOfs(DN_QP.OFSB1, "RATIO B1"), 5],
   ["ofsB2", 180, 1, "slot", (d, o) => dnHi(d, o) - 64, dnOfs(DN_QP.OFSB2, "RATIO B2"), 5],
   ["filter.delay", 182, 0, "slot", dnLo, dnTo(DN_QP.FDLY), 5],
-  ["octave", 263, 0, "inferred", (d, o) => (d[o] << 24) >> 24, null],                        // version 1 (dnsndToQuad)
-  ["octave", 280, 0, "inferred", (d, o) => (d[o] << 24) >> 24, null, 5],                     // version 5: overrides 263
+  ["octave", 263, 0, "inferred", (d, o) => (d[o] << 24) >> 24, null, 1, 1],                  // version 1 (dnsndToQuad)
+  ["octave", 280, 0, "inferred", (d, o) => (d[o] << 24) >> 24, null, 5],                     // version 5
 ];
 
 // ---- the container
-const DN_SIZE = 302, DN_HDR = 0x23;
+const DN_HDR = 0x1f;
 const dnU16 = (b, o) => b[o] | b[o + 1] << 8, dnU32 = (b, o) => (b[o] | b[o + 1] << 8 | b[o + 2] << 16 | b[o + 3] << 24) >>> 0;
+const dnU16be = (b, o) => b[o] << 8 | b[o + 1], dnU32be = (b, o) => (b[o] << 24 | b[o + 1] << 16 | b[o + 2] << 8 | b[o + 3]) >>> 0;
 const DN_NOT = "not a Digitone sound file";
+// a Digitone II sound (its own 359-byte record: other parameter numbers, the machine bytes; FIZZ reads them)
+const DN_DN2 = "a Digitone II sound: its parameters are numbered differently, this importer reads Digitone sounds";
 // a raw deflate stream -> its bytes: the browser's DecompressionStream, else node's zlib
 export async function dnInflateRaw(bytes) {
   if (typeof DecompressionStream !== "undefined") {
@@ -255,26 +271,26 @@ export async function dnReadZip(b) {
   }
   return { names: [...out.keys()], get: async (name) => { const d = out.get(name); return d && (d.deflated ? dnInflateRaw(d) : d); } };
 }
-// an LZ4 block from src[p] -> want bytes (the payload's compression)
-export function dnLz4Block(src, p, want) {
-  const o = new Uint8Array(want); let n = 0;
-  const byte = () => { if (p >= src.length) throw new Error(`${DN_NOT} (the sound data is cut short)`); return src[p++]; };
+// an LZ4 block from src[p] (ending at stop) -> want bytes (the payload's compression); o / n: a chain's output so far
+// (its blocks share one dictionary)
+export function dnLz4Block(src, p, want, stop = src.length, o = new Uint8Array(want), n = 0) {
+  const byte = () => { if (p >= stop) throw new Error(`${DN_NOT} (the sound data is cut short)`); return src[p++]; };
   while (n < want) {
     const t = byte(); let l = t >> 4;
     if (l === 15) { let b; do { b = byte(); l += b; } while (b === 255); }
     if (n + l > want) throw new Error(`${DN_NOT} (the sound data does not decompress)`);
     for (let i = 0; i < l; i++) o[n++] = byte();
-    if (n >= want) break;
+    if (n >= want || p >= stop) break;
     const off = byte() | byte() << 8;
     let m = (t & 15) + 4;
     if ((t & 15) === 15) { let b; do { b = byte(); m += b; } while (b === 255); }
     if (!off || off > n || n + m > want) throw new Error(`${DN_NOT} (the sound data does not decompress)`);
     for (let i = 0; i < m; i++, n++) o[n] = o[n - off];
   }
-  return { data: o, end: p };
+  return { data: o, end: p, n };
 }
 
-// a .dnsnd's bytes -> the sound (throws with a clear message on anything that is not a Digitone sound version 1)
+// a .dnsnd's bytes -> the sound (throws with a clear message on anything that is not a Digitone sound)
 export async function parseDnsnd(bytes) {
   if (!(bytes instanceof Uint8Array)) bytes = Uint8Array.from(bytes || []);
   if (bytes.length < 4 || dnU32(bytes, 0) !== 0x04034b50) throw new Error(`${DN_NOT} (not a ZIP archive)`);
@@ -286,11 +302,26 @@ export async function parseDnsnd(bytes) {
   if (!man || man.FileType !== "Sound") throw new Error(`${DN_NOT} (FileType ${man && JSON.stringify(man.FileType)}, not "Sound")`);
   const pl = typeof man.Payload === "string" && await zip.get(man.Payload);
   if (!pl) throw new Error(`${DN_NOT} (the payload ${JSON.stringify(man.Payload)} is missing)`);
-  if (pl.length < DN_HDR + 14 || dnU32(pl, 0) !== 0x03d311ac) throw new Error(`${DN_NOT} (the payload's magic)`);
-  if (new TextDecoder().decode(pl.subarray(9, 13)) !== "0097") warnings.push("the payload header is not the 0097 kind: read as it");
-  const size = dnU16(pl, 0x1c);
-  if (size !== DN_SIZE) throw new Error(`a newer Digitone format (a ${size}-byte sound, not ${DN_SIZE}): not supported`);
-  const { data: d, end } = dnLz4Block(pl, DN_HDR, size);
+  if (pl.length < DN_HDR + 12 || dnU32(pl, 0) !== 0x03d311ac) throw new Error(`${DN_NOT} (the payload's magic)`);
+  // the body's length and its compression from the header (before 3y201: a u16le at 0x1c, the length's low byte and the
+  // flag, 302 by luck); any length is read (dnRecord takes what its layout covers). The build at 9 is the OS that saved it
+  const size = dnU32be(pl, 0x19), packed = pl[0x1d];
+  if (dnU16be(pl, 7) === 15) throw new Error(DN_DN2);
+  if (size < 28 || size > 0x8000 || packed > 1) throw new Error(`${DN_NOT} (the payload's header: a ${size}-byte body${packed > 1 ? `, compression ${packed}` : ""})`);
+  let d, end = DN_HDR + size;
+  if (packed) {                                   // an LZ4 chain: u32be size, the block, .., u32be 0
+    d = new Uint8Array(size);
+    let n = 0;
+    for (end = DN_HDR; ;) {
+      if (end + 4 > pl.length) throw new Error(`${DN_NOT} (the sound data is cut short)`);
+      const sz = dnU32be(pl, end); end += 4;
+      if (!sz) break;
+      if (end + sz > pl.length) throw new Error(`${DN_NOT} (the sound data is cut short)`);
+      n = dnLz4Block(pl, end, size, end + sz, d, n).n; end += sz;
+    }
+    if (n < size) throw new Error(`${DN_NOT} (the sound data is cut short)`);
+  } else if (end > pl.length) throw new Error(`${DN_NOT} (the sound data is cut short)`);
+  else d = pl.slice(DN_HDR, end);
   const tail = pl.subarray(end);
   if (tail.length < 4 || dnU32(tail, tail.length - 4) !== 0xaadaa1aa) warnings.push("the payload's trailer is not the usual one");
   if (man.FirmwareVersion !== "1.42A") warnings.push(`made on Digitone firmware ${man.FirmwareVersion}: read as 1.42A`);
@@ -298,18 +329,32 @@ export async function parseDnsnd(bytes) {
   const tags = Array.isArray(man.MetaInfo && man.MetaInfo.Tags) ? man.MetaInfo.Tags.map(String) : [];
   return dnRecord(d, warnings, { tags, firmware: man.FirmwareVersion ?? null, product: man.ProductType ?? null });
 }
-// the 302-byte record (from a .dnsnd or a SysEx dump) -> the parsed sound; version: the layout's (dnsndToQuad's laws go
-// by it), fileVersion: the record's own
+// the record (from a .dnsnd or a SysEx dump; 302 bytes in version 5, 283 in a version-1 dump, any length read) -> the
+// parsed sound; version: the layout's (dnsndToQuad's laws go by it), fileVersion: the record's own. A version not known
+// is read with the newest layout (DN_NEWEST); a record cut short (no end marker, shorter than its layout): the fields it
+// holds, the others left at FM TONE's defaults; either with a note. Only a record that is not a Digitone sound is refused
 function dnRecord(d, warnings, meta) {
-  if (!(d[0] === 0xbe && d[1] === 0xef && d[2] === 0xba && d[3] === 0xce)) throw new Error(`${DN_NOT} (the sound's magic)`);
-  const version = (d[4] << 24 | d[5] << 16 | d[6] << 8 | d[7]) >>> 0;
-  if (!DN_VERSIONS.includes(version)) throw new Error(`a newer Digitone format (version ${version}): not supported`);
-  const layout = DN_LAYOUT[version];
-  if (layout !== version) warnings.push(`a version-${version} sound: read as version ${layout} (the same layout)`);
+  if (d.length >= 9 && d[0] === 0 && d[5] === 0xbe && d[6] === 0xef && d[7] === 0xba && d[8] === 0xce) throw new Error(DN_DN2);
+  if (d.length < 28 || !(d[0] === 0xbe && d[1] === 0xef && d[2] === 0xba && d[3] === 0xce)) throw new Error(`${DN_NOT} (the sound's magic)`);
+  const version = (d[4] << 24 | d[5] << 16 | d[6] << 8 | d[7]) >>> 0, known = DN_LAYOUT[version] !== undefined;
+  const layout = known ? DN_LAYOUT[version] : DN_NEWEST;
+  if (!known) warnings.push(`a version-${version} sound (${version > Math.max(...DN_VERSIONS) ? "newer than" : "not one of"} the versions known, ${DN_VERSIONS.join(" ")}): read as version ${layout}; fields the FM-1 does not know were skipped`);
+  else if (layout !== version) warnings.push(`a version-${version} sound: read as version ${layout} (the same layout)`);
+  // where the record's own bytes end: its end marker (the tail read from it), else the layout's when it is that long
+  let mark = -1;
+  for (let i = d.length - 4; i >= DN_TAIL && mark < 0; i--) if (d[i] === 0xba && d[i + 1] === 0xce && d[i + 2] === 0xf0 && d[i + 3] === 0x0c) mark = i;
+  const whole = mark >= 0 || d.length >= DN_END[layout] + 4, size = mark >= 0 ? mark : whole ? DN_END[layout] : d.length;
+  const shift = mark >= 0 ? mark - DN_END[layout] : 0;
   let name = "";
   for (let i = 12; i < 28 && d[i]; i++) name += String.fromCharCode(d[i]);
-  const params = {}, confidence = {};
-  for (const [k, o, , c, dec, , since = 1] of DNSND_FIELDS) if (layout >= since) { params[k] = +dec(d, o).toFixed(2); confidence[k] = c; }
+  const params = {}, confidence = {}, missing = [];
+  for (const [k, o, hi, c, dec, , since = 1, until = DN_NEWEST] of DNSND_FIELDS) {
+    if (layout < since || layout > until) continue;
+    const at = o >= DN_TAIL ? o + shift : o;
+    if ((o >= DN_TAIL && !whole) || at + (hi ? 2 : 1) > size) { if (c !== "unknown") missing.push(k); continue; }
+    params[k] = +dec(d, at).toFixed(2); confidence[k] = c;
+  }
+  if (missing.length) warnings.push(`the sound is cut short (${d.length} bytes${mark < 0 ? ", no end marker" : ""}): ${missing.length} of its settings not in it, FM TONE's defaults instead`);
   return { name, tags: [], firmware: null, product: null, ...meta, version: layout, fileVersion: version, params, confidence, warnings, record: d };
 }
 
@@ -319,7 +364,8 @@ function dnRecord(d, warnings, meta) {
 //   the next seven's top bits, bit 6 first, then the seven) | the checksum (the packed data's byte sum & 0x3FFF, 7 + 7
 //   bits) | the length (the message's bytes after nn up to F7: 7 + 7 bits) | F7
 // The data is the .dnsnd's record, without the LZ4: a version-1 record is 283 bytes (its end marker ba ce f0 0c at 279,
-// as in the factory .dnsnd), zero-padded to 302. Other messages (kits, patterns, songs, settings: a project's dump) hold
+// as in the factory .dnsnd), a version-3 one 282 (a 2018 dump), read as dnRecord reads any; a message cut
+// short (Revealed.syx holds ten of 113 bytes, their sum and length wrong) gives what it holds, with a note. Other messages (kits, patterns, songs, settings: a project's dump) hold
 // no sound of their own here: skipped and counted. The kits' sounds are not read (their layout is not decoded)
 export const isDnSyx = (b) => b && b.length > 5 && b[0] === 0xF0 && b[1] === 0x00 && b[2] === 0x20 && b[3] === 0x3C && b[4] === 0x0D;
 export const DN_SYX_SOUND = 0x53;
@@ -356,10 +402,7 @@ export function parseDnSyx(bytes) {
     if ((m[m.length - 5] << 7 | m[m.length - 4]) !== sum) w.push("the message's checksum does not match: read as it is");
     if (len !== m.length - 10) w.push("the message's length field does not match: read as it is");
     if (m[7] !== 1 || m[8] !== 1) w.push(`a sound message of version ${m[7]}.${m[8]}: read as 1.1`);
-    const raw = dnUnpack87(data);
-    if (raw.length > DN_SIZE) { bad++; notes.push(`message ${n}: a ${raw.length}-byte sound, not supported`); continue; }
-    const d = new Uint8Array(DN_SIZE); d.set(raw);
-    try { sounds.push({ ...dnRecord(d, w, {}), slot: m[9] }); } catch (x) { bad++; notes.push(`message ${n}: ${x.message}`); }
+    try { sounds.push({ ...dnRecord(dnUnpack87(data), w, {}), slot: m[9] }); } catch (x) { bad++; notes.push(`message ${n}: ${x.message}`); }
   }
   const kinds = { 0x52: "kit", 0x54: "pattern", 0x55: "song", 0x56: "settings", 0x57: "global" };
   for (const [k, c] of Object.entries(other)) notes.push(`${c} ${kinds[k] || `type ${(+k).toString(16).toUpperCase()}`} message${c === 1 ? "" : "s"} skipped (only the sounds are read; a kit's own sounds are not)`);

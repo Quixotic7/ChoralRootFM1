@@ -336,8 +336,9 @@ ok(site.includes('"manager.html"') && site.includes("fm1manager.js") && site.inc
     const d = new Uint8Array(302); d.set([0xbe, 0xef, 0xba, 0xce, 0, 0, 0, 1], 0);
     for (let i = 0; i < name.length; i++) d[12 + i] = name.charCodeAt(i);
     const lit = [0xF0]; let r = d.length - 15; while (r >= 255) { lit.push(255); r -= 255; } lit.push(r);   // (one LZ4 sequence of literals)
-    const hdr = new Uint8Array(0x23); hdr.set([0xac, 0x11, 0xd3, 0x03], 0); hdr.set([0x30, 0x30, 0x39, 0x37], 9); hdr.set(le(2, 302), 0x1c);
-    const tr = Uint8Array.from([0, 0, 1, 2, 3, 4, 0, 0, 0, 0x2a, 0xaa, 0xa1, 0xda, 0xaa]);
+    const n = lit.length + d.length, hdr = new Uint8Array(0x23);   // the header: the body's length u32be at 0x19, packed, the block's size
+    hdr.set([0xac, 0x11, 0xd3, 0x03, 2, 0, 5, 0, 9, 0x30, 0x30, 0x39, 0x37], 0); hdr.set([0, 0, 1, 0x2e, 1, 12, n >>> 24, n >>> 16 & 255, n >>> 8 & 255, n & 255], 0x19);
+    const tr = Uint8Array.from([0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0x2a, 0xaa, 0xa1, 0xda, 0xaa]);
     const pl = Uint8Array.from([...hdr, ...lit, ...d, ...tr]);
     const man = { FormatVersion: 1, ProductType: ["24", "30"], Payload: "SND", FileType: "Sound", FirmwareVersion: "1.42A", MetaInfo: { Tags: ["test"] } };
     return zip([["manifest.json", new TextEncoder().encode(JSON.stringify(man))], ["SND", pl]]);

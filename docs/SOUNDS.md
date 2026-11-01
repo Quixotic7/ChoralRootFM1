@@ -380,7 +380,7 @@ each the same sound as the pack's own `.dnsnd`: all 123 that have one give the s
 (Elektron) `0D` (Digitone) `00 53` (a sound) `01 01 nn`, the data 8:7 packed (a byte of the next seven's top bits,
 bit 6 first, then the seven), the checksum (the packed bytes' sum & 0x3FFF, 7 + 7 bits), the length (the bytes after
 `nn` up to `F7`, 7 + 7 bits), `F7`. The data is the record below without the LZ4 (a version-1 record 283 bytes, its end
-marker at 279 as in the factory files; zero-padded to 302). A wrong checksum or length is read with a note; the
+marker at 279 as in the factory files; read as any record is, below). A wrong checksum or length is read with a note; the
 project's other messages (kits, patterns, songs, settings) are skipped and counted in the first sound's notes (a
 kit's own sounds are not read: their layout is not decoded). A `.syx` holds no tags or firmware version. The CLI
 (`fm1_install.py --import-syx`) still takes DX7 and CZ-1 dumps only.
@@ -389,19 +389,39 @@ kit's own sounds are not read: their layout is not decoded). A `.syx` holds no t
 the Dissonant World pack's `.dnsnd`) has version 5's layout byte for byte and is read as version 5 with a note ("a
 version-4 sound: read as version 5"); it was refused as "a newer Digitone format (version 4)".
 
+**Any other record version** (3y201, the owner: "Presets with a newer format should still import."): no file is
+refused for its version number. A version the importer does not know (2, 3, 6 and up) is read with the newest layout
+(version 5's) and one note naming it: "a version-7 sound (newer than the versions known, 1 4 5): read as version 5;
+fields the FM-1 does not know were skipped" ("not one of the versions known" for 2 / 3). The parameters keep their
+slots at 28 + 2 x id (the law the Digitone II kept for its own longer record, FIZZ `research/DN2-FORMAT.md` §3: what
+grows is the tail), so the head reads in place; the tail (the sound's OCTAVE) is found from the record's end marker
+`ba ce f0 0c`, 18 bytes before it as in version 5; bytes past the fields known are skipped. A version-3 dump of 2018
+(159 sounds of 282 bytes, the end marker at 278) bears it out: version 5's head to 182 (its constants at 170 / 172, the
+ratio offsets 64-centred), and 18 before the marker only multiples of 12 (0, -12, -24, -36, +12), an OCTAVE's values.
+**A record cut short** (no end marker, shorter than its layout: `Revealed.syx` holds ten 113-byte messages, their
+checksum and length wrong) gives the fields it holds; the others stay at FM TONE's defaults, with a note ("the sound is
+cut short (113 bytes, no end marker): 22 of its settings not in it, FM TONE's defaults instead"; before, the missing
+bytes were read as zeros: LEVEL 0, the filter shut). Still refused: a file whose framing is not a Digitone sound (not a
+ZIP, no manifest, not a Sound, the payload's or the record's magic, a damaged LZ4 chain, a body the header's length
+does not hold) and a **Digitone II** sound (the payload's device 15, or a body with its 5-byte prefix: its parameters
+are numbered differently, FIZZ reads them).
+
 **The file** (`web/fm1dnsnd.js parseDnsnd`). A ZIP (stored or deflated: `DecompressionStream("deflate-raw")` in a
 browser, zlib in node) of `manifest.json` (`FileType` "Sound", `Payload` the payload's name, `FirmwareVersion`,
-`ProductType`, `MetaInfo.Tags`) and the payload: a 0x23-byte header (magic `ac 11 d3 03`, "0097" at 9, the record's
-size u16le at 0x1c), an LZ4 block, a 14-byte trailer (ending `aa a1 da aa`). The record, 302 bytes: `be ef ba ce`,
+`ProductType`, `MetaInfo.Tags`) and the payload: a 0x1f-byte header (magic `ac 11 d3 03`, the device u16be at 7: 9
+the Digitone, 15 the Digitone II; the saving OS's build in ASCII at 9: "0051" 1.31, "0095" 1.42, "0097" 1.44; the
+body's length u32be at 0x19; the compressed flag at 0x1d), the body (flag 1: an LZ4 chain, a u32be size before each
+block, a u32be 0 after the last; flag 0: the bytes as they are), a 12-byte trailer (a CRC, a length, `aa a1 da aa`;
+FIZZ `research/DN2-FORMAT.md` §2; before 3y201 the length was read as a u16le at 0x1c, the length's low byte and the
+flag: 302 by luck). The record, 302 bytes: `be ef ba ce`,
 u32be version, a u32 of tag bits, the name (16 bytes) at 12, then the parameters as byte pairs from 30 (the coarse
 value; the second byte is the fine part on the hi-res ones). **Record versions**: 1 (the factory sounds, the end
 marker `ba ce f0 0c` at 279) and 5 (a sound saved on the owner's Digitone, OS 1.44, the manifest still "1.42A"; the
 marker at 298). Both have the same slots up to 168; version 5 adds 170..182 (the ratio offsets, the filter's ENV
 DELAY; zeros in version 1) and its bytes 270..297 change from save to save (not parameters). Refused with the reason:
-not a ZIP, no manifest, not a Sound, no payload, another payload magic, a record size other than 302 or a record
-version other than 1 and 5 ("a newer Digitone format (version N): not supported": the Digitone II likely differs),
-the record's magic, a damaged LZ4 block. Read with a warning: a firmware other than 1.42A, a ProductType other than
-`["24","30"]`, an unusual header or trailer.
+not a ZIP, no manifest, not a Sound, no payload, another payload magic, a body length no sound has, a Digitone II
+sound, the record's magic, a damaged LZ4 chain. Read with a warning: a record version other than 1, 4, 5 (as version
+5, above), a record cut short, a firmware other than 1.42A, a ProductType other than `["24","30"]`, an unusual trailer.
 
 **Slot = LFO destination.** Slot s is the byte pair at offset 28 + 2 s, and LFO DEST number s modulates the parameter
 in slot s (every destination export proves one pair: DEST 17 ALGO is offset 62, DEST 51 FILTER FREQ offset 130, LFO

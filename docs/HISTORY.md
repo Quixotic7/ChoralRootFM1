@@ -6524,3 +6524,40 @@ synthetic dump of our own records (a 283-byte version 1, a version 5, a kit mess
 checksum / length notes; a record it cannot read skipped; errors; the manager's items. **Imported sounds that change**:
 version-4 `.dnsnd` now import (before: refused); a sound with DRIVE above 0 has one more note (its blob, PAN, DRIVE
 unchanged). No golden changed.
+
+## 2026-10-31 (Digitone import: any record version, the Haunted Hearts pack)
+
+3y201. **No Digitone sound is refused for its version; the Haunted Hearts pack imports.** The owner: "Presets with a
+newer format should still import." and "I also have these presets
+/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/Presets/Digitone/haunted-hearts-acbift/Haunted-Hearts which don't
+import." **The pack**: `Sounds/` (128 `.dnsnd`, record version 4, saved on OS 1.31: manifest firmware "1.31", product
+`["20","28"]`, payload build "0051"), `SysEx/` (one `.syx` of 128 sound messages, 339 bytes, version-1 records of 283
+bytes) and `instructions.txt` (a link to Elektron's install page). **What refused it**: every released build (and
+main before 3y200) refused the 128 `.dnsnd` as "a newer Digitone format (version 4)" and had no Digitone `.syx`
+reader; 3y200 (d9464dd, not yet in a release) reads both: all 128 `.dnsnd` and the 128 sounds of the `.syx` import,
+and each `.dnsnd` gives the same FM TONE blob as its `.syx` twin (128 of 128). **The version rule** (fm1dnsnd.js
+`dnRecord`): a record version not known (2, 3, 6 and up) is read with the newest layout, version 5's, with one note ("a
+version-7 sound (newer than the versions known, 1 4 5): read as version 5; fields the FM-1 does not know were
+skipped"). FIZZ's Digitone II reader (`research/DN2-FORMAT.md`, `site/js/dn2pst.js`) showed what a newer layout does:
+the parameters stay at 28 + 2 x id, the record grows at its tail (the machine bytes, twenty mod records, the
+arpeggiator; 359 bytes), the OCTAVE moves with the tail; so the head is read in place and the tail found from the end
+marker `ba ce f0 0c` (the OCTAVE 18 bytes before it, as in version 5); FIZZ itself still refuses a DN II record version
+above 3 and reads 1 / 3 with version 2's layout and a note: the same safe reading. A record cut short (no end marker,
+shorter than its layout) gives the fields it holds, FM TONE's defaults for the rest, with a note. Still refused: what is
+not a Digitone sound by its framing, and a Digitone II sound (device 15, or a body with its 5-byte prefix: other
+parameter numbers). **The container** is now read as FIZZ's research decoded it: the body's length u32be at 0x19 and
+the compressed flag at 0x1d (a raw body, an LZ4 chain of blocks), not a u16le at 0x1c that held 302 by luck; the
+"payload header is not the 0097 kind" warning is gone (the 4 bytes at 9 are the saving OS's build: every Haunted Hearts
+sound carried it). **The whole Presets/Digitone tree** (525 files: 512 `.dnsnd`, 13 `.syx`), read in place, nothing
+of it in the repo: before 3y200 256 files / 256 sounds; at 3y200 524 files / 1,856 sounds (refused: a 2018 third-party
+`.syx` of 159 version-3 sounds, 282 bytes); now 525 / 2,015. The 1,856 sounds that imported give the same blob but
+ten. **Imported sounds that change**: the version-3 dump's 159 now import (head read in place, OCTAVE at 260: only
+multiples of 12 there; the note on each); the ten 113-byte messages of `Revealed.syx` (SPACE NAVIGATIO, WAIT AND SEE,
+MIN7 PAD, MUMBLIN FM, LORD OF, ORION, RATIOPAD, DEAD ANGEL, METAL PERC, TV07 KICK: checksum and length wrong, the sound
+cut short) keep FM TONE's defaults past byte 112 with a note ("the sound is cut short (113 bytes, no end marker): 22 of
+its settings not in it, FM TONE's defaults instead"), where the missing bytes were read as zeros (LEVEL 0, the filter
+shut); the Haunted Hearts and every other sound as at 3y200, one note fewer (the "0097" one). Tests
+(`web/test_dnsnd.mjs`, our own records): a version 7 of 330 bytes (its OCTAVE from the marker, the same blob as version
+5), a version 7 of 302 bytes without a marker, a version-3 `.syx` record of 282 bytes, a 113-byte message, a raw body,
+a two-block LZ4 chain, a Digitone II payload and body refused, a version 2 in a `.syx` read; the test encoders
+(`test_dnsnd.mjs`, `test_manager.mjs`) now write the real header. No golden changed.
