@@ -8,7 +8,7 @@
 // No DOM: the page (manager.html) draws, this decides. Every name here is unique across fm1backup.js / fm1sounds.js:
 // make_site.py inlines them (and fm1dnsnd.js) into one script.
 import { BACKUP_CMD, bkU32, bkR32, bkPack, bkUnpack, bkCrc, bkManifest, objectName, readBackup, CR_LOOP_IDS, CR_BACKUP_IDS, loopHeader } from "./fm1backup.js";
-import { nameValid, SOUND_IDS, POOL_IDS, ENGINE_NAMES, FACTORY_PRESETS, FACTORY_FIRST, FACTORY_IDS, SOUND_TEMPLATES, SOUND_FORMAT, PATCH_SIZE, poolOf, engineRetired, patchKindOf, parseSoundObjects, exportSound, readSoundFile, renameSound, deleteSound, writeSounds, placeSound, bindSound, swapSounds, firstFreeSlot, rawBindings, recordValid, slotLabel, isPool, parseSyx, syxCount, soundFromSyx, soundFromDnsnd } from "./fm1sounds.js";
+import { nameValid, SOUND_IDS, POOL_IDS, ENGINE_NAMES, FACTORY_PRESETS, FACTORY_FIRST, FACTORY_IDS, SOUND_TEMPLATES, SOUND_FORMAT, PATCH_SIZE, poolOf, engineRetired, patchKindOf, parseSoundObjects, exportSound, readSoundFile, renameSound, deleteSound, writeSounds, placeSound, bindSound, swapSounds, firstFreeSlot, rawBindings, recordValid, slotLabel, isPool, parseSyx, syxCount, soundFromSyx, soundFromDnsnd, quadV6Of } from "./fm1sounds.js";
 import { parseDnsnd, parseDnSyx, isDnSyx } from "./fm1dnsnd.js";
 
 // the engine picker's order (docs/PRESETS.md; the EDIT picker since 0.14; five engines since 0.18: PHASE, LOFI, VOICE,
@@ -76,8 +76,9 @@ const mgMerge = (objs, res) => { const m = new Map(objs); for (const [id, b] of 
 // over a factory row of that pool: a new slot bound to it; over a user row of that pool: that slot (keeping the row's
 // binding); otherwise (INIT, another pool, nothing selected) the next free slot as an added sound.
 // -> {changed, objs, slot, where: "new" | "over-factory" | "over-user", notes: on a firmware before the pool, what of
-// the patch it will not have (fm1sounds.js importSound)}
-export function managerPlace(objs, sound, target = null) {
+// the patch it will not have (fm1sounds.js importSound)}. opts.firmware: the FM-1's version (INFO's): a ChoralRoot 0.27
+// or older is written FM TONE version 5 (mgOpts; 3y210), none given: as the sound is
+export function managerPlace(objs, sound, target = null, opts = {}) {
   if (!sound || !(sound.record instanceof Uint8Array)) sound = { ...readSoundFile(sound), file: sound };
   const pool = poolOf(sound.engine);
   let slot, f = -1, where = "new";
@@ -92,13 +93,16 @@ export function managerPlace(objs, sound, target = null) {
     if (!slot) throw new Error(`All ${parseSoundObjects(objs).slots.length} user slots are used: delete or overwrite one first`);
     if (target && target.engine === pool && target.type === "factory") { f = target.f; where = "over-factory"; }
   }
-  const res = placeSound(objs, slot, sound, f), m = mgMerge(objs, res);
+  const res = placeSound(objs, slot, sound, f, mgOpts(opts)), m = mgMerge(objs, res);
   return { ...mgResult(new Map(objs), m), slot, where, notes: res.notes || [] };
 }
+// the version gate (3y210): FM TONE's version 6 (the Digitone II's machines, AHD, CRUSH, DRIVE's route, the sound's
+// sends) only to a firmware that reads it, fm1sounds.js quadV6Of
+const mgOpts = (opts) => ({ quadV6: !opts || opts.firmware == null ? true : quadV6Of(opts.firmware) });
 // a sound's notes for the confirm / the status line, with its name: ["NAME: note", ..]
 const mgNotes = (sound, res) => (res.notes || []).map((n) => `${sound && sound.name ? sound.name : "a sound"}: ${n}`);
 // several sounds (a pack): each as a new sound (added, or back over its factory position when the file names one); stops at the last free slot (-> placed, skipped counts)
-export function managerPlaceAll(objs, sounds) {
+export function managerPlaceAll(objs, sounds, opts = {}) {
   let m = new Map(objs), placed = 0;
   const notes = [];
   for (const s of sounds) {
@@ -109,7 +113,7 @@ export function managerPlaceAll(objs, sounds) {
       const r = managerPools(m, { empty: false })[poolOf(s.engine)]?.[s.position];
       if (r && r.type === "factory") f = r.f;
     }
-    const res = placeSound(m, slot, s, f);
+    const res = placeSound(m, slot, s, f, mgOpts(opts));
     m = mgMerge(m, res); placed++; notes.push(...mgNotes(s, res));
   }
   return { ...mgResult(new Map(objs), m), placed, skipped: sounds.length - placed, notes };
@@ -128,12 +132,12 @@ export function managerReplacePlan(objs, engine, sounds, from = 1) {
   const replace = Math.min(items.length, places.length, free), extra = Math.min(items.length - replace, free - replace);
   return { items, other, places, replace, extra, refused: items.length - replace - extra, free };
 }
-export function managerReplaceFactory(objs, engine, sounds, from = 1) {
+export function managerReplaceFactory(objs, engine, sounds, from = 1, opts = {}) {
   const p = managerReplacePlan(objs, engine, sounds, from);
   let m = new Map(objs);
   const notes = [];
   p.items.slice(0, p.replace + p.extra).forEach((s, k) => {
-    const res = placeSound(m, firstFreeSlot(m), s, k < p.replace ? p.places[k].f : -1);
+    const res = placeSound(m, firstFreeSlot(m), s, k < p.replace ? p.places[k].f : -1, mgOpts(opts));
     m = mgMerge(m, res); notes.push(...mgNotes(s, res));
   });
   return { ...mgResult(new Map(objs), m), replaced: p.replace, added: p.extra, refused: p.refused, other: p.other.length, notes };
@@ -545,13 +549,13 @@ export function libraryItemsFromFile(name, content) {
   }
   throw new Error(`${name}: not a sound, loop, pack, backup or .syx file`);
 }
-// a Digitone .dnsnd's bytes -> one library item (an FM TONE sound) with `notes`: what was lost or approximated
+// a Digitone .dnsnd's (or a Digitone II .dn2pst / .dn2snd's) bytes -> one library item (an FM TONE sound) with `notes`: what was lost or approximated
 // (docs/SOUNDS.md ".dnsnd import"); a bad file throws with the reason
 export async function libraryItemsFromDnsnd(name, bytes) {
   let parsed;
   try { parsed = await parseDnsnd(bytes); } catch (e) { throw new Error(`${name}: ${e.message}`); }
   const s = soundFromDnsnd(parsed), notes = [...parsed.warnings, ...s.notes];
-  const item = mgItemOfSound(soundToFile(s, { dnsnd: { name: parsed.name, tags: parsed.tags, notes } }), name);
+  const item = mgItemOfSound(soundToFile(s, { dnsnd: { name: parsed.name, tags: parsed.tags, model: parsed.model || 1, notes } }), name);
   return [{ ...item, notes }];
 }
 // a Digitone .syx's bytes -> its sounds as library items (FM TONE), as libraryItemsFromDnsnd's; the file's own notes
@@ -564,7 +568,8 @@ export function libraryItemsFromDnSyx(name, bytes) {
     return { ...mgItemOfSound(soundToFile(s, { dnsnd: { name: parsed.name, tags: parsed.tags, notes } }), name), notes };
   });
 }
-export const isDnsndName = (name) => /\.dnsnd$/i.test(name);
+// (a Digitone .dnsnd, a Digitone II .dn2pst or .dn2snd, 3y210: parseDnsnd reads each)
+export const isDnsndName = (name) => /\.(dnsnd|dn2pst|dn2snd)$/i.test(name);
 export function readPack(pack) {
   if (typeof pack === "string") pack = JSON.parse(pack);
   if (!pack || pack.format !== PACK_FORMAT || pack.version !== 1 || !Array.isArray(pack.sounds)) throw new Error("Not a ChoralRoot pack");

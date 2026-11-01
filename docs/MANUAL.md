@@ -1946,8 +1946,12 @@ The installer page (<https://quixotic7.github.io/ChoralRootFM1/>) has **Back up*
 - Install saves a backup before it writes, unless you skip it.
 - The page's Sounds section exports, imports, renames and deletes single sounds as files (FM6 voices also as DX7
   `.syx`, CZ-1 tones as Casio dumps). It also imports Elektron Digitone sounds as FM TONE: a `.dnsnd` file or a
-  Digitone `.syx` dump (a sound, the pool or a whole project; you choose which sound). The device manager's library
-  takes the same files and lists every sound of a dump, each with what was approximated.
+  Digitone `.syx` dump (a sound, the pool or a whole project; you choose which sound), and a Digitone II FM TONE sound
+  (`.dn2pst`, or a `.dn2snd` from a backup) with its filter machine, AHD envelope, bit and sample-rate reduction,
+  drive, sends, portamento (the part's Glide) and modulation where the FM-1 has them. The device manager's library
+  takes the same files and lists every sound of a dump, each with what was approximated. On ChoralRoot 0.27 or older
+  the import writes a copy those versions play, without the Digitone II's filter machines, AHD, crush and the
+  sound's own sends, and says so.
 
 The same from the command line: `tools/fm1_install.py` (see the [README](../README.md) and [SOUNDS.md](SOUNDS.md)).
 
