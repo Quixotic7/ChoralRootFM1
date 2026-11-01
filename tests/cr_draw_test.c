@@ -1760,6 +1760,28 @@ int main(int argc, char **argv)
             if (CR_SCREENS[k].cell[0][3].glyph == CR_G_RATIO && ir < 0) ir = (int32_t)k;
         }
         check("QUAD: the algo, ade2, base-width and ratio states are in the table", ia >= 0 && id >= 0 && ib >= 0 && ir >= 0);
+        if (ib >= 0) {   /* FM TONE's filter types on the band (3y217: "COMB and EQ display OFF"): OFF, MULTI, COMB+,
+                          * COMB-, EQ (wv[7] 1, 4..7) at a mid cut, RESO, SHAPE and GAIN: each its own picture, linted
+                          * (filter_type_<n>.ppm) */
+            static uint16_t pic[5][240 * 100];
+            static const uint8_t TY[5] = {1, 4, 5, 6, 7};
+            cr_screen_t s = CR_SCREENS[ib];
+            uint32_t n, j, differ = 1;
+            char an[24];
+            for (n = 0; n < 5u; n++) {
+                s.wv[0] = 120, s.wv[1] = 200, s.wv[2] = 20, s.wv[3] = 0, s.wv[4] = 0;
+                s.wv[7] = TY[n], s.wv[8] = 90, s.wv[9] = 110;
+                s.anim = 0;
+                render(&s, 0);
+                snprintf(an, sizeof an, "filter_type_%u", (unsigned)TY[n]);
+                lint(an, &s);
+                write_ppm(dir, an);
+                memcpy(pic[n], host_screen + 22u * 240u, sizeof pic[0]);
+                for (j = 0; j < n; j++)
+                    differ &= memcmp(pic[j], pic[n], sizeof pic[0]) != 0;
+            }
+            check("FM TONE's filter band: OFF, MULTI, COMB+, COMB-, EQ five different pictures (each its name and curve)", differ);
+        }
         if (ia >= 0) {   /* algo: the manual's eight diagrams (cr_algo_geom): four boxes where the geometry puts them
                           * (outline columns inked, the letter inside), no two boxes, loops, side lines or labels
                           * overlapping, every algorithm rendered (algo_<n>.ppm) and linted, 8 different pictures */

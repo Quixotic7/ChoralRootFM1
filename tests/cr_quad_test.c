@@ -450,15 +450,16 @@ static void t_set_macros(void)
     uint32_t pg, c;
     drv_reset(t);
     quad_blob_set(t, 0);
-    for (pg = 0; pg < QUAD_NPAGES; pg++)         /* set clamps at both ends */
+    for (pg = 0; pg < QUAD_NPAGES; pg++)         /* set clamps at both ends (the page's own values: ENG_COL_RAW, so
+                                                  * FILTER+ TYPE at its top, EQ, is still TYPE; t_ftype_cells) */
         for (c = 0; c < 4u; c++) {
             const param_desc_t *d = &QUAD_PAGES[pg].col[c];
             if (!d->label)
                 continue;
-            quad_set(t, pg, c, d->max + 50);
-            CHECK(quad_get(t, pg, c) == d->max, "page %u col %u: set above max -> %d", pg, c, quad_get(t, pg, c));
-            quad_set(t, pg, c, d->min - 50);
-            CHECK(quad_get(t, pg, c) == d->min, "page %u col %u: set below min -> %d", pg, c, quad_get(t, pg, c));
+            quad_set(t, pg, c | ENG_COL_RAW, d->max + 50);
+            CHECK(quad_get(t, pg, c | ENG_COL_RAW) == d->max, "page %u col %u: set above max -> %d", pg, c, quad_get(t, pg, c | ENG_COL_RAW));
+            quad_set(t, pg, c | ENG_COL_RAW, d->min - 50);
+            CHECK(quad_get(t, pg, c | ENG_COL_RAW) == d->min, "page %u col %u: set below min -> %d", pg, c, quad_get(t, pg, c | ENG_COL_RAW));
         }
     quad_set(t, 13, 1, 20);                      /* PAN / DRIVE: the part's */
     quad_set(t, 13, 2, 77);
@@ -1102,6 +1103,95 @@ static void t_combs(void)
         CHECK(k && quad_vs[0][0].cline, "COMB+ with its line, RESO 127.00, DRIVE 127: no overflow");
         memset(qe_by, 0, sizeof qe_by);
     }
+}
+
+/* the filter types heard, FILTER+ by the type (3y217; the owner, 2026-11-01: "This engine has new selectable filters
+ * but none are working, COMB and EQ display OFF"). The init sound's filter values (FREQ 127.00, RESO 0, SHAPE 0, GAIN
+ * 0) leave the machines next to nothing to do: COMB+ / COMB- with no feedback and EQ at 0 dB pass the sound, MULTI at
+ * SHAPE 0 is LP12 wide open; their own values were on FILT 2, the TYPE cell where MULTI's morph goes. Set: each of the
+ * eight a sound of its own; FILTER+'s cells MORPH / FEEDBACK LPF / GAIN Q on a machine (its value, not the type),
+ * the type itself through ENG_COL_RAW (the picker); each type through the blob (version 5 / 6) the same sound */
+static void t_ftype_cells(void)
+{
+    enum { NB = 120 };
+    static int32_t out[QF_N][NB * CTL], r2[NB * CTL];
+    static const uint8_t N1[1] = {48};
+    static const char *const LAB[QF_N][2] = {{"RESO", "TYPE"}, {"RESO", "TYPE"}, {"RESO", "TYPE"}, {"RESO", "TYPE"},
+        {"RESO", "MORPH"}, {"FEEDBACK", "LPF"}, {"FEEDBACK", "LPF"}, {"GAIN", "Q"}};
+    track_t *t = &trk[0];
+    int16_t p[QP_NP], q[QP_NP];
+    uint8_t b[QUAD_BLOB];
+    uint32_t m, k, j, i, dull = 0, distinct = 1, lab = 1, rt = 1;
+    int32_t md[QF_N] = {0};
+    quad_init_patch4(p);                         /* (the init sound's filter: the machines next to OFF) */
+    p[QP_FTYPE] = QF_OFF;
+    pre_render(p, 0, N1, 1, NB, out[0]);
+    for (m = QF_COMBP; m <= QF_EQ; m++) {
+        int32_t d = 0;
+        p[QP_FTYPE] = (int16_t)m;
+        pre_render(p, 0, N1, 1, NB, r2);
+        for (k = 0; k < NB * CTL; k++)
+            d = abs(r2[k] - out[0][k]) > d ? abs(r2[k] - out[0][k]) : d;
+        dull += d <= 64;
+        if (getenv("VERBOSE"))
+            printf("    init values, %s against OFF: %d\n", N_QUAD_FTYPE[m], d);
+    }
+    CHECK(dull == 3u, "the init sound's values (RESO 0, GAIN 0): COMB+ COMB- EQ pass it as OFF does (%u of 3): why they seemed dead", dull);
+    p[QP_FREQ] = 5000, p[QP_RESO] = 8000, p[QP_FSHAPE] = 64, p[QP_FGAIN] = 40;
+    for (m = 0; m < QF_N; m++) {
+        p[QP_FTYPE] = (int16_t)m;
+        pre_render(p, 0, N1, 1, NB, out[m]);
+    }
+    for (m = 0; m < QF_N; m++)
+        for (j = m + 1u; j < QF_N; j++) {
+            int32_t d = 0;
+            for (k = 0; k < NB * CTL; k++)
+                d = abs(out[m][k] - out[j][k]) > d ? abs(out[m][k] - out[j][k]) : d;
+            distinct &= d > 200;
+            if (!m)
+                md[j] = d;
+            if (d <= 200 || getenv("VERBOSE"))
+                printf("    %s against %s: %d\n", N_QUAD_FTYPE[m], N_QUAD_FTYPE[j], d);
+        }
+    CHECK(distinct, "FREQ 50, RESO 80, SHAPE 64, GAIN +40: the eight types eight sounds (OFF against MULTI %d, COMB+ %d, COMB- %d, EQ %d)",
+          md[QF_MULTI], md[QF_COMBP], md[QF_COMBN], md[QF_EQ]);
+    for (m = 0; m < QF_N; m++) {                 /* FILTER+'s cells by the type */
+        drv_reset(t);
+        p[QP_FTYPE] = (int16_t)m;
+        drv_patch4(t, p);
+        for (i = 1; i < 3u; i++) {
+            const param_desc_t *d = quad_desc(t, QUAD_PG_FPLUS, i);
+            lab &= !strcmp((d ? d : &QUAD_PAGES[QUAD_PG_FPLUS].col[i])->label, LAB[m][i - 1u]);
+        }
+        lab &= quad_get(t, QUAD_PG_FPLUS, 2u | ENG_COL_RAW) == (int32_t)m &&
+               quad_get(t, QUAD_PG_FPLUS, 2) == (m >= QF_MULTI ? 64 : (int32_t)m) &&
+               quad_get(t, QUAD_PG_FPLUS, 1) == (m == QF_EQ ? 40 : 8000);
+        if (m < QF_MULTI)                        /* (the TYPE cell: OFF .. LP24, a knob never on a machine) */
+            lab &= quad_desc(t, QUAD_PG_FPLUS, 2)->max == QF_LP24;
+        quad_set(t, QUAD_PG_FPLUS, 2, m >= QF_MULTI ? 99 : (int32_t)m);
+        lab &= quad_patch[0][QP_FTYPE] == (int16_t)m && quad_patch[0][QP_FSHAPE] == (m >= QF_MULTI ? 99 : 64);
+        quad_set(t, QUAD_PG_FPLUS, 1, m == QF_EQ ? -20 : 7000);
+        lab &= quad_patch[0][m == QF_EQ ? QP_FGAIN : QP_RESO] == (m == QF_EQ ? -20 : 7000) &&
+               quad_patch[0][m == QF_EQ ? QP_RESO : QP_FGAIN] == (m == QF_EQ ? 8000 : 40);
+        quad_set(t, QUAD_PG_FPLUS, 2u | ENG_COL_RAW, QF_LP12);   /* (the picker: the way back) */
+        lab &= quad_patch[0][QP_FTYPE] == QF_LP12 && !strcmp(quad_desc(t, QUAD_PG_FPLUS, 2)->label, "TYPE");
+        if (!lab)
+            printf("    %s: the cells wrong\n", N_QUAD_FTYPE[m]), lab = 2;
+    }
+    CHECK(lab == 1u, "FILTER+ by the type: RESO TYPE (OFF .. LP24 on its knob), MULTI RESO MORPH, the combs FEEDBACK LPF, EQ GAIN Q; "
+          "a machine's cell its value, the type through ENG_COL_RAW");
+    for (m = 0; m < QF_N; m++) {                 /* saved and loaded: the type and its sound */
+        p[QP_FTYPE] = (int16_t)m;
+        quad_pack(p, b);
+        rt &= quad_unpack(b, q) == 1 && !memcmp(p, q, sizeof p) && b[1] == 6u;   /* (SHAPE set: version 6) */
+        pre_render(q, 0, N1, 1, NB, r2);
+        rt &= !memcmp(r2, out[m], sizeof r2);
+        p[QP_FSHAPE] = 0, p[QP_FGAIN] = 0;       /* (no machine value set: a classic type packs as version 5) */
+        quad_pack(p, b);
+        rt &= b[1] == (m >= QF_MULTI ? 6u : 5u) && quad_unpack(b, q) == 1 && q[QP_FTYPE] == (int16_t)m;
+        p[QP_FSHAPE] = 64, p[QP_FGAIN] = 40;
+    }
+    CHECK(rt, "each type saved and loaded: its value and its sound (version 6; with no machine value a classic type as 5)");
 }
 
 /* AHD and CRUSH (3y209, FIZZ's E1 / E3 and its test_quad checks): AHD's attack, timed HOLD (one-shot: the key's end
@@ -3013,6 +3103,7 @@ int main(int argc, char **argv)
     t_drive_pre();
     t_machines();
     t_combs();
+    t_ftype_cells();
     t_ahd_crush();
     if (argc > 1 && !strcmp(argv[1], "cpu"))
         t_cpu();

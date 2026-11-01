@@ -347,6 +347,10 @@ typedef struct {
     uint32_t nscreens;
 } eng_deep_t;
 #define ENG_MOD_TRK 0xFFu
+/* get / set's col | ENG_COL_RAW: the page's own value, where desc shows the cell as another one by a mode (FM TONE's
+ * FILTER+ on a filter machine: the cell MORPH / LPF / Q, the type the SEL hold picker's, eng_quad.c quad_ix). Passed
+ * only when desc gives the cell another descriptor (cr_edit.c ce_ftype), so an engine without one never sees it */
+#define ENG_COL_RAW 0x80u
 typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c files) */
     const char *name;            /* "ANALOG" (PRESETS, the editor) */
     const char *page_title[2];   /* EDIT 1 and EDIT 2 */

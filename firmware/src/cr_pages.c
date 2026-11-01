@@ -74,16 +74,23 @@ static int cp_lay_src(const track_t *t, uint32_t p, uint32_t c, uint32_t *bp, ui
     return 1;
 }
 static const eng_deep_t *cp_lay_base(const track_t *t) { return ENGINES[eng_idx(t->eng_req)]->deep; }
+/* (c | ENG_COL_RAW: on to the built-in column only where its own desc shows it as another, core.h) */
+static uint32_t cp_lay_raw(const track_t *t, uint32_t bp, uint32_t bc, uint32_t c)
+{
+    const eng_deep_t *b = cp_lay_base(t);
+    const param_desc_t *m = (c & ENG_COL_RAW) && b->desc ? b->desc(t, bp, bc) : 0;
+    return m && m != &b->pages[bp].col[bc] ? bc | ENG_COL_RAW : bc;
+}
 static int32_t cp_lay_get(const track_t *t, uint32_t p, uint32_t c)
 {
     uint32_t bp, bc;
-    return cp_lay_src(t, p, c, &bp, &bc) ? cp_lay_base(t)->get(t, bp, bc) : 0;
+    return cp_lay_src(t, p, c & ~ENG_COL_RAW, &bp, &bc) ? cp_lay_base(t)->get(t, bp, cp_lay_raw(t, bp, bc, c)) : 0;
 }
 static void cp_lay_set(track_t *t, uint32_t p, uint32_t c, int32_t v)
 {
     uint32_t bp, bc;
-    if (cp_lay_src(t, p, c, &bp, &bc))
-        cp_lay_base(t)->set(t, bp, bc, v);
+    if (cp_lay_src(t, p, c & ~ENG_COL_RAW, &bp, &bc))
+        cp_lay_base(t)->set(t, bp, cp_lay_raw(t, bp, bc, c), v);
 }
 /* the descriptor the editor steps and shows: the built-in one (its range and names as the engine has them in this
  * build); the layout's copy for an empty column */
@@ -411,7 +418,7 @@ static void cp_value(const param_desc_t *d, int32_t v, char *out, uint32_t n)
 static const struct { const char *s, *l; } CP_DLABEL[] = {
     {"ATK", "Attack"}, {"DEC", "Decay"}, {"SUS", "Sustain"}, {"REL", "Release"}, {"CUT", "Cutoff"},
     {"RES", "Reso"}, {"KTRK", "Key trk"}, {"FENV", "Env amt"}, {"VEL", "Velocity"}, {"SRC", "Source"},
-    {"DST", "Dest"}, {"AMT", "Amount"},
+    {"DST", "Dest"}, {"AMT", "Amount"}, {"LPF", "LPF"},
     /* FM6 (eng_fm6.c's pages) */
     {"VSENS", "Vel sens"}, {"AMS", "AM sens"}, {"RSCL", "Rate scl"}, {"BREAK", "Break pt"}, {"LDEPTH", "L depth"},
     {"RDEPTH", "R depth"}, {"ALG", "Algo"}, {"FB", "Feedback"}, {"TRNSP", "Transp"}, {"OSYNC", "Osc sync"},

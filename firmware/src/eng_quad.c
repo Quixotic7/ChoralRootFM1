@@ -261,6 +261,7 @@ static const eng_page_t QUAD_PAGES[] = {
 #define QUAD_NPAGES ((uint32_t)NELEM(QUAD_PAGES))
 #define QUAD_PG_OSC 0u
 #define QUAD_PG_FILTER 3u
+#define QUAD_PG_FPLUS 4u          /* FILTER+: its RESO and TYPE cells by the type (quad_ix) */
 #define QUAD_PG_ENV 7u
 #define QUAD_PG_LFO 14u
 #define QUAD_PG_AMP2 20u
@@ -806,10 +807,39 @@ static uint32_t quad_index(uint32_t page, uint32_t col)
 {
     return page >= QUAD_NPAGES || col >= 4u ? QUAD_X : QUAD_MAP[page][col];
 }
+/* FILTER+ by the filter's type (3y217, the owner 2026-11-01: "For the new filters you should not be able to use that
+ * third param slot to change the filter type"; FIZZ's FILTER page by machine, ctl_snd.c SND_FILTER_IDS): OFF LP12 HP12
+ * LP24 FREQ RESO TYPE DEPTH, as before; MULTI FREQ RESO MORPH DEPTH; COMB+ / COMB- FREQ FEEDBACK (RESO) LPF DEPTH; EQ
+ * FREQ GAIN Q DEPTH (MORPH, LPF, Q: SHAPE; GAIN: FGAIN). A machine's TYPE is the SEL hold picker's alone (cr_edit.c
+ * ce_fpick), which asks for the page's own column (ENG_COL_RAW). FILT 2's SHAPE and GAIN stay where they were */
+static uint32_t quad_ix(const track_t *t, uint32_t page, uint32_t col)
+{
+    uint32_t tr = quad_tr(t), i = quad_index(page, col & ~ENG_COL_RAW), ft;
+    if (page != QUAD_PG_FPLUS || (col & ENG_COL_RAW) || tr >= QUAD_NPART || (ft = (uint32_t)quad_patch[tr][QP_FTYPE]) < QF_MULTI)
+        return i;
+    return col == 2u ? QP_FSHAPE : col == 1u && ft == QF_EQ ? QP_FGAIN : i;
+}
+/* (eng_deep_t.desc: FILTER+'s cells by the type, quad_ix; 0 the page's own). The classic types' TYPE cell steps OFF ..
+ * LP24 only, as FIZZ's LEGACY KNOB 3: a knob never lands on a machine (its cell would then be another value, no way
+ * back by that knob); the machines are the picker's */
+static const param_desc_t QUAD_FMACH[6] = {
+    {"TYPE", F_ENUM, 0, QF_LP24, QF_LP12, N_QUAD_FTYPE, 0}, {"MORPH", F_INT, 0, 127, 0, 0, 0},
+    QC_FX("FEEDBACK", 0, 12700, 0), {"LPF", F_INT, 0, 127, 0, 0, 0}, {"GAIN", F_OFS, -64, 63, 0, 0, 0},
+    {"Q", F_INT, 0, 127, 0, 0, 0}};
+static const param_desc_t *quad_desc(const track_t *t, uint32_t page, uint32_t col)
+{
+    uint32_t tr = quad_tr(t), ft;
+    if (page != QUAD_PG_FPLUS || (col != 1u && col != 2u) || tr >= QUAD_NPART)
+        return 0;
+    ft = (uint32_t)quad_patch[tr][QP_FTYPE];
+    if (ft < QF_MULTI || (col == 1u && ft == QF_MULTI))
+        return col == 2u ? &QUAD_FMACH[0] : 0;
+    return &QUAD_FMACH[ft == QF_MULTI ? 1 : ft == QF_EQ ? 3 + col : 1 + col];
+}
 
 static int32_t quad_get(const track_t *t, uint32_t page, uint32_t col)
 {
-    uint32_t tr = quad_tr(t), i = quad_index(page, col);
+    uint32_t tr = quad_tr(t), i = quad_ix(t, page, col);
     if (i == QUAD_X)
         return 0;
     if (i == QUAD_XPAN)
@@ -836,7 +866,8 @@ static void quad_mac_put(track_t *t, uint32_t tr, uint32_t i)
 
 static void quad_set(track_t *t, uint32_t page, uint32_t col, int32_t v)
 {
-    uint32_t tr = quad_tr(t), i = quad_index(page, col);
+    uint32_t tr = quad_tr(t), i = quad_ix(t, page, col);
+    col &= 3u;
     if (i == QUAD_X)
         return;
     if (i == QUAD_XPAN || i == QUAD_XDIST) {     /* the part's own parameters (any part) */
@@ -2229,6 +2260,7 @@ static const eng_deep_t QUAD_DEEP = {
     .section = {QUAD_PG_OSC, QUAD_PG_FILTER, QUAD_PG_ENV, QUAD_PG_LFO, 0xFF, 0xFF, 0xFF, 0xFF},   /* MOD: none */
     .get = quad_get,
     .set = quad_set,
+    .desc = quad_desc,
     .blob_size = QUAD_BLOB,
     .blob_get = quad_blob_get,
     .blob_set = quad_blob_set,

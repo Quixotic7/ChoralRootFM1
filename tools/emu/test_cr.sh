@@ -1087,13 +1087,25 @@ r=$(dv REL)
 echo "FM TONE's filter picker: SEL held in the editor (3y204)"
 run cr_quad_fpick
 L="$OUT/cr_quad_fpick.log"
-[ "$(grep -c '^edit: filter picker$' "$L")" = 2 ] && has '^deep: part 0 page 4 FILTER+ col 2 TYPE 1 -> 2 (HP12) edited$' "$L" &&
+[ "$(grep -c '^edit: filter picker$' "$L")" = 7 ] && has '^deep: part 0 page 4 FILTER+ col 2 TYPE 1 -> 2 (HP12) edited$' "$L" &&
     has '^deep: part 0 page 4 FILTER+ col 2 TYPE 2 -> 3 (LP24) edited$' "$L" && has '^deep: part 0 page 4 FILTER+ col 2 TYPE 3 -> 2 (HP12) edited$' "$L" &&
-    [ "$(grep -c '^edit: group' "$L")" = 2 ] && has '^edit: group FILT screen 2 lane 1 part 0$' "$L" &&
+    [ "$(grep -c '^edit: group' "$L")" = 5 ] && has '^edit: group FILT screen 2 lane 1 part 0$' "$L" &&
     ok "SEL held: the picker over FILT (LP12: $OUT/cr_fpick_open.ppm), KNOB 1 +1 HP12, SELECT +1 LP24, released: kept, no tap ($OUT/cr_fpick_closed.ppm); SEL tapped: FILT's next screen; SEL down + KNOB 3 at once: the picker, HP12" \
     || bad "the filter picker: $(grep -E '^(edit|deep):' "$L" | tr '\n' '|')"
 differ cr_fpick_open cr_fpick_hp "the picker's big name follows the type (LP12 -> HP12)"
 differ cr_fpick_closed cr_fpick_hp "the release: the editor's FILTER screen again"
+# (3y217) FILTER+'s third cell by the type: TYPE steps OFF .. LP24 only; on a machine it is the machine's own value
+# (MULTI MORPH, the combs LPF with FEEDBACK on KNOB 2, EQ Q with GAIN on KNOB 2), the type the picker's (in and out)
+m=$(grep -E '^deep: part 0 page 4 FILTER\+ col [12] ' "$L" | sed -n 's/^deep: part 0 page 4 FILTER+ col \([12]\) \([A-Z0-9]*\) .*(\(.*\)).*/\1\2\3/p' | tr '\n' ' ')
+[ "$m" = "2TYPEHP12 2TYPELP24 2TYPEHP12 2TYPELP24 2TYPELP24 2TYPEMULTI 2MORPH110 2TYPECOMB+ 1FEEDBACK127.00 2LPF127 2TYPECOMB- 2LPF107 2TYPEEQ 1GAIN+50 2Q127 2TYPELP12 2TYPEHP12 " ] &&
+    has '^deep: part 0 page 4 FILTER+ col 2 MORPH 0 -> 110 (110) edited$' "$L" && has '^deep: part 0 page 4 FILTER+ col 2 LPF 127 -> 107 (107) edited$' "$L" &&
+    has '^deep: part 0 page 4 FILTER+ col 2 Q 107 -> 127 (127) edited$' "$L" && has '^deep: part 0 page 4 FILTER+ col 2 TYPE 7 -> 1 (LP12) edited$' "$L" &&
+    ok "FILTER+ KNOB 3: TYPE stops at LP24; the picker into MULTI (KNOB 3 MORPH: $OUT/cr_fpick_multi.ppm), COMB+ (FEEDBACK, LPF), COMB- (LPF), EQ (GAIN, Q: $OUT/cr_fpick_eq.ppm), the type kept by each; back to LP12: KNOB 3 TYPE again" \
+    || bad "FILTER+ by the type: '$m'"
+differ cr_fpick_multi cr_fpick_combp "the band and the cells follow the machine (MULTI -> COMB+)"
+differ cr_fpick_combp cr_fpick_combn "COMB+ -> COMB-: its own teeth"
+differ cr_fpick_combn cr_fpick_eq "COMB- -> EQ: the bell, GAIN and Q"
+differ cr_fpick_eq cr_fpick_back "EQ -> LP12 / HP12: TYPE back on KNOB 3"
 
 echo "VA's synced LFO RATE: the list one item a detent both ways, GLO held the straight ones; FENV in hundredths"
 run cr_va_sync_list

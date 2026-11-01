@@ -970,7 +970,8 @@ static int ce_owns(uint32_t b)
 }
 
 /* THE FILTER PICKER: the engine's filter type, the FILT section's F_ENUM column "TYPE" (FM TONE's FILTER+ TYPE); 0
- * none (that engine's SEL hold stays reserved) */
+ * none (that engine's SEL hold stays reserved). *col with ENG_COL_RAW where the cell shows another value by the type
+ * (FM TONE's machines: MORPH, LPF, Q; 3y217): the picker reads and sets the type itself, the way back to LP / HP / OFF */
 static const param_desc_t *ce_ftype(const track_t *t, uint32_t *pg, uint32_t *col)
 {
     const eng_deep_t *d = ce_deep(t);
@@ -981,7 +982,8 @@ static const param_desc_t *ce_ftype(const track_t *t, uint32_t *pg, uint32_t *co
     ce_range(d, CE_FILT, &a, &b);
     for (*pg = a; *pg < b; (*pg)++)
         if ((k = cp_dcol(&d->pages[*pg], "TYPE")) >= 0 && d->pages[*pg].col[k].fmt == F_ENUM && d->pages[*pg].col[k].names) {
-            *col = (uint32_t)k;
+            const param_desc_t *m = d->desc ? d->desc(t, *pg, (uint32_t)k) : 0;
+            *col = (uint32_t)k | (m && m != &d->pages[*pg].col[k] ? ENG_COL_RAW : 0u);
             return &d->pages[*pg].col[k];
         }
     return 0;
@@ -1019,10 +1021,11 @@ static void ce_fpick(int32_t s)
     if (v == v0)
         return;
     d->set(t, pg, col, v);
+    ce_ftype(t, &pg, &col);                       /* (into or out of a machine: the type's column again) */
     v = d->get(t, pg, col);
     cu_edited(ce.part);
     cu_trace("deep: part %u page %u %s col %u %s %d -> %d (%s)%s\n", (unsigned)ce.part, (unsigned)pg, d->pages[pg].title,
-             (unsigned)col, c->label, (int)v0, (int)v, c->names[v], psnd[ce.part].edited ? " edited" : "");
+             (unsigned)(col & 3u), c->label, (int)v0, (int)v, c->names[v], psnd[ce.part].edited ? " edited" : "");
 }
 
 static int ce_button(uint32_t b, uint32_t ev)
@@ -1644,39 +1647,41 @@ static uint32_t ce_band_plan(const track_t *t, const ce_view_t *vw, uint8_t *o)
         q = ce_dget(t, d, a, b, "RESO", &v);
         o[1] = (uint8_t)clamp(q >= 0 ? q : ce_dget(t, d, a, b, "RES", &v), 0, 255);
         o[2] = 0;
-        o[7] = 0;
-        for (i = a; i < b; i++) {                 /* the type by its name: LP 0, BP 32, HP 64 (the band's positions);
-                                                   * its slope (o[7]): "OFF" 1 (flat), "..12" 2, "..24" 3 */
-            int32_t k = cp_dcol(&d->pages[i], "TYPE");
-            if (k >= 0) {
-                const param_desc_t *c = &d->pages[i].col[k];
-                v = d->get(t, i, (uint32_t)k);
-                if (c->names && v >= c->min && v <= c->max) {
-                    const char *nm = c->names[v - c->min];
-                    uint32_t ln = str_len(nm);
-                    o[2] = (uint8_t)(nm[0] == 'H' ? 64 : nm[0] == 'B' ? 32 : 0);
-                    o[7] = (uint8_t)(cp_eq(nm, "OFF") ? 1 : ln > 2u && nm[ln - 2u] == '1' && nm[ln - 1u] == '2' ? 2
-                                     : ln > 2u && nm[ln - 2u] == '2' && nm[ln - 1u] == '4' ? 3 : 0);
-                    if (cp_eq(nm, "MULTI")) {      /* (FM TONE's MULTI: LP -> BP -> HP by its SHAPE, 12 dB) */
-                        int32_t sv;
-                        ce_dget(t, d, a, b, "SHAPE", &sv);
+        o[7] = o[8] = o[9] = 0;
+        {                                         /* the type by its name: LP 0, BP 32, HP 64 (the band's positions);
+                                                   * its slope (o[7]): "OFF" 1 (flat), "..12" 2, "..24" 3; FM TONE's
+                                                   * machines 4 MULTI (LP -> BP -> HP by its SHAPE), 5 COMB+, 6 COMB-,
+                                                   * 7 EQ, their SHAPE (o[8]) and GAIN + 64 (o[9]); the type's own
+                                                   * column (ce_ftype: not the MORPH / LPF / Q its cell shows, 3y217) */
+            uint32_t fp, fc;
+            const param_desc_t *c = ce_ftype(t, &fp, &fc);
+            v = c ? d->get(t, fp, fc) : 0;
+            if (c && v >= c->min && v <= c->max) {
+                const char *nm = c->names[v - c->min];
+                uint32_t ln = str_len(nm);
+                int32_t sv, gv;
+                o[2] = (uint8_t)(nm[0] == 'H' ? 64 : nm[0] == 'B' ? 32 : 0);
+                o[7] = (uint8_t)(cp_eq(nm, "OFF") ? 1 : ln > 2u && nm[ln - 2u] == '1' && nm[ln - 1u] == '2' ? 2
+                                 : ln > 2u && nm[ln - 2u] == '2' && nm[ln - 1u] == '4' ? 3 : 0);
+                if (cp_eq(nm, "MULTI") || cp_eq(nm, "COMB+") || cp_eq(nm, "COMB-") || cp_eq(nm, "EQ")) {
+                    ce_dget(t, d, a, b, "SHAPE", &sv);
+                    ce_dget(t, d, a, b, "GAIN", &gv);
+                    o[7] = (uint8_t)(nm[0] == 'M' ? 4 : nm[0] == 'E' ? 7 : nm[4] == '+' ? 5 : 6);
+                    o[8] = (uint8_t)clamp(sv, 0, 127);
+                    o[9] = (uint8_t)clamp(gv + 64, 0, 127);
+                    if (nm[0] == 'M')
                         o[2] = (uint8_t)(clamp(sv, 0, 127) * 64 / 127);
-                        o[7] = 2;
-                    } else if (nm[0] == 'E' || nm[0] == 'C') {
-                        o[7] = 1;                  /* (EQ, the combs: drawn flat) */
-                    }
                 }
-                break;
             }
         }
         o[3] = (uint8_t)clamp(ce_dget(t, d, a, b, "DRIVE", &v), 0, 255);
         o[4] = o[5] = o[6] = 0;
         if (h->band != ENG_B_WINDOW)
-            return 8;
+            return 10;
         o[4] = 1;
         o[5] = (uint8_t)clamp(ce_dget(t, d, a, b, "BASE", &v), 0, 255);
         o[6] = (uint8_t)clamp(ce_dget(t, d, a, b, "WIDTH", &v), 0, 255);
-        return 8;
+        return 10;
     }
     return 0;
 }
@@ -1785,6 +1790,10 @@ static void ce_cell_plan(const track_t *t, const ce_view_t *vw, uint32_t r, uint
         return;
     if (r < 2u && h->label[r][c])
         cu_cpy(cl->label, h->label[r][c], sizeof cl->label);
+    k = rf.b & 3u;                                /* (a cell another value by a mode: its label, not the plan's;
+                                                   * FM TONE's FILTER+ on a machine "Morph" "Feedback" "LPF" "Gain" "Q") */
+    if (d != &ce_deep(t)->pages[rf.a].col[k] && !cp_eq(d->label, ce_deep(t)->pages[rf.a].col[k].label))
+        ce_label(t, rf, d, cl->label, sizeof cl->label);
     if (st == ENG_C_RULE)
         return;
     if (st >= ENG_C_P5KNOB) {                     /* the Prophet-5's controls (the layout tool's mock-ups) */

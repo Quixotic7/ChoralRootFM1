@@ -292,7 +292,7 @@ is still taken by `quad_track_loaded`. Blobs are written as version 3; the QUAD 
 | 1 | SYN 1+ | HARM, DTUNE, FDBK, MIX | | 11 | ENV 3 | A KEY, B1 KEY, B2 KEY, - |
 | 2 | SYN 2 | OFS C, OFS A, OFS B1, OFS B2 | | 12 | AMP | ATK, DEC, SUS, REL |
 | 3 | FILTER | ATK, DEC, SUS, REL | | 13 | AMP+ | LEVEL, PAN (P_PAN), DRIVE (P_DIST), - |
-| 4 | FILTER+ | FREQ, RESO, TYPE, DEPTH | | 14 | LFO 1 | SPEED, MULT, FADE, DEST |
+| 4 | FILTER+ | FREQ, RESO, TYPE, DEPTH (a machine: "FILTER+ by the type") | | 14 | LFO 1 | SPEED, MULT, FADE, DEST |
 | 5 | FILT 2 | DELAY, KTRK, -, - | | 15 | LFO 1+ | WAVE, PHASE (RAND: slew), TRIG, DEPTH |
 | 6 | FILT 2+ | BASE, WIDTH, -, - | | 16, 17 | LFO 2, LFO 2+ | as LFO 1 |
 | 7 | ENV A | A ATK, A DEC, A END, A LEV | | 18, 19 | LFO 3, LFO 3+ | as LFO 1 |
@@ -392,8 +392,35 @@ peaking bell from the SVF with its own damping k = QE_EQ_K[SHAPE] (Q 0.5 .. 10),
 ChoralRoot to hide a reset). **BWPOST** (FILT 2+ col 3, `BW RT` PRE / POST): the base-width poles after the filter
 (`quad_bw_post`) instead of before it (a pole switched in or out there steps, as FIZZ's). Tests: `cr_quad_test
 t_machines` (FIZZ's t_machines: MULTI 0 / 127 = LP12 / HP12 within 1 LSB, 64 the band; EQ at -60 -20 +25 +63 within
-0.3 dB of its table; BWPOST; every machine at full resonance with DRIVE 127 PRE: no overflow, the voice ends). The editor's
-filter band draws MULTI by its SHAPE; EQ and the combs flat.
+0.3 dB of its table; BWPOST; every machine at full resonance with DRIVE 127 PRE: no overflow, the voice ends).
+
+**FILTER+ by the type** (3y217, FIZZ's FILTER page by machine, its `ctl_snd.c SND_FILTER_IDS`). The owner, on the unit:
+"This engine has new selectable filters but none are working, COMB and EQ display OFF ... For the new filters you should
+not be able to use that third param slot to change the filter type." Two causes. The band: `ce_band_plan` drew EQ and the
+combs as the flat line whose name is OFF. The sound: the machines were right (`t_machines`, `t_combs`), but their own
+values sat on FILT 2 and the init sound's (RESO 0, SHAPE 0, GAIN 0) leave them nothing to do: COMB+ / COMB- with no
+feedback and EQ at 0 dB pass the sound within 3 LSB of OFF, MULTI at SHAPE 0 is LP12. FILTER+'s cells (page 4) now
+follow FTYPE (`quad_ix`, `quad_desc` as `eng_deep_t.desc`; the stored values and the blob unchanged):
+
+| FTYPE | col 0 | col 1 | col 2 | col 3 |
+| --- | --- | --- | --- | --- |
+| 0..3 OFF LP12 HP12 LP24 | FREQ | RESO | TYPE (its cell OFF .. LP24) | DEPTH |
+| 4 MULTI | FREQ | RESO | MORPH (= SHAPE) | DEPTH |
+| 5 / 6 COMB+ COMB- | FREQ | FEEDBACK (= RESO) | LPF (= SHAPE) | DEPTH |
+| 7 EQ | FREQ | GAIN (= FGAIN) | Q (= SHAPE) | DEPTH |
+
+A machine's TYPE is the SEL hold picker's alone (`cr_edit.c ce_fpick`): it reads and sets the page's own column through
+`ENG_COL_RAW` (core.h; passed only where `desc` shows the cell as another value, and on through a compiled layout's
+pages, `cr_pages.c cp_lay_raw`), so it is the way into a machine and back to LP / HP / OFF; the TYPE cell's knob steps
+OFF .. LP24 (as FIZZ's LEGACY KNOB 3), never onto a machine. The cell's label is the descriptor's (`ce_cell_plan`:
+"Morph", "Feedback", "LPF", "Gain", "Q"). FILT 2's SHAPE and GAIN stay (the same values; pages, layouts and the catalog
+keep their numbers: design/layouts/fm-tone.json marks the cells `by_mode`). The filter band (`cr_screen_t.wv[7]` 4..7,
+`wv[8]` SHAPE, `wv[9]` GAIN + 64) names each machine and draws MULTI by its morph, EQ's bell by GAIN and Q, the combs'
+teeth (COMB+ at f, 2f ..; COMB- at f / 2, 3f / 2 ..) by RESO and LPF. Tests: `cr_quad_test t_ftype_cells` (the init
+values: COMB+ COMB- EQ within 64 of OFF; FREQ 50, RESO 80, SHAPE 64, GAIN +40: the eight types eight sounds; the cells
+by the type, ENG_COL_RAW; each type saved and loaded, version 5 / 6: the same samples), `cr_draw_test` (OFF MULTI COMB+
+COMB- EQ five band pictures), `test_cr.sh cr_quad_fpick` (step 4: the cell stops at LP24; the picker into each machine,
+its cells MORPH / FEEDBACK LPF / GAIN Q, back to LP12 and TYPE).
 
 **COMB+ / COMB-** (3y208): y = x +- g lp(d[n - L]) through a 1024-sample line, L by FREQ (`QE_COMB_LEN`, ChoralRoot's
 cutoff law: 43 Hz the lowest), g by RESO (0 .. 0.985), the feedback's low-pass by SHAPE; COMB- has the odd harmonics of

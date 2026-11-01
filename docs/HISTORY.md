@@ -6832,3 +6832,28 @@ section's alignment), 11 veneers. Host and emulator builds never see the switch:
 single-core package and `BOARD=smk37` build (RAMTEXT 21,468 / 21,816). What it saves on the unit is not known until
 measured (no tool here weighs XIP against RAM): the C64 EP tick's excess over WOBBLE (~125 us) is mostly this code's
 second pass, and WOBBLE's tick runs its first pass, so both should drop if the 8 x is the flash's stalls.
+3y217. **FM TONE's filter machines heard and named; FILTER+'s third cell by the type.** The owner, testing on the unit:
+"This engine has new selectable filters but none are working, COMB and EQ display OFF. For Multi we need to be able to
+morph it, but the slot where morph would go is being used for the Filter type which is why I asked for the hold
+shortcut to change filter types. For the new filters you should not be able to use that third param slot to change
+the filter type." Every link from the picker to the sound checked: the TYPE cell's range and names (0..7), the picker,
+`quad_set` / `quad_clampv`, the version 5 / 6 blob, the engine's switch on FTYPE, the comb lines (POOL) all carried
+the type; the machines rendered (`t_machines`, `t_combs`). Two causes. The display: `ce_band_plan` gave EQ and the
+combs the flat slope whose name is OFF. The sound: the machines' own values were on FILT 2, and the init sound's
+(RESO 0, SHAPE 0, GAIN 0) leave them nothing to do: COMB+ / COMB- with no feedback and EQ at 0 dB pass the sound
+within 3 LSB of OFF, MULTI at SHAPE 0 is LP12. Now, as FIZZ's FILTER page by machine (ctl_snd.c SND_FILTER_IDS):
+FILTER+ (page 4) by the type through `quad_ix` and `quad_desc` (eng_deep_t.desc): OFF LP12 HP12 LP24 FREQ RESO TYPE
+DEPTH (the TYPE cell steps OFF .. LP24 only, as FIZZ's LEGACY KNOB 3); MULTI FREQ RESO MORPH DEPTH; COMB+ / COMB- FREQ
+FEEDBACK LPF DEPTH; EQ FREQ GAIN Q DEPTH (MORPH / LPF / Q = SHAPE, GAIN = FGAIN; FILT 2's SHAPE and GAIN stay, no page
+moved). A machine's cell never changes the type: the SEL hold picker reads and sets it through `ENG_COL_RAW` (core.h;
+only where desc shows the cell as another value, and on through a compiled layout, `cp_lay_raw`), the way in and back
+to LP / HP / OFF. The cell's label is the descriptor's (`ce_cell_plan`), the band names each machine and draws MULTI's
+morph, EQ's bell (GAIN, Q) and the combs' teeth (RESO, LPF; `wv[7]` 4..7, `wv[8]` SHAPE, `wv[9]` GAIN + 64).
+design/layouts/fm-tone.json regenerated (its cells `by_mode`, the params hash unchanged). Tests: `cr_quad_test
+t_ftype_cells` (the init values: COMB+ COMB- EQ within 64 of OFF; FREQ 50 RESO 80 SHAPE 64 GAIN +40: the eight types
+eight sounds; the cells by the type; each type saved and loaded, version 5 / 6, the same samples), 24,839 checks;
+`cr_draw_test` (OFF MULTI COMB+ COMB- EQ: five band pictures, new; P5's goldens unchanged); `cr_quad_fpick` step 4
+(the cell stops at LP24; the picker into MULTI, COMB+, COMB-, EQ, their cells, back to LP12 and TYPE), `test_cr` 1119
+ok; the 317 goldens and tests/quad_goldens unchanged. Size: XIP 556,120 -> 557,336 (97.2 %), RAMTEXT 21,660 of 24,576
+and POOL 96.3 % unchanged. `run_all.sh`: all PASS but the two release checks (v0.28 not tagged / not in the list). Not
+tried on the unit: how the machines sound there (the comb lines lent on two cores are the thread test's, not heard).

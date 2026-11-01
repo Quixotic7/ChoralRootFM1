@@ -37,3 +37,69 @@ wait 200
 shot build/emu/test/cr_fpick_quick.ppm
 btn SEL up
 wait 400
+# 4. (3y217, the owner 2026-11-01: "For the new filters you should not be able to use that third param slot to change
+#    the filter type") FILTER (its first screen), lane B (FILTER+); KNOB 3 +1: TYPE HP12 -> LP24, +1 more: LP24 kept
+#    (the cell steps OFF .. LP24). SEL held, KNOB 1 +1: MULTI; released: KNOB 3 is MORPH (the type kept). The same
+#    into COMB+ (KNOB 2 FEEDBACK, KNOB 3 LPF), COMB- and EQ (KNOB 2 GAIN, KNOB 3 Q); FREQ down so the band shows each.
+#    SEL held, KNOB 1 -6: LP12, and KNOB 3 is TYPE again
+btn SEL
+wait 400
+btn SEL
+wait 400
+knob SELECT +1
+wait 300
+knob KNOB3 +1
+wait 200
+knob KNOB3 +1
+wait 200
+knob KNOB1 -12
+wait 300
+btn SEL down
+wait 700
+knob KNOB1 +1
+wait 200
+btn SEL up
+wait 400
+knob KNOB3 +20
+wait 300
+shot build/emu/test/cr_fpick_multi.ppm
+btn SEL down
+wait 700
+knob KNOB1 +1
+wait 200
+btn SEL up
+wait 400
+knob KNOB2 +30
+wait 300
+knob KNOB3 +10
+wait 300
+shot build/emu/test/cr_fpick_combp.ppm
+btn SEL down
+wait 700
+knob KNOB1 +1
+wait 200
+btn SEL up
+wait 400
+knob KNOB3 -5
+wait 300
+shot build/emu/test/cr_fpick_combn.ppm
+btn SEL down
+wait 700
+knob KNOB1 +1
+wait 200
+btn SEL up
+wait 400
+knob KNOB2 +10
+wait 300
+knob KNOB3 +10
+wait 300
+shot build/emu/test/cr_fpick_eq.ppm
+btn SEL down
+wait 700
+knob KNOB1 -6
+wait 200
+btn SEL up
+wait 400
+knob KNOB3 +1
+wait 300
+shot build/emu/test/cr_fpick_back.ppm

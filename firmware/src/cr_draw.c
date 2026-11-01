@@ -1982,23 +1982,45 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
         /* the response at quarter-octave offsets from the cutoff, the edges extrapolated; 1.4 px a dB round the
          * 0 dB line, clamped to the band with the crossings: <= 13 points */
         static const int8_t Q[7] = {-12, -4, -1, 0, 1, 4, 12};
+        /* FM TONE's combs (wv[7] 5 COMB+, 6 COMB-, 3y217): the teeth at f, 2f .. 6f (COMB-: f / 2, 3f / 2 ..), quarter
+         * octaves x 16 from the cut, peak and notch by turns; their height by RESO (the feedback g: peak (1 - g / 2) /
+         * (1 - g), notch (1 - g / 2) / (1 + g)), the higher ones damped by SHAPE (LPF) */
+        static const int16_t CQ[12] = {-64, 0, 37, 64, 85, 101, 116, 128, 139, 149, 157, 165};
         int32_t cut = s->wv[0], res = s->wv[1], ft = s->wv[2] & 127, dr = s->wv[3], y0db = y0 + 38 * 16;
-        int32_t sg = ft >> 5, fr = ft & 31, wt[3];
-        int32_t ymin = y0 + 4 * 16, ymax = y0 + 90 * 16, cx = L + W * cut / 255, xs[9], ys[9], n = 0, k, j;
+        int32_t sg = ft >> 5, fr = ft & 31, wt[3], comb = s->wv[7] == 5u || s->wv[7] == 6u, np1 = comb ? 12 : 7;
+        int32_t ymin = y0 + 4 * 16, ymax = y0 + 90 * 16, cx = L + W * cut / 255, xs[14], ys[14], n = 0, k, j;
         for (k = 0; k < 3; k++)
             wt[k] = (TW[sg][k] * (32 - fr) + TW[(sg + 1) & 3][k] * fr) * 8;   /* (Q8) */
-        for (k = 0; k < 7; k++) {
-            int32_t db = s->wv[7] == 1u ? 0 : cr_fdb(wt[0], wt[1], wt[2], Q[k], res);   /* (OFF: flat) */
-            xs[n + 1] = cx + Q[k] * W / 36;                          /* (9 octaves across W) */
+        for (k = 0; k < np1; k++) {
+            int32_t db;
+            if (comb) {                                              /* (Q12: g, its damped value at tooth k / 2) */
+                int32_t g = res * 4034 / 255, h = k / 2, pk = (k & 1) == (s->wv[7] == 5u ? 1 : 0), m = 4096 - g / 2;
+                for (j = 0; j < h; j++)
+                    g = g * (3072 + (int32_t)s->wv[8] * 8) / 4096;
+                db = (cr_log2((uint32_t)m << 8) - cr_log2((uint32_t)(pk ? 4096 - g : 4096 + g) << 8)) * 3011 / 256000;   /* (half
+                                                                      * scale: its 30 dB teeth in the band) */
+                xs[n + 1] = cx + CQ[k] * W / 576;
+            } else if (s->wv[7] == 7u) {                             /* EQ: a bell at the cut, GAIN -18 .. +18 dB, its
+                                                                      * width 2 octaves .. 1/4 by SHAPE (Q) */
+                int32_t b = 8 - 7 * (int32_t)s->wv[8] / 127;
+                db = ((int32_t)s->wv[9] - 64) * 9 / 2 * b * b / (b * b + Q[k] * Q[k]);
+                xs[n + 1] = cx + Q[k] * W / 36;
+            } else {
+                db = s->wv[7] == 1u ? 0 : cr_fdb(wt[0], wt[1], wt[2], Q[k], res);   /* (OFF: flat) */
+                xs[n + 1] = cx + Q[k] * W / 36;                      /* (9 octaves across W) */
+            }
             if (s->wv[7] == 3u) db *= 2;                             /* (24 dB: two 12 dB stages, twice the slope) */
             ys[n + 1] = y0db - (db + dr * 96 / 255) * 14 / 10;
+            if (comb) ys[n + 1] = ys[n + 1] < ymin ? ymin : ys[n + 1] > ymax ? ymax : ys[n + 1];
             n++;
         }
-        xs[0] = L < xs[1] ? L : xs[1] - 16;                          /* the edges, on the outer lines */
-        ys[0] = ys[1] + (ys[2] - ys[1]) * (xs[0] - xs[1]) / (xs[2] - xs[1]);
-        xs[8] = R > xs[7] ? R : xs[7] + 16;
-        ys[8] = ys[7] + (ys[7] - ys[6]) * (xs[8] - xs[7]) / (xs[7] - xs[6]);
-        for (k = 0; k < 8; k++) {
+        xs[0] = L < xs[1] ? L : xs[1] - 16;                          /* the edges, on the outer lines (a comb's: level,
+                                                                      * between its last tooth and notch) */
+        ys[0] = comb ? (ys[1] + ys[2]) / 2 : ys[1] + (ys[2] - ys[1]) * (xs[0] - xs[1]) / (xs[2] - xs[1]);
+        xs[np1 + 1] = R > xs[np1] ? R : xs[np1] + 16;
+        ys[np1 + 1] = comb ? (ys[np1] + ys[np1 - 1]) / 2
+                           : ys[np1] + (ys[np1] - ys[np1 - 1]) * (xs[np1 + 1] - xs[np1]) / (xs[np1] - xs[np1 - 1]);
+        for (k = 0; k < np1 + 1; k++) {
             int32_t x0 = xs[k], x1 = xs[k + 1], ya, yb, xa, xb, t[2], nt = 0, lim[2];
             if (x1 <= L || x0 >= R || x1 <= x0) continue;
             xa = x0 < L ? L : x0;
@@ -2047,12 +2069,14 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
         }
         cr_poly(p, np, 48, 0, 0, CR_NAMED[CR_COL_ORANGE]);
         {                                            /* the type: the VA's position name; QUAD's (wv[7]) OFF, the
-                                                      * name and its slope "LP12" "HP12" "LP24" */
+                                                      * name and its slope "LP12" "HP12" "LP24", a machine's name */
+            static const char *const MN[4] = {"MULTI", "COMB+", "COMB-", "EQ"};
             char tn[8];
-            const char *nm = s->wv[7] == 1u ? "OFF" : cr_ftype_name((uint32_t)ft);
+            const uint32_t mi = s->wv[7] - 4u;
+            const char *nm = s->wv[7] == 1u ? "OFF" : mi < 4u ? MN[mi] : cr_ftype_name((uint32_t)ft);
             uint32_t i2 = 0;
             while (nm[i2] && i2 < 5u) { tn[i2] = nm[i2]; i2++; }
-            if (s->wv[7] >= 2u) { tn[i2++] = s->wv[7] == 3u ? '2' : '1'; tn[i2++] = s->wv[7] == 3u ? '4' : '2'; }
+            if (s->wv[7] >= 2u && mi >= 4u) { tn[i2++] = s->wv[7] == 3u ? '2' : '1'; tn[i2++] = s->wv[7] == 3u ? '4' : '2'; }
             tn[i2] = 0;
             cr_text(P8(8), P8(24 + 12), tn, 10, 1, CR_L, 4096, T_MID, T_BG, 0);
         }

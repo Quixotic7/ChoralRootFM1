@@ -1566,16 +1566,29 @@ More: [FM6.md](FM6.md).
 | Group | Screens |
 | --- | --- |
 | OSC | (1) `SYN 1`, under a drawing of the algorithm: Algo · Ratio C · Ratio A · Ratio B, and Harm · Dtune · Feedback · Mix. (2) `SYN 2`: Offset C · Offset A · Offset B1 · Offset B2 |
-| FILT | (1) `FILTER`, under the filter curve: Attack · Decay · Sustain · Release (the filter's envelope), and Freq · Reso · Type · Env depth. (2) `FILTER 2`: Env delay · Key track · Shape · Gain, and Base · Width · BW route. (3) `CRUSH`: Bits (0 off, up to 1 bit) · Rate (sample-rate reduction: 0 off, up to 1/64) · Route (POST after the filter, PRE before it) |
+| FILT | (1) `FILTER`, under the filter curve: Attack · Decay · Sustain · Release (the filter's envelope), and Freq · Reso · Type · Env depth (by the type: below). (2) `FILTER 2`: Env delay · Key track · Shape · Gain, and Base · Width · BW route. (3) `CRUSH`: Bits (0 off, up to 1 bit) · Rate (sample-rate reduction: 0 off, up to 1/64) · Route (POST after the filter, PRE before it) |
 | ENV | (1) `ENV A/B`, the two operator envelopes: Attack · Decay · End · Level for A and for B. (2) `ENV 2`: Delay · Trig · Reset for A and B, Phase, Velocity. (3) `ENV 3`: A Key · B1 Key · B2 Key. (4) `AMP`: Attack · Decay · Sustain · Release, and Level · Pan · Drive (0 to 127, saved with the sound, heard with FX off too) · Route (`POST`: the drive works on the part's whole sound after the voices, as before; `PRE`: every note is driven on its own, before the filter, as on the Digitone: a chord stays clean between its notes, the filter shapes the grit and a fading note keeps it; an imported Digitone sound with Drive comes as PRE). (5) `AMP 2`: Amp mode (ADSR, or AHD: attack, hold, decay, the Digitone II's one-shot shape; Sustain and Release are then not used) · Hold (a time, or INF: while the key is down) |
 | LFO | three screens, `LFO 1` to `LFO 3`: Speed · Mult · Fade · Dest, and Wave · Phase · Trig · Depth |
 | MOD | four fixed routes with an Amount each: ENV to FILT, ENV to PITCH, ENV to SHAPE, LFO to AMP |
 
-**Filter types.** Type has eight: OFF, LP12, HP12, LP24, and four from the Digitone II: **MULTI** (low-pass at Shape 0,
-band-pass at 64, high-pass at 127, morphing in between), **COMB+** and **COMB-** (a tuned resonator: Freq is its pitch,
-Reso its feedback, Shape its damping; COMB- has only the odd harmonics), **EQ** (a bell at Freq: Shape its width, Gain
-its boost or cut, -18 to +18 dB). **BW route** puts the Base / Width filter before the main filter (PRE, as before) or
-after it (POST). Hold SEL to pick the type from a list.
+**Filter types.** There are eight: OFF, LP12, HP12, LP24, and four from the Digitone II: MULTI, COMB+, COMB- and EQ.
+**Hold SEL** (in the editor) to pick one from a list: turn any knob or SELECT, let go to keep it. This is how you go
+into one of the four new filters and how you come back from one to LP / HP / OFF.
+
+The third cell of the `FILTER` screen's second row follows the type, as on the Digitone II:
+
+| Type | Freq | 2nd cell | 3rd cell | Env depth |
+| --- | --- | --- | --- | --- |
+| OFF, LP12, HP12, LP24 | cutoff | Reso | **Type** (OFF to LP24 only) | the envelope |
+| MULTI | cutoff | Reso | **Morph**: low-pass at 0, band-pass at 64, high-pass at 127, morphing in between | the envelope |
+| COMB+, COMB- | the comb's pitch (43 Hz up) | **Feedback**: how much it rings | **LPF**: how bright the ring stays | the envelope |
+| EQ | the bell's centre | **Gain**: -18 to +18 dB | **Q**: wide to narrow | the envelope |
+
+On one of the four new filters that cell never changes the type; only the SEL hold does. With Feedback at 0 a comb
+passes the sound unchanged, and so does EQ at Gain 0: turn them up to hear the filter. COMB+ rings on every harmonic
+(string-like), COMB- on the odd ones (hollow). The filter picture draws each type with its name. `FILTER 2`'s Shape and
+Gain are the same values as Morph / LPF / Q and EQ's Gain. **BW route** puts the Base / Width filter before the main
+filter (PRE, as before) or after it (POST).
 
 Ratio B is two values in one cell: a click steps the upper one (B2), a click with SHIFT the lower one (B1); the top
 line then reads `snap · B1`. More: [QUAD.md](QUAD.md) (the engine's working name was QUAD).
