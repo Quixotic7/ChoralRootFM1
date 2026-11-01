@@ -6716,3 +6716,16 @@ library item, `quadV6Of`, the pool written as version 5 / 6; 19 blobs through th
 `web/test_manager.mjs` (the gate through Place, Place all, Replace factory and the 0.22 simulator, the page passing
 the version), `web/test_dnsnd.mjs` (a device-15 container and a prefixed body are read now). Not done: a Digitone II
 `.syx` (its framing is not known), `.dn2prj` projects, the DN1's PORTAMENTO and KEY TRACK bytes.
+
+3y212. **The early hand-over, tried and reverted** (c5cf380, reverted by 064a848). The owner: "Yes, rebalance". The
+bass part went to core 1 before core 0 prepared the chord, and core 1 took its four chord voices in the same job
+(`mix_parts_split`, a token between the cores): bit for bit the one job's samples on the host. **On the unit**
+(tools/perf_unit.py, 8 notes on part 0 + a bass note on part 1, 15 s; half 2,902 us, shed line ~2,467) it gained
+nothing: WOBBLE + BASS (no DRIVE PRE) block 2,510 .. 2,640 us, late 0 .. 1, c0busy ~2,520 .. 2,630, c1busy ~1,660 ..
+1,820; C64 EP (a Digitone import, DRIVE 120 ROUTE PRE) + BASS block 2,720 .. 2,780, 7 late in 15 s, tick ~480, part0
+~1,600, part1 ~1,400: as before it. What core 0 carries more is its own work, which no overlap shortens; what C64 EP
+costs over WOBBLE is mostly DRIVE PRE on its eight voices (~150 .. 250 us on core 0's path). So the owner: "Yes, do
+that" to making DRIVE before the filter cheaper instead (3y213). Kept from it, put back on their own: the pairs'
+array of `tests/cr_c1_thread_test.c` 24 -> 32 (3y208 put a 25th pair in it, one past its end) and its pair FM TONE
+chord with CRUSH PRE and DRIVE PRE over an FM TONE bass with COMB- and CRUSH (26 pairs: inline = thread = unsplit = all
+to core 1 = none; ThreadSanitizer 0 reports).

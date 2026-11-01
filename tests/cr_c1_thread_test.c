@@ -81,6 +81,14 @@ static void usp_on(const pair_t *p)                 /* (after a sound load: the 
         quad_patch[0][QP_LFO(0, QL_DEPTH)] = 5000;
         trk[0].p[P_DIST] = 80;
     }
+    if (p->usp == 6u && p->ce == ENGI_QUAD) {           /* (3y212: CRUSH's held sample per voice, DRIVE PRE's state) */
+        quad_patch[0][QP_BITS] = 100, quad_patch[0][QP_SRR] = 40, quad_patch[0][QP_CRPRE] = 1;
+        quad_patch[0][QP_DRPRE] = 1;
+        trk[0].p[P_DIST] = 90;
+        if (p->be == ENGI_QUAD)
+            quad_patch[1][QP_FTYPE] = QF_COMBN, quad_patch[1][QP_RESO] = 8000, quad_patch[1][QP_BITS] = 90,
+            quad_patch[1][QP_SRR] = 20;
+    }
     if (p->usp == 5u && p->ce == ENGI_QUAD) {           /* (3y208: COMB+ on the chord, COMB- on the bass: the 8 lines lent
                                                          * across both parts, chord voices on two cores) */
         quad_patch[0][QP_FTYPE] = QF_COMBP, quad_patch[0][QP_RESO] = 9000, quad_patch[0][QP_FSHAPE] = 90;
@@ -253,7 +261,7 @@ int main(int argc, char **argv)
     int tsan = argc >= 2 && !strcmp(argv[1], "--tsan");
     uint32_t i, uni = 0, k, nb = tsan ? 900u : 3000u, nsplit = 0, nvsplit = 0, nfsplit = 0, nqsplit = 0, nfx = 0, nrt = 0, nro = 0, npf = 0, jobs0 = 0, mpad = 0, pbass = 0;
     uint32_t tine = 0, dsub = 0, fams = 0;
-    pair_t P[24];
+    pair_t P[32];                                       /* (3y212: 24 held 25 since 3y208) */
     uint32_t np = 0;
     emu_flash_open();
     memset(emu_flash, 0xFF, sizeof emu_flash);
@@ -313,6 +321,8 @@ int main(int argc, char **argv)
     P[np - 1u].usp = 4;                                 /* (4: DRIVE 80 PRE, LFO 1 -> DRIVE) */
     PAIR(ENGI_QUAD, 5, ENGI_QUAD, 6, "FM TONE chord COMB+, FM TONE bass COMB- (the lent lines)");
     P[np - 1u].usp = 5;
+    PAIR(ENGI_QUAD, 1, ENGI_QUAD, 6, "FM TONE chord, CRUSH before the filter and DRIVE PRE, FM TONE bass COMB- with CRUSH");
+    P[np - 1u].usp = 6;                                 /* (6, 3y212: the per-voice CRUSH and DIST state on two cores) */
     fams = np - 1u;
     printf("cr_c1_thread: the bass part's job on a second thread (%u pairs, %u blocks each%s)\n", (unsigned)np, (unsigned)nb,
            tsan ? "; the sanitizer's run" : "");
