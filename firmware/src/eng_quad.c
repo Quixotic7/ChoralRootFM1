@@ -406,6 +406,18 @@ static int8_t quad_dro[QUAD_NPART];              /* the LFOs' DRIVE as the last 
 static struct {                                  /* per part: the LFOs' FREE phases */
     uint32_t ph[3], rnd[3];
 } quad_lfo[QUAD_NPART] __attribute__((section(".pool")));
+/* DRIVE ROUTE PRE, the part's (quad_block, 3y213): dsp.c's dsp_dist at drive d, laid out for the voices' sample loop.
+ * The soft clip and the make-up as one table on the clip's input, signed (u -65536 .. 65536 in steps of 256: the
+ * nodes TANH_Q15 has, so the same line between them), less its bias's output and x mk: a load and an interpolation a
+ * sample, no sign, no make-up, no flash read; built again only when d changes (257 steps). elo / ehi: the low cut's
+ * output clamped so that u stays on the table (past it the clip is flat, as dsp_dist's +-230000 is) */
+typedef struct {
+    uint8_t on, d;                               /* (on: DRPRE and a drive this block; d: the table's) */
+    int32_t g, k, elo, ehi;                      /* dsp_dist's drive (Q13 here: half its g) and tone (Q15) */
+    int32_t tab[514];                            /* (514: u = 65536 reads its last node at a fraction 0) */
+} quad_drv_t;
+static quad_drv_t quad_drv[QUAD_NPART] __attribute__((section(".pool")));
+#define QUAD_DRV_BIAS 2400                       /* dsp_dist's bias (even harmonics) */
 typedef struct {
     uint32_t ph[4];                              /* C A B1 B2 */
     int32_t fb1, fb2;                            /* the feedback operator's last two outputs (its wave, Q15) */
@@ -976,6 +988,25 @@ static int32_t quad_lfo_wave(uint32_t w, uint32_t ph, int32_t r)
 }
 
 static void quad_comb_lend(const track_t *t, uint32_t tr, const int16_t *p);   /* (the combs' lines, below) */
+/* the part's DRIVE PRE for this block at drive d (0: off; the LFOs' DRIVE in it: the last block's, quad_dro) */
+static void quad_drv_set(quad_drv_t *q, int32_t d)
+{
+    int32_t i, mk, b0;
+    q->on = d != 0;
+    if (!d || d == q->d)
+        return;
+    q->d = (uint8_t)d;
+    q->g = 2048 + d * d, q->k = 32000 - d * 95, mk = 30000 - d * 120;   /* (dsp_dist's: g / 2, k, mk) */
+    b0 = softclip(QUAD_DRV_BIAS);
+    for (i = 0; i <= 256; i++) {
+        q->tab[256 + i] = mulq15(TANH_Q15[i] - b0, mk);
+        q->tab[256 - i] = mulq15(-TANH_Q15[i] - b0, mk);
+    }
+    q->tab[513] = q->tab[512];
+    /* u = ((e x g) >> 11) + bias in -65536 .. 65536 (e x g: under 2^31 within them) */
+    q->ehi = ((65536 - QUAD_DRV_BIAS) * 2048 + 2047) / q->g;
+    q->elo = -((65536 + QUAD_DRV_BIAS) * 2048 / q->g);
+}
 /* once a block and part: the macros into the patch, the FREE LFOs' phases */
 static void quad_block(track_t *t)
 {
@@ -985,6 +1016,7 @@ static void quad_block(track_t *t)
         return;
     p = quad_patch[tr];
     quad_dro[tr] = quad_fx_off[tr][0];
+    quad_drv_set(&quad_drv[tr], p[QP_DRPRE] ? clamp(t->p[P_DIST] + quad_dro[tr], 0, 127) : 0);
     quad_comb_lend(t, tr, p);
     for (k = 0; k < 8u; k++)                     /* a knob, the editor, the matrix, motion moved a macro */
         if (t->p[P_E0 + k] != quad_mlast[tr][k]) {
@@ -1647,6 +1679,67 @@ static void quad_bw_post(quad_voice_t *s, int32_t *acc, uint32_t n, int32_t hpk,
         break;                                                                                              \
     }
 
+/* DRIVE ROUTE PRE (version 6's DRPRE, FIZZ's E1; the Digitone's place: "distortion of the signal entering the
+ * filter", per voice): the part's DIST (dsp.c dsp_dist) on voice s's signal before its filter and its amp, its state
+ * the voice's, the LFOs' DRIVE on it; the part's own after the voices then none (fx.c track_dist: quad_drive_pre).
+ * Each note driven alone (no intermodulation of a chord in one clipper), the filter shaping the drive, the grit kept
+ * as the amp envelope falls. 3y213, its cost a third of dsp_dist's: the clip and the make-up one interpolation in the
+ * part's table (quad_drv), and the voice's DC blocker and base-width (hpk, lpk: quad_render's) in the same loop, the
+ * blocker in 32 bits (its mean before the sample's step, within 0.1 % of quad_render's). hpk -1: the drive alone (a
+ * block in which a base-width pole fades: quad_render ran them). A function of its own: in quad_render the loop moved
+ * its blocks about (tests/target_budget.py) */
+static __attribute__((noinline)) void quad_drv_run(quad_voice_t *s, const quad_drv_t *q, int32_t *acc, uint32_t n,
+                                                   int32_t hpk, int32_t lpk)
+{
+    const int32_t *tb = q->tab;
+    const int32_t g = q->g, k = q->k, elo = q->elo, ehi = q->ehi;
+    int32_t d = s->dc, bh = s->bh, bl = s->bl, h = s->dh, l1 = s->dl1, l2 = s->dl2, y, j;
+    uint32_t i;
+#define QUAD_DC(y)                               /* (quad_render's ((x << 12) - d) x K >> 16 in 32 bits) */ \
+    y -= (d + 2048) >> 12;                                                  \
+    d += (y * QUAD_DC_K) >> 4;
+#define QUAD_DRV(y)                                                         \
+    h += (y - h + 64) >> 7;                      /* ~55 Hz low cut: keep the bass out of the clipper */ \
+    y = clamp(y - h, elo, ehi);                  /* (u on the table; past it the clip is flat) */ \
+    y = ((y * g) >> 11) + QUAD_DRV_BIAS + 65536; /* (g: dsp_dist's / 2) */ \
+    j = y >> 8;                                                             \
+    y = tb[j] + (((tb[j + 1] - tb[j]) * (y & 255)) >> 8);                   \
+    l1 += mulq15(y - l1, k);                     /* two poles: tames the fizz */ \
+    l2 += mulq15(l1 - l2, k);                                               \
+    acc[i] = l2;
+    if (hpk < 0) {
+        for (i = 0; i < n; i++) {
+            y = acc[i];
+            QUAD_DRV(y)
+        }
+    } else if (!(hpk | lpk)) {                   /* (no base-width: a loop with the registers it needs) */
+        for (i = 0; i < n; i++) {
+            y = acc[i];
+            QUAD_DC(y)
+            QUAD_DRV(y)
+        }
+        s->dc = d;
+    } else {
+        for (i = 0; i < n; i++) {
+            y = acc[i];
+            QUAD_DC(y)
+            if (hpk) {
+                bh += (int32_t)(((int64_t)((y << 8) - bh) * hpk) >> 16);
+                y -= bh >> 8;
+            }
+            if (lpk) {
+                bl += (int32_t)(((int64_t)((y << 8) - bl) * lpk) >> 16);
+                y = bl >> 8;
+            }
+            QUAD_DRV(y)
+        }
+        s->dc = d, s->bh = bh, s->bl = bl;
+    }
+#undef QUAD_DC
+#undef QUAD_DRV
+    s->dh = h, s->dl1 = l1, s->dl2 = l2;
+}
+
 /* the voice's block: out gets it */
 static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
@@ -1655,7 +1748,7 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     const int16_t *p;
     int32_t eA, eB, eF, eE, dst[QD_N], A0, A1, dA, a, x, y;
     int32_t hq, dt, mix, ra, rb, cut, kd, reso, gy, gq, dgq, fbq, hf, fdep, base, wid;
-    int32_t la, lb1, lb2, dla, dlb1, dlb2, tl[3], hpk, lpk, svf, fty, fb1, fb2, bh, bl, bwh, bwl;
+    int32_t la, lb1, lb2, dla, dlb1, dlb2, tl[3], hpk, lpk, svf, fty, fb1, fb2, bh, bl, bwh, bwl, drv;
     uint32_t fon, fon0;
     const int16_t *ha_t = QUAD_HARM[0], *hb_t = QUAD_HARM[0];
     uint32_t p0, p1, p2, p3, i0, i1, i2, i3;
@@ -1918,7 +2011,10 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         int32_t d = s->dc;
         uint32_t sw = (fon ^ fon0) & 6u;
         bh = s->bh, bl = s->bl;
-        if (!sw) {
+        drv = p[QP_DRPRE] && quad_drv[tr].on;    /* DRIVE ROUTE PRE (quad_drv_run) */
+        if (drv && !sw) {
+            /* (the DC blocker and the base-width in the drive's loop, below) */
+        } else if (!sw) {
             for (i = 0; i < n; i++) {
                 x = acc[i];
                 d += (int32_t)(((((int64_t)x << 12) - d) * QUAD_DC_K) >> 16);
@@ -1960,16 +2056,9 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         s->dc = d;
         s->bh = bh, s->bl = bl;
     }
-    /* DRIVE ROUTE PRE (version 6's DRPRE, FIZZ's E1; the Digitone's place: "distortion of the signal entering the
-     * filter", per voice): the part's DIST (dsp.c) on this voice's signal before its filter and its amp, its state the
-     * voice's, the LFOs' DRIVE on it; the part's own after the voices then none (fx.c track_dist: quad_drive_pre).
-     * Each note driven alone (no intermodulation of a chord in one clipper), the filter shaping the drive, the grit
-     * kept as the amp envelope falls */
-    if (p[QP_DRPRE]) {
-        int32_t dr = clamp(t->p[P_DIST] + quad_dro[tr], 0, 127);   /* (the LFOs' DRIVE: the last block's) */
-        if (dr)
-            dsp_dist(&s->dh, &s->dl1, &s->dl2, dr, acc, n);
-    }
+    if (drv)                                     /* DRIVE PRE with the DC blocker and the base-width (a block in
+                                                  * which a pole fades: after them, the drive alone) */
+        quad_drv_run(s, &quad_drv[tr], acc, n, (fon ^ fon0) & 6u ? -1 : hpk, lpk);
     if ((p[QP_BITS] || p[QP_SRR]) && p[QP_CRPRE])   /* CRUSH before the filter */
         quad_crush(s, p[QP_BITS], p[QP_SRR], acc, n);
     /* the multimode SVF, a loop per type (LP12 v2, HP12 x - kd v1 - v2, LP24 a plain LP12 then the resonant one; the

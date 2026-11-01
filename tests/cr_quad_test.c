@@ -831,6 +831,45 @@ static void t_drive_pre(void)
     }
     CHECK(quad_bwk(12700) == QUAD_BW_K[127] && quad_bwk(12600) == QUAD_BW_K[126] && quad_bwk(0) == QUAD_BW_K[0],
           "quad_bwk: 127.00 its last entry, no read past it");
+    {   /* 3y213: quad_drv_run (the drive alone, the part's table) against dsp.c's dsp_dist, which it replaced in the
+         * voices: a sweep 30 Hz .. 15 kHz at 2,000, 30,000 and 200,000 (past the clamp) and every 7th drive (-71.2 dB,
+         * 11 at most when written) */
+        static int32_t x0[4096], x1[4096];
+        static const int32_t LV[3] = {2000, 30000, 200000};
+        quad_drv_t q;
+        quad_voice_t v;
+        int32_t dd, h, l1, l2, pk = 0;
+        uint32_t lv, o;
+        double worst = -200.0;
+        memset(&q, 0, sizeof q);
+        for (dd = 1; dd <= 127; dd += 7) {
+            double e = 0, r = 0, ph = 0;
+            quad_drv_set(&q, dd);
+            for (lv = 0; lv < 3u; lv++) {
+                for (i = 0; i < 4096u; i++) {
+                    ph += 2.0 * M_PI * 30.0 * pow(500.0, i / 4096.0) / FS;
+                    x0[i] = x1[i] = (int32_t)(LV[lv] * sin(ph));
+                }
+                h = l1 = l2 = 0;
+                memset(&v, 0, sizeof v);
+                for (o = 0; o < 4096u; o += CTL) {
+                    dsp_dist(&h, &l1, &l2, dd, x0 + o, CTL);
+                    quad_drv_run(&v, &q, x1 + o, CTL, -1, 0);
+                }
+                for (i = 0; i < 4096u; i++) {
+                    e += (double)(x1[i] - x0[i]) * (x1[i] - x0[i]), r += (double)x0[i] * x0[i];
+                    pk = abs(x1[i] - x0[i]) > pk ? abs(x1[i] - x0[i]) : pk;
+                }
+            }
+            worst = 10.0 * log10(e / r) > worst ? 10.0 * log10(e / r) : worst;
+        }
+        CHECK(worst < -65.0 && pk < 24, "DRIVE PRE's table: dsp_dist's samples within %.1f dB (RMS), %d at most", worst, pk);
+        quad_drv_set(&q, 0);
+        CHECK(!q.on && q.d == 127 && q.g == 2048 + 127 * 127, "drive 0: off, its table kept (%d)", q.d);
+        quad_drv_set(&q, 50);
+        CHECK(q.on && q.d == 50 && q.g == 2048 + 2500 && q.tab[256] == mulq15(-softclip(QUAD_DRV_BIAS), 30000 - 6000),
+              "a drive that changes: the table built again (%d)", q.d);
+    }
 }
 
 /* the filter machines (3y207, FIZZ's E2 and its test_quad t_machines): MULTI at SHAPE 0 / 127 is LP12 / HP12 (to the

@@ -6729,3 +6729,34 @@ that" to making DRIVE before the filter cheaper instead (3y213). Kept from it, p
 array of `tests/cr_c1_thread_test.c` 24 -> 32 (3y208 put a 25th pair in it, one past its end) and its pair FM TONE
 chord with CRUSH PRE and DRIVE PRE over an FM TONE bass with COMB- and CRUSH (26 pairs: inline = thread = unsplit = all
 to core 1 = none; ThreadSanitizer 0 reports).
+
+3y213. **FM TONE's DRIVE before the filter at about half its cost** (the owner: "Yes, do that", to making DRIVE PRE
+cheaper instead of 3y212's rebalance). The unit (3y212): C64 EP (DRIVE 120 PRE) + BASS 2,720 .. 2,780 us a block, 7
+late in 15 s, against WOBBLE + BASS 2,510 .. 2,640; DRIVE PRE ~150 .. 250 us of core 0's path. **What it cost**: a
+pass of `dsp_dist` a driven voice, a call 270 KB away in XIP, 40 pi32v2 instructions a sample (the soft clip's sign
+and interpolation from TANH_Q15 in flash, the make-up's multiply, the voice's samples loaded and stored again), after
+the DC blocker's pass (22: its 64-bit step). **Now** `eng_quad.c quad_drv_run`: the clip, its bias's offset and the
+make-up one table on the clip's input (`quad_drv_t.tab`, a part's, signed, 514 nodes at TANH_Q15's places, so the
+same line between them; built by `quad_block` only when the part's drive changes: 257 steps), its input clamped to
+the table (the clip is flat past it, as `dsp_dist`'s +-230000 was), the drive's gain shift folded (g / 2, >> 11); and
+the drive in the DC blocker's and the base-width's loop (the blocker there in 32 bits, its mean before the sample's
+step: within 0.1 % of the 64-bit one), a loop without the base-width when it is off; a block in which a base-width
+pole fades runs them as before and the drive alone after. A function of its own beside `quad_render` (in it, the
+compiler moved quad_render's blocks about). The listing: the DC blocker and the drive 62 -> 40 instructions a voice
+and sample (the drive's own 40 -> 18, no flash read, no far call). Host (`tests/run_quad_test.sh`): WOBBLE's 8 voices
+DRIVE 80 PRE 1,964 -> 1,799 instructions a sample (+342 -> +177 over WOBBLE: +5.8 % -> +3.1 % of the half, ~+170 ->
+~+89 us). The emulator (`cr_quad_eight`, DRIVE 127 PRE, EMU_STAGES, three runs): part0 avg 117 -> 104 us, part1 113 ->
+103, the block avg 2,288 -> 2,264 us and max 3,715 -> 3,536 (one core, EMU_C1=nostart: part0 181 -> 162); the thread's
+WAV the inline one's, bit for bit. **Expected on the unit** (not flashed here): ~55 % off what DRIVE PRE costs, ~17 us
+a driven voice of the survey's ~32, ~70 us off each core's four chord voices: C64 EP + BASS about 2,620 .. 2,700 us,
+near WOBBLE + BASS; a late block or two in 15 s may remain. **The sound**: against `dsp_dist` alone, a sweep 30 Hz ..
+15 kHz at three levels and every 7th drive, -71.2 dB RMS, 11 LSB at most (`cr_quad_test t_drive_pre`, new); whole
+voices against 3y212's (EP, WOBBLE, BELL, BASS at DRIVE 10, 40, 80, 120, 127; WOBBLE with LFO 1 on DRIVE; EP notes 24 ..
+96 at DRIVE 120): -58.6 .. -70.7 dB RMS, peak errors 15 .. 171 on peaks of 13,500 .. 170,000. (A low cut in the DC
+blocker's place, tried first, was 15 .. 28 dB off on low notes: its 8 Hz pole's phase.) Goldens: 317 unchanged
+(`tests/golden.txt`), `tests/quad_goldens` unchanged (none drives before the filter). Budget
+(`tests/target_budget.py`): `quad_drv_run` watched (137); `quad_render` 5,606 -> 10,511 with no loop grown: two of its
+algorithms' loop ends now share a tail the compiler placed before them, and the tool reads the branch back as a
+6,900-byte loop (counted only where a branch back closes a cycle, the same listing reads 3,840 -> 3,827; fm6_render's
+42,969, va_render's 88,220 and cz_native_line's 45,287 are mostly such tails too: 3,096, 2,715, 6,273). Size: XIP
+556,020 B (+832 over 3y212), POOL +4,152 B (the two tables: 331,492 of 344,064).

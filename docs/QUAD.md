@@ -366,6 +366,17 @@ follow the amp envelope or LEVEL. The Digitone importer sets PRE on every sound 
 the same). Cost: one DIST loop a driven voice; the host figure (`tests/run_quad_test.sh`): WOBBLE's 8 voices at DRIVE
 80 PRE +5.8 % of the half (~+170 us) over WOBBLE as it is, so FM TONE's chord is split over both cores (3y206).
 
+**Cheaper since 3y213** (the unit: C64 EP, DRIVE 120 PRE, 8 notes + a bass, 7 late blocks in 15 s): `quad_drv_run`
+instead of `dsp_dist` in the voices. The soft clip, its bias's offset and the make-up are one table on the clip's
+input (`quad_drv_t.tab`, a part's, 514 nodes at TANH_Q15's places, built in `quad_block` when the drive changes:
+2 x 2,076 B of POOL), so a sample is one interpolation (no sign, no make-up multiply, no flash read); the drive runs in
+the DC blocker's and the base-width's loop (no pass of its own; the blocker in 32 bits there, its mean before the
+sample's step); the input's clamp keeps it on the table. The pi32v2 listing: the voice's DC blocker and drive 62 ->
+40 instructions a sample (the drive's own 40 -> 18), and no call into `dsp_dist` 270 KB away in XIP. Host: WOBBLE 8
+voices DRIVE 80 PRE +342 -> +177 instructions a sample (+3.1 %, ~+89 us). The sound: against `dsp_dist` alone -71 dB
+RMS (11 LSB at most, `t_drive_pre`); whole voices (EP, WOBBLE, BELL, BASS at DRIVE 10 .. 127, an LFO on DRIVE, EP
+notes 24 .. 96) -59 .. -71 dB RMS, peak errors 15 .. 171 on peaks of 13,500 .. 170,000.
+
 **FREQ and RESO glide** (FIZZ's P2.6b): the filter runs `quad_voice_t.fsm / rsm`, which move a quarter of the way to
 the patch's FREQ / RESO a block (the last 7 hundredths at once, ~7 ms for a detent); a note starts at its own values,
 so a note whose FREQ and RESO stay put renders as before, sample for sample (no golden moved). `quad_bwk` returns
