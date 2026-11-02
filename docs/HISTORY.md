@@ -6909,3 +6909,14 @@ the built page with `?sim=pool&fw=0.28` (three made-up Digitone II sounds: "Plac
 0.28, so these were written without what it cannot play: new filter types (1), DRIVE before the filter (2), own sends
 (2), the AHD envelope (1), CRUSH (2). Install 0.29 or later and place again for the whole sound.") and `fw=0.29`
 ("Placed 3 sounds."). Web only: the firmware and the 0.29 packages are unchanged; pages.yml rebuilds the site.
+
+3y221. **0.29-smk37: the SMK-37 test build of 0.29.** The owner: "Can we get these 0.29 updates in to the SMK-37
+version?" The source is 0.29's (8ce8c90 and the web-only 36915cf); nothing SMK-specific changed: the SMK's SCALE is the
+FM-1's SEL (panel.c), so the filter type picker is SCALE held in the sound editor. Built for the three models
+(`BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.29-smk37`): XIP 558,208 / 558,224 of 573,440 (97.3 %), RAMTEXT
+21,816 of 24,576. Then `tools/hub_build.sh 0.29-smk37`: the same `SHA256SUMS` (twelve files).
+`web/releases-smk37.json`: 0.29-smk37 first, base 0.29, four bullets and three notes (untried on an SMK; going back to
+0.27-smk37.1 plays a sound using 0.29's new values as INIT; the Digitone importing is in the FM-1's web pages, which do
+not connect to an SMK-37 yet). SMK37.md: the status, the package names and version line, and What to test item 14
+(the SCALE hold, MULTI / the combs / EQ, dense FM TONE chords on two cores). `python3 tests/releases_test.py` ALL OK.
+Tagged v0.29-smk37: release.yml builds, signs and publishes the pre-release, pages.yml the SMK-37 test installer.

@@ -3,6 +3,38 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.29-smk37",
+      "base": "0.29",
+      "date": "2026-11-01",
+      "tag": "v0.29-smk37",
+      "title": "0.29 on the SMK-37: FIZZ's engine in FM TONE",
+      "bullets": [
+        "FM TONE gets the Digitone II's filter types: MULTI (with Morph), COMB+, COMB- and EQ. In the sound editor's filter pages, hold SCALE (the FM-1's SEL) to pick one; the FILTER screen's third knob follows the type.",
+        "DRIVE before the filter, the AHD amp envelope and CRUSH (bit and sample-rate reduction) for FM TONE.",
+          "FM TONE's chord voices share the two cores, so the heavier sounds play without clicks.",
+        "Everything of 0.27-smk37.1: the pedal jack (Sustain or Expression), K1's volume shown and remembered, the FX routing."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer: the new filters and the SCALE hold have not been tried on an SMK-37. Please report what you find (SMK37.md, What to test, item 14) on GitHub.",
+        "Updating from 0.27-smk37.1 keeps your settings, sounds, loops and favourites. Going back to it works too, but an FM TONE sound that uses something new in 0.29 plays as FM TONE's INIT sound there (it stays in its slot, untouched).",
+        "Importing Digitone and Digitone II sounds is in the FM-1's web device manager and installer, which do not connect to an SMK-37 yet; the new filters, drive, envelope and crush are all on the keyboard's own sound editor."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "07abef95a089c91863828ddc15d6da339af085ad7cb6e737e86f5d74ee8b5d36",
+          "sha256_1core": "637fae9dfaae4cbe64deeba4bcff87f83fc35ac3be552958a8f58b2c3559d9b4"
+        },
+        "elite": {
+          "sha256": "dae721828de71e3e485c1df5364ec74b2b3c4543755d4dd7fa85778300d5f56d",
+          "sha256_1core": "e7cf9ada92659660e692dc674e1ea9d1c1b238d9b3a52776000dd908735b525e"
+        },
+        "mke": {
+          "sha256": "ab31898a3df0de9e37601354e3a89448f9bc46ede74bcdd09dbfa76530786972",
+          "sha256_1core": "27b7f38982c259d9d050b99bb5d6dc84a7032e18d080e93c8246c0873a13b88e"
+        }
+      }
+    },
+    {
       "version": "0.27-smk37.1",
       "base": "0.27",
       "date": "2026-10-29",
