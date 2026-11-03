@@ -8,6 +8,24 @@
   },
   "releases": [
     {
+      "version": "0.29.1",
+      "date": "2026-11-02",
+      "tag": "v0.29.1",
+      "sha256": "646b77ef770e3e82772dea8be919424602788dead2c613a861ddb471611234a1",
+      "sha256_1core": "48a7180e11c4fbbd8848693bdbb01aa9bce203b587ba949d33bdc308c11d86cf",
+      "title": "0.29 for the newer FM-1s (the second flash chip)",
+      "bullets": [
+        "The FM-1s sold from late 2026 (the M-VAVE logo on the front) have a different flash chip. ChoralRoot up to 0.29 did not know it: on those units it kept no settings, sounds or loops and refused every update.",
+        "0.29.1 knows the chip. On such a unit Options > Version now shows a unit ID, and settings, sounds and loops are kept.",
+        "The same firmware as 0.29 otherwise: the same sound and features, with your settings, sounds, loops and favorites stored as before. Only the version line reads 0.29.1.",
+        "A unit already stuck on 0.27 to 0.29 ('no unit ID' under Options > Version) cannot take this update over USB: hold OCT-, OCT+ and HOME 5 s until the screen goes dark, restore V15 with MvaveFM1Unbricker 1.2.1, then install 0.29.1 here."
+      ],
+      "notes": [
+        "On an FM-1 with the older chip, updating from 0.29 is optional: nothing changes but the version line.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.29",
       "date": "2026-11-01",
       "tag": "v0.29",
@@ -25,7 +43,14 @@
       "notes": [
         "Onto 0.28 or older the web pages write a Digitone sound without the new filter types, AHD, crush and sends: update to 0.29 first to get the whole sound.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "On an FM-1 with the older flash chip nothing changes: 0.29 is the same firmware and stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.29 again.",
+          "On an FM-1 with the second flash chip (the units with the logo on the front, late 2026) 0.29 runs without the flash again: it keeps nothing and takes no update, and the way back is the Unbricker's restore of V15 (releases/0.29.1.md)."
+        ]
+      }
     },
     {
       "version": "0.28",

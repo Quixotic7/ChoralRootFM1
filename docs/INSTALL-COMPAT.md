@@ -64,13 +64,12 @@ sounds, no loops, no unit ID, and `main.c` skips the update session (`if (flash_
 sends UPGRADE and the unit never asks for the first block. The update loader and the boot stub never check the chip;
 the stub finds no staged record and leaves to ROM boot, where the Unbricker's `info` reads the id.
 
-**From 0.28.1 on** `FL_JEDEC_OK` accepts 0xB36014 beside 0x856014 (and the SMK-37's 0xEB6014). The RAM flash driver
+**From 0.29.1 on** `FL_JEDEC_OK` accepts 0xB36014 beside 0x856014 (and the SMK-37's 0xEB6014). The RAM flash driver
 uses only the generic SPI NOR commands (9F, 4B, 05/35, 06, 20, 02, 0B) that the SDK firmware those units ship with
 uses on the same chip. A unit already stuck RAM-only on 0.27 or 0.28 cannot take the update over USB (the gate above),
-so the way out is through the chip's ROM boot: hold OCT- and OCT+ for 5 s (or hold OCT- at power-on for the stub's
-one long flash), then `python3 fm1_unbrick.py restore FM-1.fwsc --i-know` writes the official V15 (the Unbricker's
+so the way out is through the chip's ROM boot: hold OCT-, OCT+ and HOME together for 5 s while it runs (the countdown, then the screen goes dark: on such a unit the boot stub finds no update and leaves to the chip's ROM boot), or hold OCT- while switching it on (one long flash), then `python3 fm1_unbrick.py restore FM-1.fwsc --i-know` writes the official V15 (the Unbricker's
 own check of the id needs the override on that chip until it learns the id too), after which the web installer
-installs 0.28.1 over V15 as on any unit. The web installer and `fm1_install.py` do not read the chip id.
+installs 0.29.1 over V15 as on any unit. The web installer and `fm1_install.py` do not read the chip id.
 
 ## Bubba Machine (2026-10-17, HISTORY 3y176)
 

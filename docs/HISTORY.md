@@ -6929,3 +6929,11 @@ accepts 0xB36014 beside 0x856014 (and the SMK's 0xEB6014): same type and capacit
 uses only generic SPI NOR commands. `tests/smk_flash_test.c` checks both ids and rejects 0xB36015. INSTALL-COMPAT.md
 "A second flash chip" says what a RAM-only unit does (no stores, no unit ID, `main.c` skips `ota_session`) and the
 way out of one already stuck: ROM boot, the Unbricker's `restore` of V15 with `--i-know`, then the web installer.
+
+3y223. **0.29.1, the release for the newer FM-1s.** The owner: "Yes, release 0.29.1" (asked as 0.28.1; 0.29 was out
+since 2026-11-01). 0.29's firmware with 3y222's `FL_JEDEC_OK` (the chip 0xB36014); only the version line differs.
+`./build.sh --release 0.29.1` and `tools/hub_build.sh 0.29.1` (the same `SHA256SUMS`), `web/releases.json` first with
+the sha256s, 0.29's entry given its going-back note, `docs/releases/0.29.1.md` (which units, what changed, the way out
+of a unit already stuck: ROM boot, the Unbricker's restore of V15, then the installer), MANUAL.md's first line.
+MvaveFM1Unbricker 1.2.1 accepts the id too (`info`, `restore`, the Transporter tool). `python3 tests/releases_test.py`,
+`CR_VERSION=0.29.1 sh tests/run_all.sh`. Tagged v0.29.1: release.yml builds, signs and publishes, pages.yml the site.
