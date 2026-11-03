@@ -49,6 +49,29 @@ installing without a backup, as over V15. Its updater is felucca-bsp's `ota_stag
 loader (any well-formed one; ours carries `FELUCCA-LOADER-1`), the same path as over Felucca 1.0. Only RemoteFM1's
 prefix is allowed: other fm1-base firmwares (FIZZ `FM-1_46...`, ...) stay "unknown" until their path is checked.
 
+## A second flash chip: 0xB36014 (2026-11-02, HISTORY 3y222)
+
+A new FM-1 (bought late 2026, the M-VAVE logo printed on the front) took ChoralRoot 0.27 through M-VAVE's own updater
+and ran it, but **Options > Version** read `no unit ID`, every installer "stopped answering after 0 requests; nothing
+was written", the three-button Update Mode went dark, OCT- held gave one long flash (the boot stub's "ROM boot", not
+the loader's three short ones), and MvaveFM1Unbricker `info` printed `Flash ID 0xB36014 (expected 0x856014)`
+(Reddit r/MVaveFM1, u/novorapidd). The chip is a different maker's 1 MiB SPI NOR: same type and capacity bytes
+(`60 14`), a different manufacturer byte (`B3`, not Puya's `85`).
+
+What ChoralRoot does on a chip it does not know (`hal/fm1_flash_map.h FL_JEDEC_OK`, read once at power-on in
+`cr_shim.c persist_boot`): it runs **RAM-only**. Nothing is read from or written to the flash: no settings, no
+sounds, no loops, no unit ID, and `main.c` skips the update session (`if (flash_ok) ota_session()`), so an installer
+sends UPGRADE and the unit never asks for the first block. The update loader and the boot stub never check the chip;
+the stub finds no staged record and leaves to ROM boot, where the Unbricker's `info` reads the id.
+
+**From 0.28.1 on** `FL_JEDEC_OK` accepts 0xB36014 beside 0x856014 (and the SMK-37's 0xEB6014). The RAM flash driver
+uses only the generic SPI NOR commands (9F, 4B, 05/35, 06, 20, 02, 0B) that the SDK firmware those units ship with
+uses on the same chip. A unit already stuck RAM-only on 0.27 or 0.28 cannot take the update over USB (the gate above),
+so the way out is through the chip's ROM boot: hold OCT- and OCT+ for 5 s (or hold OCT- at power-on for the stub's
+one long flash), then `python3 fm1_unbrick.py restore FM-1.fwsc --i-know` writes the official V15 (the Unbricker's
+own check of the id needs the override on that chip until it learns the id too), after which the web installer
+installs 0.28.1 over V15 as on any unit. The web installer and `fm1_install.py` do not read the chip id.
+
 ## Bubba Machine (2026-10-17, HISTORY 3y176)
 
 [Bubba Machine](https://github.com/Erbubar23/bubba-machine) (a groovebox firmware, GPL-3.0) answers the handshake as

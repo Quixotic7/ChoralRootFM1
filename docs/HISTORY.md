@@ -6920,3 +6920,12 @@ FM-1's SEL (panel.c), so the filter type picker is SCALE held in the sound edito
 not connect to an SMK-37 yet). SMK37.md: the status, the package names and version line, and What to test item 14
 (the SCALE hold, MULTI / the combs / EQ, dense FM TONE chords on two cores). `python3 tests/releases_test.py` ALL OK.
 Tagged v0.29-smk37: release.yml builds, signs and publishes the pre-release, pages.yml the SMK-37 test installer.
+
+3y222. **A second flash chip, 0xB36014: ChoralRoot ran RAM-only on a new FM-1.** Reddit r/MVaveFM1 (u/novorapidd): a
+new FM-1 with the logo on the front took 0.27 through M-VAVE's updater and ran it, but Options > Version read `no
+unit ID`, every installer stopped "after 0 requests", Update Mode went dark, OCT- held gave the stub's one long flash,
+and MvaveFM1Unbricker `info` read `Flash ID 0xB36014 (expected 0x856014)`. `FL_JEDEC_OK` (fm1_flash_map.h) now
+accepts 0xB36014 beside 0x856014 (and the SMK's 0xEB6014): same type and capacity bytes, another maker, and the driver
+uses only generic SPI NOR commands. `tests/smk_flash_test.c` checks both ids and rejects 0xB36015. INSTALL-COMPAT.md
+"A second flash chip" says what a RAM-only unit does (no stores, no unit ID, `main.c` skips `ota_session`) and the
+way out of one already stuck: ROM boot, the Unbricker's `restore` of V15 with `--i-know`, then the web installer.

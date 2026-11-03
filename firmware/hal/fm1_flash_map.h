@@ -11,13 +11,16 @@
  * the 1 MiB part ignores the high address bits, so a wrapped range lands low. */
 #define FL_IN(off, n, lo, hi) ((uint32_t)(off) >= (lo) && (uint32_t)(off) <= (hi) && \
                                (uint32_t)(n) <= (hi) - (uint32_t)(off))
-/* The flash chip the storage accepts (JEDEC id from 0x9F: project.c, cr_shim.c); extend it here for another part. */
+/* The flash chip the storage accepts (JEDEC id from 0x9F: project.c, cr_shim.c); extend it here for another part.
+ * FM-1: 0x856014 (Puya P25Q80, 1 MiB) in the units up to 2026; 0xB36014 (another maker's 1 MiB part, same type and
+ * capacity bytes) in units with the logo on the front, found 2026-11-02 (HISTORY 3y222: a unit that ran ChoralRoot
+ * RAM-only, "no unit ID", and took no update). The driver uses only generic SPI NOR commands (9F, 4B, 05/35, 06,
+ * 20, 02, 0B), which the SDK firmware those units shipped with uses on the same chip. */
 #if BOARD_SMK37
-/* SMK-37: 0xEB6014, 1 MiB, read from a unit over the mask-ROM UBOOT. The driver uses only generic SPI NOR
- * commands (9F, 05/35, 06, 20, 02, 0B). */
-#define FL_JEDEC_OK(id) ((id) == 0xEB6014u || (id) == 0x856014u)
+/* SMK-37: 0xEB6014, 1 MiB, read from a unit over the mask-ROM UBOOT. */
+#define FL_JEDEC_OK(id) ((id) == 0xEB6014u || (id) == 0x856014u || (id) == 0xB36014u)
 #else
-#define FL_JEDEC_OK(id) ((id) == 0x856014u)
+#define FL_JEDEC_OK(id) ((id) == 0x856014u || (id) == 0xB36014u)
 #endif
 
 #if BOARD_SMK37

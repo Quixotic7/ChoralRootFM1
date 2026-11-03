@@ -150,8 +150,9 @@ int main(void)
         check("the boot stub's record: the SMK-37 loader's identity, the staging address",
               !memcmp(parm + 8, "ota-SMK-37 Pro_016", 19) && stub_rd32(parm + 72) == FL_OTA_LO);
     }
-    check("FL_JEDEC_OK: the SMK part 0xEB6014 and 0x856014 only", FL_JEDEC_OK(0xEB6014u) && FL_JEDEC_OK(0x856014u) &&
-          !FL_JEDEC_OK(0u) && !FL_JEDEC_OK(0xFFFFFFu) && !FL_JEDEC_OK(0xEB6015u));
+    check("FL_JEDEC_OK: the SMK part 0xEB6014 and the FM-1's 0x856014 / 0xB36014 only", FL_JEDEC_OK(0xEB6014u) &&
+          FL_JEDEC_OK(0x856014u) && FL_JEDEC_OK(0xB36014u) && !FL_JEDEC_OK(0u) && !FL_JEDEC_OK(0xFFFFFFu) &&
+          !FL_JEDEC_OK(0xEB6015u) && !FL_JEDEC_OK(0xB36015u));
     printf("%s\n", bad ? "SMK FLASH TEST FAILED" : "smk flash test passed");
     return bad != 0;
 }
