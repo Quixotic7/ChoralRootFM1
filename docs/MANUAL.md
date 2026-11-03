@@ -1,6 +1,6 @@
 # ChoralRoot FM-1: the manual
 
-For ChoralRoot 0.29.1 on the M-VAVE FM-1 (what is new since 0.22 is marked so; 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
+For ChoralRoot 0.29.2 on the M-VAVE FM-1 (what is new since 0.22 is marked so; 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
 FM-1, has installed ChoralRoot with
 the web installer and wants to play it. Nothing here needs the design documents; where one goes deeper, the manual
 links to it.

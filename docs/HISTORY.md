@@ -6954,3 +6954,12 @@ before. A duplicate pulse (< 2 ms, USB and TRS both) is not counted. After: with
 for 10 minutes at 120.0, 120.4 and 120.7. Nothing stored changes (two RAM fields in `cr_loop_t`). Not covered: the
 arp and the clocked voices (cr_engine.c) still run at the whole BPM under Clock In. `sh tests/run_all.sh --only
 cr_tests`, target budget ok; XIP 557,640 of 573,440 (97.2 %). MANUAL.md "the loop" (Clock In).
+
+3y225. **0.29.2, Clock In's loop timing.** The owner: "Yes, 0.29.2". 0.29.1 with 3y224 (the loop locked to MIDI Clock
+In's pulses). Measured on a unit first (FM-1_920 from this branch, `--force` over FM-1_4600 at the owner's word): MIDI
+Clock Out steady, 116.05 BPM at a tempo of 116 (+447 ppm against the Mac, no lost pulses over 3 minutes); a 2-bar loop
+7.9997 beats a cycle over 42 bars, its start within 3 ms; the "drift after 8 bars" a player heard was a Free loop of
+19.28 beats, which keeps its length by design. `./build.sh --release 0.29.2` and `tools/hub_build.sh 0.29.2` (the same
+`SHA256SUMS`): XIP 557,640 of 573,440 (97.2 %), 1-core 554,500. `web/releases.json` first with the sha256s, 0.29.1's
+entry given its going-back note, `docs/releases/0.29.2.md`, MANUAL.md's first line. `python3 tests/releases_test.py`,
+`CR_VERSION=0.29.2 sh tests/run_all.sh`. Tagged v0.29.2: release.yml builds, signs and publishes, pages.yml the site.
