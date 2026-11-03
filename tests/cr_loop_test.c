@@ -2500,8 +2500,53 @@ static void s_preview(void)
     cr_loop_panic(&L);
 }
 
+/* MIDI Clock In: the loop's tempo ticks against an external 24 PPQN clock (HISTORY 3y224). The follower applies
+ * a whole BPM (cr_midi.c: 120.4 -> 120, and holds within 0.8 of it), so a loop run from the FM-1's own ms clock
+ * drifts from the master by the difference: 0.4 beat a minute here. Locked to the pulses (cr_loop_ext_pulse), the
+ * tempo ticks stay within a pulse (4 ticks) of 4 per pulse, for any minutes. */
+static void s_extclock(void)
+{
+    static const uint32_t bpm10[3] = {1204u, 1207u, 1200u};   /* tenths: rounding, the hold, a master at 120 */
+    char name[160];
+    uint32_t k;
+    for (k = 0; k < 3u; k++) {
+        uint64_t pulses = 0;
+        uint32_t rt0, mins = 10u, end;
+        int32_t err, worst = 0;
+        reset();
+        cr_set_tempo(&C, 120);                       /* what the follower applies */
+        rt0 = L.rt;
+        end = NOW + mins * 60000u;
+        while (NOW < end) {
+            /* the next pulse's ms: pulse p at p * 600000 / (bpm10 * 24) ms (exact, then floored, as a stamp) */
+            uint32_t due = 1000u + (uint32_t)((pulses * 600000u) / (bpm10[k] * 24u));
+            if (due <= NOW) {
+                cr_loop_ext_pulse(&L);
+                pulses++;
+            }
+            step(1);
+            err = (int32_t)(L.rt - rt0) - (int32_t)((pulses ? pulses - 1u : 0u) * 4u);
+            if (err < 0 ? -err > -worst && -err > worst : err > worst && err > -worst) worst = err;
+        }
+        snprintf(name, sizeof name, "ext clock %u.%u BPM: %u min, tempo ticks within a pulse of the master's "
+                 "(worst %d ticks = %d ms)", (unsigned)(bpm10[k] / 10u), (unsigned)(bpm10[k] % 10u), (unsigned)mins,
+                 (int)worst, (int)(worst * 60000 / (int32_t)(bpm10[k] * 96 / 10)));
+        ok(worst >= -4 && worst <= 4, name);
+    }
+    /* the pulses stop (a cable, the master's Stop): the loop runs on at the tempo, from the ms clock */
+    reset();
+    cr_loop_ext_pulse(&L);
+    cr_loop_ext_off(&L);
+    {
+        uint32_t rt0 = L.rt;
+        step(60000);
+        ok(L.rt - rt0 >= 11519u && L.rt - rt0 <= 11521u, "ext clock off: the ms clock again (120 BPM: 11520 ticks a minute)");
+    }
+}
+
 int main(void)
 {
+    s_extclock();
     s_overwrite();
     s_replace();
     s_step();

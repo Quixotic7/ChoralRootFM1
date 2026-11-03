@@ -6937,3 +6937,20 @@ the sha256s, 0.29's entry given its going-back note, `docs/releases/0.29.1.md` (
 of a unit already stuck: ROM boot, the Unbricker's restore of V15, then the installer), MANUAL.md's first line.
 MvaveFM1Unbricker 1.2.1 accepts the id too (`info`, `restore`, the Transporter tool). `python3 tests/releases_test.py`,
 `CR_VERSION=0.29.1 sh tests/run_all.sh`. Tagged v0.29.1: release.yml builds, signs and publishes, pages.yml the site.
+
+3y224. **Clock In: the loop drifted from the master; it now keeps time with the pulses.** Users: the loop drifts over
+time against the gear clocking it. Felucca fixed its own external-clock drift in ebdf867 (merged as 440e62c,
+"Preserve external MIDI-clock phase"): its clock advanced by `beat_samples()/24` per pulse, so the whole-sample periods
+and each tempo change lost phase; the fix advances a fixed grid per pulse and carries the fractions. ChoralRoot does
+not build that code (FELUCCA_SEQ 0) and its own clocks already keep their remainders (samples -> ms in cr_out.c, ms ->
+ticks in `cr_loop_tick`, the arp anchors), so the FM-1 never drifted from itself. The drift was Clock In: `cr_midi.c`
+only measures the tempo, applies it as a whole BPM and holds it within 0.8 BPM, and the loop then ran on the FM-1's
+clock at that BPM. A master at 120.4 BPM: 0.4 beat a minute, 2.0 s behind after 10 minutes; at 120.7, 3.5 s
+(`tests/cr_loop_test.c` `s_extclock`, which failed so before the fix). Now each 0xF8 is `cr_loop_ext_pulse` (4 tempo
+ticks a pulse, Felucca's fixed grid); `cr_loop_tick`'s ms clock only fills in between, at most 3 ticks past the last
+pulse (Felucca's `midi_clock_advance` cap) and catching up to it at once. FA / FB, Clock In off and a 150 ms gap
+(the follower's) end the lock: the next pulse anchors it again, and without pulses the loop runs on the ms clock as
+before. A duplicate pulse (< 2 ms, USB and TRS both) is not counted. After: within 3 ticks (15 ms) of the master
+for 10 minutes at 120.0, 120.4 and 120.7. Nothing stored changes (two RAM fields in `cr_loop_t`). Not covered: the
+arp and the clocked voices (cr_engine.c) still run at the whole BPM under Clock In. `sh tests/run_all.sh --only
+cr_tests`, target budget ok; XIP 557,640 of 573,440 (97.2 %). MANUAL.md "the loop" (Clock In).

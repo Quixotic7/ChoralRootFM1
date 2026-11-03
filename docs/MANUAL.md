@@ -1244,7 +1244,8 @@ stopped.)
 Limits: 512 chords in a loop over at most 32 layers; reaching the limit ends the take (`loop full`).
 
 With MIDI Clock set to Out the FM-1 sends start and stop with the loop; set to In, the loop follows incoming start,
-continue and stop.
+continue and stop, and keeps time with the incoming clock's pulses themselves: it stays with the master however long it
+plays, even at a tempo between two whole BPMs. If the clock stops, the loop plays on at the tempo.
 
 More detail: [LOOPER.md](LOOPER.md), [LOOPER-MODES.md](LOOPER-MODES.md).
 

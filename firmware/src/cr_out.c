@@ -700,6 +700,7 @@ static void cr_apply(const cr_ev_in_t *e)
  *   other channels        ignored */
 #include "cr_midi.c"
 static crm_clock_t cr_cin;
+static uint32_t cr_cin_pulse_ms, cr_cin_stamp;   /* cr_now_ms / its stamp at the last 0xF8 in (the loop's lock) */
 static uint8_t cr_cin_mode;                      /* clock_in as last seen (a change resets the follower) */
 static volatile uint16_t cr_in_bpm;              /* the tempo the clock set (the UI mirrors it into cs.bpm) .. */
 static volatile uint32_t cr_in_bpm_n;            /* .. and a count of its changes */
@@ -785,7 +786,10 @@ static void cr_midi_in(void)
     if (cr_cin_mode != cr_route.clock_in) {
         cr_cin_mode = cr_route.clock_in;
         crm_clock_reset(&cr_cin);
+        cr_loop_ext_off(&crl);
     }
+    if (crl.ext_on && cr_now_ms - cr_cin_pulse_ms > 150u)
+        cr_loop_ext_off(&crl);                   /* (crm_clock_pulse's gap: a stop, a cable) the FM-1's clock again */
     if (midi_in_overflow)                        /* events_block's recovery: the queue dropped, every part released */
         return;
     en[0] = cr_route.midi_en[CR_STREAM_MAIN];
@@ -801,6 +805,10 @@ static void cr_midi_in(void)
                 continue;
             if (status == 0xF8u) {
                 int b = crm_clock_pulse(&cr_cin, ms);
+                if (!crl.ext_on || ms - cr_cin_stamp >= 2u)   /* (a duplicate: crm_clock_pulse's < 2 ms) */
+                    cr_loop_ext_pulse(&crl);     /* the loop's time from the pulses, not the rounded BPM */
+                cr_cin_pulse_ms = cr_now_ms;
+                cr_cin_stamp = ms;
                 if (b) {
                     cr_in_bpm = (uint16_t)b;
                     cr_in_bpm_n++;
@@ -812,6 +820,7 @@ static void cr_midi_in(void)
                         cr_in_bpm_n++;
                 }
             } else if (status == 0xFAu || status == 0xFBu || status == 0xFCu) {
+                cr_loop_ext_off(&crl);           /* the pulse after FA / FB is the downbeat: anchor there */
                 cr_in_transport(status);
             }
         } else if (status >= 0x80u && status < 0xF0u) {

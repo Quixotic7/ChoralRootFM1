@@ -680,10 +680,30 @@ void cr_loop_tick(cr_loop_t *lp, cr_t *c, uint32_t now_ms)
     if (dms > 1000u) dms = 1000u;
     lp->acc += dms * bpm * CRL_PPQN;
     while (lp->acc >= 60000u) {
+        if (lp->ext_on && (int32_t)(lp->rt - lp->ext_rt) >= (int32_t)(CRL_PPQN / 24u - 1u)) {
+            lp->acc = 0;                             /* ahead of the master: wait for its next pulse */
+            break;
+        }
         lp->acc -= 60000u;
         crl_tick1(lp, c, 1);
     }
+    while (lp->ext_on && (int32_t)(lp->ext_rt - lp->rt) > 0)
+        crl_tick1(lp, c, 1);                         /* behind the master: to its pulse now */
 }
+
+/* Felucca's external clock fix (ebdf867) in the looper's terms: the position advances by the pulses, the ms clock
+ * only fills in between them (Felucca's midi_clock_advance: at most a pulse less one) */
+void cr_loop_ext_pulse(cr_loop_t *lp)
+{
+    if (!lp->ext_on) {
+        lp->ext_on = 1;
+        lp->ext_rt = lp->rt;                         /* the first pulse: where the loop is now */
+    } else {
+        lp->ext_rt += CRL_PPQN / 24u;
+    }
+}
+
+void cr_loop_ext_off(cr_loop_t *lp) { lp->ext_on = 0; }
 
 void cr_loop_set_rate(cr_loop_t *lp, int rate)
 {

@@ -97,6 +97,11 @@ typedef struct {
     uint32_t t, acc, last_ms;
     uint32_t rt;
     uint8_t clk_on;
+    /* MIDI Clock In (cr_loop_ext_pulse): ext_on, pulses are coming; ext_rt, the tempo tick the last pulse is at
+     * (CRL_PPQN / 24 = 4 a pulse). rt then never runs more than a pulse's 3 ticks past it and catches up to it at once:
+     * the master's clock, not the FM-1's, keeps the loop's time (HISTORY 3y224) */
+    uint8_t ext_on;
+    uint32_t ext_rt;
     uint8_t rate, rate_want, rfrac;            /* CRL_NRATE: in force; asked for (taken at the loop's start); 0..47 */
     uint32_t rrec0, rcyc0;                     /* the take's / the cycle's start in tempo ticks (the click's grid) */
     uint32_t cyc0, scan;                       /* the current cycle's start (abs ticks); next position to play */
@@ -155,6 +160,8 @@ void cr_loop_init(cr_loop_t *lp);
 void cr_loop_seed(cr_loop_t *lp, uint32_t seed);   /* the steps' chance rolls: the same seed and the same
                                                 * timing give the same passes (the host tests) */
 void cr_loop_tick(cr_loop_t *lp, cr_t *c, uint32_t now_ms);
+void cr_loop_ext_pulse(cr_loop_t *lp);         /* a 0xF8 in (Clock In): the tempo ticks lock to the pulses */
+void cr_loop_ext_off(cr_loop_t *lp);           /* no pulses (Clock In off, a gap, FA / FB: the next pulse re-anchors) */
 /* cr_out_t.gesture's body */
 void cr_loop_gesture(cr_loop_t *lp, uint32_t gid, int16_t root, uint8_t q, uint8_t ext, uint8_t vel, int on);
 
