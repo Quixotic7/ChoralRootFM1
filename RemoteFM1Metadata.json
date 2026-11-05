@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Quixotic7/RemoteFM1FW/main/docs/RemoteFM1Metadata.schema.json",
+  "schema": 1,
+  "skin": {
+    "background": "remotefm1/skin-portrait.jpg",
+    "landscape": "remotefm1/skin-landscape.jpg",
+    "dim": 0,
+    "theme": {
+      "body": "#C9A26B",
+      "label": "#1C1814",
+      "bed": "#1F1F21",
+      "key": "#2D2D30",
+      "hi": "#3D3D41",
+      "lo": "#121213",
+      "keyText": "#E9E4DA",
+      "knob": "#F2A93B",
+      "mark": "#1C1814",
+      "bezel": "#151516",
+      "lcd": "#000000",
+      "ink": "#F6F3EA",
+      "led": "#F0432A",
+      "ledOff": "#4A4642"
+    }
+  }
+}
