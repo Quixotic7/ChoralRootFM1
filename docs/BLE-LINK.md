@@ -404,6 +404,8 @@ connecting out; (4) ported from Melodee's copy (3fe570d), crediting Optimist, Me
 radio program shipped, with Melodee's provenance note; (6) Just Works bonding; (7) Off by default, saved, started
 before the audio; (8) MIDI only in version 1; (9) 27-octet packets; (10) FM-1 only for now; (11) step 0 yes: the
 device session tries Melodee 1.6.1 on a spare FM-1 (this session stays off the units). **Step 1 is built: 3y234.**
+**On the units (3y235)**: step 1 runs on the spare E81CE2F7 (every font drawn from the region); step 0 answered:
+Melodee's Bluetooth works on these units (VISIBLE, connected from the Mac's Audio MIDI Setup). Next: step 2.
 
 1. **One package, or a separate Bluetooth package?** *Recommended: one package*, made to fit by the resource
    region (2.4 A). Everyone gets Bluetooth and the host mode, releases stay one build per board, and nobody loses

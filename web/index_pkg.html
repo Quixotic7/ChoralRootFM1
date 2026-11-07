@@ -330,7 +330,7 @@ const TEXT = {
     darkText: "If the FM-1's screen stays black and the computer shows a USB disk named \"WL82 UBOOT1.00\" (USB ID 4C4A:8057) instead of the FM-1, the FM-1 is in the chip's ROM boot mode: the firmware on it does not start, and this page cannot reach it. Do not format that disk. Recovery tools and a guide that put the official V15 back over the same USB cable:",
     darkTransporter: "If it does not show up as WL82 UBOOT1.00 either, the hardware route is the FM-1 Transporter (an RP2040 board on the USB lines):",
     beta: "ChoralRoot {version} is a first public beta; please report problems on GitHub. Installing firmware is at your own risk: the authors accept no responsibility if your FM-1 is damaged or misbehaves.",
-    stockBack: "Get the official FM-1 V15 firmware from M-VAVE and select the unmodified FM-1.fwsc. The browser checks the file locally; it is not sent to a server.",
+    stockBack: "Recommended: M-VAVE's M-Updater. Here instead (no presets): get the official FM-1 V15 firmware from M-VAVE and select the unmodified FM-1.fwsc. The browser checks the file locally; it is not sent to a server.",
     // ---- the versions (web/releases.json), the check of what is on the FM-1, an interrupted install, the end
     demoNote: "Demo: this page shows a state with made-up device data. Nothing is sent to an FM-1 and nothing is downloaded; the buttons that talk to an FM-1 do nothing.",
     nomidiNote: "This browser cannot install: it has no Web MIDI. Open this page in Chrome or Edge on a computer. Safari and Firefox cannot; Chrome on Android has Web MIDI and may work with a USB adapter, but is not tested.",
@@ -387,7 +387,7 @@ const TEXT = {
     licAll: "Every package offered here is under the same licences (GPL-3.0; the parts listed below), and the source of each version is the repository at that version's tag: the links are with the files above.",
     bubba: "Your FM-1 runs {name}. Its updater takes only M-VAVE's official package, so ChoralRoot cannot be installed over it directly; nothing was written. Return to the official V15 first (\"Return to official V15\", far down this page, with M-VAVE's FM-1.fwsc), then install ChoralRoot.",
     stockTitle: "Return to official V15", stockFile: "Official FM-1.fwsc", stockGo: "Back up and return to official V15",
-    stockWarn: "The stock firmware cannot use ChoralRoot's user sounds, loops or settings. They are saved to a backup file first; to bring them back, reinstall ChoralRoot and press Restore.",
+    stockWarn: "To go back to the official firmware, use M-VAVE's own updater (M-Updater, from M-VAVE's downloads): it reflashes everything, the factory presets included. This page's return writes the V15 firmware only: the FM-1 comes back without M-VAVE's presets. Either way the stock firmware cannot use ChoralRoot's user sounds, loops or settings: they are saved to a backup file first; to bring them back, reinstall ChoralRoot and press Restore.",
     stockRecovery: "Resume an interrupted update: I already saved a backup to this computer",
     stockNeedBackup: "An FM-1 in update mode cannot be backed up. Tick the resume box only if you already saved a backup.",
     stockValid: "Official V15 verified",

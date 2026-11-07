@@ -439,8 +439,13 @@ M, CRX and CRB (36 024 B); the radio program's slot is empty until Bluetooth (do
   0.29.2's SAFE MODE Flash Data erases 0x97000..0x9FFFF (0.21's objects then), so it can erase part of the region: the
   next install of this firmware writes it again (the loader writes the sectors that differ).
 - **Returning to the stock firmware**: V15's package is 0x93000 long; V15's VM starts at 0x93000 and finds the
-  region's header there, not its own (as it found FIZZ's blob at 0x97000 or ChoralRoot's 0.21 objects before). Not
-  yet seen on a unit.
+  region's header there, not its own. **On a unit (3y235)**: the installer's "Return to official V15" over this build
+  gave V15 with its text fine but no presets (V15's data was gone). The owner: V15 through this page need not be
+  supported; M-VAVE's own updater (M-Updater) restores and reflashes everything, and the manual and the installer
+  now point there.
+- **On a unit (3y235, the spare E81CE2F7)**: installed over Melodee 1.6.1 (Melodee's 816-byte settings in object 1, no
+  ChoralRoot record: booted on the defaults; the settings backup restored byte for byte); the splash normal and every
+  font drawn, no garbled text: the region read through the plain window as the host said.
 - **Not affected**: the backups (objects over SysEx, never the region), SAFE MODE's Flash Data (`cu_flash_erase`: its
   list starts at 0x9F000, asserted), the SMK-37 (no region: its build keeps every font in the image, its loader's
   window is unchanged). A package made from V15 and an app.bin alone (`fm1pkg.js buildFeluccaPackage`, not used by

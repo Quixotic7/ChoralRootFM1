@@ -49,8 +49,8 @@ sound editor, MIDI out on three channels and USB audio recording.
 What it is not:
 
 - **Not the stock firmware with additions.** ChoralRoot replaces the FM-1's firmware while it is installed. The stock
-  sequencer, sampler and drum sounds are not in it; every sound is synthesised. The installer puts the stock firmware
-  back whenever you want ([Back to the stock firmware](#back-to-the-stock-firmware)).
+  sequencer, sampler and drum sounds are not in it; every sound is synthesised. M-VAVE's own updater (M-Updater) puts
+  the stock firmware back whenever you want ([Back to the stock firmware](#back-to-the-stock-firmware)).
 - **Not what the panel says.** Most printed labels have another job (SEL is KEY, ARP is PERF, ENV is BASS, and so on),
   and in the sound editor the buttons change again. A sticker sheet would carry the table of the
   [quick reference](#18-quick-reference).
@@ -2097,9 +2097,12 @@ A black screen with a `WL82 UBOOT1.00` disk on the computer, or nothing on USB a
 
 ### Back to the stock firmware
 
-The installer's "Return to official V15" section installs M-VAVE's own firmware, which you download yourself from
-M-VAVE. It saves a backup first: the stock firmware cannot use ChoralRoot's sounds, loops or settings. To bring them
-back, install ChoralRoot again and press Restore.
+Use **M-VAVE's own updater, M-Updater** (from M-VAVE's downloads): it reflashes the FM-1 completely, the official
+firmware and its factory presets. Back up first in the installer (Back up): the stock firmware cannot use ChoralRoot's
+sounds, loops or settings; to bring them back, install ChoralRoot again and press Restore.
+
+The installer's own "Return to official V15" section writes the V15 firmware only: the FM-1 then starts without M-VAVE's
+presets (checked on a unit, HISTORY 3y235). Use it only when M-Updater is not at hand.
 
 More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), the
 [0.16 release notes](releases/0.16.md).

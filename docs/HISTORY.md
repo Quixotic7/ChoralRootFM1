@@ -7203,3 +7203,17 @@ the 16 px icons stay in the slot (the plan moved them too: 6.7 KB more when need
 install of this build on the owner's unit is the check that the plain window reads the region as the host says);
 returning to V15 with a region present is not seen yet (V15's VM starts at 0x93000); a package made from V15 and an
 app.bin alone would carry no region (no ChoralRoot page does that; the release's -app.bin files stay for the Hub).
+
+## 2026-11-06 (step 1 and step 0 on a unit; going back to stock through M-Updater)
+
+3y235. **The resource region on a unit, Melodee's radio on these units, and V15 through M-Updater.** From the device
+session, on the spare E81CE2F7: (1) step 1 (ecd842bf) installed over Melodee 1.6.1: it found Melodee's 816-byte
+settings in object 1 with no ChoralRoot record and booted on the defaults; the settings backup then restored byte for
+byte; the owner: the splash normal, every font drawn, no garbled text (the region read through the plain window).
+(2) Step 0: Melodee 1.6.1's Bluetooth works on these units: VISIBLE, connected from the Mac's Audio MIDI Setup (the
+note tests' details: the device session's). (3) The installer's "Return to official V15" over the step-1 build gave V15
+with its text fine but no presets (V15's data gone). The owner: "We don't really need to worry about supporting V15,
+using the official M-Vave M-Updater will restore and reflash everything." So MANUAL.md ("Back to the stock firmware",
+"Not the stock firmware with additions") and the installer's stock card (`stockWarn`, `stockBack`) now send players to
+M-VAVE's M-Updater and say that this page's return writes the firmware without the presets. Recorded in
+docs/BOOT-SAFETY.md "The resource region" and docs/BLE-LINK.md section 8. Next: step 2, the Bluetooth peripheral.
