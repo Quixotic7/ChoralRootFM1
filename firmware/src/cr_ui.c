@@ -225,12 +225,8 @@ static void cu_snd_set(uint32_t part, uint32_t kind, uint32_t fk, uint32_t slot)
 
 static uint32_t cu_preset_orig(const engine_t *e, uint32_t k)  /* ui.c preset_orig: a retired alias -> the original */
 {
-#if FELUCCA_SAMPLE
-    return e->presets == SMP_PRESET_TABLE && k < SMP_NSETS ? SMP_SET_ORIG[k] : k;
-#else
     (void)e;                                     /* (the aliases were SAMPLE's sets: none) */
     return k;
-#endif
 }
 /* the EDIT engine picker: pitched engines with presets (not DRUM, not SLICE, not the retired DIGITAL slot) */
 static int cu_engine_melodic(uint32_t e)
@@ -295,12 +291,13 @@ static void cu_load(track_t *t, uint32_t e, uint32_t pi, int bass)
  * the part's own (param_kept); a chord part plays it POLY when it was saved MONO, a bass part MONO. An ANALOG sound
  * (engine 0, retired in 0.14: a 0.13 slot, a restored bank) loads on the VA with its macros carried by name (cu_analog_va;
  * the VA's init patch under them, eng_va.c va_track_loaded); a sound of another retired engine (PHASE 2, LOFI 3, VOICE 5,
- * TRIO 6, NOISE 11, PHYS 9, retired in 0.18: a 0.17 slot, a restored bank; SAMPLE 4, GRAIN 8, DRUM 10: a Felucca slot; engines.c
- * ENG_GONE) loads as the VA's init sound, a stand-in: the six of 0.18 keep the record's sends and its envelope's ATK /
- * REL on the VA's macros of that name (cu_analog_va's mapping; their other macros have no VA meaning). All under the
- * slot's name, with a message (and a trace line on the emulator) */
+ * TRIO 6, NOISE 11, PHYS 9, retired in 0.18: a 0.17 slot, a restored bank; DIGITAL 1, SAMPLE 4, GRAIN 8, DRUM 10: a
+ * Felucca slot; engines.c ENG_GONE) loads as the VA's init sound, a stand-in: the six of 0.18 keep the record's sends and
+ * its envelope's ATK / REL on the VA's macros of that name (cu_analog_va's mapping; their other macros have no VA
+ * meaning). All under the slot's name, with a message (and a trace line on the emulator). (A DIGITAL record converted to
+ * FM6 until 3y232, fm4_convert.c: it left with Felucca's tree; its trace line names it, its message is the generic
+ * one) */
 static void cu_message(const char *t, uint32_t col);
-#if !FELUCCA_ANALOG
 /* ANALOG's values -> the VA's: CUT RES DRV MIX DTN to the VA's macros of the same name, the filter envelope (ENV
  * DEST FLT) to FENV, the envelope's ATK / REL to the VA's ATK / REL macros (its own envelope); ANALOG's WAVE, NOIS
  * and KTR have no VA macro (the init patch's two saws) */
@@ -322,7 +319,6 @@ static void cu_analog_va(int16_t *v)
     for (i = 0; i < 8u; i++)
         v[P_E0 + i] = (int16_t)clamp(v[P_E0 + i], ENG_VA.edit[i].min, ENG_VA.edit[i].max);
 }
-#endif
 static void cu_load_user(track_t *t, uint32_t k, int bass)
 {
     const up_rec_t *r;
@@ -337,16 +333,6 @@ static void cu_load_user(track_t *t, uint32_t k, int bass)
     if (!bass && (v[P_VOICE] == V_MONO || v[P_VOICE] == V_LEGATO))
         v[P_VOICE] = V_POLY;
     panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
-#if !FELUCCA_FM4
-    if (r->engine == ENGI_DIGITAL) {
-        int16_t p[P_COUNT];
-        cu_drive_load(t, ENGI_FM6, 0);
-        for (i = 0; i < P_COUNT; i++)
-            p[i] = cu_kept(i) ? t->p[i] : v[i];
-        fm4_apply(t, p);
-    } else
-#endif
-#if !FELUCCA_ANALOG
     if (r->engine == 0u) {                        /* ANALOG (retired): its macros on the VA */
 #if defined(CR_TRACE) && CR_TRACE
         printf("load: slot %u engine 0 (ANALOG) retired -> VA, its macros\n", (unsigned)k + 1u);
@@ -363,11 +349,11 @@ static void cu_load_user(track_t *t, uint32_t k, int bass)
         fm6_track_loaded(t);                      /* (no stored VA patch: the init patch + these macros) */
         cu_message("ANALOG retired: on the VA", CR_COL_WHITE);
     } else
-#endif
     if (!eng_ok(r->engine)) {
         const engine_t *en = ENGINES[CB_RETIRED_POOL];
         const char *was = r->engine == 2u ? "PHASE" : r->engine == 3u ? "LOFI" : r->engine == 5u ? "VOICE" :
-                          r->engine == 6u ? "TRIO" : r->engine == 11u ? "NOISE" : r->engine == ENGI_PHYS ? "PHYS" : 0;
+                          r->engine == 6u ? "TRIO" : r->engine == 11u ? "NOISE" : r->engine == ENGI_PHYS ? "PHYS" :
+                          r->engine == ENGI_DIGITAL ? "DIGITAL" : 0;
         int carry = was && ((ENG_RETIRED_018 >> r->engine) & 1u) && CB_RETIRED_POOL == ENGI_VA;
         char msg[24];                             /* (cu.msg.text holds 23 characters) */
 #if defined(CR_TRACE) && CR_TRACE
@@ -3693,12 +3679,8 @@ static const char *const CU_SAVE_NAME[CU_SAVE_N] = {"overwrite", "save as new", 
  * a P5 sound's whole program with its record, so P5 saves as every engine does (docs/PROPHET.md "Saving") */
 static int cu_save_favonly(uint32_t part)
 {
-#if FELUCCA_PROPHET && !UP_POOL
-    return eng_idx(trk[part ? CR_PART_BASS : CR_PART_CHORD].eng_req) == ENGI_PROPHET;
-#else
     (void)part;
     return 0;
-#endif
 }
 static void cu_save_open(uint32_t part)
 {
@@ -3807,13 +3789,6 @@ static void cu_save_commit(void)
     int rc;
     if (ce.save_step == 0u && ce.save_choice >= CU_SAVE_FAV) {   /* Favorite, the filter, the type: OCT+ saves nothing,
                                                                   * writes no slot */
-#if !UP_POOL
-        if (cu_save_favonly(part)) {                /* (before the sound pool: P5 had no store) */
-            cu_message("P5: no save yet", CR_COL_RED);
-            cu_trace("save: part %u P5 refused (no store)\n", (unsigned)part);
-            return;
-        }
-#endif
         cu_trace("save: favorite, nothing to save\n");
         (void)part;
         return;
@@ -8775,9 +8750,6 @@ static void cr_ui_init(void)
     if ((cs.loop_used >> cs.loop_slot) & 1u)
         cu_loop_load(cs.loop_slot, 1);            /* (a load only: nothing in RAM to keep yet) */
     cu.msg.until = 0;
-#if FELUCCA_SEQ
-    song.grid = 2;                                /* seq.c's keyboard never plays (keyboard_block: every key silent) */
-#endif
     if (cr_safe)
         cu.opt_sel = O_SAFE;                      /* Options opens on Safe Mode (then Flash Data) */
     cu_boot_ms = cu_now();                        /* the splash: the idle stripes' first CR_SPLASH_MS */

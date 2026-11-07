@@ -7,7 +7,8 @@ the main loop) keeps -Os. The JieLi clang 4 has no '#pragma clang attribute' and
 attribute is an error on variables, so build.py compiles the unit (choralroot.c) to LLVM IR without the
 optimizer, this script adds 'minsize' to those definitions, and the IR is then compiled at -Os
 (without the edit, that round trip is byte-identical to compiling the unit directly). A listed file that is
-missing is skipped (Felucca's UI files stay listed: they are not in ChoralRoot's unit, so their names match nothing).
+missing is skipped. (Felucca's UI, editor and project files and the stores 3y231 retired left the list with their
+sources in 3y232.)
   size_fns.py IN.ll OUT.ll"""
 import re
 import sys
@@ -15,16 +16,14 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
 SRC = _ROOT / "firmware" / "src" if (_ROOT / "firmware" / "src").is_dir() else _ROOT / "src"   # either layout
-# the UI, the stores, the editor and the console: main loop only, never called by sound code
-SIZE_FILES = ["ui.c", "favorites.c", "icons.c", "ui_graph.c", "ui_draw.c", "ui_menu.c", "ui_input.c",
-              "storage.c", "upreset.c", "project.c", "settings_persist.c",
-              "editor.c", "editor_preferences.c", "editor_backup.c", "console.c",
+# the stores and the console: main loop only, never called by sound code
+SIZE_FILES = ["storage.c", "upreset.c", "settings_persist.c", "console.c",
               # ChoralRoot's UI, screens and stores (not cr_engine.c, cr_out.c, cr_loop.c: they tick in the audio ISR)
               "cr_ui.c", "cr_edit.c", "cr_draw.c", "cr_gfx.c", "cr_pages.c", "cr_bank.c", "cr_name.c", "cr_settings.c",
               "cr_anim.c", "cr_shim.c", "cr_favs.c",
               # the flash diet (HISTORY 3y131): the stores, the backup, the pool, the layouts: main loop too
-              "cr_backup.c", "cr_layout.c", "upool.c", "fm6_store.c", "fm6_bank.c", "fm6_ustore.c", "cz_store.c", "cz_bank.c",
-              "cz_ustore.c", "cz_legacy.h", "quad_store.c", "va_store.c", "prophet_patch.c", "fm4_convert.c"]
+              "cr_backup.c", "cr_layout.c", "upool.c", "fm6_store.c", "fm6_bank.c", "cz_store.c", "cz_bank.c",
+              "cz_legacy.h", "prophet_patch.c"]
 # .. and these functions of files whose other functions render or tick in the ISR: the main loop's (a sound load, a
 # blob, the deep pages' get / set, which the engine picks up in its block), and the main loop itself
 SIZE_FUNCS = ["fm1_main", "felucca_init",

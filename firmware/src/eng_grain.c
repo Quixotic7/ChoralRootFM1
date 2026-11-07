@@ -510,7 +510,6 @@ static void grain_track_loaded(const track_t *ct)
 }
 
 /* -------------------------------------------------------------- the player --- */
-#if !FELUCCA_SAMPLE
 /* 2^(i/192), Q16: pitch ratios in 1/16 semitones, d16 >= -3072 (eng_sample.c's, when SAMPLE is not built) */
 static uint32_t pow2_q16(int32_t d16)
 {
@@ -518,7 +517,6 @@ static uint32_t pow2_q16(int32_t d16)
     uint32_t r = pitch_inc(1600 + u % 192u) / (pitch_inc(1600) >> 16);
     return oct >= 16u ? r << (oct - 16u) : r >> (16u - oct);
 }
-#endif
 /* grain level by overlap (grains sounding at once on average): 1 / sqrt(n), Q15 */
 static const int16_t GP_NORM[GP_NG + 1] = {32767, 32767, 23170, 18918, 16384, 14654, 13377, 12385, 11585, 10922,
                                            10362, 9880, 9459, 9088, 8757, 8460, 8192};

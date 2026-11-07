@@ -1,63 +1,41 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Regression suite of the FELUCCA DSP on the Mac (same sources as the firmware, through hostsim.c).
+/* Regression suite of the firmware's sound side on the Mac (same sources as the firmware, through hostsim.c, in
+ * ChoralRoot's configuration: core.h's defaults; one core, Felucca's FX buses (CR_FX 0) as the goldens were made).
  *   build/host/regress [GOLDEN_FILE CPU_FILE]      (run_tests.sh builds and runs it)
  *
- * 1. golden renders: every engine x factory preset, the GM kit (SAMPLE PERC), the voice modes (POLY / MONO /
- *    LEGATO / UNISON) of three engines, the FX sends, a 4-track sequencer mix, and the SLICER (slicer.c:
- *    GATE / STUT on the phrase, and on the 4-track mix with the transport). Each render plays
- *    a fixed phrase (notes, an overlap, a chord, note-offs, the release tail) and is reduced to a
- *    64-bit FNV-1a hash of its output samples, compared with GOLDEN_FILE (tests/golden.txt).
- *    Every render runs in its own fork()ed child of a process that never touched the DSP state, so
- *    all state starts as at boot: the noise / RAND / unison-phase / arp seeds (libc.c rng_state,
- *    eng_formant.c formant_nz, voice.c's unison seed), the FX buffers, the limiter.
+ * 1. golden renders: every engine x factory preset, the voice modes (POLY / MONO / LEGATO / UNISON) of the VA, FM6
+ *    and P5, the FX sends on the VA, and the SLICER's GATE (slicer.c) on the phrase. Each render plays a fixed phrase
+ *    (notes, an overlap, a chord, note-offs, the release tail) and is reduced to a 64-bit FNV-1a hash of its output
+ *    samples, compared with GOLDEN_FILE (tests/golden.txt). Every render runs in its own fork()ed child of a process
+ *    that never touched the DSP state, so all state starts as at boot: the noise / RAND / unison-phase seeds (libc.c
+ *    rng_state, voice.c's unison seed), the FX buffers, the limiter. (Felucca's engines, its GM kit, its 4-track
+ *    sequencer mix and their 58 renders left with Felucca's tree in 3y232.)
  * 2. health checks on every render: no sample beyond 16 bits, none near full scale, DC offset, the
  *    peak level, every voice free after the release, silence at the end. Fails with the numbers.
- * 3. CPU budget: per engine x preset (8 notes held; VOICE: its 4) and a few mixes, the instructions
+ * 3. CPU budget: per engine x preset (8 notes held) and two mixes, the instructions
  *    per sample counted by the kernel (proc_pid_rusage ri_instructions: the same on every run within
  *    ~1 %, unlike wall time), compared with CPU_FILE (tests/cpu_baseline.txt) at +-25 %; ns per
  *    sample printed for information. A count over the budget fails, one far under it only warns.
- * 4. voices: the shared budget of 8 across 4 parts, stolen voices fade (no step), MONO / LEGATO /
- *    UNISON keep their note under pressure, the VOICE engine's 4-voice cap, release frees voices, and
- *    no hanging note after the note-offs on any routing (USB channels 1..4, others while the
- *    selected track changes, the keys while the selected track changes, with ARP and the voice modes).
+ * 4. voices (voice.c, on ChoralRoot's two sounding parts, chord and bass): the shared budget, stolen voices fade (no
+ *    step), MONO / LEGATO / UNISON keep their note under pressure, P5's cap of 4 voices a part on one core, release
+ *    frees voices, a key-up releases after a live mode change.
  * env: GOLDEN_UPDATE=1 rewrites GOLDEN_FILE, BUDGET_UPDATE=1 rewrites CPU_FILE (on purpose: review the
  * diff), VERBOSE=1 prints every render's numbers, JOBS=n children at once (default 8). */
-#ifndef FELUCCA_VA
-#define FELUCCA_VA 1             /* ChoralRoot's VA engine: its presets get renders and costs too */
-#endif
-#ifndef FELUCCA_CZ
-#define FELUCCA_CZ 1             /* ChoralRoot's CZ-1 engine (Melodee's): its presets get renders and costs too */
-#endif
-#ifndef FELUCCA_QUAD
-#define FELUCCA_QUAD 1           /* ChoralRoot's QUAD engine (docs/QUAD.md): its presets get renders and costs too */
-#endif
-#ifndef FELUCCA_PROPHET
-#define FELUCCA_PROPHET 1        /* ChoralRoot's P5 engine (Melodee's Prophet-5, docs/PROPHET.md): its shipped programs get renders
-                                  * and costs too */
-#endif
-#ifndef FELUCCA_ANALOG
-#define FELUCCA_ANALOG 0         /* as choralroot.c: ANALOG retired (engine 0 a silent slot, no renders) */
-#endif
-/* ANALOG's stand-ins (FELUCCA_ANALOG 0, ChoralRoot): the acid line of the SLICER / song renders on the VA's SYNC BASS
- * (PAT 1, ACID), the voice / routing checks and the mode / send renders on PHASE (a platform engine, as ANALOG was) */
-#if FELUCCA_ANALOG
-#define R_ACID_E 0u
-#define R_ACID_P 4u              /* ANALOG ACID */
-#define R_ACID_NAME "ANALOG_ACID"
-#define R_PLAT 0u                /* ANALOG */
-#else
+/* the SLICER's render: the VA's SYNC BASS (its ACID line, pattern 6) */
 #define R_ACID_E ENGI_VA
 #define R_ACID_P 19u             /* VA SYNC BASS */
 #define R_ACID_NAME "VA_SYNC_BASS"
-#define R_PLAT 2u                /* PHASE */
-#endif
+#define R_PLAT ENGI_VA           /* the platform engine of the voice checks (8 voices, two budget units each) */
 #ifndef FM6_POLY
 #define FM6_POLY 8               /* as choralroot.c: FM6 at ChoralRoot's 8 voices (eng_fm6.c; Melodee: 16) */
 #endif
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
+/* the keys' and MIDI's way in: the note itself (ChoralRoot's parts have no ARP) */
+#define input_on trk_note_on
+#define input_off trk_note_off
 #ifdef __APPLE__
 #include <libproc.h>
 #include <sys/resource.h>
@@ -193,7 +171,7 @@ static void phrase(track_t *t, uint32_t base)
 }
 
 /* ------------------------------------------------------------- jobs --- */
-enum { J_PRESET, J_MODE, J_SENDS, J_DRUMS, J_SONG, J_CPU, J_CHECK, J_SLICER };
+enum { J_PRESET, J_MODE, J_SENDS, J_CPU, J_CHECK, J_SLICER };
 typedef struct {
     char name[64];
     uint8_t kind, e, pi, arg, cpu_notes;
@@ -251,35 +229,8 @@ static void job_sends(const job_t *j)           /* arg: 0 dry, 1 chorus, 2 delay
     phrase(t, 60);
 }
 
-static void job_drums(const job_t *j)           /* every GM note through SAMPLE PERC on part 4, a roll */
-{
-    track_t *t = &trk[3];
-    uint32_t n, k = 0;
-    (void)j;
-    host_tracks_init();
-    host_legacy_sample_perc(t);
-    for (n = 35; n <= 81u; n++, k++) {
-        input_on(t, n, 60u + (n * 7u) % 60u);
-        run_to(at(0.06 * (k + 1)));
-        input_off(t, n);
-    }
-    input_on(t, 46, 100);                      /* open hat, then the closed one */
-    run_to(fpos + FS / 10u);
-    input_on(t, 42, 100);
-    for (k = 0; k < 12u; k++) {                /* a snare roll: more hits than voices */
-        input_on(t, 38, 40u + 6u * k);
-        run_to(fpos + FS / 40u / CTL * CTL);
-    }
-    input_off(t, 46);
-    input_off(t, 42);
-    input_off(t, 38);
-    rel_at = fpos;
-    dc_end = fpos;
-    finish();
-}
-
-/* the SLICER on the phrase (its clock free-running, no transport): arg 0 GATE (ANALOG ACID / VA SYNC BASS: R_ACID_*,
- * pattern 6, 1/16), 1 STUT (DIGITAL PAD, pattern 7, 1/32, DEPTH 100 %) */
+/* the SLICER on the phrase (its clock free-running, no transport): arg 0 GATE (VA SYNC BASS: R_ACID_*, pattern 6,
+ * 1/16), 1 STUT (pattern 7, 1/32, DEPTH 100 %) */
 static void job_slicer(const job_t *j)
 {
     static const int16_t S[2][4] = {{SL_GATE, 6, 1, 120}, {SL_STUT, 7, 2, 127}};
@@ -293,72 +244,7 @@ static void job_slicer(const job_t *j)
     phrase(t, 60);
 }
 
-/* the 4-track mix: T1 ANALOG ACID (VA SYNC BASS without FELUCCA_ANALOG: R_ACID_*), T2 the power-on pad (TRK_DEF: FM6 PAD since DIGITAL was retired; DIGITAL PAD
- * before) (tied chords), T3 LOFI lead (12 steps against 16),
- * T4 SAMPLE PERC drums; 120 BPM, 4 bars (the hostsim TRACKS demo without the recording), stop, the tail.
- * arg 1: with the SLICER (GATE on the pad, STUT on the acid line and the drums, SWING 20 %) */
-static void job_song(const job_t *j)
-{
-    static const uint8_t ACID[16] = {45, 45, 57, 45, 0, 48, 45, 55, 45, 0, 57, 52, 45, 48, 0, 50};
-    static const uint8_t ACIDF[16] = {1, 0, 2, 0, 0, 0, 1, 2, 0, 0, 1, 0, 0, 2, 0, 1};
-    static const uint8_t AM[4] = {57, 60, 64, 67}, FMI[4] = {53, 57, 60, 64};
-    static const uint8_t LEAD[12] = {76, 0, 0, 79, 0, 0, 81, 0, 79, 0, 76, 0};
-    track_t *t1 = &trk[0], *t2 = &trk[1], *t3 = &trk[2], *td = &trk[3];
-    uint32_t i;
-    (void)j;
-    host_tracks_init();
-    song.g[G_BPM] = 120;
-    host_preset(t1, R_ACID_E, R_ACID_P);
-    host_preset(t2, TRK_DEF[1][0], TRK_DEF[1][1]);
-    host_preset(t3, 3, 0);
-    host_legacy_sample_perc(td);
-    for (i = 0; i < 16u; i++) {
-        uint8_t n = ACID[i];
-        put_step(t1, i, n ? 1u : 0u, &n, n ? ST_NOTE : ST_REST, ACIDF[i]);
-    }
-    t2->p[P_SLEN] = 32;
-    t2->p[P_SGATE] = 120;
-    for (i = 0; i < 32u; i++)
-        put_step(t2, i, i % 16u == 0u ? 4u : 0u, i < 16u ? AM : FMI, i % 16u == 0u ? ST_NOTE : i % 16u < 14u ? ST_TIE : ST_REST, 0);
-    t3->p[P_SLEN] = 12;
-    for (i = 0; i < 12u; i++) {
-        uint8_t n = LEAD[i];
-        put_step(t3, i, n ? 1u : 0u, &n, n ? ST_NOTE : ST_REST, i == 0u ? SF_ACCENT : 0u);
-    }
-    for (i = 0; i < 16u; i++) {
-        uint8_t n[4];
-        uint32_t k = 0;
-        if (i % 4u == 0u)
-            n[k++] = 36;
-        if (i == 4u || i == 12u)
-            n[k++] = 38;
-        if (i % 2u == 0u)
-            n[k++] = i == 14u ? 46 : 42;
-        put_step(td, i, k, n, k ? ST_NOTE : ST_REST, i % 4u == 0u ? SF_ACCENT : 0u);
-    }
-    if (j->arg) {
-        static const int16_t S[4][4] = {{SL_STUT, 9, 1, 127}, {SL_GATE, 1, 1, 127}, {0, 1, 1, 127},
-                                        {SL_STUT, 12, 2, 110}};
-        for (i = 0; i < NTRK; i++) {
-            uint32_t k;
-            for (k = 0; k < 4u; k++)
-                trk[i].p[P_SLCR + k] = S[i][k];
-        }
-        song.g[G_SWING] = 20;
-    }
-    transport_req = 1;
-    run_to(8u * FS);
-    transport_req = 2;
-    blk();
-    rel_at = fpos;
-    dc_end = fpos;
-    finish();
-}
-
-/* CPU: parts[k] = {engine, preset, notes} (POLY, SUS 127, no ARP; SLICE: MODE LOOP; DRUM, an engine of hits:
- * the notes are its 8 lanes, struck again every 46 ms, else they ring out); notes DRUM_HITS on part 4:
- * drum_hit (hostsim.c) on 16ths;
- * 0.5 s to settle, then 1 s counted */
+/* CPU: parts[k] = {engine, preset, notes} (POLY, SUS 127, no ARP); 0.5 s to settle, then 1 s counted */
 static uint64_t instr_now(void)
 {
 #ifdef __APPLE__
@@ -371,39 +257,23 @@ static uint64_t instr_now(void)
 static void job_cpu(const job_t *j)
 {
     static const uint8_t NOTES[8] = {48, 52, 55, 59, 60, 64, 67, 71};
-    static const uint8_t KIT[8] = {36, 38, 39, 42, 46, 45, 37, 56};   /* KICK SNARE CLAP HAT CL HAT OP TOM RIM BELL */
     const uint8_t (*parts)[3] = j->parts;
-    uint32_t p, i, k, nb = FS / CTL, drums_on = parts[3][2] == DRUM_HITS;
+    uint32_t p, i, k, nb = FS / CTL;
     uint64_t i0, t0;
     host_tracks_init();
     for (p = 0; p < NPART; p++) {
-        if (parts[p][0] == 4u && parts[p][1] == SMP_PERC_PRESET)
-            host_legacy_sample_perc(&trk[p]);
-        else
-            host_preset(&trk[p], parts[p][0], parts[p][1]);
-        if (parts[p][2] == DRUM_HITS)
-            continue;
+        host_preset(&trk[p], parts[p][0], parts[p][1]);
         trk[p].p[P_VOICE] = V_POLY;
         trk[p].p[P_SUS] = 127;
         trk[p].p[P_AMODE] = 0;
-#if FELUCCA_SLICE
-        if (ENGINES[parts[p][0]] == &ENG_SLICE)
-            trk[p].p[P_E4] = SLC_LOOP;                  /* SLICE: its slices end by themselves; loop them */
-#endif
         for (i = 0; i < parts[p][2]; i++)
-            trk_note_on(&trk[p], ENGINES[parts[p][0]]->oneshot ? KIT[i] : NOTES[i] + 12u * p, 100);
+            trk_note_on(&trk[p], NOTES[i] + 12u * p, 100);
     }
     for (k = 0; k < nb / 2u + nb; k++) {
         if (k == nb / 2u) {
             i0 = instr_now();
             t0 = now_ns();
         }
-        for (p = 0; p < NPART; p++)
-            if (parts[p][2] != DRUM_HITS && ENGINES[parts[p][0]]->oneshot && k % 64u == 63u)
-                for (i = 0; i < parts[p][2]; i++)
-                    trk_note_on(&trk[p], KIT[i], 100);
-        if (drums_on && (k * CTL) % (FS / 8u) < CTL)
-            drum_hit((k * CTL) / (FS / 8u));
         mix_block(last_out, CTL);
     }
     R.ns = (double)(now_ns() - t0) / (nb * CTL);
@@ -422,12 +292,6 @@ static int run_job_body(job_t *j)
         break;
     case J_SENDS:
         job_sends(j);
-        break;
-    case J_DRUMS:
-        job_drums(j);
-        break;
-    case J_SONG:
-        job_song(j);
         break;
     case J_SLICER:
         job_slicer(j);
@@ -480,63 +344,37 @@ static void run_jobs(job_t *jobs, uint32_t n, uint32_t nj)
     }
 }
 
-/* ------------------------------------------------- voice / routing checks --- */
+/* ---------------------------------------------------------- voice checks --- */
+/* ChoralRoot sounds two parts (chord: 0, bass: 1; core.h ENG_STATE_NPART, voice.c VB_NPART): they share the budget of
+ * VBUDGET units on one core (an FM6 voice one unit, a VA voice two, a P5 voice three) */
+#define CP 2u                                      /* the parts these checks play */
 static uint32_t lcg = 12345u;
 static uint32_t rnd(uint32_t n)
 {
     lcg = lcg * 1103515245u + 12345u;
     return (lcg >> 8) % n;
 }
-static int held_gates(char *who, size_t wn)
-{
-    uint32_t p, i, n = 0;
-    who[0] = 0;
-    for (p = 0; p < NPART; p++)
-        if (trk[p].nheld) {                        /* a key the ARP still thinks is down: it plays on */
-            if (!n)
-                snprintf(who, wn, "part %u ARP still holds %u notes (first %u)", p + 1u, trk[p].nheld, trk[p].held[0]);
-            n++;
-        }
-    for (p = 0; p < NPART; p++)
-        for (i = 0; i < NVOICE; i++)
-            if (trk[p].v[i].active && trk[p].v[i].gate) {
-                if (!n)
-                    snprintf(who, wn, "part %u voice %u note %u", p + 1u, i, trk[p].v[i].note);
-                n++;
-            }
-    return (int)n;
-}
-static void midi_pkt(uint32_t st, uint32_t d1, uint32_t d2)   /* as usb.c: the queue holds MQ packets */
-{
-    if (mi_w - mi_r >= MQ)
-        blk();
-    midi_in_q[mi_w++ % MQ] = (st >> 4) | st << 8 | d1 << 16 | d2 << 24;
-}
 
-/* the shared budget: 4 POLY parts (ANALOG or PHASE: R_PLAT, DIGITAL (without FELUCCA_FM4 its BELL converted: FM6), VOICE, SAMPLE PERC)
- * play random notes on and off for
- * 6 s, up to 8 held each; after every block: at most 8 part voices active, none still fading (a stolen voice
- * fades within its one block), the VOICE part at most 4; then all off: every voice free */
+/* the shared budget: the VA (part 1) and FM6 (part 2), POLY, play random notes on and off for 6 s, up to 8 held each;
+ * after every block: at most NVOICE voices active, none still fading (a stolen voice fades within its one block);
+ * then all off: every voice free */
 static int chk_budget(char *msg, uint32_t n)
 {
-    static const uint8_t E[NPART][2] = {{R_PLAT, 1}, {1, 1}, {5, 1}, {4, 4}};
-    uint8_t held[NPART][128] = {{0}};
-    uint32_t p, k, worst = 0, vworst = 0, fading = 0, kills0 = voice_kills;
+    static const uint8_t E[CP][2] = {{R_PLAT, 1}, {ENGI_FM6, 1}};
+    uint8_t held[CP][128] = {{0}};
+    uint32_t p, k, worst = 0, fading = 0, kills0 = voice_kills;
     host_tracks_init();
-    for (p = 0; p < NPART; p++) {
-        if (E[p][0] == 4u && E[p][1] == SMP_PERC_PRESET)
-            host_legacy_sample_perc(&trk[p]);
-        else
-            host_preset(&trk[p], E[p][0], E[p][1]);
+    for (p = 0; p < CP; p++) {
+        host_preset(&trk[p], E[p][0], E[p][1]);
         trk[p].p[P_VOICE] = V_POLY;
         trk[p].p[P_AMODE] = 0;
         trk[p].p[P_SUS] = 100;
     }
     for (k = 0; k < 6u * FS / CTL; k++) {
-        uint32_t i, a = 0, va = 0;
+        uint32_t i, a = 0;
         if (k % 4u == 0u) {
             uint32_t note = 36u + rnd(48);
-            p = rnd(NPART);
+            p = rnd(CP);
             if (held[p][note]) {
                 trk_note_off(&trk[p], note);
                 held[p][note] = 0;
@@ -546,28 +384,37 @@ static int chk_budget(char *msg, uint32_t n)
             }
         }
         blk();
-        for (p = 0; p < NPART; p++)
+        for (p = 0; p < CP; p++)
             for (i = 0; i < NVOICE; i++) {
                 a += trk[p].v[i].active;
-                va += p == 2u && trk[p].v[i].active;
                 fading += trk[p].v[i].active && trk[p].v[i].stage == 4u;
             }
         worst = a > worst ? a : worst;
-        vworst = va > vworst ? va : vworst;
     }
-    for (p = 0; p < NPART; p++)
+    for (p = 0; p < CP; p++)
         for (k = 0; k < 128u; k++)
             if (held[p][k])
                 trk_note_off(&trk[p], k);
     rel_at = fpos;
     finish();
-    snprintf(msg, n, "4 POLY parts, random notes: at most %u voices active (budget %u), VOICE part at most %u (cap 4), "
-             "%u voices taken, %u still fading after their block, all free %.2f s after the note-offs",
-             worst, NVOICE, vworst, voice_kills - kills0, fading, R.free_s);
-    return worst <= NVOICE && vworst <= 4u && !fading && R.free_s >= 0 && voice_kills > kills0;
+    snprintf(msg, n, "VA and FM6 POLY, random notes: at most %u voices active (budget %u units), %u voices taken, "
+             "%u still fading after their block, all free %.2f s after the note-offs",
+             worst, VBUDGET, voice_kills - kills0, fading, R.free_s);
+    return worst <= NVOICE && !fading && R.free_s >= 0 && voice_kills > kills0;
 }
 
-/* MIDI packets in one audio block can reuse a voice before its stolen tail fades. */
+static int gated(const track_t *t, uint32_t note)   /* a voice of t sounds note, its key down */
+{
+    uint32_t i;
+    for (i = 0; i < NVOICE; i++)
+        if (t->v[i].active && t->v[i].gate && t->v[i].note == note)
+            return 1;
+    return 0;
+}
+
+/* notes in one audio block can reuse a voice before its stolen tail fades: the budget full (the VA's 4 notes on each
+ * part), a released note of part 1 taken by part 2's new one, then part 1 plays again (round 0: the same pitch; round 1:
+ * P5 on part 1, its cap of 4 full, a new pitch replaces one of its own) */
 static int chk_retrigger_budget(char *msg, uint32_t n)
 {
     static const uint8_t NOTES[4] = {48, 52, 55, 60};
@@ -575,40 +422,39 @@ static int chk_retrigger_budget(char *msg, uint32_t n)
     for (round = 0; round < 2u; round++) {
         voice_t *old = 0;
         host_tracks_init();
-        for (p = 0; p < NPART; p++) {
+        for (p = 0; p < CP; p++) {
             memset(trk[p].v, 0, sizeof trk[p].v);
-            host_preset(&trk[p], p == 0 && round ? 5u : 0u, 0);
-            trk[p].p[P_VOICE] = p >= 2u ? V_MONO : V_POLY;
+            host_preset(&trk[p], p == 0 && round ? ENGI_PROPHET : R_PLAT, 0);
+            trk[p].p[P_VOICE] = V_POLY;
             trk[p].p[P_AMODE] = 0;
             trk[p].p[P_SUS] = 127;
         }
-        for (i = 0; i < NELEM(NOTES); i++)
+        for (i = 0; i < NELEM(NOTES); i++) {           /* the budget full: 4 x 2 + 4 x 2 units, or P5's 4 x 3 + 2 x 2 */
             trk_note_on(&trk[0], NOTES[i], 100);
-        for (i = 0; i < 3u; i++)
-            trk_note_on(&trk[1], 64u + 3u * i, 100);
-        trk_note_on(&trk[2], 74, 100);
+            if (i < (round ? 2u : 4u))
+                trk_note_on(&trk[1], 64u + 3u * i, 100);
+        }
         blk();
         for (i = 0; i < NVOICE; i++)
             if (trk[0].v[i].active && trk[0].v[i].note == 52u)
                 old = &trk[0].v[i];
         trk_note_off(&trk[0], 52);
-        trk_note_on(&trk[3], 79, 100);
-        bad += !old || old->stage != 4u || voices_busy() != NVOICE;
-        /* Same pitch, then a new pitch with all four local VOICE slots still active. */
+        trk_note_on(&trk[1], 79, 100);
+        bad += !old || old->stage != 4u || voices_busy() > VBUDGET;
         trk_note_on(&trk[0], round ? 57u : 52u, 100);
         i = voices_busy();
         worst = i > worst ? i : worst;
-        bad += i != NVOICE;
+        bad += i > VBUDGET;
         blk();
-        bad += voices_busy() != NVOICE || !trk[2].v[0].gate || !trk[3].v[0].gate;
-        for (p = 0; p < NPART; p++)
+        bad += voices_busy() > VBUDGET || !gated(&trk[1], 79);   /* (part 2's newest note sounds on) */
+        for (p = 0; p < CP; p++)
             trk_all_off(&trk[p]);
         for (i = 0; i < 4u * FS / CTL && !parts_free(); i++)
             blk();
         bad += !parts_free();
     }
-    snprintf(msg, n, "same-note retrigger and full local-cap replacement before the fade: at most %u voices, "
-             "both MONO parts kept, all released", worst);
+    snprintf(msg, n, "same-note retrigger and a full P5 cap's replacement before the fade: at most %u units (budget %u), "
+             "all released", worst, VBUDGET);
     return !bad;
 }
 
@@ -619,7 +465,7 @@ static int chk_cap_mode_budget(char *msg, uint32_t n)
     uint32_t round, p, i, bad = 0, worst = 0;
     for (round = 0; round < NELEM(MODE); round++) {
         host_tracks_init();
-        for (p = 0; p < NPART; p++) {
+        for (p = 0; p < CP; p++) {
             memset(trk[p].v, 0, sizeof trk[p].v);
             host_preset(&trk[p], R_PLAT, 0);
             trk[p].p[P_VOICE] = p ? V_MONO : V_POLY;
@@ -631,33 +477,29 @@ static int chk_cap_mode_budget(char *msg, uint32_t n)
         trk[0].p[P_VOICE] = MODE[round];
         if (round == 2u) {
             /* A lower cap must not protect old upper slots while the lower extras fade. */
-            host_preset(&trk[0], 5, 0);
+            host_preset(&trk[0], ENGI_PROPHET, 0);
             trk[0].p[P_VOICE] = V_UNISON;
             for (i = 1; i < trk_nvoice(&trk[0]); i++)
                 voice_kill(&trk[0].v[i]);
         }
-        for (p = 1; p < NPART; p++) {
-            trk_note_on(&trk[p], 70u + p * 3u, 100);
-            i = voices_busy();
-            worst = i > worst ? i : worst;
-            bad += i > NVOICE || !trk[0].v[0].gate || trk[0].v[0].note != 48u;
-        }
+        trk_note_on(&trk[1], 73, 100);
+        i = voices_busy();
+        worst = i > worst ? i : worst;
+        bad += i > VBUDGET || !trk[0].v[0].gate || trk[0].v[0].note != 48u;
         trk[1].p[P_VOICE] = V_POLY;
         trk_note_on(&trk[1], 84, 100);
         i = voices_busy();
         worst = i > worst ? i : worst;
-        bad += i > NVOICE || !trk[0].v[0].gate;
+        bad += i > VBUDGET || !trk[0].v[0].gate;
         blk();
-        bad += voices_busy() > NVOICE || !trk[0].v[0].gate;
-        for (p = 1; p < NPART; p++)
-            bad += !trk[p].v[0].gate;
-        for (p = 0; p < NPART; p++)
+        bad += voices_busy() > VBUDGET || !trk[0].v[0].gate || !trk[1].v[0].gate;
+        for (p = 0; p < CP; p++)
             trk_all_off(&trk[p]);
         for (i = 0; i < 4u * FS / CTL && !parts_free(); i++)
             blk();
         bad += !parts_free();
     }
-    snprintf(msg, n, "POLY -> MONO / LEGATO and lower UNISON cap: at most %u voices, all four leads kept, all released",
+    snprintf(msg, n, "POLY -> MONO / LEGATO and P5's lower UNISON cap: at most %u units, the lead kept, all released",
              worst);
     return !bad;
 }
@@ -669,7 +511,7 @@ static int chk_mode_budget(char *msg, uint32_t n)
     for (initial = 0; initial < 2u; initial++)
         for (mode = V_MONO; mode <= V_UNISON; mode++) {
             host_tracks_init();
-            for (p = 0; p < NPART; p++) {
+            for (p = 0; p < CP; p++) {
                 memset(trk[p].v, 0, sizeof trk[p].v);
                 host_preset(&trk[p], R_PLAT, 0);
                 trk[p].p[P_VOICE] = V_MONO;
@@ -680,17 +522,16 @@ static int chk_mode_budget(char *msg, uint32_t n)
                 trk_note_on(&trk[0], 48, 100);
             else
                 for (i = 0; i < NVOICE; i++) trk_note_on(&trk[0], 48u + 2u * i, 100);
-            bad += voices_busy() != NVOICE;
+            bad += voices_busy() != VBUDGET;
             trk[0].p[P_VOICE] = (int16_t)mode;
-            for (p = 1; p < NPART; p++) {
-                trk_note_on(&trk[p], 72u + p, 100);
-                bad += voices_busy() > NVOICE || !trk[0].v[0].gate || !trk[p].v[0].gate;
-            }
+            trk_note_on(&trk[1], 73, 100);
+            bad += voices_busy() > VBUDGET || !trk[0].v[0].gate || !trk[1].v[0].gate;
             blk();
-            bad += voices_busy() > NVOICE;
-            for (p = 0; p < NPART; p++) trk_all_off(&trk[p]);
+            bad += voices_busy() > VBUDGET;
+            for (p = 0; p < CP; p++) trk_all_off(&trk[p]);
         }
-    snprintf(msg, n, "POLY / UNISON chord -> MONO / LEGATO / UNISON: extra voices reclaimed, leads kept, budget %u", NVOICE);
+    snprintf(msg, n, "POLY / UNISON chord -> MONO / LEGATO / UNISON: extra voices reclaimed, leads kept, budget %u",
+             VBUDGET);
     return !bad;
 }
 
@@ -700,8 +541,8 @@ static void mode_release_reset(uint32_t engine, uint32_t mode)
     memset(trk, 0, sizeof trk);
     memset(&song, 0, sizeof song);
     host_tracks_init();
-    for (p = 0; p < NPART; p++) {
-        host_preset(&trk[p], p ? 0u : engine, 0);
+    for (p = 0; p < CP; p++) {
+        host_preset(&trk[p], p ? R_PLAT : engine, 0);
         trk[p].p[P_VOICE] = p ? V_POLY : mode;
         trk[p].p[P_AMODE] = trk[p].p[P_REL] = 0;
         trk[p].p[P_SUS] = 127;
@@ -723,7 +564,7 @@ static int chk_mode_release(char *msg, uint32_t n)
         for (from = V_POLY; from <= V_UNISON; from++)
             for (to = V_POLY; to <= V_UNISON; to++)
                 for (order = 0; order < 2u; order++) {
-                    mode_release_reset(engine ? 5u : 0u, from);
+                    mode_release_reset(engine ? ENGI_PROPHET : R_PLAT, from);
                     trk_note_on(&trk[0], 60, 100);
                     trk_note_on(&trk[0], 64, 100);
                     for (i = 0; i < 8u; i++) blk();
@@ -731,12 +572,12 @@ static int chk_mode_release(char *msg, uint32_t n)
                     trk_note_off(&trk[0], order ? 60u : 64u);
                     trk_note_off(&trk[0], order ? 64u : 60u);
                     bad += mode_release_gates() != 0 || trk[0].nmono != 0 || voices_busy() > VBUDGET;
-                    for (i = 0; i < FS / CTL && !parts_free(); i++) blk();
+                    for (i = 0; i < 4u * FS / CTL && !parts_free(); i++) blk();   /* (the VA's own release) */
                     bad += !parts_free();
                     cases++;
                 }
     for (mode = V_MONO; mode <= V_UNISON; mode++) {
-        mode_release_reset(0, mode);
+        mode_release_reset(R_PLAT, mode);
         trk_note_on(&trk[0], 60, 100);
         trk_note_on(&trk[0], 64, 100);
         trk[0].p[P_VOICE] = V_POLY;
@@ -750,7 +591,7 @@ static int chk_mode_release(char *msg, uint32_t n)
         for (priority = 0; priority < 3u; priority++) {
             uint32_t lead = priority == 1u ? 72u : 80u, other = priority == 1u ? 80u : 72u;
             uint32_t want = mode == V_UNISON ? trk_nvoice(&trk[0]) : 1u;   /* (Melodee's voice model) */
-            mode_release_reset(0, V_POLY);
+            mode_release_reset(R_PLAT, V_POLY);
             trk_note_on(&trk[0], 48, 100);
             trk_note_on(&trk[0], 64, 100);
             trk[0].p[P_VOICE] = (int16_t)mode;
@@ -769,54 +610,23 @@ static int chk_mode_release(char *msg, uint32_t n)
             cases++;
         }
     }
-    snprintf(msg, n, "%u cases: all 16 VCE pairs, both key-up orders and caps 8 / 4; no stale fallback, "
+    snprintf(msg, n, "%u cases: all 16 VCE pairs, both key-up orders and caps 8 / 4 (the VA, P5); no stale fallback, "
              "MONO / LEGATO / UNISON priority leads and fallback preserved", cases);
     return !bad;
 }
 
-static int chk_sample_end(char *msg, uint32_t n)
+/* a plain held sine (CZ-1's INIT TONE: a sine, its DCA held; no sends): smooth, so the largest sample step is set by
+ * the pitches */
+static void plain_sine(track_t *t)
 {
-    static const int32_t SAMPLE[4] = {12000, -12000, 32767, -32768};
-    static const uint32_t FRAC[4] = {0, 16384, 32768, 65535};
-    static const int32_t PITCH[5] = {0, 96, 192, 384, 576};
-    const smp_zone_t saved = usr_zone[0][0];
-    track_t *t = &trk[0];
-    voice_t *v = &t->v[0];
-    uint32_t a, b, c, bad = 0, cases = 0;
-    host_tracks_init();
-    host_preset(t, 4, 0);
-    t->p[P_E1] = t->p[P_E2] = t->p[P_E3] = t->p[P_E6] = 0;
-    t->p[P_E4] = 127;
-    usr_zone[0][0] = (smp_zone_t){.n = 1, .rate = 65536, .root16 = 960};
-    for (a = 0; a < NELEM(SAMPLE); a++)
-        for (b = 0; b < NELEM(FRAC); b++)
-            for (c = 0; c < NELEM(PITCH); c++) {
-                vmod_t m = {.pitch16 = 960 + PITCH[c], .amp0 = 32767, .amp1 = 32767};
-                int32_t out[CTL] = {0}, src, lp = 4000 + (((127 << 8) * 28767) >> 15), want;
-                uint32_t step = (pow2_q16(PITCH[c]) >> 8) * 256u, f = FRAC[b] + step;
-                memset(v, 0, sizeof *v);
-                v->active = 1;
-                v->ph[0] = 1;
-                v->ph[1] = FRAC[b];
-                v->s[4] = 0x8000;
-                v->s[2] = v->s[3] = v->s[7] = SAMPLE[a];
-                /* The source after the last sample is zero, including when several samples were skipped. */
-                src = f >= 131072u ? 0 : SAMPLE[a] + (int32_t)((-(int64_t)SAMPLE[a] * ((f - 65536u) >> 1)) >> 15);
-                want = SAMPLE[a] + mulq15(src - SAMPLE[a], lp);
-                sample_render(t, v, out, CTL, &m);
-                bad += out[0] != (voice_amp(want, &m, 0) << 1) || v->ph[1] >= 65536u || !v->s[6];
-                cases++;
-            }
-    usr_zone[0][0] = saved;
-    memset(v, 0, sizeof *v);
-    snprintf(msg, n, "%u one-shot ends, both polarities and full scale, 1x..8x rate: terminal interpolation bounded",
-             cases);
-    return !bad;
+    host_preset(t, ENGI_CZ, 0);
+    t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
+    t->p[P_VOICE] = V_POLY;
+    t->p[P_AMODE] = 0;
 }
-
-/* a stolen voice fades: plain sines (filter open, no sends) on 3 parts; part 1 holds 7 notes, part 2 one,
- * then parts 2 and 3 take voices in turn. The largest sample step in the 2 blocks of each take must stay
- * within 1.5 x the largest one in the 0.25 s before it (a hard cut is several times larger) */
+/* a stolen voice fades: plain sines on the two parts; part 1 holds 7 notes, part 2 one (the budget full), then part 2
+ * takes voices from part 1 in turn. The largest sample step in the 2 blocks of each take must stay within 1.5 x the
+ * largest one in the 0.25 s before it (a hard cut is several times larger) */
 static int chk_steal_fade(char *msg, uint32_t n)
 {
     static const uint8_t N1[7] = {48, 52, 55, 59, 62, 65, 69};
@@ -826,8 +636,8 @@ static int chk_steal_fade(char *msg, uint32_t n)
     double worst = 0;
     int32_t wat = 0, wcalm = 0;
     host_tracks_init();
-    for (p = 0; p < NPART; p++)
-        xfade_sine(&trk[p]);
+    for (p = 0; p < CP; p++)
+        plain_sine(&trk[p]);
     for (f = 0; f < frames; f += CTL) {
         uint32_t ms = f * 1000u / FS, k0 = voice_kills;
         if (f == 0)
@@ -836,7 +646,7 @@ static int chk_steal_fade(char *msg, uint32_t n)
         if (f == at(0.5))
             trk_note_on(&trk[1], 74, 90);
         if (ms >= 1000u && f % (FS / 2u) < CTL && ms < 3500u)
-            trk_note_on(&trk[ms / 500u % 2u ? 1u : 2u], 76u + ms / 250u, 90);
+            trk_note_on(&trk[1], 76u + ms / 250u, 90);
         blk();
         if (voice_kills != k0 && nev < 8u)
             ev[nev++] = f;
@@ -861,52 +671,53 @@ static int chk_steal_fade(char *msg, uint32_t n)
              wcalm, worst);
     return nev >= 4u && !bad;
 }
-
-/* MONO / LEGATO / UNISON keep their note: part 1 holds note 40 in mode m while parts 2 and 3 (POLY)
- * flood the budget with new notes for 2 s; part 1's voice 0 must sound note 40, gate on, every block */
+/* MONO / LEGATO / UNISON keep their note: part 1 (the VA) holds note 40 in mode m while part 2 (the VA, POLY) floods
+ * the budget with new notes for 2 s (the budget full: part 2 takes its own voices, or UNISON's extras of part 1);
+ * part 1's voice 0 must sound note 40, gate on, every block */
 static int chk_keep(char *msg, uint32_t n, uint32_t mode)
 {
     static const char *const MN[4] = {"POLY", "MONO", "LEGATO", "UNISON"};
-    uint32_t k, lost = 0, kills0 = voice_kills;
+    uint32_t k, lost = 0, full = 0, kills0 = voice_kills;
     host_tracks_init();
     host_preset(&trk[0], R_PLAT, 0);
     trk[0].p[P_VOICE] = (int16_t)mode;
     trk[0].p[P_AMODE] = 0;
     trk[0].p[P_SUS] = 100;
-    for (k = 1; k < NPART; k++) {
-        host_preset(&trk[k], 1, 1);
-        trk[k].p[P_VOICE] = V_POLY;
-        trk[k].p[P_AMODE] = 0;
-        trk[k].p[P_SUS] = 100;
-    }
+    host_preset(&trk[1], R_PLAT, 1);
+    trk[1].p[P_VOICE] = V_POLY;
+    trk[1].p[P_AMODE] = 0;
+    trk[1].p[P_SUS] = 100;
     trk_note_on(&trk[0], 40, 100);
     for (k = 0; k < 2u * FS / CTL; k++) {
         if (k % 3u == 0u)
-            trk_note_on(&trk[1u + k / 3u % 2u], 50u + k / 3u % 40u, 100);
+            trk_note_on(&trk[1], 50u + k / 3u % 40u, 100);
+        full += voices_busy() >= VBUDGET;
         blk();
         {
             const voice_t *v = &trk[0].v[0];
             lost += !(v->active && v->gate && v->note == 40u && v->stage != 4u);
         }
     }
-    snprintf(msg, n, "%s part held its note through %u voices taken from the others: lost in %u blocks",
-             MN[mode], voice_kills - kills0, lost);
-    return !lost && voice_kills > kills0;
+    snprintf(msg, n, "%s part held its note with the budget full in %u blocks, %u voices taken from it: lost in %u "
+             "blocks", MN[mode], full, voice_kills - kills0, lost);
+    return !lost && full > 100u && (mode != V_UNISON || voice_kills > kills0);
 }
 static int chk_keep_mono(char *m, uint32_t n) { return chk_keep(m, n, V_MONO); }
 static int chk_keep_legato(char *m, uint32_t n) { return chk_keep(m, n, V_LEGATO); }
 static int chk_keep_unison(char *m, uint32_t n) { return chk_keep(m, n, V_UNISON); }
 
-/* the VOICE engine's cap: 8 keys in POLY and in UNISON (alone: the budget does not limit it) */
+/* P5's cap on one core (eng_prophet_test.c p5_cap): 8 keys in POLY and in UNISON on the chord part (alone: the budget
+ * does not limit it), at most its P5_CORE voices in POLY and its stack in UNISON; all freed after the release */
 static int chk_voice_cap(char *msg, uint32_t n)
 {
-    uint32_t mode, k, i, most[2] = {0, 0};
+    uint32_t mode, k, i, most[2] = {0, 0}, cap[2] = {0, 0};
     for (mode = 0; mode < 2u; mode++) {
         track_t *t = &trk[0];
         host_tracks_init();
-        host_preset(t, 5, 0);
+        host_preset(t, ENGI_PROPHET, 0);
         t->p[P_VOICE] = mode ? V_UNISON : V_POLY;
         t->p[P_AMODE] = 0;
+        cap[mode] = trk_nvoice(t);
         for (k = 0; k < 8u; k++)
             trk_note_on(t, 60u + 2u * k, 100);
         for (k = 0; k < FS / 2u / CTL; k++) {
@@ -923,88 +734,9 @@ static int chk_voice_cap(char *msg, uint32_t n)
         if (!parts_free())
             most[mode] = 99;
     }
-    snprintf(msg, n, "VOICE engine, 8 keys: at most %u voices in POLY, %u in UNISON (cap 4); freed after release",
-             most[0], most[1]);
-    return most[0] == 4u && most[1] == 4u;
-}
-
-/* no hanging notes: 6 s of random MIDI note-ons / offs on channels 1..4 (the parts), 5, 10 and 16 (the
- * selected track), and keys, while the selected track changes; the parts in random voice modes,
- * some with ARP, SUS 127 (a hanging note keeps sounding). A channel's note-off goes to the same channel
- * as its note-on. Then every held note off: no gate may stay on, no ARP may still hold a key, every voice
- * must be free (also the same note held on two "selected track" channels across a selection change). */
-static int chk_hang(char *msg, uint32_t n)
-{
-    static const uint8_t CHS[7] = {0, 1, 2, 3, 4, 9, 15};
-    uint8_t on[7][128] = {{0}};
-    uint32_t keys = 0, k, c, ev = 0, round;
-    char who[96] = "";
-    int bad = 0;
-    for (round = 0; round < 3u && !bad; round++) {
-        host_tracks_init();
-        for (k = 0; k < NPART; k++) {
-            host_preset(&trk[k], rnd(NENGINES), rnd(4));
-            /* DX7 L4 may deliberately sustain after key-up (legacy DIGITAL conversions too). This routing test
-             * needs terminating envelopes; the sound tests keep L4 (Melodee's test, as its FM6 is) */
-            if (trk[k].eng_req == ENGI_FM6) {
-                for (uint32_t op = 0; op < 6u; op++)
-                    fm6_patch[k][op * FP_OP + FP_L1 + 3] = 0;
-                fm6_pgen[k]++;
-            }
-            trk[k].p[P_VOICE] = (int16_t)rnd(4);
-            trk[k].p[P_AMODE] = rnd(3) == 0 ? (int16_t)(1 + rnd(4)) : 0;
-            trk[k].p[P_AHOLD] = 0;
-            trk[k].p[P_SUS] = 127;
-        }
-        for (k = 0; k < 6u * FS / CTL; k++) {
-            uint32_t r = rnd(16);
-            if (r < 6u) {                          /* MIDI */
-                uint32_t ci = rnd(7), note = 36u + rnd(36);
-                if (on[ci][note]) {
-                    midi_pkt(rnd(2) ? 0x80u | CHS[ci] : 0x90u | CHS[ci], note, 0);
-                    on[ci][note] = 0;
-                } else {
-                    midi_pkt(0x90u | CHS[ci], note, 1u + rnd(127));
-                    on[ci][note] = 1;
-                }
-                ev++;
-            } else if (r < 9u) {                   /* a key down or up */
-                keys ^= 1u << rnd(27);
-                fm1_in.notes = keys;
-                ev++;
-            } else if (r == 9u) {
-                song.sel = (uint8_t)rnd(NTRK);     /* another track selected */
-            }
-            blk();
-        }
-        fm1_in.notes = keys = 0;                   /* everything off */
-        for (c = 0; c < 7u; c++)
-            for (k = 0; k < 128u; k++)
-                if (on[c][k]) {
-                    midi_pkt(0x80u | CHS[c], k, 64);
-                    on[c][k] = 0;
-                }
-        run_to(fpos + FS / 2u);                    /* (an ARP note-off: within its gate) */
-        if (held_gates(who, sizeof who))
-            bad = 1;
-        rel_at = fpos;
-        {
-            uint32_t cap = fpos + FREE_CAP_S * FS;
-            while (!parts_free() && fpos < cap)
-                blk();
-            for (c = 0; c < NPART * NVOICE && !parts_free() && !bad; c++) {
-                const voice_t *v = &trk[c / NVOICE].v[c % NVOICE];
-                if (v->active) {
-                    bad = 2;
-                    snprintf(who, sizeof who, "part %u voice %u note %u still active %d s after the note-offs (gate %u "
-                             "stage %u)", c / NVOICE + 1u, c % NVOICE, v->note, FREE_CAP_S, v->gate, v->stage);
-                }
-            }
-        }
-    }
-    snprintf(msg, n, "%u random MIDI / key events on ch 1-4, 5, 10, 16 and the keys, track selection changing, "
-             "3 rounds: %s", ev, bad ? who : "no gate left on, every voice free");
-    return !bad;
+    snprintf(msg, n, "P5, 8 keys: at most %u voices in POLY (cap %u), %u in UNISON (cap %u); freed after release",
+             most[0], cap[0], most[1], cap[1]);
+    return most[0] == cap[0] && cap[0] == P5_CORE && most[1] == cap[1] && cap[1] <= NPOLY;
 }
 
 /* ------------------------------------------------------------ files --- */
@@ -1063,8 +795,8 @@ int main(int argc, char **argv)
     uint32_t jobs_at_once = getenv("JOBS") ? (uint32_t)atoi(getenv("JOBS")) : 8u;
     static const char *const MN[4] = {"POLY", "MONO", "LEGATO", "UNISON"};
     static const char *const SN[6] = {"dry", "chorus", "delay", "reverb", "all", "dist"};
-    static const uint8_t MODE_E[3][2] = {{R_PLAT, 0}, {1, 1}, {5, 0}};   /* engine, preset (DIGITAL: FELUCCA_FM4 only) */
-    static const uint8_t SEND_E[2][2] = {{R_PLAT, 3}, {1, 0}};
+    static const uint8_t MODE_E[3][2] = {{R_PLAT, 0}, {ENGI_FM6, 1}, {ENGI_PROPHET, 0}};   /* engine, preset */
+    static const uint8_t SEND_E[1][2] = {{R_PLAT, 3}};
     char en[24];
     static uint8_t cpu_parts[MAXJ][NPART][3];
     static kv_t gold[MAXJ], cpu[MAXJ];
@@ -1095,7 +827,6 @@ int main(int argc, char **argv)
             j->e = (uint8_t)e;
             j->pi = (uint8_t)pi;
         }
-    add(J_DRUMS, "drums/sample_perc_kit");
     for (i = 0; i < 3u; i++)
         for (k0 = 0; k0 < 4u && eng_ok(MODE_E[i][0]); k0++) {
             job_t *j;
@@ -1106,7 +837,7 @@ int main(int argc, char **argv)
             j->pi = MODE_E[i][1];
             j->arg = (uint8_t)k0;
         }
-    for (i = 0; i < 2u; i++)
+    for (i = 0; i < NELEM(SEND_E); i++)
         for (k0 = 0; k0 < 6u && eng_ok(SEND_E[i][0]); k0++) {
             job_t *j;
             slug(en, ENGINES[SEND_E[i][0]]->name, sizeof en);
@@ -1116,15 +847,9 @@ int main(int argc, char **argv)
             j->pi = SEND_E[i][1];
             j->arg = (uint8_t)k0;
         }
-    add(J_SONG, "song/4track_mix");
-    {   /* the SLICER */
+    {   /* the SLICER (slicer.c: in the emulator; the unit builds it out, FELUCCA_SLICER 0) */
         job_t *j = add(J_SLICER, "slicer/gate/" R_ACID_NAME);
         j->e = R_ACID_E, j->pi = R_ACID_P, j->arg = 0;
-#if FELUCCA_FM4                                     /* (DIGITAL: retired, built with FELUCCA_FM4=1 only) */
-        j = add(J_SLICER, "slicer/stut/DIGITAL_PAD");
-        j->e = 1, j->pi = 5, j->arg = 1;
-#endif
-        add(J_SONG, "slicer/song_gate_stut")->arg = 1;
     }
     g1 = nj;
     {   /* determinism: the first preset render once more */
@@ -1135,18 +860,16 @@ int main(int argc, char **argv)
 
     /* 4: the voice checks */
     k0 = nj;
-    add(J_CHECK, "voices: budget of 8 across 4 parts")->check = chk_budget;
+    add(J_CHECK, "voices: the budget across the chord and bass parts")->check = chk_budget;
     add(J_CHECK, "voices: reuse before the stolen tail fades")->check = chk_retrigger_budget;
     add(J_CHECK, "voices: budget after a live mode change")->check = chk_mode_budget;
     add(J_CHECK, "voices: budget after voice mode changes")->check = chk_cap_mode_budget;
     add(J_CHECK, "voices: note-offs after live voice mode changes")->check = chk_mode_release;
-    add(J_CHECK, "samples: high-rate one-shot ends")->check = chk_sample_end;
     add(J_CHECK, "voices: a stolen voice fades")->check = chk_steal_fade;
     add(J_CHECK, "voices: MONO keeps its note")->check = chk_keep_mono;
     add(J_CHECK, "voices: LEGATO keeps its note")->check = chk_keep_legato;
     add(J_CHECK, "voices: UNISON keeps its note")->check = chk_keep_unison;
-    add(J_CHECK, "voices: VOICE engine cap")->check = chk_voice_cap;
-    add(J_CHECK, "routing: no hanging notes")->check = chk_hang;
+    add(J_CHECK, "voices: P5's cap on one core")->check = chk_voice_cap;
     run_jobs(J, nj, jobs_at_once);
 
     /* 3: CPU, one child at a time (the ns are for information; the instruction counts do not care) */
@@ -1170,23 +893,16 @@ int main(int argc, char **argv)
             j->e = (uint8_t)e;
             j->pi = (uint8_t)pi;
         }
-    {   /* mixes: idle (subtracted from the presets' counts), idle + drums (part 4 SAMPLE PERC), FM (DIGITAL with
-         * FELUCCA_FM4, else FM6) + PHASE + VOICE asking 8 + 8 + 4 + the drums (the budget keeps 8; FM6 plays 6) */
+    {   /* mixes: idle (subtracted from the presets' counts), the chord and bass parts full: FM6 and the VA asking 8 + 8 (the
+         * budget keeps 8 VA voices and 8 FM6 ones: 24 units of 16) */
         job_t *j = add(J_CPU, "cpu/mix/idle");
         memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
         j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
         j->e = 0xFF;
-        j = add(J_CPU, "cpu/mix/idle_drums");
+        j = add(J_CPU, "cpu/mix/2parts_full");
         memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
-        cpu_parts[ncpu][3][0] = 4, cpu_parts[ncpu][3][1] = 4, cpu_parts[ncpu][3][2] = DRUM_HITS;
-        j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
-        j->e = 0xFF;
-        j = add(J_CPU, "cpu/mix/3parts_full_drums");
-        memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
-        cpu_parts[ncpu][0][0] = FELUCCA_FM4 ? ENGI_DIGITAL : ENGI_FM6, cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
-        cpu_parts[ncpu][1][0] = 2, cpu_parts[ncpu][1][1] = 0, cpu_parts[ncpu][1][2] = 8;
-        cpu_parts[ncpu][2][0] = 5, cpu_parts[ncpu][2][1] = 0, cpu_parts[ncpu][2][2] = 4;
-        cpu_parts[ncpu][3][0] = 4, cpu_parts[ncpu][3][1] = 4, cpu_parts[ncpu][3][2] = DRUM_HITS;
+        cpu_parts[ncpu][0][0] = ENGI_FM6, cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
+        cpu_parts[ncpu][1][0] = ENGI_VA, cpu_parts[ncpu][1][1] = 0, cpu_parts[ncpu][1][2] = 8;
         j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
         j->e = 0xFF;
     }
@@ -1260,7 +976,7 @@ int main(int argc, char **argv)
             perror(gpath);
             return 2;
         }
-        fprintf(f, "# FELUCCA golden renders (tests/regress.c): name, FNV-1a 64 of the output samples.\n"
+        fprintf(f, "# ChoralRoot golden renders (tests/regress.c): name, FNV-1a 64 of the output samples.\n"
                    "# Rewritten by GOLDEN_UPDATE=1 tests/run_tests.sh -- only for an intended change of the sound.\n");
         for (i = g0; i < g1; i++)
             fprintf(f, "%s %016llx\n", J[i].name, (unsigned long long)J[i].r.hash);
@@ -1282,8 +998,8 @@ int main(int argc, char **argv)
     /* a preset's own cost: its count less the idle mix's (the mix alone is half of a light preset's),
      * so +25 % means 25 % more engine work; the mixes as they are */
     nc = load_kv(cpath, cpu, MAXJ);
-    idle_now = J[c1 - 3u].r.ipc;
-    idle_base = kv_get(cpu, nc, J[c1 - 3u].name) ? atof(kv_get(cpu, nc, J[c1 - 3u].name)) : 0;
+    idle_now = J[c1 - 2u].r.ipc;
+    idle_base = kv_get(cpu, nc, J[c1 - 2u].name) ? atof(kv_get(cpu, nc, J[c1 - 2u].name)) : 0;
     for (i = c0; i < c1; i++) {
         const job_t *j = &J[i];
         const char *want = kv_get(cpu, nc, j->name);
@@ -1321,7 +1037,7 @@ int main(int argc, char **argv)
             perror(cpath);
             return 2;
         }
-        fprintf(f, "# FELUCCA host CPU baseline (tests/regress.c): instructions per 44.1 kHz sample, cc -O2 on\n"
+        fprintf(f, "# ChoralRoot host CPU baseline (tests/regress.c): instructions per 44.1 kHz sample, cc -O2 on\n"
                    "# the Mac (kernel-counted, ~1 %% run to run). The check allows +%.0f %%. Rewritten by BUDGET_UPDATE=1.\n",
                 CPU_TOL * 100);
         for (i = c0; i < c1; i++)
@@ -1329,12 +1045,12 @@ int main(int argc, char **argv)
         fclose(f);
         printf("regress: CPU baseline %s rewritten (%u entries)\n", cpath, c1 - c0);
     }
-    printf("regress: CPU, one part with 8 notes held (VOICE 4), heaviest preset per engine (instructions / ns per sample):\n");
+    printf("regress: CPU, one part with 8 notes held, heaviest preset per engine (instructions / ns per sample):\n");
     for (e = 0; e < NENGINES; e++)
         if (eng_ok(e))
             printf("regress:   %-8s %-14s %6.0f instr  %6.1f ns\n", ENGINES[e]->name, ENGINES[e]->presets[heavy_p[e]].name,
                    heavy[e], heavy_ns[e]);
-    for (i = c1 - 3u; i < c1; i++)
+    for (i = c1 - 2u; i < c1; i++)
         printf("regress:   %-23s %6.0f instr  %6.1f ns\n", J[i].name + 8, J[i].r.ipc, J[i].r.ns);
 
     printf("regress: %u golden renders (%u changed, %u gone), %u health failures, %u voice / routing checks failed, "

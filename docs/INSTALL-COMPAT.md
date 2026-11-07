@@ -136,8 +136,9 @@ Host evidence (2026-10-07; Sloop f2b44c2 built from a scratch copy with this rep
    slots) and by Felucca 0.9-beta's. It also ran 61 s of preset and algorithm browsing, and a second power-on. Every run
    returned 0, with no out-of-bounds report; only DSP shift/overflow warnings that also appear on an erased image.
    - Sloop's autosave as the FM6 bank: rejected (magic). Its PER3 settings: no size match, defaults used.
-   - Sample data at 0xC8000: ignored as loops. All 32 user records accepted. DIGITAL ones are converted to FM6;
-     SAMPLE / GRAIN ones become INIT on ANALOG (since 0.14: on the VA; ANALOG ones play on the VA with their macros).
+   - Sample data at 0xC8000: ignored as loops. All 32 user records accepted. DIGITAL ones are converted to FM6
+     (until 3y232; since then INIT on the VA, as every retired engine's); SAMPLE / GRAIN ones become INIT on ANALOG
+     (since 0.14: on the VA; ANALOG ones play on the VA with their macros).
    - Static stack: the worst boot path is about 3.2 KB of a 24 KB stack.
 
 **Conclusion.** Not the loader: Sloop's loader handles our package correctly (and is not the one used), the write

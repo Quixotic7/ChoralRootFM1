@@ -7093,3 +7093,71 @@ cr_cz_test, cr_pool_test, cr_va_test (the whole-store conversions gone, the blob
 377264f image) removed with `pool_legacy.c` and `pool_image.py`'s legacy commands. `sh tests/run_all.sh` on the merged
 tree: 23 suites passed, 317 goldens unchanged, test_cr 1119 ok. Docs: FLASH.md "What the flash holds" (the inventory),
 PRESETS.md, SOUNDS.md, SETTINGS.md, HANDOFF.md, MANUAL.md ("From 0.21 or older"), SMK37.md, BLE-LINK.md (decision 2).
+
+3y232. **Felucca's tree goes: its 38 unbuilt files, the host tests that compiled them, and the DIGITAL -> FM6
+converter.** The owner, with 3y231 ("clean this up": Felucca's unbuilt sources and the retired-engine converters, left
+for their own task there; the survey: the side-session notes, felucca-removal-survey-3y231.md). **Gone**: the 38
+Felucca files `choralroot.c` never included (the UI `ui*.c`, `icons.c`; the sequencer `seq.c`, `song_chain.c`,
+`chord.c`, `motion.c`, `midi_control.c`, `midi_clock.c`, the FX layer `perform.c`; the editor `editor*.c`, `project.c`,
+`favorites.c`, `felucca.c`; the engines ANALOG, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, PHYS (`phys_dsp.c`,
+`phys_symp.c`), DRUM (`drum_voice.c`), NOISE, SLICE (`slice_store.c`); ~15 400 lines), `fm4_convert.c`, and the 26 host
+test files only they kept alive (scale, chord, project, motion, MIDI control, DIGITAL and its FM6 conversion, `fm4_div0`,
+the UI and its renders, persistence, backup, editor, SLICER, swing, the FX layer, REVERB TYPE, `descdump`, PHYS and its
+DaisySP reference, DRUM, NOISE, SLICE). **The host-test base is ChoralRoot's**: `core.h`'s defaults are the unit's (the
+sequencer's and the retired engines' switches 0 and setting one 1 an `#error`; the VA, CZ-1 and FM TONE in every build,
+so `UP_POOL` is 1 everywhere); `tests/hostsim.c` is the sound side with ChoralRoot's flags and, unless its includer
+says `HOST_CR_OUT` (the emulator, `cr_trans_test.c`: `cr_out.c` follows), host stand-ins for `cr_out.c`'s names
+(`events_block`: the engine switches and the releases asked for) and its helpers (`host_tracks_init`, `host_preset`,
+`wav_hdr`, `now_ns`, `busy_now`) outside any `#if`; its own main (the ANALOG render, the TRACKS demo) went with
+the sequencer. The dead branches of the kept files (`#if FELUCCA_SEQ` .. `FELUCCA_PHYS`, `FELUCCA_PERFORM`, `!UP_POOL`,
+storage.c's `!ST_RETIRED`, `FELUCCA_FAVORITES`, `FELUCCA_ICONS`) were taken out with `unifdef`; `fx.c` has no FX
+layer (its `FELUCCA_PERFORM` default and `#error` with it); `engines.c` keeps the retired slots as one `ENG_GONE`.
+**The firmware is byte-identical** for that part (`./build.sh` and `BOARD=smk37 ./build.sh`: both packages `cmp`-equal
+to the ones before). **The converter**: a DIGITAL record (engine 1) now takes `cr_ui.c cu_load_user`'s retired path
+(the VA's init sound, "engine retired: init sound", the trace line names DIGITAL), is an added preset of the VA's pool
+and binds nothing (`cr_bank.c cb_pool_of` / `cb_bind_of`; until now FM6's pool, bound there); `upreset.c`, `params.c`,
+`core.h` follow, engine 1 is the generic `ENG_GONE`, `FELUCCA_FM4` 1 is an error; the record formats (`P_COUNT`, the
+DIGITAL operator values 61..80) are unchanged. `web/fm1sounds.js poolOf` / `sndBindRaw` and `tools/fm1_install.py
+pool_of` / `_bind_raw` follow the firmware (so on a unit still on 0.29.2 or older they list a DIGITAL record in the VA's
+pool where that firmware shows it in FM6's: a DIGITAL record is one a Felucca 0.x unit left). **Size**: FM-1 XIP 555 604
+-> 552 804 B (-2 800), SMK-37 556 848 -> 554 064 (-2 784); RAM, RAMTEXT, POOL unchanged. What changed in the listing:
+the converter's functions and tables (`fm4_*`, `FM4_ALG`, `FM4_TO_FM6`, `DIGITAL_PRESETS`), `fm6_carriers` and
+`fm6_scaleout` (FM6 helpers only it called), `ENG_FM4_GONE` -> `ENG_GONE` (the same 272 B), and its three callers
+(`cu_pool_load` -2 024 B, where it was inlined; `cb_pool_of`, `cb_bind_of`); the rest moved by address only. The
+generic `ENG_GONE` keeps `ENG_FM4_GONE`'s parameter ranges: a retired record is clamped to them before `cu_load_user`
+reads it, and ANALOG's macros carried to the VA need their 0..127 (tests/cr_fm6_test.c caught the all-zero first try).
+**The goldens** (`tests/regress.c` in ChoralRoot's configuration: one core, Felucca's FX buses as before, two parts):
+317 -> 279. The 259 of ChoralRoot's engines keep their hashes (four FM6 entries renamed to the names the unit shows, as
+SAMPLE 0 names them: 01_FM_BELL, 04_FM_PAD, 06_FM_ORGAN, 07_FM_PLUCK, their hashes the same), the SLICER's GATE on
+VA SYNC BASS too; 57 of Felucca's engines, the GM kit and the 4-track mix are gone; new: FM6 24 PIANO (ChoralRoot's
+F25, in the build since SAMPLE left), the voice modes on the VA, FM6 and P5 (12) and the sends on the VA (6), which were
+on PHASE. The voice checks run on the chord and bass parts (only they sound: `ENG_STATE_NPART` 2): the budget (VA and
+FM6), reuse before a stolen tail fades (P5's cap of 4 full), mode changes, key-ups after them (caps 8 / 4: the VA, P5),
+a stolen voice fades (CZ-1's INIT TONE: a sine), MONO / LEGATO / UNISON keep their note with the budget full, P5's cap
+(VOICE's was); "no hanging notes" (Felucca's MIDI channel routing and ARP) and the SAMPLE one-shot ends went.
+`tests/cpu_baseline.txt`: Felucca's entries out, FM6 PIANO and `cpu/mix/2parts_full` (FM6 8 + VA 8) in, the rest as it
+was. **The other tests rebuilt**: `audio_test` (the VA; the DRUM one-shot case gone), `mod_test` (the VA, FM6, P5,
+WHEEL instead of ANALOG, DIGITAL, TRIO, PHYS, LOFI; its MIDI part on `mod.c mod_midi`, which `cr_out.c` hands a part's
+CC1 / CC11 / AT; the TRS parsing is `midi_uart_test`'s), `speaker_test`, `fm6_test`, `rt_cr_usbtap_test`,
+`cr_cpu1_test`, `cr_trans_test` (as they were, in the new base), `storage_test` (CZ-1's banks as its A/B object; 0.21's
+objects refused, no flash access), `smk_flash_test` (12 objects stored, 0.21's 8 nowhere, 60 data sectors; the owner
+change's regions hold their freed sectors), `upreset_test` (a RAM table of slots for the pool, `up_migrate` on a read
+as `upool.c up_rec` does), `cr_favs_test` (the pool's layout: 128 user slots, 84 bytes of marks, 664 marks in 102 bytes,
+304 bytes typed; it was built without core.h and so checked 0.21's), `target_budget.py` (the gone functions' lines),
+`web/test_web.mjs` (its comparisons with `build/host/desc.json` went with `descdump`; `run_all.sh` no longer waits for
+it), `web/test_sounds.mjs` and `tests/install_test.py` (DIGITAL: the VA's pool, added). **`tools/emu/test_retired.sh`**
+makes its pre-0.18 images with v0.29.2's tree: `git archive v0.29.2` into build/scratch/retired/v0.29.2, its own
+generated headers and emulator, its firmware with PHASE .. PHYS on, as test_pool.sh did with 377264f. **Also**:
+`tools/build.py` passes none of the removed switches (nor `FELUCCA_CZ` / `_QUAD`) and copies no sample attribution;
+`tools/size_fns.py`'s list without the gone files; LICENSING.md (the PHASE, DRUM, DaisySP, Rings, klattsch rows: in the
+tags); `LICENSES/MIT-DaisySP.txt` and `MIT-Rings.txt` **stay**: the site still offers 0.16 and 0.17, whose images hold
+PHYS, and publishes LICENSES/ for them. Docs: BUILDING.md (the switch table, the tests), FLASH.md, HANDOFF.md,
+INTEGRATION.md, SOUNDS.md, INSTALL-COMPAT.md. **Left for later**: the generators and assets only Felucca's engines
+and UI read (`tools/gen_samples.py` -> `felucca_samples.h`, `assets/samples-cc0/`, `tools/fetch_cc0.py`,
+`tools/gen_waves.py`, `tools/gen_aa_icons.py` -> `ui_icons.h`, `tools/gen_aa_keycaps.py` and `gfx.c`'s
+`FELUCCA_KEYCAPS` code) and Felucca's web editor (`web/editor.html`, its mock device, its DIGITAL converter in JS, most of
+`web/test_web.mjs`; not in the site). **Tests**: `sh tests/run_all.sh`: 23 suites passed (279 goldens, 0
+changed; test_cr 1119 ok, test_persist 119, test_retired 18); a run before had one failure of tests/install_test.py
+in a phase that imports numpy ("Could not parse python long as longdouble", the host's numpy, not this change), which
+passed in the run after.
+

@@ -3,8 +3,8 @@
 The firmware slot is fixed: XIP 573 440 B, flash 0x5000 .. 0x91000 (the boot stub and the data objects around it,
 docs/BOOT-SAFETY.md). The GRAIN engine, built on its own branch (claude/grain-engine-f724f9), fills the slot to 99.3 %
 when merged with main: the owner chose a diet over growing the slot ("Lets roll with the diet"). The rules of the
-diet: the sound and the screens stay as they are, proven bit for bit (the 313 golden renders of `tests/regress.c`
-and the engines' own tests; the 313 pixel-exact draw goldens of `tests/run_cr_draw.sh`); a table computed at run
+diet: the sound and the screens stay as they are, proven bit for bit (the 313 golden renders of `tests/regress.c` then,
+279 since 3y232: ChoralRoot's engines alone; and the engines' own tests; the 313 pixel-exact draw goldens of `tests/run_cr_draw.sh`); a table computed at run
 time must not cost the audio ISR anything (the heavy pads have no headroom on the unit: docs/INTEGRATION.md
 "Measured on the unit"); a table moved from flash to RAM or POOL needs room there, so shrinking is preferred to
 moving; one change a commit, its size line before and after in the commit message; costs on the unit counted from
@@ -134,6 +134,8 @@ function or table nothing calls is dropped by the compiler (Felucca's factory pa
 engines' DSP all compile to 0 bytes). What is linked and barely used: Felucca's four-part instrument (parts 2 and 3 idle:
 about 6 KB of RAM / POOL, half of `trk` and each engine's patch for them; the formats and the protocol count four
 parts), the CDC serial console (about 1.2 KB of flash and 2.3 KB of RAM, shown only with USB audio off or in SAFE
-MODE), and the DIGITAL -> FM6 converter (`fm4_convert.c`, ~1.8 KB). In the tree but never built into the firmware: 37
-Felucca files (~15 400 lines: its UI, sequencer, editor, projects and the retired engines), still compiled by the Felucca
-host tests (`tests/run_tests.sh`), `tests/hostsim.c`'s defaults and `tools/emu/test_retired.sh`.
+MODE). **Gone in 3y232**: the DIGITAL -> FM6 converter (`fm4_convert.c`: 2 800 B of XIP on the FM-1, 2 784 on the
+SMK-37; a DIGITAL record loads as the VA's init sound, as the other retired engines' do) and the 38 Felucca files never
+built into the firmware (~15 400 lines: its UI, sequencer, editor, projects and the retired engines) with the Felucca
+host tests that compiled them; `tests/hostsim.c` builds in ChoralRoot's configuration (core.h's defaults) and
+`tools/emu/test_retired.sh` makes its pre-0.18 images with v0.29.2's tree (`git archive`).

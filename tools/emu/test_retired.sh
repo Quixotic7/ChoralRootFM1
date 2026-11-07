@@ -3,9 +3,12 @@
 # Headless: a unit that comes to 0.18 with sounds on the engines retired there (PHASE, LOFI, VOICE, TRIO, NOISE, and
 # PHYS: docs/INTEGRATION.md "0.18: PHASE, LOFI, VOICE, TRIO, NOISE retired", "0.18: PHYS retired").
 #   run 1 (the pre-cut build, a fresh flash file): the chord part to PHASE (EDIT held + A4), saved as U01 "ADG", then
-#         parked on NOISE (OPT + PRESETS); the settings saved. The pre-cut build is this tree with the five switched
-#         back on and PHYS with them (-DFELUCCA_PHASE=1 .. -DFELUCCA_NOISE=1 -DFELUCCA_PHYS=1: the engine set 0.17
-#         had; -DFELUCCA_GRAIN=0: 0.17 had no GRAIN, which came back over its own material in 0.22), build/host/emu_precut
+#         parked on NOISE (OPT + PRESETS); the settings saved. The pre-cut build is v0.29.2's tree (the engines' sources
+#         left this one in 3y232), taken by `git archive` into build/scratch/retired/v0.29.2 with its own generated
+#         headers and emulator, its firmware with the five switched back on and PHYS with them (-DFELUCCA_PHASE=1 ..
+#         -DFELUCCA_NOISE=1 -DFELUCCA_PHYS=1: the engine set 0.17 had; -DFELUCCA_GRAIN=0: 0.17 had no GRAIN, which came
+#         back over its own material in 0.22): build/scratch/retired/v0.29.2/build/host/emu_precut. Its flash formats
+#         are today's (the pool, 0.22), so what it writes is what a unit coming from such a build holds
 #   run 2 (today's build, the same file): the unit starts and plays FM6's default (TINE EP), as a fresh unit; the PHASE
 #         sound is an added preset of the VA's pool under its name, the VA's init sound when picked, with the message
 #         "PHASE retired: stand-in": build/emu/test/retired_standin.ppm
@@ -23,8 +26,9 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$ROOT"
 export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
 EMU=build/host/emu
-PRE=build/host/emu_precut
-OBJ=build/host/emu_obj
+REF=v0.29.2                      # the pre-cut tree: a release with the retired engines' sources (and the pool's format)
+OLD=build/scratch/retired/$REF
+PRE=$OLD/build/host/emu_precut
 OUT=build/emu/test
 S=tools/emu/scripts
 FLASH=$OUT/retired_flash.bin
@@ -35,14 +39,25 @@ has() { LC_ALL=C grep -aq "$1" "$2"; }
 if [ ! -x "$EMU" ] || [ -n "$(find tools/emu firmware/src tests/hostsim.c -newer "$EMU" -name '*.[ch]' 2>/dev/null | head -1)" ]; then
     sh tools/emu/build.sh || { echo "build failed"; exit 1; }
 fi
-# the pre-cut build: the firmware unit again with the five engines and PHYS on (and without PROPHET, which 0.17 had
-# not: with it the picker would show twelve engines, one more than the settings record has places for), the
-# emulator's own objects as build.sh left them
-if [ ! -x "$PRE" ] || [ "$EMU" -nt "$PRE" ] || [ "$0" -nt "$PRE" ]; then
+# the pre-cut build: v0.29.2's firmware unit with the five engines and PHYS on (and without PROPHET, which 0.17 had
+# not: with it the picker would show twelve engines, one more than the settings record has places for), linked with
+# v0.29.2's own emulator objects (its tools/emu/build.sh); its generated headers from ITS OWN generators
+if [ ! -f "$OLD/firmware/src/eng_phase.c" ]; then
+    mkdir -p "$OLD" && git archive "$REF" | tar -x -C "$OLD" || { echo "$REF: git archive failed"; exit 1; }
+fi
+export DYLD_FALLBACK_LIBRARY_PATH="${DYLD_FALLBACK_LIBRARY_PATH:-/opt/homebrew/lib}"   # (Pillow's Raqm; /bin/sh drops it)
+if [ ! -d "$OLD/build/gen" ]; then
+    (cd "$OLD" && python3 -c 'import sys; sys.path.insert(0, "tools"); import build; build.generate()') \
+        >/dev/null || { echo "$REF: the generated headers failed"; exit 1; }
+fi
+[ -x "$OLD/build/host/emu" ] || sh "$OLD/tools/emu/build.sh" >/dev/null 2>&1 || { echo "$REF's emulator: build failed"; exit 1; }
+if [ ! -x "$PRE" ] || [ "$0" -nt "$PRE" ]; then
     SDL_LIBS=$(/opt/homebrew/bin/sdl2-config --libs 2>/dev/null || echo "-L/opt/homebrew/lib -lSDL2")
-    ${CC:-clang} -O2 -w -Ibuild/gen -Ifirmware/src '-DFELUCCA_VERSION="ChoralRoot 0.17"' -DFELUCCA_GRAIN=0 -DFELUCCA_PHASE=1 -DFELUCCA_LOFI=1 \
-        -DFELUCCA_VOICE=1 -DFELUCCA_TRIO=1 -DFELUCCA_NOISE=1 -DFELUCCA_PHYS=1 -DFELUCCA_PROPHET=0 -c tools/emu/emu_fw.c -o "$OBJ/emu_fw_precut.o" &&
-    ${CC:-clang} -o "$PRE" "$OBJ/emu.o" "$OBJ/keymap.o" "$OBJ/emu_img.o" "$OBJ/emu_midi.o" "$OBJ/emu_fw_precut.o" \
+    O=$OLD/build/host/emu_obj
+    (cd "$OLD" && ${CC:-clang} -O2 -w -Ibuild/gen -Ifirmware/src '-DFELUCCA_VERSION="ChoralRoot 0.17"' -DFELUCCA_GRAIN=0 \
+        -DFELUCCA_PHASE=1 -DFELUCCA_LOFI=1 -DFELUCCA_VOICE=1 -DFELUCCA_TRIO=1 -DFELUCCA_NOISE=1 -DFELUCCA_PHYS=1 \
+        -DFELUCCA_PROPHET=0 -c tools/emu/emu_fw.c -o build/host/emu_obj/emu_fw_precut.o) &&
+    ${CC:-clang} -o "$PRE" "$O/emu.o" "$O/keymap.o" "$O/emu_img.o" "$O/emu_midi.o" "$O/emu_fw_precut.o" \
         $SDL_LIBS -lz -lm -framework CoreMIDI -framework CoreFoundation || { echo "pre-cut build failed"; exit 1; }
 fi
 mkdir -p "$OUT"

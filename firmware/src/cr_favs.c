@@ -58,18 +58,12 @@
 #define CRF_T_CHORD 0x40u                            /* tag | this: the section's Chord-only bits */
 #define CRF_T_BASS 0x20u                             /* tag | this: its Bass-only bits */
 #define CRF_T_OPT 0xFFu                              /* one byte: bit 0 the filter */
-#if UP_POOL
 #define CRF_PACK_MAX 308u                            /* (0.22: 377264f's reader takes 264 at most: a longer object reads there as
                                                       * no marks, docs/PRESETS.md "Favourites") */
-#else
-#define CRF_PACK_MAX 264u
-#endif
 enum { CRF_BOTH, CRF_CHORD, CRF_BASS };              /* a mark's type (crf_type; the SAVE menu's Favorite type) */
 static const struct { uint8_t tag, bytes; } CRF_SEC[] = {
     {CRF_T_USER, 4},                                 /* slots 0..31 */
-#if UP_POOL
     {CRF_T_USER2, 12},                               /* slots 32..127 (0.22; right after 0x80's: one run of 16 bytes) */
-#endif
     {7, 2},                                          /* WHEEL: 5 presets */
     {12, 8},                                         /* FM6: 25 */
     {13, 8},                                         /* VA: 25 */
@@ -78,13 +72,8 @@ static const struct { uint8_t tag, bytes; } CRF_SEC[] = {
     {CRF_T_P5, 26},                                  /* P5: Sequential's 1..200 (bit 0 unused) */
 };
 #define CRF_NSEC ((uint32_t)(sizeof CRF_SEC / sizeof CRF_SEC[0]))
-#if UP_POOL
 #define CRF_BYTES 84u
 typedef char crf_pack_ok[2u + 3u * (2u * 8u + CRF_BYTES) + 3u <= CRF_PACK_MAX && sizeof CRF_SEC == 16u ? 1 : -1];
-#else
-#define CRF_BYTES 72u
-typedef char crf_pack_ok[2u + 3u * (2u * 7u + CRF_BYTES) + 3u <= CRF_PACK_MAX && sizeof CRF_SEC == 14u ? 1 : -1];
-#endif
 static uint8_t crf_bits[CRF_BYTES];
 /* What 3y42 added to RAM is ONE object, crf_x (240 bytes), on purpose: the target compiler merges the small statics of
  * the image into blocks by size, and four new small ones moved a block's edge between fx.c's mix_r and mix_l, which
@@ -115,10 +104,8 @@ static uint32_t crf_off(uint32_t tag, uint32_t *bytes)   /* the section's offset
     for (k = 0; k < CRF_NSEC; off += CRF_SEC[k].bytes, k++)
         if (CRF_SEC[k].tag == tag) {
             *bytes = CRF_SEC[k].bytes;
-#if UP_POOL
             if (tag == CRF_T_USER)                   /* (ids 0..127: 0x80's 4 bytes and 0x81's 12, one after the other) */
                 *bytes += CRF_SEC[k + 1u].bytes;
-#endif
             return off;
         }
     return CRF_BYTES;

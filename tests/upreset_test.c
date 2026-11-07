@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Host test of the user preset record (firmware/src/upreset.c, -DUP_HOST part):
- * UP_PUT parsing, a bank round trip through storage.c on a simulated NOR,
- * bank / record version checks, map-by-count, pattern <-> steps, PHYS MODEL DRUM records -> the DRUM engine,
- * drum grid records (version 3: UP_PUT's kind 1 and its high bits, a round trip). */
+/* Host test of the user sound record (firmware/src/upreset.c, -DUP_HOST part):
+ * UP_PUT parsing, record version checks, map-by-count, pattern <-> steps, PHYS MODEL DRUM records -> the DRUM engine on a
+ * read (up_migrate, as upool.c's up_rec reads a slot), drum grid records (version 3: UP_PUT's kind 1 and its high bits).
+ * The records live in the sound pool (upool.c; tests/pool_test.c, tests/cr_pool_test.c): here a RAM table of slots
+ * stands for it. (Felucca's two preset banks in flash, OBJ_UPRESET0 / 1, went with the pool in every build, 3y232.) */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,19 +12,18 @@
 #define UP_HOST 1
 #include "../firmware/src/core.h"
 
-static uint8_t nor[0x100000];
-static int st_read(uint32_t off, void *dst, uint32_t n) { memcpy(dst, nor + off, n); return 0; }
-static int st_erase(uint32_t off) { memset(nor + off, 0xFF, 4096); return 0; }
-static int st_prog(uint32_t off, const void *src, uint32_t n)
-{
-    const uint8_t *s = src;
-    uint32_t i;
-    for (i = 0; i < n; i++)
-        nor[off + i] &= s[i];
-    return 0;
-}
-#include "../firmware/src/storage.c"
 #include "../firmware/src/upreset.c"
+
+/* the slots (upool.c's in the firmware): a record each; a read upgrades the copy it returns (upool.c up_rec) */
+static up_rec_t slots[UP_SLOTS];
+static up_rec_t *up_rec(uint32_t k) { return &slots[k % UP_SLOTS]; }
+static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
+static up_rec_t reread(uint32_t k)              /* slot k as upool.c's up_rec hands it out */
+{
+    up_rec_t r = *up_rec(k);
+    up_migrate(&r);
+    return r;
+}
 
 static int check(const char *what, int ok)
 {
@@ -56,10 +56,8 @@ int main(void)
     uint8_t a[640];
     up_rec_t r, got;
     uint32_t n, slot = 99, i;
-    int bad = 0, len, ok;
+    int bad = 0, ok;
     int16_t v[P_COUNT], def[P_COUNT];
-    memset(nor, 0xFF, sizeof nor);
-
     n = put_frame(a, 5, 2, "Bass One", -40);
     bad += check("UP_PUT frame < 640 bytes", 5u + n + 1u < 640u);
     bad += check("UP_PUT parses", up_parse(a, n, &r, &slot) == 0 && slot == 5u && r.engine == 2u &&
@@ -82,15 +80,16 @@ int main(void)
         bad += check("short optional tail rejected", up_parse(a, n + 1u, &r, &slot) == 1 &&
                                                        !memcmp(&r, &keep, sizeof r));
     }
-    n = put_frame(a, 32, 0, "X", 0);
-    bad += check("UP_PUT slot 32 -> args", up_parse(a, n, &r, &slot) == 1);
+    n = put_frame(a, UP_SLOTS, 0, "X", 0);
+    bad += check("UP_PUT slot 128 -> args", up_parse(a, n, &r, &slot) == 1);
     n = put_frame(a, 0, NENGINES, "X", 0);
     bad += check("UP_PUT bad engine -> args", up_parse(a, n, &r, &slot) == 1);
-    n = put_frame(a, 3, ENGI_DIGITAL, "OLD FM", 0);   /* (DIGITAL, retired: a record keeps it, its load converts) */
+    n = put_frame(a, 3, ENGI_DIGITAL, "OLD FM", 0);   /* (DIGITAL, retired: a record keeps it; it loads as the VA's
+                                                        * init sound, cr_ui.c cu_load_user) */
     bad += check("UP_PUT engine 1 (DIGITAL): kept as it is", up_parse(a, n, &r, &slot) == 0 && slot == 3u &&
                                                         r.engine == ENGI_DIGITAL && up_valid(&r));
     up_migrate(&r);
-    bad += check("  a bank read keeps it engine 1 (its values DIGITAL's)", r.engine == ENGI_DIGITAL && up_value(&r, P_E4) ==
+    bad += check("  a read keeps it engine 1 (its values DIGITAL's)", r.engine == ENGI_DIGITAL && up_value(&r, P_E4) ==
                                                                        (int16_t)P_E4);
     n = put_frame(a, 0, 0, "", 0);
     bad += check("UP_PUT empty name -> args", up_parse(a, n, &r, &slot) == 1);
@@ -98,42 +97,13 @@ int main(void)
     bad += check("UP_PUT 13-char name -> args", up_parse(a, n, &r, &slot) == 1);
     n = put_frame(a, 0, 0, "TWELVE CHARS", 0);
     bad += check("UP_PUT 12-char name ok", up_parse(a, n, &r, &slot) == 0 && !memcmp(r.name, "TWELVE CHARS", 12));
-    {
-        char nm[13];
-        *up_rec(31) = r;
-        memcpy(up_rec(31)->name, "Low case", 9);
-        up_name(31, nm);
-        bad += check("name shown upper case", !strcmp(nm, "LOW CASE"));
-    }
-
-    /* bank round trip through storage.c */
+    /* a slot's record: used, read back as it is */
     n = put_frame(a, 17, 3, "Keys", 7);
     up_parse(a, n, &r, &slot);
-    up_bank[1].magic = UP_BANK_MAGIC;
-    up_bank[1].rsize = sizeof(up_rec_t);
-    up_bank[1].nslot = UP_PER_BANK;
     *up_rec(17) = r;
-    bad += check("bank fits one object", sizeof(up_bank_t) <= ST_PAYLOAD_MAX);
-    bad += check("bank save", st_save(OBJ_UPRESET0 + 1, &up_bank[1], sizeof up_bank[1]) == 0);
-    memset(up_bank, 0, sizeof up_bank);
-    len = st_load(OBJ_UPRESET0 + 1, &up_bank[1], sizeof up_bank[1]);
-    up_bank_check(1, len);
-    got = *up_rec(17);
-    bad += check("bank load: the record is back", up_used(17) && !memcmp(&got, &r, sizeof r));
+    got = reread(17);
+    bad += check("a slot's record reads back as it is", up_used(17) && !memcmp(&got, &r, sizeof r));
     bad += check("other slots empty", !up_used(16) && !up_used(18) && !up_used(0));
-    len = st_load(OBJ_UPRESET0, &up_bank[0], sizeof up_bank[0]);
-    up_bank_check(0, len);
-    bad += check("bank 0 never written -> empty", len < 0 && !up_used(0) && up_bank[0].magic == 0);
-    bad += check("banks in 0xDC000..0xDFFFF", st_sector(OBJ_UPRESET0, 0) == 0xDC000u &&
-                                                   st_sector(OBJ_UPRESET0 + 1, 1) == 0xDF000u &&
-                                                   st_sector(OBJ_PROJECT0 + 3, 1) + 4096u <= 0xA0000u);
-    up_bank[1].rsize = 190;                                 /* another record layout */
-    up_bank_check(1, (int)sizeof up_bank[1]);
-    bad += check("bank with another record size -> empty", !up_used(17));
-    up_bank[1].magic = UP_BANK_MAGIC;
-    up_bank[1].rsize = sizeof(up_rec_t);
-    up_bank[1].nslot = UP_PER_BANK;
-    *up_rec(17) = r;
     up_rec(17)->ver = UP_VER_GRID + 1u;
     bad += check("record with another version -> empty", !up_used(17));
     up_rec(17)->ver = UP_VER_GRID;
@@ -173,13 +143,13 @@ int main(void)
         }
         up_parse(g, m, &got, &slot);
         *up_rec(20) = got;
-        st_save(OBJ_UPRESET0 + 1, &up_bank[1], sizeof up_bank[1]);
-        memset(up_bank, 0, sizeof up_bank);
-        up_bank_check(1, st_load(OBJ_UPRESET0 + 1, &up_bank[1], sizeof up_bank[1]));
-        bad += check("a grid record: bank round trip", up_used(20) && !memcmp(up_rec(20), &got, sizeof got));
+        {
+            up_rec_t back = reread(20);
+            bad += check("a grid record: read back as it is", up_used(20) && !memcmp(&back, &got, sizeof got));
+        }
     }
 
-    /* PHYS MODEL DRUM (before 1.0) -> the DRUM engine: from flash (a record of an older layout too), by UP_PUT */
+    /* PHYS MODEL DRUM (before 1.0) -> the DRUM engine: on a read (a record of an older layout too), by UP_PUT */
     {
         static const int16_t OLD[8] = {4, 70, 80, 60, 50, 110, 100, 70}, NEW[8] = {2, 70, 80, 60, 50, 110, 1, 0};
         up_rec_t d = r, m = r, o = r;
@@ -196,15 +166,14 @@ int main(void)
         *up_rec(16) = d;
         *up_rec(17) = m;
         *up_rec(18) = o;
-        st_save(OBJ_UPRESET0 + 1, &up_bank[1], sizeof up_bank[1]);
-        memset(up_bank, 0, sizeof up_bank);
-        up_bank_check(1, st_load(OBJ_UPRESET0 + 1, &up_bank[1], sizeof up_bank[1]));
-        ok = up_used(16) && up_rec(16)->engine == ENGI_DRUM && up_used(17) && up_rec(17)->engine == ENGI_PHYS &&
-             !memcmp(up_rec(17)->p, m.p, sizeof m.p) && up_used(18) && up_rec(18)->engine == ENGI_DRUM &&
-             up_rec(16)->ver == UP_VER;
-        for (k = 0; k < 8u; k++)
-            ok &= up_value(up_rec(16), P_E0 + k) == NEW[k] && up_value(up_rec(18), o.np - 8u + k) == NEW[k];
-        bad += check("bank load: PHYS DRUM -> DRUM engine, MEMB kept", ok);
+        {
+            up_rec_t r16 = reread(16), r17 = reread(17), r18 = reread(18);
+            ok = up_used(16) && r16.engine == ENGI_DRUM && up_used(17) && r17.engine == ENGI_PHYS &&
+                 !memcmp(r17.p, m.p, sizeof m.p) && up_used(18) && r18.engine == ENGI_DRUM && r16.ver == UP_VER;
+            for (k = 0; k < 8u; k++)
+                ok &= up_value(&r16, P_E0 + k) == NEW[k] && up_value(&r18, o.np - 8u + k) == NEW[k];
+        }
+        bad += check("a read: PHYS DRUM -> DRUM engine, MEMB kept", ok);
         n = put_frame(a, 3, ENGI_PHYS, "Old kit", 0);
         for (k = 0; k < 8u; k++) {                          /* E0..E7 of the frame: OLD */
             uint32_t at = 3u + 7u + 1u + 2u * (P_E0 + k), u = (uint32_t)(OLD[k] + 8192);

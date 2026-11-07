@@ -42,7 +42,6 @@
 #define FELUCCA_VA 1
 #define FELUCCA_CZ 1
 #define FELUCCA_QUAD 1
-#define FELUCCA_SAMPLE 0         /* as choralroot.c: eng_grain.c brings its own pow2_q16 */
 #include "felucca_tables.h"
 #include "../firmware/src/core.h"
 #include "../firmware/src/dsp.c"

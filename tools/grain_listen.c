@@ -36,7 +36,6 @@
 #define FELUCCA_VA 1
 #define FELUCCA_CZ 1
 #define FELUCCA_QUAD 1
-#define FELUCCA_SAMPLE 0
 #include "felucca_tables.h"
 #ifndef GRAIN_CORE
 #define GRAIN_CORE "../firmware/src/core.h"

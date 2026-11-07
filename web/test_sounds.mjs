@@ -414,7 +414,7 @@ const FX = {
   const bind = (r, f) => { r = r.slice(); r[175] = 0xA6; r[191] = f; return r; };
   ok(FACTORY_PRESETS[12][1] === "FM BELL" && FACTORY_PRESETS[12].length === 25 && FACTORY_PRESETS[14][0] === "INIT TONE" &&
      FACTORY_PRESETS[14].length === 65 && FACTORY_FIRST[14] === 1 && FACTORY_FIRST[12] === 0 &&
-     ["0", "1", "4", "10"].every((e) => !(e in FACTORY_PRESETS)) && poolOf(1) === 12 && poolOf(0) === 13 &&
+     ["0", "1", "4", "10"].every((e) => !(e in FACTORY_PRESETS)) && poolOf(1) === 13 && poolOf(0) === 13 &&
      poolOf(4) === 13 && poolOf(13) === 13 && poolOf(8) === 8 && FACTORY_PRESETS[8].length === 8,
      "binding: the factory table (the firmware's, --check), the pools of retired engines (ANALOG's: the VA's)");
   // the table both clients embed is one string (tests/sound_templates.c --check looks for it in each)
@@ -430,7 +430,8 @@ const FX = {
     4: bind(rec(14, "MY BRASS", { seed: 6 }), 2),         // U05 CZ-1 over preset 1 BRASS 1 = pool 01
     5: bind(rec(14, "OVER INIT", { seed: 7 }), 1),        // U06 CZ-1 naming INIT TONE (the pool's INIT): added
     6: bind(rec(12, "TOO FAR", { seed: 8 }), 26),         // U07 FM6 past its 25 presets: added
-    7: bind(rec(1, "DIGI", { seed: 9 }), 3),              // U08 DIGITAL: FM6's pool, over FM BASS
+    7: bind(rec(1, "DIGI", { seed: 9 }), 3),              // U08 DIGITAL (retired; its conversion to FM6 too, 3y232): the
+                                                          //     VA's pool, added
     8: bind(rec(0, "GRID", { ver: 5, seed: 10 }), 1),     // U09 a drum grid record: never bound
     9: bind(rec(13, "VA PAD", { seed: 11 }), 25),         // U10 VA over its last preset, SHIMMER
     10: bind(rec(0, "ANA STR", { seed: 13 }), 12),        // U11 ANALOG (retired in 0.14) over its STRINGS: the VA's
@@ -447,8 +448,8 @@ const FX = {
      "binding: marked with 0, unmarked, a second binding of the same preset -> added");
   ok(T[4].bound && T[4].bound.label === "CZ-1 01" && T[4].bound.name === "BRASS 1" && T[5].added && T[6].added,
      "binding: CZ-1 over BRASS 1 = pool 01; INIT TONE and an index past the presets -> added");
-  ok(T[7].bound && T[7].bound.label === "FM6 03" && T[7].bound.name === "FM BASS" && T[8].added && T[9].bound.label === "VA 25" &&
-     T[9].bound.name === "SHIMMER", "binding: DIGITAL binds in FM6's pool, a grid record never, VA 25 SHIMMER");
+  ok(T[7].bound === null && T[7].added && T[7].retired && T[8].added && T[9].bound.label === "VA 25" &&
+     T[9].bound.name === "SHIMMER", "binding: DIGITAL binds nothing (an added preset of the VA's pool), a grid record never, VA 25 SHIMMER");
   ok(T[10].used && T[10].bound === null && T[10].added && T[10].engineName === "ANALOG" && T[10].retired,
      "binding: an ANALOG record (retired) binds nothing: an added preset of the VA's pool");
   ok(Object.keys(FACTORY_PRESETS).join() === "7,8,12,13,14,15,16" && [2, 3, 5, 6, 9, 11].every((e) => poolOf(e) === 13 && engineRetired(e)) &&

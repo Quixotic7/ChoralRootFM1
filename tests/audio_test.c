@@ -33,15 +33,14 @@ static void fresh(void)
     uint32_t p;
     memset(trk, 0, sizeof trk);
     memset(&song, 0, sizeof song);
-    memset(&chain, 0, sizeof chain);
     host_tracks_init();
-    for (p = 0; p < NPART; p++) host_preset(&trk[p], 0, 0);
+    for (p = 0; p < NPART; p++) host_preset(&trk[p], ENGI_VA, 0);
     memset(&felucca_dbg, 0, sizeof felucca_dbg);
     audio_cpu_rem = audio_halves = audio_max_us = 0;
     shed_req = 0; shed_count = 0; shed_over = 0;
     host_clock = host_us = host_half_reads = host_dma_advanced = host_acks = host_nest = 0;
     host_pending = FM1_AUDIO_HALF;
-    transport_req = panic_req = 0;
+    panic_req = 0;
 }
 static voice_t *held(track_t *t, uint32_t note)
 {
@@ -77,14 +76,6 @@ static void overload(void)
     check("overload frees its victim within one control block", extra && !extra->active && sounding() == 2u);
     shed_voice();
     check("a lead alone on each part stays protected", lead->gate && bass->gate && shed_count == 1u);
-
-    fresh();
-    host_preset(&trk[0], ENGI_DRUM, 0);
-    trk_note_on(&trk[0], 36, 100); trk_note_on(&trk[0], 38, 100);
-    lead = held(&trk[0], 36); extra = held(&trk[0], 38);
-    shed_voice(); mix_block(out, CTL);
-    check("overload frees a held one-shot drum without waiting for its decay",
-          lead && extra && lead->active && !extra->active && sounding() == 1u);
 
     fresh();
     trk[0].p[P_VOICE] = V_UNISON;

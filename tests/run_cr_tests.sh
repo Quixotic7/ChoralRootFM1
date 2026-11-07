@@ -135,10 +135,6 @@ t logged_last cr_cz_test
 par_build cc -std=gnu11 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_prophet_test tests/cr_prophet_test.c -lm
 t logged_last cr_prophet_test
 t sh tests/run_prophet_test.sh
-# Felucca #61 (1.0.3.1): DIGITAL -> FM6 conversion without a divide by zero (the JieLi compiler hoists a guarded
-# divide; a 0.9 ORGAN preset trapped at boot -> UBOOT). Felucca's own test, built with the divide-by-zero sanitizer.
-par_build cc -O1 -w -fsanitize=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o build/host/fm4_div0_test tests/fm4_div0_test.c -lm
-t logged_count fm4_div0_test
 # USB audio recording (Melodee's, docs/USB-AUDIO.md): usb.c's descriptors in each presentation (USB Record on, the
 # console), the capture routing, the PCM packing, the ring against clock drift and the host stopping (usb_audio_stream.c)
 par_build cc -std=gnu11 -O2 -w -o build/host/cr_usbaudio_test tests/cr_usbaudio_test.c

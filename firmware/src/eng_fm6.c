@@ -1124,11 +1124,7 @@ _Static_assert(NELEM(N_FM6_PATCH) == FM6_NSLOT + 1u, "a PTCH name per slot");
 /* {ALG, FB, MLVL, MRAT, MEG, VMOD, DTUN, PTCH}: F1..F8 (Felucca's) as they are, DTUN on the pad; F9..F24
  * (Melodee's) as they are */
 #define FM6_PR(name, ptch, mono, fx) {name, {0, 0, 0, 0, 0, 0, 0, ptch}, {0, 0, 127, 0}, 0, mono, fx}
-#if FELUCCA_SAMPLE
-#define FM6_NM(felucca, choralroot) felucca
-#else                                    /* ChoralRoot (docs/PRESETS.md): the names its curated bank showed, now the pool's */
 #define FM6_NM(felucca, choralroot) choralroot
-#endif
 static const preset_t FM6_PRESETS[] = {
     {"TINE EP", {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 127, 0}, 0, 0, FX(0, 45, 25, 35), PAT(6)},
     {FM6_NM("BELL", "FM BELL"), {0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 127, 0}, 0, 0, FX(0, 10, 30, 70), PAT(7)},
@@ -1154,14 +1150,12 @@ static const preset_t FM6_PRESETS[] = {
     FM6_PR("STEEL DRUM", 21, 0, FX(0, 0, 30, 40)),
     FM6_PR("SAW BASS", 22, 1, FX(20, 0, 10, 10)),
     FM6_PR("TUBULAR", 23, 0, FX(0, 0, 30, 80)),
-#if !FELUCCA_SAMPLE
     /* PIANO (ChoralRoot: F25, the FM6 pool's 25, docs/PRESETS.md; SAMPLE's PIANO retired): TINE EP's patch (F1) as a piano hybrid,
      * through the macros only: the modulators an octave up (MRAT +1: the even partials of a struck string instead of
      * the tine's), brighter (MLVL +10), their envelopes faster (MEG -16: a hammer transient that mellows), more
      * velocity on the brightness (VMOD +2), a little feedback grit (FB +1) and the carriers slightly apart (DTUN 12:
      * unison strings beating). Only without the SAMPLE engine (FELUCCA_SAMPLE 0): Felucca's units keep Melodee's 24 */
     {"PIANO", {0, 1, 10, 1, -16, 2, 12, 0}, {0, 0, 127, 0}, 0, 0, FX(0, 35, 15, 45), PAT(6)},
-#endif
 };
 #undef FM6_PR
 #undef FM6_NM

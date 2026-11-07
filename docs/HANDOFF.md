@@ -108,10 +108,10 @@ build). What is behind it, to know when a suite is run alone:
 - **`run_tests.sh` and `run_cr_tests.sh` run their sections side by side** (`tests/par.sh`) and print them in the
   file's order, so the output reads as before and the last line means what it meant. `PAR_JOBS=1` runs them one
   after another. `tests/install_test.py` runs its 20 phases in forks of itself (`INSTALL_TEST_JOBS=1`: in a row).
-- **Two tests read what another suite makes, and say "skip" when it is not there**: `web/test_web.mjs` compares the
-  editor's mock with `build/host/desc.json` (written by `run_tests.sh`), and `tests/site_test.py` (in
+- **A test reads what another suite makes, and says "skip" when it is not there**: `tests/site_test.py` (in
   `run_tests.sh`) checks the browser emulator in the site only when `build/emu-web` exists. `run_all.sh` orders
-  them; by hand, run `build_web.sh` before `run_tests.sh` and `run_tests.sh` before `test_web.mjs`.
+  them; by hand, run `build_web.sh` before `run_tests.sh`. (`web/test_web.mjs` compared the editor's mock with
+  `build/host/desc.json` until 3y232: `tests/descdump.c` built Felucca's tables, and left with them.)
 - **Tests that measure real time fail on a busy machine**: `tools/emu/web/test_web_emu.mjs` (the longest render
   quantum, so `run_all.sh` runs it last and alone), `tests/install_test.py` and the web tests (bounds of tenths of
   a second against simulated devices). Run a suite that failed beside a build again on a quiet machine before
@@ -131,6 +131,7 @@ python3 tests/install_test.py; for t in backup web sounds installer manager; do 
 python3 tests/releases_test.py                    # web/releases.json: the versions the installer offers
 sh tests/run_tests.sh       # ends ALL HOST TESTS PASSED
 sh tools/emu/test_retired.sh                      # the engines retired in 0.18: a unit that comes with sounds on them
+                                                  # (its pre-cut build: v0.29.2's tree, git archive, build/scratch/retired)
 CR_VERSION=0.22 sh tools/emu/web/build_web.sh && node tools/emu/web/test_web_emu.mjs    # the browser emulator
 sh tools/layout/build_layout.sh && node web/test_layout.mjs   # the layout viewer (docs/LAYOUT-TOOL.md; after build_web.sh:
                             # its frames are compared with the browser emulator's; HISTORY 3y47: step 2 of 5, a read-only viewer)

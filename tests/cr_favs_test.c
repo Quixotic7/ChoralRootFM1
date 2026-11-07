@@ -6,7 +6,9 @@
  *   build/host/cr_favs_test --emit FILE    the object as the firmware's own writer stores it (crf_pack through
  *                                          st_save, read back from the NOR), for a fixed set of marks: what
  *                                          tests/install_test.py decodes with tools/fm1_install.py --favorites' reader
- * (tests/run_cr_tests.sh runs it. The marks through the UI, P5's across shipped lists: tests/cr_prophet_test.c.) */
+ * (tests/run_cr_tests.sh runs it. The marks through the UI, P5's across shipped lists: tests/cr_prophet_test.c.)
+ * The sound pool's layout (0.22: user slots 1..128, the sections 0x80 and 0x81), in every build since 3y232; before,
+ * this test, built without core.h, checked 0.21's (32 slots). */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -95,7 +97,7 @@ int main(int argc, char **argv)
        "the object: the pair 0xB6000 / 0xB7000, the first free sectors after the session; the last of the list");
     for (i = 0, n = 0; i < CRF_NSEC; i++)
         n += CRF_SEC[i].bytes;
-    ok(n == CRF_BYTES && sizeof crf_bits == 72u, "the marks: 72 bytes of bits in RAM");
+    ok(n == CRF_BYTES && sizeof crf_bits == 84u, "the marks: 84 bytes of bits in RAM");
 
     /* ---- a new unit ---- */
     crf_boot();
@@ -116,8 +118,8 @@ int main(int argc, char **argv)
     crf_dirty = 0;
     ok(crf_set(16, 0, 1) == 0 && crf_set(16, 201, 1) == 0 && crf_set(16, 207, 1) == 0 && crf_set(16, 5000, 1) == 0,
        "out of range: P5's 0, 201, 207, 5000 are no programs");
-    ok(crf_set(CRF_T_USER, 32, 1) == 0 && crf_set(12, 64, 1) == 0 && crf_set(14, 128, 1) == 0 && crf_set(7, 16, 1) == 0,
-       "out of range: user slot 33, FM6 64, CZ-1 128, WHEEL 16");
+    ok(crf_set(CRF_T_USER, 128, 1) == 0 && crf_set(12, 64, 1) == 0 && crf_set(14, 128, 1) == 0 && crf_set(7, 16, 1) == 0,
+       "out of range: user slot 129, FM6 64, CZ-1 128, WHEEL 16");
     ok(crf_set(0, 1, 1) == 0 && crf_set(9, 1, 1) == 0 && crf_set(17, 1, 1) == 0 && crf_set(255, 0, 1) == 0 &&
        !crf_has(0, 1) && !crf_has(9, 1) && !crf_has(255, 0), "out of range: a retired engine (0, 9), no engine (17, 255)");
     ok(crf_count() == k && !crf_dirty, ".. none of them changed a bit or asked for a write");
@@ -224,15 +226,15 @@ int main(int argc, char **argv)
         n = crf_pack(c);
         memset(crf_bits, 0, sizeof crf_bits);
         ok(!bad && n <= CRF_PACK_MAX && n == 2u + 2u * CRF_NSEC + CRF_BYTES && crf_unpack(c, n) == 0 && crf_count() == marks &&
-           marks == 32u + 16u + 64u + 64u + 128u + 64u + 200u,
-           "every sound marked: 568 marks in 88 bytes, read back whole");
+           marks == 128u + 16u + 64u + 64u + 128u + 64u + 200u,
+           "every sound marked: 664 marks in 102 bytes, read back whole");
     }
     /* ---- the type (Both / Chord / Bass) and the filter (0.22, the owner 2026-10-13); version 1 -> version 2 ---- */
     {
         /* version 1 as 40acb01 wrote it: FM6 0 and 3, P5 12, user slot 2 */
         static const uint8_t V1[] = {1, 3, CRF_T_USER, 1, 0x04, 12, 1, 0x09, 16, 2, 0x00, 0x10};
         uint32_t gen;
-        ok(CRF_VER == 2u && sizeof crf_bits + sizeof crf_only + sizeof crf_filter == 217u, "version 2; 217 bytes of marks, types and the filter in RAM");
+        ok(CRF_VER == 2u && sizeof crf_bits + sizeof crf_only + sizeof crf_filter == 253u, "version 2; 253 bytes of marks, types and the filter in RAM");
         ok(st_save(OBJ_FAVS, V1, sizeof V1) == 0, "(a version-1 object in flash)");
         e0 = erases;
         power_cycle();
@@ -309,8 +311,8 @@ int main(int argc, char **argv)
             for (k = 0; k < CRF_NSEC; k++)
                 for (i = 0; i < CRF_SEC[k].bytes * 8u; i++)
                     bad += crf_has(CRF_SEC[k].tag, i) && crf_type(CRF_SEC[k].tag, i) != 1u + (i & 1u);
-            ok(!bad && n == 262u && n <= CRF_PACK_MAX && crf_count() == 568 && crf_filter && crf_pack(b) == n && !memcmp(b, c, n),
-               "every sound marked and typed, the filter on: 262 bytes (P5's Bass bits end a byte early), read back whole");
+            ok(!bad && n == 304u && n <= CRF_PACK_MAX && crf_count() == 664 && crf_filter && crf_pack(b) == n && !memcmp(b, c, n),
+               "every sound marked and typed, the filter on: 304 bytes (P5's Bass bits end a byte early), read back whole");
             (void)crf_set_filter(0);
             crf_dirty = 0;
         }

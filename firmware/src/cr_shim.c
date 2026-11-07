@@ -66,12 +66,7 @@ static void persist_boot(void)         /* before settings_init / panel_init (pro
     /* SAFE MODE (main.c, cr_bootguard.h): flash_ok stays (the installer's update and the backup's reads need it),
      * but no object is read: storage.c st_load / st_save and the loop slots answer "none" (core.h ST_BLOCKED), so
      * the sounds, the stores, the FM6 bank and the settings start as on an erased flash; the flash is not touched */
-#if FELUCCA_SAMPLE
-    for (k = 0; !cr_safe && k < SMP_USER_SLOTS; k++)       /* (user sample sets play from flash through XIP) */
-        smp_user_scan(k);
-#else
     (void)k;                                               /* (no SAMPLE engine: no user sample sets to scan) */
-#endif
     cr_bank_boot();                                        /* the 32 user sounds (upreset.c) and the FM6 bank */
 #if CR_HAVE_SETTINGS
     CR_STAGE(BS_SETTINGS);

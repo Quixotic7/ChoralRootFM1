@@ -30,11 +30,7 @@ static uint8_t sync_reload;                       /* (Felucca's editor RELOAD pu
 enum { UNDO_SOUND = 1, UNDO_PAT = 2 };
 static void load_begin(track_t *t, uint32_t what) { (void)t; (void)what; }   /* ChoralRoot keeps no undo copy */
 static void load_end(track_t *t) { (void)t; }
-#if FELUCCA_SEQ
-static int chain_busy(void) { return chain.running || chain.armed; }
-#else
 static int chain_busy(void) { return 0; }        /* (no song chain: FELUCCA_SEQ 0) */
-#endif
 static int transport_busy(void)                   /* no flash erase while Felucca's transport runs (inert here) */
 {
     int busy;
@@ -56,21 +52,6 @@ static int param_kept(uint32_t i)
 }
 static void load_pat16(track_t *t, const uint8_t *note, const uint8_t *flags) { (void)t; (void)note; (void)flags; }
 static void load_grid16(track_t *t, const uint8_t *hit, const uint8_t *acc) { (void)t; (void)hit; (void)acc; }
-#if !FELUCCA_FM4
-/* ui.c fm4_apply: a DIGITAL sound (engine 1, retired) converted to FM6 with its own patch */
-static void fm4_apply(track_t *t, int16_t *p)
-{
-    uint8_t v[FP_SIZE + 1u];
-    uint32_t pr = fm4_convert(p, v), tr = trk_index(t), f;
-    fm6_set_patch(tr, v);
-    fm6_slot[tr] = (uint8_t)p[P_E7];
-    f = motion_guard();
-    memcpy(t->p, p, sizeof t->p);
-    t->eng_req = ENGI_FM6;
-    t->preset = (uint8_t)pr;
-    motion_unguard(f);
-}
-#endif
 
 /* ------------------------------------------------------------ 2. upreset.c --- */
 #include "upreset.c"
@@ -94,14 +75,6 @@ static void cr_bank_boot(void)                    /* persist_boot (after flash_o
  * switch. The names resolve to the preset index at boot (cb_init), so a reordered engine table cannot trim the wrong
  * sound. (Before docs/PRESETS.md these were the rows of ChoralRoot's curated bank, which is gone.) */
 static const struct { uint8_t engine; const char *preset; int8_t trim; } CB_TRIM[] = {
-#if FELUCCA_PHASE                        /* (PHASE and VOICE: retired in 0.18, their rows with them) */
-    {2u, "STRING", -16},                 /* PHASE STRING (the bank's CZ STRINGS) -8 dB */
-    {2u, "ORGAN", -16},                  /* PHASE ORGAN (CZ ORGAN) -8 dB */
-    {2u, "BRASS", -6},                   /* PHASE BRASS (CZ BRASS) -3 dB */
-#endif
-#if FELUCCA_VOICE
-    {5u, "CHOIR AAH", -6},               /* VOICE CHOIR AAH (CHOIR) -3 dB */
-#endif
     /* CZ-1's three (BRASS 1 -5 dB, STRINGS 2 -3 dB, PIPE ORGAN 1 -6 dB) went with 0.19's -6 dB for the whole engine
      * (cz_native.c CZ_VOICE_GAIN, docs/CZ1.md "Level"): without them a 6-note chord with the bass stays out of the
      * limiter, and none is louder than it was with its trim. */
@@ -168,30 +141,20 @@ static uint32_t pool_nf(uint32_t e)               /* the factory presets in the 
     uint32_t n = ENGINES[e % NENGINES]->npresets;
     return n > pool_f0(e) ? n - pool_f0(e) : 0u;
 }
-#define CB_RETIRED_POOL (FELUCCA_ANALOG ? 0u : ENGI_VA)   /* a retired engine's records (cr_ui.c cu_load_user) */
-/* what the binding needs of slot k's record: its engine, step 16's two bytes, a drum grid. UP_POOL: upool.c's name table
- * (RAM, POOL section), never the record in flash; else the RAM mirror */
+#define CB_RETIRED_POOL ENGI_VA   /* a retired engine's records, DIGITAL's too since 3y232 (cr_ui.c cu_load_user) */
+/* what the binding needs of slot k's record: its engine, step 16's two bytes, a drum grid: upool.c's name table (RAM,
+ * POOL section), never the record in flash */
 static void cb_rec_raw(uint32_t k, uint32_t *e, uint32_t *n15, uint32_t *f15, int *grid)
 {
-#if UP_POOL
     const upn_t *n = &upn[k % UP_SLOTS];
     *e = n->engine;
     *n15 = n->n15;
     *f15 = n->f15;
     *grid = (n->flags & UPN_GRID) != 0;
-#else
-    const up_rec_t *r = up_rec(k);
-    *e = r->engine;
-    *n15 = r->note[15];
-    *f15 = r->flags[15];
-    *grid = up_grid(r);
-#endif
 }
 static uint32_t cb_pool_of(uint32_t e)              /* the pool a record of engine e is in */
 {
-    if (eng_ok(e))
-        return e;
-    return e == ENGI_DIGITAL ? ENGI_FM6 : CB_RETIRED_POOL;
+    return eng_ok(e) ? e : CB_RETIRED_POOL;
 }
 static uint32_t cb_bind_of(uint32_t k)              /* the factory preset slot k's record names, PF_NONE */
 {
@@ -201,9 +164,9 @@ static uint32_t cb_bind_of(uint32_t k)              /* the factory preset slot k
     if (!up_used(k) || grid || n15 != CB_BIND_MARK || !f15)
         return PF_NONE;
     e = cb_pool_of(re);
-    if (e != re && re != ENGI_DIGITAL)
+    if (e != re)
         return PF_NONE;                           /* (ANALOG's, a retired engine's record: added to the pool it plays
-                                                   * in; a DIGITAL one binds in FM6's, as it converts) */
+                                                   * in; DIGITAL's too since 3y232, when it stopped converting to FM6) */
     f = f15 - 1u;
     return f >= pool_f0(e) && f < ENGINES[e]->npresets ? f : PF_NONE;
 }

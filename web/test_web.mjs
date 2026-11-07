@@ -232,8 +232,7 @@ async function editorSamplePresets() {
   done();
 }
 
-/* the mock's tables == the firmware's (build/host/desc.json from tests/descdump.c, written by run_tests.sh):
-   parameter descriptors, engines (titles, EDIT, presets), factory patterns, power-on sounds */
+/* the mock's tables: Felucca's PHYS and DRUM engines as the editor shows them, the SWG and TIMEI formats */
 function mockTables() {
   {
     const m0 = E.makeMockDevice({ auto: false }), ph = m0.tables.ENG[9], dr = m0.tables.ENG[10];
@@ -245,50 +244,10 @@ function mockTables() {
        dr.presets.length === 1 && dr.presets.every((p) => p.pat === 12),
        "editor: DRUM engine 10 (KIT TUNE TONE DECY SNAP ACC KICK DRV), one kit suggesting BEAT");
   }
-  const dj = join(HERE, "../build/host/desc.json");
-  if (!existsSync(dj)) { console.log("editor: mock tables == firmware (no build/host/desc.json)        skip"); return; }
-  const fw = JSON.parse(readFileSync(dj, "utf8"));
+  /* (the comparison with the firmware's tables, build/host/desc.json from tests/descdump.c, went with Felucca's tree in
+   * 3y232: descdump built Felucca's UI tables) */
   const m = E.makeMockDevice({ auto: false }), T = m.tables;
   m.stop();
-  const norm = (d) => ({ label: d.label, fmt: d.fmt, min: d.min, max: d.max, def: d.def, names: d.names || null, unit: d.unit || "" });
-  const diffs = [];
-  const cmp = (what, a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) diffs.push(`${what}: mock ${JSON.stringify(a)} != firmware ${JSON.stringify(b)}`); };
-  for (const k of ["P_COUNT", "G_COUNT", "NSTEP", "P_E0", "G_ENGSEL", "P_SLCR", "NTRK"]) cmp(k, T[k], fw[k]);
-  cmp("TP length", T.TP.length, fw.TP.length);
-  fw.TP.forEach((d, i) => cmp(`TP[${i}]`, T.TP[i] && norm(T.TP[i]), d));
-  cmp("GP length", T.GP.length, fw.GP.length);
-  fw.GP.forEach((d, i) => cmp(`GP[${i}]`, T.GP[i] && norm(T.GP[i]), d));
-  cmp("engines", T.ENG.map((e) => e.name), fw.ENG.map((e) => e.name));
-  cmp("engine order (ENGINE_ORDER)", E.ENGINE_ORDER.filter((n) => fw.ENG.some((e) => e.name === n)), fw.ORDER);
-  fw.ENG.forEach((fe, i) => {
-    const me = T.ENG[i];
-    if (!me) return;
-    cmp(`${fe.name} titles`, me.titles, fe.titles);
-    fe.edit.forEach((d, k) => cmp(`${fe.name} edit[${k}]`, norm(me.edit[k]), d));
-    cmp(`${fe.name} presets`, me.presets.map((p) => p.name), fe.presets.map((p) => p.name));
-    fe.presets.forEach((p, k) => {
-      const mp = me.presets[k];
-      if (mp) cmp(`${fe.name} ${p.name}`, { e: mp.e, env: mp.env, mono: mp.mono, pat: mp.pat }, { e: p.e, env: p.env, mono: p.mono, pat: p.pat });
-    });
-  });
-  cmp("PATTERNS", T.PATTERNS, fw.PATTERNS);
-  const m2 = E.makeMockDevice({ auto: false });   /* the mock's power-on sounds: its parts 1..4, track 4's beat */
-  cmp("power-on sounds", m2.state.tracks.map((t) => [t.engine, t.preset]), fw.TRK_DEF.map((x) => x.slice(0, 2)));
-  fw.TRK_DEF.forEach((x, k) => {
-    if (x[2]) cmp(`power-on pattern of track ${k + 1}`, m2.state.tracks[k].step.slice(0, 16).map((s) => (s.n ? s.notes[0] : 0)),
-      fw.PATTERNS[x[2] - 1][0]);
-  });
-  m2.stop();
-  cmp("firmware: G_ENGSEL names == engine names", fw.GP[fw.G_ENGSEL].names, fw.ENG.map((e) => e.name));
-  cmp("FM6 patches (init, factory, bank size)", T.FM6, fw.FM6);
-  cmp("DRUM grid: the lanes' GM notes", [...E.LANE_NOTE], fw.LANE_NOTE);
-  cmp("DRUM grid: the lane of GM 35..81", E.LANE_OF, fw.LANE_OF);
-  diffs.slice(0, 20).forEach((d) => console.log("  " + d));
-  ok(!diffs.length, `editor: mock tables == firmware (${diffs.length} differences)`);
-  /* #31: percent values as the firmware formats them (param_format), SWG 0..100 shows its value */
-  const pd = (fw.PCT || []).filter(([sc, i, v, , txt]) => E.fmtValue((sc ? T.GP : T.TP)[i], v)[0] !== txt);   /* [scope, index, value, max, text] */
-  pd.slice(0, 5).forEach((x) => console.log("  PCT " + JSON.stringify(x)));
-  ok(fw.PCT && fw.PCT.length && !pd.length, `editor: percent values == firmware (${fw.PCT ? fw.PCT.length : 0} values)`);
   const swg = [T.TP, T.GP].flatMap((tb) => tb.filter((d) => d.label === "SWG"));
   ok(swg.length === 3 && swg.every((d) => E.fmtValue(d, 100)[0] === "100" && E.fmtValue(d, 50)[0] === "50") &&
      E.fmtValue({ fmt: swg[0].fmt, min: 0, max: 127 }, 127)[0] === "100" && E.fmtValue({ fmt: swg[0].fmt, min: 0, max: 127 }, 64)[0] === "50",
@@ -300,31 +259,12 @@ function mockTables() {
 }
 
 /* ------------------------------------------------------------------ DIGITAL retired --- */
-/* DIGITAL (engine 1, four-operator FM) was replaced by FM6 (src/fm4_convert.c): the editor's conversion == the
-   firmware's (build/host/desc.json "FM4": its presets and 48 sounds), engine 1 is "-" with no presets, G_ENGSEL 1 and
+/* DIGITAL (engine 1, four-operator FM) was replaced by FM6 (the firmware's converter, src/fm4_convert.c, left in 3y232;
+   the editor keeps its own, web/editor's E.FM4): engine 1 is "-" with no presets, G_ENGSEL 1 and
    PRESET 1 k load the converted sound (FM6, its own patch), library files of DIGITAL sounds (91, 89 and 69 parameters,
    single-patch files too) import as FM6 with the converted patch, a converted sound put to the device keeps its
    DIGITAL values in an engine 1 slot (UP_LOAD converts it), the device's DIGITAL slot reads back as FM6 */
 async function editorFm4() {
-  const dj = join(HERE, "../build/host/desc.json");
-  if (existsSync(dj)) {
-    const fw = JSON.parse(readFileSync(dj, "utf8")).FM4;
-    let bad = 0;
-    for (const c of fw.cases) {
-      const r = E.FM4.convert(c.p, 83);
-      if (r.preset !== c.preset || !eq(r.p, c.out) || !eq(Array.from(r.voice), c.voice)) {
-        if (bad++ < 3) console.log("  FM4: E", js(c.p.slice(83)), "voice", js(Array.from(r.voice).map((x, i) => (x !== c.voice[i] ? `${i}:${x}/${c.voice[i]}` : "")).filter(Boolean)));
-      }
-    }
-    ok(fw.cases.length === 48 && !bad, `DIGITAL -> FM6: the editor's conversion == the firmware's (${fw.cases.length} sounds, ${bad} differ)`);
-    ok(eq(E.FM4.TO_FM6, fw.to_fm6) && fw.presets.length === E.FM4.PRESETS.length && fw.presets.every((p, k) => {
-      const q = E.FM4.PRESETS[k];
-      return q.name === p.name && eq(q.e, p.e) && eq(q.env, p.env) && q.fenv === p.fenv && q.mono === p.mono &&
-        eq(q.fx, p.fx.map((x) => x - 1)) && q.pat === p.pat;
-    }), "DIGITAL -> FM6: its presets and the FM6 presets covering them == the firmware's");
-  } else {
-    console.log("DIGITAL -> FM6: == the firmware's (no build/host/desc.json)        skip");
-  }
   const { m, rq, done } = attachMock({});
   const C = E.CMD;
   const info = E.parse[C.INFO](await rq(E.req.info()));

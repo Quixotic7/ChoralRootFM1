@@ -90,11 +90,7 @@ CR_HOT_NOTE static uint32_t voice_units(const track_t *t)
  * midi_event stops at part 2, a stream plays part 0, 1 or none; fx.c renders 2..3 idle, so a voice there would never
  * end). voices_busy_of counts these alone: it runs for every note that finds a free voice (voice_alloc), in the
  * audio ISR's tick, and two silent parts of 16 slots were two thirds of its loop (3y215) */
-#if FELUCCA_SEQ
-#define VB_NPART NPART
-#else
 #define VB_NPART 2u
-#endif
 /* budget units of the sounding voices (not fading) of the parts that share self's budget */
 CR_HOT_NOTE static uint32_t voices_busy_of(const track_t *self)
 {

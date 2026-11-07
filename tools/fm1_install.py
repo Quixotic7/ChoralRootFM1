@@ -2005,9 +2005,10 @@ def _record(objs, slot):
 
 
 def pool_of(engine):
-    """the preset pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, DIGITAL's FM6, another
-    retired one (ANALOG since 0.14; PHASE, LOFI, VOICE, TRIO, NOISE, PHYS since 0.18; SAMPLE, GRAIN, DRUM) the VA's"""
-    return engine if str(engine) in FACTORY_PRESETS else 12 if engine == 1 else 13
+    """the preset pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, a retired one's the VA's
+    (ANALOG since 0.14; PHASE, LOFI, VOICE, TRIO, NOISE, PHYS since 0.18; SAMPLE, GRAIN, DRUM; DIGITAL since 3y232:
+    FM6's before, when the firmware converted it)"""
+    return engine if str(engine) in FACTORY_PRESETS else 13
 
 
 def engine_retired(engine):
@@ -2020,9 +2021,9 @@ def _bind_raw(r):
     if r[1] in (3, 5) or r[BIND_NOTE] != BIND_MARK or not r[BIND_FLAGS]:
         return None
     e, f = pool_of(r[2]), r[BIND_FLAGS] - 1
-    if e != r[2] and r[2] != 1:
-        return None                                # (ANALOG's, a retired engine's record: an added preset where it
-                                                   # plays; a DIGITAL one binds in FM6's)
+    if e != r[2]:
+        return None                                # (ANALOG's, a retired engine's record, DIGITAL's: an added preset
+                                                   # where it plays)
     return f if FACTORY_FIRST[str(e)] <= f < len(FACTORY_PRESETS[str(e)]) else None
 
 

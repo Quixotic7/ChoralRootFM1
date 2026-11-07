@@ -6,14 +6,13 @@
  * screens (cr_gfx.c, cr_draw.c), the motion (cr_anim.c), the UI (cr_ui.c) and the names main.c and the kept files
  * call (cr_shim.c). Of editor*.c's SysEx only the backup / restore subset stays, on ChoralRoot's objects (cr_backup.c).
  *
- * Dropped as in the emulator (tools/emu/emu_firmware.h, the same order): Felucca's sequencer, seq.c with
- * song_chain.c, chord.c, motion.c, midi_control.c and midi_clock.c (FELUCCA_SEQ 0). cr_out.c provides what the kept
- * files call of it under the same names: events_block (fx.c, every block: the engine switches, voice.c engine_block,
- * and the releases a sound load asks for, panic_req), midi_event (MIDI in on the CHORD / BASS channels plays parts
- * 1 / 2, INTEGRATION section 2) and the few names upreset.c, main.c and audio.c still use. Dropped engines: SAMPLE,
- * GRAIN, DRUM, ANALOG, and since 0.18 PHASE, LOFI, VOICE, TRIO, NOISE (retired placeholders keep the engine numbers,
- * engines.c); Felucca's icon atlas and keycaps are not
- * in the image (FELUCCA_ICONS, FELUCCA_KEYCAPS).
+ * Felucca's sequencer (seq.c with song_chain.c, chord.c, motion.c, midi_control.c, midi_clock.c), its UI and editor,
+ * and the engines ChoralRoot retired (ANALOG, DIGITAL, SAMPLE, DRUM, SLICE, and since 0.18 PHASE, LOFI, VOICE, TRIO,
+ * NOISE, PHYS) left the tree in 3y232 (docs/HISTORY.md; core.h keeps their switches at 0, engines.c their numbers as
+ * retired slots). cr_out.c provides what the kept files called of the sequencer under the same names: events_block
+ * (fx.c, every block: the engine switches, voice.c engine_block, and the releases a sound load asks for, panic_req),
+ * midi_event (MIDI in on the CHORD / BASS channels plays parts 1 / 2, INTEGRATION section 2) and the few names
+ * upreset.c, main.c and audio.c still use. Felucca's keycaps are not in the image (FELUCCA_KEYCAPS 0).
  *
  * Host check (no device toolchain): cc -fsyntax-only -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal
  * firmware/src/choralroot.c. The device build is tools/build.py with this file as the unit (see the Status section
@@ -48,20 +47,8 @@
 #if BOARD_SMK37 && FELUCCA_UART
 #error "BOARD_SMK37: midi_uart.c is the FM-1 MIDI IN driver (RX on PH8, a key-matrix row on the SMK)"
 #endif
-#ifndef FELUCCA_SLICE
-#define FELUCCA_SLICE 0          /* no SLICE engine (ChoralRoot: melodic engines only) */
-#endif
 #ifndef FELUCCA_SLICER
 #define FELUCCA_SLICER 0         /* no SLICER insert (slicer.c stubs; frees its 32 KB POOL buffer) */
-#endif
-#ifndef FELUCCA_FM4
-#define FELUCCA_FM4 0
-#endif
-#ifndef FELUCCA_SAMPLE
-#define FELUCCA_SAMPLE 0         /* no SAMPLE engine, no sample sets in the image (engine 4: a retired slot) */
-#endif
-#if BOARD_SMK37 && (FELUCCA_SAMPLE || FELUCCA_SLICE)
-#error "BOARD_SMK37: no user sample flash (eng_sample.c's slots at 0xA0000.. are the SMK's store, storage.c)"
 #endif
 #ifndef FELUCCA_GRAIN
 #define FELUCCA_GRAIN 1          /* the GRAIN engine (engine 8), 0.22: grains over material it renders itself from four
@@ -70,35 +57,6 @@
 #endif
 #ifndef GRAIN_ASYNC
 #define GRAIN_ASYNC 1            /* GRAIN renders its buffers in slices from main.c's idle loop (grain_poll) */
-#endif
-#ifndef FELUCCA_DRUM
-#define FELUCCA_DRUM 0           /* no DRUM engine (engine 10: a retired slot; frees its kit's POOL) */
-#endif
-#ifndef FELUCCA_ANALOG
-#define FELUCCA_ANALOG 0         /* no ANALOG engine (engine 0: a retired slot; the VA replaces it, its records load there) */
-#endif
-#ifndef FELUCCA_PHASE
-#define FELUCCA_PHASE 0          /* no PHASE, LOFI, VOICE, TRIO, NOISE engines since 0.18 (engines 2, 3, 5, 6, 11: retired
-                                  * slots; a record of one loads as the VA's init sound, cr_ui.c cu_load_user) */
-#endif
-#ifndef FELUCCA_LOFI
-#define FELUCCA_LOFI 0
-#endif
-#ifndef FELUCCA_VOICE
-#define FELUCCA_VOICE 0
-#endif
-#ifndef FELUCCA_TRIO
-#define FELUCCA_TRIO 0
-#endif
-#ifndef FELUCCA_NOISE
-#define FELUCCA_NOISE 0
-#endif
-#ifndef FELUCCA_PHYS
-#define FELUCCA_PHYS 0           /* no PHYS engine since 0.18 (engine 9: a retired slot, as the five above; the engine state
-                                  * of a part is FM6's size without its three string slots, engines.c eng_state) */
-#endif
-#ifndef FELUCCA_SEQ
-#define FELUCCA_SEQ 0            /* no Felucca sequencer (seq.c and its satellites): cr_out.c's events_block, midi_event */
 #endif
 #ifndef FELUCCA_VA
 #define FELUCCA_VA 1             /* the VA engine (eng_va.c, engine 13) and its patch store (va_store.c) */
@@ -124,11 +82,6 @@
 #define CR_FX 1                  /* the delay and the reverb are ChoralRoot's (cr_fx.c, docs/FX.md: stereo, the delay at 44.1 kHz
                                   * and the reverb at half of it, their parameters global); Felucca's mono delay and ROOM / SPRING are not in the image */
 #endif
-#ifndef FELUCCA_PERFORM
-#define FELUCCA_PERFORM 0        /* no FX hold layer (perform.c: REPEAT, REVERSE, TAPE STOP ... on the master): its keys and
-                                  * knobs are Felucca's sequencer's and UI's, which this unit has not (FELUCCA_SEQ 0); the
-                                  * per-block calls and its 5 KB leave the audio ISR (fx.c) */
-#endif
 #ifndef CR_CPU1
 #define CR_CPU1 1                /* the bass part's render on the second core (cr_cpu1.h, hal/fm1_cpu1.h, docs/DUALCORE.md):
                                   * started at power-on; if it does not answer, single core with the shared budget */
@@ -136,9 +89,6 @@
 #ifndef CV_ROWS
 #define CV_ROWS 120u             /* gfx.c's canvas: cr_draw.c's strip and its two DMA buffers, 3 x 40 rows, are all this
                                   * unit draws on it (Felucca's graph strip took 124: 1920 B of POOL) */
-#endif
-#ifndef FELUCCA_ICONS
-#define FELUCCA_ICONS 0          /* no Felucca icon atlas (icons.c, ui_icons.h): cr_draw.c draws its header glyphs */
 #endif
 #ifndef FELUCCA_KEYCAPS
 #define FELUCCA_KEYCAPS 0        /* no Felucca keycaps (gfx.c's key hints, ui_keycaps.h): no cr_*.c draws one */
@@ -217,10 +167,6 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #if FELUCCA_UART
 #include "midi_uart.c"
 #endif
-#if FELUCCA_SEQ
-#include "song_chain.c"
-#include "seq.c"                 /* (FELUCCA_SEQ 1 only: Felucca's sequencer, inert under ChoralRoot's UI) */
-#endif
 
 /* ------------------------------------------------- the ChoralRoot engine --- */
 /* cr_engine.h's cr_param_t (a perform parameter) and cr_screen.h's (a params column) share a name: the engine's is
@@ -256,9 +202,6 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 
 /* -------------------------------------------------------------- UI --- */
 #include "panel.c"
-#if FELUCCA_ICONS
-#include "icons.c"               /* (1: Felucca's parameter icons; nothing of ChoralRoot's UI calls them) */
-#endif
 #include "cr_gfx.c"              /* scalable text + shapes on gfx.c (build/gen/cr_fonts.h) */
 #include "cr_layout.c"            /* the compiled layouts (build/gen/cr_layouts.h): P5's panel */
 #include "cr_draw.c"             /* the screens (cr_screen.h) */

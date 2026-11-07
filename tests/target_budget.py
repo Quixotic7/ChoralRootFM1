@@ -14,15 +14,10 @@ import os
 import re
 import sys
 
-FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_render_custom", "phase_render", "lofi_render", "sample_render", "formant_render",
-         "trio_render", "trio_pass", "wheel_render", "wheel_block",
+FUNCS = ["wheel_render", "wheel_block",
          "grain_render", "grain_block", "grain_tick",     # GRAIN (eng_grain.c, ChoralRoot 0.22): the voice, the part, the ISR's tick
-         "phys_render", "drum_render", "noise_render", "fm6_render", "px_modal_block", "px_modal_run", "px_memb_block",
-         "px_string_excite", "px_string_run", "px_symp_run",
-         "dv_metal_run", "dv_kick_run", "dv_snare_run", "dv_clap_run", "dv_hat_run", "dv_tom_run",   # drum_voice.c
-         "dv_rim_run", "dv_bell_run", "dv_cym_run", "dv_out",
+         "fm6_render",
          "slicer_track",
-         "slice_render", "slc_rev",                          # SLICE (eng_slice.c): the render, the reverse windows
          "va_render", "va_block",                            # VA (eng_va.c, ChoralRoot): the voice, the part's LFOs
          "cz_native_render", "cz_native_line", "cz_native_line_mv", "cz_native_noise", "cz_env_tick",   # CZ-1 (cz_native.c, Melodee's): the voice, a line's loops (one per wave and window; _mv: the same with the DCW depth ramped a sample at a time, for the blocks in which it changes), line 2 with NOISE, envelopes
          "quad_render", "quad_block",                        # FM TONE (eng_quad.c, code name QUAD, ChoralRoot): the voice, the part's macros
@@ -49,35 +44,17 @@ FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_re
          "master_block",                                    # the master (fx.c): a loop per LOWCUT / limiter setting
          "mix_loop", "mix_loop_f", "mix_loop_s", "mix_loop_sf",   # a part into the mix (fx.c mix_part_out): plain, with the
          "mix_loop_u", "mix_loop_fu", "mix_loop_su", "mix_loop_sfu",   # sends (f), the stereo side (s), USB's tap (u)
-         "perf_begin", "perf_mute", "perf_pre", "perf_block", "perf_master",   # the FX layer (perform.c), when busy
          "rev_room", "rev_spring",                # the reverb bus (fx.c): REVERB TYPE ROOM / SPRING (Felucca's: CR_FX 0)
          "xf_block", "xf_down", "xf_up", "xd_run", "xr_run",   # ChoralRoot's delay and reverb (cr_fx.c, CR_FX 1): the
          "xf_prep", "xf_delay", "xf_reverb", "mix_fx_split", "c1_fx_job"]   # (3y50: xf_block in three; the reverb on core 1)
                                                   # block, the half-band filters (a send down, the wet up), the delay's
                                                   # loop, the reverb's (xd_run, xr_run: a pass is one half-rate sample)
-# built only with FELUCCA_FM4=1 (DIGITAL, src/eng_digital.c; not in the default build, so not in BUDGET): absent,
-# they are skipped; present, checked against these (their budget lines until the engine was retired in 1.0)
-OPTIONAL = {"digital_render": 12, "digital_render_legacy": 333, "digital_render_custom": 558,
-            # ChoralRoot builds without the SLICE engine and the SLICER insert (choralroot.c FELUCCA_SLICE 0,
-            # FELUCCA_SLICER 0): absent from build/choralroot.dis, checked when built (felucca.c)
-            "slicer_track": 632, "slice_render": 453, "slc_rev": 120,
-            # .. and without SAMPLE, GRAIN, DRUM (choralroot.c FELUCCA_SAMPLE / GRAIN / DRUM 0: all-synth)
-            # .. and without ANALOG (choralroot.c FELUCCA_ANALOG 0, 0.14: the VA replaces it)
-            "analog_render": 581,
-            # .. and since 0.18 without Felucca's ROOM / SPRING reverb (choralroot.c CR_FX 1: cr_fx.c's instead)
-            "rev_room": 218, "rev_spring": 126,
-            # .. and since 0.18 without PHASE, LOFI, VOICE, TRIO, NOISE (choralroot.c FELUCCA_PHASE / LOFI / VOICE / TRIO /
-            # NOISE 0): their budget lines until then
-            "phase_render": 77, "lofi_render": 123, "formant_render": 312, "trio_render": 341, "trio_pass": 175,
-            "noise_render": 259,
-            # .. and without PHYS (choralroot.c FELUCCA_PHYS 0, 0.18): its budget lines until then
-            "phys_render": 61, "px_modal_block": 111, "px_modal_run": 192, "px_memb_block": 106, "px_string_excite": 171,
-            "px_string_run": 264, "px_symp_run": 252,
-            # .. and since 0.18 without the FX hold layer (choralroot.c FELUCCA_PERFORM 0): their budget lines until then
-            "perf_begin": 34, "perf_mute": 19, "perf_pre": 27, "perf_block": 813, "perf_master": 31,
-            "sample_render": 126, "grain_render": 1394, "grain_block": 139, "grain_tick": 35, "drum_render": 86, "dv_metal_run": 26,
-            "dv_kick_run": 153, "dv_snare_run": 158, "dv_clap_run": 74, "dv_hat_run": 61, "dv_tom_run": 75,
-            "dv_rim_run": 61, "dv_bell_run": 52, "dv_cym_run": 67, "dv_out": 35}
+# not in ChoralRoot's image (absent from build/choralroot.dis: skipped; present, checked against these): the SLICER insert
+# (choralroot.c FELUCCA_SLICER 0; the emulator has it), Felucca's ROOM / SPRING reverb (CR_FX 1: cr_fx.c's instead,
+# since 0.18), GRAIN with FELUCCA_GRAIN 0. (The retired engines' and the FX layer's lines left with their sources in
+# 3y232: DIGITAL, SLICE, ANALOG, PHASE, LOFI, VOICE, TRIO, NOISE, PHYS, SAMPLE, DRUM, perform.c.)
+OPTIONAL = {"slicer_track": 632, "rev_room": 218, "rev_spring": 126,
+            "grain_render": 1394, "grain_block": 139, "grain_tick": 35}
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not
 DIV_W = 8                       # a divide weighs 1 + 8 instructions
 NEST = 4                        # an instruction in a loop inside a loop weighs 4, two deep 16, ...

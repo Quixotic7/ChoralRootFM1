@@ -2,47 +2,13 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Engine table (order = PRESETS browsing order and the engine numbers of the editor protocol), the
  * factory patterns (SEQ > PATTERNS) and the parts' sounds at power-on. */
-#if FELUCCA_SLICE && !FELUCCA_SAMPLE
-#error "SLICE plays the SAMPLE engine's sets: FELUCCA_SLICE needs FELUCCA_SAMPLE"
-#endif
 #include "dsp.c"
 #include "va_common.c"          /* the VA's and GRAIN's shared filter, LFO sync list and amount rule (every build) */
-#if FELUCCA_ANALOG
-#include "eng_analog.c"           /* ANALOG: two oscillators, a filter (retired on ChoralRoot: FELUCCA_ANALOG 0) */
-#endif
-#if FELUCCA_PHASE
-#include "eng_phase.c"          /* PHASE: phase distortion (retired on ChoralRoot since 0.18: FELUCCA_PHASE 0; so are LOFI,
-                                 * VOICE, TRIO and NOISE: FELUCCA_LOFI / VOICE / TRIO / NOISE 0) */
-#else
 /* what the kept files call of PHASE: cz_native.c's carrier (eng_phase.c pd_cos: -cos, Q15, from the 16-bit PD phase) */
 static inline int32_t pd_cos(uint32_t ph16) { return -sine_i(((ph16 & 0xFFFFu) << 16) + 0x40000000u); }
-#endif
-#if FELUCCA_LOFI
-#include "eng_lofi.c"
-#endif
-#if FELUCCA_SAMPLE
-#include "eng_sample.c"         /* SAMPLE: the ADPCM sets (build/gen/felucca_samples.h), the user sample slots */
-#endif
-#if FELUCCA_VOICE
-#include "eng_formant.c"
-#endif
-#if FELUCCA_TRIO
-#include "eng_trio.c"
-#endif
 #include "eng_wheel.c"
 /* (GRAIN, engine 8, is included after eng_va.c below: it uses the VA's filter and LFO sync) */
-#if FELUCCA_PHYS
-#include "eng_phys.c"           /* PHYS: DaisySP physical models (phys_dsp.c, MIT; retired on ChoralRoot since 0.18:
-                                 * FELUCCA_PHYS 0) */
-#endif
-#if FELUCCA_DRUM
-#include "eng_drum.c"           /* DRUM: the 8-lane kit (drum_voice.c) */
-#endif
-#if FELUCCA_NOISE
-#include "eng_noise.c"
-#endif
 #include "eng_fm6.c"            /* FM6: 6-operator FM rendered as Dexed renders it (fm6_core.c; Melodee's, Kerem Kilic) */
-#include "fm4_convert.c"        /* DIGITAL's tables, and its sounds -> FM6 */
 #if FELUCCA_CZ
 #if !FELUCCA_VA
 #error "FELUCCA_CZ: its tone store sits beside the VA's and FM6's (upreset.c): FELUCCA_VA 1"
@@ -64,25 +30,16 @@ static inline int32_t pd_cos(uint32_t ph16) { return -sine_i(((ph16 & 0xFFFFu) <
 
 /* the engines' runtime state of a part (Melodee's voice model). A part renders one engine at a time (an engine switch
  * fades the old one out first, voice.c engine_block), so their states share one block per part, cleared at every
- * switch: an engine finds its state as at power-on (the pool section is zeroed at boot). PHYS's voice slots, WHEEL's
- * part and voices, FM6's 16 voices and controllers. The patch of a part (FM6's, the VA's) is not in here; nor are the
- * states of the engines ChoralRoot does not build (DRUM, GRAIN, SLICE keep their own: Felucca's unit).
- * ENG_STATE_NPART: the parts that have one. Felucca's sequencer plays all four; ChoralRoot's units (FELUCCA_SEQ 0)
- * play the chord part and the bass part only (cr_out.c: midi_event takes parts 0 / 1, cr_route.part is CR_PART_CHORD,
+ * switch: an engine finds its state as at power-on (the pool section is zeroed at boot). WHEEL's part and voices,
+ * FM6's 16 voices and controllers, CZ-1's and P5's voices. The patch of a part (FM6's, the VA's) is not in here; nor is
+ * GRAIN's state (its own). ENG_STATE_NPART: the parts that have one. ChoralRoot plays the chord part and the bass part only (cr_out.c: midi_event takes parts 0 / 1, cr_route.part is CR_PART_CHORD,
  * CR_PART_BASS or none), as eng_va.c's VA_NPART and eng_quad.c's QUAD_NPART. A part above them has no state (0, never
  * another part's): its engine takes no note and does no per-block work, so it is silent; it never gets a note there */
 #ifndef ENG_STATE_NPART
-#if FELUCCA_SEQ
-#define ENG_STATE_NPART NPART
-#else
 #define ENG_STATE_NPART 2u       /* (ChoralRoot: chord, bass; 6.9 KB of pool a part: FM6's, the largest since PHYS's
-                                  * three slots (12.9 KB) went with FELUCCA_PHYS 0) */
-#endif
+                                  * three slots (12.9 KB) went with PHYS) */
 #endif
 static union {
-#if FELUCCA_PHYS
-    phys_slot_t phys[PHYS_POLY];
-#endif
     drw_part_t wheel;
     fm6_part_t fm6;
 #if FELUCCA_CZ
@@ -93,9 +50,6 @@ static union {
                                   * stays FM6's size) */
 #endif
 } eng_state[ENG_STATE_NPART] __attribute__((section(".pool")));
-#if FELUCCA_PHYS
-static phys_slot_t *phys_slots(uint32_t part) { return part < ENG_STATE_NPART ? eng_state[part].phys : 0; }
-#endif
 static drw_part_t *drw_of(const track_t *t)
 {
     uint32_t part = (uint32_t)(t - trk);
@@ -119,53 +73,40 @@ static void eng_state_clear(uint32_t part)
         memset(&eng_state[part], 0, sizeof eng_state[part]);
 }
 
-/* a retired engine's slot (FELUCCA_ANALOG / SAMPLE / GRAIN / DRUM 0, and since 0.18 FELUCCA_PHASE / LOFI / VOICE / TRIO /
- * NOISE / PHYS 0, ChoralRoot): no DSP, no presets, silent, never offered
+/* a retired engine's slot (ANALOG, DIGITAL, SAMPLE, DRUM, and since 0.18 PHASE, LOFI, VOICE, TRIO, NOISE, PHYS: their
+ * sources left the tree in 3y232, DIGITAL's converter to FM6 with them; GRAIN's with FELUCCA_GRAIN 0): no DSP, no
+ * presets, silent, never offered
  * (eng_ok: PRESETS, the EDIT layer, the pickers skip it); its number stays reserved (the stores hold numbers) */
-#if !FELUCCA_FM4
-#define ENG_GONE ENG_FM4_GONE    /* (fm4_convert.c: DIGITAL's empty slot is the same thing) */
-#elif !FELUCCA_SAMPLE || !FELUCCA_GRAIN || !FELUCCA_DRUM || !FELUCCA_ANALOG || !FELUCCA_PHASE || !FELUCCA_LOFI || \
-    !FELUCCA_VOICE || !FELUCCA_TRIO || !FELUCCA_NOISE || !FELUCCA_PHYS
 static void eng_gone_note_on(struct track *t, voice_t *v) { (void)t; (void)v; }
 static void eng_gone_render(struct track *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     (void)t; (void)v; (void)out; (void)n; (void)m;
 }
+/* .edit: the ranges a retired engine's record is clamped to before cr_ui.c cu_load_user reads it (up_values: ANALOG's
+ * CUT / RES / DRV .. carried to the VA by name need their 0..127): DIGITAL's empty slot's (fm4_convert.c ENG_FM4_GONE,
+ * the retired slots' until 3y232), kept as they were */
 static const engine_t ENG_GONE = {
     .name = "-",
     .page_title = {"-", "-"},
-    .edit = {{"-", F_INT, 0, 0, 0, 0, 0}, {"-", F_INT, 0, 0, 0, 0, 0}, {"-", F_INT, 0, 0, 0, 0, 0},
-             {"-", F_INT, 0, 0, 0, 0, 0}, {"-", F_INT, 0, 0, 0, 0, 0}, {"-", F_INT, 0, 0, 0, 0, 0},
-             {"-", F_INT, 0, 0, 0, 0, 0}, {"-", F_INT, 0, 0, 0, 0, 0}},
+    .edit = {{"-", F_INT, 0, 7, 0, 0, 0}, {"-", F_INT, 0, 14, 1, 0, 0}, {"-", F_INT, 0, 14, 1, 0, 0},
+             {"-", F_INT, 0, 14, 1, 0, 0}, {"-", F_PCT, 0, 127, 60, 0, 0}, {"-", F_INT, 0, 127, 60, 0, 0},
+             {"-", F_PCT, 0, 127, 0, 0, 0}, {"-", F_INT, 0, 0, 0, 0, 0}},
     .note_on = eng_gone_note_on,
     .render = eng_gone_render,
     .knob = {P_E4, P_E5, P_E6, P_REL},
 };
-#endif
-#if !FELUCCA_SAMPLE
 /* what the kept files read of SAMPLE: params.c enum_orig's alias table (no set: never an alias) */
 #define SMP_NSETS 0
 static const char *const SMP_ALL_NAMES[1] = {"-"};
 static const uint8_t SMP_SET_ORIG[1] = {0};
-#endif
-#if !FELUCCA_DRUM
 /* what the kept files call of DRUM: voice.c (a part on engine 10 shares a lane's voice; never one here), upreset.c
  * (a DRUM part's grid into a user slot; never one here) */
 #define ENG_DRUM ENG_GONE
 static voice_t *drum_reuse(struct track *t, uint32_t note) { (void)t; (void)note; return 0; }
 static uint32_t step_lanes(const step_t *s) { (void)s; return 0; }
 static uint32_t step_accents(const step_t *s) { (void)s; return 0; }
-#endif
-#if !FELUCCA_VOICE
 /* what the kept files call of VOICE: fx.c c1_split_ok (both parts on VOICE share its breath noise: never one here) */
 #define ENG_FORMANT ENG_GONE
-#endif
-#if FELUCCA_FM4
-#include "eng_digital.c"        /* DIGITAL: four-operator FM (retired; FELUCCA_FM4=1 builds it) */
-#endif
-#if FELUCCA_SLICE
-#include "eng_slice.c"
-#endif
 #if FELUCCA_VA
 #include "eng_va.c"             /* VA: ChoralRoot's four-oscillator virtual analog (deep pages, its own patch) */
 #endif
@@ -177,66 +118,24 @@ static uint32_t step_accents(const step_t *s) { (void)s; return 0; }
 
 /* the editor protocol, user presets and projects store these indices: append, never reorder */
 static const engine_t *const ENGINES[NENGINES] = {
-#if FELUCCA_ANALOG
-    &ENG_ANALOG,                 /* 0 */
-#else
-    &ENG_GONE,                   /* 0: reserved (ANALOG, retired: FELUCCA_ANALOG 0; its records load on the VA) */
-#endif
-#if FELUCCA_FM4
-    &ENG_DIGITAL,                /* 1 (ENGI_DIGITAL) */
-#else
-    &ENG_FM4_GONE,               /* 1: reserved (DIGITAL, retired: its sounds convert to FM6, fm4_convert.c) */
-#endif
-#if FELUCCA_PHASE
-    &ENG_PHASE,                  /* 2 */
-#else
-    &ENG_GONE,                   /* 2: reserved (PHASE, retired: FELUCCA_PHASE 0) */
-#endif
-#if FELUCCA_LOFI
-    &ENG_LOFI,                   /* 3 */
-#else
-    &ENG_GONE,                   /* 3: reserved (LOFI, retired: FELUCCA_LOFI 0) */
-#endif
-#if FELUCCA_SAMPLE
-    &ENG_SAMPLE,                 /* 4 */
-#else
-    &ENG_GONE,                   /* 4: reserved (SAMPLE, retired: FELUCCA_SAMPLE 0) */
-#endif
-#if FELUCCA_VOICE
-    &ENG_FORMANT,                /* 5 VOICE (eng_formant.c: "voice" is a sounding note in voice.c) */
-#else
-    &ENG_GONE,                   /* 5: reserved (VOICE, retired: FELUCCA_VOICE 0) */
-#endif
-#if FELUCCA_TRIO
-    &ENG_TRIO,                   /* 6 */
-#else
-    &ENG_GONE,                   /* 6: reserved (TRIO, retired: FELUCCA_TRIO 0) */
-#endif
+    &ENG_GONE,                   /* 0: reserved (ANALOG, retired: its records load on the VA) */
+    &ENG_GONE,                   /* 1: reserved (DIGITAL, retired in Felucca 1.0: its records load as the VA's init
+                                  * sound since 3y232, cr_ui.c cu_load_user; FM6 conversions before) */
+    &ENG_GONE,                   /* 2: reserved (PHASE, retired in 0.18) */
+    &ENG_GONE,                   /* 3: reserved (LOFI, retired in 0.18) */
+    &ENG_GONE,                   /* 4: reserved (SAMPLE, retired) */
+    &ENG_GONE,                   /* 5: reserved (VOICE, retired in 0.18) */
+    &ENG_GONE,                   /* 6: reserved (TRIO, retired in 0.18) */
     &ENG_WHEEL,                  /* 7 */
 #if FELUCCA_GRAIN
     &ENG_GRAIN,                  /* 8 */
 #else
     &ENG_GONE,                   /* 8: reserved (GRAIN, retired: FELUCCA_GRAIN 0) */
 #endif
-#if FELUCCA_PHYS
-    &ENG_PHYS,                   /* 9 (ENGI_PHYS) */
-#else
-    &ENG_GONE,                   /* 9: reserved (PHYS, retired: FELUCCA_PHYS 0) */
-#endif
-#if FELUCCA_DRUM
-    &ENG_DRUM,                   /* 10 (ENGI_DRUM) */
-#else
-    &ENG_GONE,                   /* 10: reserved (DRUM, retired: FELUCCA_DRUM 0) */
-#endif
-#if FELUCCA_NOISE
-    &ENG_NOISE,                  /* 11 */
-#else
-    &ENG_GONE,                   /* 11: reserved (NOISE, retired: FELUCCA_NOISE 0) */
-#endif
+    &ENG_GONE,                   /* 9: reserved (PHYS, retired in 0.18) */
+    &ENG_GONE,                   /* 10: reserved (DRUM, retired) */
+    &ENG_GONE,                   /* 11: reserved (NOISE, retired in 0.18) */
     &ENG_FM6,                    /* 12 (ENGI_FM6) */
-#if FELUCCA_SLICE
-    &ENG_SLICE,                  /* 13 (FELUCCA_SLICE=0 builds without it) */
-#endif
 #if FELUCCA_VA
     &ENG_VA,                     /* 13 + FELUCCA_SLICE (ENGI_VA; ChoralRoot: 13) */
 #endif
@@ -255,12 +154,9 @@ static const engine_t *const ENGINES[NENGINES] = {
 static inline uint32_t eng_idx(uint32_t e) { return e < NENGINES ? e : 0u; }
 
 /* the order the engines are shown in (PRESETS browsing and its ENG knob, the EDIT layer's keys, the editor's list):
- * engine indices, never DIGITAL's reserved 1 (with FELUCCA_FM4 it follows FM6). The indices stay as they are (the
+ * engine indices, never DIGITAL's reserved 1. The indices stay as they are (the
  * stores and the protocol hold them); only this table orders them */
 static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
-#if FELUCCA_ANALOG
-    0,                           /* ANALOG */
-#endif
     12,                          /* FM6 */
 #if FELUCCA_QUAD
     ENGI_QUAD,                   /* FM TONE (code name QUAD; after FM6: the other FM engine) */
@@ -274,62 +170,25 @@ static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
 #if FELUCCA_PROPHET
     ENGI_PROPHET,                /* PROPHET (after CZ-1, before WHEEL) */
 #endif
-#if FELUCCA_FM4
-    1,                           /* DIGITAL */
-#endif
-#if FELUCCA_PHASE
-    2,                           /* PHASE */
-#endif
-#if FELUCCA_LOFI
-    3,                           /* LOFI */
-#endif
-#if FELUCCA_SAMPLE
-    4,                           /* SAMPLE */
-#endif
-#if FELUCCA_VOICE
-    5,                           /* VOICE */
-#endif
-#if FELUCCA_TRIO
-    6,                           /* TRIO */
-#endif
     7,                           /* WHEEL */
 #if FELUCCA_GRAIN
     8,                           /* GRAIN */
 #endif
-#if FELUCCA_PHYS
-    9,                           /* PHYS */
-#endif
-#if FELUCCA_NOISE
-    11,                          /* NOISE */
-#endif
-#if FELUCCA_SLICE
-    13,                          /* SLICE */
-#endif
-#if FELUCCA_DRUM
-    10,                          /* DRUM */
-#endif
 };
 
-/* the engines one can pick (engine 1 only with FELUCCA_FM4; 0, 4, 8, 10 only with FELUCCA_ANALOG, SAMPLE, GRAIN, DRUM;
- * 2, 3, 5, 6, 11 only with FELUCCA_PHASE, LOFI, VOICE, TRIO, NOISE; 9 only with FELUCCA_PHYS), in
- * ENGINE_ORDER: eng_ok(e), the n-th of them eng_vis(n), e's place among them eng_rank(e), the next / previous one
+/* the engines one can pick (not the retired slots 0..6, 9..11; 8 only with FELUCCA_GRAIN), in ENGINE_ORDER: eng_ok(e), the n-th of them eng_vis(n), e's place among them eng_rank(e), the next / previous one
  * eng_step(e, dir) (wraps) */
 /* the six retired in ChoralRoot 0.18 (PHASE, LOFI, VOICE, TRIO, NOISE, then PHYS: their records carry what an init sound
  * can honestly take: cr_ui.c cu_load_user) */
-#define ENG_RETIRED_018 ((FELUCCA_PHASE ? 0u : 1u << 2) | (FELUCCA_LOFI ? 0u : 1u << 3) | (FELUCCA_VOICE ? 0u : 1u << 5) | \
-                         (FELUCCA_TRIO ? 0u : 1u << 6) | (FELUCCA_NOISE ? 0u : 1u << 11) | \
-                         (FELUCCA_PHYS ? 0u : 1u << 9))
-#define ENG_RETIRED ((FELUCCA_FM4 ? 0u : 1u << ENGI_DIGITAL) | (FELUCCA_SAMPLE ? 0u : 1u << 4) | \
-                     (FELUCCA_GRAIN ? 0u : 1u << 8) | (FELUCCA_DRUM ? 0u : 1u << ENGI_DRUM) | (FELUCCA_ANALOG ? 0u : 1u) | \
-                     ENG_RETIRED_018)
+#define ENG_RETIRED_018 (1u << 2 | 1u << 3 | 1u << 5 | 1u << 6 | 1u << 11 | 1u << 9)
+#define ENG_RETIRED (1u << ENGI_DIGITAL | 1u << 4 | (FELUCCA_GRAIN ? 0u : 1u << 8) | 1u << ENGI_DRUM | 1u | ENG_RETIRED_018)
 static int eng_ok(uint32_t e) { return e < NENGINES && !((ENG_RETIRED >> e) & 1u); }
 static uint32_t eng_vis(uint32_t n) { return ENGINE_ORDER[n % NENG_SHOWN]; }
 static uint32_t eng_rank(uint32_t e)
 {
     uint32_t n;
     if (!eng_ok(e))
-        e = ENGI_FM6;                            /* (DIGITAL without FELUCCA_FM4: its sounds play as FM6; a retired
-                                                  * engine's place: FM6's) */
+        e = ENGI_FM6;                            /* (a retired engine's place: FM6's) */
     for (n = 0; n < NENG_SHOWN && ENGINE_ORDER[n] != e; n++)
         ;
     return n < NENG_SHOWN ? n : 0u;
@@ -384,21 +243,9 @@ static const struct {
 
 /* the parts at power-on (engine, preset, PATTERNS[n - 1] in the sequencer, 0 = empty: all are): bass, pad, lead, drums */
 static const uint8_t TRK_DEF[NPART][3] = {
-#if FELUCCA_ANALOG
-                                          {0, 4, 0},                  /* ANALOG ACID */
-#else
                                           {ENGI_FM6, 0, 0},           /* (no ANALOG: FM6's first sound) */
-#endif
                                           {ENGI_FM6, 4, 0},           /* FM6 PAD (was DIGITAL PAD), LOFI PULSE LD,
                                                                        * DRUM KIT */
-#if FELUCCA_LOFI
-                                          {3, 0, 0},
-#else
                                           {ENGI_FM6, 0, 0},           /* (no LOFI: FM6's first sound) */
-#endif
-#if FELUCCA_DRUM
-                                          {ENGI_DRUM, 0, 0}};
-#else
                                           {ENGI_FM6, 0, 0}};   /* (no DRUM: FM6's first sound) */
-#endif
 static uint32_t trk_def_engine(uint32_t i) { return TRK_DEF[i % NPART][0]; }

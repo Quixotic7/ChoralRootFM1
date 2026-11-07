@@ -38,18 +38,18 @@ A retired engine keeps its number (the stores and the protocol hold numbers: `EN
 saved on engine 4, 8 or 10 (a Felucca slot, a restored bank) loads as the INIT sound on the VA under its name, with
 the message "engine retired: init sound" (one saved on PHASE, LOFI, VOICE, TRIO or NOISE, retired in 0.18: "0.18:
 PHASE, LOFI, VOICE, TRIO, NOISE retired" below) (and the trace line `load: slot N engine E retired -> INIT on VA`). ANALOG
-(engine 0) is retired too since 0.14 (`FELUCCA_ANALOG` 0 here, in the emulator, `tests/regress.c` and ChoralRoot's host
-units through `tests/hostsim.c`; default 1, so Felucca's unit keeps it): its code, presets and pool are out of the
-image; a user sound saved on ANALOG (a 0.13 slot) loads on the VA with its macros carried by name (CUT RES DRIVE MIX
+(engine 0) is retired too since 0.14 (`FELUCCA_ANALOG` 0; its source left the tree in 3y232): its code, presets and pool
+are out of the image; a user sound saved on ANALOG (a 0.13 slot) loads on the VA with its macros carried by name (CUT RES DRIVE MIX
 DTN, the filter envelope to FENV, ATK / REL; `cr_ui.c cu_analog_va`, the VA's init patch under them), an added preset
 of the VA's pool (`cr_bank.c cb_rec_engine`; its binding to an ANALOG factory preset is dropped), with the message
 "ANALOG retired: on the VA" (trace `load: slot N engine 0 (ANALOG) retired -> VA, its macros`).
-Felucca's own unit (`felucca.c`) and its host suites (`tests/hostsim.c`, `regress.c`) keep every flag at its default
-(1): nothing of Felucca changes. Felucca files touched only for the flags: `core.h` (the defaults, `NENG_SHOWN`),
-`engines.c` (the includes, `ENGINES[]`, `ENGINE_ORDER`, `eng_ok`, `TRK_DEF`, the retired slot and the shims above),
-`gfx.c` (the keycaps behind `FELUCCA_KEYCAPS`), `tests/hostsim.c` (`FELUCCA_SEQ 0`: the sound side only, without its
-own renders); `voice.c`, `fx.c`, `audio.c`, `usb.c`, `main.c`, `params.c`, `mod.c` and `upreset.c` are unedited. The emulator (`tools/emu/emu_firmware.h`), `tests/cr_trans_test.c` and
-`tests/cr_draw_test.c` set ChoralRoot's flags as `choralroot.c` does.
+**3y232: Felucca's tree goes.** Felucca's own unit (`felucca.c`), its sequencer, UI, editor, projects and the
+retired engines' sources (38 files) and the DIGITAL -> FM6 converter (`fm4_convert.c`: a DIGITAL record now loads as
+the VA's init sound, as the other retired engines' do) left the tree, with the host tests that compiled them. `core.h`'s
+defaults are ChoralRoot's (the retired engines' and the sequencer's switches 0, setting one 1 an error; the VA, CZ-1
+and FM TONE in every build, so the sound pool is too, `UP_POOL` 1); `tests/hostsim.c` builds in that configuration and
+gives the host tests stand-ins for what `cr_out.c` provides (`HOST_CR_OUT`: the emulator and `tests/cr_trans_test.c`
+take `cr_out.c` itself); `tests/regress.c`'s goldens are ChoralRoot's engines' (279, the 259 of before unchanged).
 
 **Melodee's FM6 and voice model (2026-10-07, docs/FM6.md).** FM6 is Melodee's (Kerem Kilic's fork of Felucca): Dexed's
 rendering, DX7 SysEx, the 32-voice bank (`eng_fm6.c`, `fm6_core.c`, `eng_fm6_rom.h`, `fm6_bank.c`, `fm6_store.c`, the FM6
@@ -107,10 +107,9 @@ DEEP SUB. perf.sh (c) / (i) now run on the VA bass DEEP SUB (ALGORITHM +18): (c)
 
 **0.18: PHASE, LOFI, VOICE, TRIO, NOISE retired (2026-10-11).** The owner's decision: the five are Felucca's legacy,
 not ChoralRoot's identity, and their flash is wanted elsewhere; PHYS stays for now. Switched off as ANALOG was, a flag
-each, default 1 in `core.h` (Felucca's unit `felucca.c` and its host suite, `tests/regress.c`'s goldens, `phys_test`,
-`noise_test` keep every engine), 0 in `choralroot.c`, `tools/emu/emu_firmware.h`, ChoralRoot's host units through
-`tests/hostsim.c` (`FELUCCA_SEQ 0`) and `tests/cr_cpu1_test.c`; `tools/build.py` passes them from the environment
-(`FELUCCA_TRIO=1 ./build.sh`):
+each, default 1 in `core.h` (then: Felucca's unit and its host suite kept every engine), 0 in `choralroot.c`, the
+emulator and ChoralRoot's host units; `tools/build.py` passed them from the environment. (Since 3y232 their sources are
+gone and the flags are 0 everywhere: the table below is what they cost then.)
 
 | flag | engine | source (kept in the tree) | XIP it costs (switched back on alone) |
 | --- | --- | --- | --- |

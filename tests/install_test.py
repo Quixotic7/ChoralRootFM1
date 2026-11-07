@@ -1510,7 +1510,7 @@ def bindings():
         return bytes(r)
     fp, ff = I.FACTORY_PRESETS, I.FACTORY_FIRST
     ok(fp["12"][1] == "FM BELL" and len(fp["12"]) == 25 and fp["14"][0] == "INIT TONE" and len(fp["14"]) == 65 and
-       ff["14"] == 1 and ff["12"] == 0 and not any(e in fp for e in ("0", "1", "4", "10")) and I.pool_of(1) == 12 and
+       ff["14"] == 1 and ff["12"] == 0 and not any(e in fp for e in ("0", "1", "4", "10")) and I.pool_of(1) == 13 and
        I.pool_of(0) == 13 and I.pool_of(8) == 8 and len(fp["8"]) == 8 and I.pool_of(14) == 14,
        "binding: the factory table (the firmware's, --check), retired engines' pools (ANALOG's: the VA's)")
     ok(sorted(fp, key=int) == ["7", "8", "12", "13", "14", "15", "16"] and all(I.pool_of(e) == 13 and I.engine_retired(e) for e in (2, 3, 5, 6, 9, 11)) and
@@ -1542,7 +1542,7 @@ def bindings():
             4: bind(sound_rec(14, "MY BRASS", seed=6), 2),       # U05 CZ-1 over BRASS 1 = pool 01
             5: bind(sound_rec(14, "OVER INIT", seed=7), 1),      # U06 INIT TONE (the pool's INIT): added
             6: bind(sound_rec(12, "TOO FAR", seed=8), 26),       # U07 past the 25 FM6 presets: added
-            7: bind(sound_rec(1, "DIGI", seed=9), 3),            # U08 DIGITAL in FM6's pool, over FM BASS
+            7: bind(sound_rec(1, "DIGI", seed=9), 3),            # U08 DIGITAL (retired): the VA's pool, added
             8: bind(sound_rec(0, "GRID", ver=5, seed=10), 1),    # U09 a drum grid record: never bound
             9: bind(sound_rec(2, "PD BRASS", seed=11), 1),       # U10 PHASE (retired in 0.18) over its BRASS: the VA's
             10: sound_rec(11, "WIND", seed=12)}                  #     pool, added (not the VA's first); U11 NOISE: added
@@ -1557,11 +1557,10 @@ def bindings():
     b0 = t[0]["bound"]
     ok(b0 and b0["index"] == 1 and b0["pos"] == 2 and b0["label"] == "FM6 02" and b0["name"] == "FM BELL" and not t[0]["added"],
        "binding: a bound FM6 record -> over FM6 02 FM BELL")
-    ok(all(t[k]["bound"] is None and t[k]["added"] for k in (1, 2, 3, 5, 6, 8)),
-       "binding: marked 0, unmarked, a second binding, INIT TONE, past the presets, a grid record -> added")
-    ok(t[4]["bound"]["label"] == "CZ-1 01" and t[4]["bound"]["name"] == "BRASS 1" and t[7]["bound"]["label"] == "FM6 03" and
-       t[7]["bound"]["name"] == "FM BASS" and not t[20]["added"] and t[20]["bound"] is None,
-       "binding: CZ-1 over BRASS 1 = pool 01, DIGITAL in FM6's pool; empty slots neither")
+    ok(all(t[k]["bound"] is None and t[k]["added"] for k in (1, 2, 3, 5, 6, 7, 8)),
+       "binding: marked 0, unmarked, a second binding, INIT TONE, past the presets, DIGITAL, a grid record -> added")
+    ok(t[4]["bound"]["label"] == "CZ-1 01" and t[4]["bound"]["name"] == "BRASS 1" and not t[20]["added"] and
+       t[20]["bound"] is None, "binding: CZ-1 over BRASS 1 = pool 01; empty slots neither")
     ln = I.sound_line(t[0]).split()
     ok(ln == ["U01", "MY", "BELL", "FM6", "no", "patch", "over", "FM6", "02", "FM", "BELL"] and
        I.sound_line(t[1]).split()[-1] == "+" and I.sound_line(t[8]).split() == ["U09", "GRID", "ANALOG", "retired", "+"],

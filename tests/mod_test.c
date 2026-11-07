@@ -7,11 +7,13 @@
  * 2. the math: every source on each kind of destination (per voice: PITCH CUT SHP AMP; per block: PAN, the
  *    sends, RATE, VIB, an engine parameter), bipolar sources and amounts, sums, clamping to the ranges,
  *    per-voice sources on per-block destinations (the latest note-on), RAND without the shared rng.
- * 3. MIDI: CC1 / CC11 / CC121 and channel aftertouch over USB (packets) and TRS (bytes, running status) reach
- *    the matrix of the channel's track (ch 1..4 the parts, others the selected track).
- * 4. cost: instructions per sample (kernel-counted) of the heaviest PHYS preset and of a 4-part mix with every
- *    slot of every part active, against the same with the matrix off; fails above MOD_COST_MAX.
- * 5. demos: LFO -> CUT, VEL -> AMP, MODW -> VIB, LFO -> TRIO PW, AT -> WHEEL DRV as WAVs in DEMO_DIR. */
+ * 3. MIDI: CC1 / CC11 / CC121 and channel aftertouch reach the part's matrix (mod.c mod_midi: what cr_out.c
+ *    midi_event hands it for the CHORD / BASS channels; the TRS bytes' parsing: tests/midi_uart_test.c).
+ * 4. cost: instructions per sample (kernel-counted) of the VA's CLOUD PAD and of the chord and bass parts full (FM6,
+ *    the VA) with every slot of both active, against the same with the matrix off; fails above MOD_COST_MAX.
+ * 5. demos: LFO -> CUT, VEL -> AMP, MODW -> VIB, LFO -> P5 PWA, AT -> WHEEL DRV as WAVs in DEMO_DIR.
+ * Options > Key Touch (cr_touch_*): its law and the Expression slots' defaults. (ChoralRoot's configuration since
+ * 3y232: Felucca's engines and its MIDI channel routing left the tree.) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -89,7 +91,7 @@ static void fresh(uint32_t e, uint32_t pi)        /* the boot state (no FX tails
     memset(mod_tab, 0, sizeof mod_tab);        /* (per part since the bass part renders on core 1) */
     host_tracks_init();
     for (k = 0; k < NPART; k++)
-        host_preset(&trk[k], k ? 0u : e, k ? 0u : pi);
+        host_preset(&trk[k], k ? ENGI_VA : e, k ? 0u : pi);
     song.sel = 0;
     hash = 0xCBF29CE484222325ull;
 }
@@ -125,7 +127,7 @@ static uint64_t phrase_child(uint32_t k)
     fflush(stdout);
     if (!(pid = fork())) {
         int16_t keep[P_COUNT];
-        fresh(0, 0);
+        fresh(ENGI_VA, 0);
         if (k == 1u) {
             slot(&trk[0], 0, MS_LFO, MD_CUT, 0);   /* AMT 0 */
             slot(&trk[0], 1, MS_OFF, MD_PAN, 40);  /* SRC OFF */
@@ -173,10 +175,10 @@ static void test_math(void)
     int32_t lfo;
     vmod_t m;
     voice_t *v;
-    uint32_t e_trio, k_pw;
+    uint32_t e_p5, k_pw;
 
     /* per-track sources on per-voice destinations */
-    fresh(0, 0);
+    fresh(ENGI_VA, 0);
     lfo_at(t, 32767);
     lfo = mulq15(32767, 32767);
     slot(t, 0, MS_LFO, MD_CUT, 63);
@@ -221,7 +223,7 @@ static void test_math(void)
     mod_end(t);
 
     /* per-voice sources on per-voice destinations (mod_voice) */
-    fresh(0, 0);
+    fresh(ENGI_VA, 0);
     t->p[P_VOICE] = V_POLY;
     slot(t, 0, MS_KEY, MD_CUT, 63);
     slot(t, 1, MS_VEL, MD_AMP, 63);
@@ -253,7 +255,7 @@ static void test_math(void)
     mod_end(t);
 
     /* clamping of the per-voice sums */
-    fresh(0, 0);
+    fresh(ENGI_VA, 0);
     lfo_at(t, 32767);
     for (k_pw = 0; k_pw < 4u; k_pw++)
         slot(t, k_pw, MS_LFO, k_pw < 2u ? MD_CUT : MD_PITCH, 63);
@@ -268,7 +270,7 @@ static void test_math(void)
     mod_end(t);
 
     /* per-block destinations: AMT 64 = the whole range, clamped, restored */
-    fresh(0, 0);
+    fresh(ENGI_VA, 0);
     t->p[P_PAN] = 0;
     t->mw = 127;
     slot(t, 0, MS_MODW, MD_PAN, 16);
@@ -311,29 +313,30 @@ static void test_math(void)
     check("every per-block value restored", t->p[P_DIST] == 64 && t->p[P_CHOR] == 64 && t->p[P_LRATE] == 100 && t->p[P_LD_PIT] == 0);
 
     /* an engine parameter: its descriptor's range */
-    e_trio = eng_by_name("TRIO");
-    k_pw = edit_by_label(e_trio, "PW", 7);
-    fresh(e_trio, 0);
+    e_p5 = ENGI_PROPHET;
+    k_pw = edit_by_label(e_p5, "PWA", 4);
+    fresh(e_p5, 0);
     lfo_at(t, 32767);
-    t->p[P_E0 + k_pw] = 100;
+    t->p[P_E0 + k_pw] = 50;
     slot(t, 0, MS_LFO, MD_E1 + (int32_t)k_pw, 40);
     mod_begin(t);
-    check("LFO -> TRIO PW: clamped to its range (0..127)", t->p[P_E0 + k_pw] == 127);
+    check("LFO -> P5 PWA: clamped to its range (-63..63)", t->p[P_E0 + k_pw] == 63);
     mod_end(t);
-    t->p[P_E0 + 1] = 0;                            /* INT2: -24..24 */
+    t->p[P_E0 + 1] = 0;                            /* RES: -63..63 */
     slot(t, 0, MS_MODW, MD_E1 + 1, -32);
     t->mw = 127;
     mod_begin(t);
-    check("MODW -> E2 -32: half its range down (TRIO INT2 -24..24: -24)",
-          t->p[P_E0 + 1] == (((((127 * 258) * -32) >> 6) * (ENGINES[e_trio]->edit[1].max - ENGINES[e_trio]->edit[1].min)) >> 15) &&
+    check("MODW -> E2 -32: half its range down (P5 RES -63..63: -63)",
+          t->p[P_E0 + 1] == (((((127 * 258) * -32) >> 6) * (ENGINES[e_p5]->edit[1].max - ENGINES[e_p5]->edit[1].min)) >> 15) &&
           t->p[P_E0 + 1] < -10);
     mod_end(t);
-    check("the engine parameters restored", t->p[P_E0 + k_pw] == 100 && t->p[P_E0 + 1] == 0);
-    check("DST names: E1..E8 by the engine's labels", str_eq(mod_dst_name(t, MD_E1 + (int32_t)k_pw), "PW") &&
+    check("the engine parameters restored", t->p[P_E0 + k_pw] == 50 && t->p[P_E0 + 1] == 0);
+    check("DST names: E1..E8 by the engine's labels", str_eq(mod_dst_name(t, MD_E1 + (int32_t)k_pw), "PWA") &&
                                                           str_eq(mod_dst_name(t, MD_CUT), "CUT"));
 
-    /* per-voice sources on a per-block destination: the latest note-on */
-    fresh(0, 0);
+    /* per-voice sources on a per-block destination: the latest note-on (WHEEL: voice.c's envelope, the ENV source's;
+     * the VA's own envelope leaves it 0, engine_t.ownenv) */
+    fresh(eng_by_name("WHEEL"), 0);
     slot(t, 0, MS_VEL, MD_PAN, 63);
     trk_note_on(t, 60, 20);
     mod_begin(t);
@@ -358,10 +361,6 @@ static void test_math(void)
 }
 
 /* ------------------------------------------------------------------ 3 --- */
-static void pkt(uint32_t st, uint32_t d1, uint32_t d2)
-{
-    midi_in_q[mi_w++ % MQ] = (st >> 4) | st << 8 | d1 << 16 | d2 << 24;
-}
 /* fn() in a fork()ed child (the tests' state stays as it was); its result */
 static int in_child(int (*fn)(void))
 {
@@ -377,10 +376,10 @@ static int pan_e2e(void)                       /* MODW -> PAN moves the pan the 
 {
     int64_t l = 0, r = 0;
     uint32_t i, k;
-    fresh(0, 0);
+    fresh(ENGI_VA, 0);
     slot(&trk[0], 0, MS_MODW, MD_PAN, 63);
     trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = 0;   /* (the buses are in the middle) */
-    pkt(0xB0, 1, 127);
+    mod_midi(&trk[0], 0xB0, 1, 127);
     trk_note_on(&trk[0], 60, 100);
     blocks(FS / 10u / CTL);
     for (k = 0; k < FS / 10u / CTL; k++) {
@@ -410,7 +409,7 @@ static void test_touch(void)
     cr_touch_vsens = 2; h0 = cr_touch_gain(0);
     check("Low leaves 3/4 at velocity 0, High nothing", l0 == 24576 && h0 <= 1);
     cr_touch_vsens = 0;
-    fresh(0, 0);
+    fresh(ENGI_VA, 0);
     slot(t, 2, 0, 0, 0);
     slot(t, 3, 0, 0, 0);
     cr_touch_mode = CR_TOUCH_FIXED;
@@ -462,32 +461,18 @@ static void test_touch(void)
     t->at = 0;
 }
 
-static void test_midi(void)
+static void test_midi(void)                     /* what cr_out.c midi_event hands mod.c for a part's channel */
 {
-    static const uint8_t TRS[] = {0xB0, 1, 0x40, 1, 0x7F, 0xF8, 11, 0x20, 0xD2, 0x33, 0x34, 0x90, 60, 0, 0xB4, 1, 9};
-    uint32_t i;
-    fresh(0, 0);
-    song.sel = 1;
-    pkt(0xB0, 1, 100);                           /* ch 1 CC1 */
-    pkt(0xB2, 11, 40);                           /* ch 3 CC11 */
-    pkt(0xD3, 77, 0);                            /* ch 4 aftertouch */
-    pkt(0xB6, 1, 55);                            /* ch 7: the selected track (2) */
-    pkt(0xB0, 7, 10);                            /* other CCs: ignored */
-    blocks(1);
-    check("USB: CC1 ch 1 -> part 1, CC11 ch 3 -> part 3, AT ch 4 -> part 4",
-          trk[0].mw == 100 && trk[2].ex_off == 127 - 40 && trk[3].at == 77 && trk[0].at == 0 && trk[0].ex_off == 0);
-    check("USB: CC1 on ch 7 -> the selected track (2)", trk[1].mw == 55 && trk[2].mw == 0);
-    pkt(0xB0, 121, 0);                           /* reset all controllers */
-    blocks(1);
-    check("CC121 resets MODW / AT / EXPR of the channel's track", trk[0].mw == 0 && trk[1].mw == 55);
-    fresh(0, 0);
-    song.sel = 1;
-    for (i = 0; i < sizeof TRS; i++)
-        um_byte(TRS[i]);
-    blocks(1);
-    check("TRS: CC1, running status, realtime between, CC11, AT (1 data byte, running status) -> parts",
-          trk[0].mw == 0x7F && trk[0].ex_off == 127 - 0x20 && trk[2].at == 0x34 && trk[0].at == 0);
-    check("TRS: ch 5 -> the selected track (2)", trk[1].mw == 9);
+    fresh(ENGI_VA, 0);
+    mod_midi(&trk[0], 0xB0, 1, 100);             /* CC1 */
+    mod_midi(&trk[1], 0xB0, 11, 40);             /* CC11 */
+    mod_midi(&trk[1], 0xD0, 77, 0);              /* channel aftertouch */
+    mod_midi(&trk[0], 0xB0, 7, 10);              /* other CCs: not the matrix's */
+    check("CC1 -> MODW, CC11 -> EXPR, channel AT -> AT of the part, other CCs ignored",
+          trk[0].mw == 100 && trk[1].ex_off == 127 - 40 && trk[1].at == 77 && trk[0].at == 0 && trk[0].ex_off == 0 &&
+          trk[1].mw == 0);
+    mod_midi(&trk[1], 0xB0, 121, 0);             /* reset all controllers */
+    check("CC121 resets MODW / AT / EXPR of that part alone", trk[1].at == 0 && trk[1].ex_off == 0 && trk[0].mw == 100);
     check("MODW -> PAN +63 through MIDI: the part is on the right (fresh FX)", in_child(pan_e2e));
 }
 /* ------------------------------------------------------------------ 4 --- */
@@ -508,7 +493,7 @@ static double cost(const uint8_t parts[NPART][3], int on)
     static const uint8_t NOTES[8] = {48, 52, 55, 59, 60, 64, 67, 71};
     uint32_t p, i, rep;
     double best = 1e30;
-    fresh(0, 0);
+    fresh(ENGI_VA, 0);
     for (p = 0; p < NPART; p++) {
         track_t *t = &trk[p];
         host_preset(t, parts[p][0], parts[p][1]);
@@ -538,25 +523,25 @@ static double cost(const uint8_t parts[NPART][3], int on)
 
 static void test_cost(void)
 {
-    uint32_t e_phys = eng_by_name("PHYS"), pp = preset_by_name(e_phys, "BOWED METAL");
-    uint8_t phys[NPART][3] = {{(uint8_t)e_phys, (uint8_t)pp, 8}}, idle[NPART][3] = {{0}};
-    uint8_t mix[NPART][3] = {{1, 0, 8}, {2, 0, 8}, {(uint8_t)e_phys, (uint8_t)pp, 4}, {6, 0, 4}};
+    uint32_t pp = preset_by_name(ENGI_VA, "CLOUD PAD");
+    uint8_t one[NPART][3] = {{ENGI_VA, (uint8_t)pp, 8}}, idle[NPART][3] = {{0}};
+    uint8_t mix[NPART][3] = {{ENGI_FM6, 0, 8}, {ENGI_VA, 0, 8}};
     double c_idle, c0, c1, m0, m1;
     if (!instr_now()) {
         printf("mod: cost: no instruction counter on this host (proc_pid_rusage), skipped\n");
         return;
     }
     c_idle = cost(idle, 0);
-    c0 = cost(phys, 0);
-    c1 = cost(phys, 1);
+    c0 = cost(one, 0);
+    c1 = cost(one, 1);
     m0 = cost(mix, 0);
     m1 = cost(mix, 1);
-    printf("mod: cost: PHYS %s (plays 4 voices): %.0f -> %.0f instructions / sample with 4 slots (+%.0f, +%.1f %% of "
-           "the part over the idle mix %.0f)\n", ENGINES[e_phys]->presets[pp].name, c0, c1, c1 - c0,
+    printf("mod: cost: VA %s (8 voices): %.0f -> %.0f instructions / sample with 4 slots (+%.0f, +%.1f %% of "
+           "the part over the idle mix %.0f)\n", ENGINES[ENGI_VA]->presets[pp].name, c0, c1, c1 - c0,
            (c1 - c0) * 100 / (c0 - c_idle), c_idle);
-    printf("mod: cost: 4 parts (DIGITAL / its FM6 conversion 8 + PHASE 8 + PHYS 4 + TRIO 4 asked, the budget plays 8), every slot of "
-           "every part active: %.0f -> %.0f (+%.1f %%)\n", m0, m1, (m1 - m0) * 100 / m0);
-    check("cost: 4 active slots add at most a few percent (PHYS part, the 4-part mix)",
+    printf("mod: cost: the chord and bass parts (FM6 8 + the VA 8 asked, the budget plays what it can), every slot of "
+           "both active: %.0f -> %.0f (+%.1f %%)\n", m0, m1, (m1 - m0) * 100 / m0);
+    check("cost: 4 active slots add at most a few percent (a VA part, the two parts full)",
           (c1 - c0) * 100 / (c0 - c_idle) <= MOD_COST_MAX && (m1 - m0) * 100 / m0 <= MOD_COST_MAX);
 }
 
@@ -586,8 +571,8 @@ static int demos(const char *dir)
     uint32_t e, k, n = 0;
     FILE *f;
     track_t *t = &trk[0];
-    /* LFO -> CUT: ANALOG SAW LEAD, a held chord, a slow sine LFO opens and closes the filter */
-    fresh(0, 0);
+    /* LFO -> CUT: the VA's SOFT LEAD, a held chord, a slow sine LFO opens and closes the filter */
+    fresh(ENGI_VA, preset_by_name(ENGI_VA, "SOFT LEAD"));
     t->p[P_LRATE] = 30;
     slot(t, 0, MS_LFO, MD_CUT, 48);
     if ((f = demo_open(dir, "lfo_cut", 6u * FS / CTL * CTL))) {
@@ -602,8 +587,8 @@ static int demos(const char *dir)
         fclose(f);
         n++;
     }
-    /* VEL -> AMP: DIGITAL E.PIANO (without FELUCCA_FM4: converted, FM6), the same note at velocities 10 .. 127, twice as much dynamics */
-    fresh(1, 0);
+    /* VEL -> AMP: FM6's TINE EP, the same note at velocities 10 .. 127, twice as much dynamics */
+    fresh(ENGI_FM6, 0);
     slot(t, 0, MS_VEL, MD_AMP, 63);
     slot(t, 1, MS_VEL, MD_CUT, 30);
     if ((f = demo_open(dir, "vel_amp", 16u * (FS / 4u / CTL) * CTL + FS / CTL * CTL))) {
@@ -616,9 +601,9 @@ static int demos(const char *dir)
         fclose(f);
         n++;
     }
-    /* MODW -> VIB: LOFI WAVE LEAD, the mod wheel (CC1) rises over 4 s: vibrato from none to deep */
-    e = eng_by_name("LOFI");
-    fresh(e, preset_by_name(e, "WAVE LEAD"));
+    /* MODW -> VIB: the VA's HOLLOW, the mod wheel (CC1) rises over 4 s: vibrato from none to deep */
+    e = ENGI_VA;
+    fresh(e, preset_by_name(e, "HOLLOW"));
     t->p[P_LRATE] = 70;
     t->p[P_LD_PIT] = 0;
     t->p[P_LFADE] = 0;
@@ -627,7 +612,7 @@ static int demos(const char *dir)
         trk_note_on(t, 69, 100);
         for (k = 0; k < 4u * FS / CTL; k++) {
             if (k % 32u == 0u)
-                pkt(0xB0, 1, k * 127u / (4u * FS / CTL));
+                mod_midi(t, 0xB0, 1, k * 127u / (4u * FS / CTL));
             demo_blocks(f, 1);
         }
         trk_note_off(t, 69);
@@ -635,15 +620,15 @@ static int demos(const char *dir)
         fclose(f);
         n++;
     }
-    /* LFO -> TRIO PW: TRIO ARP LEAD's pulse width swept by a triangle LFO */
-    e = eng_by_name("TRIO");
-    fresh(e, preset_by_name(e, "ARP LEAD"));
+    /* LFO -> P5 PWA: a P5 program's oscillator A pulse width swept by a triangle LFO */
+    e = ENGI_PROPHET;
+    fresh(e, 0);
     t->p[P_LRATE] = 45;
     t->p[P_LWAVE] = 1;
     t->p[P_AMODE] = 0;
     t->p[P_VOICE] = V_POLY;
-    slot(t, 0, MS_LFO, MD_E1 + (int32_t)edit_by_label(e, "PW", 7), 40);
-    if ((f = demo_open(dir, "lfo_trio_pw", 5u * FS / CTL * CTL))) {
+    slot(t, 0, MS_LFO, MD_E1 + (int32_t)edit_by_label(e, "PWA", 4), 40);
+    if ((f = demo_open(dir, "lfo_p5_pwa", 5u * FS / CTL * CTL))) {
         trk_note_on(t, 57, 100);
         demo_blocks(f, 4u * FS / CTL);
         trk_note_off(t, 57);
@@ -663,7 +648,7 @@ static int demos(const char *dir)
         for (k = 0; k < 5u * FS / CTL; k++) {
             uint32_t ph = k * 254u / (5u * FS / CTL);
             if (k % 16u == 0u)
-                pkt(0xD0, ph < 127u ? ph : 254u - ph, 0);
+                mod_midi(t, 0xD0, ph < 127u ? ph : 254u - ph, 0);
             demo_blocks(f, 1);
         }
         trk_note_off(t, 48);
@@ -673,7 +658,7 @@ static int demos(const char *dir)
         fclose(f);
         n++;
     }
-    printf("mod: %u demos in %s (lfo_cut, vel_amp, modw_vib, lfo_trio_pw, at_wheel_drv)\n", n, dir);
+    printf("mod: %u demos in %s (lfo_cut, vel_amp, modw_vib, lfo_p5_pwa, at_wheel_drv)\n", n, dir);
     return n == 5u;
 }
 

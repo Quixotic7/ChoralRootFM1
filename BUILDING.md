@@ -10,7 +10,7 @@ pip3 install Pillow fonttools
 brew install libraqm sdl2
 export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib   # Pillow finds libraqm for the UI font
 python3 -c 'import sys; sys.path.insert(0, "tools"); import build; build.generate()'   # build/gen/*.h
-cc -O1 -w -Ibuild/gen -Ifirmware/src -o build/host/ui_test tests/ui_test.c -lm && build/host/ui_test
+cc -O2 -w -Ibuild/gen -Ifirmware/src -o build/host/fm6_test tests/fm6_test.c -lm && build/host/fm6_test   # a host test
 sh tools/emu/build.sh && build/host/emu          # the Mac emulator (tools/emu/README.md)
 sh tools/emu/web/build_web.sh                    # the browser emulators, the FM-1's and the SMK-37's (needs the Emscripten SDK: tools/emu/README.md "Browser build")
 sh tools/layout/build_layout.sh && python3 tools/layout/make_page.py   # the layout viewer: build/layout-web/index.html (Emscripten; docs/LAYOUT-TOOL.md)
@@ -108,8 +108,12 @@ on the way into `/bin/sh`); calling `python3 tools/build.py` directly needs it e
 `FELUCCA_SIZE=0` builds everything at `-Os` (by default the main-loop files listed in `tools/size_fns.py`, the UI,
 screens and stores, are built for size).
 
-Build options (environment, `0` or `1`; defaults in `firmware/src/choralroot.c`; Felucca's in `core.h`, `gfx.c` and
-`icons.c`, all 1, so Felucca's unit and its host tests are unchanged):
+Build options (environment, `0` or `1`; defaults in `firmware/src/choralroot.c`, else in `core.h` and `gfx.c`). Felucca's
+sequencer and the engines ChoralRoot retired left the tree in 3y232 (docs/HISTORY.md) with their switches'
+build options: `FELUCCA_SEQ`, `FELUCCA_SLICE`, `FELUCCA_FM4`, `FELUCCA_SAMPLE`, `FELUCCA_DRUM`, `FELUCCA_ANALOG`,
+`FELUCCA_PHASE`, `FELUCCA_LOFI`, `FELUCCA_VOICE`, `FELUCCA_TRIO`, `FELUCCA_NOISE`, `FELUCCA_PHYS` (core.h keeps them
+at 0, 1 is an error; their engine numbers stay reserved) and `FELUCCA_ICONS`; the VA, CZ-1 and FM TONE are in every
+build (the sound pool).
 
 | Flag | Default | |
 | --- | --- | --- |
@@ -118,35 +122,27 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/choralroot.c`;
 | `FELUCCA_CDC` | 1 | USB serial console (with `FELUCCA_UAC`: presented while Options > USB Record is Off, and in SAFE MODE) |
 | `FELUCCA_UAC` | 1 | USB audio recording (Melodee's, docs/USB-AUDIO.md): "ChoralRoot In" (master, CHORD, BASS: 6 channels), 44.1 kHz; no playback; 0: MIDI and the console only |
 | `FELUCCA_UART` | 1 | TRS MIDI IN |
-| `FELUCCA_SLICE` | 0 | the SLICE engine (ChoralRoot: off) |
-| `FELUCCA_SLICER` | 0 | the SLICER insert and its 32 KB POOL buffer (ChoralRoot: off; Felucca and the emulator: 1) |
-| `FELUCCA_ICONS` | 0 | Felucca's icon atlas (`icons.c`, `build/gen/ui_icons.h`): parameter icons on Felucca's knob cards (ChoralRoot: off; its header glyphs are drawn by `cr_draw.c`) |
+| `FELUCCA_SLICER` | 0 | the SLICER insert and its 32 KB POOL buffer (ChoralRoot: off; the emulator and the host tests: 1) |
 | `FELUCCA_KEYCAPS` | 0 | Felucca's keycaps and key hints (`gfx.c`, `build/gen/ui_keycaps.h`; ChoralRoot: off, no screen draws one) |
-| `FELUCCA_FM4` | 0 | the retired DIGITAL engine (4-operator FM) instead of its FM6 conversion |
 | `P5_RAM` | 1 | the P5 engine's sample loop in RAM (`.ram_text`, 3792 B) instead of flash: a quarter less time for the part on the unit; `0`: all code in flash (docs/FX.md "Code in RAM") |
 | `CR_RAM_FX`, `CR_RAM_MASTER`, `CR_RAM_CORE`, `CR_RAM_CZ`, `CR_RAM_FM6` | 0 | measurement builds: one stage's functions linked at RAM (the same instructions; `firmware/src/cr_ram.h`, `tools/ram_code.py`). RAMTEXT holds FX + MASTER + CORE, or one engine; the build stops under 512 B spare |
 | `CR_RAM_VA`, `CR_RAM_NOTE` | 1 | the VA's render (3y177) and the tick's note path (`trk_note_on` and what it calls, `trk_note_off`, FM TONE's `quad_note_on`: 3y216) in RAM, 9046 + 5542 B; `0`: from flash, to measure against |
 | `CR_RAM_TABLES_P5` | 0 | the four tables the P5 engine reads every sample in RAM `.data` (5376 B) |
-| `FELUCCA_SEQ` | 0 | Felucca's sequencer (`seq.c`, `song_chain.c`, `chord.c`, `motion.c`, `midi_control.c`, `midi_clock.c`); ChoralRoot: off, `cr_out.c` has the `events_block` and MIDI in (docs/INTEGRATION.md section 1) |
-| `FELUCCA_SAMPLE` | 0 | the SAMPLE engine and its ADPCM sets (about 190 KB of flash); ChoralRoot: off, engine 4 a retired slot |
-| `FELUCCA_GRAIN` | 0 | the GRAIN engine (needs `FELUCCA_SAMPLE`; 27 KB of POOL); ChoralRoot: off, engine 8 retired |
-| `FELUCCA_DRUM` | 0 | the DRUM engine (its kit: 7 KB of POOL); ChoralRoot: off, engine 10 retired |
-| `FELUCCA_PHASE` `FELUCCA_LOFI` `FELUCCA_VOICE` `FELUCCA_TRIO` `FELUCCA_NOISE` | 0 | the PHASE, LOFI, VOICE, TRIO and NOISE engines (1.6 to 3.6 KB of flash each, 12.8 KB together: docs/INTEGRATION.md); ChoralRoot: off since 0.18, engines 2, 3, 5, 6, 11 retired |
-| `FELUCCA_PHYS` | 0 | the PHYS engine (`eng_phys.c`, `phys_dsp.c`, `phys_symp.c`: 9.3 KB of flash, and 12 KB of POOL: its three string slots a part set the size of the engines' state); ChoralRoot: off since 0.18, engine 9 retired (docs/INTEGRATION.md "0.18: PHYS retired") |
+| `FELUCCA_GRAIN` | 1 | the GRAIN engine (engine 8, 0.22: grains over material it renders itself; two 32 KB buffers of POOL); 0: engine 8 a retired slot |
+| `FELUCCA_PROPHET` | 1 | Melodee's Prophet-5 engine (engine 16, docs/PROPHET.md); `FELUCCA_P5_FACTORY` its factory programs |
 
 ChoralRoot is all-synth: with the defaults the image has no samples and no Felucca sequencer (measured 2026-10-07:
 `.text` 490104 -> 270312 B, `.bss` 90512 -> 72976 B (RAM 92.4 -> 74.5 %), POOL 330116 -> 294740 B (95.9 -> 85.7 %);
-docs/INTEGRATION.md "All-synth"). A user sound saved on a retired engine (4, 8, 10) loads as the INIT sound on the VA; one saved on ANALOG (0,
-retired in 0.14, `FELUCCA_ANALOG` 0) plays on the VA with its macros.
+docs/INTEGRATION.md "All-synth"). A user sound saved on a retired engine (DIGITAL 1, SAMPLE 4, DRUM 10; PHASE, LOFI,
+VOICE, TRIO, NOISE, PHYS since 0.18) loads as the INIT sound on the VA (a DIGITAL one converted to FM6 until 3y232);
+one saved on ANALOG (0, retired in 0.14) plays on the VA with its macros.
 
 ## Samples
 
-ChoralRoot does not use them: its image has no SAMPLE engine (`FELUCCA_SAMPLE=0`), and a release carries no sample
-attribution. They stay in the tree for Felucca builds and the host tests (`tools/build.py`'s generate step still writes
-`build/gen/felucca_samples.h`, which `tests/hostsim.c` and Felucca's unit include). The CC0 instrument samples that
-Felucca's SAMPLE engine uses are in `assets/samples-cc0/` (Versilian Studios, see `ATTRIBUTION.txt` there).
-`tools/fetch_cc0.py` downloads them again from the source repositories. Without that folder the build still works and
-the SAMPLE engine has only the generated drum kit.
+ChoralRoot does not use them: its image has no SAMPLE engine (it left the tree in 3y232), and a release carries no
+sample attribution. `tools/build.py`'s generate step still writes `build/gen/felucca_samples.h` (no firmware file
+includes it now). The CC0 instrument samples that Felucca's SAMPLE engine used are in `assets/samples-cc0/` (Versilian
+Studios, see `ATTRIBUTION.txt` there); `tools/fetch_cc0.py` downloads them again from the source repositories.
 
 ## Tests
 
@@ -166,22 +162,19 @@ themselves always run. `run_tests.sh` and `run_cr_tests.sh` run their sections s
 order of the file (`PAR_JOBS=1`: one after another).
 
 `tests/run_tests.sh` runs the host tests and, with Node.js, the web page tests. Run it after `./build.sh`
-(it uses `build/` and needs `AC79_SDK` set as for the build). The suites cover flash storage,
-user presets, projects of every format, backup, the keys and knobs, MIDI (USB, TRS, clock,
-control), USB audio, the update entry and loader, the command-line installer, the UI (the real
-drawing code against stubs: every screen in every palette is rendered and checked for clipped or
-overlapping text; PNGs land in `build/ui_new/`), every engine (DRUM, NOISE, PHYS, FM6, SLICE, the
-DIGITAL conversion), the chord keys, the modulation matrix, the FX layer, the reverbs, the SLICER
-and swing. With `DAISYSP` pointing at a DaisySP checkout, the PHYS models are also compared with
-their floating-point originals; without it that test is skipped.
+(it uses `build/` and needs `AC79_SDK` set as for the build). The suites cover flash storage, the sound pool, user
+sound records, the keys and knobs, TRS MIDI, USB audio, the update entry and loader (FM-1 and SMK-37), the
+command-line installer, the speaker EQ, the themes and text, the audio ISR's overload protection, the modulation
+matrix, FM6 and the regression suite below. (Felucca's own tests, of its UI, editor, projects, sequencer and retired
+engines, left the tree with their sources in 3y232; ChoralRoot's are in `tests/run_cr_tests.sh`.)
 
 The last line is the verdict: `ALL HOST TESTS PASSED` (exit 0) or `HOST TESTS FAILED` (exit 1), with the
-sections that failed and the ones skipped (an optional tool missing: node, DaisySP) listed above it. A
+sections that failed and the ones skipped (an optional tool missing: node, Pillow) listed above it. A
 failing test is counted and the suite goes on; a test that does not compile, or a missing build, ends
 the suite there, also with `HOST TESTS FAILED`. The text spacing check needs Pillow's Raqm layout (the
 font's kerning, as the build does); the script sets `DYLD_FALLBACK_LIBRARY_PATH` itself on macOS.
 
-The regression suite (`tests/regress.c`) renders every engine and preset and compares a
+The regression suite (`tests/regress.c`) renders every engine and preset (279 renders) and compares a
 hash of each render with `tests/golden.txt`; it also checks levels, voices and the CPU
 cost (`tests/cpu_baseline.txt`, `tests/target_budget.txt`). After an intended change of
 the sound, `GOLDEN_UPDATE=1 sh tests/run_tests.sh` rewrites the hashes; `BUDGET_UPDATE=1`

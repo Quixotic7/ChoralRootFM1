@@ -1,48 +1,26 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-# Host tests of the Felucca sources (no hardware). Run from the repo root after ./build.sh:
+# Host tests of the firmware's kept sources in ChoralRoot's configuration (no hardware; tests/hostsim.c's base). Run from
+# the repo root after ./build.sh:
 #   tests/run_tests.sh
+# (ChoralRoot's own host tests are tests/run_cr_tests.sh. Felucca's sequencer, UI, editor, projects and the retired
+# engines left the tree in 3y232 with their tests: scale, chord, project, motion, MIDI control, DIGITAL, the UI and its
+# renders, persistence, backup, editor, SLICER, swing, the FX layer, REVERB TYPE, PHYS, DRUM, NOISE, SLICE.)
 #
 # Regression suite (tests/regress.c, tests/target_budget.py; details at the top of regress.c):
-#   golden renders  every engine x preset, the GM kit (SAMPLE PERC), voice modes, FX sends, a 4-track mix: one hash
-#                   each in tests/golden.txt. A change of the sound fails with the list of renders.
+#   golden renders  every engine x preset, voice modes (VA, FM6, P5), FX sends (VA), the SLICER's GATE: one hash each
+#                   in tests/golden.txt. A change of the sound fails with the list of renders.
 #   health          clipping, DC, peak level, voices free after the release, silence at the end.
 #   CPU             instructions / sample per preset and mix (tests/cpu_baseline.txt, +25 %), ns printed;
 #                   target: loop instructions of the render functions in the pi32v2 disassembly
 #                   (tests/target_budget.txt, +10 %; exact, static).
-#   voices          the budget of 8, steal fades, MONO / LEGATO / UNISON keep their note, the VOICE cap,
-#                   no hanging notes on any MIDI / key routing.
-# UI renders (tests/ui_render.c): every screen in every palette from the real drawing code: the layout lint (no text
-#                   off the screen, cut, hidden, overlapping or spilling out of its cell / card; only free text
-#                   ellipsised), MONO gray, the draw cost, the text audit (build/ui_new/text_audit.tsv);
-#                   PNGs of MONO GREEN PAPER in build/ui_new (tests/ui_render.py), the findings in build/ui_new/report.txt;
-#                   FM6's 32 algorithm charts as drawn (no box overlapping, no route through a box or crossing another);
-#                   DIGITAL's screens (its algorithm charts, OP ENV) with FELUCCA_FM4=1 too (build/ui_fm4: lint, MONO);
-#                   every frame of the rolling digits (lint, MONO), their filmstrips in build/ui_slot.
-# UI (tests/ui_test.c): the UI sources against stub display / buttons / knobs: sound loads keep the steps and
-#                   the track's ARP / SCL / SLICER, the SEQ > PATTERNS loader and its REPLACE? dialog, the
-#                   one-step undo of both (SAVE held), REC on TRACKS / SEQ / ARP, STEP and ARP while recording,
-#                   MIDI IN ROUT, saves refused while playing and the OVERWRITE? dialog, MUTE on TRACKS KNOB 1,
-#                   the DRUM grid (keys, knobs, LEDs, pages, live recording into it, BEAT from PATTERNS).
-# Audio / persistence / editor: the real C paths against simulated DMA and NOR flash: bounded overload
-#                   fades, shared-voice limits, deferred settings and retries, failed-save rollback,
-#                   malformed transfers, transport-stop timeouts, MIDI and UART recovery.
-# CHORD (tests/chord_test.c): the chord keys (src/chord.c): diatonic triads / sevenths of several scales and roots,
-#                   the fixed shapes and voicings (at most 4 notes), names, MONO plays the root, a release ends
-#                   exactly what its key / MIDI note started, recording, the ARP, MIDI IN, kits ignore CHRD.
+#   voices          the shared budget of the chord and bass parts, steal fades, MONO / LEGATO / UNISON keep their
+#                   note, P5's cap, key-ups after live mode changes.
+# Audio (tests/audio_test.c): the real audio ISR against a simulated DMA: bounded overload fades, shared-voice limits.
 # MOD (tests/mod_test.c): the modulation matrix: slots that do nothing are bit-identical, every source on each
 #                   kind of destination, clamping, MIDI CC1 / CC11 / aftertouch routing, the cost of 4 active
 #                   slots (at most +5 %), demos in build/mod_demo/.
-# PERFORM (tests/perform_test.c): the FX hold layer (src/perform.c): 1/16 starts, stereo buffer effects, the
-#                   too-long REPEAT, the SLICER interplay, silent layer keys, idle bit-identical, cost; build/perform_demo/;
-#                   OCT UP / DN (the harmonizer): pitch, stereo, clicks, the shimmer bounded, cost; build/fx_demo/.
-# REVERB (tests/reverb_test.c): REVERB TYPE (src/fx.c): ROOM bit for bit as before, SPRING's decay against SIZE,
-#                   its chirp (group delay rising with frequency), stability at the corners, level, a model change
-#                   without a click, its cost against ROOM (+30 % at most); demos in build/fx_demo/.
-# SLICE (tests/slice_test.c): slice tables, AUTO onsets of a user-slot loop, reverse, keys, modes, the MAN slices
-#                   (SLICES page) and their store in the slot (src/slice_store.c); the presets and the loop;
-#                   demos in build/slice_demo/.
 # INPUT (tests/input_test.c): the key / button debounce of hal/fm1_input.h against the TIMER5 scan and bouncing
 #                   contacts: a press within 2 scans (<= 2.3 ms), one note per bouncy press, no early or hanging
 #                   release, stray samples ignored, fast repeats, the encoders' detents; the LED scan: lit LEDs every
@@ -51,27 +29,9 @@
 #                   (no playback): the descriptors in each presentation, routing, packing, the ring against drift,
 #                   the 44.1 kHz stream's digest. tests/cr_usbaudio48_test.c: the second rate (0.19), its requests,
 #                   the 44.1 -> 48 kHz resampler's exactness and spectrum, the 48 kHz stream, a rate switch.
-# web (web/test_web.mjs): the editor protocol against its mock device, whose tables must equal the
-#                   firmware's (tests/descdump.c -> build/host/desc.json), the package builder, the updater.
+# web (web/test_web.mjs): the package builder, the updater, the editor page's protocol against its mock device.
 # Transporter (tests/transporter_shim_test.py): tools/transporter's stand-ins for the FM-1 Transporter's fm1_ota / fm1fw:
 #                   the review gate before a write, on synthetic packages and build/choralroot.fwsc.
-# Felucca's editor (tests/editor_test.c, tests/backup_test.c: editor.c, editor_fm6.c, editor_backup.c) is not in
-#                   ChoralRoot's unit; it is tested as it behaves on this platform (docs/FM6.md "Tests"). ChoralRoot's
-#                   backup and FM6: tests/cr_backup_test.c, tests/cr_fm6_test.c (tests/run_cr_tests.sh).
-# PHYS (tests/phys_test.c): stability over the whole parameter and pitch range, the worst-case cost against
-#                   the heaviest factory preset, demos in build/phys_demo/; tests/phys_ref.cpp compares the
-#                   fixed-point models with DaisySP's float originals when DaisySP is there (DAISYSP=path).
-# DRUM (tests/drum_test.c): the drum voices (src/drum_voice.c): pitch, decay, centroid and level against
-#                   Felucca's targets, the controls' directions, no clipping, DC, retriggers, the hat choke, the
-#                   kick on a small speaker; the DRUM engine (src/eng_drum.c): its key map, the 8 lanes together,
-#                   one hit per lane, the choke between lanes; the cost per voice; demos in build/drum_demo/.
-# NOISE (tests/noise_test.c): the engine (src/eng_noise.c): COLR's slope (white, pink, brown), the filter and the
-#                   register clock following the key, META periodic at the key, no DC, no clipping at the
-#                   corners, a note from silence the same twice, the cost per voice; demos in build/noise_demo/.
-# DIGITAL -> FM6 (tests/fm4_test.c, built with FELUCCA_FM4=1): the retired four-operator engine against its conversion
-#                   (src/fm4_convert.c): routes and carriers per algorithm, the presets' PTCH, and the sound (pitch,
-#                   centroid, RMS envelope) of its presets and algorithms; demos in build/fm4_demo/. tests/digital_test.c
-#                   (FELUCCA_FM4=1 too): DIGITAL's operator envelopes. Default builds have no DIGITAL (engine 1 reserved).
 # FM6 (tests/fm6_test.c, Melodee's): the engine (src/eng_fm6.c, src/fm6_core.c, Melodee's: Dexed's rendering): DX7
 #                   SysEx framing, the 32 algorithms against the DX7 diagrams, the 24 factory patches through pack /
 #                   unpack and the bank / voice SysEx, pitch, levels, envelopes, modulation, no DC / clipping, the
@@ -171,7 +131,7 @@ par_build $CC -o "$OUT/pool_test" tests/pool_test.c
 run "sound pool (floating banks, power cuts)" "$OUT/pool_test"
 
 par_build $CC -o "$OUT/upreset_test" tests/upreset_test.c
-run "user presets (UP_PUT parser, bank round trip, versions, PHYS DRUM -> DRUM, grid records, DIGITAL kept)" "$OUT/upreset_test"
+run "user sound records (UP_PUT parser, versions, PHYS DRUM -> DRUM on a read, grid records, DIGITAL kept)" "$OUT/upreset_test"
 
 par_build $CC -o "$OUT/input_test" tests/input_test.c
 run "keys and buttons: fast press, long release, bouncy contacts (one note each), glitches, encoders" "$OUT/input_test"
@@ -250,29 +210,8 @@ for m in pro elite mke; do                           # the packages BOARD=smk37 
 done
 
 if [ -f build/gen/felucca_tables.h ]; then
-    par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hostsim" tests/hostsim.c -lm
-    par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test" tests/scale_test.c -lm
-    run "scales: white-key mapping and note lifecycle" "$OUT/scale_test"
-    par_build $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/chord_test" tests/chord_test.c -lm
-    run "chord keys: diatonic and fixed chords, voicings, MONO root, releases, recording, ARP, MIDI IN, kits" "$OUT/chord_test"
     par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/speaker_test" tests/speaker_test.c -lm
     run "SPEAKER EQ: the three modes' response (BASS+ no longer cancels 440 Hz, #42), BASS+ harmonics, the sub cut" "$OUT/speaker_test"
-    run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
-    mkdir -p build/tracks_demo
-    PAR_AFTER=$par_last                              # (the same program: one run at a time)
-    run "TRACKS: 4-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
-    par_build $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/project_test" tests/project_test.c -lm
-    run "project formats (FUN1..FUN5 -> FUN6, the grid and song chain; DIGITAL tracks -> FM6)" "$OUT/project_test"
-    par_build $CC -O1 -w -Ibuild/gen -Ifirmware/src -o "$OUT/motion_test" tests/motion_test.c -lm
-    run "motion, whole-step chance, FUN7 migration, song restore and ARP repeat" "$OUT/motion_test"
-    par_build $CC -O1 -w -Ibuild/gen -Ifirmware/src -o "$OUT/midi_control_test" tests/midi_control_test.c -lm
-    run "USB/TRS clock, bend, sustain, ownership and panic recovery" "$OUT/midi_control_test"
-    par_build $CC -O1 -w -DFELUCCA_FM4=1 -Ibuild/gen -Ifirmware/src -o "$OUT/digital_test" tests/digital_test.c -lm
-    run "DIGITAL (retired, built here with FELUCCA_FM4=1): operator envelopes/levels; sample zone priority" "$OUT/digital_test"
-    par_build $CC -O2 -w -DFELUCCA_FM4=1 -Ibuild/gen -Ifirmware/src -o "$OUT/fm4_test" tests/fm4_test.c -lm
-    mkdir -p build/fm4_demo
-    run "DIGITAL -> FM6: the conversion against DIGITAL (FELUCCA_FM4=1): pitch, centroid, RMS envelope; demos" \
-        "$OUT/fm4_test" build/fm4_demo
     par_build $CC -O1 -w -Ibuild/gen -Ifirmware/src -o "$OUT/theme_test" tests/theme_test.c -lm
     run "themes: contrast, text blending and font metrics" "$OUT/theme_test"
     par_build $CC -O1 -w -Ibuild/gen -Ifirmware/src -o "$OUT/text_ref_test" tests/text_ref_test.c -lm
@@ -285,91 +224,20 @@ if [ -f build/gen/felucca_tables.h ]; then
     fi
     par_build $CC -O1 -w -Ibuild/gen -o "$OUT/settings_test" tests/settings_test.c
     run "settings: PER1..PER4 migration, palette ids and preference preservation" "$OUT/settings_test"
-    par_build $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test" tests/ui_test.c -lm
-    run "UI: sounds keep steps, undo, recording, MIDI overflow, pending saves, panel recovery, drum grid, song chain, MONO gray" "$OUT/ui_test"
-    par_build $CC -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/ui_render" tests/ui_render.c -lm
-    mkdir -p build/ui_new/ppm build/ui_slot
-    run "UI renders: layout lint (every screen and palette, every page, engine and column value), MONO gray, draw cost" \
-        "$OUT/ui_render" build/ui_new build/ui_slot
-    ui_render=$par_last
-    if python3 -c "import PIL" 2>/dev/null; then
-        PAR_AFTER=$ui_render                         # (it reads the renders)
-        run "UI renders: the PNGs (build/ui_new, build/ui_slot)" python3 tests/ui_render.py build/ui_new build/ui_slot
-    else
-        skip "the PNGs of the UI renders (python3 has no Pillow)"
-    fi
-    par_build $CC -w -DFELUCCA_FM4=1 -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test_fm4" tests/ui_test.c -lm
-    run "UI built with FELUCCA_FM4=1 (DIGITAL, kept in the tree): its OP pages, EDIT cycle, algorithm charts" "$OUT/ui_test_fm4"
-    par_build $CC -O1 -w -DFELUCCA_FM4=1 -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/ui_render_fm4" tests/ui_render.c -lm
-    mkdir -p build/ui_fm4/ppm build/ui_fm4_slot
-    run "UI renders with FELUCCA_FM4=1: DIGITAL's screens (EDIT, OP ENV, the 8 algorithm charts), lint, MONO gray" \
-        "$OUT/ui_render_fm4" build/ui_fm4 build/ui_fm4_slot
     par_build $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/audio_test" tests/audio_test.c -lm
     run "audio: overload protection, bounded fades and DMA diagnostics" "$OUT/audio_test"
-    par_build $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/persistence_test" tests/persistence_test.c -lm
-    run "persistence: deferred settings, retry and failed-save rollback" "$OUT/persistence_test"
-    par_build $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/backup_test" tests/backup_test.c -lm
-    run "full backup: CRC before writes, stale runtime, USB reset / timeout, malformed objects, older projects" "$OUT/backup_test"
-    par_build $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/editor_test" tests/editor_test.c -lm
-    run "editor: real C protocol, malformed transfers and queue recovery" "$OUT/editor_test"
     par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/mod_test" tests/mod_test.c -lm
     mkdir -p build/mod_demo
     run "modulation matrix: off = bit-identical, the math, MIDI CC1 / CC11 / aftertouch, cost, demos" "$OUT/mod_test" build/mod_demo
-    par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/slicer_test" tests/slicer_test.c -lm
-    mkdir -p build/slicer_demo
-    run "SLICER: no clicks, timing, sync with the sequencer, STUT, cost, demos" "$OUT/slicer_test" build/slicer_demo
-    par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/swing_test" tests/swing_test.c -lm
-    run "SWING: track + global at most 100, sequencer and SLICER step lengths, the SWG display" "$OUT/swing_test"
-    par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/perform_test" tests/perform_test.c -lm
-    mkdir -p build/perform_demo build/fx_demo
-    run "FX layer effects: on the 1/16, stereo, too-long REPEAT, SLICER, silent keys, idle bit-identical, clicks, OCT UP / DN, cost, demos" "$OUT/perform_test" build/perform_demo build/fx_demo
-    perform=$par_last
-    par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/reverb_test" tests/reverb_test.c -lm
-    PAR_AFTER=$perform                               # (build/fx_demo is the two tests')
-    run "REVERB TYPE: ROOM bit-identical, SPRING decay / chirp / stability / level, model change, cost, demos" "$OUT/reverb_test" build/fx_demo
     par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/regress" tests/regress.c -lm
     run "regression: golden renders, health, voices, CPU budget" "$OUT/regress" tests/golden.txt tests/cpu_baseline.txt
     par_build $CC -std=gnu11 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/rt_cr_usbtap_test" tests/cr_usbtap_test.c -lm
     run "USB recording is a tap: the DAC's words bit-identical in five USB states (Output, USB Level, MASTER, one core and two)" "$OUT/rt_cr_usbtap_test"
-    par_build $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/descdump" tests/descdump.c -lm
-    run "parameter and engine tables as JSON (for the editor mock test)" into "$OUT/desc.json" "$OUT/descdump"
-    descdump=$par_last
-    par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/phys_test" tests/phys_test.c -lm
-    mkdir -p build/phys_demo
-    run "PHYS: stability C-1..G9 over the parameter corners, worst-case cost against PHASE WIRE, demos" "$OUT/phys_test" build/phys_demo
-    D=${DAISYSP:-vendor/DaisySP}/Source
-    if [ -d "$D/PhysicalModeling" ] && command -v c++ >/dev/null 2>&1; then
-        par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -Itests -c -o "$OUT/phys_fixed.o" tests/phys_fixed.c
-        par_build c++ -O2 -std=c++14 -w -I"$D" -I"$D/Utility" -o "$OUT/phys_ref" tests/phys_ref.cpp \
-            "$D/PhysicalModeling/modalvoice.cpp" "$D/PhysicalModeling/resonator.cpp" "$D/PhysicalModeling/stringvoice.cpp" \
-            "$D/PhysicalModeling/KarplusString.cpp" "$D/Filters/svf.cpp" "$D/Utility/dcblock.cpp" \
-            "$D/Dynamics/crossfade.cpp" "$OUT/phys_fixed.o"
-        run "PHYS: the fixed-point models against DaisySP's float originals (mode frequencies, decays, Svf)" "$OUT/phys_ref"
-    else
-        skip "PHYS reference test (no DaisySP: set DAISYSP to a checkout)"
-    fi
-    par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_test" tests/drum_test.c -lm
-    mkdir -p build/drum_demo
-    run "DRUM: voice targets, controls, no clipping, retrigger, hat choke, the kick on a small speaker, keys, 8 lanes, cost, demos" "$OUT/drum_test" build/drum_demo
-    par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/noise_test" tests/noise_test.c -lm
-    mkdir -p build/noise_demo
-    run "NOISE: colour slopes, key-tracked filter and clock, META period, DC, clipping, retrigger, cost, demos" "$OUT/noise_test" build/noise_demo
     par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm
     mkdir -p build/fm6_demo
     run "FM6 (Melodee's test): SysEx, algorithms, patches, pitch, levels, envelopes, modulation, DC, macros, voices, cost, demos" "$OUT/fm6_test" build/fm6_demo
-    # SLICE is in the standard build (firmware/src/core.h): its test always runs (after #22 by andreahaku)
-    if grep -q '^#define SLC_BREAK_BPM ' build/gen/felucca_samples.h; then
-        mkdir -p build/slice_demo
-        par_prep python3 tests/slice_loop.py build/slice_demo/loop
-        par_prep quiet python3 tools/fm1_sample_upload.py build LOOP build/slice_demo/loop build/slice_demo/loop.wav:60
-        par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/slice_test" tests/slice_test.c -lm
-        run "SLICE: tables, onsets, reverse, keys, modes, MAN slices and their store, demos" "$OUT/slice_test" \
-            build/slice_demo/loop build/slice_demo
-    else
-        missing "SLICE: build/ was made with FELUCCA_SLICE=0 (no BREAK); run ./build.sh without it first"
-    fi
 else                                                 # (not reached: the build's outputs are checked above)
-    missing "no build/gen/felucca_tables.h: the engine, UI, format and editor tests did not run (run ./build.sh)"
+    missing "no build/gen/felucca_tables.h: the engine and format tests did not run (run ./build.sh)"
 fi
 
 run "regression: target cost of the render loops (pi32v2 disassembly)" python3 tests/target_budget.py \
@@ -381,7 +249,6 @@ run "FM-1 Transporter stand-ins (tools/transporter: fm1_ota, fm1fw): the review 
     python3 tests/transporter_shim_test.py
 
 if command -v node >/dev/null 2>&1; then
-    PAR_AFTER=${descdump:-}                          # (build/host/desc.json: the firmware's tables)
     run "web pages: editor protocol + samples, package builder, update protocol" node web/test_web.mjs
     run "web backup: capture, validation before writes, restore order" node web/test_backup.mjs
     run "web installer: the page against a simulated FM-1 (node, no browser)" node web/test_installer.mjs

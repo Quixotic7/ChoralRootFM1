@@ -14,13 +14,12 @@
  * midi_out_event, exactly as Felucca's seq.c key_on / key_off did. The UI never calls a note path of the engine.
  * Included after voice.c, fx.c, usb.c and cr_engine.c.
  *
- * FELUCCA_SEQ 0 (choralroot.c, the emulator, tests/cr_trans_test.c): Felucca's sequencer (seq.c with song_chain.c,
- * chord.c, motion.c, midi_control.c, midi_clock.c) is not in the unit. What the kept files called of it is here, under
+ * Felucca's sequencer (seq.c with song_chain.c, chord.c, motion.c, midi_control.c, midi_clock.c) is not in the unit (its
+ * sources left the tree in 3y232; core.h FELUCCA_SEQ 0). What the kept files called of it is here, under
  * the same names (docs/INTEGRATION.md section 1): events_block (fx.c, every block: the engine switches, the releases
  * a sound load asks for with panic_req), midi_event (the parts' MIDI in, below), and the few names upreset.c, main.c
- * and audio.c still use (transport_req, trk_index, drum_track, motion_guard / motion_base_value, chain_defaults). */
+ * and audio.c still use (transport_req, trk_index, drum_track, motion_base_value, chain_defaults). */
 
-#if !FELUCCA_SEQ
 /* ---------------------------------------------- what seq.c provided --- */
 static volatile uint8_t panic_req;               /* bit per part: its notes released (a sound load, M-UPGRADE) */
 static const uint8_t transport_req = 0;          /* (upreset.c, cr_bank.c: Felucca's transport never runs) */
@@ -30,27 +29,8 @@ static uint32_t kb_out_tick;                     /* (audio.c: seq.c's key latenc
 #endif
 static uint32_t trk_index(const track_t *t) { return (uint32_t)(t - trk); }
 static int drum_track(const track_t *t) { return ENGINES[eng_idx(t->eng_req)] == &ENG_DRUM; }
-/* motion.c's: no motion lanes, so a part's sounding value is its saved one; the guard keeps the audio IRQ out while
- * a part's parameters are copied (cr_bank.c fm4_apply), as motion.c's did */
+/* motion.c's: no motion lanes, so a part's sounding value is its saved one */
 static int16_t motion_base_value(const track_t *t, uint32_t id) { return t->p[id]; }
-static uint32_t motion_guard(void)
-{
-#if defined(FM1_IRQ_TARGET)
-    uint32_t f = fm1_icfg();
-    fm1_irq_off();
-    return f;
-#else
-    return 0;
-#endif
-}
-static void motion_unguard(uint32_t f)
-{
-#if defined(FM1_IRQ_TARGET)
-    fm1_icfg_set(f);
-#else
-    (void)f;
-#endif
-}
 
 /* ------------------------------------------------- the parts' MIDI in --- */
 /* cr_midi_in (below) forwards a CHORD / BASS channel's notes, pedal, bend, pressure and the other CCs here as
@@ -234,7 +214,6 @@ static void events_block(uint32_t n)
         engine_block(&trk[i]);                   /* engine switch: fade, then switch (voice.c) */
     }
 }
-#endif /* !FELUCCA_SEQ */
 
 /* --------------------------------------------------------------- routing --- */
 #define CR_PART_CHORD 0u

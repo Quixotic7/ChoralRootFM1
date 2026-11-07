@@ -1,15 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
 /* Host test of TRANSPOSE (firmware/src/cr_out.c: the part's P_TRANS applied where the engine's streams enter the
- * parts; docs/VA.md, docs/INTEGRATION.md): the sound side through tests/hostsim.c (FELUCCA_SEQ 0), the ChoralRoot engine and
+ * parts; docs/VA.md, docs/INTEGRATION.md): the sound side through tests/hostsim.c (HOST_CR_OUT), the ChoralRoot engine and
  * cr_out.c as the emulator includes them; the stream callbacks driven directly.
  *   sh tests/run_cr_tests.sh
  * Checks: +12 / -24 / 0 move the part's voices, clamped to 0..127; the MIDI out is not transposed; a P_TRANS change
  * while notes sound keeps them (their note-offs end them) and applies to the next chord; panic; the other part keeps
  * its own; a re-routed note still ends. */
-#define FELUCCA_VA 1
-#define FELUCCA_SLICE 0
-#define FELUCCA_SEQ 0                                /* as choralroot.c: cr_out.c's events_block, no seq.c */
+#define HOST_CR_OUT 1                                /* as choralroot.c: cr_out.c's events_block (below) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -60,7 +58,7 @@ static uint32_t midi_last_note(void)             /* the latest note-on in the US
     return n;
 }
 
-/* (hostsim.c's host_tracks_init / host_preset are Felucca's renders: FELUCCA_SEQ 0 leaves them out) */
+/* (hostsim.c's host_tracks_init / host_preset: not with HOST_CR_OUT) */
 static void t_tracks_init(void)                  /* the defaults, as felucca_init */
 {
     uint32_t i, k;

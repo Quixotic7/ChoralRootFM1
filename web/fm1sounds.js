@@ -41,17 +41,18 @@ export const FACTORY_PRESETS = {"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLU
 export const FACTORY_FIRST = {"7":0,"8":0,"12":0,"13":0,"14":1,"15":0,"16":1};
 export const FACTORY_IDS = {"16":[0,1,2,3,6,7,8,10,11,12,13,15,16,17,18,19,20,21,23,24,25,26,27,28,29,30,31,32,34,41,43,45,46,47,51,53,54,56,59,60,61,62,65,66,67,68,70,72,77,79,82,83,85,86,87,89,92,93,95,97,100,101,103,104,107,108,109,110,111,112,113,114,115,117,120,122,123,127,128,131,132,133,135,136,137,139,140,142,143,146,147,148,150,152,156,159,162,164,165,168,169,171,172,173,179,181,183,184,185,187,188,189,194,198,199,200]};
 const SND_BIND_MARK = 0xA6, SND_BIND_NOTE = 160 + 15, SND_BIND_FLAGS = 176 + 15;
-// the pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, DIGITAL's FM6, another retired one
-// (ANALOG since 0.14; PHASE, LOFI, VOICE, TRIO, NOISE, PHYS since 0.18; SAMPLE, GRAIN, DRUM) the VA's
-export const poolOf = (engine) => (FACTORY_PRESETS[engine] ? engine : engine === 1 ? 12 : 13);
+// the pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, a retired one's the VA's (ANALOG since
+// 0.14; PHASE, LOFI, VOICE, TRIO, NOISE, PHYS since 0.18; SAMPLE, GRAIN, DRUM; DIGITAL since 3y232: FM6's before, when
+// the firmware converted it)
+export const poolOf = (engine) => (FACTORY_PRESETS[engine] ? engine : 13);
 // a record's engine is retired on this firmware (no pool of its own: the slot keeps the record, the FM-1 plays a stand-in)
 export const engineRetired = (engine) => engine != null && !FACTORY_PRESETS[engine];
 // the factory preset index a record's binding names (cr_bank.c cb_bind_raw), -1: none (added)
 function sndBindRaw(r) {
   if (!r || !recordValid(r) || r[1] === 3 || r[1] === 5 || r[SND_BIND_NOTE] !== SND_BIND_MARK || !r[SND_BIND_FLAGS]) return -1;
   const e = poolOf(r[2]), f = r[SND_BIND_FLAGS] - 1;
-  if (e !== r[2] && r[2] !== 1) return -1;      // (ANALOG's, a retired engine's record: an added preset where it plays;
-                                                 // a DIGITAL one binds in FM6's)
+  if (e !== r[2]) return -1;                    // (ANALOG's, a retired engine's record, DIGITAL's: an added preset where
+                                                 // it plays)
   return f >= (FACTORY_FIRST[e] || 0) && f < (FACTORY_PRESETS[e] || []).length ? f : -1;
 }
 // the 32 records (null: empty) -> per slot null, or {index, pos, label, name} of the factory preset it overwrites

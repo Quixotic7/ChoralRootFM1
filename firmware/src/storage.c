@@ -43,14 +43,6 @@
  * its object (st_hdr_t.type), so the live objects keep their numbers. */
 enum { OBJ_SETTINGS, OBJ_X_PROJECT0, OBJ_X_UPRESET0 = OBJ_X_PROJECT0 + 4, OBJ_FM6BANK = OBJ_X_UPRESET0 + 2,
        OBJ_X_CZSTORE1, OBJ_CZBANK0, OBJ_X_QUADSTORE = OBJ_CZBANK0 + 8, OBJ_SESSION, OBJ_FAVS, OBJ_COUNT };
-#ifndef ST_RETIRED                    /* 1: the OBJ_X_ objects are not stored (ChoralRoot: with the sound pool) */
-#if defined(UP_POOL) && UP_POOL
-#define ST_RETIRED 1
-#else
-#define ST_RETIRED 0
-#endif
-#endif
-#if ST_RETIRED
 static inline int st_live(uint32_t obj)  /* the objects stored today */
 {
     return obj < OBJ_COUNT && !(obj >= OBJ_X_PROJECT0 && obj < OBJ_FM6BANK) && obj != OBJ_X_CZSTORE1 &&
@@ -58,15 +50,6 @@ static inline int st_live(uint32_t obj)  /* the objects stored today */
 }
 #define ST_NOWHERE 0xFFFFF000u         /* st_sector of an object not stored: in no FL_RANGE_OK window, at or past FL_KEYMAC_LO
                                         * (fm1_flash.h's FL_GUARD refuses an erase or a program there), no live object's */
-#else
-/* Felucca's configuration (core.h without the pool: the Felucca host tests, tests/storage_test.c): 1..4 are its
- * projects and 5 / 6 its user preset banks, live there, at their places as before; they leave with Felucca's tree */
-#define OBJ_PROJECT0 OBJ_X_PROJECT0
-#define OBJ_UPRESET0 OBJ_X_UPRESET0
-#define OBJ_CZSTORE1 OBJ_X_CZSTORE1
-#define OBJ_QUADSTORE OBJ_X_QUADSTORE
-static inline int st_live(uint32_t obj) { return obj < OBJ_COUNT; }
-#endif
 
 typedef struct {
     uint32_t magic;
@@ -184,10 +167,8 @@ _Static_assert(ST_SMK_POOL2 == FL_TAIL_LO && ST_SMK_POOL2 + ST_SMK_POOL2_N * ST_
 static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy A (0) / B (1); a live object */
 {
     copy &= 1u;
-#if ST_RETIRED
     if (!st_live(obj))
         return ST_NOWHERE;
-#endif
     if (obj == OBJ_SESSION)
         return ST_SMK_BASE + (8u * 2u + copy) * ST_SECTOR;
     if (obj == OBJ_FAVS)
@@ -196,16 +177,6 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return ST_SMK_CZB + ((obj - OBJ_CZBANK0) * 2u + copy) * ST_SECTOR;
     if (obj == OBJ_FM6BANK)
         return ST_SMK_BASE + (6u * 2u + copy) * ST_SECTOR;
-#if !ST_RETIRED
-    if (obj == OBJ_QUADSTORE)
-        return ST_SMK_HIGH + (2u + copy) * ST_SECTOR;
-    if (obj == OBJ_CZSTORE1)
-        return ST_SMK_HIGH + copy * ST_SECTOR;
-    if (obj >= OBJ_UPRESET0 && obj < OBJ_FM6BANK)
-        return ST_SMK_BASE + ((4u + obj - OBJ_UPRESET0) * 2u + copy) * ST_SECTOR;
-    if (obj >= OBJ_PROJECT0 && obj < OBJ_UPRESET0)
-        return ST_SMK_BASE + ((obj - OBJ_PROJECT0) * 2u + copy) * ST_SECTOR;
-#endif
     return ST_SMK_BASE + (7u * 2u + copy) * ST_SECTOR;   /* OBJ_SETTINGS */
 }
 
@@ -315,10 +286,8 @@ static void st_owner_check(void)
 static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy A (0) / B (1); a live object */
 {
     copy &= 1u;
-#if ST_RETIRED
     if (!st_live(obj))
         return ST_NOWHERE;
-#endif
     if (obj == OBJ_FM6BANK)
         return copy ? 0xFE000u : 0x9F000u;
     if (obj == OBJ_SESSION)
@@ -327,16 +296,6 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return 0xB6000u + copy * ST_SECTOR;
     if (obj >= OBJ_CZBANK0 && obj < OBJ_CZBANK0 + 8u)
         return 0xA2000u + (obj - OBJ_CZBANK0) * 2u * ST_SECTOR + copy * ST_SECTOR;
-#if !ST_RETIRED
-    if (obj == OBJ_QUADSTORE)
-        return 0xB2000u + copy * ST_SECTOR;
-    if (obj == OBJ_CZSTORE1)
-        return 0xA0000u + copy * ST_SECTOR;
-    if (obj >= OBJ_UPRESET0 && obj < OBJ_FM6BANK)
-        return 0xDC000u + (obj - OBJ_UPRESET0) * 2u * ST_SECTOR + copy * ST_SECTOR;
-    if (obj >= OBJ_PROJECT0 && obj < OBJ_UPRESET0)
-        return 0x97000u + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;
-#endif
     return 0xFC000u + copy * ST_SECTOR;                  /* OBJ_SETTINGS */
 }
 #endif /* BOARD_SMK37 */

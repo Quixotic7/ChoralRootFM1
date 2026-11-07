@@ -29,7 +29,7 @@
 #   web_dnsnd      node web/test_dnsnd.mjs              (after cr_tests: build/host/sound_templates)
 #   web_dn2        node web/test_dn2.mjs                (after cr_tests: build/host/sound_templates; the Digitone II importer)
 #   web_installer  node web/test_installer.mjs
-#   web_web        node web/test_web.mjs                (once run_tests has written build/host/desc.json)
+#   web_web        node web/test_web.mjs
 #   web_emu_build  sh tools/emu/web/build_web.sh        (Emscripten: ~/emsdk)
 #   layout_build   sh tools/layout/build_layout.sh      (Emscripten: the layout tool's preview module, docs/LAYOUT-TOOL.md)
 #   layout_test    node web/test_layout.mjs             (after layout_build and web_emu_build)
@@ -43,8 +43,6 @@
 #     tests are rt_cr_usb*), and each has its own step directory (build/host/jobs_cr, build/host/jobs);
 #   - run_tests.sh runs install_test.py and the five web tests itself: they keep their files in temporary
 #     directories of their own, so the same test may run twice at once;
-#   - web/test_web.mjs compares the editor's mock with build/host/desc.json and skips that check when the file is
-#     missing: here it waits until run_tests.sh has written this run's (or has ended);
 #   - the emulator's tests need build/host/emu: they wait for emu_build;
 #   - the browser emulator's test needs build/host/emu and build/emu-web, and one of its checks is the longest
 #     128-frame render in wall-clock time (under 4 budgets of 2.9 ms): a single preemption by another suite fails it
@@ -144,9 +142,6 @@ suite() {       # the suite's command, its output to its log, its status and sec
         selected "$w" || continue
         while ! ended "$w"; do sleep 0.1; done
     done
-    if [ "$s" = web_web ] && selected run_tests; then
-        while ! ended run_tests && ! [ build/host/desc.json -nt "$L/start" ]; do sleep 0.1; done
-    fi
     [ "$s" = web_emu_build ] || unset CR_VERSION
     t0=$(now)
     rc=0

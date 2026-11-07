@@ -1,23 +1,18 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The firmware the emulator runs: the ONE include list (included once, by emu_fw.c).
- * The sound side through tests/hostsim.c (engines, voices, FX, usb.c MIDI queues; FELUCCA_SEQ 0: without
- * Felucca's sequencer and hostsim's own renders), then the emulator's HAL (emu_hal_fw.h), the audio ISR (audio.c),
+ * The sound side through tests/hostsim.c (engines, voices, FX, usb.c MIDI queues; HOST_CR_OUT: without hostsim's
+ * stand-ins and helpers, cr_out.c follows), then the emulator's HAL (emu_hal_fw.h), the audio ISR (audio.c),
  * then the instrument's UI.
  * The instrument is ChoralRoot (docs/INTEGRATION.md): its engine (cr_engine.c) ticks in the audio ISR through
  * the mix_block shim below (cr_out.c cr_audio_block, then fx.c's mix), its UI (cr_ui.c) draws cr_draw.c's
- * screens. As choralroot.c: no seq.c (cr_out.c's events_block and midi_event), no SAMPLE / GRAIN / DRUM engines, no
- * Felucca icons or keycaps. The hook bodies are in emu_fw.c. */
+ * screens. As choralroot.c: cr_out.c's events_block and midi_event (Felucca's sequencer and retired engines left the
+ * tree in 3y232: core.h's defaults are ChoralRoot's), no Felucca keycaps. The hook bodies are in emu_fw.c. */
 
 /* ------------------------------------------------ sound, MIDI, sequencer --- */
 #include <stddef.h>
 #include <stdint.h>
 #define main hostsim_main
-#ifndef FELUCCA_SEQ
-#define FELUCCA_SEQ 0                                 /* as choralroot.c: no Felucca sequencer */
-#endif
-#ifndef FELUCCA_SLICE
-#define FELUCCA_SLICE 0                               /* as choralroot.c: no SLICE engine, so engine numbers match the device */
-#endif
+#define HOST_CR_OUT 1                                 /* (cr_out.c follows: its events_block, midi_event) */
 #ifndef FELUCCA_VA
 #define FELUCCA_VA 1                                  /* as choralroot.c: the VA engine, its patch store */
 #endif
@@ -30,44 +25,14 @@
 #ifndef FELUCCA_PROPHET
 #define FELUCCA_PROPHET 1                             /* as choralroot.c: Melodee's Prophet-5 engine (16) */
 #endif
-#ifndef FELUCCA_SAMPLE
-#define FELUCCA_SAMPLE 0                              /* as choralroot.c: SAMPLE, DRUM retired */
-#endif
 #ifndef FELUCCA_GRAIN
 #define FELUCCA_GRAIN 1                               /* as choralroot.c: GRAIN (8) over its own material (0.22) */
 #endif
 #ifndef GRAIN_ASYNC
 #define GRAIN_ASYNC 1                                 /* as choralroot.c: its renders from the idle hook (emu_fw_idle) */
 #endif
-#ifndef FELUCCA_DRUM
-#define FELUCCA_DRUM 0
-#endif
-#ifndef FELUCCA_ANALOG
-#define FELUCCA_ANALOG 0                              /* as choralroot.c: ANALOG retired (engine 0) */
-#endif
-#ifndef FELUCCA_PHASE
-#define FELUCCA_PHASE 0                               /* as choralroot.c: PHASE, LOFI, VOICE, TRIO, NOISE retired (0.18) */
-#endif
-#ifndef FELUCCA_LOFI
-#define FELUCCA_LOFI 0
-#endif
-#ifndef FELUCCA_VOICE
-#define FELUCCA_VOICE 0
-#endif
-#ifndef FELUCCA_TRIO
-#define FELUCCA_TRIO 0
-#endif
-#ifndef FELUCCA_NOISE
-#define FELUCCA_NOISE 0
-#endif
-#ifndef FELUCCA_PHYS
-#define FELUCCA_PHYS 0                                /* as choralroot.c: PHYS retired (0.18) */
-#endif
 #ifndef FELUCCA_SLICER
-#define FELUCCA_SLICER 1                              /* (as felucca.c; the device unit has it off) */
-#endif
-#ifndef FELUCCA_PERFORM
-#define FELUCCA_PERFORM 0                             /* as choralroot.c: no FX hold layer (perform.c; fx.c) */
+#define FELUCCA_SLICER 1                              /* (the emulator has the SLICER; the device unit has it off) */
 #endif
 #ifndef CR_FX
 #define CR_FX 1                                       /* as choralroot.c: ChoralRoot's delay and reverb (cr_fx.c) */

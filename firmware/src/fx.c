@@ -13,16 +13,6 @@
                                   * docs/FX.md: a stereo delay and a large reverb at half the rate, their parameters
                                   * global); 0: Felucca's below, as its golden renders have them */
 #endif
-#ifndef FELUCCA_PERFORM
-#define FELUCCA_PERFORM 1        /* 0 (choralroot.c, the emulator): no FX hold layer (perform.c). Its keys are seq.c's
-                                  * (keyboard_block: perf_press) and its knobs, solo and kill ui_layer.c's and
-                                  * ui_input.c's, none of them in a unit without Felucca's sequencer and UI
-                                  * (FELUCCA_SEQ 0): there perf_begin could only ever return 0 and pf.mute stay 0, so
-                                  * the mix is the same without the calls, and perform.c leaves the image */
-#endif
-#if !FELUCCA_PERFORM && defined(FELUCCA_SEQ) && FELUCCA_SEQ
-#error "FELUCCA_PERFORM 0 needs FELUCCA_SEQ 0 (seq.c and ui_layer.c drive perform.c)"
-#endif
 #define CHO_LEN 2048u
 static int16_t cho_buf[CHO_LEN] __attribute__((section(".pool")));
 #ifndef CR_CHORUS_MONO
@@ -713,9 +703,6 @@ static uint32_t div_samples(uint32_t div)
     return div < 6u ? quarter / DIV_DEN[div] : div < 10u ? quarter << (div - 5u) : quarter / DIV_DEN[div % 6u];
 }
 
-#if FELUCCA_PERFORM
-#include "perform.c"                                 /* the FX hold layer's effects (the master) */
-#endif
 
 #if CR_FX
 #include "cr_fx.c"                                   /* ChoralRoot's delay and reverb (xf_block, after the chorus) */
@@ -1103,16 +1090,6 @@ CR_HOT_CORE static void mix_part_out(track_t *t, int32_t *b, int32_t *side, uint
         sd = side_on && !t->p[P_SLCR] && !slicer_busy(t) ? side : 0;
         track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
-#if FELUCCA_PERFORM
-        if ((pf.mute >> (t - trk)) & 1u) {
-            if (sd) {
-                int32_t mg = pf.mg[t - trk];
-                perf_mute((uint32_t)(t - trk), sd, n);
-                pf.mg[t - trk] = mg;
-            }
-            perf_mute((uint32_t)(t - trk), b, n);       /* perform.c: a black key in the FX layer */
-        }
-#endif
         k[MX_LVL] = lvl;
         k[MX_GL] = gl;
         k[MX_GR] = gr;
@@ -1458,10 +1435,6 @@ static __attribute__((noinline)) void p5x_run(track_t *t0, int32_t *out, int32_t
 static int c1_split_ok(void)
 {
     const engine_t *e0 = ENGINES[trk[0].engine], *e1 = ENGINES[trk[1].engine];
-#if FELUCCA_PHYS
-    if (e0 == &ENG_PHYS)
-        return 0;
-#endif                                             /* (ChoralRoot since 0.18: no PHYS, FELUCCA_PHYS 0) */
     return !(e0 == &ENG_FORMANT && e1 == &ENG_FORMANT);
 }
 /* parts 0 and 1: everything shared first on core 0 (the matrices, the LFOs: their draws from the shared generator in
@@ -1515,24 +1488,6 @@ static void mix_parts_split(uint32_t n)
 }
 #endif
 
-#if FELUCCA_PERFORM
-/* the master with the FX layer's effects between its level and master_out (perform.c) */
-static __attribute__((noinline)) void perf_master(int32_t *out, uint32_t n)
-{
-    uint32_t i;
-    int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (USB Level Fixed: MASTER after) */
-    for (i = 0; i < n; i++) {
-        mix_l[i] = (((mix_l[i] + wet[i]) >> 2) * mg) >> 10;
-        mix_r[i] = (((mix_r[i] + wet[i]) >> 2) * mg) >> 10;
-    }
-    perf_block(mix_l, mix_r, n);
-    for (i = 0; i < n; i++) {
-        out[2u * i] = mix_l[i];
-        out[2u * i + 1u] = mix_r[i];
-    }
-    master_block(out, n);                               /* (Options > Output is ChoralRoot's, which has no FX layer) */
-}
-#endif
 
 #if CR_FX
 /* THE ROUTING's Chain (cr_fx.c, docs/FX.md "The routing"): mix_block's effects stage with XP_RMODE 1, the master filter
@@ -1640,9 +1595,6 @@ static __attribute__((noinline)) void mix_fx_chain(uint32_t n)
 static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
-#if FELUCCA_PERFORM
-    int perf;
-#endif
 #if FX_UA_STAGE
     if (ua_stage_on)
         for (i = 0; i < n * UA_CAP_CHANNELS; i++)
@@ -1654,9 +1606,6 @@ static void mix_block(int32_t *out, uint32_t n)
 #if FELUCCA_GRAIN
     grain_tick();                                       /* GRAIN's render requests and fades, on core 0 before any part
                                                          * renders (eng_grain.c, docs/GRAIN.md) */
-#endif
-#if FELUCCA_PERFORM
-    perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
 #endif
     CR_PROF(CRP_TICK);                                  /* (the engine tick before it: the mix_block shim) */
     i = 0;
@@ -1674,10 +1623,6 @@ static void mix_block(int32_t *out, uint32_t n)
         mix_part(&trk[i], n);
     for (; i < NPART; i++)
         mix_part_idle(&trk[i], n);
-#if FELUCCA_PERFORM
-    if (perf)
-        perf_pre(mix_l, mix_r, send_d, send_r, n);
-#endif
 #if CR_FX
     if (xfp[XP_RMODE] == 1)
         mix_fx_chain(n);                                /* (cr_fx.c THE ROUTING: Chain, the master filter inside it) */
@@ -1717,12 +1662,6 @@ static void mix_block(int32_t *out, uint32_t n)
     }
 #endif
     CR_PROF(CRP_FX);
-#if FELUCCA_PERFORM
-    if (perf) {
-        perf_master(out, n);
-        return;
-    }
-#endif
 #ifdef FX_MIX_HOOK
     FX_MIX_HOOK(mix_l, mix_r, n);                       /* (tests/cr_align_test.c: a sample put into the mix) */
 #endif
