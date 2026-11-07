@@ -13,7 +13,9 @@
 #define BLE_DEVICE_NAME "ChoralRoot"    /* advertised as "ChoralRoot XXXX" (BLE_NAME_HEX: the address's last digits) */
 #define BLE_CENTRAL 0                   /* the peripheral only (connecting out: docs/BLE-LINK.md step 6) */
 #define FELUCCA_BLE_BOND 1              /* LE legacy pairing, Just Works, a bond kept (ble_cfg.h: LL encryption on) */
-#define BLE_DIAG 0
+#ifndef BLE_DIAG
+#define BLE_DIAG 0                      /* BLE_DIAG=1 ./build.sh: the driver's counters in 81 BLE (3y241) */
+#endif
 #ifndef BLE_DMA_MEMORY                  /* (tests/cr_ble_test.c: plain memory on the host) */
 #define BLE_DMA_MEMORY __attribute__((section(".pool"), aligned(4)))   /* the baseband's block: SRAM, as Melodee's */
 #define FM1_RF_CAL_MEMORY __attribute__((section(".pool")))
@@ -33,7 +35,7 @@ static void cr_ble_poll(void);                   /* the main loop: a record to s
 static int cr_ble_running(void);                 /* the radio started this power-on */
 static int cr_ble_will_start(void);              /* after cr_ble_boot: the radio starts this boot */
 static void cr_ble_supplies(int ok);             /* main.c: stock's supplies applied (1) or a P33 timeout (0) */
-#define CRBL_DBG_N 21u
+#define CRBL_DBG_N 40u
 static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N]);   /* 81 BLE (cr_backup.c): the radio's state, fm1_install --debug */
 static int cr_ble_set(int on);                   /* Options > Bluetooth: 0 refused (no region, no calibration) */
 static int cr_ble_on(void);

@@ -7368,3 +7368,25 @@ screen's title, main.c fm1_fault: "FELUCCA CRASH" -> "CHORALROOT CRASH"). It was
 (grep of firmware/: SAFE MODE, UPDATE MODE, USB BOOT and UBOOT never said it). Kept, being protocol: the update
 loader's package tag "FELUCCA-LOADER-1" (crt0_ldr.S, stub_core.h, ota.c) and its USB identity "ota-FM-1_900"; the
 credits in the docs and LICENSING.md. No golden draws that screen (the emulator has no crash screen).
+
+3y241. **Bluetooth not seen with one core: Melodee compared end to end, and a debug build.** The owner: "Even still
+with 1 core and bluetooth nothing shows up that I can connect to on my mac" (b79e87e5, Dual Core Off: the radio
+started at power-on in 13.5 ms on the stock VM's trims, ~10 radio interrupts a second); Melodee 1.6.1 on the same unit
+and Mac was seen and connected. Compared with Melodee 3fe570d: **the same** advertising (ADV_IND with the flags 0x06 and
+the BLE-MIDI service 03B80E5A-EDE8-4B33-A751-6CE34EC4C700, the name in the SCAN_RSP: "ChoralRoot XXXX", 17 of 31
+octets), interval, link layer and driver (the files are Melodee's; ChoralRoot's only change there is the interrupt
+attach), the radio program (the same bytes, from the resource region as Melodee 1.6 has it), the calibration path
+(the VM first, our copy, else self-calibration: the unit has its stock VM, `ble_cal 1`, as Melodee would), the TX
+power (the driver's constants), the start sequence (radio, ble_init, advertise, the bond, ble_enable) and the stack's
+calls; no GPIO or RF switch is driven by either firmware (the WL82's front end is internal). `BLE_CENTRAL 0` only
+compiles the scanner out (the stack's fixtures pass both ways). `ble_step 10` is FM1_BLE_STEP_ADV_STARTED: advertising
+was started, and ~10 interrupts a second fit an event every ~100 ms. **What differs is the supply**: with one core
+ChoralRoot left the boot loader's (the 1.3 V rail on its LDO, VDC14 1.40 V, SYSVDD 1.26 V), Melodee 1.6.1 runs stock
+V15's (DCDC13, VDC14 1.60 V, VDDIO 3.2 V) at every boot since 5e66df3; a radio on the wrong analog supply would take
+its interrupts and send nothing usable. 3y240's `fm1_power_stock` already applies stock's sequence at every radio
+boot, one core or two, so it addresses this too, with VDC14 at the 1.50 V cap or, in the stock-levels build, 1.60 V.
+**To see it on the unit**: `BLE_DIAG=1 ./build.sh` builds the driver's own counters into 81 BLE (`fm1_install.py
+--debug`: advertising starts and events, packets heard, **SCAN_REQs** (a Mac or phone scanning nearby sends them when it
+hears the FM-1: 0 means nobody hears it), drops, CONNECT_INDs received / accepted / refused and why, the link's
+interrupts, events, good and bad packets, closes, timeouts) and a summary line; XIP grows by the diagnostics only in that
+build. `cr_ble_test` runs both ways (`cr_ble_diag_test`). All 24 suites pass.

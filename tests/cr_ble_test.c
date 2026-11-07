@@ -350,8 +350,8 @@ static void t_debug(void)
     cr_ble_boot();
     cr_ble_start_boot();
     ble_app_midi_in(pk(0x90, 60, 100), 0, 0);
-    check("81 BLE: 20 values: On, started, nothing owed, the trims measured at the start (3), a packet in",
-          cr_ble_debug(v) == CRBL_DBG_N && v[0] == 1u && v[1] == 1u && v[2] == 0u && v[3] == 3u && v[7] == 1u &&
+    check("81 BLE: 21 values (39 in a BLE_DIAG build): On, started, nothing owed, the trims measured at the start (3), a packet in",
+          cr_ble_debug(v) == 21u + 18u * BLE_DIAG && v[0] == 1u && v[1] == 1u && v[2] == 0u && v[3] == 3u && v[7] == 1u &&
           v[18] == 0u);
     crbl.connected = 1;
     ble_app_state();

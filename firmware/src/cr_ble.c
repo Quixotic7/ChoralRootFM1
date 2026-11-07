@@ -341,6 +341,26 @@ static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N])
     v[k++] = bootguard.failed;
     v[k++] = v[10] >> 16 & 0xFFu;
     v[k++] = crbl.supplies;
+#if BLE_DIAG                                      /* (a BLE_DIAG=1 build: the driver's counters, ble_diag.h ble_dg) */
+    v[k++] = ble_dg.adv_starts;                   /* advertising started */
+    v[k++] = ble_dg.adv_events;                   /* advertising events ended (each one's three channels sent) */
+    v[k++] = ble_dg.adv_rx;                       /* packets received while advertising */
+    v[k++] = ble_dg.scan_req;                     /* SCAN_REQs a scanner sent us (the engine answered): we are heard */
+    v[k++] = ble_dg.adv_drop;
+    v[k++] = (uint32_t)ble_dg.adv_drop_stat | (uint32_t)ble_dg.adv_drop_hdr << 16;
+    v[k++] = ble_dg.cind_rx;                      /* CONNECT_INDs: received, accepted, refused (and why) */
+    v[k++] = ble_dg.cind_ok;
+    v[k++] = ble_dg.cind_rej;
+    v[k++] = ble_dg.cind_rej_why;
+    v[k++] = ble_dg.evt_irqs;                     /* the connection: event and RX interrupts, events, good packets */
+    v[k++] = ble_dg.rx_irqs;
+    v[k++] = ble_dg.conn_events;
+    v[k++] = ble_dg.rx_good;
+    v[k++] = ble_dg.rx_crc_bad;
+    v[k++] = ble_dg.closes;
+    v[k++] = (uint32_t)ble_dg.close_reason | (uint32_t)ble_dg.close_by << 8;
+    v[k++] = ble_dg.busy_timeouts;
+#endif
     return k;
 }
 static int cr_ble_set(int on)

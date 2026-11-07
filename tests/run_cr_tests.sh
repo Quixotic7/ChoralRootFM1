@@ -162,6 +162,9 @@ t ./build/host/cr_midi_test
 par_build cc -std=c11 -Wall -Werror -Wno-unused-function -Wno-bitwise-op-parentheses -O1 -Itests/ble_fake -Ifirmware/src \
     -o build/host/cr_ble_test tests/cr_ble_test.c
 t logged_count_last cr_ble_test
+par_build cc -std=c11 -Wall -Werror -Wno-unused-function -Wno-bitwise-op-parentheses -O1 -DBLE_DIAG=1 -Itests/ble_fake \
+    -Ifirmware/src -o build/host/cr_ble_diag_test tests/cr_ble_test.c
+t logged_count_last cr_ble_diag_test
 t python3 tests/ble_tests.py
 # the sound templates the clients embed for .syx imports are the firmware's defaults (docs/SOUNDS.md), and their factory
 # tables the firmware's. Built with P5, as the unit is (3y80, the device manager's P5 tab; until then without it): the

@@ -2804,7 +2804,14 @@ DEBUG_USB = ["ua_rate", "ua_rate_last_open", "ua_rate_sets", "ua_rate_changes", 
 DEBUG_BLE = ["ble_on", "ble_started", "ble_pending", "ble_cal", "ble_start_us", "ble_connected", "ble_ready",
              "ble_rx", "ble_tx", "ble_losses", "ble_crumb", "ble_irqs", "ble_prev_crumb", "ble_prev_irqs",
              "ble_prev_op", "ble_prev_gop", "ble_prev_addr", "ble_prev_stop", "ble_boot_failed", "ble_step",
-             "ble_supplies"]   # 3y240: 0 not asked, 1 stock's supplies applied (fm1_power_stock), 2 a P33 timeout
+             "ble_supplies",   # 3y240: 0 not asked, 1 stock's supplies applied (fm1_power_stock), 2 a P33 timeout
+             # 3y241, a BLE_DIAG=1 build only (the driver's ble_dg): advertising starts / events ended / packets heard /
+             # SCAN_REQs (a scanner heard us) / dropped, the last drop's RXSTAT | RXAHDR << 16; CONNECT_INDs received /
+             # accepted / refused / why; the link's event and RX interrupts, events, good and bad-CRC packets, closes,
+             # the last close's reason | by << 8; link stops that timed out
+             "ble_adv_starts", "ble_adv_events", "ble_adv_rx", "ble_scan_req", "ble_adv_drop", "ble_adv_drop_stat",
+             "ble_cind_rx", "ble_cind_ok", "ble_cind_rej", "ble_cind_rej_why", "ble_evt_irqs", "ble_rx_irqs",
+             "ble_conn_events", "ble_rx_good", "ble_rx_crc_bad", "ble_closes", "ble_close", "ble_busy_timeouts"]
 BLE_CAL = ["none", "the stock VM (0xE8000)", "ChoralRoot's copy", "measured at the start (fm1_rf_cal.h)"]
 BLE_HEX = ("ble_crumb", "ble_prev_crumb", "ble_prev_addr")
 USB_RATE_OPTION = "Options > USB Rate"             # the entry's name on the unit (cr_ui.c O_NAME)
@@ -2889,6 +2896,10 @@ def print_debug(vals, out, stub_only=False, peak=(), usb=(), ble=()):
               + (f"; the run before ended in a reset at radio step {d['ble_prev_crumb'] >> 16 & 0xFF} "
                  f"(word 0x{d['ble_prev_crumb']:08X}, {d['ble_prev_irqs']} interrupts)" if d["ble_prev_crumb"] else ""),
               file=out)
+    if "ble_scan_req" in d:
+        print(f"Bluetooth (BLE_DIAG): {d['ble_adv_events']} advertising events, {d['ble_scan_req']} scan requests heard "
+              f"(0 while a Mac or phone scans nearby: nobody hears the FM-1), {d['ble_cind_rx']} connection requests "
+              f"({d['ble_cind_ok']} accepted), {d['ble_conn_events']} connection events", file=out)
     if "ua_rate_changes" in d:
         print(f"ChoralRoot In: {d['ua_rate']} Hz now, the last whole open at "
               f"{d['ua_rate_last_open'] or 'no rate (none yet)'}" + (" Hz" if d["ua_rate_last_open"] else "") +
