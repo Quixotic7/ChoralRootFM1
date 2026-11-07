@@ -6998,3 +6998,20 @@ never answers), `test_web_emu_smk.mjs` (the entry after MIDI Clock, On, Off, kep
 after). SMK-37 Pro XIP 559,696 of 573,440 (97.6 %, +832 B), RAM +160 B; 1-core 555,940 (the MKE-P37's 555,924: its name); the Elite and MKE-P37 the
 Pro's code with their names. LICENSING.md (Skiff's row), SMK37.md ("The TRS jack", the controls table, What to test
 15, Credits), SETTINGS.md. Not tested on a unit: the Elite, the MKE-P37, a 1-core package, a long session, Off.
+
+3y227. **0.29.2-smk37: the SMK-37 test build with the TRS jack's MIDI out; genkigenki in LICENSING.md.** The owner:
+"Add genkigenki to the licensing credits. Please get this in an SMK build out". LICENSING.md had no row for the SMK-37
+port itself (SMK37.md credited it alone): now genkigenki's board layer (their Felucca SMK-37 port, brought here in PR
+#14, 187b2e5: the input HAL, the LCD and pad LED pins, the flash map and its guards, the owner tag, the stub's and the
+loader's SMK places, the identities, the package layout, the installers' SMK support, the stock mapping's fix of
+0.24-beta3-smk37.1, SMK37.md's first version; GPL-3.0-only), their fm1-to-smk37 hardware notes (CC BY-NC 4.0, credit
+only: the SMK build and its TRS out were checked against them) and their Vector37 simulator (GPL-3.0, the SMK
+emulator panel's arrangement, credit only). The build: main's 0.29.2 with 3y226 (the TRS jack, Options > TRS MIDI
+Out) on the three models, `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.29.2-smk37` and then
+`tools/hub_build.sh 0.29.2-smk37`: the same `SHA256SUMS` (twelve files), the six sha256s the list's. XIP 559,696 of
+573,440 (97.6 %; the Elite 559,712, its longer name), 1-core 555,940 .. 555,956. The SMK build also takes 0.29.1's
+second flash chip (0xB36014, in the SMK's `FL_JEDEC_OK` too) and 0.29.2's Clock In loop timing. `web/releases-smk37.json`:
+0.29.2-smk37 first, base 0.29.2, five bullets, three notes (the jack seen on a Pro only; going back to 0.29-smk37
+silences it; the jack's pace). SMK37.md: the status, the package names, the version line. `python3
+tests/releases_test.py` ALL OK. Tagged v0.29.2-smk37: release.yml builds, signs and publishes the pre-release,
+pages.yml the SMK-37 test installer.

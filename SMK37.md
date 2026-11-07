@@ -5,10 +5,10 @@ of flash). The FM-1 build is unchanged; everything for the SMK-37 is behind `BOA
 same ChoralRoot: the same sounds and engines (GRAIN among them), screens, boot and [manual](docs/MANUAL.md), with
 velocity-sensitive keys, the chord block and the performance modes on the pads, and the SMK-37's extra controls.
 
-**Status: a community test build of 0.29.** The port is genkigenki's (M. Geisler, genkigenki / makkuro:
+**Status: a community test build of 0.29.2.** The port is genkigenki's (M. Geisler, genkigenki / makkuro:
 [PR #14](https://github.com/Quixotic7/ChoralRootFM1/pull/14) and the porting guide
 [fm1-to-smk37](https://github.com/genkigenki/fm1-to-smk37)), brought onto 0.24-beta2 here and built from the FM-1's
-releases since (0.29 now). It is **community-tested, not tested by the maintainer**: the maintainer has no SMK-37, so nothing on
+releases since (0.29.2 now). It is **community-tested, not tested by the maintainer**: the maintainer has no SMK-37, so nothing on
 this page has been tried on a unit by the project. What only a unit can answer is listed under
 [What to test](#what-to-test). Report what you find in the project's issues.
 
@@ -19,14 +19,16 @@ factory package afterwards. The test packages (`build/release-smk37/`, see [Buil
 
 | Model | Package | Identity |
 | --- | --- | --- |
-| SMK-37 Pro (and the Starrykey 37 Play) | `choralroot-0.29-smk37.fwsc` | `SMK-37 Pro_920` |
-| SMK-37 Elite | `choralroot-0.29-smk37-elite.fwsc` | `SMK-37 Elite_920` |
-| MKE-P37 | `choralroot-0.29-smk37-mke.fwsc` | `MKE-P37_920` |
+| SMK-37 Pro (and the Starrykey 37 Play) | `choralroot-0.29.2-smk37.fwsc` | `SMK-37 Pro_920` |
+| SMK-37 Elite | `choralroot-0.29.2-smk37-elite.fwsc` | `SMK-37 Elite_920` |
+| MKE-P37 | `choralroot-0.29.2-smk37-mke.fwsc` | `MKE-P37_920` |
 
-Each has a `-1core` twin (`choralroot-0.29-smk37-1core.fwsc`, ...): the same firmware on one processor core, for
+Each has a `-1core` twin (`choralroot-0.29.2-smk37-1core.fwsc`, ...): the same firmware on one processor core, for
 a unit that crashes or freezes with the standard package (as the FM-1's, [docs/DUALCORE.md](docs/DUALCORE.md)). The
-version a player sees (the splash, Options > Version, `fm1_install.py --info`) is `ChoralRoot 0.29-smk37`
-(`... 1-core` for the twin). 0.29-smk37 is the FM-1's 0.29 on the SMK-37 ([docs/releases/0.29.md](docs/releases/0.29.md):
+version a player sees (the splash, Options > Version, `fm1_install.py --info`) is `ChoralRoot 0.29.2-smk37`
+(`... 1-core` for the twin). 0.29.2-smk37 adds [the TRS jack's MIDI out](#the-trs-jack) (issue 42) and the FM-1's
+0.29.1 and 0.29.2 (the flash chip of newer units, 0xB36014; a loop that follows MIDI Clock In keeps time with the
+pulses: [docs/releases/0.29.2.md](docs/releases/0.29.2.md)) to 0.29-smk37, the FM-1's 0.29 on the SMK-37 ([docs/releases/0.29.md](docs/releases/0.29.md):
 FIZZ's engine in FM TONE, the Digitone II's filter types picked by holding SCALE, the SMK's SEL; FM TONE's chords
 on both cores), with everything of 0.27-smk37.1 (the pedal jack, K1's volume) and 0.27-smk37, the FM-1's 0.27 ([docs/releases/0.27.md](docs/releases/0.27.md):
 with Dual Core On, VA and FM6 chords shared between the two cores and the VA's code in RAM, the same sound bit for bit;
@@ -148,7 +150,7 @@ freezes with the standard package.
 **From the command line**: connect the keyboard by USB and run, with the package for your model:
 
 ```sh
-python3 tools/fm1_install.py choralroot-0.29-smk37.fwsc
+python3 tools/fm1_install.py choralroot-0.29.2-smk37.fwsc
 ```
 
 `fm1_install.py` needs `python-rtmidi` (`pip3 install python-rtmidi`). It checks that the package is for the connected
@@ -264,9 +266,9 @@ models in `build/release-smk37/`, with the `-1core` twins, `SHA256SUMS`, this fi
 [BUILDING.md](BUILDING.md) "An SMK-37 test release"):
 
 ```sh
-BOARD=smk37 ./build.sh --release 0.29-smk37
-BOARD=smk37 MODEL=elite ./build.sh --release 0.29-smk37
-BOARD=smk37 MODEL=mke ./build.sh --release 0.29-smk37
+BOARD=smk37 ./build.sh --release 0.29.2-smk37
+BOARD=smk37 MODEL=elite ./build.sh --release 0.29.2-smk37
+BOARD=smk37 MODEL=mke ./build.sh --release 0.29.2-smk37
 ```
 
 ## What to test
@@ -274,7 +276,7 @@ BOARD=smk37 MODEL=mke ./build.sh --release 0.29-smk37
 What no test here can answer, in the order to try it. Note the model, the package and what you saw.
 
 1. **First boot and the owner change.** From the stock firmware: the first start takes a few seconds longer (the
-   areas cleared, once), then the splash shows `ChoralRoot 0.29-smk37`. A second start is quick. `fm1_install.py
+   areas cleared, once), then the splash shows `ChoralRoot 0.29.2-smk37`. A second start is quick. `fm1_install.py
    --info` names the firmware. From genkigenki's earlier build: your sounds are there (moved into the pool).
 2. **The pads.** Pads 1-4, 9-12 hold the chord types and extensions, pad 13 is LOCK (tap and hold), pads 5-8 and 14-16
    pick and stop the performance modes; their colours as in [Controls](#controls).
