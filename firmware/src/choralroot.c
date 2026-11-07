@@ -169,6 +169,7 @@
 #include "fm1_guard.h"
 #if BOARD_SMK37
 #include "smk_input.h"           /* SMK-37: keys, buttons, encoders, LEDs, pads, faders, wheels, battery */
+#include "smk_uart_tx.h"         /* SMK-37: the TRS jack is MIDI OUT (UART1 TX, PC7; from Skiff, GPL-3.0) */
 #else
 /* the key sensing's hooks into the scan (cr_sense.c, below): velocity from the analog rows (docs/VELOCITY.md) */
 static void cr_sense_hook(uint32_t col, uint32_t rowbit, uint32_t v, uint32_t driven);

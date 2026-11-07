@@ -132,8 +132,36 @@ static int midi_enqueue(uint32_t pkt, uint32_t source)
     return 1;
 }
 
+#if BOARD_SMK37 && !defined(FELUCCA_LOADER)
+/* SMK-37: the same events to the TRS jack's MIDI OUT (hal/smk_uart_tx.h), as bytes, with or without a USB host.
+ * 31250 baud is about 3 bytes a ms and the UART's ring holds 128: realtime (the clock) goes ahead of the queued
+ * bytes; a note-off, CC 120 / 123 (all notes off) always get in (so no note sticks); any other message is dropped
+ * WHOLE when fewer than 24 bytes are free (a note-on, a wheel's CC or bend, rather than a cut message) */
+static void midi_out_trs(uint32_t pkt)
+{
+    uint32_t cin = pkt & 15u, st = (pkt >> 8) & 0xFFu, d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
+    uint32_t nb = (0x7AFFE7E0u >> (2u * cin)) & 3u;     /* bytes of a CIN: 2/3 system common, 8..E channel, F one */
+    uint32_t freeb = SMK_UT_TX_RING - (uint8_t)(smk_ut_w - smk_ut_r);
+    uint32_t prio = cin == 8u || (cin == 9u && !d2) || (cin == 0xBu && (d1 == 120u || d1 == 123u));
+    if (nb == 1u && st >= 0xF8u) {
+        smk_uart_tx_rt(st);
+        return;
+    }
+    if (!nb || freeb < (prio ? nb : 24u))
+        return;
+    smk_uart_tx_put(st);
+    if (nb > 1u)
+        smk_uart_tx_put(d1);
+    if (nb > 2u)
+        smk_uart_tx_put(d2);
+}
+#endif
+
 static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 {
+#if BOARD_SMK37 && !defined(FELUCCA_LOADER)
+    midi_out_trs(pkt);
+#endif
     if (usb.config && mo_w - mo_r < MQ) {
         midi_out_q[mo_w % MQ] = pkt;
         RING_PUBLISH();
