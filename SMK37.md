@@ -5,11 +5,12 @@ of flash). The FM-1 build is unchanged; everything for the SMK-37 is behind `BOA
 same ChoralRoot: the same sounds and engines (GRAIN among them), screens, boot and [manual](docs/MANUAL.md), with
 velocity-sensitive keys, the chord block and the performance modes on the pads, and the SMK-37's extra controls.
 
-**Status: a community test build of 0.29.2.** The port is genkigenki's (M. Geisler, genkigenki / makkuro:
+**Status: 0.29.2-smk37, tested on SMK-37s by their owners.** The port is genkigenki's (M. Geisler, genkigenki / makkuro:
 [PR #14](https://github.com/Quixotic7/ChoralRootFM1/pull/14) and the porting guide
 [fm1-to-smk37](https://github.com/genkigenki/fm1-to-smk37)), brought onto 0.24-beta2 here and built from the FM-1's
-releases since (0.29.2 now). It is **community-tested, not tested by the maintainer**: the maintainer has no SMK-37, so nothing on
-this page has been tried on a unit by the project. What only a unit can answer is listed under
+releases since (0.29.2 now). Several SMK-37 owners have run these builds and report that they work, so since 0.29.2-smk37
+they are full releases, not pre-releases. The maintainer still has no SMK-37: the project has not tried anything on
+this page on a unit itself, and new features reach it through the testers. What only a unit can answer is listed under
 [What to test](#what-to-test). Report what you find in the project's issues.
 
 ## Supported models and packages

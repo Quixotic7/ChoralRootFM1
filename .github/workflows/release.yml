@@ -14,11 +14,12 @@
 #                                   pages.yml
 #   workflow_dispatch   -> build only: fm1-build signs the build of the branch, no release; the packages are the
 #                          run's artifact "packages"
-# An SMK-37 test build (SMK37.md) has a version that ends in -smk37 (tag vX.Y[-suffix]-smk37, e.g. v0.24-beta2-smk37;
+# An SMK-37 build (SMK37.md) has a version that ends in -smk37 (tag vX.Y[-suffix]-smk37, e.g. v0.24-beta2-smk37;
 # -smk37.N for a respin of the SMK build on the same FM-1 base, e.g. v0.24-beta3-smk37.1):
 # the three models (BOARD=smk37 MODEL=pro|elite|mke ./build.sh --release X.Y-smk37) and their single-core twins,
-# signed the same way and checked against web/releases-smk37.json when it lists the version, always a pre-release,
-# and the site rebuilt from that tag for the FM-1's current version (web/releases.json's first entry, unchanged) so
+# signed the same way and checked against web/releases-smk37.json when it lists the version, a full release that is
+# never GitHub's "latest" (the FM-1's stays it; a pre-release only on an FM-1 base that is a beta or an rc), and the
+# site rebuilt from that tag for the FM-1's current version (web/releases.json's first entry, unchanged) so
 # that the SMK-37 test installer (webapp/smk37/) offers the new build; only when web/releases-smk37.json lists it.
 # The signed files are never rebuilt, replaced or uploaded by hand afterwards: the hub compares each package's SHA-256
 # with the signed one, and the installer with web/releases.json's.
@@ -117,9 +118,9 @@ jobs:
             {
               if [ -f "docs/releases/$VERSION.md" ]; then cat "docs/releases/$VERSION.md"; echo; echo "---"; echo; fi
               sed -e "s/@VERSION@/$VERSION/g" -e "s|@REPO@|$GITHUB_REPOSITORY|g" <<'EOT'
-          ChoralRoot @VERSION@: a community test build for the M-Vave SMK-37 Pro, SMK-37 Elite and MKE-P37 (and the Starrykey 37 Play, which takes the Pro's package). Community-tested, not tested by the maintainer; genkigenki's port (https://github.com/genkigenki/fm1-to-smk37). Read SMK37.md first.
+          ChoralRoot @VERSION@ for the M-Vave SMK-37 Pro, SMK-37 Elite and MKE-P37 (and the Starrykey 37 Play, which takes the Pro's package). Tested on SMK-37s by their owners (the maintainer has none); genkigenki's port (https://github.com/genkigenki/fm1-to-smk37). Read SMK37.md first.
 
-          One package per model: `choralroot-@VERSION@.fwsc` (SMK-37 Pro, Starrykey 37 Play), `-elite`, `-mke`; each has a `-1core` twin for a keyboard that crashes or freezes with the standard one. Install with the SMK-37 test installer (the link testers were given) or `python3 tools/fm1_install.py FILE`. The way back: M-VAVE's package for your model with M-UPGRADE.
+          One package per model: `choralroot-@VERSION@.fwsc` (SMK-37 Pro, Starrykey 37 Play), `-elite`, `-mke`; each has a `-1core` twin for a keyboard that crashes or freezes with the standard one. Install with the SMK-37 web installer (SMK37.md, Install) or `python3 tools/fm1_install.py FILE`. The way back: M-VAVE's package for your model with M-UPGRADE.
 
           `SHA256SUMS` lists every package and app; GitHub built and signed each from this tag's source (The Firmware Hub's shared workflow): `gh attestation verify FILE --repo @REPO@ --signer-workflow zvenson/fm1-build/.github/workflows/build.yml`. The packages hold three JieLi AC79 SDK files (Apache-2.0); `LICENSE`, `LICENSING.md` and `LICENSES.zip` carry every licence. Installing firmware is at your own risk.
           EOT
@@ -154,12 +155,13 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ github.ref_name }}
-          name: ${{ steps.version.outputs.board == 'smk37' && format('ChoralRoot {0} for the SMK-37 (community test)', steps.version.outputs.version) || format('ChoralRoot {0}', steps.version.outputs.version) }}
+          name: ${{ steps.version.outputs.board == 'smk37' && format('ChoralRoot {0} for the SMK-37', steps.version.outputs.version) || format('ChoralRoot {0}', steps.version.outputs.version) }}
           # a draft until publish has checked the signed packages; a pre-release for X.Y-suffix only (a beta among
-          # them) and the SMK builds; vX.Y is a full release, 0.x too (0.21 and 0.22 are the stable releases the
-          # installer offers by default)
+          # them); vX.Y is a full release, 0.x too (0.21 and 0.22 are the stable releases the installer offers by
+          # default). An SMK build (X.Y-smk37, tested by SMK-37 owners since 0.29.2-smk37) is a full release too, a
+          # pre-release only on a beta or rc base (X.Y-betaN-smk37); publish keeps it from being the latest
           draft: true
-          prerelease: ${{ steps.version.outputs.board == 'smk37' || contains(steps.version.outputs.version, '-') }}
+          prerelease: ${{ steps.version.outputs.board == 'smk37' && (contains(steps.version.outputs.version, '-beta') || contains(steps.version.outputs.version, '-rc')) || steps.version.outputs.board != 'smk37' && contains(steps.version.outputs.version, '-') }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: assets/*
@@ -224,7 +226,14 @@ jobs:
           tools/hub_build.sh --check signed "$VERSION"
 
       - name: Publish the release
-        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+        # (an SMK build never becomes the latest release: the FM-1's stays it, for the hub and the Releases page)
+        run: |
+          set -euo pipefail
+          if [ "$REL_BOARD" = smk37 ]; then
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest=false
+          else
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+          fi
 
       - name: Publish the site (pages.yml)
         # a final release, or a beta (X.Y-betaN: web/releases.json lists it first with "beta": true; the installer

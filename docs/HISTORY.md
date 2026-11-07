@@ -7015,3 +7015,13 @@ second flash chip (0xB36014, in the SMK's `FL_JEDEC_OK` too) and 0.29.2's Clock 
 silences it; the jack's pace). SMK37.md: the status, the package names, the version line. `python3
 tests/releases_test.py` ALL OK. Tagged v0.29.2-smk37: release.yml builds, signs and publishes the pre-release,
 pages.yml the SMK-37 test installer.
+
+3y228. **SMK-37 builds are full releases now.** The owner, while 3y227 published: "SMK versions have now been tested
+by multiple people and work so we no longer need to consider it a pre-release." v0.29.2-smk37 made a full release
+by hand (`gh release edit --prerelease=false --latest=false`), its title without "(community test)" and its notes'
+first lines reworded (tested on SMK-37s by their owners; the web installer by SMK37.md's Install). GitHub's latest
+release stays the FM-1's v0.29.2: the hub, RemoteFM1 and the Releases page take the latest as the FM-1's. release.yml
+for the next SMK tag: a full release, a pre-release only on a beta or rc base (`X.Y-betaN-smk37`), published with
+`--latest=false`, the same title and notes; `actionlint` clean. BUILDING.md "An SMK-37 test release" and SMK37.md's
+status say so (the maintainer still has no SMK-37). Unchanged: the SMK-37 installer page stays unlinked from the site,
+and the release's signed `SMK37.md` keeps its tag's wording (published files are never replaced).

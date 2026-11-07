@@ -331,11 +331,13 @@ A respin of the SMK build on the same FM-1 base adds `.N` after `-smk37` (`0.24-
    tag's tree).
 2. `git tag vX.Y-smk37 && git push origin vX.Y-smk37`. release.yml builds the three models in fm1-build as above
    (`tools/hub_build.sh` checks their sha256s against `web/releases-smk37.json` when it lists the version), signs
-   the six packages and their apps, creates the **pre-release** `vX.Y-smk37` ("ChoralRoot X.Y-smk37 for the
-   SMK-37 (community test)") with them, `SHA256SUMS`, the licences and `SMK37.md`, and starts
+   the six packages and their apps, creates the release `vX.Y-smk37` ("ChoralRoot X.Y-smk37 for the SMK-37") with
+   them, `SHA256SUMS`, the licences and `SMK37.md`, and starts
    pages.yml for the FM-1's current version (the first entry of `web/releases.json`, as it is) from the SMK tag: the
-   FM-1 site stays as it was, and `webapp/smk37/` offers the new build. A pre-release never becomes the latest
-   release, and the FM-1 installer never lists an SMK build.
+   FM-1 site stays as it was, and `webapp/smk37/` offers the new build. Since 0.29.2-smk37 (SMK-37 owners have
+   tested the builds) an SMK release is a full release, a pre-release only on a beta or rc base
+   (`X.Y-betaN-smk37`); publishing it passes `--latest=false`, so the FM-1's release stays GitHub's latest, and the
+   FM-1 installer never lists an SMK build.
 3. pages.yml fetches every version of `web/releases-smk37.json` from its own release (`choralroot-X.Y-smk37*.fwsc`)
    and `web/make_site.py --smk-packages build/smk-packages --require-all` checks each package's sha256 and identity
    (the model's `_9xx`, Felucca's loader) and writes `webapp/smk37/` and `firmware/smk37/`; the job fails when a page
