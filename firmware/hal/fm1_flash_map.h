@@ -28,6 +28,8 @@
  *   0x00000-0x03FFF  head (SPL, isd_config)         NEVER
  *   0x04000-0x9CFFF  app area (stock PRCT end)      update loader only (FL_APP): the boot stub, the app and the
  *                    commit marker at the FM-1's places (0x4120, 0x5000, 0x91FE0: docs/BOOT-SAFETY.md)
+ *   (the SMK-37 has no resource region (cr_res.h): its fonts stay in the image; if it needs one, 0x9D000..0xA8FFF is
+ *   48 KB that nothing reads since HISTORY 3y231, inside its plain window)
  *   0x9D000-0xBAFFF  VM: ChoralRoot's store (settings, the sound stores, the user sound banks, the FM6 bank,
  *                    the session, the owner tag, the favourites, the sound pool's sectors 0..4; storage.c)  FL_DATA
  *   0xBB000-0xBFFFF  VM: M-UPGRADE loader staging + update record (ota.c)          FL_OTA
@@ -107,7 +109,16 @@ _Static_assert(FL_DATA_HI <= FL_OTA_LO && FL_APP_HI <= FL_DATA_LO, "SMK: windows
 #define FL_GUARD(off, n) (FL_RANGE_OK(off, n) && !FL_PROTECTED(off, n))
 #else /* FM-1 */
 #define FL_PLAIN_LO     0x00093000u                /* plain XIP window from the FM-1 VM start */
-#define FL_DATA_LO      0x00097000u                /* Felucca main store */
+/* The resource region (HISTORY 3y234, docs/BLE-LINK.md step 1): read-only data the update package carries beside the
+ * app (flash.bin past 0x93000) and the update loader writes with the body, before the commit marker. The app reads it
+ * through the plain window (XIP 0x0208F000..) and never writes it: it lies outside FL_RANGE_OK below. Its first 64
+ * bytes are the header (firmware/src/cr_res.h), the data from FL_RES_DATA. 0x93000..0x96FFF were never used; the rest
+ * held 0.21's sound objects until 3y231 */
+#define FL_RES_LO       0x00093000u
+#define FL_RES_HI       0x0009F000u
+#define FL_RES_DATA     (FL_RES_LO + 0x40u)
+#define FL_DATA_LO      0x0009F000u                /* ChoralRoot's store (0x97000 until 3y234: the region took its
+                                                    * first 8 sectors, free since 3y231) */
 #define FL_DATA_HI      0x000E0000u
 #define FL_GLOB_LO      0x000FC000u                /* Felucca superblock / globals */
 #define FL_GLOB_HI      0x000FF000u
@@ -121,4 +132,6 @@ _Static_assert(FL_DATA_HI <= FL_OTA_LO && FL_APP_HI <= FL_DATA_LO, "SMK: windows
 #define FL_RANGE_OK(off, n) (FL_STORE_OK(off, n) || FL_IN(off, n, FL_OTA_LO, FL_OTA_HI))
 #endif
 #define FL_GUARD(off, n) FL_RANGE_OK(off, n)
+_Static_assert(FL_RES_LO == FL_PLAIN_LO && FL_RES_HI <= FL_DATA_LO && FL_RES_HI <= FL_OTA_LO,
+               "FM-1: the resource region lies in the plain window, below the store and the OTA staging");
 #endif /* BOARD_SMK37 */

@@ -26,6 +26,11 @@
  *   c. the body, 0x5000..0x90FFF and 0x92000..0x92FFF;
  *   d. the marker's sector last (its last page holds the marker).
  * A package without the marker is written in address order, as before.
+ * The resource region (FM-1, HISTORY 3y234; firmware/src/cr_res.h): a package whose flash.bin runs on to LDR_RES_HI
+ * carries the region's sectors 0x93000..0x9EFFF after the app area; they are written in the same pass as the body (c),
+ * so after the marker's sector went blank and before the marker: a cut install is uncommitted (the stub rescues, the
+ * resumed install writes what differs) and a committed one has its region. An older package (flash.bin 0x93000
+ * long) writes none and leaves whatever is there. The record sweep (4) never looks at the region's sectors.
  * Power loss during 3 (the SPL does not start the loader from the flash copy
  * of the record on a cold boot: BOOT-SAFETY.md): the stub finds no marker and
  * hands over to the staged loader, or to the ROM's USB boot.
@@ -49,6 +54,12 @@ _Static_assert(LDR_APP_HI <= LDR_REC_LO && LDR_REC_HI <= 0xC0000u && LDR_APP_LO 
 #define LDR_APP_HI 0x93000u
 #define LDR_REC_LO 0x93000u                     /* update records live above the app ... */
 #define LDR_REC_HI 0xFC000u                     /* ... and below Felucca's globals */
+#endif
+#if BOARD_SMK37
+#define LDR_RES_HI LDR_APP_HI                   /* (no resource region on the SMK-37) */
+#else
+#define LDR_RES_HI 0x9F000u                     /* hal/fm1_flash_map.h FL_RES_HI: the region, 0x93000 .. */
+_Static_assert(LDR_RES_HI > LDR_APP_HI && LDR_RES_HI <= LDR_REC_HI, "the resource region follows the app area");
 #endif
 #define LDR_STUB_SEC 0x4000u                    /* the directory and the boot stub */
 #define LDR_MARK_SEC 0x91000u                   /* stub_core.h STUB_MARK_SEC, STUB_MARK_OFF */
@@ -180,7 +191,7 @@ static int ldr_sector(uint32_t fl_off, uint32_t s, uint8_t *sec, uint8_t *cur, u
 static int ldr_session(void)
 {
     static uint8_t hdr[0x400], sec[0x1000], cur[0x1000];
-    uint32_t i, fl_off, fl_size, ota_off, ota_len, key, s, done = 0, open = 0;
+    uint32_t i, fl_off, fl_size, ota_off, ota_len, key, s, done = 0, open = 0, hi;
     int rc, mark;
     /* 1. UFW header + entry list (ota.c) */
     if ((rc = ota_ufw(hdr, &fl_off, &fl_size, &ota_off, &ota_len)) != 0)
@@ -195,28 +206,31 @@ static int ldr_session(void)
     ldr_sfc(sec, 32, 0, key);
     if (ota_crc16(sec + 2, 30, 0) != ota_rd16(sec))
         return -6;                                       /* package for another chip key */
-    /* 3. app area, sector by sector: the stub's sector first (it is the lowest), the marker's last */
+    /* 3. app area, sector by sector: the stub's sector first (it is the lowest), the resource region's after the body
+     *    (when the package carries it), the marker's last */
     if ((mark = ldr_pkg_marker(fl_off, sec, key)) < 0)
         return mark;
-    for (s = LDR_APP_LO; s < LDR_APP_HI; s += 0x1000u) {
+    hi = fl_size >= LDR_RES_HI ? LDR_RES_HI : LDR_APP_HI;
+    for (s = LDR_APP_LO; s < hi; s += 0x1000u) {
         if (mark && s == LDR_MARK_SEC)
             continue;
         if ((rc = ldr_sector(fl_off, s, sec, cur, (uint32_t)mark, &open)) != 0)
             return rc;
         done += 0x1000u;
-        ldr_progress(done, LDR_APP_HI - LDR_APP_LO);
+        ldr_progress(done, hi - LDR_APP_LO);
     }
     if (mark) {                                          /* the commit: every other sector is written and verified */
         if ((rc = ldr_sector(fl_off, LDR_MARK_SEC, sec, cur, 1u, &open)) != 0)
             return rc;
-        ldr_progress(LDR_APP_HI - LDR_APP_LO, LDR_APP_HI - LDR_APP_LO);
+        ldr_progress(hi - LDR_APP_LO, hi - LDR_APP_LO);
     }
     /* 4. finish: the host confirms, the record goes, the SPL boots the app */
     for (i = 0; i < 4u; i++)
         if (!ota_read(0xF0000000u, sec, 8))
             break;
     ldr_record_clear();
-    for (s = LDR_REC_HI; s > LDR_REC_LO; s -= 0x1000u) {   /* flash records: 4K boundary - 256 */
+    for (s = LDR_REC_HI; s > (hi > LDR_REC_LO ? hi : LDR_REC_LO); s -= 0x1000u) {   /* flash records: 4K boundary - 256;
+                                                                                     * never in the region just written */
         uint8_t r[80];
         if (ldr_fread(s - 0x100u, r, 80))
             break;

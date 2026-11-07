@@ -402,6 +402,50 @@ stub guards cut 1 (the marker gone: rescue), the new one everything from its las
 In time: a sector erase is about 45 ms typical (400 ms worst) and a page about 1 ms, so the window is roughly
 0.1..0.5 s, once per unit (and once more per stub change), against a write of 1 to 2 minutes.
 
+### The resource region (HISTORY 3y234, `firmware/src/cr_res.h`)
+
+Since 3y234 the FM-1 package carries 48 KB more than the app area: `flash.bin` runs on from 0x93000 to 0x9F000 (the
+PRCT descriptor still says 0x93000: the app area is unchanged). Those sectors are the **resource region**: a 64-byte
+header at 0x93000 (magic "CRES", format 1, the data's length and CRC-32, the CRC-32 of the app body it belongs to, as
+the package's commit marker holds it, the radio program's slot, its own CRC-32) and the data from 0x93040, plain (no
+SFC: the app reads them through the plain XIP window, XIP 0x0208F040). Today the data is the glyph data of the fonts
+M, CRX and CRB (36 024 B); the radio program's slot is empty until Bluetooth (docs/BLE-LINK.md).
+
+- **The loader** (`ldr_core.c`): a package whose `flash.bin` reaches 0x9F000 has its region's sectors written in the
+  same pass as the body: after the marker's sector went blank, before the marker. The record sweep at the end never
+  looks at them. An older package (`flash.bin` 0x93000 long) writes none of them and leaves whatever is there.
+- **The interruption model**, with every base holding stale bytes in the region (0.21's objects, another firmware's
+  data): the stub boots only the finished install, the region whole; every other cut is a rescue, and the resume
+  writes what differs. The unprotected windows are the ones above, unchanged:
+
+  | old state -> this build (with the region) | cut points | rescue | boot | old firmware whole | unprotected |
+  | --- | --- | --- | --- | --- | --- |
+  | the same stub, another body | 2381 | 2380 | 1 (the last) | 0 | **0** |
+  | no stub: the 0.16 layout | 2398 | 2380 | 1 (the last) | 1 | **16** (cuts 2..17) |
+  | the dark unit | 2398 | 2380 | 1 (the last) | 0 | **17** (cuts 1..17) |
+  | an earlier stub, another body | 2398 | 2381 | 1 (the last) | 0 | **16** (cuts 2..17) |
+
+  1245 requests an install (96 more: 12 sectors of 8 reads); the web installer's bar counts them (`flashSizeOf`).
+- **The app** (`cr_shim.c cr_res_boot`, at power-on after `fl_plain_window_init`): the region counts only when its
+  header is whole, its length is this build's `.res`, its data's CRC-32 matches and its body CRC-32 is the one in this
+  build's own marker (0x91FE0): a region of another build, a cut install the stub missed, or one an older firmware
+  erased is refused. Until then and when refused, `cr_res_ok` is 0: no glyph is drawn from the region (`gfx.c`,
+  `cr_gfx.c`), the crash screen, UBOOT and the UPDATE screen draw in S (`CR_FONT_M`), and the splash says
+  **FONTS MISSING / INSTALL CHORALROOT AGAIN** in S for 3 s. Nothing else depends on it: the update paths (SysEx,
+  the stub, the loader) draw nothing from the region, so the unit can always be installed again.
+- **Downgrade** (`tests/ldr_test.c`'s second run; `tools/emu/test_res.sh`): 0.29.2's and 0.26.1's packages are 0x93000
+  long, so their loaders leave the region; their firmware boots beside it with its settings and sounds as saved and
+  never writes those sectors; on a unit whose pool is empty their 0.21 migration finds no slot in the region's bytes.
+  0.29.2's SAFE MODE Flash Data erases 0x97000..0x9FFFF (0.21's objects then), so it can erase part of the region: the
+  next install of this firmware writes it again (the loader writes the sectors that differ).
+- **Returning to the stock firmware**: V15's package is 0x93000 long; V15's VM starts at 0x93000 and finds the
+  region's header there, not its own (as it found FIZZ's blob at 0x97000 or ChoralRoot's 0.21 objects before). Not
+  yet seen on a unit.
+- **Not affected**: the backups (objects over SysEx, never the region), SAFE MODE's Flash Data (`cu_flash_erase`: its
+  list starts at 0x9F000, asserted), the SMK-37 (no region: its build keeps every font in the image, its loader's
+  window is unchanged). A package made from V15 and an app.bin alone (`fm1pkg.js buildFeluccaPackage`, not used by
+  ChoralRoot's pages) would carry no region: such a unit shows FONTS MISSING.
+
 ### Size and time
 
 Stub: 2268 B of 3808 (`build.py` stops above 3552). The loader: ota.bin 7157 B (unchanged since version 1).

@@ -277,6 +277,19 @@ function layout(fwsc) {
   return { blocks: BLOCKS, image: deinterleave(fwsc, BLOCKS) };
 }
 export function logicalImage(fwsc) { return layout(fwsc).image; }
+// flash.bin's length in a logical image (its UFW entry, type 0), 0 when there is none: past 0x93000 it carries the
+// resource region (firmware/src/cr_res.h, HISTORY 3y234), which the loader writes too: 512 B a read, 8 reads a sector
+export function flashSizeOf(img) {
+  if (!filesOk(img)) return 0;
+  const h = img.slice(0, 0x40);
+  enc(h, 0, 0x40);
+  for (let i = 0, n = u16(h, 8); i < n; i++) {
+    const e = img.slice(0x40 + i * 0x50, 0x90 + i * 0x50);
+    enc(e, 0, 0x50);
+    if (u16(e, 0) === 0) return u32(e, 12);
+  }
+  return 0;
+}
 
 export async function sha256hex(bytes) {
   const d = await crypto.subtle.digest("SHA-256", bytes);

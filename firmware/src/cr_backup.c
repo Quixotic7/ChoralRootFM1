@@ -946,7 +946,7 @@ static void crb_usb(void)
 #ifndef CRB_UPDATE_SCREEN
 #ifdef FM1_HAVE_STUB
 #define CRB_UPDATE_SCREEN(t) do { fm1_audio_stop(); lcd_fill(0, 0, 240, 240, T_BG); \
-                                  draw_text_box(0, 110, 240, &AF_M, (t), T_THEME, 1); } while (0)
+                                  draw_text_box(0, 110, 240, CR_FONT_M, (t), T_THEME, 1); } while (0)
 #define CRB_UBOOT_GO() do { usb_detach(); fm1_delay_ms(30); bootguard_intentional(&bootguard); fm1_enter_uboot(); } while (0)
 #else
 #define CRB_UPDATE_SCREEN(t) ((void)(t))

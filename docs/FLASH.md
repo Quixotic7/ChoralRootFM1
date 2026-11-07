@@ -106,8 +106,7 @@ docs/BOOT-SAFETY.md. "Linked" sizes are from `nm -S` on build/choralroot.elf.
 | --- | --- | --- |
 | 0x00000..0x03FFF | the head (SPL, isd_config) | never written |
 | 0x04000..0x92FFF | the stub, the app slot (body 0x5000..0x90FFF, 573 440 B), the marker's sector 0x91000 (its last 32 B), 0x92000 (cfg) | the update loader only |
-| 0x93000..0x96FFF | 16 KB, the plain XIP window's first sectors (XIP 0x0208F000) | **never used** |
-| 0x97000..0x9EFFF | 0.21's VA store, FM6 stores, CZ-1 tones 1..16 (before them Felucca's projects) | **free since 3y231** |
+| 0x93000..0x9EFFF | **the resource region since 3y234** (cr_res.h): the header, then the glyph data of the fonts M, CRX, CRB (36 024 of 49 088 B); the radio program's slot. Before: 16 KB never used, then 0.21's VA store, FM6 stores, CZ-1 tones 1..16 (and before them Felucca's projects) | the update loader writes it; the app reads it |
 | 0x9F000 | FM6 bank copy A | live |
 | 0xA0000..0xA1FFF | 0.21's CZ-1 tones 17..32 | **free since 3y231** |
 | 0xA2000..0xB1FFF | the CZ-1 banks A..H | live |
@@ -125,8 +124,9 @@ docs/BOOT-SAFETY.md. "Linked" sizes are from `nm -S` on build/choralroot.elf.
 | 0xFF000.. | key_mac | never written |
 
 So 28 KB were never used (0x93000..0x96FFF, 0xE5000..0xE7FFF) and 64 KB are free since 3y231 (0.21's sound objects:
-0.22 .. 0.29.2 copied them into the pool once; nothing reads them now). 0x93000..0x9EFFF is one contiguous 48 KB run in
-the plain XIP window: docs/BLE-LINK.md's resource region. On the SMK-37 the same retirement frees 0x9D000..0xA8FFF and
+0.22 .. 0.29.2 copied them into the pool once; nothing reads them now). 0x93000..0x9EFFF, one contiguous 48 KB run in
+the plain XIP window, is the resource region since 3y234 (docs/BOOT-SAFETY.md "The resource region"): free now are
+0xA0000..0xA1FFF, 0xB2000..0xB3FFF, 0xDC000..0xDFFFF (32 KB) and 0xE5000..0xE7FFF (12 KB). On the SMK-37 the same retirement frees 0x9D000..0xA8FFF and
 0xB0000..0xB3FFF (storage.c's SMK map); its stock VM is ChoralRoot's store there.
 
 **Felucca's code that is still in the tree.** Nothing unused is linked: the image is a unity build, so a static

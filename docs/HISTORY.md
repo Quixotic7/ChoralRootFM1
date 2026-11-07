@@ -7161,3 +7161,45 @@ changed; test_cr 1119 ok, test_persist 119, test_retired 18); a run before had o
 in a phase that imports numpy ("Could not parse python long as longdouble", the host's numpy, not this change), which
 passed in the run after.
 
+
+## 2026-11-06 (Bluetooth: the owner's decisions; step 1, the resource region)
+
+3y233. **docs/BLE-LINK.md's decisions: "Go with all".** The owner, through the orchestration session, on section 8:
+every recommendation taken. One package, made to fit by the resource region; 0.21's stores retired (3y231); the order
+region -> the FM-1 as Bluetooth peripheral (steps 2..4) -> USB host -> connecting out; the port from Melodee's copy
+(3fe570d) crediting Optimist, Melodee and Charles Vestal; the V15-derived radio program shipped with Melodee's
+provenance note; Just Works bonding; the radio Off by default, saved, started before the audio; MIDI only in version 1;
+27-octet packets; FM-1 only for now; step 0 (Melodee 1.6.1 on a spare FM-1) yes, run by the device session. Recorded at
+the top of section 8.
+
+3y234. **Step 1: the resource region. The fonts M, CRX and CRB leave the app slot for flash 0x93000..0x9EFFF.**
+`firmware/src/cr_res.h` holds the design; docs/BOOT-SAFETY.md "The resource region" the update path. **The data**:
+`tools/gen_aa_font.py` gives the three faces' `AF_<N>_DATA` an `AF_RES` attribute (choralroot.c, FM-1 only: the section
+.res.font), `firmware/app.ld` links `.res` at XIP 0x0208F040 (memory RES, 49 088 B), `tools/build.py` takes it alone
+(build/res.bin; checked: at 0x0208F040, 1 .. 49 088 B on the FM-1, empty on the SMK-37) and prints `RES n B of 49088`.
+**The package**: `tools/fm1pkg_make.py --res` (build.py passes it) lets `flash.bin` run on from 0x93000 to 0x9F000,
+plain, a 64-byte header at 0x93000 ("CRES", format 1, the data's length and CRC-32, the app body's CRC-32 from the
+commit marker, the radio program's slot 0 / 0, its own CRC-32) and the data from 0x93040; the PRCT descriptor and the
+app area are as before. **The update path**: `firmware/loader/ldr_core.c` writes the region's sectors when the package
+carries them, in the body's pass (after the marker's sector went blank, before the marker), and its record sweep skips
+them; an older package (0x93000) writes none. The current firmware stages the new package's own loader (ota.c), so the
+loader that writes is always the one that knows the region. **The app**: `cr_shim.c cr_res_boot` (after
+`fl_plain_window_init`) accepts the region only when its header, length (this build's `.res`), data CRC-32 and body
+CRC-32 (this build's own marker at 0x91FE0) all match; otherwise `cr_res_ok` stays 0: `gfx.c` / `cr_gfx.c` draw no
+glyph from it, the crash screen, UBOOT and UPDATE draw in S (`CR_FONT_M`), the splash says FONTS MISSING / INSTALL
+CHORALROOT AGAIN in S for 3 s. `hal/fm1_flash_map.h`: FL_RES_LO / HI, the store's window from 0x9F000 (was 0x97000:
+the app can never write the region), asserted; `cu_flash_erase` asserted clear of it. **The hosts**: `web/fm1pkg.js
+flashSizeOf` (the installer's bar: +96 reads), the Transporter shims accept a ChoralRoot flash.bin of 0x9F000 and keep
+writing 0x4000..0x92FFF (a note says to install again). **Tests**: `tests/ldr_test.c` with the region (every base holds
+stale bytes there; the stub boots only the finished install with the region whole; 2381 / 2398 cut points, the
+unprotected windows unchanged: 0 for the same stub, 16 for a first stub, 17 for the dark unit; 1245 requests) and the
+downgrade (a 0x93000 package leaves the region byte for byte); `tools/emu/test_res.sh` (new suite): 0.29.2's and
+0.26.1's firmware, each built from its tag, boot beside the region with their settings and sound as saved and never
+write it, and on a unit with an empty pool migrate nothing from its bytes; `tests/transporter_shim_test.py`.
+**Size** against e8f4b360: FM-1 XIP 552 804 -> 517 364 B (-35 440: 96.4 -> 90.2 %), RAM 80 512 -> 80 528 (+16),
+POOL and RAMTEXT unchanged, RES 36 024 of 49 088 B (73.4 %); the SMK-37 unchanged (XIP 554 064). The screens are drawn
+from the same bytes: the host renders and the draw goldens do not see the region (AF_RES empty there). **Not done**:
+the 16 px icons stay in the slot (the plan moved them too: 6.7 KB more when needed); nothing run on a unit (the first
+install of this build on the owner's unit is the check that the plain window reads the region as the host says);
+returning to V15 with a region present is not seen yet (V15's VM starts at 0x93000); a package made from V15 and an
+app.bin alone would carry no region (no ChoralRoot page does that; the release's -app.bin files stay for the Hub).

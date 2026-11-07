@@ -6,6 +6,8 @@ package without the marker bytes) is the flash image from address 0.
 """
 BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
 IMAGE_LEN = 0x93000            # flash image from address 0: head [0, 0x4000) + firmware [0x4000, 0x93000)
+RES_LEN = 0x9F000              # a ChoralRoot flash.bin with the resource region after it (0x93000..0x9EFFF; HISTORY
+                               # 3y234): the Transporter writes [0x4000, 0x93000) only, the region needs an install
 HEAD_END = 0x4000
 LOADER_MARK = b"FELUCCA-LOADER-1"
 V15_IDENTITY = "FM-1_015"

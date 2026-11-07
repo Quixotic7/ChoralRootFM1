@@ -2,15 +2,15 @@
 
 Accepts (1) the official V15 (identity FM-1_015, firmware region sha256 as MvaveFM1Unbricker), or
 (2) a ChoralRoot package (identity FM-1_920 with the Felucca loader marker; its head [0, 0x4000) is compared
-with the V15 package's at $FM1_V15 when set, as a note only: the head is never written). Anything else, a UFW header that fails its CRCs or lacks flash.bin, or a flash.bin that is not 0x93000 bytes,
-exits. Reads files only; never writes, never uses the network.
+with the V15 package's at $FM1_V15 when set, as a note only: the head is never written). Anything else, a UFW header that fails its CRCs or lacks flash.bin, or a flash.bin that is not 0x93000 bytes
+(a ChoralRoot one: 0x93000, or 0x9F000 with the resource region, which the Transporter does not write), exits. Reads files only; never writes, never uses the network.
 """
 import hashlib
 import os
 import sys
 
-from _fm1pkg import (CR_IDENTITY, HEAD_END, IMAGE_LEN, LOADER_MARK, V15_FILE_SHA256, V15_FW_SHA256, V15_IDENTITY,
-                     logical_image, product_of, ufw_flash)
+from _fm1pkg import (CR_IDENTITY, HEAD_END, IMAGE_LEN, LOADER_MARK, RES_LEN, V15_FILE_SHA256, V15_FW_SHA256,
+                     V15_IDENTITY, logical_image, product_of, ufw_flash)
 
 
 def _refuse(path, why):
@@ -31,9 +31,12 @@ def _load(path):
         fl_off, fl_len = ufw_flash(logical)
     except ValueError as e:
         _refuse(path, str(e))
-    if fl_len != IMAGE_LEN or fl_off + fl_len > len(logical):
+    if (fl_len != IMAGE_LEN and not (fl_len == RES_LEN and product == CR_IDENTITY)) or fl_off + fl_len > len(logical):
         _refuse(path, f"flash.bin is {fl_len:#x} bytes at {fl_off:#x}, not {IMAGE_LEN:#x} bytes inside the package")
-    return raw, product, logical, logical[fl_off:fl_off + fl_len]
+    if fl_len == RES_LEN:
+        print("fm1_ota: note: this package carries the resource region (0x93000..0x9EFFF); the Transporter writes "
+              "0x4000..0x92FFF only: after the rescue install ChoralRoot again with the web installer")
+    return raw, product, logical, logical[fl_off:fl_off + IMAGE_LEN]
 
 
 def require_reviewed(path):

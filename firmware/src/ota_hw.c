@@ -30,7 +30,7 @@ static void ota_show(uint32_t step, int32_t code)
 #endif
     char b[24];
     lcd_fill(0, 0, 240, 240, T_BG);
-    draw_text_box(0, 92, 240, &AF_M, "UPDATE", T_TEXT, 1);
+    draw_text_box(0, 92, 240, CR_FONT_M, "UPDATE", T_TEXT, 1);
     if (step < 9u) {
         draw_text_box(0, 124, 240, &AF_S, STEP[step < 6u ? step : 0], T_THEME, 1);
         return;

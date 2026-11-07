@@ -18,5 +18,7 @@ class Firmware:
         self.entries = [{"type": 0, "data_off": fl_off, "size": fl_len}]
 
     def image0(self):
+        """flash [0, 0x93000): what the Transporter writes (a ChoralRoot flash.bin may run on with the resource
+        region, HISTORY 3y234: not written here, the next install brings it)"""
         e = self.entries[0]
-        return self.raw[e["data_off"] + self.skew:e["data_off"] + self.skew + e["size"]]
+        return self.raw[e["data_off"] + self.skew:e["data_off"] + self.skew + min(e["size"], 0x93000)]

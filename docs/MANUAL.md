@@ -2149,6 +2149,7 @@ More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), 
 | Every note sounds doubled and louder | Raw Chord Sound is On with no performance mode | Options > Raw Chord Sound: Off |
 | The screen shows the logo, or is black | three minutes, or ten, without input | touch anything |
 | `Safe mode` on the top line | SAFE MODE | see [SAFE MODE](#safe-mode) |
+| `FONTS MISSING` under the logo at power-on, the big type missing on the screens | the part of the firmware that holds the screens' type did not arrive (an install that was cut, or an older version installed in between) | install ChoralRoot again with the web installer: it writes what is missing; your sounds, loops and settings stay |
 | The computer shows no audio input | USB Record is Off | Options > USB Record: On |
 | The FM-1 drops off USB for a second | USB Record or USB Rate was changed (`USB RECONNECTING`) | wait |
 | The computer offers 44.1 kHz only for ChoralRoot In | USB Rate is `44.1 kHz` (the default) | Options > USB Rate: `44.1 + 48 kHz` |

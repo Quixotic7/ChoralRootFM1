@@ -95,6 +95,7 @@ def ram_on(flag):
     v = os.environ.get(flag)
     return v == "1" or (flag in RAM_DEFAULT_ON and v != "0")
 XIP_LEN, RAM_LEN, POOL_LEN, NOINIT_LEN = fm1pkg_make.BODY_MAX, 96 * 1024, 0x54000, 0x3D30   # firmware/app.ld
+RES_XIP, RES_LEN = 0x0208F040, fm1pkg_make.RES_HI - fm1pkg_make.RES_DATA   # firmware/app.ld RES (cr_res.h, FM-1 only)
 
 
 def toolchain():
@@ -370,9 +371,10 @@ def build_app(stub, single=False):
     # are referred to from C (fm1_irq.h, fm1_cpu1.h), so they stay
     tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", FW / "app.ld", OUT / "crt0.o", OUT / "fm1_vec.o",
        OUT / "fm1_isr.o", OUT / "fm1_cpu1.o", OUT / f"{UNIT}.o", "-o", elf)
-    for sect in ("text.bin", "data.bin", "ramtext.bin", "c1text.bin"):
+    for sect in ("text.bin", "data.bin", "ramtext.bin", "c1text.bin", "res.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
+                               ("common/bin/objcopy", "-O", "binary", "-j", ".res", elf, OUT / "res.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".c1_text", elf, OUT / "c1text.bin"),
@@ -419,7 +421,26 @@ def size_line(hdr):
         s += f", POOL {sz['.pool']} B of {POOL_LEN} ({100 * sz['.pool'] / POOL_LEN:.1f}%)"
     if ".noinit" in sz:
         s += f", NOINIT {sz['.noinit']} B of {NOINIT_LEN} ({100 * sz['.noinit'] / NOINIT_LEN:.1f}%)"
+    if sz.get(".res"):              # the resource region's data (firmware/src/cr_res.h): outside the slot
+        s += f", RES {sz['.res']} B of {RES_LEN} ({100 * sz['.res'] / RES_LEN:.1f}%)"
     return s
+
+
+def res_data(syms):
+    """the resource region's data (.res, firmware/app.ld) as tools/fm1pkg_make.py --res takes it; None for a board
+    without the region (SMK-37: the section must be empty)"""
+    p = OUT / "res.bin"
+    data = p.read_bytes() if p.exists() else b""
+    m = re.search(r"^([0-9a-f]+) .*\s_res_start$", syms, re.M)
+    if BOARD != "fm1":
+        if data:
+            raise SystemExit(f"build: {BOARD} has no resource region, but .res holds {len(data)} B")
+        return None
+    if not m or int(m.group(1), 16) != RES_XIP:
+        raise SystemExit(f"build: _res_start is not at {RES_XIP:#x} (firmware/app.ld RES)")
+    if not data or len(data) > RES_LEN:
+        raise SystemExit(f"build: the resource region's data is {len(data)} B (1 .. {RES_LEN})")
+    return data
 
 
 def check(img, syms, dis, rt):
@@ -604,7 +625,7 @@ def main():
         print(("1-core " if single else "") + size_line(hdr))
         if errors:
             raise SystemExit("build: checks failed")
-        flash = fm1pkg_make.flash_image(img, fm1pkg_make.KEY)
+        flash = fm1pkg_make.flash_image(img, fm1pkg_make.KEY, res=res_data(syms))
         pkg = fm1pkg_make.ufw(flash, ota, PRODUCT)
         print(f"sector 0x4000 (the directory and the stub: constant while the stub is) sha256 "
               f"{hashlib.sha256(flash[0x4000:0x5000]).hexdigest()[:16]}; marker at 0x91fe0, body "

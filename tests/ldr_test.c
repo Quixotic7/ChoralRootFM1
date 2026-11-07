@@ -17,7 +17,11 @@
  *                                                             stub guards up to the sector's erase, the new one
  *                                                             from its last page on; the window between is the same
  * A cut state is: B the stub boots it, R the stub rescues (the staged loader), O the old firmware still whole (no
- * stub yet, nothing it uses touched), U unprotected (no working stub in sector 0x4000 and not the whole old app). */
+ * stub yet, nothing it uses touched), U unprotected (no working stub in sector 0x4000 and not the whole old app).
+ * The resource region (HISTORY 3y234, firmware/src/cr_res.h; FM-1): a NEW whose flash.bin runs on to 0x9F000 carries
+ * it; every base starts with stale bytes there (0.21's objects, another firmware's data), so every cut leaves some of
+ * it written, and B (the stub boots) is allowed only with the whole region in place. A NEW without it (an older
+ * package: the downgrade) must leave the region as it was, byte for byte. */
 #include <setjmp.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -29,10 +33,12 @@
 /* the board's places (-DBOARD_SMK37=1: the SMK-37's, on SMK-layout packages: PRCT 0x9D000, the staging at 0xBB000) */
 #if BOARD_SMK37
 #define T_APP_HI 0x9D000u                /* the end of the app area the loader writes (ldr_core.c LDR_APP_HI) */
+#define T_RES_HI T_APP_HI                /* (no resource region on the SMK-37) */
 #define T_REC_HI 0xC0000u                /* .. and of its record window (LDR_REC_HI) */
 #define T_OTA 0xBB000u                   /* the staging area (ota.c OTA_AREA) */
 #else
 #define T_APP_HI 0x93000u
+#define T_RES_HI 0x9F000u                /* the resource region's end (ldr_core.c LDR_RES_HI): 0x93000 .. */
 #define T_REC_HI 0xFC000u
 #define T_OTA 0xE0000u
 #endif
@@ -130,7 +136,7 @@ static int ldr_prog(uint32_t off, const void *p, uint32_t n)
 {
     const uint8_t *s = p;
     uint32_t i;
-    if (off < 0x4000u || off + n > T_APP_HI || ((off & 0xFFu) + n) > 256u) bad_range++;
+    if (off < 0x4000u || off + n > T_RES_HI || ((off & 0xFFu) + n) > 256u) bad_range++;
     for (i = 0; i < n; i++) nor[off + i] &= s[i];
     op_done(off);
     return 0;
@@ -168,6 +174,27 @@ static uint32_t flash_off(const uint8_t *lg)        /* flash.bin offset in the l
         if (ota_rd16(e) == 0) return ota_rd32(e + 8);
     }
     return 0;
+}
+
+static uint32_t flash_len(const uint8_t *lg)        /* flash.bin's length in the logical image */
+{
+    uint8_t h[0x400];
+    uint32_t i, n;
+    memcpy(h, lg, sizeof h);
+    ota_jl_enc(h, 0x40);
+    n = ota_rd16(h + 8);
+    for (i = 0; i < n; i++) {
+        uint8_t *e = h + 0x40 + i * 0x50u;
+        ota_jl_enc(e, 0x50);
+        if (ota_rd16(e) == 0) return ota_rd32(e + 12);
+    }
+    return 0;
+}
+static uint32_t t_end;                              /* what NEW writes: T_RES_HI with the region, else T_APP_HI */
+static void stale_res(void)                         /* the region's sectors as a unit from 0.21 or another firmware */
+{                                                   /* leaves them (not erased: the loader must write them over) */
+    uint32_t i;
+    for (i = T_APP_HI; i < T_RES_HI; i++) nor[i] = (uint8_t)(0xA5u ^ (i >> 4));
 }
 
 static int check(const char *what, int ok) { printf("%-56s %s\n", what, ok ? "ok" : "FAIL"); return ok ? 0 : 1; }
@@ -211,6 +238,7 @@ static uint32_t stub_says(stub_result_t *r)         /* the device's stub_decide 
 static void restore(const uint8_t *base)
 {
     memcpy(nor + LDR_APP_LO, base + LDR_APP_LO, LDR_APP_HI - LDR_APP_LO);
+    stale_res();
     rx_full = 0;
 }
 
@@ -235,7 +263,7 @@ static int cut_case(const char *name, const uint8_t *base, int base_stub, int ba
     ops = 0; cut_at = 0; requests = 0;
     rc = ldr_session();
     n = ops; req = requests;
-    bad += rc != 0 || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, LDR_APP_HI - LDR_APP_LO) != 0;
+    bad += rc != 0 || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, t_end - LDR_APP_LO) != 0;
     bad += stub_says(&r) != STUB_BOOT || n > sizeof oplog / sizeof oplog[0];
     for (k = 0; k < n; k++)                                           /* the stub's sector whole from this op on */
         if (oplog[k] == LDR_STUB_SEC + 0xF00u) stub_done = k + 1u;
@@ -254,7 +282,7 @@ static int cut_case(const char *name, const uint8_t *base, int base_stub, int ba
             st = d == STUB_BOOT ? 3 : 2;
             bad += d == STUB_UBOOT;                                   /* (the staged loader is there: never) */
             if (d == STUB_BOOT)                                       /* boot: only the finished image */
-                bad += k != n || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, LDR_APP_HI - LDR_APP_LO) != 0;
+                bad += k != n || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, t_end - LDR_APP_LO) != 0;
         } else {
             int whole = base_whole && marker_free;                    /* the old app, but for a sector it never used */
             for (i = LDR_APP_LO; whole && i < LDR_APP_HI; i += 0x1000u)
@@ -266,7 +294,7 @@ static int cut_case(const char *name, const uint8_t *base, int base_stub, int ba
         cnt[st]++;
         ops = 0;
         rc = ldr_session();                                           /* resume from the cut state */
-        bad += rc != 0 || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, LDR_APP_HI - LDR_APP_LO) != 0 ||
+        bad += rc != 0 || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, t_end - LDR_APP_LO) != 0 ||
                memcmp(nor, head, sizeof head) != 0;
     }
     bad += cnt[1] != want_u || cnt[3] != (n ? 1u : 0u) || bad_range;
@@ -292,10 +320,20 @@ int main(int argc, char **argv)
     logical = load_logical(argv[2], &logical_len);
     ofo = flash_off(old);
     nfo = flash_off(logical);
-    /* device: OLD installed, plus a valid update record at 0xE4F00 */
+    t_end = flash_len(logical) >= T_RES_HI ? T_RES_HI : T_APP_HI;
+    printf("  NEW's flash.bin: %#x B (%s)\n", (unsigned)flash_len(logical),
+           t_end > T_APP_HI ? "with the resource region" : "no resource region");
+    /* device: OLD installed (its region too when it has one, else stale bytes there), a valid update record at 0xE4F00 */
     memset(nor, 0xFF, sizeof nor);
     memcpy(nor, old + ofo, T_APP_HI);
+    if (flash_len(old) >= T_RES_HI && T_RES_HI > T_APP_HI)
+        memcpy(nor + T_APP_HI, old + ofo + T_APP_HI, T_RES_HI - T_APP_HI);
+    else
+        stale_res();
     memcpy(head, nor, sizeof head);
+    {
+        static uint8_t res_before[T_RES_HI - T_APP_HI + 1u];
+        memcpy(res_before, nor + T_APP_HI, T_RES_HI - T_APP_HI);
     {
         uint8_t r[112] = {0};
         r[2] = 0x0D; r[3] = 0x5A; r[4] = 0x01; r[5] = 0x5A; r[6] = 0x41; r[7] = 0x54;
@@ -306,6 +344,13 @@ int main(int argc, char **argv)
     printf("  rc %d, %u requests, %u sector erases\n", rc, requests, erases);
     bad += check("install completes", rc == 0);
     bad += check("app area == the new package's flash.bin", !memcmp(nor + 0x4000, logical + nfo + 0x4000, T_APP_HI - 0x4000));
+    if (t_end > T_APP_HI)
+        bad += check("resource region == the package's (0x93000..0x9EFFF)",
+                     !memcmp(nor + T_APP_HI, logical + nfo + T_APP_HI, T_RES_HI - T_APP_HI));
+    else if (T_RES_HI > T_APP_HI)
+        bad += check("no resource region in it: 0x93000..0x9EFFF as before (a downgrade)",
+                     !memcmp(nor + T_APP_HI, res_before, T_RES_HI - T_APP_HI));
+    }
     bad += check("flash head [0, 0x4000) untouched", !memcmp(nor, head, sizeof head));
     bad += check("finish asked (0xF0000000)", f0_asked >= 1);
     bad += check("update record cleared (RAM + flash)", record_cleared && nor[T_OTA + 0x4F06u] == 0xFF);
@@ -319,6 +364,7 @@ int main(int argc, char **argv)
         uint8_t save = logical[nfo + 0x4000 + 5];
         logical[nfo + 0x4000 + 5] ^= 0x5A;           /* app area head no longer decrypts */
         memcpy(nor, old + ofo, T_APP_HI);
+        stale_res();
         erases = 0;
         rc = ldr_session();
         bad += check("foreign key / damaged app head refused, nothing erased", rc == -6 && erases == 0);

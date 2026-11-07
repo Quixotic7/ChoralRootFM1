@@ -19,6 +19,10 @@ MEMORY
     RAM    (rwx) : ORIGIN = 0x01C08000, LENGTH = 96K
     POOL   (rw)  : ORIGIN = 0x01C20000, LENGTH = 0x54000
     NOINIT (rw)  : ORIGIN = 0x01C7C020, LENGTH = 0x3D30
+    /* the resource region's data (firmware/src/cr_res.h, HISTORY 3y234): flash 0x93040..0x9EFFF, XIP through the
+     * plain window; not in app.bin: tools/build.py takes .res alone, tools/fm1pkg_make.py --res puts it after the
+     * slot with its header at 0x93000. The SMK-37 build has none (the section stays empty: build.py checks) */
+    RES    (r)   : ORIGIN = 0x0208F040, LENGTH = 0xBFC0
 }
 SECTIONS
 {
@@ -43,5 +47,6 @@ SECTIONS
     .noinit (NOLOAD) : { *(.noinit*) } > NOINIT
     _guard0 = 0x01C74000; _ustack_lo = 0x01C74100; _ustack_top = 0x01C7A000;
     _guard1 = 0x01C7A000; _sstack_lo = 0x01C7A100; _sstack_top = 0x01C7C000;
+    .res : { _res_start = .; KEEP(*(.res*)) . = ALIGN(4); _res_end = .; } > RES
     /DISCARD/ : { *(.comment) *(.note*) }
 }

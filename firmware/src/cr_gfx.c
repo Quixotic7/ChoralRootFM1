@@ -485,7 +485,7 @@ static int cr_decode(const aafont_t *f, const aag_t *g)
 {
     uint32_t n = (uint32_t)g->bw * g->bh, k = 0;
     const uint8_t *d = f->data + g->off;
-    if (n > CR_GLYPH_MAX) return 0;
+    if (n > CR_GLYPH_MAX || CR_RES_GONE(d)) return 0;   /* (cr_res.h: the region not there: no glyph) */
     if (cr_gbuf_g == g) return 1;
     if (!f->hc) {
         for (k = 0; k < n; k++)

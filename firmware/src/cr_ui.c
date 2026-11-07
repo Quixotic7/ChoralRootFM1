@@ -6940,6 +6940,9 @@ static void cu_flash_erase(void)
     _Static_assert(OBJ_COUNT == 20u && OBJ_FAVS + 1u == OBJ_COUNT, "Flash Data: a new storage object needs a place here");
     _Static_assert(SP_BASE == 0xB4000u + 4u * ST_SECTOR && SP_BASE + SP_NSEC * ST_SECTOR == CRL_FL_BASE,
                    "Flash Data: the pool lies between the favourites and the loop slots");
+#ifdef FL_RES_HI                                    /* (the device's flash map: hal/fm1_flash_map.h) */
+    _Static_assert(FL_RES_HI <= 0x9F000u, "Flash Data: the resource region (cr_res.h) below everything it erases");
+#endif
 #endif
 #endif
     cr_screen_t *es = &cu_scr;                     /* (the frame's screen, in the pool: off the stack and out of

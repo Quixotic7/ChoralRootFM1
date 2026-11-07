@@ -131,6 +131,7 @@ python3 tests/install_test.py; for t in backup web sounds installer manager; do 
 python3 tests/releases_test.py                    # web/releases.json: the versions the installer offers
 sh tests/run_tests.sh       # ends ALL HOST TESTS PASSED
 sh tools/emu/test_retired.sh                      # the engines retired in 0.18: a unit that comes with sounds on them
+sh tools/emu/test_res.sh                          # the resource region beside 0.29.2's and 0.26.1's firmware (3y234)
                                                   # (its pre-cut build: v0.29.2's tree, git archive, build/scratch/retired)
 CR_VERSION=0.22 sh tools/emu/web/build_web.sh && node tools/emu/web/test_web_emu.mjs    # the browser emulator
 sh tools/layout/build_layout.sh && node web/test_layout.mjs   # the layout viewer (docs/LAYOUT-TOOL.md; after build_web.sh:

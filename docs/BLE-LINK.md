@@ -351,7 +351,8 @@ through the main session's flash rules.
 FM-1 (not the ChoralRoot dev unit; backup first), VISIBLE in Audio MIDI Setup, play both ways; the same on a unit
 with the second flash chip if one is at hand; then back to ChoralRoot. If the radio fails here, stop and report.
 
-**Step 1. The resource region.** `app.ld` gets a RES region at XIP 0x0208F000 (48 KB, read-only data only); the
+**Step 1. The resource region. Built in HISTORY 3y234** (`firmware/src/cr_res.h`, docs/BOOT-SAFETY.md "The
+resource region"): the fonts M, CRX and CRB only (36 024 B; the 16 px icons stayed), XIP -35 440 B. As planned: `app.ld` gets a RES region at XIP 0x0208F000 (48 KB, read-only data only); the
 fonts M, CRB, CRX and the 16 px icons move there; `fm1pkg_make.py` adds the region as a record; the loader writes it
 (`FL_LDR_RANGE_OK` gains 0x93000..0x9EFFF; `FL_DATA_LO` becomes 0x9F000); the app checks magic, length, CRC-32 and
 the app's build hash at boot and otherwise draws a "FINISH UPDATE" screen in S; `storage.c` stops reading the
@@ -395,6 +396,14 @@ the passkey; a wireless link between two ChoralRoots; BLE keyboards.
 | the resource region (step 1) | **-42,697** (radio program then outside too: -5,795 from Bluetooth's figure) | 0 | 0 | 0 | |
 
 ## 8. Decisions for the owner
+
+**Answered (the owner, 2026-11-06, through the orchestration session: "Go with all"; HISTORY 3y233).** Every
+recommendation below is taken: (1) one package, made to fit by the resource region; (2) 0.21's stores retired
+(3y231); (3) the order: the region, then the FM-1 as Bluetooth peripheral (steps 2..4), then USB host, then
+connecting out; (4) ported from Melodee's copy (3fe570d), crediting Optimist, Melodee and Charles Vestal; (5) the
+radio program shipped, with Melodee's provenance note; (6) Just Works bonding; (7) Off by default, saved, started
+before the audio; (8) MIDI only in version 1; (9) 27-octet packets; (10) FM-1 only for now; (11) step 0 yes: the
+device session tries Melodee 1.6.1 on a spare FM-1 (this session stays off the units). **Step 1 is built: 3y234.**
 
 1. **One package, or a separate Bluetooth package?** *Recommended: one package*, made to fit by the resource
    region (2.4 A). Everyone gets Bluetooth and the host mode, releases stay one build per board, and nobody loses

@@ -954,7 +954,7 @@ $("go").addEventListener("click", async () => {
   try {
     const up = new Updater(midi, log);
     await oneFm1(up);                            // (several FM-1s: refused, nothing written)
-    const total = 74 + 1167;
+    const total = 74 + 1167 + Math.max(0, Math.min(flashSizeOf(pkgImage), 0x9F000) - 0x93000) / 512;   // (+96: the resource region)
     const step = (k, a) => {
       log(`${k} ${a ?? ""}`);
       if (k === "start") { began = true; sayK("start"); }
