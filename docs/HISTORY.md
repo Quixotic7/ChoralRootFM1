@@ -7390,3 +7390,21 @@ boot, one core or two, so it addresses this too, with VDC14 at the 1.50 V cap or
 hears the FM-1: 0 means nobody hears it), drops, CONNECT_INDs received / accepted / refused and why, the link's
 interrupts, events, good and bad packets, closes, timeouts) and a summary line; XIP grows by the diagnostics only in that
 build. `cr_ble_test` runs both ways (`cr_ble_diag_test`). All 24 suites pass.
+
+3y242. **The diagnostic build on the unit: the radio sends, and hears nothing.** The owner, on 3y241's
+`choralroot-diag-capped.fwsc`: "Dual core now on without crashing. ChoralRoot shows up in Audio MIDI devices only with
+single core, and it fails to connect." The crash is gone with stock's supply sequence. The driver's counters (side-session
+notes `ble-step2/debug-5`, one core, 10 s; `debug-6`, two cores, 89 s): advertising runs (`ble_adv_events` 86 and 841,
+one per ~100 ms), and **nothing is ever received**: `ble_adv_rx 0`, `ble_scan_req 0` (macOS scans actively: a SCAN_REQ
+follows every advertisement it hears, and the engine would store it), `ble_cind_rx 0`, `ble_rx_irqs 0`. So the Mac's
+CONNECT_IND never reaches the FM-1 and the connection fails; with two cores the advertisements themselves are not
+heard either. Not the interrupt: IRQ 29 is attached and unmasked as IRQ 45 is (every ICFG write in the tree is a
+read-modify-write), and an RX interrupt only follows a packet the engine stored; not the audio's latency (the engine
+receives by itself; nothing reached software to be late). What still differs from Melodee 1.6.1, whose radio sends and
+receives on this unit: the supply levels. The capped build runs VDC14 at 1.50 V and SYSVDD at 1.35 V; stock V15 and
+Melodee run 1.60 V / 1.38 V, and the radio's analog front end runs off VDC14 (the receiver's LNA and mixer before the
+transmitter's last stage). Next on the unit: `choralroot-diag-stock-levels.fwsc` (3y241, sha256
+2786af62d3e9dfeeaf226f99aa591c94048b7302be5f02936cf6e540a9825f55), Dual Core Off then On, a connection tried from Audio
+MIDI Setup, then `--debug`: `ble_scan_req` and `ble_cind_rx` above 0 settle it. Lifting the caps is the owner's call
+(the caps are Charles Vestal's review's, the datasheet's 1.55 V on VDC14); if it is what the radio needs, the choice
+is between stock's levels at radio boots only and a measured lower level that still receives.
