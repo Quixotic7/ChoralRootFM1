@@ -2863,9 +2863,9 @@ differ cr_safe_options cr_safe_erase_entry "Options opens on Safe Mode; SELECT +
 differ cr_safe_erase_entry cr_safe_erase_ask "OCT+ once: the confirmation (OCT+ again): $OUT/cr_safe_erase_ask.ppm"
 "$EMU" --headless --flash "$SF" --script "$S/cr_safe_erase.txt" --boot-fail 1 --reset-reason wdt >"$OUT/cr_safe_erase.log" 2>&1
 st=$?
-[ $st = 0 ] && has '^safe: flash data erased, 60 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
+[ $st = 0 ] && has '^safe: flash data erased, 62 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
     has '^reboot: guard failed 0 pending 0' "$OUT/cr_safe_erase.log" &&
-    ok "OCT+ twice: 60 data sectors erased (the FM6 bank's 1 + the CZ-1 banks' 16 + the session's 2 + the favourites' 2 + the sound pool's 16 + the loops' 20 + the settings' and FM6 copy B's 3; 0.21's sectors no longer ChoralRoot's, 3y231), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
+    ok "OCT+ twice: 62 data sectors erased (the FM6 bank's 1 + Bluetooth's 2 (3y236) + the CZ-1 banks' 16 + the session's 2 + the favourites' 2 + the sound pool's 16 + the loops' 20 + the settings' and FM6 copy B's 3; 0.21's sectors no longer ChoralRoot's, 3y231), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
 ff=$(python3 -c "
 import sys; d = open(sys.argv[1], 'rb').read()
 r = [(0x9F000, 1), (0xA2000, 16), (0xB4000, 4), (0xB8000, 16), (0xC8000, 20), (0xFC000, 3)]   # (the FM6 bank A, the CZ-1 banks, the session and the favourites, the pool, the loops, the settings and FM6 B)

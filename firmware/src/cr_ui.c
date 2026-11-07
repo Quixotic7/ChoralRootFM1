@@ -1191,6 +1191,9 @@ enum { O_STYLE, O_EXTADD, O_SECRET,
 #endif
        O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
        O_CLOCK,
+#if CR_BLE
+       O_BLE, O_BLE_FORGET,               /* Bluetooth MIDI (cr_ble.c, 3y236; FM-1 only) */
+#endif
 #if BOARD_SMK37
        O_TRS,                             /* the SMK-37's TRS jack, a MIDI OUT (hal/smk_uart_tx.h): not in the FM-1's list */
 #endif
@@ -1209,6 +1212,9 @@ static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Sec
 #endif
     "Bass Behaviour", "Single Notes", "Split Point", "MIDI Perform", "MIDI Bass", "MIDI Raw Chord", "Raw Chord Sound",
     "MIDI Clock",
+#if CR_BLE
+    "Bluetooth", "Forget Bluetooth",
+#endif
 #if BOARD_SMK37
     "TRS MIDI Out",
 #endif
@@ -1221,6 +1227,9 @@ static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 
 #endif
                                    3, 2, 11, 16, 16,
                                    16, 1, 2,
+#if CR_BLE
+                                   1, 0,
+#endif
 #if BOARD_SMK37
                                    1,
 #endif
@@ -1252,6 +1261,9 @@ static uint32_t cu_opt_next(uint32_t from, int32_t s)   /* SELECT in the Options
 }
 static uint8_t cu_erase_ask;              /* Options > Flash Data: OCT+ pressed once (the second erases) */
 static uint8_t cu_reset_ask;              /* Options > Reset Settings: OCT+ pressed once (the second resets) */
+#if CR_BLE
+static uint8_t cu_ble_ask;                /* Options > Forget Bluetooth: OCT+ pressed once (the second forgets) */
+#endif
 
 /* Options > USB Record / USB Level / USB Rate (docs/USB-AUDIO.md; named from the FM-1's side: Record = the computer
  * records the FM-1, the device "ChoralRoot In"): USB Level at once (fx.c), USB Record and USB Rate once the setting
@@ -1308,6 +1320,9 @@ static int32_t opt_get(uint32_t o)
     case O_CH_MAIN: case O_CH_BASS: case O_CH_RAW: return cs.ch[o - O_CH_MAIN];
     case O_RAW_SOUND: return cs.raw_sound;
     case O_CLOCK: return cr_route.clock_in ? 2 : cr_route.clock_out;
+#if CR_BLE
+    case O_BLE: return cr_ble_on();
+#endif
 #if BOARD_SMK37
     case O_TRS: return !smk_ut_off;
 #endif
@@ -1367,6 +1382,12 @@ static void opt_set(uint32_t o, int32_t v)
         break;
     case O_RAW_SOUND: cs.raw_sound = (uint8_t)v; cu_route(); break;
     case O_CLOCK: cr_route.clock_in = (uint8_t)(v == 2); cr_route.clock_out = (uint8_t)(v == 1); break;
+#if CR_BLE
+    case O_BLE:                                   /* (not in cs: the Bluetooth record keeps it, cr_ble.c) */
+        if (!cr_ble_set((int)v))
+            cu_message(cr_res_ok ? "Bluetooth: no radio" : "install ChoralRoot again", CR_COL_WHITE);
+        break;
+#endif
 #if BOARD_SMK37
     case O_TRS: smk_ut_off = (uint8_t)!v; break;  /* (Off: the jack's notes still get their note-offs) */
 #endif
@@ -1473,6 +1494,10 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
         else { cu_cpy(d, "ch ", n); cu_int(d + 3, v, 0, n > 3u ? n - 3u : 0u); }
         break;
     case O_CLOCK: cu_cpy(d, CLOCK[v % 3], n); break;
+#if CR_BLE
+    case O_BLE: cu_cpy(d, v ? "On" : "Off", n); break;
+    case O_BLE_FORGET: cu_cpy(d, cu_ble_ask ? "OCT+ again: forget" : "the paired computer", n); break;
+#endif
 #if BOARD_SMK37
     case O_TRS: cu_cpy(d, ONOFF[v & 1], n); break;
 #endif
@@ -3411,6 +3436,18 @@ static void cu_oct_tap(uint32_t b)
         cu_reset();                               /* the second: every option to its default, saved */
         return;
     }
+#if CR_BLE
+    if (b == B_OCTUP && cu.opt_open && cu.opt_sel == O_BLE_FORGET && !cu.lock && !cu.page) {
+        if (!cu_ble_ask) {
+            cu_ble_ask = 1;                       /* the first OCT+: "OCT+ again" */
+            return;
+        }
+        cu_ble_ask = 0;
+        cr_ble_forget();                          /* the second: the bond goes (forget ChoralRoot on the peer too) */
+        cu_message("forgotten: on the peer too", CR_COL_WHITE);
+        return;
+    }
+#endif
     if (b == B_OCTUP && cu.opt_open && cu.opt_sel == O_CALIB && !cu.lock && !cu.page) {
         cu_close_all();
         cu_calib_start();                         /* Options > Calibrate, OCT+: Felucca's HARDWARE CALIBRATION */
@@ -6931,13 +6968,14 @@ static void cu_flash_erase(void)
 #define R ST_SMK_REGIONS                           /* (SMK-37: storage.c, the same as a new owner clears) */
 #else
     static const uint32_t R[][2] = {{0x9F000u, 1u},      /* (storage.c: OBJ_FM6BANK copy A) */
+                                    {0xA0000u, 2u},      /* (OBJ_BLE: Bluetooth's pairing, 3y236) */
                                     {0xA2000u, 16u},     /* (OBJ_CZBANK0..+7) */
                                     {0xB4000u, 4u},      /* (OBJ_SESSION, OBJ_FAVS) */
                                     {SP_BASE, SP_NSEC},  /* (storage.c sp_*: the sound pool's 16 sectors) */
                                     {CRL_FL_BASE, 2u * CRL_SLOTS},
                                     {0xFC000u, 3u}};     /* (OBJ_SETTINGS A / B, OBJ_FM6BANK copy B) */
 #if FELUCCA_FLASH
-    _Static_assert(OBJ_COUNT == 20u && OBJ_FAVS + 1u == OBJ_COUNT, "Flash Data: a new storage object needs a place here");
+    _Static_assert(OBJ_COUNT == 21u && OBJ_BLE + 1u == OBJ_COUNT, "Flash Data: a new storage object needs a place here");
     _Static_assert(SP_BASE == 0xB4000u + 4u * ST_SECTOR && SP_BASE + SP_NSEC * ST_SECTOR == CRL_FL_BASE,
                    "Flash Data: the pool lies between the favourites and the loop slots");
 #ifdef FL_RES_HI                                    /* (the device's flash map: hal/fm1_flash_map.h) */
@@ -7659,6 +7697,10 @@ static void cu_options_screen(cr_screen_t *s)
         cu_erase_ask = 0;                          /* (left the entry: the confirmation starts again) */
     if (cu.opt_sel != O_RESET)
         cu_reset_ask = 0;
+#if CR_BLE
+    if (cu.opt_sel != O_BLE_FORGET)
+        cu_ble_ask = 0;
+#endif
     {                                              /* the entries listed (cu_opt_vis), the selected one's place */
         const char *it[O_N];
         uint32_t o, n = 0, at = 0;
@@ -7699,6 +7741,12 @@ static void cu_options_screen(cr_screen_t *s)
         cu_cpy(s->label, cs.smk_pedal ? "the jack: CC 11, both parts" : "the jack: CC 64, both parts", sizeof s->label);
     else if (cu.opt_sel == O_TRS)                  /* (SMK37.md "The TRS jack") */
         cu_cpy(s->label, smk_ut_off ? "the jack sends nothing new" : "the jack: what USB MIDI sends", sizeof s->label);
+#endif
+#if CR_BLE
+    else if (cu.opt_sel == O_BLE)                  /* (cr_ble.c: the name to pick on the computer, the link's state) */
+        cr_ble_status(s->label, sizeof s->label);
+    else if (cu.opt_sel == O_BLE_FORGET)
+        cu_cpy(s->label, cu_ble_ask ? "the bond goes" : "OCT+ twice: forget the pairing", sizeof s->label);
 #endif
     else if (cu.opt_sel == O_NAMES)                /* (docs/CHORD-NAMES.md: the same notes under either name) */
         cu_cpy(s->label, cs.names_std ? "A9 \267 Aadd9 \267 A9sus4" : "A7 9 \267 A9 \267 Asus m7 9", sizeof s->label);
@@ -8277,6 +8325,9 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         cu_options_screen(s);
         return;
     }
+#if CR_BLE
+    cu_ble_ask = 0;
+#endif
     cu_erase_ask = cu_reset_ask = 0;               /* (the Options left with an "OCT+ again" pending: it starts again;
                                                     * until 2026-10-12 Flash Data's stayed armed behind a closed menu) */
     /* 6. the stripes: nothing touched since power-on (the splash stays; a PANIC's cleared chord no longer brings

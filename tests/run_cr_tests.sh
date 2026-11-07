@@ -156,6 +156,13 @@ par_build cc -std=gnu11 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/
 t logged_last cr_usbtap_test
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_midi_test tests/cr_midi_test.c
 t ./build/host/cr_midi_test
+# Bluetooth MIDI (HISTORY 3y236): ChoralRoot's glue (firmware/src/cr_ble.c) with the real stack on the fake radio, and
+# the stack's own fixtures as Melodee 3fe570d runs them (tests/ble_tests.py: protocol, encryption, pairing, the driver,
+# the radio program's replay against the pinned Optimist interpreter)
+par_build cc -std=c11 -Wall -Werror -Wno-unused-function -Wno-bitwise-op-parentheses -O1 -Itests/ble_fake -Ifirmware/src \
+    -o build/host/cr_ble_test tests/cr_ble_test.c
+t logged_count_last cr_ble_test
+t python3 tests/ble_tests.py
 # the sound templates the clients embed for .syx imports are the firmware's defaults (docs/SOUNDS.md), and their factory
 # tables the firmware's. Built with P5, as the unit is (3y80, the device manager's P5 tab; until then without it): the
 # clients hold P5's shipped programs (INIT P5, then assets/prophet5-factory/shipped.txt's list) and their Sequential

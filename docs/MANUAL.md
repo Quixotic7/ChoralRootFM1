@@ -1750,6 +1750,8 @@ Tap **OPT** (printed GLO). One setting fills the screen:
 | **MIDI Raw Chord** | Off, ch 1 to ch 16 | Off | the channel for the plain chord, without the performance mode. From Off the first step is ch 1; choose a channel of its own (the Orchid uses 3) |
 | **Raw Chord Sound** | Off, On | Off | On: the plain chord also plays on the chord sound, under an arpeggio or pattern. With no performance mode on, every note then sounds twice |
 | **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop. In: follows them |
+| **Bluetooth** | Off, On | Off | the FM-1 only: MIDI over Bluetooth, the same MIDI as over USB ([Bluetooth MIDI](#bluetooth-midi)). The line under it says what the link is doing. Kept apart from the other settings (Reset Settings leaves it, a backup does not carry it; Flash Data clears it) |
+| **Forget Bluetooth** | | | OCT+ twice: the FM-1 forgets the computer it paired with. Forget the FM-1 on that computer too |
 | **View** | Chord, Keyboard, Notes, Geek Out, Scope, Geek Out 2 | Chord | the view ([Views](#13-views)) |
 | **Motion** | Full, Calm, Off | Full | screen animation |
 | **Chord Names** | Orchid, Standard | Orchid | how a chord is named on every screen. Orchid: by the keys held, as the Orchid does (`A` `7 9`, `JAZZ`). Standard: as a lead sheet names the notes that sound (`A9`, `Aadd9`, `A13`). Only the name changes, never the notes ([Chord names](#chord-names)) |
@@ -1912,6 +1914,31 @@ own keys F3 to G5, exactly as the keybed does: the chord keys of the layout you 
 Window, the Full keyboard and its shortcuts. The note's velocity plays the key; CC 120 and CC 123 let every key go;
 other notes and messages on that channel do nothing. It cannot be the MIDI Perform or MIDI Bass channel (those are
 skipped, and setting one of them to it switches MIDI Keys off).
+
+### Bluetooth MIDI
+
+The FM-1 (not the SMK-37) can be a Bluetooth MIDI device for a Mac, an iPad, an iPhone or anything else that speaks
+Bluetooth LE MIDI. It is **Off** by default; Options > **Bluetooth** turns it on, and it stays on after a restart.
+
+1. Options > Bluetooth: On. The line under it reads `ChoralRoot 1A2B: visible` (the four characters are this unit's
+   own). If something is sounding or a loop is running it reads `starts when nothing plays`: the radio starts at the
+   first quiet moment, because starting it pauses the sound for a moment.
+2. On the computer, connect to **ChoralRoot 1A2B**: on a Mac in Audio MIDI Setup > MIDI Studio > Bluetooth, on an
+   iPad or iPhone in the music app's Bluetooth MIDI page. The first time, the two pair (no code to type); afterwards
+   they reconnect without asking. The line then reads `connected`.
+
+Over Bluetooth the FM-1 sends and receives what it does over USB MIDI, on the same channels: the Perform, Bass and
+Raw Chord notes out, the clock with MIDI Clock set to Out; notes, program changes, the CCs, pitch bend, aftertouch,
+clock and transport in, and MIDI Keys. SysEx (sound transfers, backups, the editor) stays on USB. USB MIDI and the
+TRS jack keep working alongside it. If the connection drops, the notes the computer was holding stop; the rest keep
+sounding.
+
+With Bluetooth On, the FM-1 starts its radio at power-on, before the sound, so a restart takes a moment longer. Off
+stops the connection and the FM-1 is no longer visible; the radio itself rests until the next power-on.
+
+To pair with another computer, or if the line reads `forget ChoralRoot on the peer`: Options > **Forget Bluetooth**,
+OCT+ twice, and remove ChoralRoot from the computer's Bluetooth list too; then connect again. If the line reads
+`install ChoralRoot again`, the radio's part of the installation is missing: install the firmware again.
 
 ### USB audio recording
 

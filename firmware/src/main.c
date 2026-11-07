@@ -125,6 +125,9 @@ void fm1_timer5_irq(void)
     if (owed & 2u)
         uart_midi_poll();
 #endif
+#if CR_BLE
+    cr_ble_drain();                                 /* the Bluetooth peer's MIDI into the same queue (cr_ble.c) */
+#endif
     owed = 0;
 }
 extern void isr_timer5(void);
@@ -270,6 +273,10 @@ static void fm1_main(void)
     panel_init();
     CR_STAGE(BS_SOUNDS);
     felucca_init();
+#if CR_BLE
+    cr_ble_boot();                                      /* Bluetooth: its record, the trims; the radio started now
+                                                         * when On was saved, before core 1 and the audio (cr_ble.c) */
+#endif
 #if CR_CPU1
     CR_STAGE(BS_CPU1);                                  /* (a hang here: prev_stage "core 1", the boot guard counts it) */
     cr_dbg.prof_on = 1;                                 /* the ISR's stage profile (cr_cpu1.h) */
@@ -395,6 +402,9 @@ static void fm1_main(void)
         felucca_dbg.stage = BS_LOOP_INPUT;            /* (the first: cr_ui_init, BS_UI_INIT ..) */
         ui_input();
         settings_poll();                              /* queued settings save: only while stopped */
+#if CR_BLE
+        cr_ble_poll();                                /* Bluetooth: a start owed, its record to save (when quiet) */
+#endif
         felucca_dbg.stage = BS_LOOP_DRAW;
         ui_leds();
 #if BOARD_SMK37

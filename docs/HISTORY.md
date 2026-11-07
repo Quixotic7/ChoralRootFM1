@@ -7217,3 +7217,60 @@ using the official M-Vave M-Updater will restore and reflash everything." So MAN
 "Not the stock firmware with additions") and the installer's stock card (`stockWarn`, `stockBack`) now send players to
 M-VAVE's M-Updater and say that this page's return writes the firmware without the presets. Recorded in
 docs/BOOT-SAFETY.md "The resource region" and docs/BLE-LINK.md section 8. Next: step 2, the Bluetooth peripheral.
+
+## 2026-11-06 (step 2: Bluetooth MIDI, the FM-1 as a peripheral)
+
+3y236. **Bluetooth LE MIDI on the FM-1** (docs/BLE-LINK.md steps 2..4 as one; MANUAL.md "Bluetooth MIDI"). Ported
+from Melodee nightly 3fe570d with credit (LICENSING.md): Optimist's stack (`firmware/src/ble/`, 33 files as Melodee
+carries them), the WL82 driver and radio access (`hal/fm1_ble.h`, `fm1_ble_rf.h`), Charles Vestal's calibration
+(`hal/fm1_rf_cal.h`, Apache-2.0), the radio's start-up program (`hal/ble_rf_tables.h`, V15-derived data, shipped in the
+resource region's `.res.ble`, 5 795 B, with Melodee's provenance note), the docs (`docs/ble/`). ChoralRoot's changes
+to them: the driver's interrupt attach (no dual-config), the program's section macro. The glue is new,
+`firmware/src/cr_ble.c` / `cr_ble.h` after Melodee's `midi_ble.c`: the peripheral only ("ChoralRoot XXXX", no
+scanning), legacy Just Works pairing with a bond, 27-octet packets, MIDI only (channel messages, clock, start /
+continue / stop, Song Position; no SysEx). Out: `usb.c midi_out_event` hands the peer what USB MIDI gets (clock and
+transport in a ring of their own, sent ahead of the notes); in: the BLE interrupts fill a ring that TIMER5 drains
+into the MIDI input queue as source 3, stamped with the packet's own time, so it routes as USB and TRS do (Perform,
+Bass, MIDI Keys, the CCs, Clock In). The notes a peer held end with note-offs when the link goes or Bluetooth goes Off.
+**Options**: Bluetooth (Off by default; its line shows `ChoralRoot 1A2B: visible`, `connected`, `starts when nothing
+plays`), Forget Bluetooth (OCT+ twice). **Saved** in a storage object of its own, `OBJ_BLE` (20) at 0xA0000 / 0xA1000
+(free since 3y231): On / Off, the address, the bond, a copy of the radio's trims; never in a backup, untouched by Reset
+Settings, cleared by Flash Data, saved only when nothing sounds and no loop runs. **Started** at power-on before the
+audio and core 1 when On was saved, the region present and the boot guard counted no failed start; switched On later,
+the start (which holds the interrupts, ~160 ms when the radio must calibrate itself) waits for a quiet moment. SAFE
+MODE never reads or starts it. The SMK-37 builds without it (`CR_BLE` is the FM-1's; its image differs from 771edeea's
+by 4 bytes, storage's object count). `CR_BLE=0 ./build.sh` builds the FM-1 without it.
+
+**Size** (FM-1, `./build.sh`): `XIP 547688 B of 573440 (95.5%), RAM 84256 B of 98304 (85.7%), POOL 334184 B of 344064
+(97.1%), NOINIT 276 B, RAMTEXT 21756 of 24576, RES 41820 B of 49088 (85.2%)`. Against `CR_BLE=0`: XIP +30 308,
+RAM +3 728, POOL +2 692 (9 880 B left, 1 688 above the 8 KiB rule), RAMTEXT +36, RES +5 796. 25 752 B of XIP left.
+
+**The audio with the radio off.** `CR_BLE=0` against 771edeea (the listing, function by function, addresses and
+immediates masked): 4 functions differ, all storage or Options (`st_sector`, `st_live`, `cu_btn_release`,
+`cp_lay_mod_dst`); every audio function is the same code. With `CR_BLE=1` and the radio off, the C the audio runs is
+unchanged but for two early returns: `midi_out_event` calls `cr_ble_emit` (inlined: a load of `ready` and `on`, then
+back) and TIMER5 calls `cr_ble_drain` (inlined: a load of `started`, then back). The compiler lays the data out anew
+around the new state, so 174 functions change by a few instructions (register choice, merged loads): the audio
+interrupt's call tree is 15 111 -> 15 112 instructions, the engines' functions 29 198 -> 29 153. The host goldens (the
+draw goldens of `run_cr_draw.sh`, run_tests' 279 renders: 0 changed) run the same C and pass; the unit's `perf_unit.py` with Bluetooth Off against
+the step-1 build is the check of the timing (the device session).
+
+**The radio's interrupts with it on** (the listing, `scratchpad irqcost.py`: the direct call tree, an upper bound of
+one entry's straight-line work): IRQ 45 (event) and IRQ 29 (RX) at priority 2, below the audio (3) and TIMER5 (4), so
+they never delay a half; their code runs from flash. `isr_ble_event`: 38 functions, 4 488 instructions reachable,
+deepest stack 696 B; `isr_ble_rx`: 37 functions, 4 153 instructions, 688 B. At ~205 instructions a microsecond that
+bounds one entry's straight-line path at ~22 us; an encrypted MIDI notification adds AES-CCM, 7 blocks of ~4 000
+instructions, ~135 us, at most one or two per 7.5..11.25 ms connection event. Nested under the audio and TIMER5 the
+deepest stack is 696 + 904 + 232 = ~1.8 KB of the ~7.9 KB system stack. TIMER5 (10 kHz) gains the drain: idle one load,
+connected a few packets a tick.
+
+**Tests**: `tests/cr_ble_test.c` (47 checks: the rings and their order, MIDI only, the timestamps, the release on loss
+with a full queue, On / Off and the quiet start, the record's saves, the bond, forget, the boot rules, the status
+lines) with the real stack on the fake radio; Melodee's stack fixtures, `tests/ble_tests.py` (11 builds, with ASan and UBSan: primitives,
+the stack plain and encrypted with legacy pairing, the driver both ways, central, scan, the VM reader; the radio
+program's replay against the pinned Optimist interpreter), both in `run_cr_tests.sh`. The SMK and storage tests count
+21 objects. Not done here (no unit): the radio on a unit, a Mac and an iPhone, reconnect after a power cycle, the
+timing with Bluetooth Off / advertising / connected, the soak (docs/BLE-LINK.md step 3's list).
+`sh tests/run_all.sh`: all 24 suites pass (`cr_favs_test` now expects OBJ_BLE after the favourites; test_cr's SAFE MODE
+erase 62 sectors, Bluetooth's 2 added). The emulator builds without Bluetooth (no radio there: no Bluetooth entries in
+its Options).

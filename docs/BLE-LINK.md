@@ -360,6 +360,11 @@ retired legacy objects. *Tests*: the 313 pixel-exact draw goldens and the regres
 with the region missing, stale and good; install, downgrade to 0.29.2 and back; an interrupted install. *Unit*:
 install from 0.29.2, a UI frame-time check, boot time. *Expect*: XIP about -42.7 KB. Releasable alone.
 
+**Steps 2..4 are built as one: 3y236** (`firmware/src/cr_ble.c`, `cr_ble.h`; MANUAL.md "Bluetooth MIDI"): in every
+FM-1 build (`CR_BLE` 1; the Bluetooth option Off by default, so a unit that never turns it on runs as before), clock
+in and out included; the SMK-37 without it. XIP +30 308 B over `CR_BLE=0`, RES +5 796 B. Waiting for the unit tests of
+step 3 below (the device session, on the spare E81CE2F7). As planned:
+
 **Step 2. The stack, built but off.** The files of section 4 behind `CR_BLE` (default 0: the image byte-identical);
 the ported host tests. *Measure*: the size line with `CR_BLE=1`, peripheral only.
 
@@ -405,7 +410,8 @@ radio program shipped, with Melodee's provenance note; (6) Just Works bonding; (
 before the audio; (8) MIDI only in version 1; (9) 27-octet packets; (10) FM-1 only for now; (11) step 0 yes: the
 device session tries Melodee 1.6.1 on a spare FM-1 (this session stays off the units). **Step 1 is built: 3y234.**
 **On the units (3y235)**: step 1 runs on the spare E81CE2F7 (every font drawn from the region); step 0 answered:
-Melodee's Bluetooth works on these units (VISIBLE, connected from the Mac's Audio MIDI Setup). Next: step 2.
+Melodee's Bluetooth works on these units (VISIBLE, connected from the Mac's Audio MIDI Setup). **Steps 2..4 are
+built: 3y236**; next, their unit tests.
 
 1. **One package, or a separate Bluetooth package?** *Recommended: one package*, made to fit by the resource
    region (2.4 A). Everyone gets Bluetooth and the host mode, releases stay one build per board, and nobody loses

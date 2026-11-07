@@ -42,11 +42,18 @@
  * unit still on 0.21 goes through 0.29.2 first). Their object numbers stay reserved below: every record's header names
  * its object (st_hdr_t.type), so the live objects keep their numbers. */
 enum { OBJ_SETTINGS, OBJ_X_PROJECT0, OBJ_X_UPRESET0 = OBJ_X_PROJECT0 + 4, OBJ_FM6BANK = OBJ_X_UPRESET0 + 2,
-       OBJ_X_CZSTORE1, OBJ_CZBANK0, OBJ_X_QUADSTORE = OBJ_CZBANK0 + 8, OBJ_SESSION, OBJ_FAVS, OBJ_COUNT };
+       OBJ_X_CZSTORE1, OBJ_CZBANK0, OBJ_X_QUADSTORE = OBJ_CZBANK0 + 8, OBJ_SESSION, OBJ_FAVS,
+       OBJ_BLE,                          /* 20, FM-1: Bluetooth's address, bond, trims (cr_ble.c, 3y236): 0xA0000 / 0xA1000,
+                                          * 0.21's CZ-1 tones 17..32 until 3y231 (their records name 8: never this one) */
+       OBJ_COUNT };
 static inline int st_live(uint32_t obj)  /* the objects stored today */
 {
     return obj < OBJ_COUNT && !(obj >= OBJ_X_PROJECT0 && obj < OBJ_FM6BANK) && obj != OBJ_X_CZSTORE1 &&
-           obj != OBJ_X_QUADSTORE;
+           obj != OBJ_X_QUADSTORE
+#if BOARD_SMK37
+           && obj != OBJ_BLE              /* (no Bluetooth on the SMK-37) */
+#endif
+           ;
 }
 #define ST_NOWHERE 0xFFFFF000u         /* st_sector of an object not stored: in no FL_RANGE_OK window, at or past FL_KEYMAC_LO
                                         * (fm1_flash.h's FL_GUARD refuses an erase or a program there), no live object's */
@@ -152,7 +159,7 @@ static const uint32_t ST_SMK_REGIONS[][2] = {{ST_SMK_BASE, ST_SMK_SECTORS}, {ST_
                                              {ST_SMK_POOL0, ST_SMK_POOL0_N}, {ST_SMK_POOL1, ST_SMK_POOL1_N},
                                              {ST_SMK_POOL2, ST_SMK_POOL2_N}};
 #if FELUCCA_CZ && FELUCCA_QUAD
-_Static_assert(OBJ_COUNT == 20u && OBJ_FAVS + 1u == OBJ_COUNT, "SMK store: a new object needs a place");
+_Static_assert(OBJ_COUNT == 21u && OBJ_BLE + 1u == OBJ_COUNT, "SMK store: a new object needs a place (OBJ_BLE: none)");
 #endif
 _Static_assert(ST_SMK_BASE == FL_DATA_LO && ST_SMK_BASE + ST_SMK_SECTORS * ST_SECTOR == 0xAF000u,
                "SMK store: the objects end at the owner tag");
@@ -294,6 +301,8 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return 0xB4000u + copy * ST_SECTOR;
     if (obj == OBJ_FAVS)
         return 0xB6000u + copy * ST_SECTOR;
+    if (obj == OBJ_BLE)
+        return 0xA0000u + copy * ST_SECTOR;
     if (obj >= OBJ_CZBANK0 && obj < OBJ_CZBANK0 + 8u)
         return 0xA2000u + (obj - OBJ_CZBANK0) * 2u * ST_SECTOR + copy * ST_SECTOR;
     return 0xFC000u + copy * ST_SECTOR;                  /* OBJ_SETTINGS */

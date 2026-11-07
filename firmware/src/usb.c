@@ -138,6 +138,9 @@ static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
     MIDI_OUT_TRS(pkt);                              /* SMK-37: the TRS jack too, with or without a USB host
                                                      * (hal/smk_uart_tx.h; the device build alone defines it) */
 #endif
+#if CR_BLE
+    (void)cr_ble_emit(pkt);                         /* a connected Bluetooth peer gets it too (cr_ble.c) */
+#endif
     if (usb.config && mo_w - mo_r < MQ) {
         midi_out_q[mo_w % MQ] = pkt;
         RING_PUBLISH();

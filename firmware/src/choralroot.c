@@ -148,6 +148,9 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #if !BOARD_SMK37
 #define CR_RES 1
 #define AF_RES __attribute__((section(".res.font")))
+#ifndef CR_BLE
+#define CR_BLE 1                 /* Bluetooth LE MIDI, the FM-1 as a peripheral (cr_ble.h, HISTORY 3y236); CR_BLE=0: none */
+#endif
 #endif
 
 /* ----------------------------------------------------- base, display --- */
@@ -170,6 +173,9 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #undef mix_block
 
 /* ------------------------------------------------------------ MIDI --- */
+#if CR_BLE
+#include "cr_ble.h"              /* (before usb.c: midi_out_event hands the peer what USB MIDI gets) */
+#endif
 #include "usb.c"
 #if FELUCCA_UART
 #include "midi_uart.c"
@@ -239,6 +245,9 @@ static int cr_erase_near(void);  /* cr_ui.c: a voice is active or an input came 
 #include "cz_store.c"            /* CZ-1: Casio tone SysEx in / out (Melodee's; after cr_ui.c) */
 #include "cr_backup.c"           /* backup / restore over SysEx (after usb.c, the stores, cr_ui.c, cr_settings.c) */
 #include "cr_shim.c"             /* what main.c and the kept files call of Felucca's dropped UI */
+#if CR_BLE
+#include "cr_ble.c"              /* Bluetooth MIDI's glue and the stack (after usb.c, the stores, cr_out.c, cr_ui.c) */
+#endif
 
 /* ----------------------------------------------------------- update --- */
 #if FELUCCA_OTA

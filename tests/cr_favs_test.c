@@ -93,8 +93,8 @@ int main(int argc, char **argv)
     }
 
     ok(st_sector(OBJ_FAVS, 0) == 0xB6000u && st_sector(OBJ_FAVS, 1) == 0xB7000u && st_sector(OBJ_SESSION, 1) == 0xB5000u &&
-       OBJ_FAVS == OBJ_SESSION + 1 && OBJ_COUNT == OBJ_FAVS + 1,
-       "the object: the pair 0xB6000 / 0xB7000, the first free sectors after the session; the last of the list");
+       OBJ_FAVS == OBJ_SESSION + 1 && OBJ_BLE == OBJ_FAVS + 1 && OBJ_COUNT == OBJ_BLE + 1,
+       "the object: the pair 0xB6000 / 0xB7000, the first free sectors after the session; then OBJ_BLE (3y236), the last");
     for (i = 0, n = 0; i < CRF_NSEC; i++)
         n += CRF_SEC[i].bytes;
     ok(n == CRF_BYTES && sizeof crf_bits == 84u, "the marks: 84 bytes of bits in RAM");

@@ -110,7 +110,7 @@ int main(void)
             owner[s >> 12] = (uint8_t)(1u + o);
         }
     check("storage.c: the 12 objects stored (A/B, OBJ_FAVS too) in FL_STORE_OK, none protected, no two share a sector; "
-          "0.21's 8 nowhere", ok && OBJ_COUNT == 20u && OBJ_FAVS == 19u && k == 16u);
+          "0.21's 8 and Bluetooth's (FM-1 only) nowhere", ok && OBJ_COUNT == 21u && OBJ_FAVS == 19u && k == 18u);
     check("the favourites 0xB4000 / 0xB5000, the session 0xAD000 / 0xAE000",
           st_sector(OBJ_FAVS, 0) == 0xB4000u && st_sector(OBJ_FAVS, 1) == 0xB5000u &&
           st_sector(OBJ_SESSION, 0) == 0xAD000u && st_sector(OBJ_SESSION, 1) == 0xAE000u);

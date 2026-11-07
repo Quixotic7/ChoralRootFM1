@@ -1,0 +1,35 @@
+/* SPDX-License-Identifier: GPL-3.0-only
+ * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca)
+ * Adapted from Melodee's firmware/src/midi_ble.h (3fe570d): Copyright (C) 2026 Kerem Kilic (Ellic Studio). */
+/* Bluetooth LE MIDI, the FM-1 as a peripheral (HISTORY 3y236; docs/BLE-LINK.md steps 2..4, docs/ble/): Optimist's
+ * bare-metal stack (firmware/src/ble/, w0ts/optimist 498a3ae4, as Melodee 3fe570d carries it) and its WL82 driver
+ * (hal/fm1_ble.h, fm1_ble_rf.h, fm1_rf_cal.h). The owner's choices (docs/BLE-LINK.md section 8): the FM-1 only (the
+ * SMK-37 builds without it), the peripheral (a Mac, iPad or phone connects to "ChoralRoot XXXX"; no scanning), LE
+ * legacy pairing Just Works with a bond, the stock-tested 27-octet link-layer packets, MIDI only (channel messages,
+ * clock and transport; no SysEx), Off by default, saved, started before the audio at power-on. The radio's start-up
+ * program lives in the resource region (cr_res.h: BLE_RF_RES -> .res.ble). The glue: cr_ble.c. */
+#pragma once
+#define BLE_API static
+#define BLE_DEVICE_NAME "ChoralRoot"    /* advertised as "ChoralRoot XXXX" (BLE_NAME_HEX: the address's last digits) */
+#define BLE_CENTRAL 0                   /* the peripheral only (connecting out: docs/BLE-LINK.md step 6) */
+#define FELUCCA_BLE_BOND 1              /* LE legacy pairing, Just Works, a bond kept (ble_cfg.h: LL encryption on) */
+#define BLE_DIAG 0
+#ifndef BLE_DMA_MEMORY                  /* (tests/cr_ble_test.c: plain memory on the host) */
+#define BLE_DMA_MEMORY __attribute__((section(".pool"), aligned(4)))   /* the baseband's block: SRAM, as Melodee's */
+#define FM1_RF_CAL_MEMORY __attribute__((section(".pool")))
+#define BLE_RF_RES __attribute__((section(".res.ble")))   /* hal/ble_rf_tables.h's program: in the resource region */
+#endif
+#define BLE_LL_MAX_OCTETS 27u           /* the stock-tested PDU size (docs/BLE-LINK.md decision 9) */
+#define BLE_BARRIER() RING_PUBLISH()
+#include "ble/ble.h"
+#include "ble/ble_vm.h"
+
+/* what the rest of the firmware calls (cr_ble.c) */
+static int cr_ble_emit(uint32_t pkt);            /* the audio ISR (usb.c midi_out_event): a packet for the peer */
+static void cr_ble_drain(void);                  /* TIMER5: the peer's packets into the MIDI input queue */
+static void cr_ble_boot(void);                   /* power-on, before the audio and core 1 */
+static void cr_ble_poll(void);                   /* the main loop: a start owed, a record to save */
+static int cr_ble_set(int on);                   /* Options > Bluetooth: 0 refused (no region, no calibration) */
+static int cr_ble_on(void);
+static void cr_ble_forget(void);                 /* Options > Forget Bluetooth */
+static void cr_ble_status(char *d, uint32_t n);  /* the Options line under Bluetooth */

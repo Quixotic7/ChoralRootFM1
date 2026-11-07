@@ -299,7 +299,8 @@ def build_app(stub, single=False):
     # FM TONE are in every build)
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_OTA_RAMONLY", "FELUCCA_CDC",
                  "FELUCCA_UART", "FELUCCA_UAC", "FELUCCA_KEYCAPS", "FELUCCA_SLICER", "FELUCCA_GRAIN",
-                 "FELUCCA_PROPHET", "FELUCCA_P5_FACTORY", "FELUCCA_DATA_UNTAGGED_OK"):
+                 "FELUCCA_PROPHET", "FELUCCA_P5_FACTORY", "FELUCCA_DATA_UNTAGGED_OK",
+                 "CR_BLE"):         # CR_BLE=0: the FM-1 without Bluetooth (cr_ble.h; the radio-off comparison, 3y236)
         v = os.environ.get(flag)    # unset: the default in firmware/src/choralroot.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
@@ -441,6 +442,13 @@ def res_data(syms):
     if not data or len(data) > RES_LEN:
         raise SystemExit(f"build: the resource region's data is {len(data)} B (1 .. {RES_LEN})")
     return data
+
+
+def res_ble(syms):
+    """the radio program's slot in the region's data (hal/ble_rf_tables.h ble_rf_prog, cr_ble.h): (offset, length),
+    (0, 0) without Bluetooth"""
+    m = re.search(r"^([0-9a-f]+) .*\.res\s+([0-9a-f]+) ble_rf_prog$", syms, re.M)
+    return (int(m.group(1), 16) - RES_XIP, int(m.group(2), 16)) if m and BOARD == "fm1" else (0, 0)
 
 
 def check(img, syms, dis, rt):
@@ -625,7 +633,7 @@ def main():
         print(("1-core " if single else "") + size_line(hdr))
         if errors:
             raise SystemExit("build: checks failed")
-        flash = fm1pkg_make.flash_image(img, fm1pkg_make.KEY, res=res_data(syms))
+        flash = fm1pkg_make.flash_image(img, fm1pkg_make.KEY, res=res_data(syms), ble=res_ble(syms))
         pkg = fm1pkg_make.ufw(flash, ota, PRODUCT)
         print(f"sector 0x4000 (the directory and the stub: constant while the stub is) sha256 "
               f"{hashlib.sha256(flash[0x4000:0x5000]).hexdigest()[:16]}; marker at 0x91fe0, body "

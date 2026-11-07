@@ -238,7 +238,7 @@ def res_header(data, body_crc, ble=(0, 0)):
     return h + struct.pack("<I", zlib.crc32(h))
 
 
-def flash_image(app, key, marker_of=marker, res=None):
+def flash_image(app, key, marker_of=marker, res=None, ble=(0, 0)):
     spl = sdk_file("uboot.boot")                         # SDK SPL, BANKCB-encoded as in the SDK
     cfg_tool = sdk_file("cfg_tool.bin")
     eq = sdk_file("cfg/eq_cfg_hw.bin")
@@ -295,7 +295,9 @@ def flash_image(app, key, marker_of=marker, res=None):
             raise SystemExit(f"fm1pkg_make: the resource data is {len(res)} B (1 .. {RES_HI - RES_DATA})")
         body_crc = struct.unpack_from("<I", app, MARK_OFF + 12)[0]   # (the marker commit() wrote: its CRC-32 field)
         f += b"\xFF" * (RES_HI - len(f))
-        f[RES_LO:RES_DATA] = res_header(res, body_crc)
+        if ble[1] and ble[0] + ble[1] > len(res):
+            raise SystemExit(f"fm1pkg_make: the radio program's slot {ble} lies outside the region's data")
+        f[RES_LO:RES_DATA] = res_header(res, body_crc, ble)
         f[RES_DATA:RES_DATA + len(res)] = res
     return bytes(f)
 
