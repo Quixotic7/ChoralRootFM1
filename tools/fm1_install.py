@@ -398,15 +398,16 @@ BUBBA_PORT = re.compile(r"bubba", re.I)
 # each: 0.2.1 = FM-1_52000201). No INFO answer. RemoteFM1 0.1 answered as the official V15 (FM-1_015). Only
 # RemoteFM1's prefix: other fm1-base firmwares' update paths are not known here (docs/INSTALL-COMPAT.md "RemoteFM1")
 REMOTEFM1_ID = re.compile(r"52(?:00|(\d\d)(\d\d)(\d\d))")
+MFLASHER_URL = "https://github.com/jvitkauskas/m-flasher"   # the owner's advice for switching firmwares (3y237)
 BUBBA_TEXT = ("Bubba Machine's updater takes only M-VAVE's official package, so ChoralRoot cannot be installed over it "
-              "directly. Return to the official V15 first: this tool "
-              "with M-VAVE's FM-1.fwsc (python3 tools/fm1_install.py FM-1.fwsc), the web installer's \"Return to "
-              "official V15\" or Bubba Machine's own installer; then install ChoralRoot.")
+              "directly. Switch firmwares with M-Flasher and the M-Bootloader instead (" + MFLASHER_URL + "): it "
+              "installs ChoralRoot's package (choralroot-X.Y.fwsc) through the chip's download mode.")
 
 
 def refusal_text(name):
     return (f"Installing over {name} is not supported: {REFUSE_REASON} "
-            f"Return to the official V15 firmware with the installer you used for {name} first, then install ChoralRoot. "
+            f"Switch firmwares with M-Flasher and the M-Bootloader instead ({MFLASHER_URL}): it installs ChoralRoot's package "
+            f"through the chip's download mode, whatever runs on the FM-1. "
             f'If an FM-1 is already dark (black screen, a "WL82 UBOOT1.00" USB disk): {RECOVERY_URL}')
 
 

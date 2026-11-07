@@ -49,8 +49,8 @@ sound editor, MIDI out on three channels and USB audio recording.
 What it is not:
 
 - **Not the stock firmware with additions.** ChoralRoot replaces the FM-1's firmware while it is installed. The stock
-  sequencer, sampler and drum sounds are not in it; every sound is synthesised. M-VAVE's own updater (M-Updater) puts
-  the stock firmware back whenever you want ([Back to the stock firmware](#back-to-the-stock-firmware)).
+  sequencer, sampler and drum sounds are not in it; every sound is synthesised. You can switch to another firmware,
+  or put the stock one back, whenever you want ([Switching firmwares](#switching-firmwares)).
 - **Not what the panel says.** Most printed labels have another job (SEL is KEY, ARP is PERF, ENV is BASS, and so on),
   and in the sound editor the buttons change again. A sticker sheet would carry the table of the
   [quick reference](#18-quick-reference).
@@ -2122,14 +2122,28 @@ A black screen with a `WL82 UBOOT1.00` disk on the computer, or nothing on USB a
 [INSTALL-COMPAT.md](INSTALL-COMPAT.md), which lead to
 [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker). Do not format the disk.
 
-### Back to the stock firmware
+### Switching firmwares
 
-Use **M-VAVE's own updater, M-Updater** (from M-VAVE's downloads): it reflashes the FM-1 completely, the official
-firmware and its factory presets. Back up first in the installer (Back up): the stock firmware cannot use ChoralRoot's
-sounds, loops or settings; to bring them back, install ChoralRoot again and press Restore.
+To switch from ChoralRoot to another firmware, or from another firmware to ChoralRoot, use **[M-Flasher](https://github.com/jvitkauskas/m-flasher) and the
+[M-Bootloader](https://github.com/jvitkauskas/m-bootloader)** (Windows, macOS and Linux; free, unofficial). M-Flasher talks to the chip's own USB download mode, so it works
+whatever firmware is on the FM-1, even one that no longer starts; it backs up the whole flash before it writes, and
+installs any firmware's `.fwsc` package, ChoralRoot's included. The M-Bootloader replaces M-VAVE's bootloader and adds
+a way into download mode from the keys (hold REC while switching on) and a recovery menu (hold PLAY while switching on).
 
-The installer's own "Return to official V15" section writes the V15 firmware only: the FM-1 then starts without M-VAVE's
-presets (checked on a unit, HISTORY 3y235). Use it only when M-Updater is not at hand.
+1. In ChoralRoot's installer, press **Back up**: no other firmware can use ChoralRoot's sounds, loops or settings.
+2. Start M-Flasher and connect the FM-1 directly with a USB data cable. With ChoralRoot running, M-Flasher's
+   **DOWNLOAD MODE** button switches it over (ChoralRoot answers the same message as the stock firmware); with the
+   M-Bootloader installed, you can also hold REC while switching on.
+3. In M-Flasher: back up the whole flash, install the M-Bootloader (once), then install the other firmware's package.
+
+To come back, install ChoralRoot's package (`choralroot-X.Y.fwsc`, from the [Releases](https://github.com/Quixotic7/ChoralRootFM1/releases))
+the same way, or with ChoralRoot's web installer if the other firmware lets it, then press Restore in the installer.
+You never need to go through the stock firmware in between. M-Flasher's own instructions are in its README.
+
+**Back to the stock firmware completely**: use **M-VAVE's own updater, M-Updater** (from M-VAVE's downloads): it
+reflashes the FM-1 completely, the official firmware and its factory presets (and puts M-VAVE's bootloader back:
+reinstall the M-Bootloader afterwards if you want it). The installer's own "Return to official V15" section writes the
+V15 firmware only: the FM-1 then starts without M-VAVE's presets (checked on a unit, HISTORY 3y235).
 
 More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), the
 [0.16 release notes](releases/0.16.md).

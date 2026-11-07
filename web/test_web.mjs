@@ -1252,7 +1252,7 @@ function firmwareGuard() {
   ok(classifyFirmware("FM-1_52000201", null).name === "RemoteFM1 0.2.1" && classifyFirmware("FM-1_52011203", null, "FM-1").name === "RemoteFM1 1.12.3" &&
      classifyFirmware("FM-1_5200", null).name === "RemoteFM1 (development build)", "fm1ota.js classifyFirmware: RemoteFM1's version from its identity");
   const t = refusalText("Sloop");
-  ok(t.startsWith("Installing over Sloop is not supported: ") && t.includes("with the installer you used for Sloop first, then install ChoralRoot.") &&
+  ok(t.startsWith("Installing over Sloop is not supported: ") && t.includes("M-Flasher and the M-Bootloader instead (https://github.com/jvitkauskas/m-flasher)") && !/V15/.test(t) &&
      t.endsWith(RECOVERY_URL) && RECOVERY_URL === "https://github.com/Quixotic7/MvaveFM1Unbricker", "fm1ota.js refusalText: the message and the recovery link");
 }
 

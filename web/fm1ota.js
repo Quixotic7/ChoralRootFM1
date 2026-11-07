@@ -133,9 +133,11 @@ function classifySmk(identity, model, num, v) {
 }
 export function refusalText(name) {
   return `Installing over ${name} is not supported: ${REFUSE_REASON} ` +
-    `Return to the official V15 firmware with the installer you used for ${name} first, then install ChoralRoot. ` +
+    `Switch firmwares with M-Flasher and the M-Bootloader instead (${MFLASHER_URL}): it installs ChoralRoot's package ` +
+    `through the chip's download mode, whatever runs on the FM-1. ` +
     `If an FM-1 is already dark (black screen, a "WL82 UBOOT1.00" USB disk): ${RECOVERY_URL}`;
 }
+export const MFLASHER_URL = "https://github.com/jvitkauskas/m-flasher";   // the owner's advice for switching firmwares
 export const REFUSE_REASON = "An install over it has left an FM-1 that no longer starts, and the data it leaves in the flash is not known to be safe for ChoralRoot.";
 
 // one MIDI in/out pair with a SysEx queue

@@ -441,8 +441,17 @@ M, CRX and CRB (36 024 B); the radio program's slot is empty until Bluetooth (do
 - **Returning to the stock firmware**: V15's package is 0x93000 long; V15's VM starts at 0x93000 and finds the
   region's header there, not its own. **On a unit (3y235)**: the installer's "Return to official V15" over this build
   gave V15 with its text fine but no presets (V15's data was gone). The owner: V15 through this page need not be
-  supported; M-VAVE's own updater (M-Updater) restores and reflashes everything, and the manual and the installer
-  now point there.
+  supported; M-VAVE's own updater (M-Updater) restores and reflashes everything. **Switching firmwares (3y237)**:
+  the owner's advice is [M-Flasher](https://github.com/jvitkauskas/m-flasher) with the
+  [M-Bootloader](https://github.com/jvitkauskas/m-bootloader): M-Flasher writes through the ROM's download mode (its
+  own flash loader in RAM, a whole-flash backup first, every write checked), so neither this stub, the loader nor
+  another firmware's updater is in the way; ChoralRoot answers its DOWNLOAD MODE SysEx (F0 22 24 35 7D F7, main.c).
+  The M-Bootloader replaces the boot area 0x0000..0x3FFF (the head above: no longer V15's on such a unit) and checks
+  the firmware before it starts it; M-VAVE's updates put the stock one back. The manual, README, SMK37.md and both
+  installers point there; M-Updater only for a complete return to stock. **Not yet tried on a unit**: ChoralRoot starting
+  under the M-Bootloader (its stub at 0x4000, the commit marker, the boot guard), and M-Flasher installing
+  `choralroot.fwsc` with the resource region (flash.bin past 0x93000) and its settings erase (the package's declared
+  areas): the device session's checks.
 - **On a unit (3y235, the spare E81CE2F7)**: installed over Melodee 1.6.1 (Melodee's 816-byte settings in object 1, no
   ChoralRoot record: booted on the defaults; the settings backup restored byte for byte); the splash normal and every
   font drawn, no garbled text: the region read through the plain window as the host said.

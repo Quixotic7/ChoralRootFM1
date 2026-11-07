@@ -341,7 +341,8 @@ def guard():
 
     rc, out, err, dev = over("FM-1_900", "FELUCCA SLOOP 2.2")
     ok(rc == 8 and dev.upgrades == 0 and "Installing over Sloop is not supported" in err and I.RECOVERY_URL in err
-       and "official V15" in err and "--force" in err, "over Sloop: refused (exit 8), nothing written, recovery link")
+       and I.MFLASHER_URL in err and "V15" not in err and "--force" in err,
+       "over Sloop: refused (exit 8), nothing written, M-Flasher named, recovery link")
     rc, out, err, dev = over("FM-1_900", "FELUCCA SLOOP 2.2", "--force")
     ok(rc == 0 and dev.identity == "FM-1_920" and dev.bad == 0 and "--force: installing over Sloop anyway" in out,
        "over Sloop with --force: installed, the override said")
@@ -363,14 +364,14 @@ def guard():
     ok(rc == 0 and "ChoralRoot can be installed over RemoteFM1 0.2.1" in out, "--info on RemoteFM1 0.2.1: named, installed over")
     for extra in ((), ("--force",)):              # Bubba Machine: its updater refuses our loader, so never
         rc, out, err, dev = over("FM-1_003", None, *extra, name="FM-1 Bubba Machine")
-        ok(rc == 8 and dev.upgrades == 0 and "Bubba Machine (FM-1_003)" in err and "official V15" in err
-           and "FM-1.fwsc" in err and "--force does not" in err,
-           f"over Bubba Machine{' with --force' if extra else ''}: refused (exit 8), nothing sent, the way back to V15")
+        ok(rc == 8 and dev.upgrades == 0 and "Bubba Machine (FM-1_003)" in err and "M-Flasher" in err
+           and I.MFLASHER_URL in err and "V15" not in err and "--force does not" in err,
+           f"over Bubba Machine{' with --force' if extra else ''}: refused (exit 8), nothing sent, M-Flasher named")
     rc, out, err, dev = over("FM-1_003", None)
     ok(rc == 0 and dev.identity == "FM-1_920" and dev.bad == 0, "over FM-1_003 on the FM-1's own port (the old stock): installed")
     rc, out, err = cli(["--info"], FakeFM1(image, identity="FM-1_003", name="FM-1 Bubba Machine"))
-    ok(rc == 0 and "not installed over Bubba Machine (FM-1_003)" in out and "FM-1.fwsc" in out,
-       "--info on Bubba Machine: named, not installed over, the way back to V15")
+    ok(rc == 0 and "not installed over Bubba Machine (FM-1_003)" in out and "M-Flasher" in out,
+       "--info on Bubba Machine: named, not installed over, M-Flasher named")
     side = BackupSide("FELUCCA SLOOP 2.2", I.FELUCCA_IDS)
     rc, out, err = cli(["--info"], FakeFM1(image, identity="FM-1_900", bk=lambda _i: side))
     ok(rc == 0 and "FELUCCA SLOOP 2.2" in out and "not installed over Sloop" in out, "--info: version and the verdict")

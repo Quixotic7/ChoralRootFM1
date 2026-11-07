@@ -139,7 +139,7 @@ installer links it too). It is the same firmware as the packages (`BOARD_SMK37`)
 
 ## Install
 
-Have M-Vave's stock package for your model and M-UPGRADE ready first (see [Going back](#going-back-to-the-stock-firmware)).
+Have [M-Flasher](https://github.com/jvitkauskas/m-flasher) and M-Vave's stock package for your model ready first (see [Going back](#going-back-to-the-stock-firmware)).
 
 **From the browser** (Chrome or Edge on a computer): the SMK-37 installer at
 <https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/>, linked from the project's site and README. Tick that you
@@ -171,7 +171,12 @@ Velocity of `keys` becomes Key Touch `Dynamic`.
 
 ## Going back to the stock firmware
 
-Install M-Vave's firmware package for your model with M-Vave's updater, M-UPGRADE. It works directly, because the
+**To switch to another firmware** (or from one to ChoralRoot): [M-Flasher](https://github.com/jvitkauskas/m-flasher) with the [M-Bootloader](https://github.com/jvitkauskas/m-bootloader), both for the SMK-37 Pro and
+Elite. M-Flasher works through the chip's USB download mode whatever runs on the keyboard, backs up the whole flash
+first and installs any firmware's `.fwsc` package; the M-Bootloader adds download mode from the keys (SEQ REC while
+switching on) and a recovery menu. Back up ChoralRoot's data in its installer first.
+
+**To restore the stock firmware completely:** install M-Vave's firmware package for your model with M-Vave's updater, M-UPGRADE. It works directly, because the
 installed package keeps the keyboard's model name. The keyboard's calibration (USRTRIM, the factory key, pad and wheel
 curves), Bluetooth pairing and key areas are never written by ChoralRoot, so they are as they were. The key, knob
 and fader mapping is the one the stock firmware had, or its factory one once ChoralRoot has stored something in
@@ -242,7 +247,8 @@ protected ranges, and that no two share a sector.
 
 ## Safety
 
-- Have M-Vave's stock package for your model and M-UPGRADE ready before you install.
+- Have [M-Flasher](https://github.com/jvitkauskas/m-flasher) and M-Vave's stock package for your model ready before you install (M-UPGRADE restores the stock
+  firmware completely).
 - Keep the USB cable connected until the install has finished and the keyboard has restarted.
 - ChoralRoot keeps its data apart from other firmwares' (its own data family): the first start clears any other
   firmware's data in ChoralRoot's areas, including 0xEB000-0xF1FFF, flash that the stock firmware's region table does

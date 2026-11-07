@@ -64,19 +64,25 @@ the FM-1's pools per engine and its ten loop slots next to a library (this brows
 Keep, Swap, Rename, Delete, Undo, a back-up, and an on-screen keyboard over Web MIDI. `manager.html?sim=1` runs it
 against a simulated FM-1, no device needed.
 
-**Back to the stock firmware:** the installer's "Return to official V15" section installs the official FM-1
-V15 firmware, `FM-1.fwsc`, which you download yourself from M-VAVE's
-[downloads page](https://www.m-vave.com/download) (or `python3 tools/fm1_install.py FM-1.fwsc --backup .`). It
-saves a backup first: the stock firmware cannot use ChoralRoot's user sounds, loops or settings; reinstall ChoralRoot
-and press Restore to bring them back. Backups move between firmwares too: a Felucca backup restores its settings,
+**Switching firmwares:** to go from ChoralRoot to another firmware or back, use [M-Flasher](https://github.com/jvitkauskas/m-flasher) with the [M-Bootloader](https://github.com/jvitkauskas/m-bootloader)
+(Windows, macOS, Linux): M-Flasher works through the chip's USB download mode whatever runs on the FM-1, backs up the
+whole flash first and installs any firmware's `.fwsc` package, ChoralRoot's included; the M-Bootloader adds download
+mode from the keys (REC while switching on) and a recovery menu. Back up in ChoralRoot's installer first: no other
+firmware can use ChoralRoot's user sounds, loops or settings; reinstall ChoralRoot and press Restore to bring them
+back. No detour through the stock firmware is needed ([the manual](docs/MANUAL.md#switching-firmwares)).
+
+**Back to the stock firmware completely:** M-VAVE's own updater, M-Updater, from M-VAVE's
+[downloads page](https://www.m-vave.com/download): it reflashes the firmware and its factory presets. (The installer's
+"Return to official V15" section, or `python3 tools/fm1_install.py FM-1.fwsc --backup .`, writes the V15 firmware
+without the presets.) Backups move between firmwares too: a Felucca backup restores its settings,
 user sounds and FM6 patches on ChoralRoot (its samples stay in the file: ChoralRoot is all-synth), and back (BUILDING.md, "Backup and restore").
 
 **Over which firmware:** the stock firmware, Felucca 1.0 or later, Melodee and ChoralRoot. The installers refuse
 Sloop, the Felucca 0.x betas and firmwares they cannot identify: an FM-1 has been bricked by an install over Sloop,
 and Felucca 0.9-beta to 1.0 bricked several (the loader wrote correctly both times; the cause is still open;
-[docs/INSTALL-COMPAT.md](docs/INSTALL-COMPAT.md)). Return to the official V15 with that firmware's installer first.
-**Bubba Machine** takes only M-VAVE's own package, so ChoralRoot cannot go over it directly: return to V15 with the web
-installer's "Return to official V15" (or `tools/fm1_install.py FM-1.fwsc`), then install ChoralRoot.
+[docs/INSTALL-COMPAT.md](docs/INSTALL-COMPAT.md)). **Bubba Machine** takes only M-VAVE's own package, so the
+installers cannot go over it either. Over any of these, install ChoralRoot with M-Flasher and the M-Bootloader
+(above): M-Flasher writes through the chip's download mode, not through the other firmware's updater.
 
 **SAFE MODE.** If ChoralRoot crashes twice in a row within 30 s of starting (switching it off and on does not count),
 it starts in SAFE MODE (a yellow screen, "Safe mode" on the top line): it plays its factory sounds and ignores what is

@@ -255,6 +255,7 @@
     <summary data-t="stockTitle"></summary>
     <p class="warn" data-t="stockWarn"></p>
     <p class="small" data-t="stockBack"></p>
+    <p class="small"><a href="https://github.com/jvitkauskas/m-flasher" target="_blank" rel="noopener">M-Flasher and the M-Bootloader</a></p>
     <p class="small"><a href="https://www.m-vave.com/download" target="_blank" rel="noopener">M-VAVE Downloads</a></p>
     <p><label><span data-t="stockFile"></span><br><input id="stock-file" type="file" accept=".fwsc"></label></p>
     <label class="check"><input id="stock-recovery" type="checkbox"><span data-t="stockRecovery"></span></label>
@@ -305,7 +306,7 @@ const TEXT = {
     warn: "Charge the FM-1 fully first (it writes on its battery), keep the computer awake, and do not unplug the USB cable while writing.",
     install: "Install",
     direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
-    over: "Installing over the stock firmware, Felucca 1.0 or later, Melodee or ChoralRoot replaces it; the FM-1 reports FM-1_920 afterwards. Over Sloop, the Felucca 0.x betas and other firmwares the installer stops: return to the official V15 first. An interrupted install is resumed by pressing Install again.",
+    over: "Installing over the stock firmware, Felucca 1.0 or later, Melodee or ChoralRoot replaces it; the FM-1 reports FM-1_920 afterwards. Over Sloop, Bubba Machine, the Felucca 0.x betas and other firmwares the installer stops: switch with M-Flasher and the M-Bootloader instead (github.com/jvitkauskas/m-flasher), which install any firmware's package, ChoralRoot's included. An interrupted install is resumed by pressing Install again.",
     backupFirst: "Install first saves a backup of what is stored on the FM-1 (user sounds, loops, settings, FM6 patches) to a file on this computer. Felucca and ChoralRoot can be backed up; the stock firmware cannot.",
     skipBackup: "Skip the backup (I already saved one, or the FM-1 runs the stock firmware)",
     bkTitle: "Back up and restore",
@@ -385,9 +386,9 @@ const TEXT = {
     flTitle: "The files",
     flText: "For the command-line tool (python3 tools/fm1_install.py FILE) and for checking: every version this page installs, its SHA-256, its notes and its source. The page checks the SHA-256 itself before it writes.",
     licAll: "Every package offered here is under the same licences (GPL-3.0; the parts listed below), and the source of each version is the repository at that version's tag: the links are with the files above.",
-    bubba: "Your FM-1 runs {name}. Its updater takes only M-VAVE's official package, so ChoralRoot cannot be installed over it directly; nothing was written. Return to the official V15 first (\"Return to official V15\", far down this page, with M-VAVE's FM-1.fwsc), then install ChoralRoot.",
+    bubba: "Your FM-1 runs {name}. Its updater takes only M-VAVE's official package, so ChoralRoot cannot be installed over it directly; nothing was written. Switch with M-Flasher and the M-Bootloader instead (github.com/jvitkauskas/m-flasher): M-Flasher installs ChoralRoot's package (choralroot-X.Y.fwsc) through the chip's download mode.",
     stockTitle: "Return to official V15", stockFile: "Official FM-1.fwsc", stockGo: "Back up and return to official V15",
-    stockWarn: "To go back to the official firmware, use M-VAVE's own updater (M-Updater, from M-VAVE's downloads): it reflashes everything, the factory presets included. This page's return writes the V15 firmware only: the FM-1 comes back without M-VAVE's presets. Either way the stock firmware cannot use ChoralRoot's user sounds, loops or settings: they are saved to a backup file first; to bring them back, reinstall ChoralRoot and press Restore.",
+    stockWarn: "To switch to another firmware, use M-Flasher with the M-Bootloader (github.com/jvitkauskas/m-flasher): it backs up the whole flash and installs any firmware's package. To restore the official firmware completely, use M-VAVE's own updater (M-Updater, from M-VAVE's downloads): it reflashes everything, the factory presets included. This page's return writes the V15 firmware only: the FM-1 comes back without M-VAVE's presets. Either way the stock firmware cannot use ChoralRoot's user sounds, loops or settings: they are saved to a backup file first; to bring them back, reinstall ChoralRoot and press Restore.",
     stockRecovery: "Resume an interrupted update: I already saved a backup to this computer",
     stockNeedBackup: "An FM-1 in update mode cannot be backed up. Tick the resume box only if you already saved a backup.",
     stockValid: "Official V15 verified",

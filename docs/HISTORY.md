@@ -7274,3 +7274,24 @@ timing with Bluetooth Off / advertising / connected, the soak (docs/BLE-LINK.md 
 `sh tests/run_all.sh`: all 24 suites pass (`cr_favs_test` now expects OBJ_BLE after the favourites; test_cr's SAFE MODE
 erase 62 sectors, Bluetooth's 2 added). The emulator builds without Bluetooth (no radio there: no Bluetooth entries in
 its Options).
+
+## 2026-11-06 (switching firmwares: M-Flasher and the M-Bootloader)
+
+3y237. **The way to switch firmwares is M-Flasher with the M-Bootloader.** The owner, through the orchestration
+session: "My official advice to anyone switching firmwares is to use M-Flasher and install the M-Bootloader
+https://github.com/jvitkauskas/m-flasher and to use that to flash another firmware." From their READMEs: M-Flasher
+(MIT, Windows / macOS / Linux, unofficial) backs up, restores and installs `.fwsc` packages (M-VAVE's, or a custom one
+in that format) through the chip's ROM download mode, so it works whatever runs on the unit; it reaches download mode
+by its DOWNLOAD MODE button (the SysEx F0 22 24 35 7D F7, which ChoralRoot answers: main.c) or, with the M-Bootloader,
+by holding REC (SMK-37: SEQ REC) while switching on. The M-Bootloader (MIT) replaces M-VAVE's boot area, adds that key,
+a recovery menu (PLAY) and a checked start; M-VAVE's updates put the stock one back. So: MANUAL.md "Switching
+firmwares" (was "Back to the stock firmware"), the README, SMK37.md, the site's Recovery section, BOOT-SAFETY.md, both
+installers (the refusals over Sloop, Bubba Machine and unknown firmwares, the stock card, the SMK page's risks, accept
+box and Going back), `tools/fm1_install.py`'s refusals and BUILDING.md's release-notes step now name M-Flasher and the
+M-Bootloader with the link. M-VAVE's M-Updater (M-UPGRADE on the SMK-37) stays only as the way to restore the stock
+firmware completely; no "return to V15 first" advice is left for ChoralRoot (the installer's own "Return to official
+V15" stays, described as writing V15 without the presets). Tests: the refusal texts in `test_installer.mjs`,
+`test_web.mjs` and `install_test.py` now require the M-Flasher link and no V15; install, web_installer, web_web,
+web_emu_smk, releases, run_tests (the site) and `test_smk_installer.mjs` pass. **Not tried on a unit**: ChoralRoot
+starting under the M-Bootloader (its stub, the marker, the boot guard) and M-Flasher installing `choralroot.fwsc` with
+the resource region (docs/BOOT-SAFETY.md).

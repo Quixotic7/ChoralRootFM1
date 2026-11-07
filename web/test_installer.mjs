@@ -464,7 +464,7 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
   let { p, dev } = await over("FM-1_900", "FELUCCA SLOOP 2.2");
   const text = refusal("Sloop");
   ok(p.$.status.textContent === text && text.startsWith("Installing over Sloop is not supported: ") &&
-     text.includes("Return to the official V15 firmware with the installer you used for Sloop first, then install ChoralRoot.") &&
+     text.includes("Switch firmwares with M-Flasher and the M-Bootloader instead (https://github.com/jvitkauskas/m-flasher)") && !/V15/.test(text) &&
      text.includes("https://github.com/Quixotic7/MvaveFM1Unbricker"), "guard: over Sloop -> refused with the message and the recovery link");
   ok(dev.upgrades === 0 && !p.downloads.length && !p.confirms.length && p.$["force-box"].hidden === false && !p.$.go.disabled,
     "guard: ... nothing written, no backup, no question; the override box appears");
@@ -483,9 +483,9 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
   // Bubba Machine (FM-1_003 on the port "FM-1 Bubba Machine"): its updater refuses our loader, so no override is offered
   const bubbaText = en.bubba.replace("{name}", "Bubba Machine (FM-1_003)");
   ({ p, dev } = await over("FM-1_003", null, { name: "FM-1 Bubba Machine" }));
-  ok(p.$.status.textContent === bubbaText && bubbaText.includes("Return to official V15") && bubbaText.includes("FM-1.fwsc") &&
+  ok(p.$.status.textContent === bubbaText && bubbaText.includes("M-Flasher and the M-Bootloader") && bubbaText.includes("github.com/jvitkauskas/m-flasher") && !/V15/.test(bubbaText) &&
      dev.upgrades === 0 && !p.downloads.length && !p.confirms.length && p.$["force-box"].hidden !== false && !p.$.go.disabled,
-     "guard: over Bubba Machine -> refused, the way back to V15 said; nothing written, no backup, no override box");
+     "guard: over Bubba Machine -> refused, M-Flasher named as the way (no V15 detour); nothing written, no backup, no override box");
   ({ p, dev } = await over("FM-1_003", null, { name: "FM-1 Bubba Machine", force: true }));
   ok(p.$.status.textContent === bubbaText && dev.upgrades === 0 && !p.confirms.length,
      "guard: over Bubba Machine with the override ticked -> still refused, nothing written");
@@ -495,7 +495,7 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
     await settle();
     await bp.$["check-go"].fire("click");
     ok(bp.$.unit.textContent === bubbaText && bp.$.unit.className === "unit bad" && bd.upgrades === 0,
-       'check: "What is on my FM-1?" on Bubba Machine names it and says the way back to V15, writes nothing');
+       'check: "What is on my FM-1?" on Bubba Machine names it and says M-Flasher, writes nothing');
   }
   for (const [identity, version] of [["FM-1_910", "FELUCCA v1.0.1"], ["FM-1_90111", "MELODEE v0.11.1"], ["FM-1_920", "ChoralRoot 0.12"], ["FM-1_015", null], ["FM-1_003", null]]) {
     ({ p, dev } = await over(identity, version, { skip: true }));

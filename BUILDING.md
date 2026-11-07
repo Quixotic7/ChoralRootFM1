@@ -252,7 +252,9 @@ the installer with the one in `web/releases.json`).
    bullets a player understands (from `docs/releases/X.Y.md`), the sha256 of `build/release-X.Y/choralroot-X.Y.fwsc`
    as `sha256` and of `choralroot-X.Y-1core.fwsc` as `sha256_1core` (the installer offers Single core only for a
    release that has it; the build is reproducible: CI makes the same files, "Signed builds" below), and give the entry that was first a `going_back` note (from the new notes' "Going back"
-   section). `python3 tests/releases_test.py` checks the file. Commit this before the tag: the site is built from
+   section). Notes that tell players how to switch to or from another firmware name M-Flasher and the M-Bootloader
+   (<https://github.com/jvitkauskas/m-flasher>), never a detour through V15; M-VAVE's M-Updater only to restore the
+   stock firmware completely (MANUAL.md "Switching firmwares", 3y237). `python3 tests/releases_test.py` checks the file. Commit this before the tag: the site is built from
    the tag's tree, and the installer offers what the file lists.
 2. Tag the commit and push the tag:
 
