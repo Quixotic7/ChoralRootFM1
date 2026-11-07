@@ -355,14 +355,14 @@ touched 1 MB a detent (~35 ms, the code cache thrashed), the slot's place moves 
 emulator and host tests have no XIP mapping of the data region. The cache removes the walk instead; XIP remains an
 option for the loads themselves (2 reads a load: not worth it now).
 
-**The migration** (`upool.c upool_import`): at power-on, when the pool holds no bank and a legacy bank holds a record,
-legacy slot k (1..32) = the record of `OBJ_UPRESET0 + k / 16` and the patch k of the store of that record's engine (the
-VA store, the FM6 store's halves, the CZ-1 store's halves, the FM TONE store; a VA store of version 1 or 2 converted as
-the VA store converted it), byte for byte, into pool slot k: four bank writes. The legacy objects are only read. It
-happens once: a pool with any bank is never migrated again. **Going back to 0.21** (or 377264f) finds its 32 slots and
-its favourites as they were at the update (`tools/emu/test_pool.sh`); what was saved under 0.22 is not there. Edits made
-under 0.21 afterwards are not migrated by themselves: the device manager's **Import the 0.21 slots** (SysEx 80 IMPORT)
-copies the legacy slots into U001..U032 again (U033..U128 stay).
+**The migration, 0.22 .. 0.29.2 (retired in HISTORY 3y231)**: at their first power-on, when the pool held no bank and
+a legacy bank held a record, those firmwares copied legacy slot k (1..32: the record of the user bank of 0.21 and the
+patch k of the store of that record's engine: the VA store, the FM6 store's halves, the CZ-1 store's halves, the FM
+TONE store) byte for byte into pool slot k, once; the device manager's **Import the 0.21 slots** (SysEx 80 IMPORT) did
+it again on request. **Since 3y231 nothing reads 0.21's objects**: the import, command 80 and the four store files are
+gone, and their sectors (0x97000..0x9EFFF, 0xA0000 / 0xA1000, 0xB2000 / 0xB3000, 0xDC000..0xDFFFF) are free. A unit
+still on 0.21 or older goes through **0.29.2** first (the web installer asks, `index_pkg.html needsPoolStep`); going
+back to 0.21 from a later firmware still finds its 32 slots as they were, since nothing writes those sectors.
 
 **Favourites**: slots 1..32 keep their keys (section 0x80); marks and types of U033..U128 go to a new section 0x81
 (`cr_favs.c CRF_T_USER2`, 12 bytes). 377264f's reader skips a section it does not know, so it keeps every other mark;
@@ -370,9 +370,10 @@ it reads an object of at most 264 bytes, and the 0.22 object can reach 305 (then
 next mark change writes its own object). The favourites filter covers pool places 1..255 (the default build's longest
 pool, P5's, is 115 + 128 + INIT = 244).
 
-**Backups** (`cr_backup.c`): the pool's banks are **ids 50..62** (each 3840 bytes, 0 when never written); the legacy
-ids 6, 7, 9..13, 22 are no longer listed but a PUT of them is taken: an older backup restores into U001..U032 (records
-from 6 / 7, the patches from the stores, in any order). Ids 24..36 were the plan's but would take Felucca's sample ids
+**Backups** (`cr_backup.c`): the pool's banks are **ids 50..62** (each 3840 bytes, 0 when never written). 0.21's sound
+ids 6, 7, 9..13, 22 are neither listed nor taken (a PUT begin answers rc 1, which the pages report as skipped): a backup
+of 0.21 or older restores its settings, banks and loops but not its 32 sounds (0.22 .. 0.29.2 imported them into
+U001..U032; restore such a backup on 0.29.2, then back up again). Ids 24..36 were the plan's but would take Felucca's sample ids
 32..34 (refused since ChoralRoot 0.1). A backup of 0.22 restores on 0.21 only in part: its settings, the FM6 and CZ-1
 banks and the loops; the sounds (ids 50..62) are refused there (rc 1, reported as skipped), and so are the favourites
 (0.21 has none; a 0.22 build of before the pool, such as 377264f, takes them).

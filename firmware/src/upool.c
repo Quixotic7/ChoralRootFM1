@@ -11,12 +11,9 @@
  * but one); a patch is read when a sound loads (the main loop, never the audio ISR). A save composes the slot in
  * up_work (record + the patch of the part it came from) and writes it with one sp_write.
  *
- * MIGRATION (upool_import): the first power-on of this firmware, when the pool holds no bank and the legacy objects
- * have records, copies legacy slot k (0..31: the record of OBJ_UPRESET0 + k / 16 and the patch k of the store of that
- * record's engine: the VA store, the FM6 store's halves, the CZ-1 store's halves, the QUAD store) byte for byte into
- * pool slot k, four bank writes. The legacy objects are only read, never written again: going back to 0.21 finds its 32
- * slots as they were at the update. Later, only on request (the device manager, cr_backup.c CRB_IMPORT): the same
- * again over slots 0..31 (slots 32.. stay). Included by upreset.c (UP_POOL). */
+ * 0.21's 32 slots (the user banks and the VA / FM6 / CZ-1 / FM TONE stores at 0x97000..0x9EFFF, 0xA0000, 0xB2000,
+ * 0xDC000) were copied into slots 1..32 by the 0.22 .. 0.29 firmwares at their first power-on; this firmware never reads
+ * them (HISTORY 3y231: a unit still on 0.21 or older goes through 0.29.2 first). Included by upreset.c. */
 #define UPP_HDR 192u
 #define UPP_DATA 196u
 #define UPP_MAX (SP_SLOT - UPP_DATA)                  /* 188 */
@@ -182,114 +179,6 @@ static uint32_t up_patch_of(uint32_t k, const up_rec_t *r, uint8_t *b)
     return 0;
 }
 
-/* ---------------------------------------------------------------- the legacy objects (0.21's, read only) --- */
-static struct {
-    uint32_t rec[2];                                  /* the payload of OBJ_UPRESET0 + b's current copy, 0: none */
-    uint32_t va, va_used, fm6[2], fm6_used[2], cz[2], cz_used[2], quad, quad_used;
-    uint8_t va_ver;
-} upl;
-static uint32_t upl_at(uint32_t obj, int copy) { return st_sector(obj, (uint32_t)copy) + ST_PAYLOAD_OFF; }
-/* where each legacy object's current copy is and whether it is valid (st_current leaves its payload in st_buf, where
- * the stores' own checks read it): 1 when a legacy bank holds a record */
-static int upl_scan(void)
-{
-    st_hdr_t h;
-    uint32_t b, k;
-    int c, any = 0;
-    memset(&upl, 0, sizeof upl);
-    if (!flash_ok || ST_BLOCKED())
-        return 0;
-    for (b = 0; b < 2u; b++) {
-        const up_bank_t *bk = (const up_bank_t *)st_buf;
-        if ((c = st_current(OBJ_UPRESET0 + b, &h)) < 0 || h.len != sizeof(up_bank_t) || bk->magic != UP_BANK_MAGIC ||
-            bk->rsize != sizeof(up_rec_t) || bk->nslot != UP_PER_BANK)
-            continue;
-        upl.rec[b] = upl_at(OBJ_UPRESET0 + b, c) + 8u;
-        for (k = 0; k < UP_PER_BANK; k++)
-            any |= up_valid(&bk->r[k]);
-    }
-    if ((c = st_current(OBJ_VASTORE, &h)) >= 0) {
-        const va_store_t *s = (const va_store_t *)st_buf;
-        if (h.len == sizeof(va_store_t) && s->magic == VA_STORE_MAGIC && s->nslot == UP_LEGACY &&
-            ((s->ver == 3u && va_store_valid(s)) || (s->ver == 2u && s->blob == VA_BLOB))) {
-            upl.va_ver = (uint8_t)s->ver;
-        } else if (h.len == 16u + UP_LEGACY * VA_BLOB1 && s->magic == VA_STORE_MAGIC && s->ver == 1u &&
-                   s->nslot == UP_LEGACY && s->blob == VA_BLOB1) {
-            upl.va_ver = 1;
-        }
-        if (upl.va_ver) {
-            upl.va = upl_at(OBJ_VASTORE, c) + 16u;
-            upl.va_used = s->used;
-        }
-    }
-    for (b = 0; b < 2u; b++) {
-        if ((c = st_current(OBJ_FM6STORE0 + b, &h)) >= 0 && h.len == sizeof(fm6u_t) &&
-            fm6u_valid((const fm6u_t *)st_buf, b)) {
-            upl.fm6[b] = upl_at(OBJ_FM6STORE0 + b, c) + 16u;
-            upl.fm6_used[b] = ((const fm6u_t *)st_buf)->used;
-        }
-        if ((c = st_current(czu_obj(b), &h)) >= 0 && h.len == sizeof(czu_t) && czu_valid((const czu_t *)st_buf, b)) {
-            upl.cz[b] = upl_at(czu_obj(b), c) + 16u;
-            upl.cz_used[b] = ((const czu_t *)st_buf)->used;
-        }
-    }
-    if ((c = st_current(OBJ_QUADSTORE, &h)) >= 0 && h.len == sizeof(quad_store_t) &&
-        quad_store_valid((const quad_store_t *)st_buf)) {
-        upl.quad = upl_at(OBJ_QUADSTORE, c) + 16u;
-        upl.quad_used = ((const quad_store_t *)st_buf)->used;
-    }
-    return any;
-}
-/* legacy slot k's patch for a record of engine e -> slot + UPP_DATA (st_read only: called inside sp_commit) */
-static void upl_patch(uint32_t k, uint32_t e, uint8_t *slot)
-{
-    uint8_t *d = slot + UPP_DATA;
-    uint32_t h = k / 16u, i = k % 16u, n = 0;
-    if (e == ENGI_VA && upl.va && ((upl.va_used >> k) & 1u)) {
-        if (upl.va_ver == 3u) {
-            if (!st_read(upl.va + k * VA_BLOB, d, VA_BLOB))
-                n = VA_BLOB;
-        } else {                                       /* versions 1 / 2: converted as va_store_v1 / _v2 did */
-            uint8_t old[VA_BLOB];
-            int8_t p[VA_NP];
-            uint32_t sz = upl.va_ver == 1u ? VA_BLOB1 : VA_BLOB;
-            memset(old, 0, sizeof old);
-            if (!st_read(upl.va + k * sz, old, sz) && (upl.va_ver == 2u || old[1] == 1u) && va_unpack(old, p)) {
-                va_pack(p, d);
-                n = VA_BLOB;
-            }
-        }
-    } else if (e == ENGI_FM6 && upl.fm6[h] && ((upl.fm6_used[h] >> i) & 1u)) {
-        if (!st_read(upl.fm6[h] + i * FM6_BLOB, d, FM6_BLOB))
-            n = FM6_BLOB;
-    } else if (e == ENGI_CZ && upl.cz[h] && ((upl.cz_used[h] >> i) & 1u)) {
-        if (!st_read(upl.cz[h] + i * CZ_BYTES, d, CZ_BYTES))
-            n = CZ_BYTES;
-    } else if (e == ENGI_QUAD && upl.quad && ((upl.quad_used >> k) & 1u)) {
-        if (!st_read(upl.quad + k * QUAD_BLOB_V3, d, QUAD_BLOB_V3))   /* (a version 1..3 blob: converted on load) */
-            n = QUAD_BLOB_V3;
-    }
-    if (n) {
-        slot[UPP_HDR] = (uint8_t)(e + 1u);
-        slot[UPP_HDR + 1u] = (uint8_t)n;
-    } else {
-        memset(d, 0, UPP_MAX);
-    }
-}
-static uint32_t upl_bank;                          /* the pool bank upl_fill fills */
-static int upl_fill(uint32_t j, uint8_t *slot)     /* sp_commit: pool slot upl_bank * 10 + j from legacy slot k */
-{
-    uint32_t k = upl_bank * SP_PER + j;
-    if (k >= UP_LEGACY)
-        return 0;                                  /* (slots 32..: as they are) */
-    memset(slot, 0, SP_SLOT);
-    if (upl.rec[k / UP_PER_BANK] && st_read(upl.rec[k / UP_PER_BANK] + (k % UP_PER_BANK) * sizeof(up_rec_t), slot,
-                                            sizeof(up_rec_t)))
-        return -1;
-    if (up_valid((const up_rec_t *)slot))
-        upl_patch(k, slot[2], slot);
-    return 0;
-}
 static void upool_table(void)                      /* upn[] from flash */
 {
     uint32_t k;
@@ -297,43 +186,13 @@ static void upool_table(void)                      /* upn[] from flash */
         upn_note(k, flash_ok ? up_rec(k) : 0);
     up_gen++;
 }
-/* legacy slots 1..32 -> pool slots 1..32 (see the top): the number of records copied, -1 nothing legacy, < -1 a flash
- * error (the pool as it was, bank by bank: a bank written stays written) */
-static int upool_import(void)
+static void upool_boot(void)                       /* persist_boot: the table */
 {
-    uint32_t b, k;
-    int rc = 0, n = 0;
-    if (!upl_scan())
-        return -1;
-    for (b = 0; b * SP_PER < UP_LEGACY && !rc; b++) {
-        upl_bank = b;
-        rc = sp_commit(b, upl_fill);
-    }
-    upool_table();
-    for (k = 0; k < UP_LEGACY; k++)
-        n += up_used(k);
-    return rc ? (rc < -1 ? rc : -2) : n;
-}
-static int8_t upool_boot_rc;                       /* power-on: 0 the pool as found, n > 0 n records migrated, < 0 */
-static void upool_boot(void)                       /* persist_boot: the table; the first time, the migration */
-{
-    uint32_t b;
-    int any = 0;
     memset(upn, 0, sizeof upn);
     cbc.ok = 0;
-    upool_boot_rc = 0;
     if (!flash_ok || ST_BLOCKED())
         return;
     sp_scan();
-    for (b = 0; b < SP_NBANK; b++)
-        any |= sp_used(b);
-    if (!any) {
-        int rc = upool_import();
-        upool_boot_rc = (int8_t)(rc == -1 ? 0 : rc > 100 ? 100 : rc);
-#if defined(CR_TRACE) && CR_TRACE
-        printf("pool: migration %d\n", rc);
-#endif
-    }
     upool_table();
     va_store_read = up_read_va;
     fm6_store_read = up_read_fm6;

@@ -19,7 +19,7 @@
  *
  * ChoralRoot: the FM6 part is the part the sound editor shows when it plays FM6, else the chord part's, else the
  * bass part's (the channel does not choose: ChoralRoot's parts are not channels); a voice received marks that sound
- * edited (SAVE keeps it in a user slot with its function settings, fm6_ustore.c). No STORE page: a bank dump fills
+ * edited (SAVE keeps it in a user slot with its function settings, upool.c). No STORE page: a bank dump fills
  * the bank B1..B32, PTCH loads from it. The dumps out are built in fm6_rx (the received frame is read by then; it
  * stays the main loop's until fm6_service lets it go): no second 4 KiB buffer. Included after cr_ui.c. */
 #define fm6_buf fm6_rx                                   /* main loop: dumps out, in the frame just served */

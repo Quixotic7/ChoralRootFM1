@@ -370,6 +370,29 @@ if (existsSync(built920)) ok(productOf(readFileSync(built920)) === META.product,
   ok(p.downloads.length === 1 && /^choralroot-backup-/.test(p.downloads[0].name) && !p.confirms.length && !cr.log.length && p.$.status.textContent === en.done,
     "ChoralRoot over ChoralRoot: backed up, no restore offered");
 }
+// HISTORY 3y231: a release after 0.29.2 no longer moves 0.21's 32 sounds into the pool. An FM-1 on ChoralRoot 0.21 or
+// older is asked first (install 0.29.2 first to keep them); declined: nothing written. 0.22 and later, or 0.29.2 itself
+// as the target: no question
+{
+  const relPage = (v) => scriptOf(html.split("/*LIB*/").join(lib).split("/*META*/").join(JSON.stringify(
+    { ...META, version: v, releases: [{ ...META.releases[0], version: v, tag: "v" + v }] })));
+  const stepText = (from, v) => en.poolStepConfirm.split("{from}").join(from).split("{version}").join(v).split("{via}").join("0.29.2");
+  for (const [unitV, relV, answer, asked] of [["0.21", "0.30", false, true], ["0.21", "0.30", true, true],
+                                               ["0.20", "0.30", true, true], ["0.22", "0.30", true, false],
+                                               ["0.22-beta1", "0.30", true, false], ["0.21", "0.29.2", true, false]]) {
+    const cr = backupSide("ChoralRoot " + unitV, CR_BACKUP_IDS, crData());
+    const dev = new FakeFM1(image, { identity: "FM-1_920", bk: (id) => (id.startsWith("ota-") ? null : cr) });
+    const p = runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw), confirm: () => answer, page: relPage(relV) });
+    await settle();
+    await p.$.go.fire("click");
+    const q = p.confirms.filter((m) => m === stepText(unitV, relV));
+    const what = `ChoralRoot ${unitV} -> ${relV}`;
+    if (!asked) ok(!q.length && !p.confirms.length && p.$.status.textContent === en.done, `${what}: no pool question, installed`);
+    else if (answer) ok(q.length === 1 && p.confirms.length === 1 && p.$.status.textContent === en.done, `${what}: asked (via 0.29.2), confirmed, installed`);
+    else ok(q.length === 1 && dev.upgrades === 0 && !p.downloads.length && p.$.status.textContent === en.cancelled && !p.$.go.disabled,
+            `${what}: asked (via 0.29.2), declined: nothing written, unlocked`);
+  }
+}
 // Back up and Restore buttons
 {
   const cr = backupSide("ChoralRoot 0.1", CR_BACKUP_IDS, crData());

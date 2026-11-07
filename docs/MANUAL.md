@@ -2011,6 +2011,12 @@ over), and after an install it reads the version back.
 Your saved sounds, loops and settings are kept. What you have not saved is not: hold SAVE first.
 Options > Version shows what is installed.
 
+**From 0.21 or older:** ChoralRoot 0.22 to 0.29.2 moved the 32 sounds of 0.21 and older into U001 to U032 the first
+time they started; the versions after 0.29.2 no longer do. If your FM-1 still runs 0.21 or older, the page asks before
+it installs a newer version: install **0.29.2** first (Other versions), switch the FM-1 on once, then install the
+newest. A backup made on 0.21 or older restores its settings, banks and loops on the newer versions, but not its
+sounds: restore it on 0.29.2 and back up again.
+
 **Going back to an older version:** under the button, **Other versions** offers 0.21 down to 0.16. One click on
 one of them shows its date, what it brought and what going back to it means, and the button now says, for example,
 "Install ChoralRoot 0.21", with the going-back sentence above it. "Back to 0.22, the newest" undoes the choice. The

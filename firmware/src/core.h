@@ -112,7 +112,6 @@
 #define UP_POOL 0
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 #endif
-#define UP_LEGACY 32u            /* the slots of the legacy objects (0.21's: OBJ_UPRESET0 / 1 and the engine stores) */
 #define NELEM(a) (sizeof(a) / sizeof((a)[0]))
 
 /* ------------------------------------------------------- parameters --- */

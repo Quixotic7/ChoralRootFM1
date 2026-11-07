@@ -14,7 +14,7 @@
  *
  * ChoralRoot's additions (as eng_fm6.c's): the deep pages for the sound editor (cz_edit.h's panel values: LINE n,
  * DETUNE, DCW, the six eight-step envelopes, VIB, TONE), the patch blob (the 144-byte tone: eng_deep_t.blob_*) and
- * the user slot's tone (cz_ustore.c: cz_user_pending / cz_store_read, cz_track_loaded on every load path through
+ * the user slot's tone (upool.c: cz_user_pending / cz_store_read, cz_track_loaded on every load path through
  * eng_fm6.c fm6_track_loaded). Melodee's CZ TOOLS page (NAME, 1 > 2, 2 > 1, COMPARE) is not ported: ChoralRoot's
  * editor pages hold values, not actions (docs/CZ1.md). */
 #include "cz_patch.h"
@@ -142,7 +142,7 @@ static const preset_t CZ_PRESETS[] = {
 _Static_assert(NELEM(CZ_PRESETS) == 1u + CZ_FACTORY_N, "CZ-1 presets: INIT TONE and Casio's 64");
 
 /* ----------------------------------------------------- ChoralRoot: the tone of a part --- */
-/* A user slot's tone (cz_ustore.c): cz_user_pending = the slot + 1 being loaded (upreset.c up_values), cz_store_read
+/* A user slot's tone (upool.c): cz_user_pending = the slot + 1 being loaded (upreset.c up_values), cz_store_read
  * its tone (0 = there is one) */
 static uint8_t cz_user_pending;
 static int (*cz_store_read)(uint32_t k, uint8_t *raw);

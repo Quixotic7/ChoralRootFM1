@@ -4,8 +4,8 @@
  * it: every engine's sound (P5 included) saved into slot 128 and loaded back after a power cycle, its patch byte for
  * byte; the table; a full pool (128 slots) and "no free slot"; erase and rename; the favourites' section 0x81 (slots
  * 33..128) and what 377264f's reader keeps of the object; the quiet writes' spare (the pool's erase ahead); a cut
- * during a save on the firmware's own path. The migration from a real 0.21-format image and the downgrade are
- * tools/emu/test_pool.sh's; the floating banks' power cuts tests/pool_test.c's. */
+ * during a save on the firmware's own path. The floating banks' power cuts are tests/pool_test.c's. (0.21's slots
+ * are not read any more, HISTORY 3y231: no migration to test.) */
 #include <os/lock.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -61,7 +61,7 @@ int main(void)
     cr_settings_boot();
     cr_ui_init();
     uint32_t fm6_n0 = pool_count(ENGI_FM6);
-    OK(UP_POOL && UP_SLOTS == 128u && upool_boot_rc == 0 && !up_count(), "a fresh unit: 128 slots, none used, no migration");
+    OK(UP_POOL && UP_SLOTS == 128u && !up_count(), "a fresh unit: 128 slots, none used");
 
     /* ---- every engine into slot 128, back after a power cycle ---- */
     for (i = 0; i < NELEM(ENG); i++) {
@@ -237,8 +237,8 @@ int main(void)
            (unsigned)len);
         OK(crf_unpack(pk, len) == 0 && crf_has(CRF_T_USER, 99) && crf_has(CRF_T_USER, 31) && crf_type(CRF_T_USER, 99) == CRF_BASS,
            "favourites: unpacked, both marks and U100's type back");
-        {   /* 377264f's reader (cr_favs.c of then: a section it does not know is skipped): built from that commit by
-             * tools/emu/test_pool.sh; here what the bytes say: 0x81 and its | 0x40 / | 0x20 forms are tags it lacks */
+        {   /* 377264f's reader (cr_favs.c of then: a section it does not know is skipped; tools/emu/test_pool.sh built it
+             * until 3y231): what the bytes say: 0x81 and its | 0x40 / | 0x20 forms are tags it lacks */
             OK(crf_off(CRF_T_USER2, &s) == 4u && s == 12u, "favourites: 0x81 is 12 bytes after 0x80's 4 (ids 32..127)");
         }
         OK(up_put(99, 0) == 0 && !crf_has(CRF_T_USER, 99) && crf_has(CRF_T_USER, 31), "favourites: U100 erased: its mark goes");

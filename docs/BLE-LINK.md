@@ -3,7 +3,7 @@
 The owner: "I'd like to see about adding those features to ChoralRoot", about two things Melodee has now: **Bluetooth
 MIDI** and **two FM-1s passing MIDI over one USB-C cable**. This is the plan, written before anything is built:
 what Melodee did, what it would cost here (measured where it could be), the risks, the order of work and the
-decisions that are the owner's. Nothing in the firmware changes with this document (HISTORY 3y226).
+decisions that are the owner's. Nothing in the firmware changes with this document (HISTORY 3y230).
 
 **The short version**
 
@@ -181,7 +181,7 @@ under the build's 8 KiB rule; the glue's 1.9 KB state can live in RAM instead (R
 | --- | --- | --- |
 | **A. A resource region** (Melodee 1.6's way): read-only data moves to flash 0x93000..0x9EFFF, read through the plain XIP window (XIP 0x0208F000..0x0209AFFF). The fonts M (11,574), CRB (10,874) and CRX (13,576) and the radio program (5,795): 41,819 of 49,152 B. The 16 px icons (6,673) also fit: 48,492 | **36,024** (fonts) or **42,697** (+ the 16 px icons); the radio program never enters XIP | the region's 32 KB at 0x97000..0x9EFFF are the legacy VA store, FM6 stores and CZ-1 tone store 1..16, **read once since 0.22** for the migration and never written: retiring them ends the migration from 0.21 and older (decision 2). The loader learns one more record type; the app checks the region's header and CRC against its own build. No pixel and no audio change (the same flash, read the same way) |
 | A2. More legacy sectors, as second windows | up to 32 KB more | CZ-1 tones 17..32 (0xA0000, 8 KB), the QUAD store (0xB2000, 8 KB), the 0.21 user banks (0xDC000, 16 KB): all legacy since 0.22 |
-| B. Retire the migration code too | 2..5 KB (unmeasured) | the readers of the legacy stores; same decision as A |
+| B. Retire the migration code too | **done in 3y231: XIP -2 052 B** (557 640 -> 555 588), RAM -80 | the readers of the legacy stores; decision 2 (taken) |
 | C. **A separate Bluetooth package** (FIZZ's route) | as needed | two packages for every release (x2 again for 1-core and SMK), the installer asks which, switching erases what does not fit. FIZZ gave up half its projects and presets; ChoralRoot would give up e.g. 4 of its 10 loop slots (32 KB of store as a code blob) or an engine (below) |
 | D. Drop something, for everyone or in a Bluetooth build | GRAIN 12.6 KB, P5 29.7 KB, VA 16.7 KB, CZ-1 42.3 KB, FM TONE 49.0 KB (their symbols in XIP) | sounds players have |
 
@@ -399,8 +399,9 @@ the passkey; a wireless link between two ChoralRoots; BLE keyboards.
 1. **One package, or a separate Bluetooth package?** *Recommended: one package*, made to fit by the resource
    region (2.4 A). Everyone gets Bluetooth and the host mode, releases stay one build per board, and nobody loses
    storage or sounds. The separate package (FIZZ's route) doubles every release and costs loop slots or an engine.
-2. **Retire the pre-0.22 stores and their migration** to make the region? *Recommended: yes*, with the installer
-   sending units older than 0.22 through 0.29.2 first.
+2. **Retire the pre-0.22 stores and their migration** to make the region? **Taken (the owner, 2026-11-06; HISTORY
+   3y231)**: the migration, 80 IMPORT and the four store files are gone, the sectors are free, and the web installer asks a
+   unit on 0.21 or older to go through 0.29.2 first.
 3. **Which features first?** *Recommended*: the region (step 1), then Bluetooth with the FM-1 as peripheral (steps
    2..4: Macs, iPads, phones, DAWs), then USB host (step 5), then connecting out (step 6). The alternative is the
    USB host first: it fits today without the region, but it needs a powered hub and helps only players with two

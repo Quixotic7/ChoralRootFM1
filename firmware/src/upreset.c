@@ -219,16 +219,8 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
 
 #ifndef UP_HOST
 #if FELUCCA_VA
-#include "va_store.c"                          /* ChoralRoot: the VA patches, one per slot (the hooks below) */
-#include "fm6_ustore.c"                        /* ChoralRoot: the FM6 patches (voice + functions), one per slot */
-#if FELUCCA_CZ
-#include "cz_ustore.c"                         /* ChoralRoot: the CZ-1 tones, one per slot */
-#endif
-#if FELUCCA_QUAD
-#include "quad_store.c"                        /* ChoralRoot: the QUAD patches, one per slot */
-#endif
 #if UP_POOL
-#include "upool.c"                             /* ChoralRoot 0.22: the 128 shared slots (the stores above: legacy) */
+#include "upool.c"                             /* ChoralRoot 0.22: the 128 shared slots, a record and its patch each */
 static void up_name(uint32_t k, char *b)       /* upper case, 0-terminated: b holds 13 */
 {
     const char *n = k < UP_SLOTS ? upn[k].name : "";

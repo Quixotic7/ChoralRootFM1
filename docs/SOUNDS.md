@@ -692,5 +692,5 @@ edit writes the banks it changed (one for a slot; a swap two). A sound file is t
 a P5 sound carries `"patch": {"kind": "p5"}`); a P5 sound cannot go to a 0.21 FM-1.
 `--sounds`, `--export-sound` / `--import-sound`, `--rename-sound`, `--delete-sound` take slots 1..128 (a slot past the
 FM-1's own is a usage error); `--favorites` / `--restore-favorites` name user slots `U05` .. `U128` (section 0x81 for
-33..128). The device manager's **Import the 0.21 slots** sends 80 IMPORT (-> rc, count): the FM-1 copies its legacy
-slots into U001..U032 again.
+33..128). (0.22 .. 0.29.2 also had the device manager's **Import the 0.21 slots**, SysEx 80 IMPORT: retired with the
+migration, HISTORY 3y231.)

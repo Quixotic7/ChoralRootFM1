@@ -5,20 +5,21 @@
  * side, the ChoralRoot UI, storage.c on emu_hal_fw.h's RAM NOR), requests fed to crb_handle as the main loop would,
  * the replies taken at CRB_SEND.
  *   sh tests/run_cr_tests.sh
- * Checks: INFO; LIST of every object (settings, banks, FM6 bank, VA, FM6 patches, CZ-1 tones and banks, the QUAD
- * store (22), 10 loops; no sample slots) with sizes
- * and CRCs; GET of
- * all of them in 256-byte pieces; a restore of everything onto an erased flash (PUT) gives a LIST and bytes
- * identical to the backup and reloads the mirrors; a CRC error, a short object, a malformed record are refused
- * with nothing written; a playing loop answers busy (3) and the commit goes through once it stops; stale sessions
- * (the UI's buffer, a USB reset, 15 s); Felucca's objects: a PER4 settings record becomes PER5 with ChoralRoot's
- * defaults, the banks and the FM6 bank as they are (Felucca 1.0's 27-slot FM6 bank too, imported at the next boot),
- * ids 0 / 2..5 / 32..34 refused, the SMP_* commands unanswered; the Sounds (docs/SOUNDS.md): single slots imported,
- * renamed, deleted and replaced by another engine through whole-object PUTs, usable at once (name, engine, patch), a
- * bad blob / bank header refused with nothing written, LIST's sizes and CRCs; a pool bank as the device manager sends
- * one (3y78: a used FM TONE slot's 80-byte patch taken and loaded, a deleted slot's stale bytes written as zeros, a
- * wrong patch length refused); SCREEN (74: off / on); SELECT (76: ok, a bad
- * part / engine / position, busy) and the reload of a playing part after a PUT of its slot (its patch CRC); RESTART. */
+ * Checks: INFO; LIST of every object (settings, the FM6 bank, the CZ-1 banks, the sound pool's 13 banks (50..62), the
+ * favourites, 10 loops; no sample slots) with sizes and CRCs; GET of all of them in 256-byte pieces; a restore of
+ * everything onto an erased flash (PUT) gives a LIST and bytes identical to the backup and reloads the mirrors; a CRC
+ * error, a short object, a malformed record are refused with nothing written; a playing loop answers busy (3) and the
+ * commit goes through once it stops; stale sessions (the UI's buffer, a USB reset, 15 s); Felucca's objects: a PER4
+ * settings record becomes PER5 with ChoralRoot's defaults, the FM6 bank as it is (Felucca 1.0's 27-slot FM6 bank too,
+ * imported at the next boot), ids 0 / 2..7 / 32..34 refused, the SMP_* commands unanswered; 0.21's sound objects
+ * retired (HISTORY 3y231: 0.22 .. 0.29 took ids 6, 7, 9..13, 22 into the pool and had 80 IMPORT; now a PUT begin of
+ * them answers rc 1 and writes nothing, LIST never names them, 80 gets no reply, a power-on never reads 0.21's
+ * sectors); the Sounds (docs/SOUNDS.md): single slots placed, renamed, deleted and replaced by another engine through
+ * pool bank PUTs, usable at once (name, engine, patch), a bad record refused with nothing written, LIST's sizes and
+ * CRCs; a pool bank as the device manager sends one (3y78: a used FM TONE slot's 80-byte patch taken and loaded, a
+ * deleted slot's stale bytes written as zeros, a wrong patch length refused); SCREEN (74: off / on); SELECT (76: ok,
+ * a bad part / engine / position, busy) and the reload of a playing part after a PUT of its bank (its patch CRC);
+ * RESTART. */
 #include <os/lock.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -245,6 +246,55 @@ static void qb_v3(uint8_t *b)
         b[2 + i] = (uint8_t)(quad_range_v3(i).def - quad_range_v3(i).min);
 }
 
+/* a pool bank as the device manager sends one (ids 50..62: SP_PER slots of SP_SLOT bytes): slot j = a record of engine
+ * e named name (the rest of the slot zeros: no patch) .. */
+static void t_rec(uint8_t *bank, uint32_t j, uint32_t e, const char *name, uint32_t mod)
+{
+    up_rec_t *r = (up_rec_t *)(bank + j * SP_SLOT);
+    uint32_t i;
+    memset(bank + j * SP_SLOT, 0, SP_SLOT);
+    r->used = UP_USED; r->ver = UP_VER; r->engine = (uint8_t)e; r->np = P_COUNT;
+    memcpy(r->name, name, strlen(name));
+    for (i = 0; i < P_COUNT; i++) r->packed[i] = (uint8_t)(64 + (int)(i % mod));
+}
+/* .. and its patch (upool.c: the engine + 1 at UPP_HDR, the length after it, the bytes from UPP_DATA) */
+static void t_patch(uint8_t *bank, uint32_t j, uint32_t e, const uint8_t *p, uint32_t n)
+{
+    uint8_t *s = bank + j * SP_SLOT;
+    memset(s + UPP_HDR, 0, SP_SLOT - UPP_HDR);
+    s[UPP_HDR] = (uint8_t)(e + 1u);
+    s[UPP_HDR + 1u] = (uint8_t)n;
+    memcpy(s + UPP_DATA, p, n);
+}
+/* 0.21's sound objects' sectors (storage.c "FREE", HISTORY 3y231): the user banks, the VA / FM6 / CZ-1 / FM TONE
+ * stores. -> their CRC (in that order), or 1 when every byte is erased (blank: 1) */
+static const uint32_t T_OLD[4][2] = {{0x97000u, 0x9F000u}, {0xA0000u, 0xA2000u}, {0xB2000u, 0xB4000u}, {0xDC000u, 0xE0000u}};
+static uint32_t t_old_crc(void)
+{
+    uint32_t c = 0, i;
+    for (i = 0; i < 4u; i++)
+        c = st_crc_run(c, emu_flash + T_OLD[i][0], T_OLD[i][1] - T_OLD[i][0]);
+    return c;
+}
+static int t_old_blank(void)
+{
+    uint32_t i, a;
+    for (i = 0; i < 4u; i++)
+        for (a = T_OLD[i][0]; a < T_OLD[i][1]; a++)
+            if (emu_flash[a] != 0xFFu) return 0;
+    return 1;
+}
+/* a commit record as 0.21 wrote it (storage.c st_save's: copy A of object obj at off, its payload behind) */
+static void t_old_obj(uint32_t off, uint32_t obj, const void *p, uint32_t len)
+{
+    st_hdr_t h;
+    memset(&h, 0, sizeof h);
+    h.magic = ST_MAGIC; h.type = (uint16_t)obj; h.slot = 0; h.seq = 7; h.len = len; h.crc = st_crc32(p, len);
+    h.hcrc = st_crc32(&h, sizeof h - 4u);
+    memcpy(emu_flash + off, &h, sizeof h);
+    memcpy(emu_flash + off + ST_PAYLOAD_OFF, p, len);
+}
+
 int main(void)
 {
     uint32_t n, i, k;
@@ -326,33 +376,49 @@ int main(void)
     CHECK(!t_send(&n), "an editor command (GET 2) gets no reply");
 
     /* ---- an empty device: every object listed, sizes 0 but the settings ---- */
-    CHECK(t_list() == 0 && nman == 34, "LIST on a fresh flash: 34 objects (0.22: the pool's 13 banks for the legacy 8)");
+    CHECK(t_list() == 0 && nman == 34, "LIST on a fresh flash: 34 objects (since 0.22 the pool's 13 banks; 0.21's 8 sound "
+                                       "objects retired, HISTORY 3y231)");
     for (i = 0, k = 0; i < nman; i++) k += man[i].size != 0;
     CHECK(k <= 1, "fresh flash: nothing stored (the settings at most)");
 
-    /* ---- content: settings, both banks, FM6, VA, three loops ---- */
+    /* ---- 0.21's sectors (HISTORY 3y231): a unit that left 0.21's user banks in flash (two banks of records, as 0.21's
+     * st_save wrote them at 0xDC000 / 0xDE000) and bytes in the stores' sectors. 0.22 .. 0.29 copied them into the pool
+     * at their first power-on; this firmware never reads them: the pool stays empty, the objects are not loaded, the
+     * sectors are never written (the whole fixture, through the backup below) ---- */
+    {
+        static up_bank_t ob;
+        uint32_t c0, b, used = 0;
+        memset(&ob, 0, sizeof ob);
+        ob.magic = UP_BANK_MAGIC; ob.rsize = sizeof(up_rec_t); ob.nslot = UP_PER_BANK;
+        t_rec((uint8_t *)&ob.r[0], 0, ENGI_VA, "OLD PAD", 9);   /* (a record, then zeros: the next record is 192 on) */
+        ob.r[3] = ob.r[0];
+        t_old_obj(0xDC000u, OBJ_X_UPRESET0, &ob, sizeof ob);
+        t_old_obj(0xDE000u, OBJ_X_UPRESET0 + 1u, &ob, sizeof ob);
+        memset(emu_flash + 0x97000u, 0x5A, 0x200u);  /* (the VA store's place, the FM TONE store's: any bytes) */
+        memset(emu_flash + 0xB2000u, 0xA5, 0x200u);
+        c0 = t_old_crc();
+        power_on();
+        for (b = 0; b < SP_NBANK; b++) used += sp_used(b);
+        for (k = 0; k < UP_SLOTS; k++) used += up_used(k);
+        CHECK(!used && st_load(OBJ_X_UPRESET0, cu_loop_buf, sizeof cu_loop_buf) < 0 &&
+              st_load(OBJ_X_UPRESET0 + 1u, cu_loop_buf, sizeof cu_loop_buf) < 0 && t_old_crc() == c0,
+              "0.21's banks in flash: a power-on leaves the pool empty (no migration), the objects not loaded, the sectors as they were");
+        CHECK(st_save(OBJ_X_UPRESET0, &ob, sizeof ob) != 0 && st_save(OBJ_X_QUADSTORE, &ob, 16) != 0 && t_old_crc() == c0,
+              "0.21's objects: st_save refuses them (storage.c st_live), nothing written");
+        CHECK(t_list() == 0 && find(man, nman, 50)->size == 0 && !find(man, nman, 6) && !find(man, nman, 7),
+              "0.21's banks in flash: LIST names neither (ids 6, 7), the pool's bank 50 empty");
+    }
+
+    /* ---- content: settings, the FM6 bank, a CZ-1 bank, U04 / U21 in the pool, three loops ---- */
     cs.bpm = 133;
     cs.tonic = 5;
     cr_settings_commit();                            /* (the global save: the tempo and the key are manual settings, 0.18) */
     {
-        static up_bank_t b;
         static fm6_bank_t f;
-        static va_store_t v;
-        static fm6u_t fu[2];
-        uint8_t blob[VA_BLOB], fb[FM6_BLOB], rec[FM6_PACKED];
-        for (k = 0; k < 2; k++) {
-            memset(&b, 0, sizeof b);
-            b.magic = UP_BANK_MAGIC;
-            b.rsize = sizeof(up_rec_t);
-            b.nslot = UP_PER_BANK;
-            b.r[3 + k].used = UP_USED;
-            b.r[3 + k].ver = UP_VER;
-            b.r[3 + k].engine = ENGI_VA;
-            b.r[3 + k].np = P_COUNT;
-            memcpy(b.r[3 + k].name, k ? "PAD TWO" : "PAD ONE", 7);
-            for (i = 0; i < P_COUNT; i++) b.r[3 + k].packed[i] = (uint8_t)(64 + (int)(i % 9));
-            CHECK(st_save(OBJ_UPRESET0 + k, &b, sizeof b) == 0, "setup: bank %u", (unsigned)k);
-        }
+        static cz_bank_t cb;
+        static uint8_t pb[4][SP_PER * SP_SLOT] __attribute__((aligned(4)));
+        uint8_t blob[VA_BLOB], rec[FM6_PACKED];
+        uint32_t c0 = t_old_crc();
         memset(&f, 0, sizeof f);
         f.magic = FM6_BANK_MAGIC; f.ver = FM6_BANK_VER; f.nslot = FM6_BANK_N; f.used = 5;
         memcpy(f.fn, FM6_FNDEF, FM6_NFN);
@@ -361,68 +427,36 @@ int main(void)
         for (i = 0; i < FM6_PACKED; i++) rec[i] = (uint8_t)((i * 3u) & 127u);
         fm6_pack7(f.pk[2], rec, FM6_PACKED);
         CHECK(fm6_bank_valid(&f) && st_save(OBJ_FM6BANK, &f, sizeof f) == 0, "setup: FM6 bank");
-        trk[1].eng_req = ENGI_FM6;
-        fm6_load_slot(1, 14);                        /* (F15: STRINGS) */
-        fm6_blob_get(&trk[1], fb);
-        CHECK(fm6_blob_ok(fb), "setup: an FM6 blob");
-        for (k = 0; k < 2; k++) {
-            memset(&fu[k], 0, sizeof fu[k]);
-            fu[k].magic = FM6U_MAGIC; fu[k].ver = FM6U_VER; fu[k].nslot = FM6U_HALF; fu[k].first = (uint16_t)(k * FM6U_HALF);
-            fu[k].blob = FM6_BLOB; fu[k].used = 1u << 3;
-            memcpy(fu[k].b[3], fb, FM6_BLOB);
-            CHECK(fm6u_valid(&fu[k], k) && st_save(OBJ_FM6STORE0 + k, &fu[k], sizeof fu[k]) == 0, "setup: FM6 store %u", (unsigned)k);
-        }
-        memset(&v, 0, sizeof v);
-        v.magic = VA_STORE_MAGIC; v.ver = 3; v.nslot = UP_LEGACY; v.blob = VA_BLOB;
+        cz_bank_default(&cb, 2);                     /* CZ-1: bank C saved with its name */
+        memcpy(cb.name, "MY CZ BANK", 10);
+        CHECK(cz_bank_valid(&cb) && st_save(OBJ_CZBANK0 + 2, &cb, sizeof cb) == 0, "setup: CZ-1 bank C");
+        /* the pool as 0.22 .. 0.29 left such a unit: banks 0..3 written (slots 1..40), U04 a VA sound with its patch, U21
+         * a VA sound without one; placed as the device manager places sounds (pool bank PUTs, ids 50..53) */
         trk[0].eng_req = ENGI_VA;
         va_blob_get(&trk[0], blob);
         CHECK(va_blob_ok(blob), "setup: a VA blob");
-        memcpy(v.p[3], blob, VA_BLOB);
-        memcpy(v.p[19], blob, VA_BLOB);
-        v.used = 1u << 3 | 1u << 19;
-        CHECK(va_store_valid(&v) && st_save(OBJ_VASTORE, &v, sizeof v) == 0, "setup: VA store");
-        {                                            /* CZ-1: U04 / U20 hold D-1 PIANO 1, bank C saved with its name */
-            static czu_t cu2[2];
-            static cz_bank_t cb;
-            for (k = 0; k < 2; k++) {
-                memset(&cu2[k], 0, sizeof cu2[k]);
-                cu2[k].magic = CZU_MAGIC; cu2[k].ver = CZU_VER; cu2[k].nslot = CZU_HALF; cu2[k].first = (uint16_t)(k * CZU_HALF);
-                cu2[k].blob = CZ_BYTES; cu2[k].used = 1u << 3;
-                memcpy(cu2[k].b[3], CZ_FACTORY[24], CZ_BYTES);
-                CHECK(czu_valid(&cu2[k], k) && st_save(czu_obj(k), &cu2[k], sizeof cu2[k]) == 0, "setup: CZ-1 store %u", (unsigned)k);
-            }
-            cz_bank_default(&cb, 2);
-            memcpy(cb.name, "MY CZ BANK", 10);
-            CHECK(cz_bank_valid(&cb) && st_save(OBJ_CZBANK0 + 2, &cb, sizeof cb) == 0, "setup: CZ-1 bank C");
-        }
-        {                                            /* QUAD: U06 holds the BELL preset's patch */
-            static quad_store_t qs;
-            uint8_t qb[QUAD_BLOB];
-            trk[0].eng_req = ENGI_QUAD;
-            quad_blob_preset(&trk[0], 1);
-            qb_v3(qb);   /* (the legacy store: an 80-byte version-3 blob, zeros after) */
-            memset(&qs, 0, sizeof qs);
-            qs.magic = QUAD_STORE_MAGIC; qs.ver = QUAD_STORE_VER; qs.nslot = UP_LEGACY; qs.blob = QUAD_BLOB_V3; qs.used = 1u << 5;
-            memcpy(qs.p[5], qb, QUAD_BLOB_V3);
-            CHECK(quad_blob_ok(qb) && quad_store_valid(&qs) && st_save(OBJ_QUADSTORE, &qs, sizeof qs) == 0, "setup: QUAD store");
-        }
+        memset(pb, 0, sizeof pb);
+        t_rec(pb[0], 3, ENGI_VA, "PAD ONE", 9);
+        t_patch(pb[0], 3, ENGI_VA, blob, VA_BLOB);
+        t_rec(pb[2], 0, ENGI_VA, "PAD TWO", 9);      /* (U21: bank 2's first slot) */
+        for (k = 0; k < 4u; k++)
+            CHECK(t_put(50 + k, pb[k], sizeof pb[k]) == 0, "setup: pool bank %u (id %u) PUT", (unsigned)k, (unsigned)(50 + k));
+        CHECK(t_old_crc() == c0, "setup: 0.21's sectors untouched by the pool's writes");
     }
     make_loop(0, 4);
     make_loop(4, 300);
     make_loop(9, CRL_MAX_EV);
-    {   /* 0.22: the first power-on migrates the legacy slots into the pool and never writes the legacy sectors */
-        uint32_t c0 = st_crc32(emu_flash + 0x97000, 0xB4000 - 0x97000), c1 = st_crc32(emu_flash + 0xDC000, 0x4000);
+    {
         uint8_t pa[VA_BLOB], pb[VA_BLOB];
+        uint32_t c0 = t_old_crc();
         power_on();
-        CHECK(c0 == st_crc32(emu_flash + 0x97000, 0xB4000 - 0x97000) && c1 == st_crc32(emu_flash + 0xDC000, 0x4000),
-              "migration: the legacy sectors untouched (0x97000..0xB3FFF, 0xDC000..0xDFFFF)");
         trk[0].eng_req = ENGI_VA;
         va_blob_get(&trk[0], pb);
-        CHECK(upool_boot_rc == 2 && up_used(3) && up_used(20) && up_rec(3)->engine == ENGI_VA &&
-              up_patch_get(3, ENGI_VA, pa, VA_BLOB) == 0 && up_patch_get(20, ENGI_VA, pa, VA_BLOB) != 0 &&
-              up_patch_get(3, ENGI_FM6, pa, FM6_BLOB) != 0, "migration: U04 (VA, its patch) and U21 (VA, no patch in the store at 21)");
-        power_on();
-        CHECK(upool_boot_rc == 0 && up_used(3) && up_used(20), "migration: once (the second power-on finds the pool)");
+        CHECK(up_used(3) && up_used(20) && up_rec(3)->engine == ENGI_VA && up_rec(20)->engine == ENGI_VA &&
+              up_patch_get(3, ENGI_VA, pa, VA_BLOB) == 0 && !memcmp(pa, pb, VA_BLOB) &&
+              up_patch_get(20, ENGI_VA, pa, VA_BLOB) != 0 && up_patch_get(3, ENGI_FM6, pa, FM6_BLOB) != 0 &&
+              !up_used(0) && !up_used(16), "setup, power-on: U04 (VA, its patch) and U21 (VA, no patch); 0.21's records not in U01 / U17");
+        CHECK(t_old_crc() == c0, "setup, power-on: 0.21's sectors not written");
     }
     CHECK(cs.loop_used == (1u | 1u << 4 | 1u << 9), "setup: loops in slots 1, 5, 10");
 
@@ -435,13 +469,18 @@ int main(void)
         for (i = 0; same && i < 34; i++) same = man[i].id == ids[i];
         CHECK(same, "LIST: ids 1 8 14..21 (the CZ-1 banks) 50..62 (the pool's banks, 0.22) 23 (the favourites, after the sounds) 40..49 in order");
     }
-    CHECK(find(man, nman, 1)->size == sizeof(persist_t) && !find(man, nman, 6) && !find(man, nman, 9) && !find(man, nman, 22) &&
-          find(man, nman, 8)->size == sizeof(fm6_bank_t) && find(man, nman, 50)->size == ST_PAYLOAD_MAX &&
+    {
+        static const uint8_t old[8] = {6, 7, 9, 10, 11, 12, 13, 22};
+        uint32_t named = 0;
+        for (i = 0; i < 8u; i++) named += find(man, nman, old[i]) != 0;
+        CHECK(!named, "LIST: none of 0.21's sound objects (6, 7, 9..13, 22: retired, HISTORY 3y231)");
+    }
+    CHECK(find(man, nman, 1)->size == sizeof(persist_t) && find(man, nman, 8)->size == sizeof(fm6_bank_t) && find(man, nman, 50)->size == ST_PAYLOAD_MAX &&
           find(man, nman, 51)->size == ST_PAYLOAD_MAX && find(man, nman, 52)->size == ST_PAYLOAD_MAX &&
           find(man, nman, 53)->size == ST_PAYLOAD_MAX && find(man, nman, 54)->size == 0 && find(man, nman, 62)->size == 0 &&
           find(man, nman, 16)->size == sizeof(cz_bank_t) && find(man, nman, 14)->size == 0 &&
           find(man, nman, 40)->size > 16 && find(man, nman, 41)->size == 0 && find(man, nman, 49)->size == CRL_REC_HDR + 2u + 7u * CRL_MAX_EV,
-          "LIST: the sizes (settings PER5, the FM6 bank, the pool's four migrated banks, loops; empty 0)");
+          "LIST: the sizes (settings PER5, the FM6 bank, the pool's four banks written, loops; empty 0)");
     {
         const persist_t *p = (const persist_t *)find(man, nman, 1)->bytes;
         CHECK(p->magic == PERSIST_MAGIC && p->cr.bpm == 133 && p->cr.tonic == 5, "backup: the settings carry the last global save");
@@ -517,8 +556,8 @@ int main(void)
         int rc = t_put_begin(50, o->size, o->crc ^ 1u);
         for (i = 0; !rc && i < o->size; i += 256) rc = t_put_data(50, i, o->bytes + i, o->size - i < 256 ? o->size - i : 256);
         CHECK(!rc && t_put_op(2, 50) == 2 && emu_stalls == erases, "a CRC error: commit rc 2, nothing erased");
-        CHECK(t_put_begin(6, 100, 0) == 1 && t_put_begin(1, 4000, 0) == 1 && t_put_begin(9, 17, 0) == 1 &&
-              t_put_begin(50, 3000, 0) == 1, "a wrong size: begin rc 1");
+        CHECK(t_put_begin(8, 100, 0) == 1 && t_put_begin(1, 4000, 0) == 1 && t_put_begin(14, 17, 0) == 1 &&
+              t_put_begin(50, 3000, 0) == 1 && t_put_begin(40, 4, 0) == 1, "a wrong size: begin rc 1");
         memcpy(bad, o->bytes, o->size);
         bad[3 * SP_SLOT + 3] = 0;                    /* U04's record: np 0 */
         CHECK(t_put(50, bad, o->size) == 2 && emu_stalls == erases, "a pool bank with a bad record: rc 2, nothing written");
@@ -607,8 +646,9 @@ int main(void)
                       k == 1u || k == 2u ? "set" : "clear", k == 2u ? "On" : "Off");
             }
         }
-        CHECK(t_put_begin(0, 3584, 0) == 1 && t_put_begin(2, 3584, 0) == 1 && t_put_begin(5, 0, 0) == 1,
-              "Felucca: ids 0 (the music) and 2..5 (projects) refused (rc 1)");
+        CHECK(t_put_begin(0, 3584, 0) == 1 && t_put_begin(2, 3584, 0) == 1 && t_put_begin(5, 0, 0) == 1 &&
+              t_put_begin(6, 3080, 0) == 1 && t_put_begin(7, 0, 0) == 1,
+              "Felucca: ids 0 (the music), 2..5 (projects) and 6 / 7 (user presets: 0.21's banks, retired 3y231) refused (rc 1)");
         CHECK(t_put_begin(32, 4096, 0) == 1 && t_put_begin(33, 0, 0) == 1 && t_put_begin(34, 0, 0) == 1,
               "Felucca: ids 32..34 (sample slots) refused (rc 1)");
         CHECK(t_smp(11, 0) == -1 && t_smp(14, 0) == -1 && t_smp(11, 2) == -1, "SMP_BEGIN / SMP_ERASE: no reply (no SAMPLE engine)");
@@ -618,11 +658,7 @@ int main(void)
             uint8_t s0 = fm6_slot[0], s1 = fm6_slot[1];
             fm6_slot[0] = 3;
             fm6_slot[1] = (uint8_t)(FM6_NFAC + 2u);
-            static up_bank_t lb;                     /* (0.22: a legacy bank 0 made of slots 1..16 as they are) */
-            lb.magic = UP_BANK_MAGIC; lb.rsize = sizeof(up_rec_t); lb.nslot = UP_PER_BANK;
-            for (i = 0; i < UP_PER_BANK; i++) sp_read(i, 0, &lb.r[i], sizeof lb.r[i]);
-            CHECK(t_put(6, (const uint8_t *)&lb, sizeof lb) == 0 && t_put(8, find(ref, nref, 8)->bytes, sizeof(fm6_bank_t)) == 0,
-                  "Felucca: user preset banks and the FM6 bank restore");
+            CHECK(t_put(8, find(ref, nref, 8)->bytes, sizeof(fm6_bank_t)) == 0, "Felucca: the FM6 bank restores");
             CHECK(fm6_bank.used == 5u && !memcmp(&fm6_bank, find(ref, nref, 8)->bytes, sizeof fm6_bank) &&
                   fm6_slot[0] == 3u && fm6_slot[1] == 0xFFu,
                   "the FM6 bank restored: the mirror is the bank, a part on a bank patch reloads, one on a factory patch stays");
@@ -642,19 +678,54 @@ int main(void)
             CHECK(fm6_bank.used == 1u << 1 && fm6_bank_get(1, rec) == 0 && !memcmp(rec, FM6_FACTORY[3], FM6_PACKED),
                   "Felucca 1.0: its FM6 bank imported (B2 = the record)");
         }
-        CHECK(t_put(6, 0, 0) == 0 && !up_used(3), "a bank of size 0: emptied");
+        {   /* (a bank once written stays a bank: emptied, it is a copy of zeros; LIST's 0 is a bank never written) */
+            static uint8_t z[SP_PER * SP_SLOT];
+            CHECK(up_used(3) && t_put(50, 0, 0) == 0 && !up_used(3) && t_list() == 0 &&
+                  find(man, nman, 50)->size == ST_PAYLOAD_MAX && find(man, nman, 50)->crc == st_crc32(z, sizeof z),
+                  "a pool bank of size 0: emptied (U04 gone; LIST: the bank as 3840 zeros)");
+        }
     }
 
-    /* ---- sounds: single slots through PUT (docs/SOUNDS.md: export / import / rename / delete as whole objects) ---- */
+    /* ---- 0.21's sound objects, retired (HISTORY 3y231): 0.22 .. 0.29 took a PUT of ids 6, 7 (the user banks), 9 (the VA
+     * store), 10 / 11 (FM6's), 12 / 13 (the CZ-1 tones'), 22 (FM TONE's) into pool slots 1..32, and 80 IMPORT copied
+     * 0.21's sectors into them again. Now each is an id this firmware does not list: a PUT begin of its 0.21 size answers
+     * rc 1 (the clients report it skipped), the session never opens, nothing is written; 80 is an unknown command ---- */
     {
-        static up_bank_t b0, b1, bad_b;
-        static va_store_t vs, bad_v;
-        static fm6u_t f0;
-        static czu_t c1;
-        static uint8_t got[4096];
+        static const uint8_t old[8] = {6, 7, 9, 10, 11, 12, 13, 22};
+        static const uint32_t osz[8] = {3080, 3080, 3536, 2064, 2064, 2320, 2320, 2576};   /* (0.21's object sizes) */
+        static uint8_t junk[3536];
+        uint32_t c0, e0 = st_erases, s0 = sp_erases + sp_progs, st0 = emu_stalls, ok = 1, rx0;
+        memset(junk, 0x11, sizeof junk);
+        c0 = st_crc32(emu_flash, sizeof emu_flash);
+        for (i = 0; i < 8u; i++) {
+            ok &= t_put_begin(old[i], osz[i], st_crc32(junk, osz[i])) == 1;
+            ok &= t_put_data(old[i], 0, junk, 256) == 5 && t_put_op(2, old[i]) == 5;   /* (no session: stale) */
+            ok &= t_put_begin(old[i], 0, 0) == 1;
+        }
+        CHECK(ok && st_crc32(emu_flash, sizeof emu_flash) == c0 && st_erases == e0 && sp_erases + sp_progs == s0 &&
+              emu_stalls == st0, "0.21's ids 6 7 9..13 22: PUT begin rc 1 (their 0.21 size or 0), data / commit rc 5, the flash unchanged");
+        ok = t_list() == 0;
+        for (i = 0; ok && i < 8u; i++) {
+            uint8_t g[16];
+            ok &= !find(man, nman, old[i]) && t_get(old[i], 0, 16, g) == 1;
+        }
+        CHECK(ok, "0.21's ids: LIST never names them, a GET answers rc 1");
+        rx0 = rx_count;
+        t_begin(80);
+        a = t_send(&n);
+        CHECK(!a && rx_count == rx0, "80 (IMPORT, 0.22 .. 0.29): no reply (an unknown command)");
+        t_begin(80); t_b(0);
+        a = t_send(&n);
+        CHECK(!a && rx_count == rx0 && st_crc32(emu_flash, sizeof emu_flash) == c0, "80 with a byte: no reply, the flash unchanged");
+    }
+
+    /* ---- sounds: single slots through pool bank PUTs (docs/SOUNDS.md: the device manager places, renames, deletes a
+     * sound by sending its whole bank, ids 50..62; 0.21's per-store objects are retired, 3y231) ---- */
+    {
+        static uint8_t b0[SP_PER * SP_SLOT] __attribute__((aligned(4))), b1[SP_PER * SP_SLOT] __attribute__((aligned(4)));
+        static uint8_t bad_b[SP_PER * SP_SLOT] __attribute__((aligned(4)));
         uint8_t vb[VA_BLOB], fb[FM6_BLOB], out[256];
         char nm[13];
-        int rc;
         memset(emu_flash, 0xFF, sizeof emu_flash);   /* a fresh device */
         power_on();
         trk[0].eng_req = ENGI_VA;
@@ -663,26 +734,17 @@ int main(void)
         fm6_load_slot(1, 3);
         fm6_blob_get(&trk[1], fb);
         CHECK(va_blob_ok(vb) && fm6_blob_ok(fb), "sounds: a VA blob and an FM6 blob");
-        /* a: import U03 (VA "MY PAD") and U05 (FM6 "TINE 2"): the stores first, the bank last */
-        memset(&b0, 0, sizeof b0);
-        b0.magic = UP_BANK_MAGIC; b0.rsize = sizeof(up_rec_t); b0.nslot = UP_PER_BANK;
-        b0.r[2].used = UP_USED; b0.r[2].ver = UP_VER; b0.r[2].engine = ENGI_VA; b0.r[2].np = P_COUNT;
-        memcpy(b0.r[2].name, "MY PAD", 6);
-        for (i = 0; i < P_COUNT; i++) b0.r[2].packed[i] = (uint8_t)(64 + (int)(i % 7));
-        b0.r[4] = b0.r[2];
-        b0.r[4].engine = ENGI_FM6;
-        memset(b0.r[4].name, 0, 12);
-        memcpy(b0.r[4].name, "TINE 2", 6);
-        memset(&vs, 0, sizeof vs);
-        vs.magic = VA_STORE_MAGIC; vs.ver = 3; vs.nslot = UP_LEGACY; vs.blob = VA_BLOB; vs.used = 1u << 2;
-        memcpy(vs.p[2], vb, VA_BLOB);
-        memset(&f0, 0, sizeof f0);
-        f0.magic = FM6U_MAGIC; f0.ver = FM6U_VER; f0.nslot = FM6U_HALF; f0.first = 0; f0.blob = FM6_BLOB; f0.used = 1u << 4;
-        memcpy(f0.b[4], fb, FM6_BLOB);
-        CHECK(sizeof b0 == 3080 && sizeof vs == 3536 && sizeof f0 == 2064 && sizeof c1 == 2320, "sounds: the object sizes of docs/SOUNDS.md");
-        CHECK(t_put(9, (uint8_t *)&vs, sizeof vs) == 0, "sounds: the VA store PUT");
-        CHECK(t_put(10, (uint8_t *)&f0, sizeof f0) == 0, "sounds: FM6 store half 0 PUT");
-        CHECK(t_put(6, (uint8_t *)&b0, sizeof b0) == 0, "sounds: bank 0 PUT");
+        CHECK(sizeof b0 == ST_PAYLOAD_MAX && sizeof(up_rec_t) == UPP_HDR && UPP_HDR == 192u && UPP_DATA == 196u && SP_SLOT == 384u &&
+              VA_BLOB <= UPP_MAX && FM6_BLOB <= UPP_MAX && CZ_BYTES <= UPP_MAX && QUAD_BLOB <= UPP_MAX,
+              "sounds: a pool bank of docs/SOUNDS.md: 3840 bytes, ten slots of 384 (the record's 192, the patch's header at 192, "
+              "its bytes from 196), every engine's patch fits");
+        /* a: U03 (VA "MY PAD") and U05 (FM6 "TINE 2"), each with its patch: one PUT of bank 0 (id 50) */
+        memset(b0, 0, sizeof b0);
+        t_rec(b0, 2, ENGI_VA, "MY PAD", 7);
+        t_patch(b0, 2, ENGI_VA, vb, VA_BLOB);
+        t_rec(b0, 4, ENGI_FM6, "TINE 2", 7);
+        t_patch(b0, 4, ENGI_FM6, fb, FM6_BLOB);
+        CHECK(t_put(50, b0, sizeof b0) == 0, "sounds: bank 0 (id 50) PUT");
         CHECK(up_used(2) && up_used(4), "sounds: U03 and U05 used at once (no restart)");
         up_name(2, nm);
         CHECK(!strcmp(nm, "MY PAD"), "sounds: U03's name (%s)", nm);
@@ -695,72 +757,52 @@ int main(void)
         CHECK(k == 0, "sounds: the other slots empty");
         CHECK(va_store_get(4, out) != 0 && fm6u_get(2, out) != 0, "sounds: no VA patch in U05, no FM6 patch in U03");
         /* b: rename U03 */
-        memset(b0.r[2].name, 0, 12);
-        memcpy(b0.r[2].name, "RENAMED", 7);
-        CHECK(t_put(6, (uint8_t *)&b0, sizeof b0) == 0, "sounds: rename: bank 0 PUT");
+        memset(b0 + 2 * SP_SLOT + 4, 0, 12);
+        memcpy(b0 + 2 * SP_SLOT + 4, "RENAMED", 7);
+        CHECK(t_put(50, b0, sizeof b0) == 0, "sounds: rename: bank 0 PUT");
         up_name(2, nm);
         CHECK(!strcmp(nm, "RENAMED") && up_used(2) && va_store_get(2, out) == 0 && !memcmp(out, vb, VA_BLOB),
               "sounds: rename: the new name, the same patch (%s)", nm);
         /* c: delete U03 */
-        vs.used &= ~(1u << 2);
-        memset(vs.p[2], 0, VA_BLOB);
-        memset(&b0.r[2], 0, sizeof b0.r[2]);
-        CHECK(t_put(9, (uint8_t *)&vs, sizeof vs) == 0 && t_put(6, (uint8_t *)&b0, sizeof b0) == 0, "sounds: delete: store + bank PUT");
+        memset(b0 + 2 * SP_SLOT, 0, SP_SLOT);
+        CHECK(t_put(50, b0, sizeof b0) == 0, "sounds: delete: bank 0 PUT");
         CHECK(!up_used(2) && va_store_get(2, out) != 0, "sounds: delete: U03 empty, its patch gone");
         up_name(4, nm);
         CHECK(up_used(4) && !strcmp(nm, "TINE 2") && fm6u_get(4, out) == 0 && !memcmp(out, fb, FM6_BLOB), "sounds: delete: U05 intact");
-        /* another engine over a slot: U05 becomes a VA sound, its FM6 bit cleared */
-        f0.used = 0;
-        memset(f0.b[4], 0, FM6_BLOB);
-        vs.used |= 1u << 4;
-        memcpy(vs.p[4], vb, VA_BLOB);
-        b0.r[4].engine = ENGI_VA;
-        CHECK(t_put(10, (uint8_t *)&f0, sizeof f0) == 0 && t_put(9, (uint8_t *)&vs, sizeof vs) == 0 &&
-              t_put(6, (uint8_t *)&b0, sizeof b0) == 0, "sounds: U05 replaced by a VA sound: PUTs");
+        /* another engine over a slot: U05 becomes a VA sound, its FM6 patch replaced */
+        b0[4 * SP_SLOT + 2] = ENGI_VA;
+        t_patch(b0, 4, ENGI_VA, vb, VA_BLOB);
+        CHECK(t_put(50, b0, sizeof b0) == 0, "sounds: U05 replaced by a VA sound: bank 0 PUT");
         CHECK(up_used(4) && up_rec(4)->engine == ENGI_VA && fm6u_get(4, out) != 0 && va_store_get(4, out) == 0 &&
               !memcmp(out, vb, VA_BLOB), "sounds: U05 now VA, the old FM6 patch unreadable");
 #if FELUCCA_CZ
-        /* d: a CZ-1 sound in U20 (bank 1, store half 1) */
-        memset(&c1, 0, sizeof c1);
-        c1.magic = CZU_MAGIC; c1.ver = CZU_VER; c1.nslot = CZU_HALF; c1.first = CZU_HALF; c1.blob = CZ_BYTES; c1.used = 1u << 3;
-        memcpy(c1.b[3], CZ_FACTORY[24], CZ_BYTES);
-        memset(&b1, 0, sizeof b1);
-        b1.magic = UP_BANK_MAGIC; b1.rsize = sizeof(up_rec_t); b1.nslot = UP_PER_BANK;
-        b1.r[3] = b0.r[4];
-        b1.r[3].engine = ENGI_CZ;
-        memset(b1.r[3].name, 0, 12);
-        memcpy(b1.r[3].name, "CZ PIANO", 8);
-        CHECK(t_put(13, (uint8_t *)&c1, sizeof c1) == 0 && t_put(7, (uint8_t *)&b1, sizeof b1) == 0, "sounds: CZ-1: store half 1 + bank 1 PUT");
+        /* d: a CZ-1 sound in U20 (bank 1, id 51: its last slot) */
+        memset(b1, 0, sizeof b1);
+        t_rec(b1, 9, ENGI_CZ, "CZ PIANO", 7);
+        t_patch(b1, 9, ENGI_CZ, CZ_FACTORY[24], CZ_BYTES);
+        CHECK(t_put(51, b1, sizeof b1) == 0, "sounds: CZ-1: bank 1 (id 51) PUT");
         up_name(19, nm);
         CHECK(up_used(19) && up_rec(19)->engine == ENGI_CZ && !strcmp(nm, "CZ PIANO") && czu_get(19, out) == 0 &&
               !memcmp(out, CZ_FACTORY[24], CZ_BYTES), "sounds: CZ-1: U20 used, its tone reads back (%s)", nm);
-        CHECK(czu_get(3, out) != 0, "sounds: CZ-1: half 0 empty");
+        CHECK(czu_get(3, out) != 0 && up_used(4) && up_rec(4)->engine == ENGI_VA, "sounds: CZ-1: no tone in U04; bank 0 as it was");
 #endif
-        /* d2: a QUAD sound in U07 (bank 0, the QUAD store: object 22) */
+        /* d2: an FM TONE sound in U07 (bank 0) with an 80-byte version-3 patch, as 0.22 .. 0.29 migrated 0.21's FM TONE
+         * slots and the device manager still reads and sends them */
         {
-            static quad_store_t q, bad_q;
             uint8_t qb[QUAD_BLOB];
             trk[0].eng_req = ENGI_QUAD;
             quad_blob_preset(&trk[0], 11);           /* (STRINGS) */
-            qb_v3(qb);   /* (the legacy store: an 80-byte version-3 blob, zeros after) */
-            memset(&q, 0, sizeof q);
-            q.magic = QUAD_STORE_MAGIC; q.ver = QUAD_STORE_VER; q.nslot = UP_LEGACY; q.blob = QUAD_BLOB_V3; q.used = 1u << 6;
-            memcpy(q.p[6], qb, QUAD_BLOB_V3);
-            b0.r[6] = b0.r[4];
-            b0.r[6].engine = ENGI_QUAD;
-            memset(b0.r[6].name, 0, 12);
-            memcpy(b0.r[6].name, "MY QUAD", 7);
-            CHECK(sizeof q == 2576u && t_put(22, (uint8_t *)&q, sizeof q) == 0 && t_put(6, (uint8_t *)&b0, sizeof b0) == 0,
-                  "sounds: QUAD: store (22) + bank 0 PUT");
+            qb_v3(qb);                               /* (an 80-byte version-3 blob, zeros after) */
+            t_rec(b0, 6, ENGI_QUAD, "MY QUAD", 7);
+            t_patch(b0, 6, ENGI_QUAD, qb, QUAD_BLOB_V3);
+            CHECK(quad_blob_ok(qb) && t_put(50, b0, sizeof b0) == 0, "sounds: FM TONE: bank 0 PUT");
             up_name(6, nm);
             CHECK(up_used(6) && up_rec(6)->engine == ENGI_QUAD && !strcmp(nm, "MY QUAD") && quad_store_get(6, out) == 0 &&
-                  !memcmp(out, qb, QUAD_BLOB), "sounds: QUAD: U07 used, its patch reads back (%s)", nm);
-            memcpy(&bad_q, &q, sizeof q);
-            bad_q.p[6][1] = QUAD_VER + 1u;           /* the blob's version (1..3 are read: eng_quad.c QUAD_VER) */
-            CHECK(t_put(22, (uint8_t *)&bad_q, sizeof bad_q) == 2 && t_put_begin(22, 100, 0) == 1 &&
-                  quad_store_get(6, out) == 0 && !memcmp(out, qb, QUAD_BLOB), "sounds: QUAD: a bad blob / a wrong size refused, the patch kept");
+                  !memcmp(out, qb, QUAD_BLOB), "sounds: FM TONE: U07 used, its patch reads back (%s)", nm);
+            CHECK(t_put_begin(50, 100, 0) == 1 && t_put_begin(22, 2576, 0) == 1 && quad_store_get(6, out) == 0 &&
+                  !memcmp(out, qb, QUAD_BLOB), "sounds: FM TONE: a bank of a wrong size, 0.21's store (22): rc 1, the patch kept");
             CHECK(t_list() == 0 && !find(man, nman, 22) && find(man, nman, 50)->size == ST_PAYLOAD_MAX,
-                  "sounds: LIST: the QUAD store went into the pool (bank 1, id 50), not to its own object");
+                  "sounds: LIST: FM TONE's sound in the pool's bank 0 (id 50); no id 22");
         }
         /* d3 (3y78): a pool bank PUT as the device manager sends one (the owner's unit, 0.22-beta1: "The FM-1 refused
          * the user sounds 011-020 (rc 2)" on a Delete): the bank as read, with an FM TONE slot migrated from 0.21 (an
@@ -848,30 +890,18 @@ int main(void)
             CHECK(t_put(50, bad3, sizeof bad3) == 2, "sounds: d3: .. its length past the slot's room: rc 2");
             CHECK(t_put(50, pb, sizeof pb) == 0 && !up_used(2), "sounds: d3: the bank as before (U03 empty again)");
         }
-        /* e: refusals */
-        memcpy(&bad_v, &vs, sizeof vs);
-        bad_v.p[4][0] = 'X';                         /* U05's blob: a wrong magic byte */
-        CHECK(t_put(9, (uint8_t *)&bad_v, sizeof bad_v) == 2, "sounds: a VA store with a bad blob magic: rc 2");
-        (void)got;
+        /* e: refusals: a used slot whose record is not one (an engine past NENGINES) */
+        memcpy(bad_b, b0, sizeof b0);
+        t_rec(bad_b, 2, ENGI_VA, "WOULD ADD", 7);    /* (would add U03) */
+        bad_b[2 * SP_SLOT + 2] = NENGINES;
+        CHECK(t_put(50, bad_b, sizeof bad_b) == 2 && !up_used(2) && up_used(4), "sounds: a bank with a record of no engine: rc 2, slots unchanged");
         CHECK(va_store_get(4, out) == 0 && !memcmp(out, vb, VA_BLOB), "sounds: refused: U05's VA patch as it was");
-        memcpy(&bad_b, &b0, sizeof b0);
-        bad_b.rsize = 190;
-        bad_b.r[2] = b0.r[4];                        /* (would add U03) */
-        CHECK(t_put(6, (uint8_t *)&bad_b, sizeof bad_b) == 2 && !up_used(2) && up_used(4), "sounds: a bank of rsize 190: rc 2, slots unchanged");
-        /* f: LIST: sizes and CRCs of what was written */
-        CHECK(t_list() == 0, "sounds: LIST");
-        {   /* the legacy objects stay unwritten: an older backup's objects went into the pool */
-            st_hdr_t h;
-            CHECK(st_current(OBJ_UPRESET0, &h) < 0 && st_current(OBJ_VASTORE, &h) < 0 && st_current(OBJ_FM6STORE0, &h) < 0 &&
-                  st_current(OBJ_QUADSTORE, &h) < 0 && find(man, nman, 50)->size == ST_PAYLOAD_MAX &&
-                  find(man, nman, 52)->size == ST_PAYLOAD_MAX, "sounds: LIST: the pool's banks; the legacy objects never written");
-        }
-#if FELUCCA_CZ
-        {
-            st_hdr_t h;
-            CHECK(st_current(OBJ_UPRESET0 + 1, &h) < 0 && st_current(czu_obj(1), &h) < 0, "sounds: the CZ-1 store and bank 1: legacy, never written");
-        }
-#endif
+        /* f: LIST: sizes and CRCs of what was written; 0.21's sectors never written */
+        CHECK(t_list() == 0 && find(man, nman, 50)->size == ST_PAYLOAD_MAX && find(man, nman, 51)->size == ST_PAYLOAD_MAX &&
+              find(man, nman, 52)->size == 0 && !find(man, nman, 6) && !find(man, nman, 9) && !find(man, nman, 13),
+              "sounds: LIST: the pool's banks 50 and 51, 52 empty; none of 0.21's objects");
+        CHECK(t_old_blank(), "sounds: 0.21's sectors (0x97000..0x9EFFF, 0xA0000..0xA1FFF, 0xB2000..0xB3FFF, 0xDC000..0xDFFFF) "
+                             "still erased after every PUT");
     }
 
     /* ---- 74 SCREEN: off (one black frame, the backlight on: PA2 is never raised, it also keeps the key matrix alive,
@@ -939,8 +969,7 @@ int main(void)
 
     /* ---- SELECT (76) and the reload after a PUT ---- */
     {
-        static up_bank_t sb;
-        static fm6u_t sf;
+        static uint8_t sb[SP_PER * SP_SLOT] __attribute__((aligned(4))), so[SP_PER * SP_SLOT] __attribute__((aligned(4)));
         uint8_t fa[FM6_BLOB], fb2[FM6_BLOB];
         uint32_t pos, crc0, crc1, rl;
         memset(emu_flash, 0xFF, sizeof emu_flash);
@@ -951,15 +980,10 @@ int main(void)
         fm6_load_slot(CR_PART_BASS, 6);
         fm6_blob_get(&trk[CR_PART_BASS], fb2);
         CHECK(memcmp(fa, fb2, FM6_BLOB) != 0, "select: two different FM6 blobs");
-        memset(&sb, 0, sizeof sb);
-        sb.magic = UP_BANK_MAGIC; sb.rsize = sizeof(up_rec_t); sb.nslot = UP_PER_BANK;
-        sb.r[4].used = UP_USED; sb.r[4].ver = UP_VER; sb.r[4].engine = ENGI_FM6; sb.r[4].np = P_COUNT;
-        memcpy(sb.r[4].name, "DX UP", 5);
-        for (i = 0; i < P_COUNT; i++) sb.r[4].packed[i] = (uint8_t)(64 + (int)(i % 5));
-        memset(&sf, 0, sizeof sf);
-        sf.magic = FM6U_MAGIC; sf.ver = FM6U_VER; sf.nslot = FM6U_HALF; sf.first = 0; sf.blob = FM6_BLOB; sf.used = 1u << 4;
-        memcpy(sf.b[4], fa, FM6_BLOB);
-        CHECK(t_put(10, (uint8_t *)&sf, sizeof sf) == 0 && t_put(6, (uint8_t *)&sb, sizeof sb) == 0, "select: U05 (FM6) imported");
+        memset(sb, 0, sizeof sb);
+        t_rec(sb, 4, ENGI_FM6, "DX UP", 5);
+        t_patch(sb, 4, ENGI_FM6, fa, FM6_BLOB);
+        CHECK(t_put(50, sb, sizeof sb) == 0, "select: U05 (FM6) placed (bank 0, id 50)");
         pos = pool_pos_slot(ENGI_FM6, 4);
         CHECK(pos > 0u && pos < 128u, "select: U05's pool position %u", (unsigned)pos);
         t_begin(76); t_b(1); t_b(ENGI_FM6); t_b(pos);
@@ -990,20 +1014,29 @@ int main(void)
         CHECK(!a, "SELECT without its position: no reply");
         /* the reload: a new patch PUT into the slot the bass plays is heard at once */
         rl = crb.reloads;
-        memcpy(sf.b[4], fb2, FM6_BLOB);
-        CHECK(t_put(10, (uint8_t *)&sf, sizeof sf) == 0, "reload: FM6 store half 0 PUT (a new patch in U05)");
+        t_patch(sb, 4, ENGI_FM6, fb2, FM6_BLOB);
+        CHECK(t_put(50, sb, sizeof sb) == 0, "reload: bank 0 PUT (a new patch in U05)");
         crc1 = st_crc32(fm6_patch[CR_PART_BASS], sizeof fm6_patch[0]);
         CHECK(crb.reloads == rl + 1u && crc1 != crc0 && psnd[1].kind == PK_USER && psnd[1].slot == 4,
               "reload: the bass part reloaded U05, its patch CRC changed (%08x -> %08x)", (unsigned)crc0, (unsigned)crc1);
         rl = crb.reloads;
-        CHECK(t_put(11, (uint8_t *)&sf, 0) == 0 && crb.reloads == rl, "reload: the other half PUT: no reload");
+        memset(so, 0, sizeof so);
+        t_rec(so, 0, ENGI_FM6, "OTHER", 5);          /* (U11: another bank's slot, of the same engine) */
+        t_patch(so, 0, ENGI_FM6, fa, FM6_BLOB);
+        CHECK(t_put(51, so, sizeof so) == 0 && up_used(10) && crb.reloads == rl &&
+              st_crc32(fm6_patch[CR_PART_BASS], sizeof fm6_patch[0]) == crc1, "reload: bank 1 PUT (slots 11..20): no reload");
+        CHECK(t_put(52, 0, 0) == 0 && crb.reloads == rl, "reload: bank 2 PUT (empty onto none): no reload");
+        CHECK(t_put(50, sb, sizeof sb) == 0 && crb.reloads == rl + 1u, "reload: bank 0 PUT: the bass reloads");
         rl = crb.reloads;
-        CHECK(t_put(7, 0, 0) == 0 && crb.reloads == rl, "reload: bank 1 PUT (slots 17..32): no reload");
-        CHECK(t_put(6, (uint8_t *)&sb, sizeof sb) == 0 && crb.reloads == rl + 1u, "reload: bank 0 PUT: the bass reloads");
+        CHECK(t_put(50, 0, 0) == 0 && !up_used(4) && crb.reloads == rl && psnd[1].kind == PK_USER && psnd[1].slot == 4 &&
+              st_crc32(fm6_patch[CR_PART_BASS], sizeof fm6_patch[0]) == crc1,
+              "reload: bank 0 emptied under the bass: no reload, the part keeps its sound (RAM)");
+        CHECK(t_old_blank(), "select / reload: 0.21's sectors still erased");
     }
 
-    /* ---- a 0.17 backup with sounds on the engines retired in 0.18 (PHASE 2, LOFI 3, VOICE 5, TRIO 6, NOISE 11, PHYS 9): the
-     * bank and the settings restore without error; after the restart the chord part (parked on NOISE) plays FM6's
+    /* ---- a backup with sounds on the engines retired in 0.18 (PHASE 2, LOFI 3, VOICE 5, TRIO 6, NOISE 11, PHYS 9; 0.17's
+     * records, in the pool as 0.22 .. 0.29 migrated such a unit's banks) and 0.17's settings: the pool bank and the
+     * settings restore without error; after the restart the chord part (parked on NOISE) plays FM6's
      * default, the bass (on LOFI) is the VA's DEEP SUB behind BASS, as on a fresh unit; the records stay in their slots,
      * added presets of the VA's pool, and load as the VA's init sound (a stand-in) ---- */
     {
@@ -1011,7 +1044,7 @@ int main(void)
         static const uint8_t ENG[NRET] = {2, 3, 5, 6, 11, ENGI_PHYS};
         static const char *const NM[NRET] = {"PD BRASS", "CHIP LEAD", "AAH", "TRIO PAD", "WIND", "MY HARP"};
         static const char *const WAS[NRET] = {"PHASE", "LOFI", "VOICE", "TRIO", "NOISE", "PHYS"};
-        static up_bank_t ob;
+        static uint8_t ob[SP_PER * SP_SLOT] __attribute__((aligned(4)));
         static persist_t pv;
         uint32_t q, nva, good = 0;
         int rc;
@@ -1020,13 +1053,10 @@ int main(void)
         power_on();
         cr_ui_init();
         nva = pool_count(ENGI_VA);
-        memset(&ob, 0, sizeof ob);
-        ob.magic = UP_BANK_MAGIC; ob.rsize = sizeof(up_rec_t); ob.nslot = UP_PER_BANK;
+        memset(ob, 0, sizeof ob);
         for (q = 0; q < NRET; q++) {                 /* U02..U07: one sound per retired engine, as 0.17's SAVE wrote it */
-            up_rec_t *r = &ob.r[1u + q];
-            r->used = UP_USED; r->ver = UP_VER; r->engine = ENG[q]; r->np = P_COUNT;
-            memcpy(r->name, NM[q], strlen(NM[q]));
-            for (i = 0; i < P_COUNT; i++) r->packed[i] = (uint8_t)(64 + (int)(i % 5));
+            up_rec_t *r = (up_rec_t *)(ob + (1u + q) * SP_SLOT);
+            t_rec(ob, 1u + q, ENG[q], NM[q], 5);
             r->note[15] = CB_BIND_MARK;
             r->flags[15] = (uint8_t)(q == 0u ? 1u : q == 5u ? 9u : 0u);   /* (PD BRASS: over PHASE 01 BRASS then, MY HARP
                                                                            * over PHYS 09 HARP; the others added) */
@@ -1039,8 +1069,8 @@ int main(void)
         crs_pool_set(&pv.cr, 0, 3, 4);                   /* slot 3 (PHASE's): its place then, kept as bytes */
         crs_pool_set(&pv.cr, 0, 10, 2);                  /* slot 10 (NOISE's) */
         cr_settings_seal(&pv.cr);
-        rc = t_put(6, (uint8_t *)&ob, sizeof ob);
-        CHECK(rc == 0, "0.17 backup: the bank with PHASE LOFI VOICE TRIO NOISE PHYS records restores (rc %d)", rc);
+        rc = t_put(50, ob, sizeof ob);
+        CHECK(rc == 0, "0.17 backup: the pool bank with PHASE LOFI VOICE TRIO NOISE PHYS records restores (rc %d)", rc);
         rc = t_put(1, (const uint8_t *)&pv, sizeof pv);
         CHECK(rc == 0 && cr_restore_lock, "0.17 backup: the settings with the chord on NOISE, the bass on LOFI restore (rc %d)", rc);
         cr_restore_lock = 0;                         /* the restart */
@@ -1066,9 +1096,9 @@ int main(void)
         {
             uint8_t raw[sizeof(up_rec_t)];
             int same = 1;
-            for (i = 0; i < UP_PER_BANK; i++)
-                same &= sp_read(i, 0, raw, sizeof raw) == 0 && !memcmp(raw, &ob.r[i], sizeof raw);
-            CHECK(same, "0.17 backup: the bank's records in slots 1..16 byte for byte (nothing rewritten, nothing deleted)");
+            for (i = 0; i < SP_PER; i++)
+                same &= sp_read(i, 0, raw, sizeof raw) == 0 && !memcmp(raw, ob + i * SP_SLOT, sizeof raw);
+            CHECK(same, "0.17 backup: the bank's records in slots 1..10 byte for byte (nothing rewritten, nothing deleted)");
         }
         t_begin(76); t_b(0); t_b(2); t_b(1);
         a = t_send(&n);
@@ -1498,10 +1528,9 @@ int main(void)
         cr_restore_lock = (uint8_t)keep_lock;
     }
 
-    printf("objects: settings %u (PER4 %u), bank %u, FM6 %u, VA %u, FM6 patches 2 x %u, QUAD %u, loop <= %u bytes\n",
-           (unsigned)sizeof(persist_t), (unsigned)(sizeof(persist_t) - sizeof(cr_settings_t)), (unsigned)sizeof(up_bank_t),
-           (unsigned)sizeof(fm6_bank_t), (unsigned)sizeof(va_store_t), (unsigned)sizeof(fm6u_t), (unsigned)sizeof(quad_store_t),
-           (unsigned)CRL_REC_MAX);
+    printf("objects: settings %u (PER4 %u), FM6 %u, CZ-1 bank %u, pool bank %u (%u x %u), loop <= %u bytes\n",
+           (unsigned)sizeof(persist_t), (unsigned)(sizeof(persist_t) - sizeof(cr_settings_t)), (unsigned)sizeof(fm6_bank_t),
+           (unsigned)sizeof(cz_bank_t), (unsigned)ST_PAYLOAD_MAX, (unsigned)SP_PER, (unsigned)SP_SLOT, (unsigned)CRL_REC_MAX);
     printf("%s: %d checks, %d failed\n", fails ? "CR BACKUP TESTS FAILED" : "cr backup tests passed", checks, fails);
     return fails ? 1 : 0;
 }

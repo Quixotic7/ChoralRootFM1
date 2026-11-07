@@ -190,7 +190,6 @@
     <button id="lib-remove" disabled>Remove from library</button>
     <button id="backup" disabled>Back up everything</button>
     <button id="restore" disabled>Install a backup…</button>
-    <button id="import-legacy" disabled title="ChoralRoot 0.22 and later: the 32 slots as ChoralRoot 0.21 left them in the FM-1's flash, into slots 001..032 again (slots 033..128 stay)">Import the 0.21 slots</button>
     <button id="delete-all" class="warn" disabled title="Every user sound in every slot of every engine, and the favourite marks of your own sounds; asks first">Delete all user sounds…</button>
     <button id="reset-factory" class="warn" disabled title="The sounds as the FM-1 came: no user sound, every factory preset in its place in the factory order; asks first">Reset sounds to factory…</button>
     <input id="restore-file" type="file" accept=".json,application/json" hidden>
@@ -413,7 +412,6 @@ function refresh() {
   $("sel-all").disabled = onLib ? !vis.length : !c;
   $("lib-remove").disabled = !l.length || ui.libSrc !== "browser";
   $("backup").disabled = $("restore").disabled = !c;
-  $("import-legacy").disabled = !c || !session.objs || !isPool(session.objs);
   $("undo").disabled = !c || !session.canUndo;
   $("undo").textContent = connected() && session.history.length ? `Undo (${session.history.length})` : "Undo";
 }
@@ -730,13 +728,6 @@ $("backup").addEventListener("click", act(async () => {
   finally { ui.busy = false; progress(0, 0); refresh(); }
 }));
 $("restore").addEventListener("click", () => $("restore-file").click());
-$("import-legacy").addEventListener("click", act(async () => {   // 0.22: 80 IMPORT (the device manager's way back to 0.21's slots)
-  if (!confirm("Import the 32 slots that ChoralRoot 0.21 keeps in the FM-1's flash into slots 001..032? What is in 001..032 now is replaced (slots 033..128 stay). Back up first if unsure.")) return;
-  ui.busy = true; refresh(); say("Importing the 0.21 slots…");
-  try { const n = await importLegacySlots(session.request); say(`Imported ${n} sounds into slots 001..032.`); await readDevice(); }
-  catch (e) { say(`Import the 0.21 slots: ${e.rc === 1 ? "the FM-1 holds no 0.21 slots" : writeErrorText(e)}`, e.rc === 3 ? "busy" : "err"); }
-  finally { ui.busy = false; progress(0, 0); refresh(); }
-}));
 $("restore-file").addEventListener("change", act(async () => {
   const f = $("restore-file").files[0]; $("restore-file").value = "";
   if (!f) return;

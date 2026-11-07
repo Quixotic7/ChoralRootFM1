@@ -626,15 +626,14 @@ int main(void)
         k = (uint32_t)up_store(slot, "CZ EDIT");
         OK(k == 0u || k == 3u, "store: U05 saved (a CZ-1 sound)");
         OK(czu_get(slot, b2) == 0 && !memcmp(raw, b2, CZ_BYTES) && pool_used_of(ENGI_CZ, 0) == 1u << slot,
-           "store: its tone in the CZ-1 tone store (object 1 of 2, slot 5)");
+           "store: its tone in the pool slot (U05)");
         cu_load(t, ENGI_CZ, 3, 0);
         cu_load_user(t, slot, 0);
         OK(!memcmp(cz_patch[0].raw, raw, CZ_BYTES) && t->eng_req == ENGI_CZ, "store: U05 loads its own tone");
         memset(upn, 0, sizeof upn);
         up_boot();
         OK(czu_get(slot, b2) == 0 && !memcmp(raw, b2, CZ_BYTES), "store: from flash after a reboot");
-        OK(up_store(20, "UPPER") == 0 && pool_used_of(ENGI_CZ, 1) == 1u << 4 && st_sector(OBJ_CZSTORE0, 0) == 0x9D000u &&
-           st_sector(OBJ_CZSTORE1, 0) == 0xA0000u, "store: U21 in the second object (0x9D000 / 0xA0000)");
+        OK(up_store(20, "UPPER") == 0 && pool_used_of(ENGI_CZ, 1) == 1u << 4, "store: U21 (the second half of 1..32)");
         cu_load(t, 7, 0, 0);                         /* WHEEL (PHASE until 0.18: retired) */
         up_store(slot, "WHEEL NOW");
         OK(czu_get(slot, b2) != 0, "store: another engine's sound over U05 clears its tone");
@@ -651,10 +650,10 @@ int main(void)
         {
             uint32_t n = 0;
             for (k = 0; k < CRB_N; k++)
-                n += crb_is_cz(CRB_IDS[k]);
-            OK(n == 8u && crb_index(12) < 0 && crb_obj(12) == OBJ_CZSTORE0 && crb_obj(13) == OBJ_CZSTORE1 && crb_obj(21) == OBJ_CZBANK0 + 7u &&
-               crb_size_ok(12, sizeof(czu_t)) && !crb_size_ok(12, sizeof(czu_t) - 1u) && sizeof(czu_t) == 2320u &&
-               sizeof(cz_bank_t) == 2332u, "backup: objects 14..21 (the banks, 2332 B) listed; 12, 13 (the tone store, 2320 B: 0.22, legacy) taken by a PUT, not listed");
+                n += crb_is_czbank(CRB_IDS[k]);
+            OK(n == 8u && crb_index(12) < 0 && crb_index(13) < 0 && crb_obj(21) == OBJ_CZBANK0 + 7u &&
+               !crb_size_ok(12, 2320u) && !crb_size_ok(13, 2320u) && crb_size_ok(14, sizeof(cz_bank_t)) && sizeof(cz_bank_t) == 2332u,
+               "backup: objects 14..21 (the banks, 2332 B) listed; 12, 13 (0.21's tone store) neither listed nor taken (3y231)");
         }
     }
 

@@ -2863,12 +2863,12 @@ differ cr_safe_options cr_safe_erase_entry "Options opens on Safe Mode; SELECT +
 differ cr_safe_erase_entry cr_safe_erase_ask "OCT+ once: the confirmation (OCT+ again): $OUT/cr_safe_erase_ask.ppm"
 "$EMU" --headless --flash "$SF" --script "$S/cr_safe_erase.txt" --boot-fail 1 --reset-reason wdt >"$OUT/cr_safe_erase.log" 2>&1
 st=$?
-[ $st = 0 ] && has '^safe: flash data erased, 76 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
+[ $st = 0 ] && has '^safe: flash data erased, 60 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
     has '^reboot: guard failed 0 pending 0' "$OUT/cr_safe_erase.log" &&
-    ok "OCT+ twice: 76 data sectors erased (36 + the CZ-1's 18 + FM TONE's 2 + the session's 2 + the favourites' 2 + the sound pool's 16), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
+    ok "OCT+ twice: 60 data sectors erased (the FM6 bank's 1 + the CZ-1 banks' 16 + the session's 2 + the favourites' 2 + the sound pool's 16 + the loops' 20 + the settings' and FM6 copy B's 3; 0.21's sectors no longer ChoralRoot's, 3y231), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
 ff=$(python3 -c "
 import sys; d = open(sys.argv[1], 'rb').read()
-r = [(0x97000, 9), (0xA0000, 40), (0xC8000, 20), (0xDC000, 4), (0xFC000, 3)]   # (0xB4000: the session, 0xB6000 the favourites, 0xB8000.. the pool)
+r = [(0x9F000, 1), (0xA2000, 16), (0xB4000, 4), (0xB8000, 16), (0xC8000, 20), (0xFC000, 3)]   # (the FM6 bank A, the CZ-1 banks, the session and the favourites, the pool, the loops, the settings and FM6 B)
 print(int(all(d[a:a + n * 4096] == b'\xff' * (n * 4096) for a, n in r) and d[:0x93000] == open(sys.argv[2], 'rb').read()[:0x93000]))" "$SF" "$OUT/cr_safe_flash_before.bin")
 [ "$ff" = 1 ] && ok "the data regions read erased, the firmware area as before" || bad "flash after the erase"
 [ -z "$(python3 tools/emu/pool_image.py pool "$SF")" ] && ok "the sound pool holds no sound after it (0.24: the pool was left out until 0.24-beta2)" ||

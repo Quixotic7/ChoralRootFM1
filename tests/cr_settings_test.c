@@ -35,6 +35,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #define FELUCCA_CZ 1                               /* ChoralRoot's object list: the session's object (OBJ_SESSION) */
 #define FELUCCA_QUAD 1
 #define ST_AHEAD 1                                 /* (choralroot.c's: the erase ahead) */
+#define ST_RETIRED 1                               /* (ChoralRoot's, with its pool: 0.21's objects retired, 3y231) */
 #include "../firmware/src/storage.c"
 #undef __attribute__
 
@@ -706,8 +707,15 @@ static void t_flash(void)
      * object list the session and the favourites; NOT the settings (3y52, the owner's decision of 2026-10-14: their
      * previous copy is the calibration's fallback) and no store */
     ok(st_ahead_ix(OBJ_SETTINGS) < 0 && st_ahead_ix(OBJ_SESSION) == 1 && st_ahead_ix(OBJ_FAVS) == 2 &&
-       st_ahead_ix(OBJ_QUADSTORE) < 0 && st_ahead_ix(OBJ_UPRESET0) < 0 && st_ahead_ix(OBJ_FM6BANK) < 0 &&
-       st_ahead_ix(OBJ_CZSTORE1) < 0 && st_ahead_ix(OBJ_PROJECT0) < 0, "flash: erased ahead: session, favourites (not the settings)");
+       st_ahead_ix(OBJ_X_QUADSTORE) < 0 && st_ahead_ix(OBJ_X_UPRESET0) < 0 && st_ahead_ix(OBJ_FM6BANK) < 0 &&
+       st_ahead_ix(OBJ_X_CZSTORE1) < 0 && st_ahead_ix(OBJ_X_PROJECT0) < 0, "flash: erased ahead: session, favourites (not the settings)");
+    {   /* HISTORY 3y231: 0.21's objects are retired: never loaded or saved, whatever their sectors hold */
+        uint8_t b[16] = {1};
+        ok(st_save(OBJ_X_UPRESET0, b, sizeof b) != 0 && st_save(OBJ_X_PROJECT0, b, sizeof b) != 0 &&
+           st_save(OBJ_X_CZSTORE1, b, sizeof b) != 0 && st_save(OBJ_X_QUADSTORE, b, sizeof b) != 0 &&
+           st_load(OBJ_X_UPRESET0, b, sizeof b) < 0 && st_load(OBJ_X_QUADSTORE, b, sizeof b) < 0,
+           "flash: the retired objects (0.21's sound objects) refused, both ways");
+    }
     ok(st_prep(OBJ_SETTINGS) < 0 && !st_ready(OBJ_SETTINGS) && st_load(OBJ_SETTINGS, &r, sizeof r) == (int)sizeof r &&
        cr_settings_import(&r, &r, sizeof r) == 1 && r.bpm == 160 && st_prep(OBJ_SESSION) == 0 && st_prep(OBJ_FAVS) == 0,
        "flash: the settings refused by st_prep, both copies kept; the other two blank already");
@@ -1280,8 +1288,8 @@ static void t_session_flash(void)
     int n;
     memset(nor, 0xFF, sizeof nor);
     ok(st_sector(OBJ_SESSION, 0) == 0xB4000u && st_sector(OBJ_SESSION, 1) == 0xB5000u &&
-       st_sector(OBJ_SETTINGS, 0) == 0xFC000u && st_sector(OBJ_QUADSTORE, 1) == 0xB3000u,
-       "session flash: the pair 0xB4000 / 0xB5000 (the first free sectors after the FM TONE store)");
+       st_sector(OBJ_SETTINGS, 0) == 0xFC000u && st_sector(OBJ_FAVS, 0) == 0xB6000u,
+       "session flash: the pair 0xB4000 / 0xB5000 (after the old FM TONE store's sectors), the favourites after it");
     ok(st_load(OBJ_SESSION, &SR, sizeof SR) < 0, "session flash: empty -> none");
     css_fill(&SX);
     ok(st_save(OBJ_SESSION, &SX, CSS_SIZE) == 0, "session flash: saved");

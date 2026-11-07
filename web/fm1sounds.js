@@ -724,13 +724,6 @@ export function exportSyx(objs, slot) {
 // ---- the device manager (docs/DEVICE-MANAGER.md): a sound placed with its binding, two slots swapped, a binding moved
 // the first free user slot, 0: none
 export const firstFreeSlot = (objs) => (parseSoundObjects(objs).slots.find((s) => !s.used) || { slot: 0 }).slot;
-// 80 IMPORT (0.22): the FM-1's legacy slots (0.21's, as they are in its flash) into slots 1..32 again; -> the records
-// copied. rc 1: no legacy slots on the FM-1; rc 3: busy
-export async function importLegacySlots(request) {
-  const a = await request([80, []], { timeout: 8000, retries: 0 });
-  if (a[0]) throw sndRcError(a[0] === 1 ? 1 : a[0], "legacy slots (0.21's)");
-  return a[1];
-}
 // the record bound to factory preset index f of its engine's pool (SAVE > Overwrite: note[15] 0xA6, flags[15] f + 1);
 // f < 0: an added preset (flags 0)
 export function withBinding(record, f) {

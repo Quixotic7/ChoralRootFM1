@@ -192,13 +192,13 @@ the first start.
 | --- | --- | --- |
 | 0x00000-0x03FFF | head (SPL, boot config) | never |
 | 0x04000-0x9CFFF | the app area: the boot stub, the app, the commit marker | the update loader only |
-| 0x9D000-0xA4FFF | the VA store, the FM6 stores, the CZ-1 tone store's first half (legacy: read once) | FL_DATA |
-| 0xA5000-0xA8FFF | the user sound banks of 0.21 (legacy: read once) | FL_DATA |
+| 0x9D000-0xA4FFF | free (0.21's VA, FM6 and CZ-1 tone stores' place: not read since HISTORY 3y231) | FL_DATA |
+| 0xA5000-0xA8FFF | free (0.21's user sound banks' place: not read since 3y231) | FL_DATA |
 | 0xA9000-0xAAFFF | the FM6 bank | FL_DATA |
 | 0xAB000-0xACFFF | the settings | FL_DATA |
 | 0xAD000-0xAEFFF | the session | FL_DATA |
 | 0xAF000 | the store owner tag (`SMK37DATACHORAL`) | FL_DATA |
-| 0xB0000-0xB3FFF | the CZ-1 tone store's second half, the QUAD store (legacy) | FL_DATA |
+| 0xB0000-0xB3FFF | free (0.21's CZ-1 tones 17..32 and FM TONE store's place: not read since 3y231) | FL_DATA |
 | 0xB4000-0xB5FFF | the favourites | FL_DATA |
 | 0xB6000-0xBAFFF | the sound pool, sectors 0..4 | FL_DATA |
 | 0xBB000-0xBFFFF | the update's staging (M-UPGRADE's loader and its record) | FL_OTA |

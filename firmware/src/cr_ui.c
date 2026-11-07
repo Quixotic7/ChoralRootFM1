@@ -6917,17 +6917,14 @@ static void cu_safe_screen(cr_screen_t *s)
 }
 
 /* Options > Flash Data (SAFE MODE, OCT+ twice): erase every data object ChoralRoot keeps (not the firmware, not the
- * update area) and reboot; the boot after it loads nothing (an
- * erased flash: factory sounds, default settings, calibration from RAM or the default). The FM-1's regions (SMK-37:
- * storage.c ST_SMK_REGIONS, the same as a new owner clears): the stores and
- * FM6 bank copy A 0x97000..0x9FFFF (storage.c st_sector: VA store, FM6 stores, the project slots, 0x9F000), the loop
- * slots 0xC8000..0xDBFFF (CRL_FL_BASE), the user sound banks 0xDC000..0xDFFFF, the settings A / B and FM6 bank
- * copy B 0xFC000..0xFEFFF; FELUCCA_CZ: the CZ-1 tone store's second half and the eight CZ-1 banks 0xA0000..0xB1FFF;
- * FELUCCA_QUAD: the QUAD patch store 0xB2000..0xB3FFF, the session 0xB4000..0xB5FFF (0.18) and the favourites
- * 0xB6000..0xB7FFF (0.22: marks on sounds that are gone would name whatever takes their slots); UP_POOL: the sound
- * pool 0xB8000..0xC7FFF (storage.c sp_*, the user sounds since 0.22: until 0.24-beta2 it was left out, so the sounds
- * stayed). On a full build that is all of 0x97000..0xDFFFF and 0xFC000..0xFEFFF, 76 sectors; the asserts below
- * tie the list to storage.c's map */
+ * update area) and reboot; the boot after it loads nothing (an erased flash: factory sounds, default settings,
+ * calibration from RAM or the default). The FM-1's regions (SMK-37: storage.c ST_SMK_REGIONS, the same as a new owner
+ * clears; storage.c's map): FM6 bank copy A 0x9F000, the eight CZ-1 banks 0xA2000..0xB1FFF, the session 0xB4000..0xB5FFF
+ * (0.18) and the favourites 0xB6000..0xB7FFF (0.22: marks on sounds that are gone would name whatever takes their
+ * slots), the sound pool 0xB8000..0xC7FFF (storage.c sp_*, the user sounds since 0.22: until 0.24-beta2 it was left out,
+ * so the sounds stayed), the loop slots 0xC8000..0xDBFFF (CRL_FL_BASE), the settings A / B and FM6 bank copy B
+ * 0xFC000..0xFEFFF: 60 sectors. The sectors of 0.21's sound objects (0x97000..0x9EFFF, 0xA0000, 0xB2000, 0xDC000) are
+ * no longer ChoralRoot's (HISTORY 3y231): not erased. The asserts below tie the list to storage.c's map */
 #ifndef CR_REBOOT
 #define CR_REBOOT() do { bootguard_settled(&bootguard); usb_detach(); fm1_delay_ms(30); fm1_reboot(); } while (0)
 #endif
@@ -6937,22 +6934,15 @@ static void cu_flash_erase(void)
 #if BOARD_SMK37
 #define R ST_SMK_REGIONS                           /* (SMK-37: storage.c, the same as a new owner clears) */
 #else
-    static const uint32_t R[][2] = {{0x97000u, 9u}, {CRL_FL_BASE, 2u * CRL_SLOTS}, {0xDC000u, 4u}, {0xFC000u, 3u},
-#if FELUCCA_CZ
-                                    {0xA0000u, 18u},   /* (storage.c: OBJ_CZSTORE1, OBJ_CZBANK0..+7) */
-#endif
-#if FELUCCA_QUAD
-                                    {0xB2000u, 6u},    /* (storage.c: OBJ_QUADSTORE, OBJ_SESSION, OBJ_FAVS) */
-#endif
-#if UP_POOL && FELUCCA_FLASH
-                                    {SP_BASE, SP_NSEC},   /* (storage.c sp_*: the sound pool's 16 sectors) */
-#endif
-    };
-#if FELUCCA_CZ && FELUCCA_QUAD && FELUCCA_FLASH
+    static const uint32_t R[][2] = {{0x9F000u, 1u},      /* (storage.c: OBJ_FM6BANK copy A) */
+                                    {0xA2000u, 16u},     /* (OBJ_CZBANK0..+7) */
+                                    {0xB4000u, 4u},      /* (OBJ_SESSION, OBJ_FAVS) */
+                                    {SP_BASE, SP_NSEC},  /* (storage.c sp_*: the sound pool's 16 sectors) */
+                                    {CRL_FL_BASE, 2u * CRL_SLOTS},
+                                    {0xFC000u, 3u}};     /* (OBJ_SETTINGS A / B, OBJ_FM6BANK copy B) */
+#if FELUCCA_FLASH
     _Static_assert(OBJ_COUNT == 20u && OBJ_FAVS + 1u == OBJ_COUNT, "Flash Data: a new storage object needs a place here");
-#endif
-#if UP_POOL && FELUCCA_FLASH
-    _Static_assert(SP_BASE == 0xB2000u + 6u * ST_SECTOR && SP_BASE + SP_NSEC * ST_SECTOR == CRL_FL_BASE,
+    _Static_assert(SP_BASE == 0xB4000u + 4u * ST_SECTOR && SP_BASE + SP_NSEC * ST_SECTOR == CRL_FL_BASE,
                    "Flash Data: the pool lies between the favourites and the loop slots");
 #endif
 #endif

@@ -32,7 +32,7 @@
  * ChoralRoot (docs/FM6.md): Melodee's engine as it is, and around it what ChoralRoot's sounds need: deep pages for
  * the sound editor (eng_deep_t FM6_DEEP: the operators, ALGO, the operator envelopes and the pitch EG, the LFO, the
  * function settings), and the patch blob (fm6_blob_*: the voice 7-bit packed with the function settings, 128
- * bytes) that a user slot keeps (fm6_ustore.c, as the VA's va_store.c). The function settings are the patch's here:
+ * bytes) that a user slot keeps (upool.c). The function settings are the patch's here:
  * a factory sound loads Dexed's, a user sound its own. ChoralRoot's PIANO (FELUCCA_SAMPLE 0) is factory preset 25
  * (F1 through the macros: the pool's 25, docs/PRESETS.md), and its presets 2, 5, 7, 8 take the names the curated bank
  * showed (FM BELL, FM PAD, FM ORGAN, FM PLUCK). No web editor (editor_fm6.c is Felucca's, not in ChoralRoot's unit), no STORE page. */
@@ -278,7 +278,7 @@ static void fm6_load_slot(uint32_t tr, uint32_t s)
     fm6_slot[tr % NTRK] = (uint8_t)s;
 }
 
-/* ChoralRoot: a user slot's patch (fm6_ustore.c): fm6_user_pending = the slot + 1 being loaded (upreset.c up_values),
+/* ChoralRoot: a user slot's patch (upool.c): fm6_user_pending = the slot + 1 being loaded (upreset.c up_values),
  * fm6_store_read its blob (0 = there is one) */
 static uint8_t fm6_user_pending;
 static int (*fm6_store_read)(uint32_t k, uint8_t *blob);
@@ -1168,7 +1168,7 @@ static const preset_t FM6_PRESETS[] = {
 _Static_assert(FM6_NROM == 16u, "FM6: the presets name F9..F24");
 
 /* ------------------------------------------------ ChoralRoot: the patch blob --- */
-/* A user slot's FM6 sound (fm6_ustore.c) and the editor's snapshot (cr_ui.c's picker) carry the track's patch as a
+/* A user slot's FM6 sound (upool.c) and the editor's snapshot (cr_ui.c's picker) carry the track's patch as a
  * blob of eng_deep_t.blob_size = 128 bytes:
  *   0..111    the voice as the 128-byte packed record (VMEM, fm6_pack), 7-bit packed (fm6_pack7: eight 7-bit bytes in
  *             seven, as fm6_bank.c keeps its slots)

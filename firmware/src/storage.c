@@ -28,30 +28,45 @@
 #define ST_PAYLOAD_OFF 256u
 #define ST_PAYLOAD_MAX (ST_SECTOR - ST_PAYLOAD_OFF)
 
-/* flash map (FL_DATA 0x97000..0xDFFFF, FL_GLOB 0xFC000..): settings 0xFC000, projects 0x97000..0x9EFFF,
- * user sample slots 0xA0000..0xDBFFF (eng_sample.c; ChoralRoot, FELUCCA_SAMPLE 0: slots 1-2, 0xA0000..0xC7FFF, stay
- * reserved and unused, slot 3's 0xC8000..0xDBFFF holds the loops, cr_ui.c CRL_FL_BASE), user preset banks 0xDC000..0xDFFFF (upreset.c), the FM6
- * patch bank (fm6_bank.c): copy A 0x9F000, copy B 0xFE000 (the two free sectors).
- * ChoralRoot's project pairs: 0x97000 the VA patch store (va_store.c), 0x99000 / 0x9B000 the FM6 patch store
- * (fm6_ustore.c), 0x9D000 the CZ-1 tone store's slots 1..16 (cz_ustore.c, OBJ_PROJECT0 + 3). FELUCCA_CZ: on the user
- * sample slot 1's flash (unused since the all-synth change, FELUCCA_SAMPLE 0): 0xA0000 / 0xA1000 the CZ-1 tone store's
- * slots 17..32 (OBJ_CZSTORE1), 0xA2000..0xB1FFF the eight CZ-1 banks A..H (cz_bank.c, OBJ_CZBANK0 + k: an A/B pair
- * each). FELUCCA_QUAD: 0xB2000 / 0xB3000 the QUAD patch store (quad_store.c, OBJ_QUADSTORE: the user sample slot 2's
- * flash); 0xB4000 / 0xB5000 the session (cr_settings.c, OBJ_SESSION: where the unit was left, 0.18);
- * 0xB6000 / 0xB7000 the favourites (cr_favs.c, OBJ_FAVS: the marked sounds, 0.22);
- * 0xB8000..0xC7FFF the sound pool (0.22: the sp_* section at the end, upool.c: 13 banks of 10 user slots floating over
- * these 16 sectors). SMK-37 (BOARD_SMK37): none of these places; every object, the favourites, the pool's sectors and the
- * loop slots have their own there (the SMK section at st_sector below; SMK37.md "Storage"). Since 0.22 the user preset banks, the VA / FM6 / CZ-1 tone / QUAD stores above are LEGACY: read once
- * (the migration), never written */
-enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_FM6BANK = OBJ_UPRESET0 + 2,
-#if FELUCCA_CZ && FELUCCA_QUAD
-       OBJ_CZSTORE1, OBJ_CZBANK0, OBJ_QUADSTORE = OBJ_CZBANK0 + 8, OBJ_SESSION, OBJ_FAVS, OBJ_COUNT
-#elif FELUCCA_CZ
-       OBJ_CZSTORE1, OBJ_CZBANK0, OBJ_COUNT = OBJ_CZBANK0 + 8
+/* flash map (FL_DATA 0x97000..0xDFFFF, FL_GLOB 0xFC000..): the FM6 patch bank (fm6_bank.c) copy A 0x9F000, the eight
+ * CZ-1 banks A..H 0xA2000..0xB1FFF (cz_bank.c, OBJ_CZBANK0 + k: an A/B pair each), the session 0xB4000 / 0xB5000
+ * (cr_settings.c, OBJ_SESSION: where the unit was left, 0.18), the favourites 0xB6000 / 0xB7000 (cr_favs.c, OBJ_FAVS:
+ * the marked sounds, 0.22), the sound pool 0xB8000..0xC7FFF (0.22: the sp_* section at the end, upool.c: 13 banks of 10
+ * user slots floating over these 16 sectors), the loop slots 0xC8000..0xDBFFF (cr_ui.c CRL_FL_BASE), the settings A / B
+ * 0xFC000 / 0xFD000, the FM6 patch bank copy B 0xFE000. SMK-37 (BOARD_SMK37): none of these places; every object, the
+ * favourites, the pool's sectors and the loop slots have their own there (the SMK section at st_sector below; SMK37.md
+ * "Storage").
+ * FREE (HISTORY 3y231): 0x97000..0x9EFFF, 0xA0000..0xA1FFF, 0xB2000..0xB3FFF and 0xDC000..0xDFFFF held 0.21's sound
+ * objects (the user banks, the VA / FM6 / CZ-1 tone / FM TONE stores; before them Felucca's projects and user presets).
+ * 0.22 .. 0.29 copied them into the pool once at their first power-on; this firmware neither reads nor writes them (a
+ * unit still on 0.21 goes through 0.29.2 first). Their object numbers stay reserved below: every record's header names
+ * its object (st_hdr_t.type), so the live objects keep their numbers. */
+enum { OBJ_SETTINGS, OBJ_X_PROJECT0, OBJ_X_UPRESET0 = OBJ_X_PROJECT0 + 4, OBJ_FM6BANK = OBJ_X_UPRESET0 + 2,
+       OBJ_X_CZSTORE1, OBJ_CZBANK0, OBJ_X_QUADSTORE = OBJ_CZBANK0 + 8, OBJ_SESSION, OBJ_FAVS, OBJ_COUNT };
+#ifndef ST_RETIRED                    /* 1: the OBJ_X_ objects are not stored (ChoralRoot: with the sound pool) */
+#if defined(UP_POOL) && UP_POOL
+#define ST_RETIRED 1
 #else
-       OBJ_COUNT
+#define ST_RETIRED 0
 #endif
-};
+#endif
+#if ST_RETIRED
+static inline int st_live(uint32_t obj)  /* the objects stored today */
+{
+    return obj < OBJ_COUNT && !(obj >= OBJ_X_PROJECT0 && obj < OBJ_FM6BANK) && obj != OBJ_X_CZSTORE1 &&
+           obj != OBJ_X_QUADSTORE;
+}
+#define ST_NOWHERE 0xFFFFF000u         /* st_sector of an object not stored: in no FL_RANGE_OK window, at or past FL_KEYMAC_LO
+                                        * (fm1_flash.h's FL_GUARD refuses an erase or a program there), no live object's */
+#else
+/* Felucca's configuration (core.h without the pool: the Felucca host tests, tests/storage_test.c): 1..4 are its
+ * projects and 5 / 6 its user preset banks, live there, at their places as before; they leave with Felucca's tree */
+#define OBJ_PROJECT0 OBJ_X_PROJECT0
+#define OBJ_UPRESET0 OBJ_X_UPRESET0
+#define OBJ_CZSTORE1 OBJ_X_CZSTORE1
+#define OBJ_QUADSTORE OBJ_X_QUADSTORE
+static inline int st_live(uint32_t obj) { return obj < OBJ_COUNT; }
+#endif
 
 typedef struct {
     uint32_t magic;
@@ -119,11 +134,10 @@ static uint32_t st_crc32(const void *p, uint32_t n) { return st_crc_run(0u, p, n
  * (0xBB000..0xBFFFF, the update's staging), BTIF / USRTRIM (0xC0000..0xC1FFF), the stock resources (0xF4000..0xFDFFF)
  * or key_mac (0xFF000..).
  *   FL_DATA 0x9D000..0xBAFFF (the stock VM, 30 sectors)
- *     0x9D000..0xA4FFF  OBJ_PROJECT0..+3: the VA store, the FM6 stores, the CZ-1 tone store's slots 1..16 (legacy)
- *     0xA5000..0xA8FFF  OBJ_UPRESET0 / +1: the user sound banks of 0.21 (legacy)
+ *     0x9D000..0xA8FFF  free (the place of 0.21's sound objects: nothing reads or writes it since HISTORY 3y231)
  *     0xA9000 / 0xAA000 OBJ_FM6BANK          0xAB000 / 0xAC000 OBJ_SETTINGS     0xAD000 / 0xAE000 OBJ_SESSION
  *     0xAF000           the store owner tag (st_owner_check: the same place in every ported firmware)
- *     0xB0000 / 0xB1000 OBJ_CZSTORE1 (legacy) 0xB2000 / 0xB3000 OBJ_QUADSTORE (legacy)
+ *     0xB0000..0xB3FFF  free (the same)
  *     0xB4000 / 0xB5000 OBJ_FAVS (0.24 on the SMK)
  *     0xB6000..0xBAFFF  the sound pool's sectors 0..4 (sp_*, below)
  *   FL_SMP 0xC2000..0xE9FFF (USRFLASH, the stock's user area, 40 sectors: ChoralRoot has no samples)
@@ -167,30 +181,32 @@ _Static_assert(ST_SMK_CZB >= FL_SMP_LO && ST_SMK_CZB + ST_SMK_CZB_SECTORS * ST_S
 _Static_assert(ST_SMK_POOL1 + ST_SMK_POOL1_N * ST_SECTOR == FL_SMP_HI, "SMK store: the pool's second run past FL_SMP");
 _Static_assert(ST_SMK_POOL2 == FL_TAIL_LO && ST_SMK_POOL2 + ST_SMK_POOL2_N * ST_SECTOR <= FL_TAIL_HI,
                "SMK store: the pool's third run outside FL_TAIL");
-static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy A (0) / B (1) */
+static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy A (0) / B (1); a live object */
 {
     copy &= 1u;
-#if FELUCCA_CZ && FELUCCA_QUAD
+#if ST_RETIRED
+    if (!st_live(obj))
+        return ST_NOWHERE;
+#endif
     if (obj == OBJ_SESSION)
         return ST_SMK_BASE + (8u * 2u + copy) * ST_SECTOR;
-    if (obj == OBJ_QUADSTORE)
-        return ST_SMK_HIGH + (2u + copy) * ST_SECTOR;
     if (obj == OBJ_FAVS)
         return ST_SMK_HIGH + (4u + copy) * ST_SECTOR;
-#endif
-#if FELUCCA_CZ
-    if (obj == OBJ_CZSTORE1)
-        return ST_SMK_HIGH + copy * ST_SECTOR;
-    if (obj >= OBJ_CZBANK0)
+    if (obj >= OBJ_CZBANK0 && obj < OBJ_CZBANK0 + 8u)
         return ST_SMK_CZB + ((obj - OBJ_CZBANK0) * 2u + copy) * ST_SECTOR;
-#endif
-    if (obj == OBJ_SETTINGS)
-        return ST_SMK_BASE + (7u * 2u + copy) * ST_SECTOR;
     if (obj == OBJ_FM6BANK)
         return ST_SMK_BASE + (6u * 2u + copy) * ST_SECTOR;
-    if (obj >= OBJ_UPRESET0)
+#if !ST_RETIRED
+    if (obj == OBJ_QUADSTORE)
+        return ST_SMK_HIGH + (2u + copy) * ST_SECTOR;
+    if (obj == OBJ_CZSTORE1)
+        return ST_SMK_HIGH + copy * ST_SECTOR;
+    if (obj >= OBJ_UPRESET0 && obj < OBJ_FM6BANK)
         return ST_SMK_BASE + ((4u + obj - OBJ_UPRESET0) * 2u + copy) * ST_SECTOR;
-    return ST_SMK_BASE + ((obj - OBJ_PROJECT0) * 2u + copy) * ST_SECTOR;
+    if (obj >= OBJ_PROJECT0 && obj < OBJ_UPRESET0)
+        return ST_SMK_BASE + ((obj - OBJ_PROJECT0) * 2u + copy) * ST_SECTOR;
+#endif
+    return ST_SMK_BASE + (7u * 2u + copy) * ST_SECTOR;   /* OBJ_SETTINGS */
 }
 
 /* The owner of the store. Several FM-1 firmwares are ported to the SMK-37 with the same board layer and this same
@@ -296,29 +312,32 @@ static void st_owner_check(void)
     st_prog(ST_OWNER_OFF, want, 16);
 }
 #else
-static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy A (0) / B (1) */
+static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy A (0) / B (1); a live object */
 {
-    if (obj == OBJ_SETTINGS)
-        return 0xFC000u + copy * ST_SECTOR;
+    copy &= 1u;
+#if ST_RETIRED
+    if (!st_live(obj))
+        return ST_NOWHERE;
+#endif
     if (obj == OBJ_FM6BANK)
         return copy ? 0xFE000u : 0x9F000u;
-#if FELUCCA_CZ && FELUCCA_QUAD
-    if (obj == OBJ_QUADSTORE)
-        return 0xB2000u + copy * ST_SECTOR;
     if (obj == OBJ_SESSION)
         return 0xB4000u + copy * ST_SECTOR;
     if (obj == OBJ_FAVS)
         return 0xB6000u + copy * ST_SECTOR;
-#endif
-#if FELUCCA_CZ
+    if (obj >= OBJ_CZBANK0 && obj < OBJ_CZBANK0 + 8u)
+        return 0xA2000u + (obj - OBJ_CZBANK0) * 2u * ST_SECTOR + copy * ST_SECTOR;
+#if !ST_RETIRED
+    if (obj == OBJ_QUADSTORE)
+        return 0xB2000u + copy * ST_SECTOR;
     if (obj == OBJ_CZSTORE1)
         return 0xA0000u + copy * ST_SECTOR;
-    if (obj >= OBJ_CZBANK0)
-        return 0xA2000u + (obj - OBJ_CZBANK0) * 2u * ST_SECTOR + copy * ST_SECTOR;
-#endif
-    if (obj >= OBJ_UPRESET0)
+    if (obj >= OBJ_UPRESET0 && obj < OBJ_FM6BANK)
         return 0xDC000u + (obj - OBJ_UPRESET0) * 2u * ST_SECTOR + copy * ST_SECTOR;
-    return 0x97000u + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;
+    if (obj >= OBJ_PROJECT0 && obj < OBJ_UPRESET0)
+        return 0x97000u + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;
+#endif
+    return 0xFC000u + copy * ST_SECTOR;                  /* OBJ_SETTINGS */
 }
 #endif /* BOARD_SMK37 */
 
@@ -326,7 +345,7 @@ static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4)));
 
 static int st_head(uint32_t obj, uint32_t copy, st_hdr_t *h)   /* commit record valid: 0 */
 {
-    if (obj >= OBJ_COUNT || copy > 1u)
+    if (!st_live(obj) || copy > 1u)
         return -1;
     if (st_read(st_sector(obj, copy), h, sizeof *h))
         return -1;
@@ -373,7 +392,7 @@ static int st_load(uint32_t obj, void *dst, uint32_t max)
 {
     uint32_t i;
     st_hdr_t h;
-    if (ST_BLOCKED() || obj >= OBJ_COUNT || st_current(obj, &h) < 0 || h.len > max)
+    if (ST_BLOCKED() || !st_live(obj) || st_current(obj, &h) < 0 || h.len > max)
         return -1;
     for (i = 0; i < h.len; i++)
         ((uint8_t *)dst)[i] = st_buf[i];
@@ -483,7 +502,7 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     uint32_t seq, base, off;
     int cur, rc, ix, blank = 0;
     st_hdr_t h;
-    if (ST_BLOCKED() || obj >= OBJ_COUNT || len > ST_PAYLOAD_MAX)
+    if (ST_BLOCKED() || !st_live(obj) || len > ST_PAYLOAD_MAX)
         return -1;
     cur = st_current(obj, &h);
     seq = cur < 0 ? 0u : h.seq;
@@ -541,7 +560,7 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
  * are programmed from the current copy slot by slot through SP_SLOT bytes of st_buf (each in the two pieces that fall
  * in one page), the changed bytes substituted, and the commit record LAST, then everything read back. Until the header is programmed the old copy is the newest valid one;
  * after, the new one is; the old copy is left as it is until its sector becomes a target. A cut anywhere: the old
- * bank or the new one, never a mix. The legacy objects (OBJ_UPRESET0.., the engine stores) are other sectors */
+ * bank or the new one, never a mix. The retired objects' sectors (above) are other sectors */
 #define SP_BASE 0xB8000u
 #define SP_NSEC 16u
 #define SP_NBANK 13u

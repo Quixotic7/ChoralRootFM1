@@ -852,8 +852,10 @@ read as current, migrated or defaults.
 
 0xB8000..0xC7FFF, free until 0.22, holds the sound pool (docs/PRESETS.md "The pool"): 16 sectors over which the 13
 banks of 10 user slots float (storage.c `sp_*`: a commit record per sector, type 0x4C50, the newest seq per bank wins).
-The legacy sound objects (0x97000..0x9EFFF, 0xA0000 / 0xA1000, 0xB2000 / 0xB3000, 0xDC000..0xDFFFF) stay where they are,
-read once by the migration and never written by 0.22. The pool's target sector is erased ahead with the favourites'
+The legacy sound objects (0x97000..0x9EFFF, 0xA0000 / 0xA1000, 0xB2000 / 0xB3000, 0xDC000..0xDFFFF) stayed where they
+were, read once by the migration (0.22 .. 0.29.2) and never written; since HISTORY 3y231 nothing reads them and the
+sectors are free. The pool's target sector is erased ahead with the favourites'
 and the session's spare copies (power-on, a long idle). SAFE MODE neither reads nor writes it; Options > Flash Data
-erases its 16 sectors with the other data sectors (`cr_ui.c cu_flash_erase`, 76 sectors in all). 0.22 to 0.24-beta2
-left them out of that list, so a Flash Data kept every user sound while it erased the legacy objects and the favourites.
+erases its 16 sectors with the other data sectors (`cr_ui.c cu_flash_erase`: 76 sectors until 3y231, 60 since, the
+legacy objects' sectors no longer ChoralRoot's). 0.22 to 0.24-beta2 left the pool out of that list, so a Flash Data kept
+every user sound while it erased the legacy objects and the favourites.

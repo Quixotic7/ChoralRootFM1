@@ -96,3 +96,44 @@ SUS Window, LOCK on LFO), Full K Shorts and MIDI Keys, against main 355fd58: XIP
 31 492 B of margin left), RAM 80 176 -> 80 368 B (+192: MIDI Keys' queue, the waiting roots, the type keys' state),
 POOL 306 196 B unchanged. The design estimated +2.5 .. 4.5 KB of XIP and about 160 B of RAM. Nothing in the audio ISR
 but MIDI in's channel check (`crm_key`) and the queue's post.
+
+## What the flash holds, and what ChoralRoot leaves alone (HISTORY 3y231, 2026-11-06)
+
+An inventory of the 1 MiB on an FM-1, from `firmware/hal/fm1_flash_map.h`, `storage.c`, `cr_ui.c cu_flash_erase` and
+docs/BOOT-SAFETY.md. "Linked" sizes are from `nm -S` on build/choralroot.elf.
+
+| flash | what | ChoralRoot |
+| --- | --- | --- |
+| 0x00000..0x03FFF | the head (SPL, isd_config) | never written |
+| 0x04000..0x92FFF | the stub, the app slot (body 0x5000..0x90FFF, 573 440 B), the marker's sector 0x91000 (its last 32 B), 0x92000 (cfg) | the update loader only |
+| 0x93000..0x96FFF | 16 KB, the plain XIP window's first sectors (XIP 0x0208F000) | **never used** |
+| 0x97000..0x9EFFF | 0.21's VA store, FM6 stores, CZ-1 tones 1..16 (before them Felucca's projects) | **free since 3y231** |
+| 0x9F000 | FM6 bank copy A | live |
+| 0xA0000..0xA1FFF | 0.21's CZ-1 tones 17..32 | **free since 3y231** |
+| 0xA2000..0xB1FFF | the CZ-1 banks A..H | live |
+| 0xB2000..0xB3FFF | 0.21's FM TONE store | **free since 3y231** |
+| 0xB4000..0xB7FFF | the session, the favourites | live |
+| 0xB8000..0xC7FFF | the sound pool (13 banks over 16 sectors) | live |
+| 0xC8000..0xDBFFF | the ten loop slots | live |
+| 0xDC000..0xDFFFF | 0.21's user banks (before them Felucca's user presets) | **free since 3y231** |
+| 0xE0000..0xE4FFF | the update loader's staging | during an update only |
+| 0xE5000..0xE7FFF | 12 KB (fm1-base and FIZZ keep their BLE store here; Melodee reads 0xE7000 as a possible VM) | **never used** |
+| 0xE8000 | the stock VM: the radio's factory calibration (records 106, 107, 108, 187) | kept, never written (Bluetooth would read it: docs/BLE-LINK.md) |
+| 0xE9000 | BTIF, the stock firmware's Bluetooth pairing | kept, never written |
+| 0xEA000..0xFBFFF | the stock firmware's resources (72 KB) | kept, never written |
+| 0xFC000..0xFEFFF | the settings A / B, FM6 bank copy B | live |
+| 0xFF000.. | key_mac | never written |
+
+So 28 KB were never used (0x93000..0x96FFF, 0xE5000..0xE7FFF) and 64 KB are free since 3y231 (0.21's sound objects:
+0.22 .. 0.29.2 copied them into the pool once; nothing reads them now). 0x93000..0x9EFFF is one contiguous 48 KB run in
+the plain XIP window: docs/BLE-LINK.md's resource region. On the SMK-37 the same retirement frees 0x9D000..0xA8FFF and
+0xB0000..0xB3FFF (storage.c's SMK map); its stock VM is ChoralRoot's store there.
+
+**Felucca's code that is still in the tree.** Nothing unused is linked: the image is a unity build, so a static
+function or table nothing calls is dropped by the compiler (Felucca's factory patterns, its sequencer, the retired
+engines' DSP all compile to 0 bytes). What is linked and barely used: Felucca's four-part instrument (parts 2 and 3 idle:
+about 6 KB of RAM / POOL, half of `trk` and each engine's patch for them; the formats and the protocol count four
+parts), the CDC serial console (about 1.2 KB of flash and 2.3 KB of RAM, shown only with USB audio off or in SAFE
+MODE), and the DIGITAL -> FM6 converter (`fm4_convert.c`, ~1.8 KB). In the tree but never built into the firmware: 37
+Felucca files (~15 400 lines: its UI, sequencer, editor, projects and the retired engines), still compiled by the Felucca
+host tests (`tests/run_tests.sh`), `tests/hostsim.c`'s defaults and `tools/emu/test_retired.sh`.

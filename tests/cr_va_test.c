@@ -7,11 +7,12 @@
  * the patch ranges; set() clamps; the macros both ways (P_E -> patch in va_block, set -> P_E); every preset's blob
  * valid and its macros as its preset_t; the matrix at its extremes (no overflow); the envelopes reach sustain and
  * end; the LFO SYNC divisions; 1 s of a 6-note chord on every preset: no int32 wrap, peak < 0.9 FS at the chord
- * part's default level. Version 2: a version-1 blob and a version-1 store (va_store.c va_store_v1) import with every
- * old value; MORPH at each shape's position against the BASIC wave and its continuity; the noise types' spectra;
+ * part's default level. Version 2: a version-1 blob imports with every old value (0.21's whole-store conversions
+ * went with the store, HISTORY 3y231); MORPH at each shape's position against the BASIC wave and its continuity; the
+ * noise types' spectra;
  * FTYPE at 0 32 64 96 = the discrete types; SPREAD 0 (render2) = the mono render bit for bit; the mode-dependent
  * columns (desc: OSC n's WAVE column follows MODE, an alias of SHAPE in MORPH) and set()'s NOISE rules. Version 3:
- * FTYPE (TYPE and MORPH in one value): a version-2 blob and store import as FTYPE = TYPE x 32 + MORPH; the page
+ * FTYPE (TYPE and MORPH in one value): a version-2 blob imports as FTYPE = TYPE x 32 + MORPH; the page
  * layout (FILTER: CUT RES FTYPE FENV, FILTER+: KTRK - SPREAD DRIVE). */
 #include <stdint.h>
 #include <stdio.h>
@@ -29,12 +30,6 @@
 #include "../firmware/src/core.h"
 #include "../firmware/src/dsp.c"
 #include "../firmware/src/eng_va.c"
-/* va_store.c's needs from upreset.c (its version-1 import is tested; the flash is not: FELUCCA_FLASH 0) */
-#define UP_PER_BANK 16u
-typedef struct { uint8_t used, ver, engine, np; } up_rec_t;
-static struct { up_rec_t r[UP_PER_BANK]; } up_bank[UP_SLOTS / UP_PER_BANK];
-static int16_t up_value(const up_rec_t *r, uint32_t i) { (void)r; (void)i; return 0; }
-#include "../firmware/src/va_store.c"
 static const char *const N_VA_FTYPE[] = {"LP", "BP", "HP", "NOTCH"};
 /* version 2's morph position names (eng_va.c va_morph_name, before the 128-name list): the reference */
 static const char *const OLD_MPV[11] = {"SIN", "SIN>TRI", "TRI", "TRI>SAW", "SAW", "SAW>RMP", "RAMP", "RMP>SQR", "SQR",
@@ -692,39 +687,6 @@ static void t_v1(void)
     rnd_v1(p, b1);
     b1[VA_BLOB1 - 1u] = 1;
     CHECK(!va_unpack(b1, q), "v1 blob with its padding not 0: taken");
-    /* a version-1 store in the mirror (as st_load leaves it): converted in place, every patch kept */
-    {
-        static int8_t keep[UP_SLOTS][VA_NP];
-        uint8_t *raw = (uint8_t *)&va_store, b[VA_BLOB];
-        memset(&va_store, 0, sizeof va_store);
-        va_store.magic = VA_STORE_MAGIC;
-        va_store.ver = 1;
-        va_store.nslot = UP_SLOTS;
-        va_store.blob = VA_BLOB1;
-        for (k = 0; k < UP_SLOTS; k++) {
-            rnd_v1(keep[k], b1);
-            if (k % 3u == 1u)
-                continue;                        /* an empty slot */
-            if (k == 5u)
-                b1[2 + VA_CUT] = 200;            /* a bad patch: dropped */
-            memcpy(raw + 16u + k * VA_BLOB1, b1, VA_BLOB1);
-            va_store.used |= 1u << k;
-        }
-        CHECK(va_store_v1((int)(16u + UP_SLOTS * VA_BLOB1)) == 1, "store v1: not converted");
-        CHECK(va_store.ver == 3u && va_store.blob == VA_BLOB && va_store_valid(&va_store), "store v1 -> v3: not valid");
-        for (k = 0; k < UP_SLOTS; k++) {
-            int has = !va_store_get(k, b);
-            if (k % 3u == 1u || k == 5u) {
-                CHECK(!has, "store v1 slot %u: should be empty", k);
-                continue;
-            }
-            keep[k][VA_FTYPE] = (int8_t)(32 * keep[k][VA_FTYPE]);
-            CHECK(has && va_unpack(b, q) && b[1] == 4u && !memcmp(q, keep[k], VA_NP1) &&
-                      !memcmp(q + VA_NP1, init + VA_NP1, VA_NP - VA_NP1), "store v1 slot %u: patch changed", k);
-        }
-        CHECK(!va_store_v1((int)sizeof va_store), "store v2 taken as v1");
-        memset(&va_store, 0, sizeof va_store);
-    }
 }
 
 /* a random version-2 patch (TYPE 0..3, MORPH 0..127 at VA_FRSV) and its version-2 blob */
@@ -771,44 +733,6 @@ static void t_v2(void)
     b2[1] = 3;
     b2[2 + VA_FRSV] = 5;
     CHECK(!va_blob_ok(b2), "v3 blob with its reserved value not 0: taken");
-    /* a version-2 store in the mirror: converted in place, every patch kept (FTYPE as above) */
-    {
-        static int8_t keep[UP_SLOTS][VA_NP];
-        uint8_t b[VA_BLOB];
-        int8_t init[VA_NP];
-        va_init_patch(init);
-        memset(&va_store, 0, sizeof va_store);
-        va_store.magic = VA_STORE_MAGIC;
-        va_store.ver = 2;
-        va_store.nslot = UP_SLOTS;
-        va_store.blob = VA_BLOB;
-        for (k = 0; k < UP_SLOTS; k++) {
-            rnd_v2(keep[k], b2);
-            keep[k][VA_FTYPE] = (int8_t)((keep[k][VA_FTYPE] * 32 + keep[k][VA_FRSV]) & 127);
-            keep[k][VA_FRSV] = 0;
-            if (k % 4u == 2u)
-                continue;                        /* an empty slot */
-            if (k == 7u)
-                b2[2 + VA_CUT] = 200;            /* a bad patch: dropped */
-            memcpy(va_store.p[k], b2, VA_BLOB);
-            va_store.used |= 1u << k;
-        }
-        CHECK(!va_store_valid(&va_store), "store v2: valid as v3");
-        CHECK(!va_store_v2(16), "store v2 of the wrong size: converted");
-        CHECK(va_store_v2((int)sizeof va_store) == 1, "store v2: not converted");
-        CHECK(va_store.ver == 3u && va_store.blob == VA_BLOB && va_store_valid(&va_store), "store v2 -> v3: not valid");
-        for (k = 0; k < UP_SLOTS; k++) {
-            int has = !va_store_get(k, b);
-            if (k % 4u == 2u || k == 7u) {
-                CHECK(!has, "store v2 slot %u: should be empty", k);
-                continue;
-            }
-            CHECK(has && b[1] == 4u && va_unpack(b, q) && !memcmp(q, keep[k], VA_NP), "store v2 slot %u: patch changed",
-                  k);
-        }
-        CHECK(!va_store_v2((int)sizeof va_store), "store v3 taken as v2");
-        memset(&va_store, 0, sizeof va_store);
-    }
 }
 
 static void t_modes(void)

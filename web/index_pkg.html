@@ -314,6 +314,7 @@ const TEXT = {
     backupGo: "Back up", restoreFile: "Backup file (.json)", restoreGo: "Restore",
     backup: "Saving a backup ", backupSaved: "Backup saved: ",
     noBackup: "The FM-1 cannot be backed up from this page (the stock firmware, or an older Felucca).",
+    poolStepConfirm: "This FM-1 runs ChoralRoot {from}. ChoralRoot {version} no longer moves the 32 sounds of ChoralRoot 0.21 and older into the user slots. To keep them: Cancel, install {via} first (Other versions), switch the FM-1 on once, then install {version}. Install {version} now without those sounds?",
     noBackupConfirm: "The FM-1 could not be backed up. Install anyway, without a backup? Its user sounds, loops and settings may be lost.",
     restoreOffer: "ChoralRoot is installed. Restore the backup just saved onto it now (settings, user sounds, FM6 patches)?",
     restoreConfirm: "Restore this backup onto the FM-1? What it holds replaces what is stored on the FM-1, and the FM-1 restarts afterwards.",
@@ -737,6 +738,11 @@ const verCmp = (a, b) => {
   for (let i = 0; i < Math.max(x.n.length, y.n.length); i++) { const d = (x.n[i] || 0) - (y.n[i] || 0); if (d) return d; }
   return x.pre === y.pre ? 0 : x.pre < y.pre ? -1 : 1;
 };
+// 0.21's 32 sounds (outside the sound pool) were moved into the pool by 0.22 .. 0.29.2 at their first start; later
+// firmware no longer does that (HISTORY 3y231): an FM-1 on ChoralRoot 0.21 or older goes through POOL_VIA first.
+// A development build (no tag) counts as later
+const POOL_VIA = "0.29.2";
+const needsPoolStep = (unitV, rel) => !!unitV && verCmp(unitV, "0.22-beta1") < 0 && (!rel.tag || verCmp(rel.version, POOL_VIA) > 0);
 const ready = (meta) => say(`ChoralRoot ${meta.version} · ${meta.product}`);
 const bullets = (list, cls = "news") => (list && list.length ? `<ul class="${cls}">${list.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>` : "");
 const linksOf = (r) => {
@@ -978,6 +984,13 @@ $("go").addEventListener("click", async () => {
           }
           if (!confirm(t("forceConfirm").replace("{name}", fw.name))) { sayK("cancelled"); lockInstaller(false); return; }
           log(`override: installing over ${fw.name} (not supported)`);
+        }
+        const fwV = fw.kind === "choralroot" && /^ChoralRoot\s+(\S+)/i.exec(fw.version || "");
+        if (fwV && needsPoolStep(fwV[1], rel)) {  // (0.21 and older: their sounds need POOL_VIA first)
+          log(`pool step: ${fwV[1]} -> ${rel.version}: ask (via ${POOL_VIA})`);
+          if (!confirm(tv("poolStepConfirm", { from: fwV[1], version: rel.version, via: POOL_VIA }))) {
+            sayK("cancelled"); lockInstaller(false); return;
+          }
         }
       }
       let saved = null;

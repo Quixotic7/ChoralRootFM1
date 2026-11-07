@@ -503,8 +503,8 @@ installed on the owner's Mac.
 - **Flash map**: the comment at the top of `storage.c` owns it. The FM TONE store is 0xB2000 / 0xB3000, the session
   0xB4000 / 0xB5000, **the favourites 0xB6000 / 0xB7000** (0.22, `OBJ_FAVS`); 0xB8000 .. 0xC7FFF **the sound pool** (0.22: 128 user
   slots shared by every engine, 13 banks floating over the 16 sectors, `storage.c sp_*`, `upool.c`, backup ids 50..62;
-  the legacy sound objects and backup ids 6, 7, 9..13, 22 read once by the migration, never written: docs/PRESETS.md
-  "The pool"); the loops
+  0.21's sound objects and backup ids 6, 7, 9..13, 22 retired in 3y231: not read, not taken, their sectors free;
+  docs/PRESETS.md "The pool", docs/FLASH.md "What the flash holds"); the loops
   are 0xC8000 .. 0xDBFFF.
 - **Favourites** (0.22, `cr_favs.c`, docs/PRESETS.md "Favourites"): a bit per sound. A factory sound's key is (the
   engine's index, the preset's index in the engine's table), P5's the Sequential number 1..200, a user sound's its
@@ -540,13 +540,12 @@ installed on the owner's Mac.
 
 ## The sound pool (0.22, branch pool-1; docs/PRESETS.md "The pool")
 
-Facts: user slots **128** (`UP_SLOTS`, `UP_POOL` 1 with VA, CZ-1 and FM TONE; `UP_LEGACY` 32), a slot = the record +
+Facts: user slots **128** (`UP_SLOTS`, `UP_POOL` 1 with VA, CZ-1 and FM TONE), a slot = the record +
 its engine's patch (384 bytes, `upool.c`); 13 banks of 10 floating over 0xB8000..0xC7FFF (`storage.c sp_*`); backup
-ids **50..62** (not 24..36: Felucca's 32..34), legacy ids 6, 7, 9..13, 22 import-only, **80 IMPORT** the legacy slots
-again; favourites section **0x81** (slots 33..128); P5 sounds save (138 bytes). Tests: `tests/pool_test.c` (power cuts
+ids **50..62** (not 24..36: Felucca's 32..34), legacy ids 6, 7, 9..13, 22 refused and 80 IMPORT gone since 3y231; favourites section **0x81** (slots 33..128); P5 sounds save (138 bytes). Tests: `tests/pool_test.c` (power cuts
 on the floating banks), `tests/cr_pool_test.c` (every engine into U128 and back, the full pool, a cut on the firmware's
-path, section 0x81), `tools/emu/test_pool.sh` (migration from a 377264f image, byte for byte; downgrade), the web and
-install tests' pool cases. Open items: nothing run on a unit (the migration's four bank writes at the first power-on,
-the save's 21 page programs: by reading, not measured); Sequential program SysEx import for P5 not done; the
+path, section 0x81), the web and install tests' pool cases (`tools/emu/test_pool.sh`, the migration from a 377264f
+image, went with the migration in 3y231). Open items: nothing run on a unit (the save's 21 page programs: by reading,
+not measured); Sequential program SysEx import for P5 not done; the
 favourites filter covers pool places 1..255 only (fine for the default build: 244); the emulator's SAVE scripts reach
 U033 (a mark on U100 is the host test's).
