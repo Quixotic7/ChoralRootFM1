@@ -133,7 +133,7 @@ an invented meaning:
 
 The SMK-37 build runs in an emulator in the browser, with the SMK-37 Pro's panel: the keys (struck low on a key loud,
 high soft), the pads lit as the firmware lights them, K1..K8, the faders, the wheels, the buttons by their SMK names,
-the computer keyboard and Web MIDI. <https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/emu/> (the SMK-37 test
+the computer keyboard and Web MIDI. <https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/emu/> (the SMK-37
 installer links it too). It is the same firmware as the packages (`BOARD_SMK37`) on a modelled panel
 (`tools/emu/emu_smk_hal.h`): the feel of the real keys and pads is the unit's to tell.
 
@@ -141,8 +141,9 @@ installer links it too). It is the same firmware as the packages (`BOARD_SMK37`)
 
 Have M-Vave's stock package for your model and M-UPGRADE ready first (see [Going back](#going-back-to-the-stock-firmware)).
 
-**From the browser** (Chrome or Edge on a computer): the SMK-37 test installer, a page of the project's site that no
-other page links (the maintainer sends testers the link). Tick that you accept the risk, connect the keyboard and
+**From the browser** (Chrome or Edge on a computer): the SMK-37 installer at
+<https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/>, linked from the project's site and README. Tick that you
+accept the risk, connect the keyboard and
 press Install: it picks your model's package (a Starrykey 37 Play gets the Pro's), checks its checksum before writing,
 backs up a keyboard that already runs ChoralRoot to a file first, and finishes an interrupted install. It refuses an
 FM-1 and other firmwares' update modes. The Single core choice above the button is for a keyboard that crashes or

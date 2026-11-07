@@ -315,9 +315,10 @@ one, then the whole of X.Y's notes so far, and `docs/releases/X.Y.md` points at 
 
 The SMK-37 community test builds ([SMK37.md](SMK37.md)) have their own version, list, page and tag: the version is
 the FM-1 version they are built from with `-smk37` after it (`0.24-beta2-smk37`), the list `web/releases-smk37.json`
-(never `web/releases.json`), the page the SMK-37 test installer at
-<https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/> (`web/smk37.html`), which no page of the site links: the
-link goes to the testers who accept the risk.
+(never `web/releases.json`), the page the SMK-37 installer at
+<https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/> (`web/smk37.html`), linked from the landing page's
+"Got an M-Vave SMK-37?" cell (`web/site/index.html` `{{SMK}}`, filled only when the site offers an SMK-37 build) and
+the README; never from the FM-1 installer or `firmware/`.
 A respin of the SMK build on the same FM-1 base adds `.N` after `-smk37` (`0.24-beta3-smk37.1`, tag
 `v0.24-beta3-smk37.1`): the same steps, its own entry, its `base` the same FM-1 version.
 
@@ -340,8 +341,8 @@ A respin of the SMK build on the same FM-1 base adds `.N` after `-smk37` (`0.24-
    FM-1 installer never lists an SMK build.
 3. pages.yml fetches every version of `web/releases-smk37.json` from its own release (`choralroot-X.Y-smk37*.fwsc`)
    and `web/make_site.py --smk-packages build/smk-packages --require-all` checks each package's sha256 and identity
-   (the model's `_9xx`, Felucca's loader) and writes `webapp/smk37/` and `firmware/smk37/`; the job fails when a page
-   of the site links the SMK page.
+   (the model's `_9xx`, Felucca's loader) and writes `webapp/smk37/` and `firmware/smk37/`; the job fails when the
+   landing page does not link the SMK page, or when the FM-1 installer, `firmware/` or the FM-1 emulator does.
 
 Once, before the first release: Settings → Pages → Build and deployment → Source: **GitHub Actions**.
 

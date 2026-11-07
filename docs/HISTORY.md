@@ -7025,3 +7025,16 @@ for the next SMK tag: a full release, a pre-release only on a beta or rc base (`
 `--latest=false`, the same title and notes; `actionlint` clean. BUILDING.md "An SMK-37 test release" and SMK37.md's
 status say so (the maintainer still has no SMK-37). Unchanged: the SMK-37 installer page stays unlinked from the site,
 and the release's signed `SMK37.md` keeps its tag's wording (published files are never replaced).
+
+3y229. **The SMK-37 installer linked from the site and the README.** The owner: "Please make the SMK installer linked
+from the main site and readme" (after 3y228: the SMK builds tested by several owners). The landing page gets a
+"Got an M-Vave SMK-37?" cell at the end of its Get it grid (`web/site/index.html` `{{SMK}}`, `make_site.py`
+`SMK_LINK`), filled only when the site writes `webapp/smk37/` (an SMK build offered), so a local build without the
+SMK packages has no dead link. The README's SMK line links the installer, its emulator and SMK37.md. The SMK pages
+lose `noindex` (the installer, its emulator, `firmware/smk37/`), and their words lose "test" (the installer's title,
+its line under the heading, its first warning: tested by SMK-37 owners, the maintainer has none). Still never linked
+from the FM-1 installer, `firmware/` or the FM-1 emulator. pages.yml's check turned round: the job fails when the
+landing page does not link the SMK page, and still when those FM-1 pages do. `tests/site_test.py` (the landing page
+links it once; none without SMK packages; the pages indexable) and `web/test_smk_installer.mjs` follow; site_test
+ALL OK, the SMK installer tests passed; the page seen in the browser (a local site with 0.29.2-smk37's packages).
+BUILDING.md, SMK37.md's Install, the SMK emulator's line.

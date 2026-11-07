@@ -4,7 +4,7 @@
 """Make the site (GitHub Pages):
 
   index.html, site.css, img/,  the landing page and the manual: web/site/** copied, {{VERSION}} {{PKG}}
-  InterTight.woff2, OFL.txt    {{PKG_URL}} {{PRODUCT}} {{NEWS}} {{LAYOUT}} {{EMU_NOTE}} filled in index.html (an
+  InterTight.woff2, OFL.txt    {{PKG_URL}} {{PRODUCT}} {{NEWS}} {{LAYOUT}} {{EMU_NOTE}} {{SMK}} filled in index.html (an
                               unknown {{...}} fails); {{NEWS}} is "New in VER": the version's bullets from
                               web/releases.json. When VERSION is a beta ("beta": true), the landing page and the
                               installer's own lines name the newest stable version offered (front()); the beta is in
@@ -29,18 +29,19 @@
                               inlined) beside build/layout-web/crlayout.js and crlayout.wasm (made by
                               sh tools/layout/build_layout.sh; LAYOUT_DIR overrides; missing: a warning, the site is
                               made without it and the landing page has no link to it: {{LAYOUT}} is empty)
-  webapp/smk37/index.html     the SMK-37 test installer (SMK37.md): smk37.html, self-contained (fm1pkg.js, fm1ota.js,
-                              fm1backup.js and the metadata inlined), not linked from any other page (noindex): the
-                              versions of web/releases-smk37.json, each with its three models' packages
+  webapp/smk37/index.html     the SMK-37 installer (SMK37.md): smk37.html, self-contained (fm1pkg.js, fm1ota.js,
+                              fm1backup.js and the metadata inlined), linked from the landing page ({{SMK}}, 0.29.2-smk37
+                              on; never from the FM-1 installer or firmware/): the versions of web/releases-smk37.json,
+                              each with its three models' packages
   firmware/smk37/             those packages (choralroot-X.Y-smk37[-elite|-mke][-1core].fwsc), each checked against
                               the sha256 in releases-smk37.json and its identity (the model's, _9xx, Felucca's
-                              loader), SHA256SUMS and index.html (noindex). --smk-packages DIR (or
+                              loader), SHA256SUMS and index.html. --smk-packages DIR (or
                               CR_SMK_PACKAGES_DIR; build/release-smk37 when it exists) holds them; a local build skips
                               a version whose files are not all there, --require-all stops. No version offered: no
-                              SMK page (a line says so)
+                              SMK page (a line says so) and no {{SMK}} cell
   webapp/smk37/emu/           the SMK-37 browser emulator beside it: build/emu-web-smk37/* (sh tools/emu/web/build_web.sh;
                               SMK_EMU_DIR overrides; missing: a warning, the page is made without it and without the
-                              link to it: smk37.html's <!--EMU--> is empty); linked from the SMK page alone (noindex)
+                              link to it: smk37.html's <!--EMU--> is empty); linked from the SMK page
   src/                        not touched
 
   web/make_site.py build/choralroot.fwsc VERSION OUT_DIR [EMU_DIR]     (or build/choralroot-X.Y.fwsc X.Y)
@@ -146,6 +147,14 @@ LAYOUT_LIB = ("fm1sketch.js", "fm1layout.js")
 LAYOUT_FILES = ("crlayout.js", "crlayout.wasm")
 LAYOUT_LINK = ('<p class="note">Every page of the sound editor, drawn by the firmware in your browser:</p>'
                '<p class="note note-try"><a href="webapp/layout/">Layout viewer</a></p>')
+# the landing page's SMK-37 cell ({{SMK}}): only when webapp/smk37/ is written (an SMK-37 build offered)
+SMK_LINK = ('<div class="cell cell-wide">\n'
+            '        <a class="btn b-cream" href="webapp/smk37/">Got an M-Vave SMK-37?</a>\n'
+            '        <p class="note">ChoralRoot runs on the SMK-37 Pro, SMK-37 Elite and MKE-P37 (and the Starrykey 37 Play) too: '
+            'velocity keys, the chord block on the pads, the faders and wheels. Its own installer, packages and browser '
+            'emulator; genkigenki\'s port, tested by SMK-37 owners. '
+            '<a href="https://github.com/Quixotic7/ChoralRootFM1/blob/main/SMK37.md">SMK-37 notes</a>.</p>\n'
+            '      </div>')
 
 
 def check_package(path, raw):
@@ -406,7 +415,7 @@ def smk_site(out, collected, emu=None):
         for d in (fw, inst):                          # build's SMK pages stays, its firmware/smk37/index.html would link
             if d.is_dir():                            # a webapp/smk37/ that is not written)
                 shutil.rmtree(d)
-        return "no webapp/smk37/ (no SMK-37 test build offered)"
+        return "no webapp/smk37/ (no SMK-37 build offered)"
     fw.mkdir(parents=True, exist_ok=True)
     inst.mkdir(parents=True, exist_ok=True)
     rels, sums, rows = [], [], []
@@ -433,10 +442,10 @@ def smk_site(out, collected, emu=None):
     (fw / "SHA256SUMS").write_text("".join(sums), encoding="utf-8")
     (fw / "index.html").write_text(
         '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-        '<meta name="robots" content="noindex, nofollow"><title>ChoralRoot SMK-37 test builds</title>'
-        '<h1>ChoralRoot for the SMK-37: test builds</h1><p>Community test builds, community-tested and not tested by '
-        'the maintainer (<a href="https://github.com/Quixotic7/ChoralRootFM1/blob/main/SMK37.md">SMK37.md</a>). '
-        'Install with the <a href="../../webapp/smk37/">SMK-37 test installer</a> or '
+        '<title>ChoralRoot SMK-37 packages</title>'
+        '<h1>ChoralRoot for the SMK-37: packages</h1><p>Tested on SMK-37s by their owners; the maintainer has none '
+        '(<a href="https://github.com/Quixotic7/ChoralRootFM1/blob/main/SMK37.md">SMK37.md</a>). '
+        'Install with the <a href="../../webapp/smk37/">SMK-37 installer</a> or '
         '<code>python3 tools/fm1_install.py FILE</code>. <a href="SHA256SUMS">SHA256SUMS</a>; the licences: '
         '<a href="../LICENSE">LICENSE</a>, <a href="../LICENSING.md">LICENSING.md</a>, <a href="../LICENSES/">LICENSES/</a>; '
         'the source of each version is the repository at its tag.</p><ul>' + "".join(rows) + "</ul>\n", encoding="utf-8")
@@ -503,6 +512,7 @@ def main(pkg, version, out, emu=None, packages=None, require_all=False, smk_pack
             raise SystemExit(f"index_pkg.html must contain {mark} once; update make_site.py")
     index = fill({"VERSION": shown, "PKG": name, "PKG_URL": "firmware/" + name, "PRODUCT": product,
                   "NEWS": news_html(data, offered, version), "LAYOUT": LAYOUT_LINK if has_lay else "",
+                  "SMK": SMK_LINK if smk[1] else "",
                   "EMU_NOTE": emu_line(data, offered, emu) if (emu / "index.html").is_file() else ""})
     html = html.replace("/*LIB*/", lib).replace("/*META*/", meta)
     inst, fw = out / "webapp" / "installer", out / "firmware"

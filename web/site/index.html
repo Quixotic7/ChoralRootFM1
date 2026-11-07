@@ -2,8 +2,8 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- The landing page of ChoralRoot FM-1. web/make_site.py copies it to the site's root and fills
      {{VERSION}} {{PKG}} {{PKG_URL}} {{PRODUCT}} {{NEWS}} ("New in X": the version's bullets from web/releases.json); no other templating. The keybed SVGs are plain markup.
-     Also LAYOUT (the layout viewer's link) and EMU_NOTE (a line when the browser emulator runs a beta), each in
-     double braces below. When the published version is a beta, VERSION, PKG and NEWS are the newest stable one's.
+     Also LAYOUT (the layout viewer's link), EMU_NOTE (a line when the browser emulator runs a beta) and SMK (the
+     SMK-37 installer's cell, when the site offers an SMK-37 build), each in double braces below. When the published version is a beta, VERSION, PKG and NEWS are the newest stable one's.
      Its content is the short version of docs/MANUAL.md (the reference: every sentence here was read against it,
      for 0.16); where the manual goes deeper the page links to it on GitHub. Two comments in the Recovery section
      (interrupted update, rescue key) mark the statements the manual's section 16 still marks as to be confirmed
@@ -84,6 +84,7 @@
         <a class="btn b-yellow" href="#playing">Manual</a>
         <p class="note">Who needs this? The short version starts below; <a href="https://github.com/Quixotic7/ChoralRootFM1/blob/main/docs/MANUAL.md">the full manual</a> has every button, knob and option.</p>
       </div>
+      {{SMK}}
     </div>
     <p>The installer talks to the FM-1 over Web MIDI. The firmware it runs now (stock, Felucca, Melodee or ChoralRoot) stages the update loader, the loader writes the whole image, then the FM-1 restarts and reports {{PRODUCT}}. An update saves a backup first and keeps your settings, sounds and loops. Charge the FM-1 fully first: it writes on its battery, and the installer cannot read its charge. Plug it straight into the computer (no hub), keep the computer awake and leave the cable alone until the installer says Done. If an update is cut off anyway, <a href="#recovery">Recovery</a> has the way back.</p>
     <p>On the command line, from the source: <code class="cmd">pip3 install mido python-rtmidi</code>, then <code class="cmd">python3 tools/fm1_install.py <span class="nw">{{PKG}}</span></code>. <code>--info</code> prints the connected FM-1's identity.</p>
