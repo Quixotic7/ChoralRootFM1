@@ -77,6 +77,9 @@ void fm1_timer5_irq(void)
     fm1_timer5_ack();
     felucca_dbg.timer_irqs++;
     fm1_input_tick();
+#if BOARD_SMK37
+    smk_uart_tx_tick();                         /* the TRS jack's MIDI OUT: the next byte once the last has gone */
+#endif
     {   /* milliseconds from the 24 MHz TIMER4 (robust to a late tick) */
         static uint32_t last, acc;
         acc += t0 - last;
@@ -286,6 +289,9 @@ static void fm1_main(void)
 #if FELUCCA_UART
     CR_STAGE(BS_UART);
     uart_midi_init();
+#endif
+#if BOARD_SMK37
+    smk_uart_tx_init();                       /* the TRS jack: MIDI OUT (before TIMER5 starts) */
 #endif
     CR_STAGE(BS_IRQ);
     timer5_start();

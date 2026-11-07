@@ -3,6 +3,39 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.29.2-smk37",
+      "base": "0.29.2",
+      "date": "2026-11-06",
+      "tag": "v0.29.2-smk37",
+      "title": "0.29.2 on the SMK-37: MIDI out of the TRS jack",
+      "bullets": [
+        "The TRS jack is a MIDI output: what ChoralRoot sends over USB MIDI (notes, wheels, pedal, clock) also goes out of it, with or without a computer. Use a TRS Type A to DIN adapter. Thanks to finlaysteven1-netizen (issue 42) and Skiff.",
+        "Options > TRS MIDI Out: On (the default) or Off. Off still sends the note-offs for notes it already played, so nothing is left hanging.",
+        "A loop that follows MIDI Clock In now keeps time with the incoming pulses: no drift from the master (the FM-1's 0.29.2).",
+        "SMK-37s with the newer flash chip (0xB36014) are recognised (the FM-1's 0.29.1).",
+        "Everything of 0.29-smk37: FM TONE's new filter types (hold SCALE), drive, envelope and crush; the pedal jack; K1's volume."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer. The TRS jack was seen working on an SMK-37 Pro; the Elite, the MKE-P37, the 1-core packages and long sessions have not been tried. Please report what you find (SMK37.md, What to test, item 15) on GitHub.",
+        "Updating from 0.29-smk37 keeps your settings, sounds, loops and favourites, and TRS MIDI Out starts On. Going back to 0.29-smk37 works too; the jack is then silent again.",
+        "The jack sends about 2,500 bytes a second: a very dense burst drops some note-ons and wheel steps, never note-offs. Backups and sound dumps stay on USB."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "9e1f9bff3958a7ae4a5702f49863e093a7a4a167803e2ecf84aa65ea9ef607e4",
+          "sha256_1core": "c57333d6cec26fee81631281ff356deb6aa9b2d29ded8fd4960166e5282070e9"
+        },
+        "elite": {
+          "sha256": "422bff42932c697e1ca0aae7fdf4fcde61886a7b1e3d0ceb6a5b0ae3c11225c8",
+          "sha256_1core": "56f12a647058b72a9aff8216884f3dbcba40d3da5971c510678c41d425dc329e"
+        },
+        "mke": {
+          "sha256": "1c3b3d95084c2297aa92a1ca88a141e47c2c64a259eb3ab6537d91b2f7361453",
+          "sha256_1core": "e78781ef7379ed67f2b77ccf1e39a5376dfd0aca7583a601801cf0f568820aa5"
+        }
+      }
+    },
+    {
       "version": "0.29-smk37",
       "base": "0.29",
       "date": "2026-11-01",
@@ -11,7 +44,7 @@
       "bullets": [
         "FM TONE gets the Digitone II's filter types: MULTI (with Morph), COMB+, COMB- and EQ. In the sound editor's filter pages, hold SCALE (the FM-1's SEL) to pick one; the FILTER screen's third knob follows the type.",
         "DRIVE before the filter, the AHD amp envelope and CRUSH (bit and sample-rate reduction) for FM TONE.",
-          "FM TONE's chord voices share the two cores, so the heavier sounds play without clicks.",
+        "FM TONE's chord voices share the two cores, so the heavier sounds play without clicks.",
         "Everything of 0.27-smk37.1: the pedal jack (Sustain or Expression), K1's volume shown and remembered, the FX routing."
       ],
       "notes": [

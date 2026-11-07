@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca)
 //
-// Node checks of the SMK-37 test installer, web/smk37.html (no browser, no hardware). Run from the repo root:
+// Node checks of the SMK-37 installer, web/smk37.html (no browser, no hardware). Run from the repo root:
 //   node web/test_smk_installer.mjs
-// - the page's shape: /*LIB*/ and /*META*/ once, one module script, noindex, no link to the FM-1 installer's
+// - the page's shape: /*LIB*/ and /*META*/ once, one module script, indexable (the landing page links it), no link to the FM-1 installer's
 //   pages; every data-t key and every fm1ota.js error code has a text
 // - the page as make_site.py inlines it (its SMK_LIB, a META of three models' packages) against a DOM stub and a
 //   simulated keyboard (web/test_installer.mjs's FakeFM1 with SMK names): nothing before the risk box is ticked; the
@@ -37,10 +37,10 @@ function makePackage(product, seed = 0) {          // (as test_installer.mjs: 20
 ok(count(html, "/*LIB*/") === 1 && count(html, "/*META*/") === 1 && count(html, "<!--EMU-->") === 1,
    "page: /*LIB*/, /*META*/ and <!--EMU--> (make_site.py's link to the emulator) exactly once");
 ok(count(html, "<script") === 1 && count(html, '<script type="module">') === 1, "page: one <script type=\"module\">");
-ok(/<meta name="robots" content="noindex, nofollow">/.test(html), "page: noindex, nofollow (it is not linked from the site)");
+ok(!/<meta name="robots"/.test(html), "page: indexable, no robots meta (the landing page links it)");
 ok(!html.includes("webapp/installer") && !html.includes("../installer/"), "page: no link to the FM-1 installer");
-ok(html.includes("<title>ChoralRoot SMK-37 · test installer</title>") && /<html lang="en">/.test(html), "page: title and lang");
-ok(/not tested by the maintainer/.test(html) && /genkigenki/.test(html) && /M-UPGRADE/.test(html), "page: the status, the credit, the way back");
+ok(html.includes("<title>ChoralRoot SMK-37 · installer</title>") && /<html lang="en">/.test(html), "page: title and lang");
+ok(/tested on SMK-37s by their owners/i.test(html) && /the maintainer has none/.test(html) && /genkigenki/.test(html) && /M-UPGRADE/.test(html), "page: the status, the credit, the way back");
 const scriptOf = (h) => h.slice(h.indexOf('<script type="module">') + '<script type="module">'.length, h.lastIndexOf("</script>"));
 const textSrc = scriptOf(html).match(/const TEXT = (\{[\s\S]*?\n\});/);
 const TEXT = textSrc ? new Function(`return ${textSrc[1]}`)() : {};

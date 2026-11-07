@@ -11,7 +11,11 @@ and M-VAVE.
 **The manual:** [docs/MANUAL.md](docs/MANUAL.md) (the first five minutes, every button, knob and Options entry, the
 looper, the sound editor, MIDI and USB, updating and recovery, a quick-reference table).
 
-**M-Vave SMK-37:** a community test build of 0.25 (genkigenki's port; community-tested, not tested by the maintainer): see [SMK-37 instructions](SMK37.md).
+**M-Vave SMK-37:** ChoralRoot also runs on the SMK-37 Pro, SMK-37 Elite and MKE-P37 (and the Starrykey 37 Play):
+genkigenki's port, tested by SMK-37 owners. Install it from the
+[SMK-37 installer](https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/) (Chrome or Edge), try it first in the
+[SMK-37 emulator](https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/emu/), and see the
+[SMK-37 instructions](SMK37.md).
 
 ## Install
 

@@ -6964,9 +6964,84 @@ Clock Out steady, 116.05 BPM at a tempo of 116 (+447 ppm against the Mac, no los
 entry given its going-back note, `docs/releases/0.29.2.md`, MANUAL.md's first line. `python3 tests/releases_test.py`,
 `CR_VERSION=0.29.2 sh tests/run_all.sh`. Tagged v0.29.2: release.yml builds, signs and publishes, pages.yml the site.
 
+## 2026-11-06 (SMK-37: the TRS jack's MIDI out)
+
+3y226. **SMK-37: the TRS jack is a MIDI out (GitHub issue 42).** finlaysteven1-netizen (2026-11-07): "TRS MIDI out
+works on the SMK-37 Pro", a patch on the current source with a Behringer TD-3 on a TRS Type A to DIN cable; the owner:
+"Please see this". Their commit (07a57d1f, kept as theirs): Skiff's `firmware/hal/smk_uart_tx.h` as it is (illuminus5,
+GPL-3.0-only, Skiff 2.2 commit 76b5f9c: UART1 TX on PC7 at 31250 baud as genkigenki's hardware notes set it up, a
+128-byte ring drained by the 10 kHz TIMER5 tick, a realtime slot ahead of it, a 2 ms timeout), its init before
+TIMER5 starts, its tick at the top of `fm1_timer5_irq`, and `usb.c midi_out_trs` from `midi_out_event`: every USB-MIDI
+packet ChoralRoot sends also goes out of the jack, with or without a USB host. Skiff's own notes list the driver as not
+yet checked on a unit: this is its first seen working. Review (on hardware no one here has): PC7 is free on the SMK
+(the FM-1's LCD CS; the SMK's LCD is PC8 / PB5..7, its pad LEDs PC10, the codec PC0/1/2/6, mux B PC9; nothing writes
+PORTC at run time but the LCD's and pad LEDs' own bits), the registers are genkigenki's (01-hardware.md section 9), the
+FM-1's TRS MIDI IN stays off on the SMK (choralroot.c FELUCCA_UART). One producer (the audio ISR: the engine's
+callbacks, the wheels, the pedal, the clock) and one consumer (TIMER5, priority 4 above ALNK0's 3, on core 0 as the
+audio ISR is) make the ring safe with a compiler barrier. The tick, from the listing: 8 instructions idle, 12 while a
+byte is on the wire (one UART read), about 28 when it starts the next (two reads, a read-modify-write, the write), so
+under 0.5 us of each 100 us, about 6 us of a 2.9 ms audio block at worst; nothing in it waits. The update loader
+leaves it out. Found and fixed (7f3e6073): the SMK-37 browser emulator no longer built (`tests/hostsim.c` takes `usb.c`
+with BOARD_SMK37 but not the header: `smk_ut_w` undeclared), so the packet's bytes moved into the header
+(`smk_uart_tx_pkt`), which defines `MIDI_OUT_TRS`, and `usb.c` calls it only where that is defined (the device's
+choralroot.c alone includes the header); a sustain pedal up and the bend back to the centre join the note-offs and CC
+120 / 123 that get in whenever their bytes fit (the patch could drop a pedal-up near a full ring: the synth's notes
+held); the pace stated as it is (a byte every fourth tick, about 2,500 bytes a second, not the wire's 3,125); Skiff's
+THRU notes dropped (ChoralRoot has no MIDI thru; SysEx stays on USB's own ring). No running status: every message keeps
+its status byte, so a message dropped whole never leaves the next under the wrong one. Added (0db58af2): **Options >
+TRS MIDI Out**, `On` (the default) / `Off`, after MIDI Clock, the SMK-37's list only: Off lets only the releases
+through, so nothing the jack started is left on; the session's byte 25 (`smk_trs_off`, 0 = On: an older or FM-1 record
+reads On; the reserve 118). Tests: `tests/smk_trs_test.c` (run_tests.sh, a modelled UART: bytes in order, the clock
+ahead, a 100-note burst that never blocks or cuts a message while the releases get in, Off, CIN sizes, a UART that
+never answers), `test_web_emu_smk.mjs` (the entry after MIDI Clock, On, Off, kept over SAVE held and a power cycle),
+`cr_settings_test` (byte 25). The FM-1 build is byte for byte main's (`choralroot.fwsc` b96afe10...09cc before and
+after). SMK-37 Pro XIP 559,696 of 573,440 (97.6 %, +832 B), RAM +160 B; 1-core 555,940 (the MKE-P37's 555,924: its name); the Elite and MKE-P37 the
+Pro's code with their names. LICENSING.md (Skiff's row), SMK37.md ("The TRS jack", the controls table, What to test
+15, Credits), SETTINGS.md. Not tested on a unit: the Elite, the MKE-P37, a 1-core package, a long session, Off.
+
+3y227. **0.29.2-smk37: the SMK-37 test build with the TRS jack's MIDI out; genkigenki in LICENSING.md.** The owner:
+"Add genkigenki to the licensing credits. Please get this in an SMK build out". LICENSING.md had no row for the SMK-37
+port itself (SMK37.md credited it alone): now genkigenki's board layer (their Felucca SMK-37 port, brought here in PR
+#14, 187b2e5: the input HAL, the LCD and pad LED pins, the flash map and its guards, the owner tag, the stub's and the
+loader's SMK places, the identities, the package layout, the installers' SMK support, the stock mapping's fix of
+0.24-beta3-smk37.1, SMK37.md's first version; GPL-3.0-only), their fm1-to-smk37 hardware notes (CC BY-NC 4.0, credit
+only: the SMK build and its TRS out were checked against them) and their Vector37 simulator (GPL-3.0, the SMK
+emulator panel's arrangement, credit only). The build: main's 0.29.2 with 3y226 (the TRS jack, Options > TRS MIDI
+Out) on the three models, `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.29.2-smk37` and then
+`tools/hub_build.sh 0.29.2-smk37`: the same `SHA256SUMS` (twelve files), the six sha256s the list's. XIP 559,696 of
+573,440 (97.6 %; the Elite 559,712, its longer name), 1-core 555,940 .. 555,956. The SMK build also takes 0.29.1's
+second flash chip (0xB36014, in the SMK's `FL_JEDEC_OK` too) and 0.29.2's Clock In loop timing. `web/releases-smk37.json`:
+0.29.2-smk37 first, base 0.29.2, five bullets, three notes (the jack seen on a Pro only; going back to 0.29-smk37
+silences it; the jack's pace). SMK37.md: the status, the package names, the version line. `python3
+tests/releases_test.py` ALL OK. Tagged v0.29.2-smk37: release.yml builds, signs and publishes the pre-release,
+pages.yml the SMK-37 test installer.
+
+3y228. **SMK-37 builds are full releases now.** The owner, while 3y227 published: "SMK versions have now been tested
+by multiple people and work so we no longer need to consider it a pre-release." v0.29.2-smk37 made a full release
+by hand (`gh release edit --prerelease=false --latest=false`), its title without "(community test)" and its notes'
+first lines reworded (tested on SMK-37s by their owners; the web installer by SMK37.md's Install). GitHub's latest
+release stays the FM-1's v0.29.2: the hub, RemoteFM1 and the Releases page take the latest as the FM-1's. release.yml
+for the next SMK tag: a full release, a pre-release only on a beta or rc base (`X.Y-betaN-smk37`), published with
+`--latest=false`, the same title and notes; `actionlint` clean. BUILDING.md "An SMK-37 test release" and SMK37.md's
+status say so (the maintainer still has no SMK-37). Unchanged: the SMK-37 installer page stays unlinked from the site,
+and the release's signed `SMK37.md` keeps its tag's wording (published files are never replaced).
+
+3y229. **The SMK-37 installer linked from the site and the README.** The owner: "Please make the SMK installer linked
+from the main site and readme" (after 3y228: the SMK builds tested by several owners). The landing page gets a
+"Got an M-Vave SMK-37?" cell at the end of its Get it grid (`web/site/index.html` `{{SMK}}`, `make_site.py`
+`SMK_LINK`), filled only when the site writes `webapp/smk37/` (an SMK build offered), so a local build without the
+SMK packages has no dead link. The README's SMK line links the installer, its emulator and SMK37.md. The SMK pages
+lose `noindex` (the installer, its emulator, `firmware/smk37/`), and their words lose "test" (the installer's title,
+its line under the heading, its first warning: tested by SMK-37 owners, the maintainer has none). Still never linked
+from the FM-1 installer, `firmware/` or the FM-1 emulator. pages.yml's check turned round: the job fails when the
+landing page does not link the SMK page, and still when those FM-1 pages do. `tests/site_test.py` (the landing page
+links it once; none without SMK packages; the pages indexable) and `web/test_smk_installer.mjs` follow; site_test
+ALL OK, the SMK installer tests passed; the page seen in the browser (a local site with 0.29.2-smk37's packages).
+BUILDING.md, SMK37.md's Install, the SMK emulator's line.
+
 ## 2026-11-06 (a plan for Bluetooth MIDI and the two-FM-1 USB link)
 
-3y226. **docs/BLE-LINK.md: how Bluetooth MIDI and the USB link from Melodee could come to ChoralRoot (a plan; no
+3y230. **docs/BLE-LINK.md: how Bluetooth MIDI and the USB link from Melodee could come to ChoralRoot (a plan; no
 firmware change).** The owner: "I'd like to see about adding those features to ChoralRoot". Melodee (Kerem Kilic,
 GPL-3.0-only; main 165d177, nightly 3fe570d) has Bluetooth MIDI since fef995c (2026-10-26): Optimist's bare-metal BLE
 stack (w0ts/optimist 498a3ae4, no JieLi Bluetooth library), with Charles Vestal's self-calibration (89b746c) and a

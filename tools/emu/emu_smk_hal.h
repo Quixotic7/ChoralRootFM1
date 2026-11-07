@@ -20,6 +20,9 @@ static inline void fm1__unlock(uint32_t v) { (void)v; fm1_irq_on(); }
 #include "../../firmware/hal/fm1_flash_map.h"         /* (storage.c's SMK windows) */
 #include "../../firmware/hal/smk_input.h"
 #define KN_QUICK() (emu_hal.knob_quick)
+/* Options > TRS MIDI Out (the unit's hal/smk_uart_tx.h smk_ut_off): kept and saved as on the unit; the emulator has
+ * no jack (its MIDI is the page's) */
+static volatile uint8_t smk_ut_off;
 static int emu_pump_begin(void)
 {
     if (emu_hal.pump_off)

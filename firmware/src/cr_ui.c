@@ -1204,7 +1204,11 @@ enum { O_STYLE, O_EXTADD, O_SECRET,
        O_PEDAL,                           /* the SMK-37's pedal jack (cr_smk_pedal): not in the FM-1's list */
 #endif
        O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
-       O_CLOCK, O_VIEW, O_MOTION, O_NAMES, O_LEDS, O_HOLD, O_USB_IN, O_USB_LEVEL, O_USB_RATE, O_DUALCORE, O_OUTPUT,
+       O_CLOCK,
+#if BOARD_SMK37
+       O_TRS,                             /* the SMK-37's TRS jack, a MIDI OUT (hal/smk_uart_tx.h): not in the FM-1's list */
+#endif
+       O_VIEW, O_MOTION, O_NAMES, O_LEDS, O_HOLD, O_USB_IN, O_USB_LEVEL, O_USB_RATE, O_DUALCORE, O_OUTPUT,
        O_VERSION,
        O_CALIB,
        O_RESET,                           /* Reset Settings: the last entry of a normal session */
@@ -1218,7 +1222,11 @@ static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Sec
     "Pedal",
 #endif
     "Bass Behaviour", "Single Notes", "Split Point", "MIDI Perform", "MIDI Bass", "MIDI Raw Chord", "Raw Chord Sound",
-    "MIDI Clock", "View", "Motion", "Chord Names", "LEDs", "Hold Time", "USB Record", "USB Level", "USB Rate", "Dual Core", "Output",
+    "MIDI Clock",
+#if BOARD_SMK37
+    "TRS MIDI Out",
+#endif
+    "View", "Motion", "Chord Names", "LEDs", "Hold Time", "USB Record", "USB Level", "USB Rate", "Dual Core", "Output",
     "Version",
     "Calibrate", "Reset Settings", "Safe Mode", "Flash Data"};
 static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 2, CU_VCURVE_MAX, CU_ATSENS_MAX,
@@ -1226,7 +1234,11 @@ static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 
                                    1,
 #endif
                                    3, 2, 11, 16, 16,
-                                   16, 1, 2, V_N - 1, CR_MOTION_N - 1, 1, 1, 3, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0};
+                                   16, 1, 2,
+#if BOARD_SMK37
+                                   1,
+#endif
+                                   V_N - 1, CR_MOTION_N - 1, 1, 1, 3, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0};
 static uint32_t cu_opt_n(void) { return cr_safe ? O_N : O_N_NORMAL; }
 /* an entry listed (docs/CHORD-LAYOUT.md): the chord layouts' four not on the SMK-37 (its chord keys are pads), the
  * SUS Window only while Chord Keys is FM-1. SELECT skips the others (cu_opt_next); their values are kept */
@@ -1310,6 +1322,9 @@ static int32_t opt_get(uint32_t o)
     case O_CH_MAIN: case O_CH_BASS: case O_CH_RAW: return cs.ch[o - O_CH_MAIN];
     case O_RAW_SOUND: return cs.raw_sound;
     case O_CLOCK: return cr_route.clock_in ? 2 : cr_route.clock_out;
+#if BOARD_SMK37
+    case O_TRS: return !smk_ut_off;
+#endif
     case O_VIEW: return cs.view;
     case O_MOTION: return cr_motion;
     case O_NAMES: return cs.names_std;
@@ -1366,6 +1381,9 @@ static void opt_set(uint32_t o, int32_t v)
         break;
     case O_RAW_SOUND: cs.raw_sound = (uint8_t)v; cu_route(); break;
     case O_CLOCK: cr_route.clock_in = (uint8_t)(v == 2); cr_route.clock_out = (uint8_t)(v == 1); break;
+#if BOARD_SMK37
+    case O_TRS: smk_ut_off = (uint8_t)!v; break;  /* (Off: the jack's notes still get their note-offs) */
+#endif
     case O_VIEW: cs.view = (uint8_t)v; break;
     case O_MOTION: cr_motion = (uint8_t)v; break;
     case O_NAMES: cs.names_std = (uint8_t)v; cr_chord_names_set(v); break;   /* (the names only: docs/CHORD-NAMES.md) */
@@ -1469,6 +1487,9 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
         else { cu_cpy(d, "ch ", n); cu_int(d + 3, v, 0, n > 3u ? n - 3u : 0u); }
         break;
     case O_CLOCK: cu_cpy(d, CLOCK[v % 3], n); break;
+#if BOARD_SMK37
+    case O_TRS: cu_cpy(d, ONOFF[v & 1], n); break;
+#endif
     case O_VIEW: cu_cpy(d, CU_VIEW[v % V_N], n); break;
     case O_MOTION: cu_cpy(d, MOTION[v % 3], n); break;
     case O_NAMES: cu_cpy(d, v ? "Standard" : "Orchid", n); break;
@@ -7698,6 +7719,8 @@ static void cu_options_screen(cr_screen_t *s)
 #if BOARD_SMK37
     else if (cu.opt_sel == O_PEDAL)                /* (SMK37.md "The pedal jack") */
         cu_cpy(s->label, cs.smk_pedal ? "the jack: CC 11, both parts" : "the jack: CC 64, both parts", sizeof s->label);
+    else if (cu.opt_sel == O_TRS)                  /* (SMK37.md "The TRS jack") */
+        cu_cpy(s->label, smk_ut_off ? "the jack sends nothing new" : "the jack: what USB MIDI sends", sizeof s->label);
 #endif
     else if (cu.opt_sel == O_NAMES)                /* (docs/CHORD-NAMES.md: the same notes under either name) */
         cu_cpy(s->label, cs.names_std ? "A9 \267 Aadd9 \267 A9sus4" : "A7 9 \267 A9 \267 Asus m7 9", sizeof s->label);

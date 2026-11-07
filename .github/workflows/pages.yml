@@ -5,9 +5,9 @@
 #                                        offers them all; each is checked against the sha256 in releases.json),
 #                                        and the single-core package (choralroot-X.Y-1core.fwsc) of every version
 #                                        whose entry lists sha256_1core (docs/DUALCORE.md "Two packages"),
-#                                        and the SMK-37 test builds of web/releases-smk37.json (each version's
-#                                        six packages from its own release vX.Y-smk37: the unlinked SMK-37 test
-#                                        installer, webapp/smk37/, SMK37.md),
+#                                        and the SMK-37 builds of web/releases-smk37.json (each version's
+#                                        six packages from its own release vX.Y-smk37: the SMK-37 installer,
+#                                        webapp/smk37/, linked from the landing page; SMK37.md),
 #                                        build the browser emulators (Emscripten, build/emu-web -> emu/, and the
 #                                        SMK-37's build/emu-web-smk37 -> webapp/smk37/emu/),
 #                                        web/make_site.py --require-all, deploy to Pages
@@ -165,11 +165,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # the unlinked SMK-37 test installer (webapp/smk37/) offers every version of web/releases-smk37.json; its
+          # the SMK-37 installer (webapp/smk37/, linked from the landing page) offers every version of web/releases-smk37.json; its
           # six packages come from that version's release (make_site.py checks each against the listed sha256)
           mkdir -p build/smk-packages
           if [ ! -f web/releases-smk37.json ]; then
-            echo "::notice::no web/releases-smk37.json on this ref: the site has no SMK-37 test installer"
+            echo "::notice::no web/releases-smk37.json on this ref: the site has no SMK-37 installer"
             exit 0
           fi
           python3 -c 'import json; [print(r["version"], r["tag"]) for r in json.load(open("web/releases-smk37.json"))["releases"]]' > build/smk-packages/list.txt
@@ -240,7 +240,7 @@ jobs:
             fi
           done < build/packages/list.txt
           (cd build/site/firmware && sha256sum -c SHA256SUMS)
-          if [ -s build/smk-packages/list.txt ]; then   # the SMK-37 test installer and its packages
+          if [ -s build/smk-packages/list.txt ]; then   # the SMK-37 installer and its packages
             for f in webapp/smk37/index.html webapp/smk37/emu/index.html webapp/smk37/emu/choralroot-smk37.wasm \
                      firmware/smk37/index.html firmware/smk37/SHA256SUMS; do
               if [ ! -s "build/site/$f" ]; then
@@ -249,9 +249,12 @@ jobs:
               fi
             done
             (cd build/site/firmware/smk37 && sha256sum -c SHA256SUMS)
-            if grep -l "smk37" build/site/index.html build/site/webapp/installer/index.html build/site/firmware/index.html \
-                   build/site/emu/index.html; then
-              echo "::error::a page of the site links the SMK-37 test installer (it is for the testers' link only)"
+            if ! grep -q 'href="webapp/smk37/"' build/site/index.html; then
+              echo "::error::the landing page does not link the SMK-37 installer (web/site/index.html {{SMK}})"
+              exit 1
+            fi
+            if grep -l "smk37" build/site/webapp/installer/index.html build/site/firmware/index.html build/site/emu/index.html; then
+              echo "::error::an FM-1 installer, firmware or emulator page links the SMK-37 installer (the landing page alone does)"
               exit 1
             fi
           fi

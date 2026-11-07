@@ -219,6 +219,9 @@ run "SMK-37 flash map: allow-lists never reach the head, BTIF/USRTRIM, USR, key_
     "$OUT/smk_flash_test"
 par_build $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_owner_test" tests/smk_owner_test.c
 run "SMK-37 store owner tag: another firmware's store cleared, ours kept, nothing else written" "$OUT/smk_owner_test"
+par_build $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_trs_test" tests/smk_trs_test.c
+run "SMK-37 TRS MIDI out: bytes in order, the clock ahead, bursts never block or cut, releases always in, Off" \
+    "$OUT/smk_trs_test"
 PAR_MAKES="$OUT/smk-new.fwsc"
 par_prep quiet python3 tools/fm1pkg_make.py --board smk37 --product "SMK-37 Pro_920" build/choralroot.bin \
     build/loader/ota.bin "$OUT/smk-new.fwsc"

@@ -7,7 +7,8 @@
 //    contacts through the factory curve, hal/smk_input.h, Key Touch Dynamic); K1 turns the volume down; SCALE (KEY)
 //    lights; the same input twice gives the same samples. K1's volume kept over a power cycle. The pedal jack: Sustain
 //    holds a key's note past its release until the pedal comes up (CC 64 out); Expression sets CC 11 and the parts'
-//    ex_off, nothing before the pedal moves, full again back on Sustain.
+//    ex_off, nothing before the pedal moves, full again back on Sustain. Options > TRS MIDI Out (issue 42): listed after
+//    MIDI Clock, On by default, Off kept over a power cycle.
 // 2. The page: build/emu-web-smk37 served by python3 -m http.server, a headless Chromium screenshot of ?demo (its
 //    processes stopped by their PID).
 import fs from "node:fs";
@@ -208,6 +209,50 @@ console.log("the pedal jack: Sustain holds a released key's note until it comes 
   d.render(ms(100));
   const back = cc(d.midi(), 11);
   ok(back[back.length - 1] === 127 && exOff(0) === 0 && exOff(1) === 0, `back to Sustain: CC 11 127, ex_off 0 (${back.join(",")})`);
+}
+
+console.log("Options > TRS MIDI Out (GitHub issue 42): after MIDI Clock, On by default, Off kept over a power cycle");
+{
+  const d = await load(), ex = d.ex;
+  const opt = (x) => (x.dump().match(/options: open (\d) entry (\d+) of (\d+) '([^']*)' value '([^']*)'/) || []);
+  const turn = (x, e, n) => { x.ex.web_smk_enc(e, n); x.render(ms(150)); };
+  ex.web_boot();
+  d.render(ms(3000));
+  ex.web_smk_button(10, 1);                   // GLOBE = OPT: the Options
+  d.render(ms(60));
+  ex.web_smk_button(10, 0);
+  d.render(ms(200));
+  let o = opt(d), seen = [];
+  for (let i = 0; i < 40 && o[4] !== "TRS MIDI Out"; i++) { seen.push(o[4]); turn(d, 1, 1); o = opt(d); }   // K2 = SELECT
+  ok(o[1] === "1" && o[4] === "TRS MIDI Out" && seen[seen.length - 1] === "MIDI Clock",
+     `listed after MIDI Clock (entry ${o[2]} of ${o[3]})`);
+  ok(o[5] === "On", `On by default (${o[5]})`);
+  const sr = (d.dump().match(/screen reads:.*/) || ["?"])[0];
+  ok(/label 'the jack: what USB MIDI sends'/.test(sr), `its line: ${(sr.match(/label '[^']*'/) || ["?"])[0]}`);
+  turn(d, 4, -3);                             // K5 = KNOB 1: the value (down, held at Off; the model lands n - 1)
+  o = opt(d);
+  ok(o[5] === "Off", `K5 down: Off (${o[5]})`);
+  ex.web_smk_button(10, 1);                   // closed again, then SAVE held: the global save
+  d.render(ms(60));
+  ex.web_smk_button(10, 0);
+  d.render(ms(200));
+  ex.web_smk_button(11, 1);
+  d.render(ms(2000));
+  ex.web_smk_button(11, 0);
+  d.render(ms(500));
+  const img = new Uint8Array(d.mem.buffer, ex.web_flash(), ex.web_flash_size()).slice();
+  const e = await load();
+  new Uint8Array(e.mem.buffer, e.ex.web_flash_stage(), img.length).set(img);
+  e.ex.web_flash_stage_len(img.length);
+  e.ex.web_boot();
+  e.render(ms(3000));
+  e.ex.web_smk_button(10, 1);
+  e.render(ms(60));
+  e.ex.web_smk_button(10, 0);
+  e.render(ms(200));
+  o = opt(e);
+  for (let i = 0; i < 40 && o[4] !== "TRS MIDI Out"; i++) { turn(e, 1, 1); o = opt(e); }
+  ok(o[4] === "TRS MIDI Out" && o[5] === "Off", `after SAVE held and a power cycle: Off again (${o[5]})`);
 }
 
 if (!args.has("--no-page")) {

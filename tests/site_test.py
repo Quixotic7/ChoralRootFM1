@@ -17,12 +17,14 @@ found must be published with the listed sha256 and offered by the installer; eac
 version with --require-all, a version that is not listed). When build/choralroot.fwsc is itself a listed release
 (the build is reproducible) and every package is there, the site is also built as the Pages job builds it
 (--require-all, into build/scratch/site-release) and checked the same way.
-The SMK-37 test installer (web/releases-smk37.json, SMK37.md): built from made-up SMK packages (build/choralroot.fwsc
+The SMK-37 installer (web/releases-smk37.json, SMK37.md): built from made-up SMK packages (build/choralroot.fwsc
 under the three models' identities) and a made-up list (CR_SMK_RELEASES_JSON): webapp/smk37/index.html with the three
-models' packages in its META, firmware/smk37/ with each package, SHA256SUMS and index.html, linked from no other page;
+models' packages in its META, firmware/smk37/ with each package, SHA256SUMS and index.html, linked from the landing
+page (indexable) and from no FM-1 installer or firmware page;
 a wrong sha256, an FM-1 package in an SMK model's place and a missing package with --require-all refused before
-anything is written; a local build without the packages makes no SMK page. With build/emu-web-smk37 (build_web.sh):
-the SMK-37 emulator at webapp/smk37/emu/ (noindex), linked from the SMK page and from no FM-1 page.
+anything is written; a local build without the packages makes no SMK page and no landing-page link. With
+build/emu-web-smk37 (build_web.sh): the SMK-37 emulator at webapp/smk37/emu/, linked from the SMK page and from no FM-1
+page.
 """
 import hashlib
 import json
@@ -401,7 +403,7 @@ def smk_site():
     env = {**os.environ, "CR_SMK_RELEASES_JSON": str(lst)}
     run = lambda *a: subprocess.run([sys.executable, str(ROOT / "web" / "make_site.py"), *map(str, a)], capture_output=True, text=True, env=env)
     r = run(PKG, VERSION, out, "--packages", PACKAGES, "--smk-packages", pk)
-    if not ok(r.returncode == 0, "SMK: make_site.py builds the site with the SMK-37 test installer"):
+    if not ok(r.returncode == 0, "SMK: make_site.py builds the site with the SMK-37 installer"):
         print(r.stdout + r.stderr)
         return
     page = out / "webapp" / "smk37" / "index.html"
@@ -409,8 +411,11 @@ def smk_site():
     meta = read_meta(ph) or {}
     models = ((meta.get("releases") or [{}])[0]).get("models", {})
     fw = out / "firmware" / "smk37"
-    ok(page.is_file() and "/*LIB*/" not in ph and "/*META*/" not in ph and 'content="noindex, nofollow"' in ph,
-       "SMK: webapp/smk37/index.html, the libraries and META inlined, noindex")
+    ok(page.is_file() and "/*LIB*/" not in ph and "/*META*/" not in ph and 'name="robots"' not in ph,
+       "SMK: webapp/smk37/index.html, the libraries and META inlined, indexable")
+    land = (out / "index.html").read_text(encoding="utf-8") if (out / "index.html").is_file() else ""
+    ok(land.count('href="webapp/smk37/"') == 1 and "{{" not in land,
+       "SMK: the landing page links the SMK-37 installer once (its {{SMK}} cell)")
     ok(set(models) == {"pro", "elite", "mke"} and all(
         models[k]["product"] == names[k][2] and models[k]["sha256"] == entry[k]["sha256"] and
         models[k]["sha256_1core"] == entry[k]["sha256_1core"] and (page.parent / models[k]["pkg"]).resolve() == (fw / names[k][0]).resolve() and
@@ -420,20 +425,20 @@ def smk_site():
     ok(all((fw / n).is_file() and sha(fw / n) == entry[k][f] and f"{entry[k][f]}  {n}" in sums
            for k in names for n, f in ((names[k][0], "sha256"), (names[k][1], "sha256_1core"))) and len(sums) == 6 and
        (fw / "index.html").is_file(), "SMK: firmware/smk37/: the six packages, SHA256SUMS, index.html")
-    others = [out / "index.html", out / "webapp" / "installer" / "index.html", out / "webapp" / "installer" / "manager.html",
+    others = [out / "webapp" / "installer" / "index.html", out / "webapp" / "installer" / "manager.html",
               out / "firmware" / "index.html"]
     emu_src = ROOT / "build" / "emu-web-smk37"
     if (emu_src / "index.html").is_file():
         eh = (out / "webapp" / "smk37" / "emu" / "index.html")
         ok(eh.is_file() and (eh.parent / "choralroot-smk37.wasm").is_file() and 'href="emu/"' in ph and
-           'content="noindex, nofollow"' in eh.read_text(encoding="utf-8"),
-           "SMK: webapp/smk37/emu/ (the SMK-37 emulator, noindex), linked from the SMK page")
+           'name="robots"' not in eh.read_text(encoding="utf-8"),
+           "SMK: webapp/smk37/emu/ (the SMK-37 emulator, indexable), linked from the SMK page")
         others.append(out / "emu" / "index.html") if (out / "emu" / "index.html").is_file() else None
     else:
         print(f"skip: {emu_src.relative_to(ROOT)} missing: the SMK emulator not checked (sh tools/emu/web/build_web.sh)")
     ok(all("smk37" not in p.read_text(encoding="utf-8") for p in others) and
        not any(n.startswith("choralroot-9.9-smk37") for n in os.listdir(out / "firmware")),
-       "SMK: no other page links it, the FM-1's firmware/ holds no SMK package")
+       "SMK: no FM-1 installer or firmware page links it, the FM-1's firmware/ holds no SMK package")
     shutil.rmtree(out)
     bad = bytearray((pk / names["elite"][0]).read_bytes())
     bad[-3] ^= 0xFF
@@ -458,7 +463,8 @@ def smk_site():
     ok(r.returncode != 0 and names["elite"][0] in r.stderr and not out.exists(), "SMK: --require-all refuses a missing package, naming it")
     r = run(PKG, VERSION, out, "--packages", PACKAGES, "--smk-packages", pk)
     ok(r.returncode == 0 and "skipped: SMK 9.9-smk37" in r.stdout and not (out / "webapp" / "smk37").exists() and
-       not list((out / "firmware").glob("smk37/*.fwsc")), "SMK: a local build without them: skipped, no SMK page")
+       not list((out / "firmware").glob("smk37/*.fwsc")) and "smk37" not in (out / "index.html").read_text(encoding="utf-8"),
+       "SMK: a local build without them: skipped, no SMK page, no landing-page link")
     for d in (pk, out):
         shutil.rmtree(d)
     lst.unlink()

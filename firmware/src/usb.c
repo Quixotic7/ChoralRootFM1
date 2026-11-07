@@ -134,6 +134,10 @@ static int midi_enqueue(uint32_t pkt, uint32_t source)
 
 static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 {
+#if defined(MIDI_OUT_TRS) && !defined(FELUCCA_LOADER)
+    MIDI_OUT_TRS(pkt);                              /* SMK-37: the TRS jack too, with or without a USB host
+                                                     * (hal/smk_uart_tx.h; the device build alone defines it) */
+#endif
     if (usb.config && mo_w - mo_r < MQ) {
         midi_out_q[mo_w % MQ] = pkt;
         RING_PUBLISH();

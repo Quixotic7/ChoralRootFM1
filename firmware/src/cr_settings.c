@@ -1026,6 +1026,7 @@ static void css_capture(cr_session_t *x)
     x->smk_master[0] = (uint8_t)((uint32_t)(smk_master + 1) & 0xFFu);   /* K1's level + 1 (0: not stored) */
     x->smk_master[1] = (uint8_t)((uint32_t)(smk_master + 1) >> 8);
     x->smk_pedal = cs.smk_pedal;                   /* Options > Pedal */
+    x->smk_trs_off = smk_ut_off;                   /* Options > TRS MIDI Out */
 #endif
     cr_session_seal(x);
 }
@@ -1068,6 +1069,7 @@ static void css_apply(const cr_session_t *x)
     }
     cs.smk_pedal = (uint8_t)(x->smk_pedal == 1u);  /* Options > Pedal (0, an older record: Sustain; cr_ui.c cr_smk_pedal
                                                     * takes the change) */
+    smk_ut_off = (uint8_t)(x->smk_trs_off == 1u);  /* Options > TRS MIDI Out (0, an older record: On) */
 #endif
     cu.octave = x->octave;                         /* (cu_post_kbd follows: the split key's note moves with it) */
     cs.loop_rate = (uint8_t)((int)x->loop_rate + (int)CRL_RATE_1);   /* (cu_loop_conf posts it with the looper's) */
@@ -1565,6 +1567,7 @@ static void crs_reinit(void)
     cs.loop_rate = CRL_RATE_1;                     /* the loop's Rate: x1 */
 #if BOARD_SMK37
     cs.smk_pedal = 0;                              /* Options > Pedal: Sustain */
+    smk_ut_off = 0;                                /* Options > TRS MIDI Out: On */
 #endif
 }
 
