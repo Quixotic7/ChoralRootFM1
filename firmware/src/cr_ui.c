@@ -1386,6 +1386,8 @@ static void opt_set(uint32_t o, int32_t v)
     case O_BLE:                                   /* (not in cs: the Bluetooth record keeps it, cr_ble.c) */
         if (!cr_ble_set((int)v))
             cu_message(cr_res_ok ? "Bluetooth: no radio" : "install ChoralRoot again", CR_COL_WHITE);
+        else if (v && !cr_ble_running())          /* (the radio starts only at power-on: cr_ble.c, 3y238) */
+            cu_message("Bluetooth: switch off and on", CR_COL_WHITE);
         break;
 #endif
 #if BOARD_SMK37

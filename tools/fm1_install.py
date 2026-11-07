@@ -2771,7 +2771,7 @@ PEAK_HEX = ("irq_gap_pc", "crash_vec", "crash_pc", "crash_rets", "crash_emu", "c
 BOOT_STAGE = {0: "none", 1: "loop: input", 2: "loop: draw", 9: "loop: idle", 10: "guard", 11: "flash probe",
               12: "user sounds", 13: "fm6 bank", 14: "va store", 15: "fm6 store", 16: "settings", 17: "update cleanup",
               18: "lcd", 19: "splash", 20: "input", 21: "sounds", 22: "audio", 23: "usb", 24: "uart", 25: "irqs",
-              26: "calibration", 27: "ui init", 28: "ui settings", 29: "loops", 30: "core 1"}   # cr_bootguard.h BS_*
+              26: "calibration", 27: "ui init", 28: "ui settings", 29: "loops", 30: "core 1", 31: "bluetooth"}   # cr_bootguard.h BS_*
 LATE_STAGE = ["none", "tick", "part0", "part1", "fx", "master", "wait"]
 SHED_WHY = ["none", "a released voice, the quietest", "a held voice, the oldest that is not its part's lowest note",
             "asked, and no voice to give", "a voice of the bass part's P5 stack, before any chord voice"]

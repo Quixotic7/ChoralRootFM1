@@ -7295,3 +7295,33 @@ V15" stays, described as writing V15 without the presets). Tests: the refusal te
 web_emu_smk, releases, run_tests (the site) and `test_smk_installer.mjs` pass. **Not tried on a unit**: ChoralRoot
 starting under the M-Bootloader (its stub, the marker, the boot guard) and M-Flasher installing `choralroot.fwsc` with
 the resource region (docs/BOOT-SAFETY.md).
+
+## 2026-11-07 (Bluetooth: the radio started only at power-on)
+
+3y238. **The first unit try of 3y236, and the fix.** The device session put 93312ac7 on the spare E81CE2F7. The owner:
+"No font issues. When turning on Bluetooth the device froze then reset and showed 'Dual Core Hang' then going back to
+the options it shows Bluetooth is on: 8FC2. I do not see the device under MIDI and Audio setup." Read from the code
+(the unit's crash record is still to come): "Dual Core Hang" is the bar's C1_BAR_HANG, a watchdog reset (8 s without
+the main loop) while core 1 had run; that boot switched Dual Core Off **and saved it** (cr_c1_bar_boot), so the unit
+now runs one core until Options > Dual Core is set On again. Two starts, two failures:
+(1) **Switched On while running**: cr_ble_poll started the radio at the first quiet moment, the interrupts held for
+the program and, with no trims stored, ~160 ms of self-calibration, while core 1, the audio DMA, USB and its audio
+streaming were live. Melodee starts at run time too but also refuses while USB audio streams (`ua.play_alt ||
+ua.cap_alt`) and silences the audio buffer first; its unit had its own stored trims (no self-calibration). Which of
+these hung is for the crash record (the stage, the radio's step breadcrumbs); the start returned at least once,
+since On was saved after it. (2) **At the restart**: On saved, cr_ble_boot started the radio before core 1, the rails,
+the audio, USB and the timers, and the interrupts then stayed off for the rest of the start-up (the splash, ~1 s): the
+link layer's first advertising events went unserved, and the unit showed its name (`ChoralRoot 8FC2`) but was never
+seen. Melodee never starts the radio and then leaves its interrupts off.
+**The fix** (`cr_ble.c`, `main.c`): the radio is never started while the unit runs. Switched On in the Options it is
+saved ("Bluetooth: switch off and on"; the line under it `on at the next power-on`); at power-on `cr_ble_boot` only
+reads the record and the trims, and the start is the last step with the interrupts off (`cr_ble_start_boot`, a new
+boot stage `bluetooth`, 31), after core 1 (idle in its RAM loop), the rails, the audio, USB and TIMER5 are set up and
+right before `fm1_irq_enable_all`: the state Melodee's run-time start sees, with no audio half due and the radio's
+interrupts served at once. A start that hangs there is counted by the boot guard and the next boot leaves the radio
+off (switching off and on tries again). Off and On again while started only stop and resume the advertising
+(ble_enable), as before. `tests/cr_ble_test.c`: 53 checks (On while running never starts it, even quiet; saved; the
+start only in the last step, once; a failed boot leaves it owed). MANUAL.md "Bluetooth MIDI" says to switch off and on.
+`sh tests/run_all.sh`: all 24 suites pass (install's numpy "longdouble" flake on the first run, passing again).
+**To check on the unit**: Dual Core On again first; Bluetooth On, off and on; visible in Audio MIDI Setup; the
+crash record's stage if it hangs (`bluetooth` = the start itself).

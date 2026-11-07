@@ -303,6 +303,13 @@ static void fm1_main(void)
     CR_STAGE(BS_IRQ);
     timer5_start();
     fm1_guard_lock_top();
+#if CR_BLE
+    CR_STAGE(BS_BLE);
+    cr_ble_start_boot();                      /* the radio, when On was saved: the last step with the interrupts off,
+                                               * as Melodee starts it (core 1 idle in RAM, the rails, the audio and USB
+                                               * set up), its interrupts served at once below (cr_ble.c, 3y238) */
+    CR_STAGE(BS_IRQ);
+#endif
     fm1_irq_enable_all();
     fm1_delay_ms(30);
     CR_STAGE(BS_CALIB);

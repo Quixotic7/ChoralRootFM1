@@ -7,9 +7,11 @@
  *   in      MIDI only (SysEx and the rest dropped); into the input queue as source 3 with the packet's own time
  *   loss    the link going ends the notes the peer held (and only those) with note-offs, a full queue resumed at
  *           the next tick; the radio not started: the TIMER5 drain does nothing
- *   on/off  refused without the resource region or a calibration; On while not started waits for a quiet moment
+ *   on/off  refused without the resource region or a calibration; On while running never starts the radio (3y238:
+ *           a start while the unit ran froze one), it is saved and started at the next power-on
  *           (nothing sounding, no loop); the record saved only when quiet; Off saved; the bond kept and forgotten
- *   boot    nothing read or started in SAFE MODE or without flash; On saved: started at power-on
+ *   boot    nothing read or started in SAFE MODE or without flash; On saved: started at power-on, only in the last
+ *           step before the interrupts (cr_ble_start_boot), not in cr_ble_boot; a failed boot counted: not started
  *   status  the Options line
  * Exit status: the number of failed checks. */
 #include <stdint.h>
@@ -225,29 +227,42 @@ static void t_onoff(void)
     check("on: refused without a calibration", !cr_ble_set(1) && !crbl.on);
     crbl.cal = 1;
     parts_busy = 1;
-    check("on: taken while notes sound; the radio's start waits", cr_ble_set(1) && crbl.on && crbl.pending &&
-          !crbl.started && (crbl_rec.flags & CRBL_ON) && crbl.dirty);
+    check("on: taken while notes sound; the radio not started", cr_ble_set(1) && crbl.on && crbl.pending &&
+          !crbl.started && cr_ble_running() == 0 && (crbl_rec.flags & CRBL_ON) && crbl.dirty);
     cr_ble_status(s, sizeof s);
-    check("status: \"starts when nothing plays\"", !strcmp(s, "starts when nothing plays"));
+    check("status: \"on at the next power-on\"", !strcmp(s, "on at the next power-on"));
     cr_ble_poll();
     check("poll: notes sounding: not started, nothing saved", !crbl.started && st_saves == 0);
     parts_busy = 0;
     cr_snap.lstate = CRL_PLAYING;
     cr_ble_poll();
-    check("poll: a loop playing: not started, nothing saved", !crbl.started && st_saves == 0);
+    check("poll: a loop playing: nothing saved", !crbl.started && st_saves == 0);
     cr_snap.lstate = CRL_IDLE;
     cr_snap.lcap = CRL_CAP_ON;
     cr_ble_poll();
-    check("poll: a loop recording: not started", !crbl.started);
+    check("poll: a loop recording: nothing saved", st_saves == 0);
     cr_snap.lcap = CRL_CAP_NONE;
     crl_stage_busy = 1;
     cr_ble_poll();
-    check("poll: a loop staged: not started", !crbl.started);
+    check("poll: a loop staged: nothing saved", st_saves == 0);
     crl_stage_busy = 0;
     cr_ble_poll();
-    check("poll: quiet: started, a random static address made, saved", crbl.started && !crbl.pending &&
-          crbl_rec.valid && (crbl_rec.addr[5] & 0xC0u) == 0xC0u && st_saves == 1 && !crbl.dirty &&
+    cr_ble_poll();
+    check("poll: quiet: On saved, and still the radio NOT started while the unit runs (3y238)",
+          !crbl.started && crbl.pending && st_saves == 1 && !crbl.dirty &&
           ((crbl_rec_t *)st_obj)->magic == CRBL_MAGIC && (((crbl_rec_t *)st_obj)->flags & CRBL_ON));
+    memset(&crbl, 0, sizeof crbl);                /* the next power-on */
+    cr_ble_boot();
+    check("power-on: the record read, the start owed but not yet made (the interrupts' last step does it)",
+          crbl.booted && crbl.on && crbl.boot_go && !crbl.started && !crbl.pending);
+    cr_ble_start_boot();
+    check("power-on, the last step: started, a random static address made", crbl.started && !crbl.boot_go &&
+          crbl_rec.valid && (crbl_rec.addr[5] & 0xC0u) == 0xC0u && crbl.dirty);
+    cr_ble_start_boot();
+    check("power-on: the start made once", crbl.started && !crbl.boot_go);
+    cr_ble_poll();
+    check("the address saved at the first quiet poll", st_saves == 2 && !crbl.dirty &&
+          !memcmp(((crbl_rec_t *)st_obj)->addr, crbl_rec.addr, 6));
     cr_ble_status(s, sizeof s);
     check("status: \"ChoralRoot XXXX: visible\"", !strncmp(s, "ChoralRoot ", 11) && strstr(s, ": visible") != 0);
     ble_app_bond((const uint8_t *)"RANDRAND", 0x1234u, (const uint8_t *)"0123456789abcdef");
@@ -256,16 +271,16 @@ static void t_onoff(void)
           ble_rd16(crbl_rec.bond + 10) == 0x1234u && !memcmp(crbl_rec.bond + 12, "0123456789abcdef", 16) &&
           crbl.dirty);
     cr_ble_poll();
-    check("bond: saved", st_saves == 2 && ((crbl_rec_t *)st_obj)->bond[0] == 0xB5u);
+    check("bond: saved", st_saves == 3 && ((crbl_rec_t *)st_obj)->bond[0] == 0xB5u);
     cr_ble_forget();
     cr_ble_poll();
-    check("forget: the bond gone, saved", crbl_rec.bond[0] == 0u && st_saves == 3 &&
+    check("forget: the bond gone, saved", crbl_rec.bond[0] == 0u && st_saves == 4 &&
           ((crbl_rec_t *)st_obj)->bond[0] == 0u);
     check("off: taken", cr_ble_set(0) && !crbl.on && !(crbl_rec.flags & CRBL_ON));
     cr_ble_status(s, sizeof s);
     check("status: \"MIDI over Bluetooth: off\"", !strcmp(s, "MIDI over Bluetooth: off"));
     cr_ble_poll();
-    check("off: saved", st_saves == 4 && !(((crbl_rec_t *)st_obj)->flags & CRBL_ON));
+    check("off: saved", st_saves == 5 && !(((crbl_rec_t *)st_obj)->flags & CRBL_ON));
     cr_res_ok = 0;
     cr_ble_status(s, sizeof s);
     check("status: no region: \"install ChoralRoot again\"", !strcmp(s, "install ChoralRoot again"));
@@ -288,13 +303,24 @@ static void t_boot(void)
     check("boot: SAFE MODE: nothing read, nothing started", !crbl.booted && !crbl.started && !crbl.on);
     cr_safe = 0;
     cr_ble_boot();
-    check("boot: On saved: started at power-on with the saved address (no calibration stored: measured at start)",
+    check("boot: On saved: not started in cr_ble_boot (before core 1, the audio, USB)", crbl.booted && !crbl.started);
+    cr_ble_start_boot();
+    check("boot: On saved: started at the last step with the saved address (no calibration stored: measured at start)",
           crbl.booted && crbl.on && crbl.started && crbl.cal && fm1_rf_cal_on && !memcmp(crbl_rec.addr, r.addr, 6));
+    fresh();
+    memcpy(st_obj, &r, sizeof r);
+    st_len = (int)sizeof r;
+    bootguard.failed = 1;
+    cr_ble_boot();
+    cr_ble_start_boot();
+    check("boot: On saved, the boot before failed (the watchdog): not started, owed to the next power-on",
+          crbl.on && !crbl.started && crbl.pending);
     fresh();
     r.flags = 0;
     memcpy(st_obj, &r, sizeof r);
     st_len = (int)sizeof r;
     cr_ble_boot();
+    cr_ble_start_boot();
     check("boot: Off saved (the default): not started", crbl.booted && !crbl.on && !crbl.started);
     fresh();
     cr_ble_boot();
@@ -305,6 +331,7 @@ static void t_boot(void)
     st_len = (int)sizeof r;
     cr_res_ok = 0;
     cr_ble_boot();
+    cr_ble_start_boot();
     check("boot: On saved but the region missing: not started", crbl.on && !crbl.started);
 }
 

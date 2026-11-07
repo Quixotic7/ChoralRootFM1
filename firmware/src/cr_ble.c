@@ -15,9 +15,13 @@
  *   loss  the notes a peer left on (held[]) end with note-offs through the same queue when the link goes or
  *         Bluetooth goes Off; USB and TRS notes keep sounding.
  *   start the radio's start-up holds the interrupts (the program from the resource region, and ~160 ms of
- *         calibration when no trims are stored): at power-on before the audio and core 1 (cr_ble_boot), or switched
- *         On with nothing sounding and no loop running; else it waits for such a moment (cr_ble_poll). Once started
- *         it stays started until the next power-on; Off stops the link and the advertising (ble_enable).
+ *         calibration when no trims are stored): only at power-on, the last step before the interrupts come on
+ *         (cr_ble_start_boot; main.c), so its interrupts are served at once, core 1 waits in its RAM loop and no
+ *         audio half is due. Never while the unit runs: 3y236 started it there when switched On and a unit froze
+ *         (the watchdog: "Dual Core Hang"), and a start at power-on before the audio, USB and core 1 left the
+ *         interrupts off for a second after it and the unit was never seen (3y238). Switched On while running: saved,
+ *         started at the next power-on. Once started it stays started; Off stops the link and the advertising
+ *         (ble_enable), On again resumes them.
  *   store the address, the flags (Bluetooth On), the bond and a copy of the radio's trims in their own object
  *         (storage.c OBJ_BLE, 0xA0000 / 0xA1000): never in a backup (a unit's pairing is not a musical setting),
  *         saved only when nothing sounds and no loop runs. SAFE MODE: never read, never started. */
@@ -42,7 +46,8 @@ static struct {
     volatile uint32_t rw, rr, tw, tr, rtw, rtr;
     volatile uint8_t ready, connected, lost, overflow, closing;
     uint8_t peeked_rt;
-    uint8_t on, started, cal, pending, dirty, booted;
+    uint8_t on, started, cal, pending, dirty, booted;   /* pending: On, the radio at the next power-on */
+    uint8_t boot_go;                      /* cr_ble_boot: start the radio at cr_ble_start_boot */
     uint8_t releasing;                    /* TIMER5: note-offs owed for what the peer held (the link went) */
     uint16_t held[16][8];                 /* bit n of [ch][k]: note k * 16 + n held by the peer */
     struct ble_rf_trims trims;
@@ -270,9 +275,17 @@ static void cr_ble_boot(void)                     /* power-on: before the audio 
     crbl.on = (uint8_t)!!(crbl_rec.flags & CRBL_ON);
     /* On saved, the region this build's (the program), and no failed start-up counted (a start that hung ends in the
      * watchdog: the boot guard counts it, and the next boot leaves the radio off; Off in the Options then) */
-    if (crbl.on && cr_res_ok && ble_boot_radio(1, bootguard.failed, crbl.cal))
-        crbl_start();
+    crbl.boot_go = (uint8_t)(crbl.on && cr_res_ok && ble_boot_radio(1, bootguard.failed, crbl.cal));
+    crbl.pending = (uint8_t)(crbl.on && !crbl.boot_go);
 }
+static void cr_ble_start_boot(void)               /* main.c: the interrupts still off, about to come on */
+{
+    if (!crbl.boot_go)
+        return;
+    crbl.boot_go = 0;
+    crbl_start();
+}
+static int cr_ble_running(void) { return crbl.started; }
 static int cr_ble_set(int on)
 {
     uint8_t f;
@@ -290,8 +303,7 @@ static int cr_ble_set(int on)
     if (crbl.started)
         ble_enable(on);
     crbl_unlock();
-    if (on && !crbl.started)
-        crbl.pending = 1;                         /* (started by cr_ble_poll at the first quiet moment) */
+    crbl.pending = (uint8_t)(on && !crbl.started); /* (the radio at the next power-on: never started while running) */
     return 1;
 }
 static int cr_ble_on(void) { return crbl.on; }
@@ -314,10 +326,6 @@ static void cr_ble_poll(void)                     /* the main loop */
 {
     if (!crbl.booted)
         return;
-    if (crbl.pending && crbl.on && crbl_quiet()) {
-        crbl.pending = 0;
-        crbl_start();
-    }
     if (crbl.dirty && flash_ok && !cr_safe && crbl_quiet()) {
         crbl_rec.magic = CRBL_MAGIC;
         crbl_rec.ver = 1;
@@ -334,7 +342,7 @@ static void cr_ble_status(char *d, uint32_t n)    /* the line under Options > Bl
     d[0] = 0;
     if (!cr_res_ok) { cu_cpy(d, "install ChoralRoot again", n); return; }
     if (!crbl.on) { cu_cpy(d, "MIDI over Bluetooth: off", n); return; }
-    if (!crbl.started) { cu_cpy(d, "starts when nothing plays", n); return; }
+    if (!crbl.started) { cu_cpy(d, "on at the next power-on", n); return; }
     if (ble_host_key_refused()) { cu_cpy(d, "forget ChoralRoot on the peer", n); return; }
     if (crbl.ready) { cu_cpy(d, "connected", n); return; }
     k = ble_gap_name(&p);                         /* the advertised name: ChoralRoot and 4 digits */

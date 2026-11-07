@@ -6,7 +6,7 @@
  * (hal/fm1_ble.h, fm1_ble_rf.h, fm1_rf_cal.h). The owner's choices (docs/BLE-LINK.md section 8): the FM-1 only (the
  * SMK-37 builds without it), the peripheral (a Mac, iPad or phone connects to "ChoralRoot XXXX"; no scanning), LE
  * legacy pairing Just Works with a bond, the stock-tested 27-octet link-layer packets, MIDI only (channel messages,
- * clock and transport; no SysEx), Off by default, saved, started before the audio at power-on. The radio's start-up
+ * clock and transport; no SysEx), Off by default, saved, the radio started only at power-on (3y238). The radio's start-up
  * program lives in the resource region (cr_res.h: BLE_RF_RES -> .res.ble). The glue: cr_ble.c. */
 #pragma once
 #define BLE_API static
@@ -27,8 +27,10 @@
 /* what the rest of the firmware calls (cr_ble.c) */
 static int cr_ble_emit(uint32_t pkt);            /* the audio ISR (usb.c midi_out_event): a packet for the peer */
 static void cr_ble_drain(void);                  /* TIMER5: the peer's packets into the MIDI input queue */
-static void cr_ble_boot(void);                   /* power-on, before the audio and core 1 */
-static void cr_ble_poll(void);                   /* the main loop: a start owed, a record to save */
+static void cr_ble_boot(void);                   /* power-on, before the audio and core 1: the record, the trims */
+static void cr_ble_start_boot(void);             /* power-on, the last step before the interrupts: the radio */
+static void cr_ble_poll(void);                   /* the main loop: a record to save */
+static int cr_ble_running(void);                 /* the radio started this power-on */
 static int cr_ble_set(int on);                   /* Options > Bluetooth: 0 refused (no region, no calibration) */
 static int cr_ble_on(void);
 static void cr_ble_forget(void);                 /* Options > Forget Bluetooth */
