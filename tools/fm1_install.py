@@ -1320,6 +1320,7 @@ BK_SELECT = 76                                    # a part to an engine and pool
 BK_STUB = 77                                      # a request to the boot stub and a restart (cr_backup.c crb_stub), --stub
 BK_PEAK = 78                                      # read-only: the audio ISR's worst cases since the last read (crb_peak), --debug
 BK_USB = 79                                       # read-only: ChoralRoot In's rate and its 48 kHz counters (crb_usb), --debug
+BK_BLE = 81                                       # read-only: Bluetooth, the radio's state (cr_ble.c cr_ble_debug), --debug
 STUB_RC = {1: "bad request", 3: "busy: close EDIT / SAVE on the FM-1, stop recording the loop",
            127: "no boot stub of version 2 or later on this firmware"}
 SELECT_RC = {1: "bad part or engine", 2: "bad pool position", 3: "busy: close EDIT / SAVE on the FM-1"}
@@ -2795,6 +2796,16 @@ def shed_voice_text(v):
 DEBUG_USB = ["ua_rate", "ua_rate_last_open", "ua_rate_sets", "ua_rate_changes", "ua_pk576", "ua_pk564", "ua_pk588",
              "ua_rs_blocks", "ua_rs_avg_us", "ua_rs_max_us", "ua_packet_max", "ua_48k_offered", "ua_48k_refused",
              "ua_replugs"]
+# 81 BLE's values (3y238, cr_ble.c cr_ble_debug, docs/BLE-LINK.md; FM-1 builds with Bluetooth; only appended): Options >
+# Bluetooth On, the radio started this power-on, a start owed at the next, where its trims came from (BLE_CAL), the
+# start's time in us (the interrupts held), a peer connected, MIDI subscribed, packets in / out, links lost; the radio's
+# breadcrumb (hal/fm1_ble_rf.h fm1_ble_bc) now and its interrupts, and what the run before left when a reset (not a
+# power-on) ended it (word, interrupts, op, burst op, address, stop); the boot guard's failed count; the start-up step
+DEBUG_BLE = ["ble_on", "ble_started", "ble_pending", "ble_cal", "ble_start_us", "ble_connected", "ble_ready",
+             "ble_rx", "ble_tx", "ble_losses", "ble_crumb", "ble_irqs", "ble_prev_crumb", "ble_prev_irqs",
+             "ble_prev_op", "ble_prev_gop", "ble_prev_addr", "ble_prev_stop", "ble_boot_failed", "ble_step"]
+BLE_CAL = ["none", "the stock VM (0xE8000)", "ChoralRoot's copy", "measured at the start (fm1_rf_cal.h)"]
+BLE_HEX = ("ble_crumb", "ble_prev_crumb", "ble_prev_addr")
 USB_RATE_OPTION = "Options > USB Rate"             # the entry's name on the unit (cr_ui.c O_NAME)
 
 
@@ -2826,12 +2837,13 @@ def stub_lines(d, out):
               file=out)
 
 
-def print_debug(vals, out, stub_only=False, peak=(), usb=()):
+def print_debug(vals, out, stub_only=False, peak=(), usb=(), ble=()):
     d = dict(zip(DEBUG_NAMES, vals))
     log = vals[len(DEBUG_NAMES):len(DEBUG_NAMES) + DEBUG_LOG]
     d.update(zip(DEBUG_TAIL, vals[len(DEBUG_NAMES) + DEBUG_LOG:]))
     d.update(zip(DEBUG_PEAK, peak))
     d.update(zip(DEBUG_USB, usb))
+    d.update(zip(DEBUG_BLE, ble))
     if stub_only:
         for k in [k for k in d if k.startswith("stub_")]:
             print(f"{k} {d[k]}" + (f" (0x{d[k]:08X})" if k in DEBUG_TAIL or k == "stub_detail" else ""), file=out)
@@ -2863,6 +2875,19 @@ def print_debug(vals, out, stub_only=False, peak=(), usb=()):
     for k in DEBUG_USB:
         if k in d:
             print(f"{k} {d[k]}", file=out)
+    for k in DEBUG_BLE:
+        if k in d:
+            print(f"{k} {d[k]}" + (f" (0x{d[k]:08X})" if k in BLE_HEX else
+                                   f" ({BLE_CAL[d[k]] if d[k] < len(BLE_CAL) else '?'})" if k == "ble_cal" else ""), file=out)
+    if "ble_started" in d:
+        print(f"Bluetooth: {'On' if d['ble_on'] else 'Off'}, the radio "
+              + (f"started in {d['ble_start_us']} us (trims: {BLE_CAL[d['ble_cal']] if d['ble_cal'] < len(BLE_CAL) else '?'}), "
+                 f"{d['ble_irqs']} radio interrupts since" if d["ble_started"] else
+                 "not started" + (" (owed to the next power-on)" if d["ble_pending"] else ""))
+              + (f"; a peer {'subscribed' if d['ble_ready'] else 'connected'}" if d["ble_connected"] else "")
+              + (f"; the run before ended in a reset at radio step {d['ble_prev_crumb'] >> 16 & 0xFF} "
+                 f"(word 0x{d['ble_prev_crumb']:08X}, {d['ble_prev_irqs']} interrupts)" if d["ble_prev_crumb"] else ""),
+              file=out)
     if "ua_rate_changes" in d:
         print(f"ChoralRoot In: {d['ua_rate']} Hz now, the last whole open at "
               f"{d['ua_rate_last_open'] or 'no rate (none yet)'}" + (" Hz" if d["ua_rate_last_open"] else "") +
@@ -2947,6 +2972,17 @@ def usb_values(link, timeout=1.0):
     if not r or r[0] != 1 or len(r) != 2 + 5 * r[1]:
         return {}
     return dict(zip(DEBUG_USB, [bk_r32(r, 2 + 5 * k) for k in range(r[1])]))
+
+
+def ble_values(link, timeout=1.0):
+    """81 BLE -> {name: value} (DEBUG_BLE), or {} from a build without Bluetooth (no answer, or "unsupported")"""
+    try:
+        r = BackupLink(link).request(BK_BLE, [], timeout)
+    except BackupError:
+        return {}
+    if not r or r[0] != 1 or len(r) != 2 + 5 * r[1]:
+        return {}
+    return dict(zip(DEBUG_BLE, [bk_r32(r, 2 + 5 * k) for k in range(r[1])]))
 
 
 def debug_values(link, timeout):
@@ -3159,13 +3195,15 @@ def run(a, backend, out, ask):
             except BackupError:
                 pk = None
             usb = usb_values(dev.link)            # (0.19: the rate and the 48 kHz counters; {} before)
+            ble = ble_values(dev.link) if usb else {}   # (3y238: Bluetooth; {} without it; a firmware without
+                                                        # 79 USB, before 0.19, has no 81 either: not asked)
         finally:
             dev.link.close()
         if not r or r[0] != 1 or len(r) != 2 + 5 * r[1]:
             raise BackupError("unexpected debug reply")
         peak = [bk_r32(pk, 2 + 5 * k) for k in range(pk[1])] if pk and pk[0] == 1 and len(pk) == 2 + 5 * pk[1] else []
         print_debug([bk_r32(r, 2 + 5 * k) for k in range(r[1])], out, peak=peak,
-                    usb=[usb[k] for k in DEBUG_USB if k in usb])
+                    usb=[usb[k] for k in DEBUG_USB if k in usb], ble=[ble[k] for k in DEBUG_BLE if k in ble])
         return 0
     if a.info:
         return run_info(up, out)

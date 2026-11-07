@@ -7325,3 +7325,15 @@ start only in the last step, once; a failed boot leaves it owed). MANUAL.md "Blu
 `sh tests/run_all.sh`: all 24 suites pass (install's numpy "longdouble" flake on the first run, passing again).
 **To check on the unit**: Dual Core On again first; Bluetooth On, off and on; visible in Audio MIDI Setup; the
 crash record's stage if it hangs (`bluetooth` = the start itself).
+
+3y239. **81 BLE in `--debug`.** The device session's dumps after the hang (side-session-notes `ble-step2/`) had no
+radio values. What they did show: `boot_stage 1` (loop: input), the window that holds `ui_input` and `cr_ble_poll`,
+so the watchdog reset came during or right after 3y236's run-time start, which 3y238 removed; `c1_bar 2` (the
+bar's hang); no crash record. The radio's own breadcrumb (`fm1_ble_bc`, .noinit) survives a watchdog reset but nothing
+read it, and the next reset overwrote it. Now `cr_ble_debug` answers a new read-only command, **81 BLE** (`cr_backup.c`;
+80 was IMPORT), which `fm1_install.py --debug` prints as `ble_*` and a summary line: On, started, a start owed, where
+the trims came from (none / the stock VM / our copy / measured at the start), the start's time with the interrupts
+held, connected, subscribed, packets in and out, links lost, the breadcrumb now and its interrupts, what the run
+before left when a reset ended it (word, interrupts, op, burst op, address, stop), the boot guard's failed count, the
+start-up step. Asked only of a firmware that answers 79 USB (0.19 and later). `cr_ble_test`: 55 checks. All suites
+pass (install's timing check caught the extra request on old firmware first).

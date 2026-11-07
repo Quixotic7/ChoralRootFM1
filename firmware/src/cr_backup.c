@@ -54,7 +54,7 @@
 #define CRB_HDR1 0x46u
 #define CRB_HDR2 0x4Cu
 enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72, CRB_DEBUG = 73, CRB_SCREEN, CRB_CORE1_TEST, CRB_SELECT,
-       CRB_STUB, CRB_PEAK, CRB_USB };               /* (80 was IMPORT, 0.22 .. 0.29: 0.21's slots into the pool) */
+       CRB_STUB, CRB_PEAK, CRB_USB, CRB_BLE = 81 }; /* (80 was IMPORT, 0.22 .. 0.29: 0.21's slots into the pool) */
 #define CRB_LOOP0 40u                                /* loop slot k: id 40 + k */
 #define CRB_CZB 14u                                  /* 14..21: the CZ-1 banks A..H */
 #define CRB_FAVS 23u                                 /* 23: the favourites (after the sounds they mark) */
@@ -1200,6 +1200,19 @@ static int crb_handle(const uint8_t *f, uint32_t n)
         if (na)
             return 0;
         crb_usb();
+        break;
+#endif
+#if CR_BLE
+    case CRB_BLE:                                    /* (Bluetooth: the radio's state, cr_ble.c cr_ble_debug, 3y238) */
+        if (na)
+            return 0;
+        {
+            uint32_t v[CRBL_DBG_N], k = cr_ble_debug(v), i;
+            crb_b(1);
+            crb_b(k);
+            for (i = 0; i < k; i++)
+                crb_u32(v[i]);
+        }
         break;
 #endif
     case CRB_STUB:                                   /* (the boot stub's test and rescue requests) */

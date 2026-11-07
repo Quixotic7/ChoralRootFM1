@@ -335,6 +335,30 @@ static void t_boot(void)
     check("boot: On saved but the region missing: not started", crbl.on && !crbl.started);
 }
 
+static void t_debug(void)
+{
+    uint32_t v[CRBL_DBG_N];
+    crbl_rec_t r;
+    fresh();
+    memset(&r, 0, sizeof r);
+    r.magic = CRBL_MAGIC;
+    r.ver = 1;
+    r.flags = CRBL_ON;
+    r.valid = 1;
+    memcpy(st_obj, &r, sizeof r);
+    st_len = (int)sizeof r;
+    cr_ble_boot();
+    cr_ble_start_boot();
+    ble_app_midi_in(pk(0x90, 60, 100), 0, 0);
+    check("81 BLE: 20 values: On, started, nothing owed, the trims measured at the start (3), a packet in",
+          cr_ble_debug(v) == CRBL_DBG_N && v[0] == 1u && v[1] == 1u && v[2] == 0u && v[3] == 3u && v[7] == 1u &&
+          v[18] == 0u);
+    crbl.connected = 1;
+    ble_app_state();
+    (void)cr_ble_debug(v);
+    check("81 BLE: a link lost counted", v[9] == 1u && v[5] == 0u);
+}
+
 int main(void)
 {
     t_out();
@@ -342,6 +366,7 @@ int main(void)
     t_loss();
     t_onoff();
     t_boot();
+    t_debug();
     printf("cr_ble: %s (%d failed)\n", fails ? "FAILED" : "all passed", fails);
     return fails;
 }

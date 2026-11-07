@@ -48,6 +48,8 @@ static struct {
     uint8_t peeked_rt;
     uint8_t on, started, cal, pending, dirty, booted;   /* pending: On, the radio at the next power-on */
     uint8_t boot_go;                      /* cr_ble_boot: start the radio at cr_ble_start_boot */
+    uint8_t cal_from;                     /* 0 none, 1 the stock VM, 2 our copy, 3 measured at start (fm1_rf_cal.h) */
+    uint32_t start_us, rx_n, tx_n, losses; /* (81 BLE: the start's time with the interrupts held, packets, links lost) */
     uint8_t releasing;                    /* TIMER5: note-offs owed for what the peer held (the link went) */
     uint16_t held[16][8];                 /* bit n of [ch][k]: note k * 16 + n held by the peer */
     struct ble_rf_trims trims;
@@ -91,6 +93,7 @@ BLE_API int ble_app_midi_peek(uint32_t *pkt, uint32_t *ms)
 BLE_API void ble_app_midi_pop(void)
 {
     RING_PUBLISH();
+    crbl.tx_n++;
     if (crbl.peeked_rt)
         crbl.rtr++;
     else
@@ -107,6 +110,7 @@ BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last)
         return;
     }
     at = crbl.rw % CRBL_Q;
+    crbl.rx_n++;
     back = (uint32_t)(last - ts) & 0x1FFFu;       /* how long before the packet's newest event this one was */
     crbl.rx[at] = pkt;
     crbl.rx_ms[at] = fm1_ms - (back < 1000u ? back : 0u);
@@ -116,8 +120,10 @@ BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last)
 BLE_API void ble_app_state(void)
 {
     uint8_t ready = (uint8_t)(ble_midi_ready() && !crbl.closing), connected = (uint8_t)ble_connected();
-    if ((crbl.ready && !ready) || (crbl.connected && !connected))
+    if ((crbl.ready && !ready) || (crbl.connected && !connected)) {
         crbl.lost = 1;
+        crbl.losses++;
+    }
     if (!connected)
         crbl.closing = 0;
     crbl.connected = connected;
@@ -237,7 +243,9 @@ static void crbl_start(void)                      /* the radio, once a power-on:
     }
     ie = fm1_icfg();
     fm1_irq_off();
+    i = fm1_ticks();
     ble_hw_wl82_start(&crbl.trims);               /* (hal/fm1_ble_rf.h: the program from the resource region) */
+    crbl.start_us = (fm1_ticks() - i) / FM1_TICKS_PER_US;
     fm1_icfg_set(ie);
     ble_init(crbl_rec.addr, 1);
     ble_ll_advertise(1);                          /* visible: "ChoralRoot XXXX" */
@@ -259,7 +267,8 @@ static void cr_ble_boot(void)                     /* power-on: before the audio 
         memset(&crbl_rec, 0, sizeof crbl_rec);
     memset(&info, 0, sizeof info);
     complete = ble_vm_scan(crbl_flash_read, 0, &info, &vm, 0, 0);
-    crbl.cal = (uint8_t)(ble_rf_choose(complete, &vm, info.area, crbl_rec.rf, &crbl.trims, &save) != BLE_RF_NONE);
+    crbl.cal_from = (uint8_t)ble_rf_choose(complete, &vm, info.area, crbl_rec.rf, &crbl.trims, &save);
+    crbl.cal = (uint8_t)(crbl.cal_from != BLE_RF_NONE);
     if (save)
         crbl.dirty = 1;
     if (!crbl.cal) {                              /* none stored: the radio measures its own at start (fm1_rf_cal.h,
@@ -268,6 +277,7 @@ static void cr_ble_boot(void)                     /* power-on: before the audio 
         crbl.trims = sdk;
         fm1_rf_cal_on = 1;
         crbl.cal = 1;
+        crbl.cal_from = 3;
     }
     ble_hw_wl82_attach();                         /* the BLE vectors, masked */
     fm1_ble_crumb_boot();
@@ -286,6 +296,42 @@ static void cr_ble_start_boot(void)               /* main.c: the interrupts stil
     crbl_start();
 }
 static int cr_ble_running(void) { return crbl.started; }
+/* 81 BLE (cr_backup.c; fm1_install.py --debug DEBUG_BLE, in this order, only ever appended): On, started, a start owed
+ * at the next power-on, where the trims came from (0 none, 1 the stock VM at 0xE8000, 2 our copy, 3 measured at the
+ * start), the start's time in us with the interrupts held, a peer connected, MIDI ready (subscribed), the packets in
+ * and out, the links lost; then the radio's breadcrumb (hal/fm1_ble_rf.h fm1_ble_bc, .noinit): now and its interrupt
+ * count, and what the last run left when a reset (not a power-on) ended it: its word, interrupts, op, burst op,
+ * address, stop; the boot guard's failed count; the BLE start-up step reached (the word's bits 16..23) */
+static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N])
+{
+    uint32_t k = 0;
+    v[k++] = crbl.on;
+    v[k++] = crbl.started;
+    v[k++] = crbl.pending;
+    v[k++] = crbl.cal_from;
+    v[k++] = crbl.start_us;
+    v[k++] = crbl.connected;
+    v[k++] = crbl.ready;
+    v[k++] = crbl.rx_n;
+    v[k++] = crbl.tx_n;
+    v[k++] = crbl.losses;
+#ifndef FM1_BLE_FAKE_H                            /* (tests/ble_fake: no breadcrumb) */
+    v[k++] = fm1_ble_bc.now;
+    v[k++] = fm1_ble_bc.irqs;
+    v[k++] = fm1_ble_bc.prev;
+    v[k++] = fm1_ble_bc.prev_irqs;
+    v[k++] = fm1_ble_bc.prev_op;
+    v[k++] = fm1_ble_bc.prev_gop;
+    v[k++] = fm1_ble_bc.prev_addr;
+    v[k++] = fm1_ble_bc.prev_stop;
+#else
+    for (; k < 18u; k++)
+        v[k] = 0;
+#endif
+    v[k++] = bootguard.failed;
+    v[k++] = v[10] >> 16 & 0xFFu;
+    return k;
+}
 static int cr_ble_set(int on)
 {
     uint8_t f;
