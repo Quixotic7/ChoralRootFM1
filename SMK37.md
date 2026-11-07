@@ -68,12 +68,12 @@ so the whole keybed plays roots. The SMK-37's buttons and knobs map onto the FM-
 | Pitch wheel | bends the chord and the bass part (their channels' bend range: 2 semitones unless set over MIDI); also sent on the CHORD and BASS MIDI channels |
 | Mod wheel | vibrato on both parts (5.5 Hz, up to half a semitone at the top) and the sounds' mod wheel source; also sent as CC 1 |
 | Pedal jack | Options > Pedal: `Sustain` (the default), a switch pedal holds the notes of both parts, sent as CC 64; `Expression`, an expression pedal sets both parts' expression, sent as CC 11 ([The pedal jack](#the-pedal-jack)) |
+| TRS jack | MIDI out: everything USB MIDI sends, with or without a computer. Options > TRS MIDI Out: `On` (the default) or `Off` ([The TRS jack](#the-trs-jack)) |
 | Options > Key Touch | `Dynamic` (the SMK-37's default): every key as played, its two contacts through the unit's factory curve; `Fixed`: every key at Options > Velocity (1..127). Velocity Sens shapes how much the velocity changes the level, as on the FM-1 |
 | OCTAVE- held at power-on | update mode (OCTAVE-'s light flashes three times; install a package, or switch off and on) |
 | OCTAVE- + OCTAVE+ held at power-on | HARDWARE CALIBRATION (the screen asks for the FM-1's names, the table above) |
 | OCTAVE- + OCTAVE+ + PATCH held 5 s | update mode |
 
-The SMK-37's TRS jack is a MIDI output, and this build does not use it; there is no TRS MIDI IN. MIDI works over USB.
 The SMK-37's button lights are on or off: the FM-1's dim glow of idle buttons does not show.
 
 ### The pedal jack
@@ -92,6 +92,24 @@ assuming it.
   BASS channels. Toe down (a lower reading, as the stock firmware reads the jack) is more. The range is learnt as you
   move the pedal: after plugging it in, sweep it once heel to toe. Nothing is sent until the pedal moves, so an empty
   jack leaves the parts at full expression; pulling the pedal out puts them back at full.
+
+### The TRS jack
+
+The SMK-37's 3.5 mm TRS jack is a MIDI output (there is no TRS MIDI IN). Everything ChoralRoot sends over USB MIDI also
+goes out of it, with or without a computer on USB: the parts' notes on their MIDI channels (Options > MIDI Perform,
+MIDI Bass, MIDI Raw Chord), the wheels, the pedal, and the clock when Options > MIDI Clock is `OUT` (Start, 24 pulses a
+beat, Stop). Backups and sound dumps (SysEx) stay on USB, and nothing that comes in over USB is passed through. A TRS
+Type A to DIN adapter connects a synth's MIDI IN; the SMK-37's jack was seen working with one into a Behringer TD-3
+(issue 42).
+
+Options > TRS MIDI Out turns it `Off` (kept by the global save, SAVE held): the jack then sends only what releases
+notes it already played (note-offs, the sustain pedal up, all notes off, the pitch bend back to the centre), so
+nothing it started is left on. The jack carries about 2,500 bytes a second (a note in about 1.2 ms). A burst bigger
+than its 128-byte buffer drops whole note-ons and wheel steps, never note-offs; the clock goes ahead of waiting notes.
+
+The driver is Skiff's (illuminus5, [Skiff](https://github.com/illuminus5/skiff), GPL-3.0), brought to ChoralRoot by
+finlaysteven1-netizen ([issue 42](https://github.com/Quixotic7/ChoralRootFM1/issues/42)), after genkigenki's hardware
+notes (UART1 TX on PC7, 31250 baud).
 
 ### What the FM-1 has and the SMK-37 does not
 
@@ -302,6 +320,13 @@ What no test here can answer, in the order to try it. Note the model, the packag
     filter picture names each type. Then play dense FM TONE chords with Dual Core On for a few minutes: any crash or
     click, say which sound.
 
+15. **The TRS jack (issue 42).** A TRS Type A to DIN adapter into a synth's MIDI IN, Options > MIDI Perform / MIDI
+    Bass on its channel: play chords and the bass, with and without a computer on USB. Seen working on an SMK-37 Pro;
+    an **Elite** or **MKE-P37** report, a `-1core` package's, and a long session's (an hour of playing, the loop
+    running with Options > MIDI Clock `OUT`: notes stuck, the synth's tempo drifting) are what is missing. Then
+    Options > TRS MIDI Out `Off` with a chord held: let go, the synth's notes end and nothing new plays. If your
+    adapter is Type B, say so (a Type B synth stays silent on a Type A jack).
+
 Also worth a line: whether `fm1_install.py --info` shows a unit ID (`unit ID: XXXXXXXX`) and whether two SMK-37s show
 different ones (it is read from the flash chip, whose maker differs from the FM-1's).
 
@@ -309,3 +334,6 @@ different ones (it is read from the flash chip, whose maker differs from the FM-
 
 The SMK-37 port, its board layer, flash map, installers' SMK support and this page's first version are genkigenki's
 (M. Geisler, genkigenki / makkuro), from the porting guide [fm1-to-smk37](https://github.com/genkigenki/fm1-to-smk37).
+The TRS jack's MIDI out is Skiff's driver (illuminus5, [Skiff](https://github.com/illuminus5/skiff), GPL-3.0-only),
+brought over and tested on an SMK-37 Pro by finlaysteven1-netizen
+([issue 42](https://github.com/Quixotic7/ChoralRootFM1/issues/42)).

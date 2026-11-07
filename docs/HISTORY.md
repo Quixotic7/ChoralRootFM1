@@ -6963,3 +6963,38 @@ Clock Out steady, 116.05 BPM at a tempo of 116 (+447 ppm against the Mac, no los
 `SHA256SUMS`): XIP 557,640 of 573,440 (97.2 %), 1-core 554,500. `web/releases.json` first with the sha256s, 0.29.1's
 entry given its going-back note, `docs/releases/0.29.2.md`, MANUAL.md's first line. `python3 tests/releases_test.py`,
 `CR_VERSION=0.29.2 sh tests/run_all.sh`. Tagged v0.29.2: release.yml builds, signs and publishes, pages.yml the site.
+
+## 2026-11-06 (SMK-37: the TRS jack's MIDI out)
+
+3y226. **SMK-37: the TRS jack is a MIDI out (GitHub issue 42).** finlaysteven1-netizen (2026-11-07): "TRS MIDI out
+works on the SMK-37 Pro", a patch on the current source with a Behringer TD-3 on a TRS Type A to DIN cable; the owner:
+"Please see this". Their commit (07a57d1f, kept as theirs): Skiff's `firmware/hal/smk_uart_tx.h` as it is (illuminus5,
+GPL-3.0-only, Skiff 2.2 commit 76b5f9c: UART1 TX on PC7 at 31250 baud as genkigenki's hardware notes set it up, a
+128-byte ring drained by the 10 kHz TIMER5 tick, a realtime slot ahead of it, a 2 ms timeout), its init before
+TIMER5 starts, its tick at the top of `fm1_timer5_irq`, and `usb.c midi_out_trs` from `midi_out_event`: every USB-MIDI
+packet ChoralRoot sends also goes out of the jack, with or without a USB host. Skiff's own notes list the driver as not
+yet checked on a unit: this is its first seen working. Review (on hardware no one here has): PC7 is free on the SMK
+(the FM-1's LCD CS; the SMK's LCD is PC8 / PB5..7, its pad LEDs PC10, the codec PC0/1/2/6, mux B PC9; nothing writes
+PORTC at run time but the LCD's and pad LEDs' own bits), the registers are genkigenki's (01-hardware.md section 9), the
+FM-1's TRS MIDI IN stays off on the SMK (choralroot.c FELUCCA_UART). One producer (the audio ISR: the engine's
+callbacks, the wheels, the pedal, the clock) and one consumer (TIMER5, priority 4 above ALNK0's 3, on core 0 as the
+audio ISR is) make the ring safe with a compiler barrier. The tick, from the listing: 8 instructions idle, 12 while a
+byte is on the wire (one UART read), about 28 when it starts the next (two reads, a read-modify-write, the write), so
+under 0.5 us of each 100 us, about 6 us of a 2.9 ms audio block at worst; nothing in it waits. The update loader
+leaves it out. Found and fixed (7f3e6073): the SMK-37 browser emulator no longer built (`tests/hostsim.c` takes `usb.c`
+with BOARD_SMK37 but not the header: `smk_ut_w` undeclared), so the packet's bytes moved into the header
+(`smk_uart_tx_pkt`), which defines `MIDI_OUT_TRS`, and `usb.c` calls it only where that is defined (the device's
+choralroot.c alone includes the header); a sustain pedal up and the bend back to the centre join the note-offs and CC
+120 / 123 that get in whenever their bytes fit (the patch could drop a pedal-up near a full ring: the synth's notes
+held); the pace stated as it is (a byte every fourth tick, about 2,500 bytes a second, not the wire's 3,125); Skiff's
+THRU notes dropped (ChoralRoot has no MIDI thru; SysEx stays on USB's own ring). No running status: every message keeps
+its status byte, so a message dropped whole never leaves the next under the wrong one. Added (0db58af2): **Options >
+TRS MIDI Out**, `On` (the default) / `Off`, after MIDI Clock, the SMK-37's list only: Off lets only the releases
+through, so nothing the jack started is left on; the session's byte 25 (`smk_trs_off`, 0 = On: an older or FM-1 record
+reads On; the reserve 118). Tests: `tests/smk_trs_test.c` (run_tests.sh, a modelled UART: bytes in order, the clock
+ahead, a 100-note burst that never blocks or cuts a message while the releases get in, Off, CIN sizes, a UART that
+never answers), `test_web_emu_smk.mjs` (the entry after MIDI Clock, On, Off, kept over SAVE held and a power cycle),
+`cr_settings_test` (byte 25). The FM-1 build is byte for byte main's (`choralroot.fwsc` b96afe10...09cc before and
+after). SMK-37 Pro XIP 559,696 of 573,440 (97.6 %, +832 B), RAM +160 B; 1-core 555,940 (the MKE-P37's 555,924: its name); the Elite and MKE-P37 the
+Pro's code with their names. LICENSING.md (Skiff's row), SMK37.md ("The TRS jack", the controls table, What to test
+15, Credits), SETTINGS.md. Not tested on a unit: the Elite, the MKE-P37, a 1-core package, a long session, Off.
