@@ -357,6 +357,24 @@ static void t_debug(void)
     ble_app_state();
     (void)cr_ble_debug(v);
     check("81 BLE: a link lost counted", v[9] == 1u && v[5] == 0u);
+    fresh();
+    memcpy(st_obj, &r, sizeof r);
+    st_len = (int)sizeof r;
+    cr_ble_boot();
+    check("a radio boot: cr_ble_will_start says so (main.c applies stock's supplies then)", cr_ble_will_start() == 1);
+    cr_ble_supplies(0);
+    cr_ble_start_boot();
+    (void)cr_ble_debug(v);
+    check("the supplies failed (a P33 timeout): no radio this boot, owed to the next; 81 BLE ble_supplies 2",
+          !crbl.started && crbl.pending && cr_ble_will_start() == 0 && v[20] == 2u);
+    fresh();
+    memcpy(st_obj, &r, sizeof r);
+    st_len = (int)sizeof r;
+    cr_ble_boot();
+    cr_ble_supplies(1);
+    cr_ble_start_boot();
+    (void)cr_ble_debug(v);
+    check("the supplies applied: the radio started; ble_supplies 1", crbl.started && v[20] == 1u);
 }
 
 int main(void)

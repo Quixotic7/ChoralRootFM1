@@ -155,7 +155,7 @@ static void fm1_fault(const fm1_crash_t *c)
     uint32_t t0;
     fm1_audio_stop();
     lcd_fill(0, 0, 240, 240, UI_CRASH_BG);            /* fixed, outside the palettes */
-    draw_text_line(0, 8, 240, CR_FONT_M, "FELUCCA CRASH", UI_CRASH_INK, UI_CRASH_BG, 1);
+    draw_text_line(0, 8, 240, CR_FONT_M, "CHORALROOT CRASH", UI_CRASH_INK, UI_CRASH_BG, 1);
     hexs(b, c->vec);
     draw_text_line(10, 40, 220, CR_FONT_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
     hexs(b, c->pc);
@@ -274,8 +274,11 @@ static void fm1_main(void)
     CR_STAGE(BS_SOUNDS);
     felucca_init();
 #if CR_BLE
-    cr_ble_boot();                                      /* Bluetooth: its record, the trims; the radio started now
-                                                         * when On was saved, before core 1 and the audio (cr_ble.c) */
+    cr_ble_boot();                                      /* Bluetooth: its record, the trims (the radio: below) */
+    if (cr_ble_will_start())                            /* a radio boot: stock V15's supplies first, before core 1,
+                                                         * as Melodee 1.6.1 (hal/fm1_power.h fm1_power_stock, 3y240);
+                                                         * a P33 timeout: no radio this boot */
+        cr_ble_supplies(cr_rails_stock());
 #endif
 #if CR_CPU1
     CR_STAGE(BS_CPU1);                                  /* (a hang here: prev_stage "core 1", the boot guard counts it) */

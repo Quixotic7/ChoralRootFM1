@@ -48,6 +48,7 @@ static struct {
     uint8_t peeked_rt;
     uint8_t on, started, cal, pending, dirty, booted;   /* pending: On, the radio at the next power-on */
     uint8_t boot_go;                      /* cr_ble_boot: start the radio at cr_ble_start_boot */
+    uint8_t supplies;                     /* 0 not asked, 1 stock's supplies applied, 2 a P33 timeout (no radio) */
     uint8_t cal_from;                     /* 0 none, 1 the stock VM, 2 our copy, 3 measured at start (fm1_rf_cal.h) */
     uint32_t start_us, rx_n, tx_n, losses; /* (81 BLE: the start's time with the interrupts held, packets, links lost) */
     uint8_t releasing;                    /* TIMER5: note-offs owed for what the peer held (the link went) */
@@ -296,6 +297,15 @@ static void cr_ble_start_boot(void)               /* main.c: the interrupts stil
     crbl_start();
 }
 static int cr_ble_running(void) { return crbl.started; }
+static int cr_ble_will_start(void) { return crbl.boot_go; }
+static void cr_ble_supplies(int ok)               /* (a failed supply sequence: no radio; owed to the next power-on) */
+{
+    crbl.supplies = (uint8_t)(ok ? 1 : 2);
+    if (!ok) {
+        crbl.boot_go = 0;
+        crbl.pending = crbl.on;
+    }
+}
 /* 81 BLE (cr_backup.c; fm1_install.py --debug DEBUG_BLE, in this order, only ever appended): On, started, a start owed
  * at the next power-on, where the trims came from (0 none, 1 the stock VM at 0xE8000, 2 our copy, 3 measured at the
  * start), the start's time in us with the interrupts held, a peer connected, MIDI ready (subscribed), the packets in
@@ -330,6 +340,7 @@ static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N])
 #endif
     v[k++] = bootguard.failed;
     v[k++] = v[10] >> 16 & 0xFFu;
+    v[k++] = crbl.supplies;
     return k;
 }
 static int cr_ble_set(int on)

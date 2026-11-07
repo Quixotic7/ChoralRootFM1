@@ -7337,3 +7337,34 @@ held, connected, subscribed, packets in and out, links lost, the breadcrumb now 
 before left when a reset ended it (word, interrupts, op, burst op, address, stop), the boot guard's failed count, the
 start-up step. Asked only of a firmware that answers 79 USB (0.19 and later). `cr_ble_test`: 55 checks. All suites
 pass (install's timing check caught the extra request on old firmware first).
+
+## 2026-11-07 (Bluetooth with both cores: stock's supplies; "CHORALROOT CRASH")
+
+3y240. **The crash at a radio boot with both cores, and stock's supply setup.** On E81CE2F7, b79e87e5 with Dual Core
+Off started the radio at power-on in 13.5 ms on the stock VM's trims (`ble_cal 1`) and advertised (200 radio
+interrupts in 21 s). With Dual Core On and a power cycle the owner saw the crash screen; the record was lost to the
+next power-off (the dump after it: one core again, `boot_reset` a power-on, `crash_count 0`). Read from the code and
+Melodee: what differs at a radio boot with both cores is the supply. ChoralRoot's dual-core rails (hal/fm1_power.h,
+Melodee PR 21 as fm1-x0x ships it) raise VDC14 to 5 (1.50 V) and SYSVDD to 14 (1.35 V) and leave the 1.3 V rail on its
+LDO; with one core the boot loader's 3 / 11 stay. Stock V15 runs its radio on DCDC13 with VDC14 7 (1.60 V), VDDIO
+3.2 V and SYSVDD 15, and Melodee replaced PR 21's ladder by exactly that sequence on 2026-10-15 (5e66df3, "fix(power):
+match stock V15 supply startup"; its BUILDING.md "The stock supply setup"): Melodee 1.6.1, the build whose Bluetooth
+worked on this unit with both cores in step 0, runs it at every boot. **The change**: a boot that will start the radio
+(Bluetooth On saved, the region, trims, no failed boot) applies stock's supply sequence before core 1 starts
+(`fm1_power_stock`, ported from Melodee 5e66df3 with its credit: LDO13 on, DCDC13 on, LDO13 off with stock's
+1,000-pass waits, the analog words 1, 5, 6, 7, 8, SYSVDD drive, VDDIOM / VDDIOW 3.2 V, VDC14, stock's reads,
+RC_250k_EN, analog keep, VDDOK_DIS, register 0x17 bit 5, SYSVDD last); the dual-core ladder then has nothing to raise.
+**VDC14 and SYSVDD stay at ChoralRoot's caps (5 / 14) by default**: the caps are Charles Vestal's review's (the
+datasheet's 1.55 V on VDC14), so lifting them to stock's 7 / 15 is the owner's call; `FM1_POWER_STOCK_LEVELS=1
+./build.sh` builds that variant. A P33 timeout stops the sequence and leaves the radio off this boot (81 BLE
+`ble_supplies`: 0 not asked, 1 applied, 2 a timeout). A boot without the radio is unchanged. Tests: `cr_cpu1_test`
+(the mock P33: stock's 17 writes in stock's order, LDO13 held until DCDC13 is on, the caps, never lower, a timeout
+stops it; 86 checks), `cr_ble_test` (the hook; 59 checks); `sh tests/run_all.sh`: all 24 suites pass. Not settled
+without the crash record: whether the supply is the cause. If the capped build still crashes with both cores, the
+next try is the stock-levels build, then a radio boot with core 1 held until the radio has started.
+
+**"CHORALROOT CRASH".** The owner: "also make that read 'ChoralRoot Flash' we are no longer Felucca" (the crash
+screen's title, main.c fm1_fault: "FELUCCA CRASH" -> "CHORALROOT CRASH"). It was the only on-screen Felucca string
+(grep of firmware/: SAFE MODE, UPDATE MODE, USB BOOT and UBOOT never said it). Kept, being protocol: the update
+loader's package tag "FELUCCA-LOADER-1" (crt0_ldr.S, stub_core.h, ota.c) and its USB identity "ota-FM-1_900"; the
+credits in the docs and LICENSING.md. No golden draws that screen (the emulator has no crash screen).

@@ -147,9 +147,11 @@ static uint8_t cr_c1_injected;       /* test builds: 75 CORE1_TEST injected a fa
 static void cr_rails_record(void)                   /* the boot loader's levels (P33 reads only) */
 {
     fm1_power_record();
-    cr_dbg.rail_boot[0] = cr_dbg.rail_now[0] = fm1_power.boot[FM1_RAIL_SYSVDD];   /* (now = boot until a raise:
-                                                                                    * Dual Core Off read 0 before) */
-    cr_dbg.rail_boot[1] = cr_dbg.rail_now[1] = fm1_power.boot[FM1_RAIL_VDC14];
+    cr_dbg.rail_boot[0] = fm1_power.boot[FM1_RAIL_SYSVDD];   /* (now = boot until a raise: Dual Core Off read 0 before;
+                                                             * a radio boot's stock supplies already in now, 3y240) */
+    cr_dbg.rail_now[0] = fm1_power.now[FM1_RAIL_SYSVDD];
+    cr_dbg.rail_boot[1] = fm1_power.boot[FM1_RAIL_VDC14];
+    cr_dbg.rail_now[1] = fm1_power.now[FM1_RAIL_VDC14];
 }
 static void cr_rails_now(void)
 {
@@ -157,6 +159,14 @@ static void cr_rails_now(void)
     cr_dbg.rail_now[1] = fm1_power.now[FM1_RAIL_VDC14];
 }
 static void cr_rails_init(void) { fm1_power_init(); cr_rails_now(); }       /* IRQs off: power-on */
+static int cr_rails_stock(void)                    /* a radio boot (cr_ble.c): stock's supplies, fm1_power.h */
+{
+    int ok;
+    cr_rails_record();
+    ok = fm1_power_stock();
+    cr_rails_now();
+    return ok;
+}
 #define CR_C1_TEST_NOSPLIT 0
 #define CR_C1_TEST_SHARE 0
 #define CR_C1_TEST_FX0 0
@@ -311,6 +321,7 @@ static void cr_rails_init(void)
     if (cr_dbg.rail_now[0] < 14u) cr_dbg.rail_now[0] = 14;
     if (cr_dbg.rail_now[1] < 5u) cr_dbg.rail_now[1] = 5;
 }
+static int cr_rails_stock(void) { cr_rails_record(); cr_rails_init(); return 1; }
 #endif
 
 /* a stage's time without the reading of the clock (the host's counter costs ~6.6 k instructions a reading: measured

@@ -44,8 +44,10 @@
 #define FM1_POWER_MOCK 1
 static uint8_t p33[256];
 static uint8_t p33_log[64][2];
-static uint32_t p33_writes, p33_delays;
-static uint8_t fm1_p33_read(uint32_t a) { return p33[a & 255u]; }
+static uint32_t p33_delays;
+static uint32_t fm1_p33_timeouts, p33_fail_at = 0xFFFFFFFFu, p33_settles;   /* (from that write on, reads time out) */
+static uint32_t p33_writes;
+static uint8_t fm1_p33_read(uint32_t a) { if (p33_writes >= p33_fail_at) { fm1_p33_timeouts++; return 0xFF; } return p33[a & 255u]; }
 static void fm1_p33_write(uint32_t a, uint8_t d)
 {
     if (p33_writes < 64u) { p33_log[p33_writes][0] = (uint8_t)a; p33_log[p33_writes][1] = d; }
@@ -53,6 +55,9 @@ static void fm1_p33_write(uint32_t a, uint8_t d)
     p33[a & 255u] = d;
 }
 static void fm1_delay_us(uint32_t us) { (void)us; p33_delays++; }
+static void fm1_p33_or(uint32_t a, uint8_t d) { fm1_p33_write(a, (uint8_t)(p33[a & 255u] | d)); }
+static void fm1_p33_and(uint32_t a, uint8_t d) { fm1_p33_write(a, (uint8_t)(p33[a & 255u] & d)); }
+static void fm1_power_settle(void) { p33_settles++; }
 #include "../firmware/hal/fm1_power.h"
 
 static int fails, checks;
@@ -336,6 +341,49 @@ static void rails(void)
     printf("  rails (mock P33): init VDC14 3 -> 5 then SYSVDD 11 -> 14, a step a write, other bits kept; never lower\n");
 }
 
+/* the stock supply setup for a radio boot (hal/fm1_power.h fm1_power_stock, 3y240; Melodee 5e66df3) */
+static void rails_stock(void)
+{
+    static const uint8_t regs[] = {0x00, 0x00, 0x00, 0x01, 0x05, 0x06, 0x07, 0x08, 0x09, 0x05, 0x06, 0x05, 0x00, 0x16,
+                                   0x02, 0x17, 0x09};
+    uint32_t i, ok = 1;
+    memset(p33, 0, sizeof p33);
+    memset(&fm1_power, 0, sizeof fm1_power);
+    p33[0x09] = 11u;
+    p33[0x06] = 3u;
+    p33[0x05] = 4u;
+    p33[0x00] = 0x04u;                             /* the boot loader's LDO13 */
+    p33[0x17] = 0x20u;
+    p33_writes = p33_settles = 0;
+    CHECK(fm1_power_stock() == 1, "stock supplies: done");
+    for (i = 0; i < sizeof regs; i++)
+        ok &= p33_log[i][0] == regs[i];
+    CHECK(ok && p33_writes == sizeof regs && p33_settles == 3u,
+          "stock supplies: stock's order of 17 P33 writes (LDO13 / DCDC13 / LDO13 off with 3 waits ... SYSVDD last)");
+    CHECK((p33_log[0][1] & 0x04u) && (p33_log[1][1] & 0x0Cu) == 0x0Cu && (p33_log[2][1] & 0x0Cu) == 0x08u,
+          "stock supplies: LDO13 kept on until DCDC13 is on, then off");
+    CHECK((p33[0x00] & 0x8Cu) == 0x88u && (p33[0x05] & 0x37u) == 0x34u && (p33[0x09] & 0x10u) && (p33[0x02] & 0x40u) &&
+          !(p33[0x17] & 0x20u) && !(p33[0x16] & 0x3Fu), "stock supplies: DCDC13, RC_250k, VDDIO 3.2 V, drive, VDDOK_DIS");
+    CHECK((p33[0x06] & 7u) == 5u && (p33[0x09] & 15u) == 14u && fm1_power.now[FM1_RAIL_VDC14] == 5u &&
+          fm1_power.now[FM1_RAIL_SYSVDD] == 14u && fm1_power.boot[FM1_RAIL_VDC14] == 3u,
+          "stock supplies: VDC14 and SYSVDD at ChoralRoot's caps (5 / 14), not stock's 7 / 15 (FM1_POWER_STOCK_LEVELS 0)");
+    CHECK((p33_log[5][1] & 7u) == 4u, "stock supplies: register 6's word as stock's (0x0C: VDC14 4) before the field");
+    fm1_power.recorded = 0;
+    p33[0x09] = 15u;                               /* a soft reset after stock's levels: kept */
+    p33[0x06] = 7u;
+    CHECK(fm1_power_stock() == 1 && (p33[0x06] & 7u) == 7u && (p33[0x09] & 15u) == 15u,
+          "stock supplies: never lowers a rail it found higher");
+    memset(&fm1_power, 0, sizeof fm1_power);
+    p33[0x09] = 11u;
+    p33[0x06] = 3u;
+    p33_writes = 0;
+    p33_fail_at = 1u;                              /* a P33 transfer times out after the first write */
+    CHECK(fm1_power_stock() == 0 && p33_writes < 4u && (p33[0x06] & 7u) == 3u && (p33[0x09] & 15u) == 11u,
+          "stock supplies: a P33 timeout stops the sequence (no rail touched, 0: no radio this boot)");
+    p33_fail_at = 0xFFFFFFFFu;
+    printf("  rails (mock P33): the stock supply setup for a radio boot, in stock's order, capped, never lower\n");
+}
+
 /* ---- 5. the bar ---- */
 static void bar_mock(uint32_t magic, uint32_t ran, uint32_t barred)
 {
@@ -506,6 +554,7 @@ int main(void)
     mailbox();
     escalation();
     rails();
+    rails_stock();
     bar();
     printf("cr_cpu1: %d checks, %d failed\n", checks, fails);
     return fails != 0;

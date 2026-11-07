@@ -2803,7 +2803,8 @@ DEBUG_USB = ["ua_rate", "ua_rate_last_open", "ua_rate_sets", "ua_rate_changes", 
 # power-on) ended it (word, interrupts, op, burst op, address, stop); the boot guard's failed count; the start-up step
 DEBUG_BLE = ["ble_on", "ble_started", "ble_pending", "ble_cal", "ble_start_us", "ble_connected", "ble_ready",
              "ble_rx", "ble_tx", "ble_losses", "ble_crumb", "ble_irqs", "ble_prev_crumb", "ble_prev_irqs",
-             "ble_prev_op", "ble_prev_gop", "ble_prev_addr", "ble_prev_stop", "ble_boot_failed", "ble_step"]
+             "ble_prev_op", "ble_prev_gop", "ble_prev_addr", "ble_prev_stop", "ble_boot_failed", "ble_step",
+             "ble_supplies"]   # 3y240: 0 not asked, 1 stock's supplies applied (fm1_power_stock), 2 a P33 timeout
 BLE_CAL = ["none", "the stock VM (0xE8000)", "ChoralRoot's copy", "measured at the start (fm1_rf_cal.h)"]
 BLE_HEX = ("ble_crumb", "ble_prev_crumb", "ble_prev_addr")
 USB_RATE_OPTION = "Options > USB Rate"             # the entry's name on the unit (cr_ui.c O_NAME)

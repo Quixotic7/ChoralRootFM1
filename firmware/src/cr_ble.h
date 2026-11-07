@@ -31,7 +31,9 @@ static void cr_ble_boot(void);                   /* power-on, before the audio a
 static void cr_ble_start_boot(void);             /* power-on, the last step before the interrupts: the radio */
 static void cr_ble_poll(void);                   /* the main loop: a record to save */
 static int cr_ble_running(void);                 /* the radio started this power-on */
-#define CRBL_DBG_N 20u
+static int cr_ble_will_start(void);              /* after cr_ble_boot: the radio starts this boot */
+static void cr_ble_supplies(int ok);             /* main.c: stock's supplies applied (1) or a P33 timeout (0) */
+#define CRBL_DBG_N 21u
 static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N]);   /* 81 BLE (cr_backup.c): the radio's state, fm1_install --debug */
 static int cr_ble_set(int on);                   /* Options > Bluetooth: 0 refused (no region, no calibration) */
 static int cr_ble_on(void);

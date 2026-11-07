@@ -300,7 +300,8 @@ def build_app(stub, single=False):
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_OTA_RAMONLY", "FELUCCA_CDC",
                  "FELUCCA_UART", "FELUCCA_UAC", "FELUCCA_KEYCAPS", "FELUCCA_SLICER", "FELUCCA_GRAIN",
                  "FELUCCA_PROPHET", "FELUCCA_P5_FACTORY", "FELUCCA_DATA_UNTAGGED_OK",
-                 "CR_BLE"):         # CR_BLE=0: the FM-1 without Bluetooth (cr_ble.h; the radio-off comparison, 3y236)
+                 "CR_BLE",          # CR_BLE=0: the FM-1 without Bluetooth (cr_ble.h; the radio-off comparison, 3y236)
+                 "FM1_POWER_STOCK_LEVELS"):   # 1: a radio boot's supplies at stock's VDC14 7 / SYSVDD 15 (3y240)
         v = os.environ.get(flag)    # unset: the default in firmware/src/choralroot.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
