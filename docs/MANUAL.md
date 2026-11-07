@@ -55,8 +55,9 @@ What it is not:
   and in the sound editor the buttons change again. A sticker sheet would carry the table of the
   [quick reference](#18-quick-reference).
 - **No velocity.** The FM-1's keys do not sense it. One fixed velocity is set in Options.
-- **No Bluetooth MIDI**, and the computer cannot play audio through the FM-1. USB MIDI works both ways, the TRS jack
-  is a MIDI input, and the computer can record the FM-1 over USB.
+- **No audio from the computer.** The computer cannot play audio through the FM-1. USB MIDI works both ways, the TRS
+  jack is a MIDI input, the computer can record the FM-1 over USB, and the FM-1 (not the SMK-37) does MIDI over
+  Bluetooth too, Off until you turn it on ([Bluetooth MIDI](#bluetooth-midi)).
 - **Not affiliated** with Telepathic Instruments or M-VAVE.
 
 You can try everything in this manual without the hardware: the firmware runs in the browser at
