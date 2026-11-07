@@ -7058,3 +7058,38 @@ flash writes starving the link, and the cache. The FM-1's radio trims (stock VM 
 ChoralRoot; the SMK's are overwritten by its store. Eleven decisions for the owner in section 8; recommended: one
 package with the region, then the FM-1 as Bluetooth peripheral, then USB host, then connecting out; the SMK later;
 first try Melodee 1.6.1's radio on a spare unit.
+
+## 2026-11-06 (0.21's sound objects retired: the migration, 80 IMPORT, the four stores)
+
+3y231. **The pre-0.22 migration retired: nothing reads 0.21's sound objects, and their 64 KB of flash are free.** The
+owner, after the flash inventory of the Bluetooth plan (3y230): "Yes, retire the pre-0.22 migration support and then
+clean this up". 0.22 .. 0.29.2 copied 0.21's 32 sounds (the user banks OBJ_UPRESET0 / 1 and the VA, FM6, CZ-1 tone and
+FM TONE stores) into the pool at their first power-on (`upool.c upool_import`), took them from an older backup's ids 6,
+7, 9..13, 22 (`cr_backup.c crb_legacy`) and had the device manager's **Import the 0.21 slots** (SysEx 80 IMPORT). All
+three are gone, with `va_store.c`, `fm6_ustore.c`, `cz_ustore.c`, `quad_store.c` and `UP_LEGACY`. `storage.c` keeps the
+object numbers reserved (every record's header names its object: OBJ_X_PROJECT0 .. OBJ_X_QUADSTORE) and, with the pool
+on (`ST_RETIRED`), refuses to load or save them and maps them to no sector (`ST_NOWHERE`, outside every write window);
+Felucca's configuration (its host tests, tests/storage_test.c) keeps its projects and user presets live until
+Felucca's tree goes. `cr_backup.c` now builds only in ChoralRoot's configuration (pool, CZ-1, FM TONE): the old ids are
+refused like any unlisted id (PUT begin rc 1; the pages report them skipped), 80 gets no reply. **Freed**:
+0x97000..0x9EFFF, 0xA0000..0xA1FFF, 0xB2000..0xB3FFF, 0xDC000..0xDFFFF on the FM-1 (0x9D000..0xA8FFF, 0xB0000..0xB3FFF
+on the SMK-37); SAFE MODE's Flash Data erases the live objects only, 60 sectors (was 76). Going back to 0.21 still finds
+its slots (nothing writes those sectors). **The way in from 0.21**: the web installer asks an FM-1 on ChoralRoot 0.21 or
+older before installing anything newer than 0.29.2 (`index_pkg.html needsPoolStep`, `POOL_VIA` 0.29.2: install it
+first, switch on once, then the newest); a backup of 0.21 restores its settings, banks and loops but not its sounds.
+**Not done, by decision during the work**: (1) Felucca's 37 unbuilt files and (2) the DIGITAL -> FM6 converter
+(`fm4_convert.c`) were also asked for, but `tests/hostsim.c` (base of most host tests and of the emulator) builds with
+Felucca's sequencer and engines on, 58 of the 317 goldens are Felucca engines, `test_retired.sh` compiles the retired
+engines to make its old images, and Felucca's UI and projects call the converter: a task of its own (the survey: the
+side-session notes, felucca-removal-survey-3y231.md). `cz_legacy.h` is not a converter (the CZ-1 editor's live panel
+table) and stays. **Size** against main a9422d74: FM-1 XIP 557 640 -> 555 604 B (-2 036), RAM 80 592 -> 80 512 (-80),
+POOL unchanged, RAMTEXT 21 660 -> 21 720 (+60: the compiler regrouped its merged small globals, so `vsq_push` /
+`vsq_drop` / `trk_note_on` address `vsq` at a larger offset, +10 instructions a note, none a sample); SMK-37 XIP
+559 696 -> 556 848 (-2 848), RAM 81 644 -> 81 564. **Tests**: tests/cr_backup_test.c on pool-bank PUTs (the fixture,
+the sounds, SELECT and reload; new: the old ids refused at their sizes and at 0, nothing written, 80 unanswered, 0.21's
+sectors planted and never read), cr_settings_test (the retired objects refused both ways, in `ST_RETIRED`),
+cr_cz_test, cr_pool_test, cr_va_test (the whole-store conversions gone, the blob versions kept), test_cr.sh (Flash Data:
+60 sectors), web/test_installer.mjs (six cases of the 0.29.2 question), `tools/emu/test_pool.sh` (the migration from a
+377264f image) removed with `pool_legacy.c` and `pool_image.py`'s legacy commands. `sh tests/run_all.sh` on the merged
+tree: 23 suites passed, 317 goldens unchanged, test_cr 1119 ok. Docs: FLASH.md "What the flash holds" (the inventory),
+PRESETS.md, SOUNDS.md, SETTINGS.md, HANDOFF.md, MANUAL.md ("From 0.21 or older"), SMK37.md, BLE-LINK.md (decision 2).
