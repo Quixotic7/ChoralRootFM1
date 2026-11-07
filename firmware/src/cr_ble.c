@@ -291,13 +291,25 @@ static void cr_ble_boot(void)                     /* power-on: before the audio 
 }
 static void cr_ble_start_boot(void)               /* main.c: the interrupts still off, about to come on */
 {
-    if (!crbl.boot_go)
+    if (!crbl.boot_go || (cr_ble_test() & CRBL_T_LATE))
         return;
     crbl.boot_go = 0;
     crbl_start();
 }
 static int cr_ble_running(void) { return crbl.started; }
-static int cr_ble_will_start(void) { return crbl.boot_go; }
+static int cr_ble_will_start(void) { return crbl.boot_go && !(cr_ble_test() & CRBL_T_NOSUPPLY); }
+static uint32_t cr_ble_test(void)                 /* (crbl_rec.rsv0: a release build reads 0) */
+{
+    return BLE_DIAG && crbl.booted ? crbl_rec.rsv0 : 0u;
+}
+static int cr_ble_set_test(uint32_t m)            /* 82 BLE_TEST: saved, applied at the next power-on */
+{
+    if (!BLE_DIAG || !crbl.booted || m > 31u)
+        return 1;
+    crbl_rec.rsv0 = (uint8_t)m;
+    crbl.dirty = 1;
+    return 0;
+}
 static void cr_ble_supplies(int ok)               /* (a failed supply sequence: no radio; owed to the next power-on) */
 {
     crbl.supplies = (uint8_t)(ok ? 1 : 2);
@@ -341,7 +353,8 @@ static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N])
     v[k++] = bootguard.failed;
     v[k++] = v[10] >> 16 & 0xFFu;
     v[k++] = crbl.supplies;
-#if BLE_DIAG                                      /* (a BLE_DIAG=1 build: the driver's counters, ble_diag.h ble_dg) */
+#if BLE_DIAG
+    v[k++] = cr_ble_test();                       /* the bisection's mask in force this boot (CRBL_T_*) */                                      /* (a BLE_DIAG=1 build: the driver's counters, ble_diag.h ble_dg) */
     v[k++] = ble_dg.adv_starts;                   /* advertising started */
     v[k++] = ble_dg.adv_events;                   /* advertising events ended (each one's three channels sent) */
     v[k++] = ble_dg.adv_rx;                       /* packets received while advertising */
@@ -403,6 +416,10 @@ static void cr_ble_poll(void)                     /* the main loop */
 {
     if (!crbl.booted)
         return;
+    if (crbl.boot_go && (cr_ble_test() & CRBL_T_LATE)) {   /* (the bisection: Melodee's place, the main loop) */
+        crbl.boot_go = 0;
+        crbl_start();
+    }
     if (crbl.dirty && flash_ok && !cr_safe && crbl_quiet()) {
         crbl_rec.magic = CRBL_MAGIC;
         crbl_rec.ver = 1;

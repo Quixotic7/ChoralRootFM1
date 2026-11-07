@@ -351,7 +351,7 @@ static void t_debug(void)
     cr_ble_start_boot();
     ble_app_midi_in(pk(0x90, 60, 100), 0, 0);
     check("81 BLE: 21 values (39 in a BLE_DIAG build): On, started, nothing owed, the trims measured at the start (3), a packet in",
-          cr_ble_debug(v) == 21u + 18u * BLE_DIAG && v[0] == 1u && v[1] == 1u && v[2] == 0u && v[3] == 3u && v[7] == 1u &&
+          cr_ble_debug(v) == 21u + 19u * BLE_DIAG && v[0] == 1u && v[1] == 1u && v[2] == 0u && v[3] == 3u && v[7] == 1u &&
           v[18] == 0u);
     crbl.connected = 1;
     ble_app_state();
@@ -375,6 +375,27 @@ static void t_debug(void)
     cr_ble_start_boot();
     (void)cr_ble_debug(v);
     check("the supplies applied: the radio started; ble_supplies 1", crbl.started && v[20] == 1u);
+    fresh();
+    r.rsv0 = 0;
+    memcpy(st_obj, &r, sizeof r);
+    st_len = (int)sizeof r;
+    cr_ble_boot();
+    check("82 BLE_TEST: a release build refuses it; a BLE_DIAG build takes 0..31 and saves it",
+          BLE_DIAG ? cr_ble_set_test(32u) == 1 && cr_ble_set_test(8u) == 0 && crbl.dirty && cr_ble_test() == 8u
+                   : cr_ble_set_test(8u) == 1 && cr_ble_test() == 0u);
+#if BLE_DIAG
+    cr_ble_poll();
+    memset(&crbl, 0, sizeof crbl);                /* the next power-on, the mask 8: the radio in the main loop */
+    cr_ble_boot();
+    cr_ble_start_boot();
+    check("bit 8: not started at the boot's last step", !crbl.started && crbl.boot_go);
+    cr_ble_poll();
+    check("bit 8: started at the first main-loop poll, once", crbl.started && !crbl.boot_go);
+    crbl_rec.rsv0 = CRBL_T_NOSUPPLY;
+    crbl.boot_go = 1;
+    check("bit 16: no stock supplies asked for", cr_ble_will_start() == 0);
+    crbl_rec.rsv0 = 0;
+#endif
 }
 
 int main(void)

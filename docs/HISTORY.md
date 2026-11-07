@@ -7408,3 +7408,20 @@ transmitter's last stage). Next on the unit: `choralroot-diag-stock-levels.fwsc`
 MIDI Setup, then `--debug`: `ble_scan_req` and `ble_cind_rx` above 0 settle it. Lifting the caps is the owner's call
 (the caps are Charles Vestal's review's, the datasheet's 1.55 V on VDC14); if it is what the radio needs, the choice
 is between stock's levels at radio boots only and a measured lower level that still receives.
+
+3y243. **Bisection without reflashing: 82 BLE_TEST.** The stock-levels build (SYSVDD 15 / VDC14 7) was not seen with
+one core or two, so the supply level is not what the radio lacks. Checked against Melodee 1.6.1, which works on this
+unit: the radio program in our package's region is byte for byte the source array (5,795 bytes at region offset
+36,024, sha256 df0b4e68..., the same as Melodee's `ble_rf_tables.h`), and the plain XIP window covers it (0x93000 to the
+end of the flash); neither firmware changes the system clock or PLL (Melodee's `clock_boot` only reads it); the radio's
+start-up and calibration (the VM's trims, our VCO scan, `fm1_rf_cal.h` only without trims) are the same files; the one
+Melodee commit between 1.6.1 and 3fe570d that touches the stack (ca6c583) is pairing-key handling, and its `main.c`
+changes between the two are not the radio's. What is left is ChoralRoot's environment around the radio. A `BLE_DIAG=1`
+build now takes a mask (`fm1_install.py --ble-test MASK`, command 82, saved in the Bluetooth record's spare byte,
+applied at the next power-on) that leaves one ChoralRoot subsystem off at a time: 1 the analog key scan (the rows PA7 /
+PA8 and the PA10 probe driven and sampled every tick: Melodee has none), 2 the audio (no ALNK DMA, no audio ISR, no
+core 1 jobs), 4 the TRS MIDI UART, 8 the radio started in the main loop as Melodee's `ble_boot_poll` does, 16 no stock
+supply sequence. 81 BLE reports the mask in force (`ble_test`). A release build refuses 82 and reads 0. `cr_ble_test`
+both ways; all 24 suites pass. The plan (side-session notes `ble-step2/bisect-plan.md`): one install, then a power cycle
+and `--debug` per step, Dual Core Off; `ble_scan_req` / `ble_cind_rx` above 0 with the Mac's Bluetooth window open is
+the verdict.

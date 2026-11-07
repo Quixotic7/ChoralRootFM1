@@ -35,6 +35,15 @@ static void cr_ble_poll(void);                   /* the main loop: a record to s
 static int cr_ble_running(void);                 /* the radio started this power-on */
 static int cr_ble_will_start(void);              /* after cr_ble_boot: the radio starts this boot */
 static void cr_ble_supplies(int ok);             /* main.c: stock's supplies applied (1) or a P33 timeout (0) */
+/* the bisection's switches (3y243; BLE_DIAG builds only, else 0): 82 BLE_TEST saves a mask in the Bluetooth record,
+ * applied at the next power-on (main.c): a ChoralRoot subsystem Melodee does not run is left off, one at a time */
+#define CRBL_T_NOSCAN 1u                         /* no analog key scan (velocity: the rows PA7 / PA8, the PA10 probe) */
+#define CRBL_T_NOAUDIO 2u                        /* no audio_init (no ALNK DMA, no audio ISR, so no core 1 jobs) */
+#define CRBL_T_NOUART 4u                         /* no TRS MIDI UART */
+#define CRBL_T_LATE 8u                           /* the radio started in the main loop, as Melodee's ble_boot_poll */
+#define CRBL_T_NOSUPPLY 16u                      /* no stock supply sequence (the boot loader's) */
+static uint32_t cr_ble_test(void);
+static int cr_ble_set_test(uint32_t m);       /* 82 BLE_TEST (cr_backup.c): 0 saved, 1 refused */
 #define CRBL_DBG_N 40u
 static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N]);   /* 81 BLE (cr_backup.c): the radio's state, fm1_install --debug */
 static int cr_ble_set(int on);                   /* Options > Bluetooth: 0 refused (no region, no calibration) */

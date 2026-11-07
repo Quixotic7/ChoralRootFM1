@@ -1321,6 +1321,7 @@ BK_STUB = 77                                      # a request to the boot stub a
 BK_PEAK = 78                                      # read-only: the audio ISR's worst cases since the last read (crb_peak), --debug
 BK_USB = 79                                       # read-only: ChoralRoot In's rate and its 48 kHz counters (crb_usb), --debug
 BK_BLE = 81                                       # read-only: Bluetooth, the radio's state (cr_ble.c cr_ble_debug), --debug
+BK_BLE_TEST = 82                                  # a BLE_DIAG build: the bisection's mask, at the next power-on, --ble-test
 STUB_RC = {1: "bad request", 3: "busy: close EDIT / SAVE on the FM-1, stop recording the loop",
            127: "no boot stub of version 2 or later on this firmware"}
 SELECT_RC = {1: "bad part or engine", 2: "bad pool position", 3: "busy: close EDIT / SAVE on the FM-1"}
@@ -2809,9 +2810,12 @@ DEBUG_BLE = ["ble_on", "ble_started", "ble_pending", "ble_cal", "ble_start_us", 
              # SCAN_REQs (a scanner heard us) / dropped, the last drop's RXSTAT | RXAHDR << 16; CONNECT_INDs received /
              # accepted / refused / why; the link's event and RX interrupts, events, good and bad-CRC packets, closes,
              # the last close's reason | by << 8; link stops that timed out
-             "ble_adv_starts", "ble_adv_events", "ble_adv_rx", "ble_scan_req", "ble_adv_drop", "ble_adv_drop_stat",
+             "ble_test", "ble_adv_starts", "ble_adv_events", "ble_adv_rx", "ble_scan_req", "ble_adv_drop", "ble_adv_drop_stat",
              "ble_cind_rx", "ble_cind_ok", "ble_cind_rej", "ble_cind_rej_why", "ble_evt_irqs", "ble_rx_irqs",
              "ble_conn_events", "ble_rx_good", "ble_rx_crc_bad", "ble_closes", "ble_close", "ble_busy_timeouts"]
+# (in a BLE_DIAG build ble_test comes right after ble_supplies: 3y243's bisection mask, BLE_TEST below)
+BLE_TEST = {1: "no key scan", 2: "no audio", 4: "no TRS UART", 8: "radio started in the main loop",
+            16: "no stock supplies"}
 BLE_CAL = ["none", "the stock VM (0xE8000)", "ChoralRoot's copy", "measured at the start (fm1_rf_cal.h)"]
 BLE_HEX = ("ble_crumb", "ble_prev_crumb", "ble_prev_addr")
 USB_RATE_OPTION = "Options > USB Rate"             # the entry's name on the unit (cr_ui.c O_NAME)
@@ -3160,6 +3164,19 @@ def run(a, backend, out, ask):
         return 0
     if getattr(a, "stub", None):
         return run_stub(up, a.stub, out)
+    if getattr(a, "ble_test", None) is not None:
+        dev = up.find()
+        if not dev or dev.id.loader:
+            raise not_found(up)
+        try:
+            r = BackupLink(dev.link).request(BK_BLE_TEST, [a.ble_test], 1.0)
+        finally:
+            dev.link.close()
+        if len(r) != 1 or r[0]:
+            raise BackupError("--ble-test refused (a BLE_DIAG build only, Bluetooth booted, a mask 0..31)")
+        print(f"ble test {a.ble_test}: saved when the FM-1 is quiet; switch it off and on: "
+              + (", ".join(v for b, v in BLE_TEST.items() if a.ble_test & b) or "normal"), file=out)
+        return 0
     if sound_op(a):
         return run_sounds(up, a, out, ask)
     if getattr(a, "favorites", False):
@@ -3578,6 +3595,9 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     ap.add_argument("--rescan-midi", action="store_true",
                     help="macOS: have CoreMIDI rescan its devices (Audio MIDI Setup's Rescan MIDI), for an FM-1 on USB "
                          "whose MIDI port stays offline; every MIDI program's ports restart with it")
+    ap.add_argument("--ble-test", type=int, metavar="MASK",
+                    help="a BLE_DIAG build: Bluetooth's bisection switches at the next power-on (1 no key scan, 2 no "
+                         "audio, 4 no TRS UART, 8 the radio started in the main loop, 16 no stock supplies; 0 normal)")
     ap.add_argument("--stub", choices=("test", "rescue"),
                     help="ChoralRoot with the boot stub (v2): test = restart once with the stub's loader check on and "
                          "print its --debug lines; rescue = restart into update mode, as OCT- held at power-on (to "
@@ -3666,7 +3686,7 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     if a.unit and a.rescan_midi:
         ap.error("--rescan-midi restarts every MIDI port on this computer, the other FM-1s' too: not with --unit "
                  "(unplug and replug the FM-1 instead)")
-    if not (a.rescan_midi or a.stub or a.select or a.screen or a.debug or a.info or a.package or a.backup or a.restore
+    if not (a.rescan_midi or a.ble_test is not None or a.stub or a.select or a.screen or a.debug or a.info or a.package or a.backup or a.restore
             or ops or a.favorites or a.restore_favorites):
         ap.error("give a PACKAGE.fwsc, --backup FILE, --restore FILE, --info, --sounds, --screen off|on or --select")
     try:

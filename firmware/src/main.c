@@ -135,8 +135,13 @@ extern void isr_timer5(void);
 static void timer5_start(void)                 /* OSC /4 = 6 MHz, PRD 600 -> 10 kHz */
 {
 #if defined(CR_SENSE_KEYS) && !BOARD_SMK37         /* (SMK-37: cr_ui.c's stand-in CR_SENSE_KEYS 0, no analog rows) */
+#if CR_BLE
+    if (!(cr_ble_test() & CRBL_T_NOSCAN))          /* (3y243's bisection: a BLE_DIAG build's switch) */
+#endif
+    {
     fm1_an.drive = SN_DRIVE;                       /* the analog rows (docs/VELOCITY.md): the tick owns the converter */
     fm1_an.con = FM1_ADC_CON_SCAN;
+    }
 #endif
     fm1_timer5_start(isr_timer5, 4);   /* above ALNK0 (3): the scan nests into the render (see fm1_timer5_irq) */
 }
@@ -293,11 +298,17 @@ static void fm1_main(void)
 #endif
     CR_STAGE(BS_AUDIO);
     master_boot();                            /* the first block already at the knob's level (master.c) */
+#if CR_BLE
+    if (!(cr_ble_test() & CRBL_T_NOAUDIO))    /* (3y243's bisection: a BLE_DIAG build's switch) */
+#endif
     audio_init();
     CR_STAGE(BS_USB);
     usb_start();
 #if FELUCCA_UART
     CR_STAGE(BS_UART);
+#if CR_BLE
+    if (!(cr_ble_test() & CRBL_T_NOUART))     /* (3y243's bisection) */
+#endif
     uart_midi_init();
 #endif
 #if BOARD_SMK37
