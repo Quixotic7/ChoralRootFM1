@@ -6963,3 +6963,23 @@ Clock Out steady, 116.05 BPM at a tempo of 116 (+447 ppm against the Mac, no los
 `SHA256SUMS`): XIP 557,640 of 573,440 (97.2 %), 1-core 554,500. `web/releases.json` first with the sha256s, 0.29.1's
 entry given its going-back note, `docs/releases/0.29.2.md`, MANUAL.md's first line. `python3 tests/releases_test.py`,
 `CR_VERSION=0.29.2 sh tests/run_all.sh`. Tagged v0.29.2: release.yml builds, signs and publishes, pages.yml the site.
+
+## 2026-11-06 (a plan for Bluetooth MIDI and the two-FM-1 USB link)
+
+3y226. **docs/BLE-LINK.md: how Bluetooth MIDI and the USB link from Melodee could come to ChoralRoot (a plan; no
+firmware change).** The owner: "I'd like to see about adding those features to ChoralRoot". Melodee (Kerem Kilic,
+GPL-3.0-only; main 165d177, nightly 3fe570d) has Bluetooth MIDI since fef995c (2026-10-26): Optimist's bare-metal BLE
+stack (w0ts/optimist 498a3ae4, no JieLi Bluetooth library), with Charles Vestal's self-calibration (89b746c) and a
+resource region for read-only data (438ef0c). Its "link" is a general USB HOST mode (PR #75, recursivefieldinstruments,
+0d705bf, 2026-10-21): one FM-1 is the host, the other an ordinary USB device, through a powered hub or OTG adapter
+(the FM-1 cannot power the cable). Measured: Melodee's whole Bluetooth compiled with ChoralRoot's toolchain (a
+throwaway probe, not committed) is XIP 49,908 B (code 41,920, constants 2,193, the radio program 5,795), RAM 3,464,
+POOL 4,792, RAMTEXT 36; the peripheral role alone about 42.4 KB. Main has 15,800 B of XIP free (557,640 of 573,440;
+SMK-37 558,864): **it does not fit as things are.** It fits in one package if the fonts M, CRB, CRX and the 16 px
+icons (42,697 B) move to a 48 KB resource region at flash 0x93000..0x9EFFF (16 KB unused + the VA / FM6 / CZ-1 stores
+that are read-only leftovers since 0.22). CPU: the heavy cases have 615..890 us of room in the worst half (VA 2,103 /
+2,287, FM6 2,012 / 2,124); the BLE interrupts sit below the audio; the risks are the radio start (interrupts held),
+flash writes starving the link, and the cache. The FM-1's radio trims (stock VM at 0xE8000) are never written by
+ChoralRoot; the SMK's are overwritten by its store. Eleven decisions for the owner in section 8; recommended: one
+package with the region, then the FM-1 as Bluetooth peripheral, then USB host, then connecting out; the SMK later;
+first try Melodee 1.6.1's radio on a spare unit.
