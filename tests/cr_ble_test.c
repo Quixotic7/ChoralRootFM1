@@ -400,7 +400,7 @@ static void t_debug(void)
     crbl.boot_go = 1;
     check("bit 16: no stock supplies asked for", cr_ble_will_start() == 0);
     crbl_rec.rsv0 = 0;
-    {                                             /* bit 64: measured at start though a calibration is stored */
+    {                                             /* measured at every start; bit 64 keeps the stored one (3y250) */
         static const struct ble_rf_trims tr = {{0x0B, 0x0B}, {1, 7, 4, 7, 11, 1, 7}, {0}, {0}};
         fresh();
         ble_rf_copy_make(r.rf, &tr, 0);
@@ -408,15 +408,16 @@ static void t_debug(void)
         st_len = (int)sizeof r;
         fm1_rf_cal_on = 0;
         cr_ble_boot();
-        check("mask 0: ChoralRoot's stored copy used (ble_cal 2), nothing measured",
-              crbl.cal && !fm1_rf_cal_on && crbl.cal_from == 2u);
+        check("a stored copy: measured at start all the same (ble_cal 3, 3y250)",
+              crbl.cal && fm1_rf_cal_on && crbl.cal_from == 3u);
         fresh();
-        r.rsv0 = CRBL_T_MEASURE;
+        r.rsv0 = CRBL_T_STORED;
         memcpy(st_obj, &r, sizeof r);
         st_len = (int)sizeof r;
+        fm1_rf_cal_on = 0;
         cr_ble_boot();
-        check("bit 64: the stored copy there, measured at start all the same (ble_cal 3)",
-              crbl.cal && fm1_rf_cal_on && crbl.cal_from == 3u);
+        check("bit 64: ChoralRoot's stored copy used (ble_cal 2), nothing measured",
+              crbl.cal && !fm1_rf_cal_on && crbl.cal_from == 2u);
         r.rsv0 = 0;
         memset(r.rf, 0, sizeof r.rf);
     }

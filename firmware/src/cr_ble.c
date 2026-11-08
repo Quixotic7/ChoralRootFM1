@@ -279,16 +279,17 @@ static void cr_ble_boot(void)                     /* power-on: before the audio 
     crbl.cal = (uint8_t)(crbl.cal_from != BLE_RF_NONE);
     if (save)
         crbl.dirty = 1;
-    if (!crbl.cal) {                              /* none stored: the radio measures its own at start (fm1_rf_cal.h,
-                                                   * ~160 ms); 106..108 the SDK board's constants (Melodee 89b746c) */
+    if (!crbl.cal) {                              /* none stored: 106..108 the SDK board's constants (Melodee 89b746c) */
         static const struct ble_rf_trims sdk = {{0x0B, 0x0B}, {1, 7, 4, 7, 11, 1, 7}, {0}, {0}};
         crbl.trims = sdk;
-        fm1_rf_cal_on = 1;
         crbl.cal = 1;
         crbl.cal_from = 3;
-    } else if (BLE_DIAG && (crbl_rec.rsv0 & CRBL_T_MEASURE)) {   /* (3y249: the stored record's 187 left out, its
-                                                   * 106..108 kept; on E81CE2F7 the captured band / fine code send
-                                                   * nothing a phone or the Mac hears) */
+    }
+    /* 3y250: the radio measures its own calibration at every start (fm1_rf_cal.h, ~107 ms: the VCO banks, the trim,
+     * the RF-die table), the stored 106..108 kept. On E81CE2F7 the stored 187 and the captured band (54) drifted off
+     * within seconds of the start; measured (band 50) it held a two-core link 236 s, ~4 % bad CRCs against ~20 %. A
+     * BLE_DIAG build's bit 64 keeps the stored record, to compare. */
+    if (!(BLE_DIAG && (crbl_rec.rsv0 & CRBL_T_STORED)) || crbl.cal_from == 3) {
         fm1_rf_cal_on = 1;
         crbl.cal_from = 3;
     }

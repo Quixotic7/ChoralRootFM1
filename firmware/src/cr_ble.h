@@ -43,7 +43,7 @@ static void cr_ble_supplies(int ok);             /* main.c: stock's supplies app
 #define CRBL_T_LATE 8u                           /* the radio started in the main loop, as Melodee's ble_boot_poll */
 #define CRBL_T_NOSUPPLY 16u                      /* no stock supply sequence (the boot loader's) */
 #define CRBL_T_VCO 32u                           /* the VCO band from a full sweep, the last "low" at the flip (3y247) */
-#define CRBL_T_MEASURE 64u                       /* the radio measured at start (fm1_rf_cal.h), a stored record or not (3y249) */
+#define CRBL_T_STORED 64u                        /* the stored calibration, not measured at start (3y250; 3y249 the reverse) */
 static uint32_t cr_ble_test(void);
 static int cr_ble_set_test(uint32_t m);       /* 82 BLE_TEST (cr_backup.c): 0 saved, 1 refused */
 #define CRBL_DBG_N 60u

@@ -229,7 +229,9 @@ themselves. What can:
   at 0xE9000. ChoralRoot never writes 0xE5000..0xFBFFF (`FL_RANGE_OK` allows FL_DATA 0x97000..0xDFFFF, the OTA
   staging 0xE0000..0xE4FFF and the globals 0xFC000..0xFEFFF), so the trims survive on units that went stock ->
   ChoralRoot. Units that ran FIZZ (its first blob at 0xE5000/0xE7000) or SLOOP 2.4 may have lost them: the
-  self-calibration covers those. ChoralRoot's own pairing record goes in its settings object (as Melodee's trailer:
+  self-calibration covers those. Since HISTORY 3y250 the radio runs the self-calibration at **every** start
+  (~107 ms) and takes only 106..108 from the stored trims: on E81CE2F7 the stored 187 with the captured VCO band
+  drifted off within seconds; measured, a two-core link held with ~4 % bad CRCs. ChoralRoot's own pairing record goes in its settings object (as Melodee's trailer:
   address 6, flags, bond 28, trims copy 100, device 70 B): **no new flash area**.
 - **The second flash chip** (0xB36014, HISTORY 3y222): the stack reads flash only through ChoralRoot's driver
   (`FL_JEDEC_OK` already accepts it); the trims are the stock firmware's, written by the same factory flow. Nothing

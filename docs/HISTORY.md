@@ -7500,3 +7500,14 @@ stored ones, the 187 and the banks are measured. It takes bit 64 from the band-5
 requests' bytes are 7 bits, so the mask stays 0..127). 81 BLE adds four values (CRBL_DBG_N 60): `ble_cal_scan` and
 `ble_cal_trim` (the return code | ran << 16), `ble_cal_banks` (mid | top << 8 | bank 121's << 16 | mid found
 << 24) and `ble_cal_us`. `tests/cr_ble_test.c`: a stored copy is used under mask 0 and measured under 64. All 24 suites pass.
+
+3y250. **The radio measures itself at every start.** bisect6 (e9758d9e) mask 64 on E81CE2F7, a power-on with two
+cores: the measured calibration ran clean (`ble_cal_scan` / `ble_cal_trim` 0, 107 ms, band 50 in place of the
+captured 54), 4 scan requests by 2.8 s, connected by 7.7 s ("Connected on Mac"), and the link held 236 s with no
+loss: 98 of 100 notes Mac -> FM-1 heard (the capture's own gap the likely two), Clock Out 6 962 of 6 963 ticks over
+Bluetooth (17.2 ms median behind USB, p95 32.7 ms), 1 197 bad CRCs in 28 447 receptions (4.2 %, against ~20 % on
+the stored record). So the measured calibration is now the default: `cr_ble_boot` sets `fm1_rf_cal_on` on every
+radio boot and keeps only 106..108 from the stored trims (ChoralRoot's copy or the stock VM; the SDK's constants
+when neither); 81 BLE's `ble_cal` reads 3. A BLE_DIAG build's bit 64 is now the reverse, `CRBL_T_STORED`: the stored
+record 187, to compare. The two-core fade, the soft-reset deafness and most bad CRCs were this one cause (the
+soft-reset case is still to be seen on the unit). docs/BLE-LINK.md 2.6. All 24 suites pass.
