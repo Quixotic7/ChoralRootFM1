@@ -7474,3 +7474,13 @@ else at the flip the last low band (32: 56 here) or the first high one (64: 57);
 is `hal/fm1_vco_pick.h`, pure, tested in `cr_ble_test` (E81CE2F7's map: 56 / 57; a band in range first; all high: the
 captured one back for 32). Every soft-reset boot with two cores so far went deaf within 13 s and the one power-on
 lasted ~100 s: the map from both kinds of boot will show whether the flip moves. All 24 suites pass.
+
+3y248. **The sweep where the comparator answers.** bisect4's mask 32 on E81CE2F7 (a soft-reset boot, two cores): an
+empty map (`ble_vco_low0/1`, `ble_vco_high0/1` all 0), band 0 kept (`ble_vco_now 0`), 9 scan requests in the first
+~9 s, then nothing for 3 minutes. 3y247 swept after the whole program, when its later groups have switched the
+calibration path off: every band read neither low nor high, and the first such band, 0, won. Now the sweep runs at
+group 7 right after our scan, where the comparator answers (the scan read 0x20081 there), and `fm1_ble_vco_apply`
+writes the picked band into 0x11938 [25:19] after the program, in place of the captured one, by the plain write the
+program itself makes; an empty map keeps the captured band. 81 BLE: `ble_vco_rescanned` 1 swept, 2 applied. The
+VCO pieces moved into `hal/fm1_ble_rf.h` beside the scan; `tests/ble_rf_replay_test.py`'s prelude stubs the new
+switch (off: the replay unchanged). All 24 suites pass.

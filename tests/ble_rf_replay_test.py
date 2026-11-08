@@ -57,6 +57,8 @@ static uint32_t fm1_bbp(uint32_t r,uint32_t v,uint32_t rd){record(8,r,v|rd<<16);
 static void fm1_rfspi(uint32_t a,uint32_t cmd,uint32_t v){record(9,a|cmd<<16,v);}
 static void fm1_delay_us(uint32_t n){record(10,n,0);}
 static void fm1_ble_vco_scan(uint32_t n){record(11,n,0);}
+static uint8_t fm1_ble_vco_keep;   /* (ChoralRoot 3y248: the sweep off, so the replay is unchanged) */
+static void fm1_ble_vco_sweep(uint32_t n){(void)n;}
 static void fm1_ble_rf_section(uint32_t g){record(12,g,0);}
 static uint32_t fm1_ble_rf_burst(uint32_t pc,uint32_t end,const uint8_t *const rec[4]){
     (void)end;(void)rec;return pc; /* same writes, without the timing-only SRAM burst */

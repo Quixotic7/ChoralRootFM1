@@ -183,63 +183,11 @@ static uint32_t fm1_ble_pll_tbl[81 * 3] __attribute__((section(".pool"), aligned
  *   HW §5.4 / §16.1 g. 14  the PLL channel table, the AGC table (captured) and configuration, the BT analog words.
  * The clock words of HW §16.1 group 1 (0x10010 bit 10 = our UART's clock, hal/fm1_uart.h; 0x10008 bit 3 = the
  * second core's start, hal/fm1_dual.h) are not the radio's: left as the firmware set them. */
-/* ChoralRoot 3y245: the VCO band. The program's group 8 writes stock's captured band and fine code after our scan
- * (fm1_ble_vco_scan: "its result is reported only"), so the radio runs on the band the emulator's capture found, not
- * one chosen for this chip. On E81CE2F7 the receiver faded over ~100 s with both cores (the chip warmer) and ~20 % of
- * receptions failed their CRC with one: a band at its edge would do that. With fm1_ble_vco_keep (3y243's bisection
- * mask 32) the scan runs again after the program and its band stays. fm1_ble_vco_cr: what was captured, what is used */
-static uint8_t fm1_ble_vco_keep;                    /* 1: the last "low" band at the flip, 2: the first "high" one */
-static uint32_t fm1_ble_vco_band(void) { return FM1_WL_VCO_BAND >> 19 & 0x7Fu; }   /* the band in the register */
-static struct { uint8_t captured, rescanned, found, chosen; uint32_t low[2], high[2]; } fm1_ble_vco_cr;
-static void fm1_ble_vco_set(uint32_t b)              /* a band in, as one step of the scan without its measurement */
-{
-    FM1_WL_VCO_BAND = (FM1_WL_VCO_BAND & ~(0x7Fu << 19)) | (b & 0x7Fu) << 19;
-    FM1_WL_VCO_BAND &= ~(1u << 16);
-    FM1_WL_VCO_BAND &= ~(1u << 18);
-    FM1_WL_VCO_EN &= ~(1u << 24);
-    fm1_delay_us(FM1_VCO_EDGE_US);
-    FM1_WL_VCO_BAND |= 1u << 16;
-    fm1_delay_us(FM1_VCO_EDGE_US);
-    FM1_WL_VCO_EN |= 1u << 24;
-    FM1_WL_VCO_BAND |= 1u << 18;
-    fm1_delay_us(FM1_VCO_SETTLE_US);
-}
-/* ChoralRoot 3y247: every band's comparator (low: bit 17, high: bit 18) into fm1_ble_vco_cr.low / .high (bit b of
- * word b / 32), then a band kept: the first that reads neither; else, at the flip from low to high (E81CE2F7: 56 low,
- * 57 high, captured 54), the last low one (keep 1) or the first high one (keep 2); none: the captured one */
-#include "fm1_vco_pick.h"
-static void fm1_ble_vco_sweep(uint32_t keep)
-{
-    uint32_t fine = FM1_WL_VCO_FINE, b, r, i, pick;
-    fm1_ble_vco_cr.low[0] = fm1_ble_vco_cr.low[1] = fm1_ble_vco_cr.high[0] = fm1_ble_vco_cr.high[1] = 0;
-    for (b = 0; b < FM1_VCO_BANDS; b++) {
-        FM1_WL_VCO_FINE = fine;
-        fm1_ble_vco_set(b);
-        FM1_WL_CAL_START |= 1u << 28;
-        for (i = 0; i < 8u; i++)
-            FM1_WL_CAL_STROBE = 1;
-        FM1_WL_CAL_STROBE = 0;
-        r = FM1_WL_CAL_STROBE;
-        if (r & 1u << 17)
-            fm1_ble_vco_cr.low[b >> 5] |= 1u << (b & 31u);
-        else if (r & 1u << 18)
-            fm1_ble_vco_cr.high[b >> 5] |= 1u << (b & 31u);
-    }
-    pick = fm1_vco_pick(fm1_ble_vco_cr.low, fm1_ble_vco_cr.high, FM1_VCO_BANDS, keep, fm1_ble_vco_cr.captured);
-    fm1_ble_vco_cr.found = (uint8_t)(!(fm1_ble_vco_cr.low[pick >> 5] >> (pick & 31u) & 1u) &&
-                                     !(fm1_ble_vco_cr.high[pick >> 5] >> (pick & 31u) & 1u));
-    FM1_WL_VCO_FINE = fine;
-    fm1_ble_vco_set(pick);
-    fm1_ble_vco_cr.chosen = (uint8_t)pick;
-    fm1_ble_vco_cr.rescanned = (uint8_t)keep;
-}
 static void fm1_ble_rf_init(const uint8_t *x106, const uint8_t *x107, const uint8_t *x108, const uint8_t *x187)
 {
     uint32_t i;
     fm1_ble_rf_run(x106, x107, x108, x187);                /* HW §16.1 groups 2-13 */
-    fm1_ble_vco_cr.captured = (uint8_t)(FM1_WL_VCO_BAND >> 19 & 0x7Fu);
-    if (fm1_ble_vco_keep)                                  /* (ChoralRoot 3y245 / 3y247: above) */
-        fm1_ble_vco_sweep(fm1_ble_vco_keep);
+    fm1_ble_vco_apply();                                   /* (ChoralRoot 3y248: hal/fm1_ble_rf.h) */
     fm1_ble_rf_section(FM1_RF_SECT_BT);                    /* HW §16.1 group 14 */
     /* HW §5.1 step 3: BT domain power / reset, then the BT / RF enable */
     FM1_CLK_CON1_BT &= ~(3u << 14);                        /* bits 14-15 cleared [M:s] */

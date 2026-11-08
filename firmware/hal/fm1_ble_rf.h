@@ -289,6 +289,65 @@ static void fm1_ble_vco_scan(uint32_t fine0)
     }
 }
 
+/* ChoralRoot 3y245 .. 3y248: the VCO band. The program's group 8 writes stock's captured band and fine code after our
+ * scan (above: "its result is reported only"), so the radio runs on the band the emulator's capture found, not one
+ * chosen for this chip. On E81CE2F7 the scan finds no band in range (56 low, 57 high) and the captured band is 54; the
+ * receiver faded over ~100 s with both cores and ~20 % of receptions failed their CRC with one. With fm1_ble_vco_keep
+ * (the bisection's masks 32 / 64) the sweep below maps every band's comparator at group 7, where the scan runs and the
+ * comparator answers (3y247 swept after the program: the calibration path was off by then, every band read nothing
+ * and band 0 was kept), and fm1_ble_vco_apply puts the band it picks (hal/fm1_vco_pick.h) into 0x11938 [25:19] after
+ * the program, in place of the captured one, by the same plain write the program makes. An empty map: the captured
+ * band stays. fm1_ble_vco_cr: the map, what was captured, what was kept */
+#include "fm1_vco_pick.h"
+static uint8_t fm1_ble_vco_keep;                    /* 1: the last "low" band at the flip, 2: the first "high" one */
+static struct { uint8_t captured, rescanned, found, chosen; uint32_t low[2], high[2]; } fm1_ble_vco_cr;
+static uint32_t fm1_ble_vco_band(void) { return FM1_WL_VCO_BAND >> 19 & 0x7Fu; }   /* the band in the register */
+static void fm1_ble_vco_sweep(uint32_t fine0)       /* group 7, after the scan: every band's comparator into the map */
+{
+    uint32_t b, r, i;
+    fm1_ble_vco_cr.low[0] = fm1_ble_vco_cr.low[1] = fm1_ble_vco_cr.high[0] = fm1_ble_vco_cr.high[1] = 0;
+    FM1_WL_VCO_FINE = fine0;
+    for (b = 0; b < FM1_VCO_BANDS; b++) {           /* (the scan's step, as fm1_ble_vco_scan does it) */
+        FM1_WL_VCO_BAND = (FM1_WL_VCO_BAND & ~(0x7Fu << 19)) | b << 19;
+        FM1_WL_VCO_BAND &= ~(1u << 16);
+        FM1_WL_VCO_BAND &= ~(1u << 18);
+        FM1_WL_VCO_EN &= ~(1u << 24);
+        fm1_delay_us(FM1_VCO_EDGE_US);
+        FM1_WL_VCO_BAND |= 1u << 16;
+        fm1_delay_us(FM1_VCO_EDGE_US);
+        FM1_WL_VCO_EN |= 1u << 24;
+        FM1_WL_VCO_BAND |= 1u << 18;
+        fm1_delay_us(FM1_VCO_SETTLE_US);
+        FM1_WL_CAL_START |= 1u << 28;
+        for (i = 0; i < 8u; i++)
+            FM1_WL_CAL_STROBE = 1;
+        FM1_WL_CAL_STROBE = 0;
+        r = FM1_WL_CAL_STROBE;
+        if (r & 1u << 17)
+            fm1_ble_vco_cr.low[b >> 5] |= 1u << (b & 31u);
+        else if (r & 1u << 18)
+            fm1_ble_vco_cr.high[b >> 5] |= 1u << (b & 31u);
+    }
+    fm1_ble_vco_cr.rescanned = 1;
+}
+static void fm1_ble_vco_apply(void)                 /* after the program (fm1_ble_rf_init) */
+{
+    uint32_t pick;
+    fm1_ble_vco_cr.captured = (uint8_t)fm1_ble_vco_band();
+    fm1_ble_vco_cr.chosen = fm1_ble_vco_cr.captured;
+    if (!fm1_ble_vco_keep || !fm1_ble_vco_cr.rescanned)
+        return;
+    if (!(fm1_ble_vco_cr.low[0] | fm1_ble_vco_cr.low[1] | fm1_ble_vco_cr.high[0] | fm1_ble_vco_cr.high[1]))
+        return;                                     /* an empty map: the comparator never answered */
+    pick = fm1_vco_pick(fm1_ble_vco_cr.low, fm1_ble_vco_cr.high, FM1_VCO_BANDS, fm1_ble_vco_keep,
+                        fm1_ble_vco_cr.captured);
+    fm1_ble_vco_cr.found = (uint8_t)(!(fm1_ble_vco_cr.low[pick >> 5] >> (pick & 31u) & 1u) &&
+                                     !(fm1_ble_vco_cr.high[pick >> 5] >> (pick & 31u) & 1u));
+    FM1_WL_VCO_BAND = (FM1_WL_VCO_BAND & ~(0x7Fu << 19)) | (pick & 0x7Fu) << 19;
+    fm1_ble_vco_cr.chosen = (uint8_t)pick;
+    fm1_ble_vco_cr.rescanned = 2;                   /* (applied) */
+}
+
 static uint32_t fm1_rf_field(uint32_t v, uint32_t f, const uint8_t *const rec[4])   /* §14.5 / §16.4 */
 {
     const uint8_t *d = &ble_rf_fields[4u * f];
@@ -479,8 +538,11 @@ static void fm1_ble_rf_exec(uint32_t pc, uint32_t end, const uint8_t *const rec[
             if (fm1_rf_cal_on) {                            /* the stock scan (fm1_rf_cal.h) */
                 fm1_rfc_scan_rc = fm1_rf_cal_scan(&fm1_rfc);
                 fm1_rfc_scanned = 1;
-            } else
+            } else {
                 fm1_ble_vco_scan(fm1_rf_u32(p + pc + 1));
+                if (fm1_ble_vco_keep)                       /* (ChoralRoot 3y248: the map, while it answers) */
+                    fm1_ble_vco_sweep(fm1_rf_u32(p + pc + 1));
+            }
             pc += 5;
         } else if (op == 0x8Eu) {
             a = p[pc + 1] | p[pc + 2] << 8;
