@@ -2816,12 +2816,16 @@ DEBUG_BLE = ["ble_on", "ble_started", "ble_pending", "ble_cal", "ble_start_us", 
              # 3y245: the VCO band (hal/fm1_ble.h): our scan found one (1), its band and comparator word, the band
              # the captured program left, rescanned (mask 32), the band in the register now
              "ble_vco_found", "ble_vco_scan_band", "ble_vco_scan_result", "ble_vco_captured", "ble_vco_rescanned",
-             "ble_vco_now"]
+             "ble_vco_now",
+             # 3y247: the full sweep (masks 32 / 64): bands reading low (bit b of word b / 32) and high, the band kept
+             "ble_vco_low0", "ble_vco_low1", "ble_vco_high0", "ble_vco_high1", "ble_vco_chosen"]
 # (in a BLE_DIAG build ble_test comes right after ble_supplies: 3y243's bisection mask, BLE_TEST below)
 BLE_TEST = {1: "no key scan", 2: "no audio", 4: "no TRS UART", 8: "radio started in the main loop",
-            16: "no stock supplies", 32: "the VCO band from our scan"}
+            16: "no stock supplies", 32: "the VCO band from a sweep (the last low at the flip)",
+            64: "the VCO band from a sweep (the first high at the flip)"}
 BLE_CAL = ["none", "the stock VM (0xE8000)", "ChoralRoot's copy", "measured at the start (fm1_rf_cal.h)"]
-BLE_HEX = ("ble_crumb", "ble_prev_crumb", "ble_prev_addr")
+BLE_HEX = ("ble_crumb", "ble_prev_crumb", "ble_prev_addr", "ble_vco_scan_result", "ble_vco_low0", "ble_vco_low1",
+           "ble_vco_high0", "ble_vco_high1")
 USB_RATE_OPTION = "Options > USB Rate"             # the entry's name on the unit (cr_ui.c O_NAME)
 
 
@@ -3177,7 +3181,7 @@ def run(a, backend, out, ask):
         finally:
             dev.link.close()
         if len(r) != 1 or r[0]:
-            raise BackupError("--ble-test refused (a BLE_DIAG build only, Bluetooth booted, a mask 0..63)")
+            raise BackupError("--ble-test refused (a BLE_DIAG build only, Bluetooth booted, a mask 0..127)")
         print(f"ble test {a.ble_test}: saved when the FM-1 is quiet; switch it off and on: "
               + (", ".join(v for b, v in BLE_TEST.items() if a.ble_test & b) or "normal"), file=out)
         return 0
@@ -3602,7 +3606,7 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     ap.add_argument("--ble-test", type=int, metavar="MASK",
                     help="a BLE_DIAG build: Bluetooth's bisection switches at the next power-on (1 no key scan, 2 no "
                          "audio, 4 no TRS UART, 8 the radio started in the main loop, 16 no stock supplies, 32 the VCO "
-                         "band from our scan; 0 normal)")
+                         "band from a sweep, the last low at the flip, 64 the first high; 0 normal)")
     ap.add_argument("--stub", choices=("test", "rescue"),
                     help="ChoralRoot with the boot stub (v2): test = restart once with the stub's loader check on and "
                          "print its --debug lines; rescue = restart into update mode, as OCT- held at power-on (to "

@@ -84,6 +84,7 @@ static void cu_cat(char *d, const char *s, uint32_t n)
 }
 
 #include "../firmware/src/cr_ble.h"
+#include "../firmware/hal/fm1_vco_pick.h"
 static void fm1_ble_crumb_boot(void) {}          /* (hal/fm1_ble.h: the start-up breadcrumbs; none here) */
 #include "../firmware/src/cr_ble.c"
 
@@ -355,7 +356,7 @@ static void t_debug(void)
     cr_ble_start_boot();
     ble_app_midi_in(pk(0x90, 60, 100), 0, 0);
     check("81 BLE: 21 values (39 in a BLE_DIAG build): On, started, nothing owed, the trims measured at the start (3), a packet in",
-          cr_ble_debug(v) == 21u + 25u * BLE_DIAG && v[0] == 1u && v[1] == 1u && v[2] == 0u && v[3] == 3u && v[7] == 1u &&
+          cr_ble_debug(v) == 21u + 30u * BLE_DIAG && v[0] == 1u && v[1] == 1u && v[2] == 0u && v[3] == 3u && v[7] == 1u &&
           v[18] == 0u);
     crbl.connected = 1;
     ble_app_state();
@@ -384,8 +385,8 @@ static void t_debug(void)
     memcpy(st_obj, &r, sizeof r);
     st_len = (int)sizeof r;
     cr_ble_boot();
-    check("82 BLE_TEST: a release build refuses it; a BLE_DIAG build takes 0..63 and saves it",
-          BLE_DIAG ? cr_ble_set_test(64u) == 1 && cr_ble_set_test(8u) == 0 && crbl.dirty && cr_ble_test() == 8u
+    check("82 BLE_TEST: a release build refuses it; a BLE_DIAG build takes 0..127 and saves it",
+          BLE_DIAG ? cr_ble_set_test(128u) == 1 && cr_ble_set_test(8u) == 0 && crbl.dirty && cr_ble_test() == 8u
                    : cr_ble_set_test(8u) == 1 && cr_ble_test() == 0u);
 #if BLE_DIAG
     cr_ble_poll();
@@ -402,8 +403,28 @@ static void t_debug(void)
 #endif
 }
 
+static void t_vco(void)                           /* hal/fm1_vco_pick.h (3y247) */
+{
+    uint32_t lo[2] = {0, 0}, hi[2] = {0, 0}, b;
+    for (b = 0; b < 64u; b++)                     /* E81CE2F7's: low up to 56, high from 57, captured 54 */
+        if (b <= 56u)
+            lo[b >> 5] |= 1u << (b & 31u);
+        else
+            hi[b >> 5] |= 1u << (b & 31u);
+    check("vco: no band in range: keep 1 takes the last low (56), keep 2 the first high (57)",
+          fm1_vco_pick(lo, hi, 64u, 1u, 54u) == 56u && fm1_vco_pick(lo, hi, 64u, 2u, 54u) == 57u);
+    lo[1] &= ~(1u << (40u - 32u));                /* band 40 reads neither: it wins, whatever keep says */
+    check("vco: a band in range is taken first", fm1_vco_pick(lo, hi, 64u, 1u, 54u) == 40u &&
+          fm1_vco_pick(lo, hi, 64u, 2u, 54u) == 40u);
+    lo[0] = lo[1] = 0;
+    hi[0] = hi[1] = 0xFFFFFFFFu;                  /* all high: keep 1 has no low band, the captured one back */
+    check("vco: all high: keep 1 -> the captured band, keep 2 -> band 0",
+          fm1_vco_pick(lo, hi, 64u, 1u, 54u) == 54u && fm1_vco_pick(lo, hi, 64u, 2u, 54u) == 0u);
+}
+
 int main(void)
 {
+    t_vco();
     t_out();
     t_in();
     t_loss();

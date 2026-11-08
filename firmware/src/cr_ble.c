@@ -247,7 +247,7 @@ static void crbl_start(void)                      /* the radio, once a power-on:
         crbl.dirty = 1;
     }
 #ifndef FM1_BLE_FAKE_H
-    fm1_ble_vco_keep = (uint8_t)((cr_ble_test() & CRBL_T_VCO) != 0u);
+    fm1_ble_vco_keep = (uint8_t)((cr_ble_test() & CRBL_T_VCO_HI) ? 2u : (cr_ble_test() & CRBL_T_VCO) ? 1u : 0u);
 #endif
     ie = fm1_icfg();
     fm1_irq_off();
@@ -311,7 +311,7 @@ static uint32_t cr_ble_test(void)                 /* (crbl_rec.rsv0: a release b
 }
 static int cr_ble_set_test(uint32_t m)            /* 82 BLE_TEST: saved, applied at the next power-on */
 {
-    if (!BLE_DIAG || !crbl.booted || m > 63u)
+    if (!BLE_DIAG || !crbl.booted || m > 127u)
         return 1;
     crbl_rec.rsv0 = (uint8_t)m;
     crbl.dirty = 1;
@@ -388,8 +388,13 @@ static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N])
     v[k++] = fm1_ble_vco_cr.captured;
     v[k++] = fm1_ble_vco_cr.rescanned;
     v[k++] = crbl.started ? fm1_ble_vco_band() : 0u;
+    v[k++] = fm1_ble_vco_cr.low[0];               /* 3y247: the sweep's map (masks 32 / 64), the band it kept */
+    v[k++] = fm1_ble_vco_cr.low[1];
+    v[k++] = fm1_ble_vco_cr.high[0];
+    v[k++] = fm1_ble_vco_cr.high[1];
+    v[k++] = fm1_ble_vco_cr.chosen;
 #else
-    for (i = 0; i < 6u; i++)
+    for (i = 0; i < 11u; i++)
         v[k++] = 0;
 #endif
 #endif

@@ -7463,3 +7463,14 @@ them together. Now `cr_ble_emit` stamps each event as it goes in (`tx_ms`, `rt_m
 it. `cr_ble_test` checks it (an event queued at 1000 ms and sent at 1025 ms carries 1000). The longest gaps (274 ms)
 are likely the link's (sends wait while the queue waits for acknowledgements), so they follow the reception's quality:
 the ~21 % bad CRC and 3y245's fade, whose likely cause (the captured VCO band) mask 32 tests. All 24 suites pass.
+
+3y247. **The VCO band: a full sweep and the flip.** After the bisect2 and bisect3 installs (soft resets, two cores) the
+radio went deaf within ~13 s and never connected; their 81 BLE said why the band matters: our scan found **no band in
+range** on E81CE2F7 (`ble_vco_found 0`, comparator word 0x20081: low), its bisection ending between band 56 (low) and 57
+(high), while the program's captured band is 54, two below that flip. So 3y245's mask 32 (keep the scan's band when it
+finds one) would have kept 54. Now masks 32 and 64 sweep all 64 bands after the program, record each band's comparator
+(81 BLE `ble_vco_low0/1`, `ble_vco_high0/1`: a map, bit b of word b / 32) and keep the first band that reads neither,
+else at the flip the last low band (32: 56 here) or the first high one (64: 57); `ble_vco_chosen` says which. The choice
+is `hal/fm1_vco_pick.h`, pure, tested in `cr_ble_test` (E81CE2F7's map: 56 / 57; a band in range first; all high: the
+captured one back for 32). Every soft-reset boot with two cores so far went deaf within 13 s and the one power-on
+lasted ~100 s: the map from both kinds of boot will show whether the flip moves. All 24 suites pass.
