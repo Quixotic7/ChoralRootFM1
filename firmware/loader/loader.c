@@ -73,6 +73,8 @@ static int ldr_fread(uint32_t off, void *p, uint32_t n) { return fl_read_ram(off
 static int ldr_erase(uint32_t off)
 {
     uint32_t took;
+    fm1_wdt_feed();                                 /* an erase may take 2 s (fm1_flash_wait.h): the record loop's run
+                                                     * of erases has no ldr_poll between them (3y264) */
     return fl_erase4k_ram(off, &took);
 }
 static int ldr_prog(uint32_t off, const void *p, uint32_t n)

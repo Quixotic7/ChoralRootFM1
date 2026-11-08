@@ -7666,3 +7666,29 @@ the restart. After: `--info` ChoralRoot 0.31, E81CE2F7; `--debug` c1_state 1, c1
 0, boot stub v3 64.4 ms marker ok, Bluetooth On and started (`ble_cal` 3, the start 163 ms with the interrupts held);
 stale_halves 55 on the first read, the radio's start at boot (163 ms of 2.9 ms halves), 0 over the next 26 s (worst
 half 391 us of 2,902, the deadline 0). Not tried here: USB Host with this package (3y261 / 3y262 ran its code).
+
+## 2026-11-08 (flash: a busy erase or page waited out, for the slower part)
+
+3y264. **The flash driver never goes back to XIP while the part is busy (felucca-bsp #12).** The orchestration session,
+for the owner: the same fix RemoteFM1 0.3.4 took, for the late-2026 FM-1s' 0xB36014 part (accepted since 3y222).
+`hal/fm1_flash.h fl_erase4k_ram` / `fl_prog_ram` waited with `fl_wait_ready(500 ms / 10 ms)`: a part still busy at the
+bound got -4 and `fl_exit` turned XIP back on mid-erase. Now felucca-bsp 2d37ec8 (Julius Vitkauskas, merged by Charles
+Vestal), ported unchanged: `hal/fm1_flash_wait.h fl_wait_issued` (MPL-2.0, LICENSING.md) counts from TIMER4 read before
+the command and returns only once SR1.BUSY reads clear: 0 within 500 ms / 10 ms, -4 later (the old code for the same
+case: callers unchanged), and at 2 s / 50 ms `fl_reset_busy`: 66h, 99h, 20 ms, PWR_CON core reset, all from RAM.
+Upstream's later `fl_wait_split` (its fast loader) is not taken: ChoralRoot's loader has no split erase.
+Callers checked: the stub writes no flash; the update loader (`loader.c`, the same header: its image changes) and the
+OTA staging (`ota_hw.c`) now feed the watchdog (8 s) before each erase, since `ota_unstage` and the loader's
+record-clearing loop run erases back to back ignoring their result (5 x 2 s would pass 8 s); every storage save stops
+at its first failed erase (at most two late ones, 4 s, between main-loop feeds); safe mode's erase-all and the SMK's
+clear feed per sector. With the interrupts held up to 2 s: core 1 waits in RAM (`.c1_text`) and only works inside the
+audio interrupt, so it never runs while XIP is off; the audio buffer is zeroed first (a silence as long as the erase,
+as today's 18 ms); USB's host-gone check (`usb.c`, 100 ms of a frozen frame number) counts polls, and none run
+while the interrupts are held, so a long erase does not read as an unplug.
+Tests: `tests/flash_wait_test.c` (upstream's host model of the part and TIMER4, on this header: never XIP while busy,
+-4 past the bound, the reset at and only at 2 s / 50 ms, across the TIMER4 wrap, 20,000 random cases; the old wait
+fails it, 16 checks) and a source check that both waits use it, in `run_tests.sh`; the emulator's `--erase-ms N`
+(1..2000; past 500 the erase returns -4) and `test_persist.sh`'s two runs: 450 ms saves and survives a relaunch, 1900 ms
+refuses the save, the unit runs on, the relaunch reads the defaults. `./build.sh` and `BOARD=smk37 ./build.sh`: OK; the
+disassembly of `fl_erase4k_ram` has the 48,000,000-tick (2 s) bound and the 66h / 99h sequence, `.ram_text` no calls.
+**Not tried on the slow part:** every unit here has the Puya part.

@@ -1417,6 +1417,8 @@ static void usage(void)
            "  --flash PATH     the flash image file (default build/emu/flash.bin; headless: none unless given):\n"
            "                   settings, user sounds and loops persist in it\n"
            "  --no-flash       RAM-only flash, erased at power-on\n"
+           "  --erase-ms N     a sector erase takes N ms (1..2000, default 45); past 500 it returns -4, late,\n"
+           "                   as the device's driver does for a slow part (hal/fm1_flash_wait.h)\n"
            "  --save-on-exit   save the settings at exit (they also save 1.5 s after a change)\n"
            "  --boot-fail N    the boot guard as a crashed run left it: N failed boots, pending set\n"
            "                   (firmware/src/cr_bootguard.h; with --reset-reason wdt: 1 -> SAFE MODE, 3 -> UBOOT)\n"
@@ -1770,6 +1772,12 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--demo")) opt_demo = 1;
         else if (!strcmp(a, "--flash") && v) { opt_flash = v; i++; }
         else if (!strcmp(a, "--no-flash")) opt_no_flash = 1;
+        else if (!strcmp(a, "--erase-ms") && v) {
+            int ms = atoi(v);
+            if (ms < 1 || ms > 2000) { fprintf(stderr, "emu: --erase-ms %s: 1..2000\n", v); return 2; }
+            emu_fw_erase_ms(ms);
+            i++;
+        }
         else if (!strcmp(a, "--save-on-exit")) opt_save_on_exit = 1;
         else if (!strcmp(a, "--boot-fail") && v) { opt_boot_fail = atoi(v); i++; }
         else if (!strcmp(a, "--boot-stage") && v) { opt_boot_stage = atoi(v); i++; }

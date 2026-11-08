@@ -83,6 +83,7 @@ extern const int8_t emu_keymap[6][EMU_NCOL];
 /* the flash file (before emu_fw_init): flash_path NULL = the default (build/emu/flash.bin; headless: none, a fresh
  * flash each run), no_flash = RAM only, save_on_exit = the settings saved at exit */
 void emu_fw_options(const char *flash_path, int no_flash, int save_on_exit, int headless);
+void emu_fw_erase_ms(int ms);                     /* --erase-ms: a sector erase's time (emu_hal_fw.h) */
 /* the boot guard before the power-on (firmware/src/cr_bootguard.h): fail < 0 none (a clean record), reason NULL a
  * power-on, stage < 0 the default; 0 = a bad reason */
 int emu_fw_boot_options(int fail, const char *reason, int stage);

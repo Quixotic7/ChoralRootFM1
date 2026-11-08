@@ -27,6 +27,7 @@ const int8_t emu_keymap[6][EMU_NCOL] = {
 /* emu_firmware.h builds storage.c (FELUCCA_FLASH 1) and cr_settings.c on emu_hal_fw.h's file-backed NOR; emu.c
  * parses --flash / --no-flash / --save-on-exit and hands them over here before the power-on (emu_fw_options). */
 static uint8_t emu_save_on_exit;
+void emu_fw_erase_ms(int ms) { emu_erase_ms_set = (uint32_t)ms; }   /* --erase-ms (emu_hal_fw.h) */
 void emu_fw_options(const char *flash_path, int no_flash, int save_on_exit, int headless)
 {
     emu_save_on_exit = (uint8_t)(save_on_exit != 0);

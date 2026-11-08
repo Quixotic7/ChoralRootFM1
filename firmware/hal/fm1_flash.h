@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
+ * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+ * Copyright (c) 2026 Julius Vitkauskas (busy-safe completion: felucca-bsp 2d37ec8, #12; MPL-2.0 upstream) */
 /* FM-1 SPI NOR at runtime: erase / program / read. Used only when
  * FELUCCA_FLASH is 1.
  *
@@ -8,6 +9,12 @@
  * libcalls, no XIP-resident helpers. Call the fl_*_ram() entry points with
  * interrupts disabled. Same sequence as the AC79 SDK flash driver
  * (cpu.a/vm_sfc.c.o: enter_spi_code, norflash_erase, norflash_wait_ok, exit_spi_code).
+ *
+ * An erase or program never returns to XIP while the part still reports BUSY
+ * (fl_wait_issued, fm1_flash_wait.h): it polls past the normal bound and, if the
+ * part is still busy at the extended bound, resets the part and then the chip,
+ * from RAM. (felucca-bsp 2d37ec8; until 0.31 a part busy at 500 ms / 10 ms got -4
+ * and XIP came back while it was still erasing: docs/HISTORY.md 3y264.)
  */
 #pragma once
 #include <stdint.h>
@@ -124,6 +131,25 @@ RAMINL int fl_wait_ready(uint32_t max_us, uint32_t *took_us)
         if (dt > max_us) { *took_us = dt; return -4; }
     }
 }
+/* A part still busy at the extended bound (fl_wait_issued): end the operation in the part itself (Enable Reset 0x66,
+ * Reset 0x99; the Puya P25Q80 has both), so the boot ROM finds it idle, give it its reset recovery (tRST, up to 12 ms
+ * after an interrupted erase on common NOR parts; 20 ms here), then reset the chip (PWR_CON core reset, as stub.c's
+ * and fm1_irq.h's). All from RAM, with XIP still off: never back to XIP. */
+RAMINL void fl_reset_busy(void)
+{
+    uint32_t t0;
+    volatile uint8_t cmd = 0x66;                  /* (a loop, not unrolled: fl_wait_issued is inlined twice) */
+    for (;;) {
+        fl_cs(0); fl_tx(cmd); fl_cs(1);
+        if (cmd == 0x99) break;
+        cmd = 0x99;
+    }
+    t0 = T4_CNT;
+    while (T4_CNT - t0 < 24u * 20000u) ;
+    REG32(0x10000u) |= 1u << 4;
+    for (;;) ;
+}
+#include "fm1_flash_wait.h"                       /* fl_wait_issued: shared with the host model (tests/flash_wait_test.c) */
 
 /* ---- entry points: IRQs OFF, args/buffers in RAM ---- */
 
@@ -175,9 +201,10 @@ static RAMFN int fl_erase4k_ram(uint32_t off, uint32_t *took_us)
     fl_wren();
     if (!(fl_rdsr(0x05) & 2u)) rc = -3;           /* WEL did not set */
     else {
+        uint32_t issued = T4_CNT;
         fl_cs(0); fl_tx(0x20); fl_addr(off); fl_cs(1);
         fl_inval(off, 4096u);
-        rc = fl_wait_ready(500000u, took_us);     /* generic NOR max 400 ms */
+        rc = fl_wait_issued(issued, 500000u, 2000000u, took_us);   /* generic NOR max 400 ms */
     }
     fl_exit(&s);
     return rc;
@@ -192,11 +219,12 @@ static RAMFN int fl_prog_ram(uint32_t off, const uint8_t *src, uint32_t n, uint3
     fl_wren();
     if (!(fl_rdsr(0x05) & 2u)) rc = -3;
     else {
+        uint32_t issued = T4_CNT;
         fl_cs(0); fl_tx(0x02); fl_addr(off);
         for (i = 0; i < n; i++) fl_tx(src[i]);
         fl_cs(1);
         fl_inval(off, n);
-        rc = fl_wait_ready(10000u, took_us);      /* generic NOR max 3 ms */
+        rc = fl_wait_issued(issued, 10000u, 50000u, took_us);      /* generic NOR max 3 ms */
     }
     fl_exit(&s);
     return rc;

@@ -12,6 +12,7 @@ static int ota_erase(uint32_t off)
     if (!ota_in_area(off, 0x1000u) || (off & 0xFFFu))
         return -8;
     audio_silence();
+    fm1_wdt_feed();             /* an erase may take 2 s (fm1_flash_wait.h); ota_unstage erases 5 in a row (3y264) */
     return fl_erase4k(off, &took);
 }
 static int ota_prog(uint32_t off, const void *p, uint32_t n)

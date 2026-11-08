@@ -129,6 +129,16 @@ par_build $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
 par_build $CC -o "$OUT/pool_test" tests/pool_test.c
 run "sound pool (floating banks, power cuts)" "$OUT/pool_test"
+# the flash driver's erase / program wait (hal/fm1_flash_wait.h, felucca-bsp #12, 3y264): never back to XIP while the
+# part is busy; -4 past 500 ms / 10 ms; the part and the chip reset at 2 s / 50 ms; across the TIMER4 wrap
+par_build $CC -std=c11 -Wextra -Werror -fsanitize=address,undefined -o "$OUT/flash_wait_test" tests/flash_wait_test.c
+run "flash erase / program wait: never XIP while busy, late at the bound, the reset at 2 s / 50 ms" "$OUT/flash_wait_test"
+run "fm1_flash.h: the erase and the page program wait with fl_wait_issued (500 ms / 2 s, 10 ms / 50 ms), never fl_wait_ready" \
+    sh -c 'f=firmware/hal/fm1_flash.h
+           grep -q "rc = fl_wait_issued(issued, 500000u, 2000000u, took_us);" $f &&
+           grep -q "rc = fl_wait_issued(issued, 10000u, 50000u, took_us);" $f &&
+           ! grep -q "rc = fl_wait_ready(" $f && grep -q "^#include \"fm1_flash_wait.h\"" $f && echo "ok: both waits busy-safe" ||
+           { echo "FAIL: $f does not use fl_wait_issued for both waits"; exit 1; }'
 
 par_build $CC -o "$OUT/upreset_test" tests/upreset_test.c
 run "user sound records (UP_PUT parser, versions, PHYS DRUM -> DRUM on a read, grid records, DIGITAL kept)" "$OUT/upreset_test"

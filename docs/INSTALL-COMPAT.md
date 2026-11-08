@@ -71,6 +71,19 @@ so the way out is through the chip's ROM boot: hold OCT-, OCT+ and HOME together
 own check of the id needs the override on that chip until it learns the id too), after which the web installer
 installs 0.29.1 over V15 as on any unit. The web installer and `fm1_install.py` do not read the chip id.
 
+**A slower part: the erase waited out (HISTORY 3y264).** The 0xB36014 part (reported as the UC25HQ80) can take longer
+to erase a sector or program a page than the Puya part. Up to 0.31 the driver (`hal/fm1_flash.h`) gave up waiting at
+500 ms (an erase) or 10 ms (a page), returned -4 and switched XIP back on while the part might still be busy: the next
+code fetched from the flash would then be whatever the bus returned. Since 3y264 (felucca-bsp #12, as RemoteFM1 0.3.4)
+the driver never goes back to XIP while the part says busy: it keeps polling to 2 s / 50 ms; done by 500 ms / 10 ms
+is success as before, done later is -4 (the operation finished, the caller sees the old failure code: a save is
+refused and tried again at the next save, an install stops and can be run again); still busy at 2 s / 50 ms, it
+resets the part (66h, 99h, 20 ms) and then the chip, from RAM. Each erase holds the interrupts for its whole time
+(a silence as long as the erase; the watchdog is 8 s and fed before each erase in the update paths). **Not tried on
+hardware with the slow part:** every unit here has the Puya part (0x856014), where erases take ~18 ms; on those units
+nothing changes but the image. The wait and the reset are checked by a host model (`tests/flash_wait_test.c`) and the
+app's handling of a slow or late erase by the emulator (`tools/emu/test_persist.sh`, `--erase-ms`).
+
 ## Bubba Machine (2026-10-17, HISTORY 3y176)
 
 [Bubba Machine](https://github.com/Erbubar23/bubba-machine) (a groovebox firmware, GPL-3.0) answers the handshake as

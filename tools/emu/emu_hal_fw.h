@@ -192,8 +192,13 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
 }
 /* the device's erase (storage_hw.c st_erase): the audio buffer zeroed and every IRQ off for the 4 KiB erase (typ.
  * ~45 ms on the FM-1's NOR, up to 400 ms): no render, the DMA loops silence. The emulator plays the same hole:
- * EMU_ERASE_MS of zero blocks, the firmware's audio ISR not run meanwhile (emu_fw_audio) */
-#define EMU_ERASE_MS 45u
+ * EMU_ERASE_MS of zero blocks, the firmware's audio ISR not run meanwhile (emu_fw_audio).
+ * --erase-ms N (3y264): a slower part's erase, 1..2000 ms. Past 500 the sector is erased but the call returns -4, as
+ * the device's driver does for a part that was still busy at its normal bound (hal/fm1_flash_wait.h
+ * FL_ERR_LATE_READY); at 2 s the device resets the part and the chip, which the emulator does not model */
+static uint32_t emu_erase_ms_set = 45u;
+#define EMU_ERASE_MS emu_erase_ms_set
+#define EMU_ERASE_LATE_MS 500u                    /* fm1_flash.h fl_erase4k_ram's normal bound */
 #define EMU_PROG_US 1000u                         /* a page program's masked time in the model (docs/FX.md: ~1 ms) */
 static uint32_t emu_stall_blocks, emu_stalls, emu_stall_blocks_all;
 static int audio_loud(void);                      /* audio.c (included after this): the output above -60 dBFS */
@@ -222,7 +227,7 @@ static int st_erase(uint32_t off)
     }
     memset(emu_flash + off, 0xFF, 0x1000u);
     emu_flash_sync(off, 0x1000u);
-    return 0;
+    return EMU_ERASE_MS > EMU_ERASE_LATE_MS ? -4 : 0;   /* (erased all the same: late, not failed) */
 }
 static int emu_prog_left = -1;                    /* the host tests' power cut: programs that still reach the flash (-1:
                                                    * no cut), then every program fails (tests/cr_pool_test.c) */
