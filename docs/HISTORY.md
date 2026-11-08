@@ -7691,4 +7691,14 @@ fails it, 16 checks) and a source check that both waits use it, in `run_tests.sh
 (1..2000; past 500 the erase returns -4) and `test_persist.sh`'s two runs: 450 ms saves and survives a relaunch, 1900 ms
 refuses the save, the unit runs on, the relaunch reads the defaults. `./build.sh` and `BOARD=smk37 ./build.sh`: OK; the
 disassembly of `fl_erase4k_ram` has the 48,000,000-tick (2 s) bound and the 66h / 99h sequence, `.ram_text` no calls.
-**Not tried on the slow part:** every unit here has the Puya part.
+**Not tried on the slow part:** every unit here has the Puya part. **On a unit**: the spare E81CE2F7, which was
+running FIZZ (`FM-1_4600`, no INFO answer); FIZZ's store backed up first (`FIZZ-saves/2026-11-08-before-choralroot-
+erase-wait-store.bin`, 200,704 B, CRC-32 71297ecd as the unit's), then the owner ran `caffeinate -dimsu fm1_install.py
+build/choralroot.fwsc --yes --force` (sha256 f1785842...2f25; `--force`: the tool refuses FIZZ, INSTALL-COMPAT). After:
+`--info` ChoralRoot 0.31, unit ID E81CE2F7; `--debug` crash_count 0, c1_state 1, c1_faults 0, boot stub v3 64.4 ms
+marker ok: a clean start over FIZZ's leftover store, ChoralRoot's own settings still there (34 objects backed up,
+`fm1-backup-E81CE2F7-2026-11-08-after-erase-wait-over-fizz.json`). Writes: a DX7 voice imported into U128 and deleted
+five times (page program 1,972 us at most, read back each time), then that backup restored: 14 erases, all saves rc 0,
+the unit restarted cleanly (crash_count 0) and backs up the same objects (U121-128 now a written bank of empty slots).
+The first restore stopped once with "no answer to backup command 67" (a PUT not answered in 4 s) after its 14 erases,
+the unit fine (no crash, no USB timeout, no stale half); the second ran through. Not explained; not seen again.
