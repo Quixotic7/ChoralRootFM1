@@ -2053,6 +2053,219 @@ static void t_route(void)
     rt_reset();
 }
 
+/* ------------------------------------------------------- the part round the filter --- */
+/* 3y270, THE PART ROUND THE FILTER (cr_fx.c xb_*; MANUAL.md 8 "The Filter page"): Filter Chord filters the chord part
+ * alone, Bass the bass part alone, the other part's dry going round (F(acc - B) + B at the filter's place). A block as
+ * fx.c mix_block runs it: xb_begin, the two parts mixed with their shares taken around each (xb_want / xb_cap), each
+ * sent to the reverb at bp_rs, then the stage at the place: Parallel after, Parallel with the Filter first, Chain
+ * Chorus > Delay > Reverb > Filter. bp_old: the stage as 0.32 ran it (no share, nothing round) */
+static int bp_old;
+static uint32_t bp_place;                               /* 0 Parallel after, 1 Parallel first, 2 Chain */
+static int32_t bp_rs;                                   /* the parts' reverb send, Q15 (Chain: the chord part's amount) */
+static const char *const BP_PL[3] = {"Parallel after", "Parallel first", "Chain"};
+static void bp_reset(uint32_t place)
+{
+    rt_reset();
+    memset(&xb, 0, sizeof xb);
+    bp_place = place;
+    bp_old = 0;
+    bp_rs = 0;
+    xfp[XP_RMODE] = (int16_t)(place == 2u);
+    xfp[XP_ORDER] = (int16_t)(place == 1u ? rt_ordof(XFE_FILTER, XFE_CHORUS, XFE_DELAY, XFE_REVERB) : 0u);
+    xfp[XP_FHIGH] = 0;                                  /* (the high cut at 200 Hz, 12 dB) */
+}
+static void bp_block(const int32_t *c, const int32_t *b)
+{
+    uint32_t k, p;
+    for (k = 0; k < CTL; k++)
+        mix_l[k] = mix_r[k] = send_c[k] = send_d[k] = send_r[k] = 0;
+    if (!bp_old)
+        xb_begin(CTL);
+    for (p = 0; p < 2u; p++) {
+        const int32_t *x = p ? b : c;
+        int w = !bp_old && xb_want(p);
+        if (w)
+            xb_cap(p, mix_l, mix_r, CTL, -1);
+        for (k = 0; k < CTL; k++) {
+            mix_l[k] += x[k];
+            mix_r[k] += 2 * x[k];                       /* (the sides differ) */
+            send_r[k] += mulq15(x[k], bp_rs);
+        }
+        if (w)
+            xb_cap(p, mix_l, mix_r, CTL, 1);
+    }
+    if (bp_place == 2u) {
+        rt_amt(0, 0, bp_rs / 258);
+        mix_fx_chain(CTL);
+    } else {
+        rt_par(send_c, send_d, send_r, mix_l, mix_r, 0);
+    }
+}
+static uint64_t bp_hash;
+/* n samples, the chord part gc, the bass part gb (0: silent); WI the dry sum (left), WL / WR the output; hook before
+ * every block */
+static void bp_run(uint32_t n, gen_t gc, gen_t gb, hook_t hook)
+{
+    static int32_t c[CTL], b[CTL];
+    uint32_t i, k;
+    bp_hash = 1469598103934665603ull;
+    for (i = 0; i < n && i + CTL <= MAXS; i += CTL) {
+        if (hook)
+            hook(i);
+        for (k = 0; k < CTL; k++) {
+            c[k] = gc ? gc(i + k) : 0;
+            b[k] = gb ? gb(i + k) : 0;
+            WI[i + k] = c[k] + b[k];
+        }
+        bp_block(c, b);
+        bp_hash = rt_fnv(bp_hash, mix_l, mix_r);
+        memcpy(WL + i, mix_l, CTL * sizeof *WL);
+        memcpy(WR + i, mix_r, CTL * sizeof *WR);
+    }
+}
+static int bp_dry(uint32_t a, uint32_t b)               /* the output is the dry, both sides, every sample of [a, b) */
+{
+    uint32_t i;
+    for (i = a; i < b; i++)
+        if (WL[i] != WI[i] || WR[i] != 2 * WI[i])
+            return 0;
+    return 1;
+}
+static int32_t g_bpc(uint32_t i) { return (int32_t)(16000.0 * sin(2.0 * M_PI * 2100.0 * i / 44100.0)); }   /* the chord part */
+static int32_t g_bpb(uint32_t i) { return (int32_t)(16000.0 * sin(2.0 * M_PI * 1700.0 * i / 44100.0 + 0.4)); }   /* the bass part */
+static int32_t g_bpc4(uint32_t i) { return (int32_t)(16000.0 * sin(2.0 * M_PI * 440.0 * i / 44100.0)); }   /* .. low, for the steps */
+static int32_t g_bpb3(uint32_t i) { return (int32_t)(16000.0 * sin(2.0 * M_PI * 330.0 * i / 44100.0 + 0.4)); }
+static int32_t g_bph(uint32_t i) { return i < 44100u ? (int32_t)(20000.0 * sin(2.0 * M_PI * 9000.0 * i / 44100.0)) : 0; }
+static void h_bp_cycle(uint32_t i)                      /* every 100 ms: All, Chord, Bass, All, Off, Chord, Bass, Off, .. */
+{
+    static const int16_t F[8] = {1, 2, 3, 1, 0, 2, 3, 0};
+    xfp[XP_FON] = F[(i / 4410u) & 7u];
+}
+static void t_bypass(void)
+{
+    uint32_t pl, n = 44100u, m, i;
+    int ok;
+    char line[240];
+    /* (a) at each place, no sends: the part round the filter comes out as it went in, every sample; the other part
+     * alone is what All makes of it, every sample, and the filter is heard on it */
+    for (pl = 0, ok = 1; pl < 3u; pl++) {
+        uint32_t f;
+        for (f = 2; f <= 3u; f++) {
+            uint64_t all;
+            gen_t round = f == 2u ? g_bpb : g_bpc, thru = f == 2u ? g_bpc : g_bpb;
+            bp_reset(pl);
+            xfp[XP_FON] = (int16_t)f;
+            bp_run(n, f == 2u ? 0 : round, f == 2u ? round : 0, 0);
+            ok = ok && bp_dry(0, n);
+            bp_reset(pl);
+            xfp[XP_FON] = 1;
+            bp_run(n, f == 2u ? thru : 0, f == 2u ? 0 : thru, 0);
+            all = bp_hash;
+            bp_reset(pl);
+            xfp[XP_FON] = (int16_t)f;
+            bp_run(n, f == 2u ? thru : 0, f == 2u ? 0 : thru, 0);
+            ok = ok && bp_hash == all && rms(WL, n / 2u, n) * 10.0 < rms(WI, n / 2u, n);
+            if (!ok) {
+                printf("cr_fx:   bypass: %s, Filter %s: failed\n", BP_PL[pl], f == 2u ? "Chord" : "Bass");
+                break;
+            }
+        }
+    }
+    check("bypass: Chord / Bass at each place (Parallel after, first, Chain): the part round it is its dry every sample, the other is All's every sample and cut (-20 dB)", ok);
+    /* (b) the effects are shared: the bass part alone, a 9 kHz tone sent to the reverb, Chord, High cut 200 Hz: its
+     * dry exact, its reverb filtered as the place says (after: the returns; first: the sends; Chain: after Reverb) */
+    for (pl = 0, ok = 1, m = 3u * n; pl < 3u; pl++) {
+        double w[2];
+        uint32_t f;
+        for (f = 0; f < 2u; f++) {
+            double e = 0;
+            bp_reset(pl);
+            bp_rs = 127 * 258;
+            xfp[XP_FON] = (int16_t)(f ? 2 : 0);
+            bp_run(m, 0, g_bph, 0);
+            for (i = 0; i < m; i++)
+                e += (double)(WL[i] - WI[i]) * (WL[i] - WI[i]);
+            w[f] = e;
+        }
+        snprintf(line, sizeof line, "cr_fx:   bypass: %s, Chord, the bass part's 9 kHz into the reverb: its wet %.1f dB under Filter Off's\n",
+                 BP_PL[pl], 10.0 * log10((w[0] + 1e-9) / (w[1] + 1e-9)));
+        fputs(line, stdout);
+        ok = ok && w[0] > 0 && w[1] * 100.0 < w[0];
+    }
+    check("bypass: the bass part round the filter, sent to the reverb: the reverb's wet is filtered at each place (20 dB under Filter Off's)", ok);
+    /* (c) All is 0.32's On, Off its Off, every sample: both parts, both sent, at each place */
+    for (pl = 0, ok = 1; pl < 3u; pl++) {
+        uint32_t f;
+        for (f = 0; f < 2u; f++) {
+            uint64_t h0;
+            bp_reset(pl);
+            bp_rs = 60 * 258;
+            bp_old = 1;
+            xfp[XP_FON] = (int16_t)f;
+            bp_run(n, g_bpc, g_bpb, 0);
+            h0 = bp_hash;
+            bp_reset(pl);
+            bp_rs = 60 * 258;
+            xfp[XP_FON] = (int16_t)f;
+            bp_run(n, g_bpc, g_bpb, 0);
+            ok = ok && bp_hash == h0 && !xb.has && !(xb.g[0] | xb.g[1]);
+        }
+    }
+    check("bypass: Filter All is the stage without the bypass (0.32's On), Off its Off, every sample, nothing taken: both parts sent, each place", ok);
+    /* (d) FX off with Filter Chord: the dry, every sample, nothing taken */
+    bp_reset(0);
+    fx_off = 1;
+    xfp[XP_FON] = 2;
+    bp_run(n, g_bpc, g_bpb, 0);
+    ok = bp_dry(0, n) && !xb.has;
+    fx_off = 0;
+    check("bypass: FX off with Filter Chord: the dry mix, every sample, no share taken", ok);
+    /* (e) the choice cycled All, Chord, Bass, All, Off, .. every 100 ms under both parts' tones, 440 and 330 Hz (High
+     * cut ~500 Hz: a part's filtered sound half its dry's away; switched at once, a step of ~4 x the dry's own):
+     * no sample step above 1.3 x the dry's own; after Off's fade the dry again, every sample, the shares at 0 */
+    for (pl = 0, ok = 1, m = 2u * n; pl < 3u; pl++) {
+        double ref, st;
+        uint32_t a;
+        bp_reset(pl);
+        xfp[XP_FHIGH] = 27;
+        bp_run(m, g_bpc4, g_bpb3, h_bp_cycle);
+        ref = fq_maxstep(WI, 0, m);
+        st = fq_maxstep(WL, 0, m);
+        a = 4u * 4410u + 17u * CTL;                     /* (Off from 400 ms: the dry from 17 blocks after) */
+        a = (a + CTL - 1u) / CTL * CTL;
+        printf("cr_fx:   bypass: %s, the choice cycled every 100 ms: the largest sample step %.0f, the dry's %.0f\n", BP_PL[pl], st, ref);
+        ok = ok && st < 1.3 * ref && bp_dry(a, 5u * 4410u - 4410u % CTL) && !xb.has;
+    }
+    check("bypass: All > Chord > Bass > All > Off > .. every 100 ms under both parts' tones, each place: no step above 1.3 x the dry's; Off: the dry again", ok);
+    /* (f) the cost: host instructions a block of the stage, Parallel after, both 12 dB cuts: All, Chord, Off */
+    if (instr_now()) {
+        static int32_t c[CTL], b[CTL];
+        uint64_t ca, cc, co, t0;
+        uint32_t j, f, rep = 20000u;
+        for (j = 0; j < CTL; j++) {
+            c[j] = noise(20000);
+            b[j] = noise(20000);
+        }
+        for (f = 0; f < 3u; f++) {
+            bp_reset(0);
+            xfp[XP_FLOW] = 60;
+            xfp[XP_FHIGH] = 60;
+            xfp[XP_FON] = (int16_t)(f == 0u ? 1 : f == 1u ? 2 : 0);
+            for (j = 0; j < 40u; j++)
+                bp_block(c, b);
+            t0 = instr_now();
+            for (j = 0; j < rep; j++)
+                bp_block(c, b);
+            *(f == 0u ? &ca : f == 1u ? &cc : &co) = (instr_now() - t0) * 4u / rep;
+        }
+        printf("cr_fx:   bypass COST, host instructions a 128-frame half, Parallel after, both 12 dB cuts: Off %llu, All %llu, "
+               "Chord %llu (+%lld)\n", (unsigned long long)co, (unsigned long long)ca, (unsigned long long)cc, (long long)cc - (long long)ca);
+        check("bypass: the cost: Chord adds at most a third of what the two cuts add", cc >= ca && 3u * (cc - ca) <= ca - co);
+    }
+    rt_reset();
+    memset(&xb, 0, sizeof xb);
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1)
@@ -2086,6 +2299,7 @@ int main(int argc, char **argv)
     t_corners();
     t_filter();
     t_route();
+    t_bypass();
     demos();
     printf(bad ? "cr_fx_test: %d FAILED\n" : "cr_fx_test: all ok\n", bad);
     return bad != 0;

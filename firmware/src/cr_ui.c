@@ -1034,7 +1034,11 @@ static void cu_fx_val(int32_t id, char *out, uint32_t n)
             cu_fx_hz(out, xq_high_hz((uint32_t)v), n);
         break;
     case XP_FSLOPE: cu_cpy(out, v ? "12 dB" : "6 dB", n); break;
-    case XP_FON: cu_cpy(out, v && cs.fx_on ? "On" : "Off", n); break;   /* (FX off: the filter is out, as a send) */
+    case XP_FON: {                                /* (FX off: the filter is out, as a send) */
+        static const char *const FON[4] = {"Off", "All", "Chord", "Bass"};   /* (cr_fx.c: what goes through it) */
+        cu_cpy(out, cs.fx_on ? FON[v & 3] : "Off", n);
+        break;
+    }
     default: cu_int(out, v, 0, n); break;
     }
 }
@@ -4231,9 +4235,13 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
                                                    * division, a ratio, a switch: one a detent) */
         v = v < lo ? lo : v > hi ? hi : v;
         if (((id == XP_FLOW || id == XP_FHIGH) && v != *q) || (id == XP_FON && v)) {   /* the master filter: a cutoff
-                                                   * turned, or Filter to On, switches the filter and FX on (as a
-                                                   * send turned switches FX on: the knob is heard) */
-            xfp[XP_FON] = 1;
+                                                   * turned, or Filter to All / Chord / Bass, switches the filter and
+                                                   * FX on (as a send turned switches FX on: the knob is heard). A
+                                                   * cutoff turned while Off: All (the knob reaches Off only from
+                                                   * All, so "the last choice" would be All anyway); while Chord or
+                                                   * Bass: kept */
+            if (!xfp[XP_FON])
+                xfp[XP_FON] = 1;
             if (!cs.fx_on) {
                 cs.fx_on = 1;
                 cu_fx_apply();

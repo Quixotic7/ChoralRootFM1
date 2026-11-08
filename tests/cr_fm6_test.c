@@ -483,6 +483,43 @@ int main(void)
         css_apply(&x);
         OK(c->eng_req == ENGI_QUAD && c->p[P_DIST] == 0 && cs.fx_amt[3] == 40 && bs->p[P_DIST] == 21 && cu_bdrive == 21,
            "drive: an older session (FX off, FM TONE on both parts): the chord sound's Drive 0 as it sounded, its send 40 kept; the bass sound's 21, and 21 the part's send");
+        /* 3y270, the Filter's choice (tag 34, xfp[XP_FON]): 0.22's On (1) loads as All, Chord (2) and Bass (3) load
+         * and are captured again, a value past Bass leaves what is there; with the Filter Off, a cutoff turned
+         * switches it to All, and with Chord a cutoff turned keeps Chord */
+        {
+            uint32_t fg = 0;
+            int vf = -1;
+            uint8_t fon = cs.fx_on, fpg = cs.fx_page;
+            xfp[XP_FON] = 0;
+            cr_session_fx_set(&x, CSS_FXP_XQ_ON, 1);
+            css_apply(&x);
+            fg += xfp[XP_FON] == 1;
+            cr_session_fx_set(&x, CSS_FXP_XQ_ON, 2);
+            css_apply(&x);
+            css_capture(&y);
+            fg += xfp[XP_FON] == 2 && cr_session_fx_get(&y, CSS_FXP_XQ_ON, &vf) && vf == 2;
+            cr_session_fx_set(&x, CSS_FXP_XQ_ON, 3);
+            css_apply(&x);
+            fg += xfp[XP_FON] == 3;
+            cr_session_fx_set(&x, CSS_FXP_XQ_ON, 4);
+            css_apply(&x);
+            fg += xfp[XP_FON] == 3;
+            xfp[XP_FON] = 0;
+            xfp[XP_FHIGH] = 127;
+            cs.fx_page = CU_FXPG_FILTER;
+            cu_layer_knob(L_FX, 1u, -1);                    /* (KNOB 2: the high cut in) */
+            fg += xfp[XP_FON] == 1 && xfp[XP_FHIGH] < 127;
+            xfp[XP_FON] = 2;
+            cu_layer_knob(L_FX, 1u, -1);
+            fg += xfp[XP_FON] == 2;
+            OK(fg == 6u, "filter: the session's tag 34: 1 (0.22's On) loads as All, 2 / 3 load and are captured, 4 is refused; a cutoff turned while Off: All, while Chord: Chord (%u of 6)", (unsigned)fg);
+            xfp[XP_FON] = 0;
+            xfp[XP_FHIGH] = 127;
+            cr_session_fx_set(&x, CSS_FXP_XQ_ON, 0);
+            if (cs.fx_on != fon)
+                cu_fx_toggle();
+            cs.fx_page = fpg;
+        }
         cu_fx_toggle();                               /* FX on again, the power-on sounds, a new unit's sends */
         cu_load(c, ENGI_FM6, 0, 0);
         cu_load(bs, ENGI_VA, 0, 1);

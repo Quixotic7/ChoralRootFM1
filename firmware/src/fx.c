@@ -1095,11 +1095,22 @@ CR_HOT_CORE static void mix_part_out(track_t *t, int32_t *b, int32_t *side, uint
         k[MX_GR] = gr;
         k[MX_XMAX] = xmax;
         k[MX_PK] = pk;
+#if CR_FX
+        uint32_t xbp = (uint32_t)(t - trk);
+        int xbw = xb_want(xbp);                         /* (cr_fx.c: this part round the master filter, its dry
+                                                         * stereo taken as the loop adds it: the mix before, after) */
+        if (xbw)
+            xb_cap(xbp, mix_l, mix_r, n, -1);
+#endif
         /* the loop of this block: with or without the side, the sends, the tap */
         if (sd)
             pk = sends ? (pc ? mix_loop_sfu : mix_loop_sf)(b, sd, n, k, pc) : (pc ? mix_loop_su : mix_loop_s)(b, sd, n, k, pc);
         else
             pk = sends ? (pc ? mix_loop_fu : mix_loop_f)(b, sd, n, k, pc) : (pc ? mix_loop_u : mix_loop)(b, sd, n, k, pc);
+#if CR_FX
+        if (xbw)
+            xb_cap(xbp, mix_l, mix_r, n, 1);
+#endif
         t->peak = pk;
         FX_SEND_END();
 #undef FX_SEND_END
@@ -1603,6 +1614,10 @@ static void mix_block(int32_t *out, uint32_t n)
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     events_block(n);
+#if CR_FX
+    xb_begin(n);                                        /* (cr_fx.c: a part round the master filter, its share this
+                                                         * block; B cleared while one is taken) */
+#endif
 #if FELUCCA_GRAIN
     grain_tick();                                       /* GRAIN's render requests and fades, on core 0 before any part
                                                          * renders (eng_grain.c, docs/GRAIN.md) */
