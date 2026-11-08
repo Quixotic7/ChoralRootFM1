@@ -7425,3 +7425,14 @@ supply sequence. 81 BLE reports the mask in force (`ble_test`). A release build 
 both ways; all 24 suites pass. The plan (side-session notes `ble-step2/bisect-plan.md`): one install, then a power cycle
 and `--debug` per step, Dual Core Off; `ble_scan_req` / `ble_cind_rx` above 0 with the Mac's Bluetooth window open is
 the verdict.
+
+3y244. **Bluetooth MIDI works with one core.** On E81CE2F7, the bisect build (3y243) at mask 0 with Dual Core Off,
+the Mac's Bluetooth window opened before the power-on: deaf for the first ~27 s (no scan requests, likely the Mac's own
+scan cadence), then scan requests, 4 CONNECT_INDs accepted, connected: listed after ~40 s, connected ~20 s later, "a peer
+subscribed", CoreMIDI port "ChoralRoot 8FC2 Bluetooth", MIDI both ways (device session: ble-step2/
+poll-bisect-S0-mask0-dualcore-off.log, debug-9). Mac -> FM-1: 10 of 10 notes, +24 ms median against USB (sd 26; Melodee
++18, sd 12), 118 of 120 in a 2-minute soak. FM-1 -> Mac (Clock Out, 48 Hz): no pulse lost (5,800 in 125 s) but
+bursty: max gap 274 ms, sd 38 ms (Melodee: 60 ms, sd 7). The link: 133 events a second (7.5 ms), 21 % of the RX
+interrupts bad CRC, 3 drops in 5 minutes, each re-established. With the link up and one core, `perf_unit va fm6`:
+VA 12 late halves of 20 s, no stale half; FM6 none late. Open: two cores (the earlier "not seen"; next, Dual Core On at
+mask 0, then mask 2 to tell core 1's work from core 1 running), then the bad-CRC rate, the drops and the TX bursts.
