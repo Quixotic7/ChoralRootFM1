@@ -7748,3 +7748,31 @@ backup first (`~/fm1-backups/fm1-backup-E81CE2F7-2026-11-08-before-0.32.json`, s
 -dimsu fm1_install.py choralroot-0.32.fwsc --unit E81CE2F7 --yes`, exit 0, the same unit after the restart. After:
 `--info` ChoralRoot 0.32, E81CE2F7; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, crash_count 0, stub v3 64.4 ms,
 stale_halves 0, `flash_late_ops 0`, `flash_late_max_us 0` (the Puya part), Bluetooth Off.
+
+## 2026-11-08 (the power-on pop: the boot stub's rail)
+
+3y267. **Boot stub 4: the panel rail 200 ms in, not at once (the power-on pop).** The owner, through the orchestration
+session: a loud pop from the speaker on ChoralRoot's power-on for a long time, the volume knob at zero too; "FM1-Base
+fixed it". **FM1-Base has no pop fix as such**: its audio start is felucca-bsp's `boards/fm1/fm1_audio.h`, the same
+sequence as `hal/fm1_audio.h` here (PC0/1/2 the clocks, PC6 held low 5 ms, then the DMA), with checks added (the
+buffer, the audio PLL, a `csync`), no amplifier enable or mute anywhere (its headphone-jack commit only reads PB5), and
+no commit or issue in fm1-base, felucca-bsp, FIZZ or RemoteFM1 about a power-on pop (FIZZ's "popfix" of 2026-10-26 is a
+playback pop). The owner's answers narrowed it: the pop comes **the instant the switch goes on, the screen still
+dark**; Bluetooth and Dual Core off do not stop it (so not the app's late supply change, `cr_rails_stock` /
+`cr_rails_init`, just before `audio_init`); not every time, more often from a cold start (left off a while); never
+on FIZZ or RemoteFM1. What runs in that window on ChoralRoot only is the boot stub (FM1-Base has none): its first act
+was `shw_rail(1)`, PA2 low, the rail for the backlight, the two 595s and the LEDs, within a millisecond of the SPL's
+jump, then 48 ms of the LED lines and the 595 chain clocked for the OCT- key. FM1-Base switches that rail on in
+`lcd_init`, after its supply setup (`fm1_power_stock`: the DC-DC, VDDIO 3.2 V), the clock, and its flash checks.
+**The change**: `stub.c` waits `STUB_RAIL_WAIT_US` (200 ms, TIMER4) before `shw_rail(1)`; nothing else in the stub
+changed, no new register is written, the key window and the decision as before. `STUB_VERSION` 4 on the FM-1 only:
+the SMK-37 has no such rail (PA2 is a matrix row there), its three stubs stay version 3 byte for byte (`crt0_stub.S`
+is now built with the board's flags, so its header says 3 there; `stub_smk37*.lock` unchanged), `stub.lock` 4
+efc85c75...ef9c2. Boot: the stub 264 ms (was 64), the whole start about 200 ms longer. `sh tests/run_cr_tests.sh`
+green (cr_bootguard 95, cr_stub 16,143, stub_pkg 265); `BOARD=smk37` (Pro, Elite) builds, its stub at its lock. **On
+the spare E81CE2F7** (alone on USB, ChoralRoot 0.32): a backup first
+(`FIZZ-saves/2026-11-08-E81CE2F7-before-boot-pop-stub4.json`, settings and U121-128), `caffeinate -dimsu
+fm1_install.py build/choralroot.fwsc --unit E81CE2F7 --yes`, exit 0 (sector 0x4000 rewritten), the same unit after.
+`--debug`: stub v4, 264.4 ms, booted the app; `--stub test`: marker ok, staged loader ok, rescue key not held (OCT- 0
+of 32). **The owner's listening**: pending.
+

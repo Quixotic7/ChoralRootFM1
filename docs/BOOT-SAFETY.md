@@ -475,6 +475,11 @@ Version 2: the same 14 ms, and the key window instead of the quick exit: 32 samp
 ms (the LCD's init alone waits about 350), so the whole start grows by about a tenth. Version 3 adds two register
 writes: the same figure.
 
+Version 4 (the FM-1's; HISTORY 3y267) waits 200 ms (`STUB_RAIL_WAIT_US`) before it switches the PA2 rail on: version
+3 switched it at once, and the speaker popped at power-on, more often from a cold start, on ChoralRoot only (FM1-Base,
+with no stub, switches it on in `lcd_init` after its supply setup). **264.4 ms measured on the unit** (E81CE2F7). The
+SMK-37's stubs have no rail and stay version 3.
+
 `STUB_BODY_CRC 0` (`stub_core.h`: trust the marker alone) is not needed at 14 ms.
 
 ### What the stub assumes about the hardware
@@ -486,7 +491,7 @@ Each is a copy of code that runs on the unit; the function it was taken from is 
 | P33 access, the watchdog's four writes | `hal/fm1_sys.h fm1__p33_xfer / fm1__p33_op / fm1_wdt_arm(0x0D)`, first thing in `fm1_cstart` |
 | TIMER4 at 24 MHz | `hal/fm1_time.h fm1_time_init` |
 | the key matrix pins, the 595 word, OCT- / OCT+ on columns 0 / 1, row PA8 | `hal/fm1_input.h fm1_input_init, fm1__sr_bits, fm1__sr_latch, fm1__rows, FM1_KEYMAP`; the column word is `fm1_input_scan`'s; the 100 us settle is the TIMER5 scan's tick |
-| PA2 low powers the matrix and the LEDs; PA2 high is the state at power-on, and switches them (and the screen) off | `hal/fm1_lcd_hw.h fm1_lcd_hw_init` (its first two lines: low, an output; the app runs them before its first scan) and `fm1_lcd_backlight(0)` (the app's screen-off, which left the unit without keys); the stub's own `PA in 0x1E5` at boot |
+| PA2 low powers the matrix and the LEDs (version 4: 200 ms after the stub starts, for the power-on pop); PA2 high is the state at power-on, and switches them (and the screen) off | `hal/fm1_lcd_hw.h fm1_lcd_hw_init` (its first two lines: low, an output; the app runs them before its first scan) and `fm1_lcd_backlight(0)` (the app's screen-off, which left the unit without keys); the stub's own `PA in 0x1E5` at boot |
 | LEDs lit with one column latched | `fm1__led_lines`; a column stays lit for the length of a flash erase in the app today (`main.c`, the TIMER5 comment) |
 | the app area reads decrypted through XIP at 0x02000000 + offset - 0x4000 | the app executes there |
 | flash from 0x93000 reads plain after the SFCENC window is set, the cache lines flushed | `hal/fm1_flash.h fl_plain_window_init` (without its cli / sti: interrupts stay off) |
