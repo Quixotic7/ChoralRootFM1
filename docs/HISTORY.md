@@ -7511,3 +7511,9 @@ radio boot and keeps only 106..108 from the stored trims (ChoralRoot's copy or t
 when neither); 81 BLE's `ble_cal` reads 3. A BLE_DIAG build's bit 64 is now the reverse, `CRBL_T_STORED`: the stored
 record 187, to compare. The two-core fade, the soft-reset deafness and most bad CRCs were this one cause (the
 soft-reset case is still to be seen on the unit). docs/BLE-LINK.md 2.6. All 24 suites pass.
+
+3y251. **The release build on the unit.** a0fcb697's release package on E81CE2F7, Dual Core On: after the install's
+soft reset (`boot_reset` 257, `ble_cal` 3, the start 163 ms) the Mac connected at ~38 s and the link held to 315 s
+with no loss; on a power-on it connected by 10 s and held to 310 s (14 084 packets out, no loss, no crash). The
+soft-reset deafness is gone with the rest. Still open: Clock Out reaches the Mac bunched (BLE 17 ms median behind
+USB, 162 gaps over two ticks in 150 s; Melodee: 13.4 ms, 59 in 5 min).
