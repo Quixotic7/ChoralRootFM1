@@ -3,6 +3,37 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.32-smk37",
+      "base": "0.32",
+      "date": "2026-11-08",
+      "tag": "v0.32-smk37",
+      "title": "0.32 on the SMK-37: a safer flash driver",
+      "bullets": [
+        "The flash driver now waits out an erase or a write that takes longer than expected (up to 2 s / 50 ms) instead of cutting it short, and never runs from the flash while the chip is busy (the FM-1's 0.32).",
+        "Everything of 0.31-smk37: held notes let go when USB goes, incoming start and stop with MIDI Clock Out, the TRS jack's MIDI out.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.31-smk37 keeps everything.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "02e30f819cef96a4fa537af0e6068b9aefca0f57ef88aaeae391efd3c84f59ae",
+          "sha256_1core": "044cc6f38a371d4e7b61f7378b48ab057c816d3376c37670155a33387561c120"
+        },
+        "elite": {
+          "sha256": "a6104d14f82bdd0c8f178857ac7af6f08027dd4334d2bb906a6f286d6953e4ce",
+          "sha256_1core": "13270f2e2f95b972b2132c2dcd583290db3ed731c70128d334f64199bcc0ab6e"
+        },
+        "mke": {
+          "sha256": "4d676c5c2b43504a5cf904ddb051a6641c18dc6caab3ed0bb42159134f5976da",
+          "sha256_1core": "8ecad56d23290f39b5bc3702752fafeb34a91e8e3875bdd9614b85ecd85f8ecb"
+        }
+      }
+    },
+    {
       "version": "0.31-smk37",
       "base": "0.31",
       "date": "2026-11-08",

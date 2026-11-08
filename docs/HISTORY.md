@@ -7725,3 +7725,26 @@ E81CE2F7 (ChoralRoot 3y264), a backup first (`fm1-backup-E81CE2F7-2026-11-08-bef
 restart. `--debug`: crash_count 0, c1_faults 0, boot stub v3 marker ok, `flash_late_ops 0`, `flash_late_max_us 0`
 and the new words on the quiet-writes line. Writes: U128 imported and deleted seven times, the backup restored (first
 try, the unit restarted cleanly), then 9 erases and pages up to 1,972 us, every save rc 0, none late (the Puya part).
+
+## 2026-11-08 (0.32 and 0.32-smk37)
+
+3y266. **0.32: the flash driver waits out a slow erase or page program; 0.32-smk37 beside it.** The owner, through the
+orchestration session ("Please release these"): main 4812b5c9. 0.32 is 0.31 with 3y264..3y265: felucca-bsp #12's
+busy-safe wait (Julius Vitkauskas; `hal/fm1_flash_wait.h` and its host model MPL-2.0, LICENSING.md), never back to XIP
+while the part is busy, done within 2 s / 50 ms is success and counted (`flash_late_ops`, `flash_late_max_us` in
+`--debug`), still busy at the bound the part and the chip reset; for the late-2026 FM-1s' 0xB36014 part, not tried
+on one (every unit here has the Puya part). The driver is shared, so the SMK-37 build has it too. `./build.sh --release
+0.32` and `tools/hub_build.sh 0.32`: the same `SHA256SUMS`; XIP 554,880 of 573,440 (96.8 %), 1-core 551,296, RES
+41,820 of 49,088. `choralroot-0.32.fwsc` a4f88c00...12b0, `-1core` f79b0f16...c971. `web/releases.json` first with
+the sha256s, 0.31's entry given its going-back note (the old 500 ms / 10 ms bound), `docs/releases/0.32.md`,
+MANUAL.md's first line, `choralroot.c`'s dev version. **0.32-smk37** (base 0.32): `BOARD=smk37 [MODEL=elite|mke]
+./build.sh --release 0.32-smk37` and `tools/hub_build.sh 0.32-smk37`, the same `SHA256SUMS` (twelve files); XIP
+554,848 (Pro and Elite), 554,832 (MKE-P37). Pro 02e30f81...59ae, Elite a6104d14...e4ce, MKE-P37 4d676c5c...76da.
+`web/releases-smk37.json` first, three bullets, three notes; SMK37.md's status, package names and version line.
+`python3 tests/releases_test.py` ALL OK; `CR_VERSION=0.32 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0
+changed; test_cr 1122 ok; test_persist 121 ok; the browser emulators as 0.32). **On a unit**: the spare E81CE2F7 (on
+3y265's build, reading 0.31; FM-1_5200, another unit, was on USB earlier and left alone, and gone by the install), a
+backup first (`~/fm1-backups/fm1-backup-E81CE2F7-2026-11-08-before-0.32.json`, settings and U121-128), `caffeinate
+-dimsu fm1_install.py choralroot-0.32.fwsc --unit E81CE2F7 --yes`, exit 0, the same unit after the restart. After:
+`--info` ChoralRoot 0.32, E81CE2F7; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, crash_count 0, stub v3 64.4 ms,
+stale_halves 0, `flash_late_ops 0`, `flash_late_max_us 0` (the Puya part), Bluetooth Off.

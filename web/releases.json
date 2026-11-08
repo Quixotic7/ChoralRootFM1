@@ -8,6 +8,26 @@
   },
   "releases": [
     {
+      "version": "0.32",
+      "date": "2026-11-08",
+      "tag": "v0.32",
+      "sha256": "a4f88c00142141a40b645162f360696c319f78c0ce032a87d4d014f52ddd12b0",
+      "sha256_1core": "f79b0f1666c1696f8fc5677ae880f86da4fe00e4628245287ea1e058a2c7d971",
+      "title": "A safer flash driver for the newer FM-1s",
+      "bullets": [
+        "For the FM-1s made from late 2026 with the slower flash chip: an erase or a write that takes longer than expected is now waited out (up to 2 s / 50 ms) instead of cut short.",
+        "The FM-1 never goes back to running from the flash while the chip is still busy. Before, a slow erase could leave it reading garbage.",
+        "Late but finished counts as done: the save, the update or the restore goes through. fm1_install.py --debug counts the late ones.",
+        "A chip still busy at 2 s / 50 ms is reset, and the FM-1 restarts.",
+        "Nothing you play changes. Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "The fix is felucca-bsp's (#12, by Julius Vitkauskas), as RemoteFM1 0.3.4 took it. Its two files keep their MPL-2.0 licence.",
+        "Not yet tried on a unit with the slow chip: none here has one. If --debug shows flash_late_ops above 0, please report it.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.31",
       "date": "2026-11-08",
       "tag": "v0.31",
@@ -26,7 +46,14 @@
         "Not yet tried on a unit: USB MIDI keyboards, controllers and hubs. They need power of their own (a powered hub or OTG adapter); full-speed devices only.",
         "A USB loss also stops notes held from Bluetooth or the TRS jack at that moment.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.31 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.31 again.",
+          "Its flash driver gives up on a slow erase or write after 500 ms / 10 ms again (the newer FM-1s' slower flash chip)."
+        ]
+      }
     },
     {
       "version": "0.30",
