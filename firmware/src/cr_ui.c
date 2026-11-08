@@ -1194,6 +1194,9 @@ enum { O_STYLE, O_EXTADD, O_SECRET,
 #if CR_BLE
        O_BLE, O_BLE_FORGET,               /* Bluetooth MIDI (cr_ble.c, 3y236; FM-1 only) */
 #endif
+#if CR_USB_HOST
+       O_USB_HOST,                        /* the USB-C port as a MIDI host (usb_host.c, 3y260; FM-1 only; never saved) */
+#endif
 #if BOARD_SMK37
        O_TRS,                             /* the SMK-37's TRS jack, a MIDI OUT (hal/smk_uart_tx.h): not in the FM-1's list */
 #endif
@@ -1215,6 +1218,9 @@ static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Sec
 #if CR_BLE
     "Bluetooth", "Forget Bluetooth",
 #endif
+#if CR_USB_HOST
+    "USB Host",
+#endif
 #if BOARD_SMK37
     "TRS MIDI Out",
 #endif
@@ -1229,6 +1235,9 @@ static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 
                                    16, 1, 2,
 #if CR_BLE
                                    1, 0,
+#endif
+#if CR_USB_HOST
+                                   1,
 #endif
 #if BOARD_SMK37
                                    1,
@@ -1323,6 +1332,9 @@ static int32_t opt_get(uint32_t o)
 #if CR_BLE
     case O_BLE: return cr_ble_on();
 #endif
+#if CR_USB_HOST
+    case O_USB_HOST: return uh.want;
+#endif
 #if BOARD_SMK37
     case O_TRS: return !smk_ut_off;
 #endif
@@ -1389,6 +1401,9 @@ static void opt_set(uint32_t o, int32_t v)
         else if (v && !cr_ble_running())          /* (the radio starts only at power-on: cr_ble.c, 3y238) */
             cu_message("Bluetooth: switch off and on", CR_COL_WHITE);
         break;
+#endif
+#if CR_USB_HOST
+    case O_USB_HOST: uh.want = (uint8_t)!!v; break;   /* (never saved: every power-on is a USB device; main.c uh_task) */
 #endif
 #if BOARD_SMK37
     case O_TRS: smk_ut_off = (uint8_t)!v; break;  /* (Off: the jack's notes still get their note-offs) */
@@ -1499,6 +1514,9 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
 #if CR_BLE
     case O_BLE: cu_cpy(d, v ? "On" : "Off", n); break;
     case O_BLE_FORGET: cu_cpy(d, cu_ble_ask ? "OCT+ again: forget" : "the paired computer", n); break;
+#endif
+#if CR_USB_HOST
+    case O_USB_HOST: cu_cpy(d, v ? "On" : "Off", n); break;
 #endif
 #if BOARD_SMK37
     case O_TRS: cu_cpy(d, ONOFF[v & 1], n); break;
@@ -7749,6 +7767,20 @@ static void cu_options_screen(cr_screen_t *s)
         cr_ble_status(s->label, sizeof s->label);
     else if (cu.opt_sel == O_BLE_FORGET)
         cu_cpy(s->label, cu_ble_ask ? "the bond goes" : "OCT+ twice: forget the pairing", sizeof s->label);
+#endif
+#if CR_USB_HOST
+    else if (cu.opt_sel == O_USB_HOST) {           /* (usb_host.c: off, a device and its events in, or what the
+                                                    * search saw: uh.dg's letters, read out on a bench) */
+        if (!uh.on)
+            cu_cpy(s->label, "a MIDI device on USB-C", sizeof s->label);
+        else if (uh.run) {
+            cu_cpy(s->label, "connected, in ", sizeof s->label);
+            cu_int(s->label + 14, (int32_t)(uh.events % 1000000u), 0, sizeof s->label - 14u);
+        } else {
+            cu_cpy(s->label, "looking ", sizeof s->label);
+            cu_cat(s->label, uh.dg, sizeof s->label);
+        }
+    }
 #endif
     else if (cu.opt_sel == O_NAMES)                /* (docs/CHORD-NAMES.md: the same notes under either name) */
         cu_cpy(s->label, cs.names_std ? "A9 \267 Aadd9 \267 A9sus4" : "A7 9 \267 A9 \267 Asus m7 9", sizeof s->label);

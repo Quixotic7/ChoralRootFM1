@@ -7594,3 +7594,22 @@ exit 0, the same unit after the restart. After: `--info` ChoralRoot 0.30, 5473E6
 Tooropulse .. U128 TX BASS 1 MF as before; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, crash_count 0, boot
 stub v3 64.2 ms marker ok, `ble_on 0` (Bluetooth Off by default), stale_halves 5 on the first read (the peak since
 power-on) and 0 on the next, the deadline 0 halves.
+
+3y260. **USB Host: the FM-1's USB-C as a MIDI host (docs/BLE-LINK.md step 5).** Melodee nightly 3fe570d's USB MIDI host
+(Kerem Kilic, Ellic Studio, with recursivefieldinstruments' enumeration, input and descriptor parsing; GPL-3.0-only),
+ported: `firmware/src/usb_host.c` (the port's changes in its header), `usb_host_desc.h` unchanged, `fm1_usb.h` gains
+`fm1_usb_host_attach` and `fm1_usb_line`. Options > **USB Host** (the FM-1 only, `CR_USB_HOST` 1 in choralroot.c,
+never saved: every power-on is a USB device, so updates always work) turns the port into the host of a USB-MIDI
+device, alone or behind a hub (one level, a hub chip on a hub's port too); the main loop enumerates (`uh_task`),
+TIMER5 moves the packets (`uh_poll`, out of line). In: channel messages, clock, start / continue / stop and Song
+Position into usb.c's one queue as source 1, so everything USB MIDI does from a computer works from the device (MIDI
+Keys, Clock In, 3y253's transport). Out: what USB MIDI sends, from ChoralRoot's one out ring (`midi_out_q`, the clock
+in it in order; Melodee keeps a ring for the clock), released only on the device's ACK. When a session ends (unplug,
+a fault, Off) `midi_in_overflow` rises and the audio interrupt's recovery releases every part. Not driven: VBUS (the
+port needs power from outside: a powered hub or OTG adapter), low-speed devices, SysEx. The line under USB Host reads
+`connected, in N` or `looking` with Melodee's search letters (`uh.dg`: the port's only report while the computer
+cannot reach the unit); main.c's message box says what happened. XIP +5 344 B, RAM +176 B. `tests/usb_host_test.c`:
+Melodee's test of the code against a model of the SIE, a keyboard, hubs, a stick and synths, its 16 cases kept (the
+clock's ring checks now the one ring's order; every session end checked to raise `midi_in_overflow`), and its
+`FELUCCA_OTA` variant. MANUAL "USB Host", the Options table; LICENSING.md; BLE-LINK.md step 5. All 24 suites
+pass.

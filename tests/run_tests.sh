@@ -145,6 +145,12 @@ par_build $CC -std=gnu11 -o "$OUT/rt_cr_usbaudio48_test" tests/cr_usbaudio48_tes
 run "USB audio at 48 kHz: the two rates, SET_CUR, the resampler, a rate switch" "$OUT/rt_cr_usbaudio48_test"
 par_build $CC -std=gnu11 -w -o "$OUT/rt_cr_usbrate_test" tests/cr_usbrate_test.c
 run "Options > USB Rate: 0.18's descriptors at 44.1 kHz, SET_CUR, the digest, the replug" "$OUT/rt_cr_usbrate_test"
+# USB MIDI host (tests/usb_host_test.c, Melodee's, 3y260): usb_host.c against a model of the SIE, a keyboard, hubs, a stick
+par_build $CC -std=gnu11 -fsanitize=address,undefined -o "$OUT/usb_host_test" tests/usb_host_test.c
+run "USB MIDI host: duplex I/O, enumeration, hubs, ACK ownership, back-pressure, recovery, the parts released" \
+    "$OUT/usb_host_test"
+par_build $CC -std=gnu11 -DFELUCCA_OTA=1 -fsanitize=address,undefined -o "$OUT/usb_host_ota_test" tests/usb_host_test.c
+run "USB MIDI device after USB Host Off: notes and clock as queued, a SysEx never split" "$OUT/usb_host_ota_test"
 
 # the build's outputs the sections below read: without one of them a section would have nothing to test
 have=1

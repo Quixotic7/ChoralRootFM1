@@ -382,7 +382,9 @@ latency through a Mac.
 **Step 4. Clock over Bluetooth.** Out with Clock Out; in with Clock In, timestamps applied. *Unit*: 3y224's 10-minute
 lock test with a Mac master over Bluetooth.
 
-**Step 5. USB host.** `usb_host.c` ported, Options > USB Host. *Unit*: a keyboard through a powered hub; two
+**Step 5. USB host. Built in HISTORY 3y260** (`firmware/src/usb_host.c`, `usb_host_desc.h`; MANUAL.md "USB Host"):
+in every FM-1 build (`CR_USB_HOST` 1), Options > USB Host, never saved; XIP +5 344 B, RAM +176 B. As planned:
+`usb_host.c` ported, Options > USB Host. *Unit*: a keyboard through a powered hub; two
 ChoralRoots through a powered OTG adapter and through a plain C-to-C cable (record which works); clock lock between
 them; USB audio and updates back after Off and after a power cycle.
 

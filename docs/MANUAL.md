@@ -1757,6 +1757,7 @@ Tap **OPT** (printed GLO). One setting fills the screen:
 | **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop; incoming start / stop work as LOOP. In: follows the clock and start / stop |
 | **Bluetooth** | Off, On | Off | the FM-1 only: MIDI over Bluetooth, the same MIDI as over USB ([Bluetooth MIDI](#bluetooth-midi)); the first On takes effect at the next power-on. The line under it says what the link is doing. Kept apart from the other settings (Reset Settings leaves it, a backup does not carry it; Flash Data clears it) |
 | **Forget Bluetooth** | | | OCT+ twice: the FM-1 forgets the computer it paired with. Forget the FM-1 on that computer too |
+| **USB Host** | Off, On | Off | the FM-1 only: the USB-C port hosts a USB MIDI keyboard, controller or second FM-1 instead of talking to a computer ([USB Host](#usb-host-a-midi-device-on-the-fm-1s-usb-c)). Never saved: every start-up is a USB device again |
 | **View** | Chord, Keyboard, Notes, Geek Out, Scope, Geek Out 2 | Chord | the view ([Views](#13-views)) |
 | **Motion** | Full, Calm, Off | Full | screen animation |
 | **Chord Names** | Orchid, Standard | Orchid | how a chord is named on every screen. Orchid: by the keys held, as the Orchid does (`A` `7 9`, `JAZZ`). Standard: as a lead sheet names the notes that sound (`A9`, `Aadd9`, `A13`). Only the name changes, never the notes ([Chord names](#chord-names)) |
@@ -1946,6 +1947,28 @@ restarts by itself while its radio starts, the next start-up leaves the radio of
 To pair with another computer, or if the line reads `forget ChoralRoot on the peer`: Options > **Forget Bluetooth**,
 OCT+ twice, and remove ChoralRoot from the computer's Bluetooth list too; then connect again. If the line reads
 `install ChoralRoot again`, the radio's part of the installation is missing: install the firmware again.
+
+### USB Host: a MIDI device on the FM-1's USB-C
+
+The FM-1 (not the SMK-37) can host a USB MIDI device on its USB-C port: a USB MIDI keyboard or controller, or a second
+FM-1 or ChoralRoot, directly or behind a hub. Options > **USB Host** turns it on; it is **never saved**, so every
+start-up is a normal USB device again and the computer, updates and backups always find the FM-1.
+
+- While USB Host is On, the port belongs to the device: no computer, no USB audio, no updates. Off gives it back.
+- The FM-1 does not power the port. The device needs power of its own: a powered hub, or a powered USB-C OTG adapter.
+  A second FM-1 runs on its battery, but it may still need 5 V on the cable before it answers (see below).
+- The line under USB Host reads `connected, in 1234` (the messages received) once a device is found, or `looking`
+  and a few letters while it searches (what it met: read them out if you report a problem). A message box says
+  what happened: `USB device connected`, `USB device gone`, `not a USB MIDI device`, `nothing on USB: powered hub?`,
+  `USB device not answering` (unplug it and plug it back), `low-speed USB: not supported`.
+- In: notes, program changes, the CCs, pitch bend, aftertouch, clock and start / continue / stop, exactly as over
+  USB MIDI from a computer. Out: what the FM-1 sends over USB MIDI (the Perform, Bass and Raw Chord notes, the clock
+  with MIDI Clock set to Out). SysEx is not passed either way. If the device goes, every note stops.
+- Full-speed devices only, one hub level (a hub on a hub's port too).
+
+**Two FM-1s.** A on USB Host, B as it is. With A's MIDI Clock on Out and B's on In, B's tempo and loop follow A's;
+B plays what A sends on its Perform and Bass channels. Whether a plain USB-C to USB-C cable between two FM-1s works
+is not yet known (HISTORY 3y260); a powered USB-C OTG adapter or a powered hub between them is the setup expected to.
 
 ### USB audio recording
 

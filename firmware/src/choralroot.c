@@ -151,6 +151,9 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #ifndef CR_BLE
 #define CR_BLE 1                 /* Bluetooth LE MIDI, the FM-1 as a peripheral (cr_ble.h, HISTORY 3y236); CR_BLE=0: none */
 #endif
+#ifndef CR_USB_HOST
+#define CR_USB_HOST 1            /* the USB-C port as a MIDI host, Options > USB Host (usb_host.c, HISTORY 3y260) */
+#endif
 #endif
 
 /* ----------------------------------------------------- base, display --- */

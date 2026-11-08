@@ -340,6 +340,24 @@ static void fm1_main(void)
     for (;;) {
         uint32_t m = fm1_ms;
         fm1_wdt_feed();
+#if CR_USB_HOST
+        uh_task(fm1_ms);                                /* before usb_retry: a host port is not retried as a device */
+        if (uh.msg) {                                   /* (usb_host.c's UH_MSG_*: ON / OFF have none, the Options say) */
+            static const char *const UH_TEXT[] = {
+                [UH_MSG_MIDI] = "USB device connected",
+                [UH_MSG_LOST] = "USB device gone",
+                [UH_MSG_NOMIDI] = "not a USB MIDI device",
+                [UH_MSG_LOW] = "low-speed USB: not supported",
+                [UH_MSG_NOLINE] = "nothing on USB: powered hub?",
+                [UH_MSG_NOANSWER] = "USB device not answering",
+                [UH_MSG_HUB_EMPTY] = "hub found: plug in MIDI",
+                [UH_MSG_HUB_NOMIDI] = "no MIDI device on the hub",
+            };
+            if (uh.msg < sizeof UH_TEXT / sizeof UH_TEXT[0] && UH_TEXT[uh.msg])
+                cu_message(UH_TEXT[uh.msg], CR_COL_WHITE);
+            uh.msg = 0;
+        }
+#endif
         usb_retry(fm1_ms);
 #if FELUCCA_UAC
         if (ua_off_apply(fm1_ms))                       /* Options > USB Record: the host re-reads (a second off
