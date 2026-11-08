@@ -8,8 +8,8 @@
  * the controller: the register sequences come from the AC79 SDK's USB0 host code and need a bench.
  * ChoralRoot: usb.c with CR_USB_HOST 1 (choralroot.c's), FELUCCA_UAC 1. Host OUT drains ChoralRoot's one MIDI out ring
  * (midi_out_q: notes, clock and transport leave in the order they were queued; Melodee keeps the clock in a ring of
- * its own, ahead of the notes); a session that ends (unplug, fault, USB Host Off) raises midi_in_overflow, which the
- * audio interrupt's recovery (cr_out.c events_block) consumes: the queue dropped, every part released.
+ * its own, ahead of the notes); a session that ends (unplug, fault, USB Host Off) raises usb_midi_lost, which the
+ * audio interrupt takes (cr_out.c cr_mlost, 3y261): every note MIDI holds released, the FM-1's own keys kept.
  * FELUCCA_OTA=1 (run_tests.sh's second build): the device side after USB Host Off, a SysEx sent whole before the
  * notes and the clock that wait behind it.
  *   cc -std=gnu11 -O1 -fsanitize=address,undefined -o build/host/usb_host_test tests/usb_host_test.c (run_tests.sh) */
@@ -352,12 +352,13 @@ static int midi_track_emit(uint32_t pkt)
 }
 static void midi_sync_emit(uint8_t status) { midi_out_event(0x0Fu | (uint32_t)status << 8); }   /* cr_out.c's way */
 
-/* a session ended: the release request is up; the audio ISR's recovery (cr_out.c events_block) takes it */
+/* a session ended: the release request is up (and nothing was dropped); the audio ISR takes it (cr_out.c cr_mlost)
+ * and, as it always does, empties the queue */
 static void isr_recovery(void)
 {
-    assert(midi_in_overflow);
+    assert(usb_midi_lost && !midi_in_overflow);
     mi_r = mi_w;
-    midi_in_overflow = 0;
+    usb_midi_lost = 0;
 }
 
 /* ---------------------------------------------------------- the tests --- */
@@ -376,7 +377,7 @@ static void connect(int which)
     wire_n = 0;
     root_resets = host_attaches = 0;
     memset(port_resets, 0, sizeof port_resets);
-    midi_in_overflow = 0;
+    midi_in_overflow = usb_midi_lost = 0;
     if (which == HUB) {
         dev[HUB].port_dev[1] = STICK + 1;               /* port 1: a mass-storage stick, port 3: the keyboard */
         dev[HUB].port_dev[3] = KBD + 1;
@@ -390,7 +391,7 @@ static void host_on(void)
     uh.want = 1;
     uh_task(fm1_ms);
     assert(uh.on && uh.msg == UH_MSG_ON && !usb.up);
-    assert(!midi_in_overflow);                          /* switching the host on ends no session: nothing to release */
+    assert(!usb_midi_lost);                             /* switching the host on ends no session: nothing to release */
     uh.msg = 0;
 }
 
@@ -503,7 +504,7 @@ static void test_keyboard(int via_hub)
     uh_task(fm1_ms);
     assert(!uh.fault && !uh.run && uh.msg == UH_MSG_LOST);
     uh.msg = 0;
-    isr_recovery();                                     /* the unplug released every part */
+    isr_recovery();                                     /* the unplug released the MIDI notes */
     for (int k = 0; k < 100; k++) {                     /* nothing attached: nothing happens */
         fm1_ms += 20;
         uh_task(fm1_ms);
@@ -713,7 +714,7 @@ static void recover_host(void)
     uh_task(fm1_ms);
     assert(!uh.run && !uh.fault && mo_r == mo_w);
     assert(!midi_track_emit(0x643c9009u));              /* nothing admitted until the device is back */
-    isr_recovery();                                    /* midi_in_overflow: the audio ISR releases every part */
+    isr_recovery();                                    /* usb_midi_lost: the audio ISR lets go of the MIDI notes */
     assert(enumerate());
 }
 
@@ -827,7 +828,7 @@ static void test_endpoint_selection(void)
     line_state = 0; poll_n(16); assert(!uh.run && uh.fault); /* idle output-only unplug still detected */
     assert(!midi_track_emit(0x643c9009u));
     uh_task(fm1_ms); assert(uh.msg == UH_MSG_LOST && !uh.fault); uh.msg = 0;
-    isr_recovery();                                    /* the session's end: every part released */
+    isr_recovery();                                    /* the session's end: the MIDI notes released */
     uh.want = 0; uh_task(fm1_ms);
     puts("USB host: output-only synth, input-only controller, alternate boundaries, protocol/packet validation: OK");
 }
@@ -1025,6 +1026,32 @@ static void test_device_mode_untouched(void)
     puts("USB host: off at boot, the device side starts as before: OK");
 }
 
+/* The device side (3y261): a computer (or a host FM-1) that goes while configured, its bus suspended (a cable pulled,
+ * the computer asleep), raises usb_midi_lost, so the notes it left on are let go (cr_out.c cr_mlost); a suspend before
+ * any configuration (nothing could have been played) does not */
+static void test_device_lost(void)
+{
+    connect(KBD);
+    uh.want = uh.on = uh.run = 0;
+    usb.up = 1;
+    usb.config = 1;
+    usb.suspended = 0;
+    common[S_INTRUSB] = 0;
+    usb_poll();
+    assert(!usb_midi_lost && !usb.suspended);
+    common[S_INTRUSB] = 0x01u;                          /* suspend: the bus went idle */
+    usb_poll();
+    assert(usb_midi_lost && usb.suspended && !midi_in_overflow);
+    usb_midi_lost = 0;
+    usb.config = 0;
+    usb.suspended = 0;
+    usb_poll();
+    assert(!usb_midi_lost);                             /* not configured: nothing to let go */
+    common[S_INTRUSB] = 0;
+    usb.up = 0;
+    puts("USB device: a configured host that goes (suspend) lets go of the MIDI notes; an unconfigured one not: OK");
+}
+
 /* A device behind a hub that misses the scan (still starting) is found by the retry rounds without unplugging it;
  * one that never answers is given up after UH_PORT_TRIES rounds; a low-speed one is said, not skipped silently. */
 static void test_hub_port_retry(void)
@@ -1096,6 +1123,7 @@ int main(void)
     devices_init();
     test_parse();
     test_device_mode_untouched();
+    test_device_lost();
     test_keyboard(0);
     test_keyboard(1);
     test_no_midi();

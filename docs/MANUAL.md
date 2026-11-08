@@ -1916,6 +1916,9 @@ playing and a stop when it stops. PANIC sends all notes off (CC 123).
 
 A part whose channel is Off ignores MIDI in.
 
+If the computer is unplugged or goes to sleep while it holds notes, those notes stop (the FM-1 notices the USB
+connection going); the notes of the FM-1's own keys and the loop keep sounding.
+
 **MIDI Keys** (Options > MIDI Keys, Off by default; new in 0.24): on that channel the notes 53 to 79 press the FM-1's
 own keys F3 to G5, exactly as the keybed does: the chord keys of the layout you chose, the roots, LOCK, the SUS
 Window, the Full keyboard and its shortcuts. The note's velocity plays the key; CC 120 and CC 123 let every key go;
@@ -1955,20 +1958,22 @@ FM-1 or ChoralRoot, directly or behind a hub. Options > **USB Host** turns it on
 start-up is a normal USB device again and the computer, updates and backups always find the FM-1.
 
 - While USB Host is On, the port belongs to the device: no computer, no USB audio, no updates. Off gives it back.
-- The FM-1 does not power the port. The device needs power of its own: a powered hub, or a powered USB-C OTG adapter.
-  A second FM-1 runs on its battery, but it may still need 5 V on the cable before it answers (see below).
+- The FM-1 does not power the port. A second FM-1 needs nothing more (it runs on its battery: a plain USB-C cable
+  between the two is enough). A keyboard or a hub needs power of its own: a powered hub, or a powered USB-C OTG
+  adapter.
 - The line under USB Host reads `connected, in 1234` (the messages received) once a device is found, or `looking`
   and a few letters while it searches (what it met: read them out if you report a problem). A message box says
   what happened: `USB device connected`, `USB device gone`, `not a USB MIDI device`, `nothing on USB: powered hub?`,
   `USB device not answering` (unplug it and plug it back), `low-speed USB: not supported`.
 - In: notes, program changes, the CCs, pitch bend, aftertouch, clock and start / continue / stop, exactly as over
   USB MIDI from a computer. Out: what the FM-1 sends over USB MIDI (the Perform, Bass and Raw Chord notes, the clock
-  with MIDI Clock set to Out). SysEx is not passed either way. If the device goes, every note stops.
+  with MIDI Clock set to Out). SysEx is not passed either way. If the device goes, the notes it was holding stop; the
+  FM-1's own keys keep theirs.
 - Full-speed devices only, one hub level (a hub on a hub's port too).
 
-**Two FM-1s.** A on USB Host, B as it is. With A's MIDI Clock on Out and B's on In, B's tempo and loop follow A's;
-B plays what A sends on its Perform and Bass channels. Whether a plain USB-C to USB-C cable between two FM-1s works
-is not yet known (HISTORY 3y260); a powered USB-C OTG adapter or a powered hub between them is the setup expected to.
+**Two FM-1s.** A plain USB-C to USB-C cable between them; A on USB Host, B as it is (any ChoralRoot). Notes go both
+ways: B plays what A sends on its Perform and Bass channels, and A what B sends. With A's MIDI Clock on Out and B's on
+In, B's tempo and loop follow A's start and stop; the other way round (B on Out, A on In) works too.
 
 ### USB audio recording
 

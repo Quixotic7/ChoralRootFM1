@@ -117,6 +117,8 @@ static uint8_t midi_in_source[MQ];                    /* 1 USB, 2 TRS */
 static volatile uint32_t fm1_ms;                    /* also declared by core.h; parser-only host tests */
 static volatile uint32_t mi_w, mi_r, mo_w, mo_r;
 static volatile uint8_t midi_in_overflow;               /* audio ISR discards a broken stream and releases notes */
+static volatile uint8_t usb_midi_lost;                  /* the USB peer went (a computer unplugged or asleep, a device
+                                                         * gone from USB Host): cr_out.c lets go of the MIDI notes */
 
 static int midi_enqueue(uint32_t pkt, uint32_t source)
 {
@@ -1081,6 +1083,7 @@ static USB_OUTLINE void usb_poll(void)                  /* TIMER5 ISR, 2 kHz */
                 usb.suspended = 0;
             } else if (++usb.frame_same >= 10u && !usb.suspended) {   /* 100 ms frozen: unplugged / host asleep */
                 usb.suspended = 1;
+                usb_midi_lost = 1;                      /* (its held notes can never get their offs now) */
                 usb.frame_stalls++;
             }
         }
@@ -1095,6 +1098,8 @@ static USB_OUTLINE void usb_poll(void)                  /* TIMER5 ISR, 2 kHz */
 #endif
     if (iu & 0x01u) {                                   /* suspend: the bus went idle */
         usb.suspends++;
+        if (usb.config)
+            usb_midi_lost = 1;                          /* (unplugged, asleep: no note-off will come) */
         usb.suspended = 1;
     }
     if (iu & 0x02u)                                     /* resume */

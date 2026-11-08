@@ -427,6 +427,11 @@ void emu_fw_audio(int16_t *out, uint32_t frames)  /* the ALNK0 ISR, one half buf
     }
 }
 
+void emu_fw_usb_lost(void)
+{
+    usb_midi_lost = 1;                            /* (the audio ISR takes it: cr_out.c cr_mlost) */
+}
+
 int emu_fw_midi_in(uint32_t pkt)
 {
     int ok = 0;

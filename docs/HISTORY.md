@@ -7613,3 +7613,19 @@ Melodee's test of the code against a model of the SIE, a keyboard, hubs, a stick
 clock's ring checks now the one ring's order; every session end checked to raise `midi_in_overflow`), and its
 `FELUCCA_OTA` variant. MANUAL "USB Host", the Options table; LICENSING.md; BLE-LINK.md step 5. All 24 suites
 pass.
+
+3y261. **Two FM-1s on a plain cable; the device side lets go of its notes too.** On the units (the owner, 2026-11-08):
+the spare E81CE2F7 on 3y260's package as USB Host, 5473E6AA on 0.30 as it is, **one plain USB-C to USB-C cable, both
+on battery** (no 5 V on the cable: the device FM-1 forces VBUS-valid in software and its PHY runs from the battery):
+the second FM-1 played the host's MIDI, and the other way; MIDI clock and start / stop passed in both directions; on
+unplug the host's note stopped. But the device kept the note the host had sent it until PANIC: a USB device never
+hears its host go. Now usb.c raises `usb_midi_lost` when a configured device's bus suspends (the SIE's suspend
+interrupt, or 100 ms of frozen frame numbers: a cable pulled, a computer asleep) and when a USB Host session ends (in
+place of 3y260's `midi_in_overflow`, which released every part); the audio interrupt (`cr_out.c cr_mlost`) then
+releases every note MIDI holds on both parts, lets the pedal and the bend go and puts MIDI Keys' keys up. The FM-1's
+own keys and the loop keep theirs. Every MIDI input's notes go (the queue keeps no source per note): CC 123 and the
+pedal off on both channels, in effect. It helps a computer unplugged mid-note as much. Tests: `tests/usb_host_test.c`
+checks every session end raises it (and nothing is dropped) and a new case, a configured device's suspend raises it,
+an unconfigured one's not; `tools/emu/scripts/cr_usb_lost.txt` (the emulator's new `usblost`): a MIDI C4 held, a chord
+on the keys, the peer goes: part 0's voices 1, 4, 3, 0. MANUAL: USB Host (the plain cable, both directions), MIDI in.
+fm1_alnk0_irq 13 943 (budget 13 890). All 24 suites pass.

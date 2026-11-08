@@ -5,8 +5,8 @@
  *
  * ChoralRoot (HISTORY 3y260): Melodee 3fe570d's usb_host.c, ported. The changes: ChoralRoot's switches (CR_USB_HOST,
  * FELUCCA_UAC, FELUCCA_LOADER); host OUT drains ChoralRoot's one MIDI out ring (midi_out_q: the clock and transport
- * are in it, in order, where Melodee keeps them in a ring of their own); a session that ends raises
- * midi_in_overflow, so the audio interrupt's recovery releases every part (Melodee releases the USB notes' owners);
+ * are in it, in order, where Melodee keeps them in a ring of their own); a session that ends raises usb_midi_lost,
+ * and the audio interrupt lets go of every note MIDI holds (Melodee releases the USB notes' owners; 3y261);
  * Options > USB Host is the switch (cr_ui.c), its messages the UI's toasts.
  *
  * The port is either the computer-facing device (usb.c) or, when the menu's USB HOST is on, the host of a class
@@ -463,8 +463,8 @@ static void uh_start_ep(const uh_midi_t *m)
     uh.run = 1;
 }
 
-/* Stop admitting output before discarding queued notes; the audio interrupt's overflow recovery (cr_out.c) then
- * releases every part, the notes the device left on among them */
+/* Stop admitting output before discarding queued notes; the audio interrupt (cr_out.c cr_mlost) then lets go of
+ * what MIDI holds, the notes the device left on among them (the FM-1's own keys keep theirs) */
 static void uh_session_end(void)
 {
     uh.run = 0;
@@ -473,7 +473,7 @@ static void uh_session_end(void)
     mo_r = mo_w;
     RING_PUBLISH();
     if (uh.on)
-        midi_in_overflow = 1;
+        usb_midi_lost = 1;
 }
 
 /* the controller's port as a host with nothing attached yet */

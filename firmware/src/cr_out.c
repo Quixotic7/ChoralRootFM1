@@ -769,6 +769,24 @@ static __attribute__((noinline)) void cr_in_transport(uint32_t st)   /* FA start
         cr_transport_start(&cr);                 /* the Arp / Pattern from step 1, on the master's downbeat */
 }
 
+/* usb.c's usb_midi_lost (3y261): the USB peer went with notes held (a cable pulled, a computer asleep, a device gone
+ * from USB Host): every note MIDI holds on both parts is released, the pedal and the bend let go, and the keys MIDI Keys
+ * holds go up; the FM-1's own keys and the loop keep theirs. Every MIDI input's notes (the queue keeps no source per
+ * note), as CC 123 + 64 off on both channels would */
+static __attribute__((noinline)) void cr_mlost(void)
+{
+    uint32_t p, n;
+    for (p = 0; p < 2u; p++) {
+        cr_mch_t *c = cr_mchan(p);
+        c->pedal = 0;
+        for (n = 0; n < 128u; n++)
+            cr_mrelease(p, n);
+        c->bend = 0;
+        cr_mbend(p);
+    }
+    cr_mkq_allup = 1;
+}
+
 static void cr_midi_in(void)
 {
     uint32_t w = mi_w;
@@ -780,6 +798,10 @@ static void cr_midi_in(void)
     }
     if (crl.ext_on && cr_now_ms - cr_cin_pulse_ms > 150u)
         cr_loop_ext_off(&crl);                   /* (crm_clock_pulse's gap: a stop, a cable) the FM-1's clock again */
+    if (usb_midi_lost) {
+        usb_midi_lost = 0;
+        cr_mlost();
+    }
     if (midi_in_overflow)                        /* events_block's recovery: the queue dropped, every part released */
         return;
     en[0] = cr_route.midi_en[CR_STREAM_MAIN];

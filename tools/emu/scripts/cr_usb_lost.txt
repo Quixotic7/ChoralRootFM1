@@ -1,0 +1,19 @@
+# ChoralRoot 3y261: the USB peer goes (usb.c usb_midi_lost: a computer unplugged or asleep, the bus suspended; a device
+# gone from USB Host) while a note it sent is held: the note is let go; a chord held on the FM-1's own keys keeps
+# sounding. A MIDI note on the Perform channel (ch 1), then a chord held on the keys, then the peer goes.
+keys classic                  # (the Classic chord keys, as the other MIDI scripts)
+wait 300
+midi 90 3C 64                 # C4 on ch 1, held (no note-off ever comes)
+wait 400
+dump                          # 1: the MIDI note sounds
+btn A#3 down                  # MAJ + D4: a chord on the keys, held
+btn D4 down
+wait 400
+dump                          # 2: the MIDI note and the chord
+usblost
+wait 3000
+dump                          # 3: the chord only
+btn D4 up
+btn A#3 up
+wait 3000
+dump                          # 4: nothing

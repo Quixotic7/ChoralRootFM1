@@ -2308,6 +2308,13 @@ ML="$OUT/cr_midi_transport.log"
     bad "Out: transport out was: $(grep '^midi: ' "$ML" | tr '\n' ' ')"
 silent_end cr_midi_transport
 
+echo "the USB peer goes (3y261: a suspend, a device gone from USB Host): its held MIDI note stops, the keys' chord stays"
+run cr_usb_lost
+UL="$OUT/cr_usb_lost.log"
+[ "$(grep '^  part 0:' "$UL" | sed 's/.* voices \([0-9]*\),.*/\1/' | tr '\n' ' ')" = "1 4 3 0 " ] &&
+    ok "a MIDI C4 held (1 voice), a chord on the keys (4), the peer goes: the chord's 3 sound on, then nothing" ||
+    bad "USB lost: part 0's voices $(grep '^  part 0:' "$UL" | sed 's/.* voices \([0-9]*\),.*/\1/' | tr '\n' ' ') (want 1 4 3 0)"
+
 echo "VA (eng_va.c, docs/VA.md): its first preset, a held 6-note chord, a chord change"
 rm -f "$OUT"/va_chord*
 run va_chord --wav "$OUT/va_chord.wav"
