@@ -1032,7 +1032,7 @@ answer there: a final EQ or band-pass in the FX section, apart from the engines;
 
 **What it is**: a **low cut** and a **high cut** on the stereo master, the eighth page of the FX layer, **Filter**
 (SELECT past Drive): Low cut (Off, then 20 Hz .. 2 kHz), High cut (200 Hz .. 16 kHz, then Off), Slope (6 or 12 dB an
-octave) and Filter (Off / On) on KNOB 1 .. 4. Both cuts in is a band-pass. A new unit has it Off with both cuts at
+octave) and Filter (Off / On; since 3y270 Off / All / Chord / Bass, "The part round the filter" below) on KNOB 1 .. 4. Both cuts in is a band-pass. A new unit has it Off with both cuts at
 their Off ends; **turning a cutoff switches the filter on** (and FX, as a send turned does), so the knob is heard at
 once; KNOB 4 switches it off and on again with the cutoffs kept, to compare. FX off takes it out with the effects
 (its cell reads Off). The four are the instrument's, like every effect parameter: no sound load touches them, the
@@ -1102,6 +1102,40 @@ The host's count (`cr_fx_test.c`, a guard): off 132 instructions a half, one 12 
 and a fade's block of 32; 3y194: 528 B, two places, five channels' states before the buses). Before the buses, five
 channels, both cuts at 12 dB cost 2.5 x the two channels' figure: ~143 us a half on the unit by the table (5 x
 5888 instructions / 205), unmeasured there.
+
+**The part round the filter** (3y270; `cr_fx.c xb_*`): Filter is Off (0), **All** (1, the On before it, bit for
+bit), **Chord** (2: the bass part goes round) or **Bass** (3: the chord part goes round); the same byte, tag 34, so a
+kept On (1) loads as All, and a firmware before it reads 2 / 3 as out of range (its default, Off). A cutoff turned
+while Off switches it to All (the knob reaches Off only from All, so "the last choice" would always be All); with
+Chord or Bass a cutoff turned keeps it. The rule, the same at every place the filter can be: with B the bypassed
+part's dry stereo as it went into the mix (after its drive, level, pan and stereo side), the place makes **F(acc -
+B) + B** of what it has. acc holds B wherever the filter sits, because the effects only ever add their wets, so:
+
+- Parallel, the filter after the buses: out = F(dry + returns - B) + B: the returns filtered, the bypassed part's
+  among them; only its dry is not;
+- Parallel, the filter first (`xq_pre`): the dry pair is F(dry - B) + B and the three sends are filtered as before,
+  the bypassed part's too (B is taken out of the pair only);
+- Chain: at the filter's position, F(C_k - B) + B: an effect before the filter is filtered with everything (the
+  bass part's share of its wet included), one after it is not touched.
+
+B is taken in `fx.c mix_part_out` (both paths: one core's `mix_part` and `mix_parts_split`, where both parts are
+mixed on core 0 after the join), around the bypassed part's mix loop: the mix before it subtracted, after it added
+(`xb_cap`), exact integers, nothing in the loops themselves. A part with no voice and no tail mixes nothing and
+leaves B at 0. Each part's **share** of B (`xb.g`, Q12) moves by `XQ_STEP` a block, a straight line across each
+block, the cuts' own 16-block fade: Chord <-> Bass <-> All crossfade, never a step (`cr_fx_test.c`: the choice
+cycled every 100 ms under two low tones, no sample step above the dry's own; with the shares switched at once the
+step is 10 x the dry's). The share follows the Filter only while the filter is in (`xq.in`: Filter not Off, FX on, a
+cut in); switched out it holds while the cuts fade out, then drops to 0 at once, and from rest it starts at its
+choice at once while the cuts fade in on acc - B. All, with every share at 0, takes nothing and adds nothing: the
+master is 0.22's On to the bit, Off and FX off too (`cr_fx_test.c` t_bypass, each place).
+
+**Its cost**: B in POOL beside `xq` (zero-filled at power-on), 256 B for the two blocks and 28 B of shares: POOL
++284 B; XIP +704 B; RAM 0. Nothing a block while every share is 0 (two compares in `mix_part_out`, the shares'
+update in `xb_begin`). With Chord or Bass, a block: B cleared (4 instructions a sample), the capture twice (10 a
+sample, both sides) and B out and back at the place that runs (9 a sample, twice): ~43 a sample, ~5400 instructions
+a half of 128, **~26 us of the half's 2902** on the unit by the listing (`tools/fx_loops.py ... xb_begin xq_run
+mix_part_out`), about one 12 dB cut's; the 16 blocks of a fade multiply (27 a sample a capture). The host's count
+(t_bypass, Parallel after, both 12 dB cuts): Off 3545, All 14365, Chord 15181 a half (+816).
 
 **Tests**: `tests/cr_fx_test.c t_filter` (above: Off bit-exact four ways and after a cut was in; each cut at three
 corners x two slopes x three frequencies against the one-pole's own formula within 0.3 dB, both sides the same; both

@@ -809,7 +809,7 @@ On the panel:
 | Delay 1 | Time | Spread | Feedback | **Send** |
 | Delay 2 | Sync | Mode | Tone | Wow |
 | Drive | | | | **Send** (the amount of drive) |
-| Filter | Low cut | High cut | Slope | Filter (Off / On) |
+| Filter | Low cut | High cut | Slope | Filter (Off / All / Chord / Bass) |
 | Routing | (hold a black key) move | Mode | | |
 
 **Sends**, the first page, is the chord part's four sends side by side: its drive, and how much of it goes into the
@@ -846,13 +846,30 @@ the effects it is set once for the instrument, every sound plays through it, and
   is a band-pass.
 - **Slope** (KNOB 3): `6 dB` or `12 dB` an octave. 12 dB (where it starts) is the firmer cut; 6 dB is gentler, a
   tone control, and costs the unit half as much.
-- **Filter** (KNOB 4): `Off` or `On`. Turning Low cut or High cut switches it On by itself (and FX on, if FX was
-  off), so you hear the knob at once; KNOB 4 takes it out and puts it back with the cutoffs as you left them, to
-  compare. With FX off the filter is off with the effects, and the cell reads `Off`.
+- **Filter** (KNOB 4): what goes through the filter. `Off`; `All`, both parts (what earlier firmware called `On`); `Chord`,
+  the chord part only, the bass part going round it as it is; `Bass`, the bass part only, the chords going round.
+  Turning Low cut or High cut while the filter is `Off` switches it to `All` by itself (and FX on, if FX was off), so
+  you hear the knob at once; with `Chord` or `Bass` chosen a cutoff turned leaves that choice. KNOB 4 takes it out
+  and puts it back with the cutoffs as you left them, to compare. With FX off the filter is off with the effects,
+  and the cell reads `Off`.
 
 A new FM-1 has the filter Off with both cuts at their `Off` ends, and with it Off nothing in the sound changes.
-Turning a cutoff while a chord plays is smooth, and switching the filter or the slope fades over a hundredth of a
-second: no click.
+Turning a cutoff while a chord plays is smooth, and switching the filter, the slope, or between All, Chord and Bass
+fades over a hundredth of a second: no click. Settings kept (SAVE held) by an earlier firmware with the filter `On` come back as `All`.
+
+**Chord and Bass, and the effects.** What goes round the filter is the other part's **dry** sound: its drive,
+level and pan as they are. The effects are shared by both parts, so their sound is filtered or not by where the
+filter sits (Routing, below), whichever part is round it:
+
+- **Parallel, the filter after the effects** (where every FM-1 starts): the effects' sound is filtered, the
+  bypassed part's echoes and reverb too. Only that part's dry sound is unfiltered.
+- **Parallel, the filter before the effects**: what goes into the effects is filtered, the bypassed part's sends
+  too; its dry sound is not.
+- **Chain**: at the filter's place in the chain, everything that has reached it is filtered except the bypassed
+  part's dry sound. An effect before the filter is filtered with the rest (the bass part's echoes as well, with
+  `Chord`); an effect after it is not touched by the filter at all.
+
+Going back to an earlier firmware, a kept `Chord` or `Bass` is out of its range: it starts with the filter `Off`.
 
 ### Routing
 
@@ -874,7 +891,8 @@ parts' sends, added back into the mix, the filter on the whole output after them
 but not heard in this mode (holding an effect lifts it; KNOB 1 leaves it where it is). The **Filter** has two places
 in Parallel: hold **G#4** and turn KNOB 1 anticlockwise to put it **before** the buses, clockwise to put it back
 **after** them. Before, the effects hear the filtered signal: a high cut keeps the fizz out of the reverb, a low cut
-the bass out of the delay; the dry sound is filtered too.
+the bass out of the delay; the dry sound is filtered too. With Filter `Chord` or `Bass` the other part's dry sound
+goes round the filter in either place, and in Chain too ([The Filter page](#the-filter-page)).
 
 **Chain** is the original firmware's way: one path through the four blocks in the order on the screen. The dry mix
 goes into the first block; each effect adds its sound to everything before it and passes it all on, and the filter

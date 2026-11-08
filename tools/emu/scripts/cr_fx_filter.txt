@@ -1,9 +1,9 @@
 # ChoralRoot: the master filter (0.22, GitHub issue 16; docs/FX.md "The master filter", cr_fx.c xq_block): the FX
 # layer's eighth page, Filter (SELECT +7 from Sends): Low cut / High cut / Slope / Filter, all Off on a new unit
 # (Off / Off / 12 dB / Off), and the master bit for bit what it was. A D major chord held through it (the first WAV
-# window). KNOB 2 down to the end: the high cut in at 200 Hz, its cell hot, and the Filter cell On BY ITSELF (a
+# window). KNOB 2 down to the end: the high cut in at 200 Hz, its cell hot, and the Filter cell All BY ITSELF (a
 # cutoff turned switches the filter on, as a send turned switches FX on); the chord again (the second window: its F#5
-# gone, its F#4 down). KNOB 4 -1: Filter Off (the cutoffs kept); KNOB 1 +12: the low cut in at 277 Hz, Filter On
+# gone, its F#4 down). KNOB 4 -1: Filter Off (the cutoffs kept); KNOB 1 +12: the low cut in at 277 Hz, Filter All
 # again; KNOB 3 -1: Slope 6 dB; FX tap: off (the Filter cell reads Off); FX tap: on; OCT- closes; the dump: the
 # session's FX block holds the four (tags 31 .. 34).
 knobs quick                   # every detent the quickest (6 a detent)

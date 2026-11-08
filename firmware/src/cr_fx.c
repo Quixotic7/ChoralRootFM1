@@ -117,7 +117,9 @@ enum { XP_DTIME,                 /* the delay's time, free: 0..127 = 16 ms .. XD
                                   * the low cut, 0 Off, 1..127 = 20 Hz .. 2 kHz (xq_low_hz) */
        XP_FHIGH,                 /* .. the high cut, 0..126 = 200 Hz .. 16 kHz (xq_high_hz), 127 Off */
        XP_FSLOPE,                /* .. 0: 6 dB an octave (one stage a cut), 1: 12 dB (two) */
-       XP_FON,                   /* .. 0 Off, 1 On (the cell on KNOB 4; a cutoff turned switches it on) */
+       XP_FON,                   /* .. 0 Off, 1 All (0.22's On), 2 Chord (the bass part round it), 3 Bass (the chord
+                                  * part round it: "The part round the filter" below); the cell on KNOB 4; a cutoff
+                                  * turned while Off switches it to All */
        XP_ORDER,                 /* THE ROUTING (GitHub issue 21, second design; "The routing" below; the FX layer's
                                   * Routing page): the order of the FOUR chain blocks, XF_ORD's index 0..23 (0: Chorus,
                                   * Delay, Reverb, Filter). Kept in both modes; in Parallel only a picture */
@@ -144,7 +146,7 @@ static const struct { int16_t min, max, def; } XFP[XP_N] = {
     [XP_DWOW] = {0, 127, 24}, [XP_RSIZE] = {0, 127, 88}, [XP_RDAMP] = {0, 127, 56}, [XP_RDECAY] = {0, 127, 52},
     [XP_RPRE] = {0, 127, 16}, [XP_RMOD] = {0, 127, 56}, [XP_RLOW] = {0, 127, 60}, [XP_RWIDTH] = {0, 127, 127},
     [XP_CWIDTH] = {0, 127, 127},
-    [XP_FLOW] = {0, 127, 0}, [XP_FHIGH] = {0, 127, 127}, [XP_FSLOPE] = {0, 1, 1}, [XP_FON] = {0, 1, 0},
+    [XP_FLOW] = {0, 127, 0}, [XP_FHIGH] = {0, 127, 127}, [XP_FSLOPE] = {0, 1, 1}, [XP_FON] = {0, 3, 0},
     [XP_ORDER] = {0, 23, 0}, [XP_RMODE] = {0, 1, 0}};
 static int16_t xfp[XP_N];                 /* the values (xf_defaults at power-on, then the session's) */
 static uint16_t xf_bpm = 120;             /* the tempo the synced delay follows (cr_ui.c: the engine's, 20..300) */
@@ -1238,7 +1240,8 @@ CR_HOT_FX static __attribute__((noinline)) void xf_block(const int32_t *dly_in, 
  * knob lpf/hpf"; docs/FX.md "The master filter"). A LOW CUT and a HIGH CUT on the stereo master, after the effects
  * (the reverb's and the delay's wash is tamed with the parts) and before Options > Output's chain (the limiter and the
  * clip see what the filter leaves). The FX layer's Filter page (cr_ui.c CU_FXP): Low cut (Off, 20 Hz .. 2 kHz), High
- * cut (200 Hz .. 16 kHz, Off), Slope (6 or 12 dB an octave), Filter (Off / On; a cutoff turned switches it on).
+ * cut (200 Hz .. 16 kHz, Off), Slope (6 or 12 dB an octave), Filter (Off / All / Chord / Bass; a cutoff turned
+ * while Off switches it to All; Chord and Bass: "The part round the filter" below).
  * A cut is one stage (6 dB) or two in a row (12 dB) of a one-pole, the low cut's stage x minus its low-pass; the knob
  * reads the cut's -3 dB corner, so a 12 dB cut's two poles sit at 1.554 times it (two identical poles are 3 dB down at
  * 0.6436 of their own corner). Every product keeps its remainder (xf_rs), as the loops above do: no dead band at a
@@ -1279,6 +1282,101 @@ static struct {
     xq_pl_t pl[2];                        /* 0: after the effects (Chain's, Parallel's after); 1: before the buses */
     int32_t t[CTL];                       /* a fade's block of the wet */
 } xq __attribute__((section(".pool")));
+
+/* THE PART ROUND THE FILTER (3y270; docs/FX.md "The master filter", MANUAL.md 8 "The Filter page"). Filter Chord (2)
+ * filters the chord part alone, Bass (3) the bass part alone: the other part's DRY sound goes round the filter. The
+ * effects are buses both parts share, so their returns are filtered as the filter's place has it: after the buses
+ * (Parallel) the returns are filtered; before them (Parallel, the Filter first: xq_pre) the sends are, the bypassed
+ * part's too; in Chain at the filter's position. One rule at every place: with B the bypassed part's dry stereo (as
+ * it went into the mix: its drive, level, pan and stereo side applied) the place makes F(acc - B) + B of acc. acc
+ * holds B wherever the filter is, since the effects only ever add their wets (and the place before the buses: B on
+ * the dry pair only, the sends as they are).
+ * B is taken where the parts are mixed (fx.c mix_part_out, either path: one core's mix, mix_parts_split's), only for
+ * the bypassed part: the mix before its loop subtracted, after it added (xb_cap; the two halves of a sum: exact). A
+ * part that is silent leaves nothing (B 0). Each part's SHARE of B (xb.g, Q12) moves by XQ_STEP a block, the cuts'
+ * own fade, a straight line across each block: Chord <-> Bass <-> All crossfade over 16 blocks, never a step; the
+ * share goes where the Filter says only while the filter sounds (a place's w not 0): switched Off, the shares stay
+ * as they were while the cuts fade out, and once nothing is in they go to 0 at once (and to the new choice at once
+ * when it comes back on from rest, the cuts then fading in on acc - B). Filter All and every share at 0: nothing
+ * taken, nothing added: 0.22's On, bit for bit; Off and FX off as before (cr_fx_test.c).
+ * COST: B in POOL beside xq (zero-filled at power-on as xq is), 256 bytes (two blocks of CTL int32) + 28; per block
+ * only while a share is not 0: B cleared, the capture (a part's mix read twice, 2 x 2 x 32 adds) and at each place
+ * that runs B out and back (2 x 2 x 32 adds): ~26 us a half on the unit (docs/FX.md); a fade's 16 blocks multiply
+ * instead (two products a sample a side) */
+static struct {
+    int32_t l[CTL], r[CTL];               /* B this block: the bypassed part(s)' dry, each at its share */
+    int32_t g[2];                         /* each part's share in use, Q12 (0: through the filter, 4096: round it) */
+    int32_t g0[2], g1[2];                 /* .. this block's line, from, to (xb_begin) */
+    uint8_t has;                          /* B holds a part this block (xb_cap) */
+} xb __attribute__((section(".pool")));
+static void xq_upd(void);
+/* the block's shares (fx.c mix_block, core 0, before the parts are mixed): the Filter's choice as the knobs are now
+ * (xq_upd: xq.in, Filter not Off, FX on, a cut in), the places' fades as the last block left them */
+static __attribute__((noinline)) void xb_begin(uint32_t n)
+{
+    int32_t f = xfp[XP_FON], live = xq.pl[0].w[0] | xq.pl[0].w[1] | xq.pl[1].w[0] | xq.pl[1].w[1], any = 0;
+    uint32_t p, i;
+    xq_upd();                                           /* (after live: power-on's xq_upd puts a cut in at once) */
+    xb.has = 0;
+    for (p = 0; p < 2u; p++) {
+        int32_t g = xb.g[p], t;
+        if (!(xq.in[0] | xq.in[1]))
+            t = live ? g : 0;                           /* (switched out: held while the cuts fade, then 0) */
+        else
+            t = (f == 2 && p == 1u) || (f == 3 && p == 0u) ? 4096 : 0;   /* (Chord: the bass part round; Bass: the
+                                                         * chord part) */
+        xb.g0[p] = live ? g : t;                        /* (nothing sounding through the filter: at once) */
+        xb.g1[p] = live ? g + xf_clamp(t - g, -XQ_STEP, XQ_STEP) : t;
+        xb.g[p] = xb.g1[p];
+        any |= xb.g0[p] | xb.g1[p];
+    }
+    if (any)
+        for (i = 0; i < n; i++)
+            xb.l[i] = xb.r[i] = 0;
+}
+/* part p's share is taken this block (fx.c mix_part_out: around the part's mix loop) */
+XF_AI int xb_want(uint32_t p) { return p < 2u && (xb.g0[p] | xb.g1[p]); }
+/* .. the mix ml / mr before part p's loop (s -1) and after it (s 1): B += its share of the difference (n == CTL) */
+XF_AI void xb_cap(uint32_t p, const int32_t *ml, const int32_t *mr, uint32_t n, int32_t s)
+{
+    int32_t g0 = xb.g0[p], g1 = xb.g1[p];
+    uint32_t i;
+    xb.has = 1;
+    if (g0 == 4096 && g1 == 4096) {                     /* (all of it: no product) */
+        if (s < 0)
+            for (i = 0; i < n; i++) {
+                xb.l[i] -= ml[i];
+                xb.r[i] -= mr[i];
+            }
+        else
+            for (i = 0; i < n; i++) {
+                xb.l[i] += ml[i];
+                xb.r[i] += mr[i];
+            }
+        return;
+    }
+    for (i = 0; i < n; i++) {                           /* (a fade: the share a line across the block, as xq_fade's w) */
+        int32_t w = (g0 + (((g1 - g0) * (int32_t)(i + 1u)) >> CTL_LOG2)) * s;
+        xb.l[i] += (ml[i] >> 12) * w + (((ml[i] & 4095) * w) >> 12);   /* (x w >> 12 exactly in 32 bits: |w| <=
+                                                         * 4096, no int64 helper from code that may sit in RAM) */
+        xb.r[i] += (mr[i] >> 12) * w + (((mr[i] & 4095) * w) >> 12);
+    }
+}
+/* B out of the pair (s -1) or back in (s 1) at a place that runs (xq_run) */
+XF_AI void xb_io(int32_t *ml, int32_t *mr, uint32_t n, int32_t s)
+{
+    uint32_t i;
+    if (s < 0)
+        for (i = 0; i < n; i++) {
+            ml[i] -= xb.l[i];
+            mr[i] -= xb.r[i];
+        }
+    else
+        for (i = 0; i < n; i++) {
+            ml[i] += xb.l[i];
+            mr[i] += xb.r[i];
+        }
+}
 
 static int32_t xq_k12(uint32_t hz)        /* a one-pole's k (Q12) for the corner hz: 1 .. 4095 */
 {
@@ -1392,9 +1490,13 @@ static void xq_upd(void)                              /* the coefficients as the
 CR_HOT_FX static __attribute__((noinline)) void xq_run(xq_pl_t *p, int32_t *const *b, uint32_t nch, uint32_t n, int want)
 {
     uint32_t c, i;
+    int byp;
     if (p->idle && !(want && (xq.in[0] | xq.in[1])))
         return;                                         /* (Off: the block reads nothing) */
     p->idle = 1;
+    byp = xb.has;                                       /* (a part round the filter: B out of the pair b[0], b[1]) */
+    if (byp)
+        xb_io(b[0], b[1], n, -1);
     for (c = 0; c < 2u; c++) {
         int32_t w0 = p->w[c], wt = want && xq.in[c] ? 4096 : 0, w1 = w0 + xf_clamp(wt - w0, -XQ_STEP, XQ_STEP), k1, k2;
         if (!w0 && !w1) {                               /* out: nothing runs, nothing read; at rest for the next time */
@@ -1419,6 +1521,8 @@ CR_HOT_FX static __attribute__((noinline)) void xq_run(xq_pl_t *p, int32_t *cons
                 xq_fade(b[i], n, &p->s[c][i], k1, k2, c == 0u, w0, w1);
         p->w[c] = w1;
     }
+    if (byp)
+        xb_io(b[0], b[1], n, 1);                        /* (.. and back in: F(acc - B) + B) */
 }
 /* the master's block (fx.c mix_block: after the effects, before out_master; xg_join: the filter's place in Chain);
  * ml, mr: the mix, in place */

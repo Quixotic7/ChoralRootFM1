@@ -7793,3 +7793,34 @@ with RPN 0), out from the editor, the FX group, MIX, KNOB 4, the echo guard, the
 tests/run_cr_tests.sh`: all pass. The emulators (`tools/emu/build.sh`, `tools/emu/web/build_web.sh`) build: they run
 the same firmware, so a CC into the emulator's MIDI in does the same. MANUAL section 15 "MIDI CC" (the common table,
 the block rule, each engine's map), Options; SETTINGS.md. Not tried on a unit.
+
+## 2026-11-08 (the master filter: Chord or Bass alone)
+
+3y270. **Filter: Off / All / Chord / Bass, one part round the master filter.** The owner's design (the CC and bypass
+session's notes, section 2): KNOB 4 of the FX layer's Filter page, Off / On to 0.32, is now Off / **All** (0.32's On,
+bit for bit) / **Chord** (the chord part filtered, the bass part's dry round it) / **Bass** (the other way). The same
+byte (`xfp[XP_FON]`, 0..3; the session's tag 34), so a kept On loads as All; a firmware before this one reads 2 / 3 as
+out of range and keeps its default, Off. A cutoff turned while Off switches it to All (the knob reaches Off only from
+All, so "the last choice" would be All every time: not kept); with Chord or Bass a cutoff turned keeps it. One rule at
+every place the filter can be (`cr_fx.c` "The part round the filter"): with B the bypassed part's dry stereo as it
+went into the mix (drive, level, pan, stereo side applied), the place makes F(acc - B) + B. The effects only add their
+wets, so acc holds B everywhere: Parallel with the filter after the buses filters the returns, the bypassed part's
+too; with the Filter first (`xq_pre`) B comes out of the dry pair only and the sends are filtered as before, its own
+too; in Chain the filter's position filters what reached it but B. B is taken in `fx.c mix_part_out` around the
+bypassed part's mix loop (the mix before it subtracted, after it added: `xb_cap`, inline, exact; both paths, one
+core's and `mix_parts_split`'s, mix on core 0), each part's share (`xb.g`) moving by `XQ_STEP` a block, the cuts' own
+16-block fade: Chord, Bass and All crossfade. The share follows the choice only while a cut is in; switched out it
+holds through the cuts' fade, then goes to 0; from rest it starts at the choice at once. All with the shares at 0
+takes and adds nothing. POOL +284 B (`xb`: B's two blocks, 256 B, beside `xq`), XIP +704 B, RAM 0
+(`./build.sh`: XIP 555,584, RAM 84,784, POOL 334,468 of 344,064). On the unit by the listing (`tools/fx_loops.py`
+`xb_begin xq_run mix_part_out`): with Chord or Bass ~43 instructions a sample, ~26 us of the half's 2,902 (one 12 dB
+cut's); nothing while every share is 0. Tests: `cr_fx_test.c t_bypass` (Chord and Bass at each of the three places:
+the bypassed part alone comes out as it went in every sample, the other is All's every sample and 20 dB down; the
+bass part's 9 kHz into the reverb with Chord: its wet 53 dB under Filter Off's at each place; All and Off the stage
+without the bypass every sample, both parts sent; FX off with Chord the dry; the choice cycled All, Chord, Bass, All,
+Off every 100 ms under 440 / 330 Hz tones, no sample step above the dry's own 1,716, where switching the shares at once
+steps 16,855; the host cost, +816 a half on 14,365); `cr_fm6_test.c` (tag 34: 1 loads as All, 2 and 3 round-trip, 4
+refused; a cutoff turned while Off gives All, while Chord keeps Chord). MANUAL.md 8 (The Filter page: the four
+choices and what each place does with the effects; Routing's note), FX.md "The master filter", SETTINGS.md tag 34.
+`sh tests/run_cr_tests.sh` passes; `./build.sh` and `BOARD=smk37 ./build.sh` OK; the emulator builds. Not tried on a
+unit; the Routing page's Filter box does not show the choice.
