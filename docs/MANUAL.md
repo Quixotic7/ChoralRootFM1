@@ -1244,9 +1244,12 @@ stopped.)
 
 Limits: 512 chords in a loop over at most 32 layers; reaching the limit ends the take (`loop full`).
 
-With MIDI Clock set to Out the FM-1 sends start and stop with the loop; set to In, the loop follows incoming start,
-continue and stop, and keeps time with the incoming clock's pulses themselves: it stays with the master however long it
-plays, even at a tempo between two whole BPMs. If the clock stops, the loop plays on at the tempo.
+Incoming start, continue and stop (USB, Bluetooth, and the FM-1's TRS jack) do what the LOOP (PLAY) button does,
+with MIDI Clock set to Out (the default) or In; Off ignores them. Start also starts the Arp and Pattern again from
+their first step. With MIDI Clock set to Out the FM-1 sends start and stop with the loop, except for a start or stop
+that came in: it is not sent back. Set to In, the tempo follows the incoming clock too, and the loop keeps time with
+the clock's pulses themselves: it stays with the master however long it plays, even at a tempo between two whole BPMs.
+If the clock stops, the loop plays on at the tempo.
 
 More detail: [LOOPER.md](LOOPER.md), [LOOPER-MODES.md](LOOPER-MODES.md).
 
@@ -1739,7 +1742,7 @@ Tap **OPT** (printed GLO). One setting fills the screen:
 | **Chord Keys** | FM-1, Classic | FM-1 (since 0.25.1; an updated unit is moved to it once) | which keys are the chord keys: FM-1 (SUS = G#3 + A#3, the 9 on B3, C4 and C#4 roots, LOCK on LFO; [The FM-1 chord keys](#the-fm-1-chord-keys)) or Classic, the Orchid's (DIM MIN MAJ SUS on F#3 G#3 A#3 C#4, the 9 on C4, LOCK on B3; [The Classic chord keys](#the-classic-chord-keys)). Not on the SMK-37 |
 | **SUS Window** | 30 to 80 ms, 5 ms a step | 30 ms | listed with the FM-1 chord keys only: how long a root waits for the second key of G#3 + A#3 ([The FM-1 chord keys](#the-fm-1-chord-keys)) |
 | **Full K Shorts** | Off, On | Off | on the Full keyboard, F#5 brings the chord keys back and G5 plays a chord on every key ([Key Mode](#key-mode)) |
-| **MIDI Keys** | Off, ch 1 to ch 16 | Off | the channel whose notes 53 to 79 press the FM-1's keys F3 to G5 ([MIDI in](#midi-in-usb-and-the-trs-jack)); the MIDI Perform and MIDI Bass channels are skipped |
+| **MIDI Keys** | Off, ch 1 to ch 16 | Off | the channel whose notes 53 to 79 press the FM-1's keys F3 to G5 ([MIDI in](#midi-in-usb-bluetooth-and-the-trs-jack)); the MIDI Perform and MIDI Bass channels are skipped |
 | **6th with 7th** | In place, Octave up | In place | where the 6th sounds in a chord that also has a seventh (7 or M7). In place: 9 semitones above the root, under the seventh, as the Orchid plays it. Octave up: an octave higher, on top, which makes it a 13th chord (D + 7 + 6: D F# A C B). Chords without a seventh never change; the name does not change ([Types and extensions](#types-and-extensions)) |
 | **Velocity** | 1 to 127 | 100 | the velocity of every key, for the sound and for MIDI out |
 | **Pedal** | Sustain, Expression | Sustain | the SMK-37 only: what its pedal jack does. Sustain: a switch pedal holds the notes; Expression: an expression pedal sets both parts' expression (CC 11). Kept by the global save ([SMK37.md](../SMK37.md#the-pedal-jack)) |
@@ -1750,7 +1753,7 @@ Tap **OPT** (printed GLO). One setting fills the screen:
 | **MIDI Bass** | Off, ch 1 to ch 16 | ch 2 | the same for the bass |
 | **MIDI Raw Chord** | Off, ch 1 to ch 16 | Off | the channel for the plain chord, without the performance mode. From Off the first step is ch 1; choose a channel of its own (the Orchid uses 3) |
 | **Raw Chord Sound** | Off, On | Off | On: the plain chord also plays on the chord sound, under an arpeggio or pattern. With no performance mode on, every note then sounds twice |
-| **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop. In: follows them |
+| **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop; incoming start / stop work as LOOP. In: follows the clock and start / stop |
 | **Bluetooth** | Off, On | Off | the FM-1 only: MIDI over Bluetooth, the same MIDI as over USB ([Bluetooth MIDI](#bluetooth-midi)); the first On takes effect at the next power-on. The line under it says what the link is doing. Kept apart from the other settings (Reset Settings leaves it, a backup does not carry it; Flash Data clears it) |
 | **Forget Bluetooth** | | | OCT+ twice: the FM-1 forgets the computer it paired with. Forget the FM-1 on that computer too |
 | **View** | Chord, Keyboard, Notes, Geek Out, Scope, Geek Out 2 | Chord | the view ([Views](#13-views)) |
@@ -1896,7 +1899,7 @@ Over USB the computer sees one device, **ChoralRoot FM-1**: a MIDI port of that 
 With MIDI Clock set to Out (the default) the FM-1 also sends MIDI clock at the tempo, a start when the loop starts
 playing and a stop when it stops. PANIC sends all notes off (CC 123).
 
-### MIDI in (USB and the TRS jack)
+### MIDI in (USB, Bluetooth and the TRS jack)
 
 | Message | Effect |
 | --- | --- |
@@ -1906,7 +1909,8 @@ playing and a stop when it stops. PANIC sends all notes off (CC 123).
 | CC 7 | the part's level |
 | CC 91, 93, 94 | the part's reverb, chorus and delay sends (they stay until changed: a program change does not reset them). The screen shows the new send in per cent: controller value 127 is 100 % |
 | CC 64, pitch bend, CC 1, aftertouch | sustain, bend, and the modulation sources of the engines that use them |
-| clock, start, continue, stop | with MIDI Clock set to In: the tempo follows the clock and the loop follows start / continue / stop |
+| start, continue, stop | with MIDI Clock set to Out or In: as the LOOP (PLAY) button; start also restarts the Arp / Pattern from its first step |
+| clock | with MIDI Clock set to In: the tempo follows it |
 
 A part whose channel is Off ignores MIDI in.
 

@@ -951,6 +951,23 @@ void cr_clock_reset(cr_t *c)
 }
 uint32_t cr_clock_epoch(const cr_t *c) { return c->clk_anchor; }
 
+/* MIDI Start (3y253): the grid restarts now and every clocked voice (Arp, Pattern) starts again from its first step,
+ * the downbeat with the master's */
+__attribute__((noinline)) void cr_transport_start(cr_t *c)
+{
+    int i;
+    cr_clock_reset(c);
+    for (i = 0; i < CR_NVOICE; i++) {
+        cr_voice_t *v = &c->v[i];
+        if (!v->used || !v->clk.on) continue;
+        crx_cancel(c, CR_OWN_C(i));
+        v->clk.pos = 0; v->clk.step = 0;         /* step 0 due now, on the new grid (crx_phase_clocked would take the */
+        v->clk.anchor = c->clk_anchor;           /* next one: a step due now counts as passed there) */
+        v->clk.rem = c->clk_rem;
+        crx_clocked_step(c, i);
+    }
+}
+
 void cr_tick(cr_t *c, uint32_t now_ms)
 {
     int d = 0, k;

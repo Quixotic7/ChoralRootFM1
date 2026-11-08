@@ -7529,3 +7529,22 @@ interrupts never late). Two probes in a BLE_DIAG build: bit 32 of `--ble-test` (
 the measured calibration's TX DC, gain and phase steps too (`FM1_RF_CAL_FULL` as a run-time switch,
 `FM1_RF_CAL_FULL_SW` = BLE_DIAG; never run on a unit before), and 81 BLE adds `ble_tx_ack1..4`: our packets
 acknowledged 1, 2, 3, 4+ events after loading (CRBL_DBG_N 64), the Mac's side of the loss.  All 24 suites pass.
+
+3y253. **MIDI start / continue / stop work as the LOOP (PLAY) button, with MIDI Clock Out too.** The owner: "ChoralRoot
+does not respond to MIDI Clock in or MIDI Transport". Their MIDI Clock was Out, the default, where 0xFA / FB / FC
+were ignored; with In they already reached the loop on every input (USB, Bluetooth, the FM-1's TRS; the SMK-37 has
+no TRS input: its RX pin is a key row), all through usb.c's one queue. Now `cr_midi_in` takes start / continue /
+stop with Out as well as In (Off still ignores them) and does what LOOP does (`crm_transport`, the LP_PLAY path), and
+a Start also starts the Arp and Pattern again from their first step on a new grid (`cr_transport_start`; a step due
+"now" counts as passed in `crx_phase_clocked`, so the restart sets step 0 itself). The pulses (0xF8) still set the
+tempo only with In. No echo: with Out, the loop start or stop an incoming message caused (within 1 s) is not sent
+back as FA / FC, so a master that echoes never loops; the LOOP button's own still is. Song Position stays ignored.
+Tests: `tools/emu/scripts/cr_midi_transport.txt` 15 LED checks (In, Out, the button, Off) and the transport traces
+(Out: only the button's FA / FC), `tests/cr_engine_test.c` s_transport (Retrig on and off: 48 52 55 again, the first
+at once). MANUAL: Recording and playing, Options, MIDI in. The no-echo check clears its flag on every change, not
+in a branch of its own: the compiler laid that one store before the block loop and jumped back to it, and
+tests/target_budget.py read the jump as a loop around 720 instructions (fm1_alnk0_irq 14 349 -> 28 476; now 14 194).
+The RemoteFM1 AUv3 (RemoteFM1IOS, its host-clock setting on by default) already turns the DAW's tempo and transport
+into 0xF8 / FA / F2 + FB / FC into this same USB path (RFMHostClock.cpp); its vendored core (FM1VST
+cores/ChoralRootFM1, v0.29.2) needs this change to follow transport with Out. The desktop FM1VST reads no play head. All 24 suites
+pass (install_test once more after a numpy import error of the host Python, as before).

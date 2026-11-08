@@ -2655,6 +2655,34 @@ static void s_sixth(void)
     ok(sounding() == 0 && dup_on == 0 && stray_off == 0, "6th with 7th: nothing left, doubled or ended twice");
 }
 
+static void s_transport(void)                     /* MIDI Start (3y253): the Arp from its first step, now */
+{
+    int idx[256], n, r;
+    uint64_t t0;
+    for (r = 1; r >= 0; r--) {                    /* Retrig on (anchored at the press) and off (the global grid) */
+        fresh(r ? "transport retrig" : "transport grid");
+        cr_set_perform(&C, 1);
+        cr_set_perform_mode(&C, CR_PM_ARP);
+        cr_set_param(&C, CR_PM_ARP, CR_P_HOLD, 0);
+        cr_set_param(&C, CR_PM_ARP, CR_P_RETRIG, r);
+        MD(CR_MOD_MAJ);
+        K(48, 1); step(630);                      /* 48 52 55 played, 48 next */
+        clear();
+        t0 = T;
+        cr_transport_start(&C);
+        step(520);
+        n = ons(idx, 256, 0);
+        ok(n == 3 && LOG[idx[0]].note == 48 && LOG[idx[1]].note == 52 && LOG[idx[2]].note == 55,
+           r ? "Start, Retrig on: the arp again from its first note (48 52 55)"
+             : "Start, Retrig off: the arp again from its first note (48 52 55)");
+        ok(n >= 2 && tms(LOG[idx[0]].t - t0) < TOL() && tms(LOG[idx[1]].t - LOG[idx[0]].t) > 250 - TOL() &&
+           tms(LOG[idx[1]].t - LOG[idx[0]].t) < 250 + TOL(), "Start: the first step at once, the next 250 ms on");
+        R(48, 1); step(300); clear();
+        cr_set_param(&C, CR_PM_ARP, CR_P_RETRIG, 1);
+    }
+    cr_set_perform(&C, 0); clear();
+}
+
 static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
 {
     strcpy(TAG, tag);
@@ -2664,7 +2692,7 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
     cr_init(&C, &OUT);
     cr_tick(&C, now_ms());
     s_keyboard(); s_sticky(); s_chords(); s_panic(); s_voicing(); s_bass(); s_keymode(); s_pads();
-    s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_pattern(); s_live(); s_streams();
+    s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_transport(); s_pattern(); s_live(); s_streams();
     s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_snap(); s_loopvoice(); s_queries(); s_limits(); s_torture();
     s_sixth();
     s_fm1();

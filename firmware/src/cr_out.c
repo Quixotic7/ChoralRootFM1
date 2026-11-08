@@ -671,8 +671,11 @@ static void cr_apply(const cr_ev_in_t *e)
 /* ------------------------------------------------------------- MIDI in --- */
 /* usb.c's midi_in_q (USB and TRS) is drained here, in the audio ISR, before fx.c's events_block runs in the same block
  * (its overflow recovery stays there: on an overflow the queue is left to it).
- *   0xF8 / FA / FB / FC   Options > MIDI Clock = In: the tempo (cr_midi.c's follower -> cr_set_tempo) and the loop's
- *                         transport (the LP_PLAY path); otherwise ignored
+ *   0xF8                  Options > MIDI Clock = In: the tempo (cr_midi.c's follower -> cr_set_tempo); otherwise
+ *                         ignored
+ *   0xFA / FB / FC        MIDI Clock = In or Out (3y253; Off: ignored): what the LOOP (PLAY) button does (the
+ *                         LP_PLAY path, crm_transport), and Start restarts the Arp / Pattern on the downbeat. In Out
+ *                         the loop's start / stop they cause is not sent back out (cr_rt_mute: no echo to the master)
  *   the CHORD / BASS channels (Options' channels; Off: ignored): CC 7 / 91 / 93 / 94 and program changes go to the UI
  *                         (cr_min_q: it applies them as a knob would, with the meter); notes, pedal, bend, pressure and
  *                         the other CCs (123: all notes off) go to midi_event (above) for part 0 or 1
@@ -686,6 +689,8 @@ static volatile uint32_t cr_in_bpm_n;            /* .. and a count of its change
 static volatile uint32_t cr_in_msg_n;            /* channel messages received (the UI's screensaver: activity) */
 static volatile uint32_t cr_in_rt_n;             /* start / stop received (In) */
 static volatile uint8_t cr_in_rt_last;
+static uint8_t cr_rt_mute;                       /* Out: the loop state (1 + playing) an incoming transport asked for .. */
+static uint32_t cr_rt_mute_until;                /* .. its change not sent back out until then (cr_now_ms) */
 #define CR_MINQ 32u                              /* ISR -> UI: CC / program change (a power of two) */
 static crm_act_t cr_minq[CR_MINQ];
 static volatile uint32_t cr_minq_w, cr_minq_r;
@@ -747,15 +752,21 @@ static int cr_mkq_take(uint32_t *ev)             /* the UI */
 }
 
 static void cr_loop_op(const cr_ev_in_t *e);
-static void cr_in_transport(uint32_t st)         /* FA start / FB continue: the loop plays (FA: from its start); FC */
+static __attribute__((noinline)) void cr_in_transport(uint32_t st)   /* FA start / FB continue: the loop plays (FA: from its start); FC */
 {
     cr_ev_in_t e = {CRE_LOOP, LP_PLAY, 0, 0, 0};
     int n;
     cr_in_rt_last = (uint8_t)st;
     cr_in_rt_n++;
     n = crm_transport(st, crl.state == CRL_PLAYING, crl.state == CRL_STOPPED, crl.cap != CRL_CAP_NONE);
+    if (n && !cr_route.clock_in) {               /* Out: the change it makes is the master's, not ours to announce */
+        cr_rt_mute = (uint8_t)(1u + (st != 0xFCu));
+        cr_rt_mute_until = cr_now_ms + 1000u;
+    }
     while (n-- > 0)
         cr_loop_op(&e);
+    if (st == 0xFAu)
+        cr_transport_start(&cr);                 /* the Arp / Pattern from step 1, on the master's downbeat */
 }
 
 static void cr_midi_in(void)
@@ -780,9 +791,10 @@ static void cr_midi_in(void)
         uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu, ms = midi_in_ms[at];
         mi_r++;
         if (status >= 0xF8u) {
-            if (!cr_cin_mode)
-                continue;
-            if (status == 0xF8u) {
+            if (!cr_cin_mode) {
+                if (cr_route.clock_out && (status == 0xFAu || status == 0xFBu || status == 0xFCu))
+                    cr_in_transport(status);     /* (Out: start / stop only; the pulses stay ours) */
+            } else if (status == 0xF8u) {
                 int b = crm_clock_pulse(&cr_cin, ms);
                 if (!crl.ext_on || ms - cr_cin_stamp >= 2u)   /* (a duplicate: crm_clock_pulse's < 2 ms) */
                     cr_loop_ext_pulse(&crl);     /* the loop's time from the pulses, not the rounded BPM */
@@ -883,11 +895,15 @@ static void cr_audio_block(uint32_t n)
     if ((crl.state == CRL_PLAYING) != cr_rt_was) {
         cr_rt_was = crl.state == CRL_PLAYING;
         if (cr_route.clock_out && !cr_route.clock_in) {   /* USB MIDI CIN 0x0F: a single-byte system real-time message */
-            cr_rt_last = cr_rt_was ? 0xFAu : 0xFCu;
             if (cr_rt_was)
                 cr_clk_acc = 0;                  /* the pulses start with it */
-            midi_out_event(0x0Fu | (uint32_t)cr_rt_last << 8);
-            cr_rt_n++;
+            uint32_t echo = cr_rt_mute == 1u + cr_rt_was && (int32_t)(cr_now_ms - cr_rt_mute_until) < 0;
+            cr_rt_mute = 0;                      /* (a change consumes it, either way) */
+            if (!echo) {                         /* (the master's own start / stop is not sent back) */
+                cr_rt_last = cr_rt_was ? 0xFAu : 0xFCu;
+                midi_out_event(0x0Fu | (uint32_t)cr_rt_last << 8);
+                cr_rt_n++;
+            }
         }
     }
     if (cr_route.clock_out && !cr_route.clock_in) {   /* 24 PPQN: a pulse every FS * 60 / (bpm * 24) samples */

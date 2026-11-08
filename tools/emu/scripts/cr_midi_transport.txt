@@ -1,5 +1,6 @@
-# ChoralRoot: MIDI start / continue / stop in (Options > MIDI Clock = In) drive the loop; with Clock = Out they are
-# ignored. A 1-bar Free loop (as cr_loop_free), LOOP stops it, then FC / FA / FC / FB / FA-while-playing; Out: FA.
+# ChoralRoot: MIDI start / continue / stop in drive the loop as the LOOP (PLAY) button does, with Options > MIDI Clock
+# In and (3y253) Out; Off ignores them. A 1-bar Free loop (as cr_loop_free), LOOP stops it, then In: FC / FA / FC /
+# FB / FA-while-playing / FC; Out: FA / FC / FB / FC (none sent back out), then LOOP twice (sent: FA, FC); Off: FA.
 keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn GLO 80                     # Options: MIDI Clock -> In
@@ -55,9 +56,34 @@ knob KNOB1 -1
 wait 100
 btn GLO 80
 wait 200
-midi FA                      # Out: ignored
+midi FA                      # Out: plays, as LOOP; no FA sent back
 wait 300
-expect led GREEN off         # 9
+expect led GREEN on          # 9
+midi FC                      # stops; no FC sent back
+wait 300
+expect led GREEN off         # 10
+midi FB                      # continue: plays
+wait 300
+expect led GREEN on          # 11
+midi FC
+wait 300
+expect led GREEN off         # 12
+wait 1200                    # (past the no-echo window)
+btn PLAY                     # the button itself: plays, FA sent
+wait 300
+expect led GREEN on          # 13
+btn PLAY                     # stops, FC sent
+wait 300
+expect led GREEN off         # 14
+btn GLO 80                     # Options: MIDI Clock -> Off
+wait 100
+knob KNOB1 -1
+wait 100
+btn GLO 80
+wait 200
+midi FA                      # Off: ignored
+wait 300
+expect led GREEN off         # 15
 dump
 wait 2000
 dump

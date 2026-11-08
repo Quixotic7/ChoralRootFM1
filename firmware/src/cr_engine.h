@@ -271,6 +271,7 @@ void cr_set_sticky(cr_t *c, int on);               /* latch (Sticky Keys) */
 void cr_set_tempo(cr_t *c, int bpm);               /* 20..300; rephases clocked voices */
 void cr_set_stream(cr_t *c, cr_stream_t s, int enabled);   /* gates new gestures; owners finish */
 void cr_clock_reset(cr_t *c);                      /* the global grid restarts now (transport start) */
+void cr_transport_start(cr_t *c);                  /* MIDI Start: the grid restarts and the Arp / Pattern from step 1 */
 uint32_t cr_clock_epoch(const cr_t *c);            /* a grid point of the global clock (ms) */
 int  cr_latching(const cr_t *c);
 

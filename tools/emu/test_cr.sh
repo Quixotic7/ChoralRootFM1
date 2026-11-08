@@ -2297,12 +2297,15 @@ p=$(pixel "$OUT/cr_calib_done.ppm" 120 8); set -- $p
 has 'expect sound .*: ok' "$CL" && ok "a chord plays after the calibration" || bad "calib: no sound after"
 silent_end cr_calib
 
-echo "MIDI start / continue / stop in (Clock In) drive the loop; ignored with Clock Out"
+echo "MIDI start / continue / stop in drive the loop as LOOP does, with Clock In and Out (3y253); ignored with Off"
 run cr_midi_transport
 ML="$OUT/cr_midi_transport.log"
-[ "$(grep -c '^expect led GREEN .*: ok' "$ML")" = 9 ] &&
-    ok "LOOP stop, FC nothing, FA plays, FC stops, FB plays, FA restarts (still playing), FC stops; Out: FA ignored" ||
-    bad "MIDI transport in: $(grep -c '^expect led GREEN .*: ok' "$ML") of 9 GREEN checks"
+[ "$(grep -c '^expect led GREEN .*: ok' "$ML")" = 15 ] &&
+    ok "In: LOOP stop, FC nothing, FA plays, FC stops, FB plays, FA restarts, FC stops; Out: FA / FC / FB / FC the same; LOOP twice; Off: FA ignored" ||
+    bad "MIDI transport in: $(grep -c '^expect led GREEN .*: ok' "$ML") of 15 GREEN checks"
+[ "$(grep '^midi: ' "$ML" | tr '\n' ' ')" = "midi: FA start midi: FC stop " ] &&
+    ok "Out: the master's FA / FC / FB / FC not sent back; the LOOP button's start and stop sent" ||
+    bad "Out: transport out was: $(grep '^midi: ' "$ML" | tr '\n' ' ')"
 silent_end cr_midi_transport
 
 echo "VA (eng_va.c, docs/VA.md): its first preset, a held 6-note chord, a chord change"
