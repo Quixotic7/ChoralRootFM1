@@ -252,9 +252,23 @@ static void dbg_boot(void)
 #endif
 #include "master.c"              /* the MASTER pot: read before the audio starts (0.19; Felucca 1.1.5, #137) */
 
+#if CR_CPU1 && !BOARD_SMK37
+/* the power-on pop (HISTORY 3y268): stock V15's supplies (hal/fm1_power.h fm1_power_stock: the 1.3 V rail on its
+ * DC-DC, VDDIO 3.2 V, the core rails at ChoralRoot's caps) on every boot, first, as FM1-Base's main_fm1.c does
+ * (Charles Vestal, 5e1e79f) and Melodee 1.6.1. Until 0.32 only a Bluetooth boot set them, just before the audio;
+ * every other boot started the I2S clocks on the boot loader's supplies, and the speaker popped under the splash (the
+ * spare E81CE2F7, Bluetooth and Dual Core Off, cold starts). Not in SAFE MODE (the boot loader's supplies, as before).
+ * -1 not run, else fm1_power_stock's result (a Bluetooth boot takes it: cr_ble_supplies) */
+static int cr_boot_supplies = -1;
+#endif
+
 static void fm1_main(void)
 {
     uint32_t ms;
+#if CR_CPU1 && !BOARD_SMK37
+    if (!cr_safe)
+        cr_boot_supplies = cr_rails_stock();            /* first: before the flash, the screen and the audio */
+#endif
     persist_boot();                                     /* (stages BS_FLASH .. BS_SETTINGS; SAFE MODE: no object read) */
 #if FELUCCA_OTA
     CR_STAGE(BS_OTA_CLEANUP);
@@ -283,7 +297,11 @@ static void fm1_main(void)
     if (cr_ble_will_start())                            /* a radio boot: stock V15's supplies first, before core 1,
                                                          * as Melodee 1.6.1 (hal/fm1_power.h fm1_power_stock, 3y240);
                                                          * a P33 timeout: no radio this boot */
+#if CR_CPU1 && !BOARD_SMK37
+        cr_ble_supplies(cr_boot_supplies >= 0 ? cr_boot_supplies : cr_rails_stock());   /* (set at the start) */
+#else
         cr_ble_supplies(cr_rails_stock());
+#endif
 #endif
 #if CR_CPU1
     CR_STAGE(BS_CPU1);                                  /* (a hang here: prev_stage "core 1", the boot guard counts it) */
