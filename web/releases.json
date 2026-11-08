@@ -8,6 +8,28 @@
   },
   "releases": [
     {
+      "version": "0.30",
+      "date": "2026-11-07",
+      "tag": "v0.30",
+      "sha256": "872ed7a7ac2384b9a53e5408d79aa83fadaf01982f92be0a062941860de59a01",
+      "sha256_1core": "438d1e45456481169032dec90dce9b2f7f758d119eeebce98142daf08e946b63",
+      "title": "Bluetooth MIDI, and MIDI start and stop with Clock Out",
+      "bullets": [
+        "Bluetooth MIDI: Options > Bluetooth On, switch the FM-1 off and on, then connect to ChoralRoot XXXX from a Mac's Audio MIDI Setup or an iPad's or iPhone's music app. The same MIDI as USB, both ways; SysEx stays on USB.",
+        "The radio measures itself at every start: on a unit with both cores it connected within 10 seconds and held the link for minutes with nothing lost.",
+        "Incoming MIDI Start, Continue and Stop (USB, Bluetooth, the TRS jack) now work like the LOOP (PLAY) button with MIDI Clock set to Out as well as In, and a Start takes the Arp and Pattern back to their first step.",
+        "With MIDI Clock Out, a start or stop that came in is not sent back, so a master that echoes never loops.",
+        "The crash screen reads CHORALROOT CRASH. The fonts moved into their own area of the flash, which the installer writes with the firmware.",
+        "Your settings, sounds, loops and favorites are stored as before. Bluetooth starts Off."
+      ],
+      "notes": [
+        "Bluetooth comes from Melodee (Kerem Kilic): the Optimist stack and Charles Vestal's radio calibration.",
+        "A Mac delivers Bluetooth MIDI on 7.5 ms steps: for tight clock sync, use USB or the TRS jack.",
+        "An FM-1 still on ChoralRoot 0.21 or older: install 0.29.2 first and switch on once to keep 0.21's sounds (the installer asks).",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.29.2",
       "date": "2026-11-02",
       "tag": "v0.29.2",
@@ -23,7 +45,15 @@
       "notes": [
         "The arpeggiator still follows the incoming tempo as a whole BPM.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.29.2 stores everything the same way, so your settings, sounds, loops and favorites stay. It has no Bluetooth.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.29.2 again.",
+          "No Bluetooth MIDI: the FM-1 is no longer visible; the paired computer can forget it.",
+          "With MIDI Clock set to Out, incoming Start, Continue and Stop are ignored again."
+        ]
+      }
     },
     {
       "version": "0.29.1",

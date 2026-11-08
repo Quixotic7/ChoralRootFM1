@@ -7566,3 +7566,31 @@ Stop / Start / Stop, the loop followed; with the Arp latched each Start took it 
 followed. T3 TRS (the OMX-27's Play / Stop into MIDI IN): followed. T4: no FA / FB / FC came back on USB or Bluetooth
 in any of them, and LOOP pressed 9 times sent start / stop each time on both. T5 (In): a 97 BPM clock over USB, the
 tempo 97 and the loop following Start / Stop. MANUAL: the incoming tempo is shown in the Geek Out view.
+
+## 2026-11-07 (0.30 and 0.30-smk37)
+
+3y256. **0.30: Bluetooth MIDI, and incoming start and stop with Clock Out; 0.30-smk37 beside it.** The owner, through
+the orchestration session: tag and release main (b629efa9). 0.30 is 3y231..3y255 on the FM-1: Bluetooth MIDI as a
+peripheral with the radio measuring itself at every start (3y236..3y250), each Clock Out event stamped when queued
+(3y246), start / continue / stop as LOOP with MIDI Clock Out or In and a Start restarting the Arp and Pattern (3y253,
+on the unit 3y255), the crash screen's CHORALROOT CRASH (3y240), the resource region (3y234), 0.21's sounds no longer
+moved (3y231), Felucca's unbuilt tree gone (3y232), M-Flasher and the M-Bootloader as the way between firmwares
+(3y237). `./build.sh --release 0.30` and `tools/hub_build.sh 0.30`: the same `SHA256SUMS`; XIP 548,984 of 573,440
+(95.7 %), 1-core 546,760, RES 41,820 of 49,088. `choralroot-0.30.fwsc` 872ed7a7...6a01, `-1core` 438d1e45...6b63.
+`web/releases.json` first with the sha256s, 0.29.2's entry given its going-back note (no Bluetooth; start / stop
+ignored with Out again), `docs/releases/0.30.md`, MANUAL.md's first line, `choralroot.c`'s dev version.
+**0.30-smk37** (base 0.30; no Bluetooth there): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.30-smk37` and
+`tools/hub_build.sh 0.30-smk37`, the same `SHA256SUMS` (twelve files); XIP 554,368 (Pro and Elite), 554,352 (MKE-P37).
+`web/releases-smk37.json` first, five bullets, four notes. SMK37.md: the status, the package names, the version line,
+and a correction: since 3y231 a unit coming from genkigenki's earlier build no longer has its sounds moved into the
+pool (install 0.29.2-smk37 first to keep them), which SMK37.md still promised. `python3 tests/releases_test.py` ALL
+OK; `CR_VERSION=0.30 sh tests/run_all.sh`: 24 suites, all passed but install_test on the host's numpy "longdouble"
+import error, which passed run again (279 goldens, 0 changed; test_cr 1120 ok; web_emu_build and web_emu_test, the
+browser emulator as 0.30, passed). **On a unit**: 5BD75BE3 was not connected (an FM-1 with no unit ID, not on ChoralRoot,
+was left alone); at the owner's word ("Yes, flash 5473E6AA") the package went on their FM-1 5473E6AA, from ChoralRoot
+0.26.1: a full backup first (`~/fm1-backups/fm1-backup-5473E6AA-2026-11-07-before-0.30.json`, 69,394 B: settings,
+sounds 001..128), `caffeinate -dimsu fm1_install.py choralroot-0.30.fwsc --unit 5473E6AA --yes` (sha256 872ed7a7...),
+exit 0, the same unit after the restart. After: `--info` ChoralRoot 0.30, 5473E6AA; `--sounds` 128 slots, U001
+Tooropulse .. U128 TX BASS 1 MF as before; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, crash_count 0, boot
+stub v3 64.2 ms marker ok, `ble_on 0` (Bluetooth Off by default), stale_halves 5 on the first read (the peak since
+power-on) and 0 on the next, the deadline 0 halves.

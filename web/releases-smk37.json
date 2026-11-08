@@ -3,6 +3,40 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.30-smk37",
+      "base": "0.30",
+      "date": "2026-11-07",
+      "tag": "v0.30-smk37",
+      "title": "0.30 on the SMK-37: MIDI start and stop with Clock Out",
+      "bullets": [
+        "Incoming MIDI Start, Continue and Stop now work like the PLAY button with MIDI Clock set to Out as well as In, and a Start takes the Arp and Pattern back to their first step (the FM-1's 0.30).",
+        "With MIDI Clock Out, a start or stop that came in is not sent back, so a master that echoes never loops.",
+        "The crash screen reads CHORALROOT CRASH.",
+        "Everything of 0.29.2-smk37: the TRS jack's MIDI out, the newer flash chip, loops that keep time with MIDI Clock In.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's Bluetooth MIDI is not in the SMK-37 build.",
+        "A keyboard still on genkigenki's earlier ChoralRoot build: install 0.29.2-smk37 first and switch it on once to keep that build's sounds (SMK37.md); 0.30-smk37 no longer moves them.",
+        "Going back to 0.29.2-smk37 keeps everything; incoming start and stop with MIDI Clock Out are then ignored again.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "e59198bf11005d16381a1807660cd3e46722c62832c99009122de1154f6272bf",
+          "sha256_1core": "c09383e9e0a5255310a794fb64c22009ad72a0f29e5971e5cf8e05c006fd805d"
+        },
+        "elite": {
+          "sha256": "83f8d4a3b19b5ce5ee4a9513d18196428c8d5548ca83bbc8eda7e7f559afc856",
+          "sha256_1core": "572287f2e1399105e8d8bbbe4092a73a37681e784a074220f33e40cf58bab063"
+        },
+        "mke": {
+          "sha256": "ffc0ebc5171c381b386469aa90511060ae76c2bc71cd6b5635bd84557ca9c7c5",
+          "sha256_1core": "6b3dd0754f575cc426ee116b7728a1ed7ad3b57e12146ee3ee3f9c479563b446"
+        }
+      }
+    },
+    {
       "version": "0.29.2-smk37",
       "base": "0.29.2",
       "date": "2026-11-06",
