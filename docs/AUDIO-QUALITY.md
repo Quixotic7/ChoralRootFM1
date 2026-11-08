@@ -137,11 +137,8 @@ firmware's source; the stock firmware's package is opaque); no firmware drives a
 or a volume. Whatever filter the DAC has is fixed on the board and the same for every firmware: it cannot be the
 difference to Sloop. The HAL is untouched.
 
-**The power-on pop** (HISTORY 3y267) is not the DAC's set-up either: FM1-Base starts ALNK0 the same way, and no
-firmware drives an amplifier enable. The pop came at the instant of power-on, the screen dark, with the volume at zero,
-more often from a cold start, on ChoralRoot only: the window where only ChoralRoot's boot stub runs, which switched
-the PA2 rail (the backlight, the 595s, the LEDs) on within a millisecond. Stub version 4 waits 200 ms first, as
-FM1-Base switches it on only after its supply setup ([BOOT-SAFETY.md](BOOT-SAFETY.md) "Size and time").
+**The power-on pop** (HISTORY 3y267) is not in the samples: ChoralRoot's output is digital zero from power-on, and
+FM1-Base starts ALNK0 the same way; no firmware drives an amplifier enable. Not found yet.
 
 Two facts from this: the samples are right-aligned in the 32-bit word (not "left-justified" as the HAL's comment
 says), and **the word has 6 dB above what ChoralRoot, Felucca and Sloop send** (`OUT_SHIFT` 7: the Q15 sample's full
