@@ -32,21 +32,10 @@
  * Version 3: the cause was found on the unit. PA2 (the LCD's "backlight" line, active low) is the enable of a rail
  * that also feeds the 595 chain and the LEDs: with PA2 high, as the SPL leaves it, no key reads closed and no LED
  * lights. The device side (stub.c) now pulls PA2 low before it samples, as the app's fm1_lcd_hw_init does, and
- * drives it high again before a hand-over. Nothing in this file changed but the version.
- *
- * Version 4 (the FM-1's only; the SMK-37's stubs stay version 3, byte for byte): the power-on pop. The owner heard a
- * pop from the speaker at the instant of power-on, the screen still dark, the volume at zero, on ChoralRoot only
- * (never on FIZZ or RemoteFM1), more often from a cold start. Version 3 switched the PA2 rail (the backlight, the 595s,
- * the LEDs) on within a millisecond of the SPL's jump, while the unit's supplies were still coming up; FM1-Base
- * switches it on only in its lcd_init, after its supply setup, flash checks and clock. stub.c now waits
- * STUB_RAIL_WAIT_US before the rail (HISTORY 3y267). Nothing in this file changed but the version. */
+ * drives it high again before a hand-over. Nothing in this file changed but the version. */
 #ifndef STUB_CORE_H
 #define STUB_CORE_H
-#if BOARD_SMK37
 #define STUB_VERSION 3                   /* in the stub's header (crt0_stub.S: no C suffix) and the RAM mailbox */
-#else
-#define STUB_VERSION 4                   /* (the FM-1's: the rail's wait, above) */
-#endif
 #ifndef __ASSEMBLER__
 #include <stdint.h>
 
