@@ -51,6 +51,10 @@
 #ifndef FM1_RF_CAL_FULL
 #define FM1_RF_CAL_FULL 0              /* 1: also TX DC, gain and phase (§4.2 steps 4-6, ~2,000 more reads) */
 #endif
+#ifndef FM1_RF_CAL_FULL_SW
+#define FM1_RF_CAL_FULL_SW 0           /* 1: those steps built in, run when fm1_rf_cal_full is set (ChoralRoot 3y252) */
+#endif
+static uint8_t fm1_rf_cal_full;
 #ifndef FM1_RF_CAL_TUNE_US
 #define FM1_RF_CAL_TUNE_US 5000u       /* the RC tune engine, a run (§4.1b; "well under a millisecond" [L]) */
 #endif
@@ -531,7 +535,7 @@ static int32_t fm1_rfc_txlo_search(struct fm1_rf_cal *c, void (*set)(uint32_t))
     return (int32_t)b;
 }
 
-#if FM1_RF_CAL_FULL
+#if FM1_RF_CAL_FULL || FM1_RF_CAL_FULL_SW
 /* a TX search for FM1_RF_CAL_FULL (§4.2 steps 4-6): sweep x = lo..hi through put(c, x), metric(0), the best (from
  * best0 at the current setting) -> the best x, or INT32_MIN on a timeout */
 static int32_t fm1_rfc_tx_search(struct fm1_rf_cal *c, int32_t lo, int32_t hi, int32_t b,
@@ -608,7 +612,9 @@ static int fm1_rfc_txiq_tune(struct fm1_rf_cal *c)
         c->txlo_i = c->txlo_q = 64;
         return FM1_RF_CAL_E_TXLO;
     }
-#if FM1_RF_CAL_FULL
+#if FM1_RF_CAL_FULL || FM1_RF_CAL_FULL_SW
+    if (!FM1_RF_CAL_FULL && !fm1_rf_cal_full)
+        return FM1_RF_CAL_OK;
     t0 = fm1_ticks();
     fm1_rfc_tx_set(c, FM1_RFC_TX_IDC, 0);                   /* step 4: TX DC */
     fm1_rfc_tx_set(c, FM1_RFC_TX_QDC, 0);

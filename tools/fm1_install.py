@@ -2821,10 +2821,12 @@ DEBUG_BLE = ["ble_on", "ble_started", "ble_pending", "ble_cal", "ble_start_us", 
              "ble_vco_low0", "ble_vco_low1", "ble_vco_high0", "ble_vco_high1", "ble_vco_chosen",
              # 3y249: the measured calibration (every start since 3y250, fm1_rf_cal.h): the scan's and the trim's return code (low
              # 16 bits, signed) | ran << 16; its mid bank | top << 8 | bank 121's << 16 | mid found << 24; its time
-             "ble_cal_scan", "ble_cal_trim", "ble_cal_banks", "ble_cal_us"]
+             "ble_cal_scan", "ble_cal_trim", "ble_cal_banks", "ble_cal_us",
+             # 3y252: our packets acknowledged by the peer 1, 2, 3, 4+ connection events after loading
+             "ble_tx_ack1", "ble_tx_ack2", "ble_tx_ack3", "ble_tx_ack4"]
 # (in a BLE_DIAG build ble_test comes right after ble_supplies: 3y243's bisection mask, BLE_TEST below)
 BLE_TEST = {1: "no key scan", 2: "no audio", 4: "no TRS UART", 8: "radio started in the main loop",
-            16: "no stock supplies", 32: "the VCO band from a sweep (the last low at the flip)",
+            16: "no stock supplies", 32: "the full TX calibration (DC, gain, phase)",
             64: "the stored calibration (record 187), not measured at start"}
 BLE_CAL = ["none", "the stock VM (0xE8000)", "ChoralRoot's copy", "measured at the start (fm1_rf_cal.h)"]
 BLE_HEX = ("ble_crumb", "ble_prev_crumb", "ble_prev_addr", "ble_vco_scan_result", "ble_vco_low0", "ble_vco_low1",

@@ -7517,3 +7517,15 @@ soft reset (`boot_reset` 257, `ble_cal` 3, the start 163 ms) the Mac connected a
 with no loss; on a power-on it connected by 10 s and held to 310 s (14 084 packets out, no loss, no crash). The
 soft-reset deafness is gone with the rest. Still open: Clock Out reaches the Mac bunched (BLE 17 ms median behind
 USB, 162 gaps over two ticks in 150 s; Melodee: 13.4 ms, 59 in 5 min).
+
+3y252. **Why Clock Out bunches over Bluetooth, and two probes.** F2's capture (bisect6, Clock Out 150 s): USB ticks
+arrive 20-24 ms apart, but every Bluetooth tick arrives on the 7.5 ms connection-event grid (86 % exactly on it):
+the Mac stamps BLE-MIDI by arrival and does not use the packet timestamps we send (3y246), so a tick can only land
+on an event, and the spread below one interval (+-3.75 ms) is the floor on this link. The bunching on top of it
+(4.5 % of intervals 0 to 7 ms, 5 % of ticks more than 32.7 ms late) comes from link events that carried nothing:
+of 30 875 events, 2 428 (7.9 %) brought no reception at all and 1 197 more a bad CRC, and a tick waits for the next
+good exchange. Not our queue (the LL ring is 1 KB and never full) and not the CPU (the worst audio half 405 us, BLE
+interrupts never late). Two probes in a BLE_DIAG build: bit 32 of `--ble-test` (was the band sweep, now moot) runs
+the measured calibration's TX DC, gain and phase steps too (`FM1_RF_CAL_FULL` as a run-time switch,
+`FM1_RF_CAL_FULL_SW` = BLE_DIAG; never run on a unit before), and 81 BLE adds `ble_tx_ack1..4`: our packets
+acknowledged 1, 2, 3, 4+ events after loading (CRBL_DBG_N 64), the Mac's side of the loss.  All 24 suites pass.

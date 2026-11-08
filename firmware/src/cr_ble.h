@@ -16,6 +16,9 @@
 #ifndef BLE_DIAG
 #define BLE_DIAG 0                      /* BLE_DIAG=1 ./build.sh: the driver's counters in 81 BLE (3y241) */
 #endif
+#ifndef FM1_RF_CAL_FULL_SW
+#define FM1_RF_CAL_FULL_SW BLE_DIAG              /* the full TX calibration as bit 32 (hal/fm1_rf_cal.h, 3y252) */
+#endif
 #ifndef BLE_DMA_MEMORY                  /* (tests/cr_ble_test.c: plain memory on the host) */
 #define BLE_DMA_MEMORY __attribute__((section(".pool"), aligned(4)))   /* the baseband's block: SRAM, as Melodee's */
 #define FM1_RF_CAL_MEMORY __attribute__((section(".pool")))
@@ -42,11 +45,11 @@ static void cr_ble_supplies(int ok);             /* main.c: stock's supplies app
 #define CRBL_T_NOUART 4u                         /* no TRS MIDI UART */
 #define CRBL_T_LATE 8u                           /* the radio started in the main loop, as Melodee's ble_boot_poll */
 #define CRBL_T_NOSUPPLY 16u                      /* no stock supply sequence (the boot loader's) */
-#define CRBL_T_VCO 32u                           /* the VCO band from a full sweep, the last "low" at the flip (3y247) */
+#define CRBL_T_CALFULL 32u                       /* the measured calibration also tunes TX DC, gain, phase (3y252; was the band sweep) */
 #define CRBL_T_STORED 64u                        /* the stored calibration, not measured at start (3y250; 3y249 the reverse) */
 static uint32_t cr_ble_test(void);
 static int cr_ble_set_test(uint32_t m);       /* 82 BLE_TEST (cr_backup.c): 0 saved, 1 refused */
-#define CRBL_DBG_N 60u
+#define CRBL_DBG_N 64u
 static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N]);   /* 81 BLE (cr_backup.c): the radio's state, fm1_install --debug */
 static int cr_ble_set(int on);                   /* Options > Bluetooth: 0 refused (no region, no calibration) */
 static int cr_ble_on(void);

@@ -654,6 +654,8 @@ static int hw_tx_empty(uint32_t b, uint32_t s)
         uint16_t age = (uint16_t)(drv.last_evt - drv.tx_at[b]);
         if (age != 0xFFFFu && age > ble_dg.tx_ack_evt_max)
             ble_dg.tx_ack_evt_max = age;
+        if (age != 0xFFFFu)
+            ble_dg.tx_ack_age[age <= 1u ? 0u : age >= 4u ? 3u : age - 1u]++;
 #endif
         hw_tx_snap(BTX_ACK, b, s);
         ble_hw_stat.acked++;

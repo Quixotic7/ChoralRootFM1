@@ -246,8 +246,8 @@ static void crbl_start(void)                      /* the radio, once a power-on:
         crbl_rec.valid = 1;
         crbl.dirty = 1;
     }
-#ifndef FM1_BLE_FAKE_H
-    fm1_ble_vco_keep = (uint8_t)((cr_ble_test() & CRBL_T_VCO) ? 1u : 0u);
+#if FM1_RF_CAL_FULL_SW && !defined(FM1_BLE_FAKE_H)
+    fm1_rf_cal_full = (uint8_t)!!(cr_ble_test() & CRBL_T_CALFULL);
 #endif
     ie = fm1_icfg();
     fm1_irq_off();
@@ -403,8 +403,10 @@ static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N])
     v[k++] = ((uint32_t)fm1_rfc_trim_rc & 0xFFFFu) | (uint32_t)fm1_rfc_trimmed << 16;   /* calibration (mask 64) */
     v[k++] = fm1_rfc.mid | (uint32_t)fm1_rfc.top << 8 | (uint32_t)fm1_rfc.bank121 << 16 | (uint32_t)fm1_rfc.mid_found << 24;
     v[k++] = fm1_rfc.us_total;
+    for (i = 0; i < 4u; i++)                      /* 3y252: our PDUs acknowledged 1, 2, 3, 4+ events after loading */
+        v[k++] = ble_dg.tx_ack_age[i];
 #else
-    for (i = 0; i < 15u; i++)
+    for (i = 0; i < 19u; i++)
         v[k++] = 0;
 #endif
 #endif

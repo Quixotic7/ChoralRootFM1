@@ -133,6 +133,7 @@ struct ble_diag {
      * service passes that found a buffer with bit0 0 and no PDU of ours in it (the engine's own, seen at the first
      * event on the FM-1); the most events from loading a PDU to its bit0 reading 1 again (its acknowledgement) */
     uint32_t tx_eng_held, tx_ack_evt_max;
+    uint32_t tx_ack_age[4];                        /* (ChoralRoot 3y252) acknowledged 1, 2, 3, 4+ events after loading */
     uint32_t txs_n;                                /* snapshots taken (txs: the last 8; txs_first: the first load) */
     struct ble_diag_txs {
         uint32_t t_us;
