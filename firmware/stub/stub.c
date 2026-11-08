@@ -89,6 +89,10 @@ static void shw_delay_us(uint32_t us)                /* fm1_delay_us */
  * the app's screen-off, which drives it high, left the unit without keys until it was low again) no key reads
  * closed and no LED lights. on: fm1_lcd_hw_init's first two lines (low, an output), which the app runs before its
  * first key scan; off: fm1_lcd_backlight(0), the app's screen-off */
+/* version 4: the rail waits this long after the stub's start (stub_main). Version 3 switched it on at once, within a
+ * millisecond of power-on, and the speaker popped at power-on on a cold start (HISTORY 3y267); FM1-Base, which never
+ * popped, switches it on some tens of milliseconds in, after its supply setup. 200 ms is well past that */
+#define STUB_RAIL_WAIT_US 200000u
 #if BOARD_SMK37
 /* SMK-37: no such rail (the keyboard's matrix and LEDs are always powered) and PA2 is a matrix row there: never an
  * output. Nothing to do */
@@ -385,7 +389,11 @@ void stub_main(void)
     shw_wdt_arm();                                   /* first, as fm1_cstart: a hang below resets in 8 s */
     shw_time_init();
     t0 = SHW_T4_CNT;
-    shw_rail(1);                                     /* first: the key window's first 30 ms are its time to come up */
+#if !BOARD_SMK37
+    shw_delay_us(STUB_RAIL_WAIT_US);                 /* the supplies settle before the rail's load (version 4: the
+                                                      * power-on pop, stub_core.h); the watchdog's 8 s cover it */
+#endif
+    shw_rail(1);                                     /* then: the key window's first 30 ms are its time to come up */
     shw_input_init();
     key = stub_key();
     v.mark = (const uint8_t *)SHW_XIP(STUB_MARK_OFF);

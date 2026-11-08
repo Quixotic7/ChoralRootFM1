@@ -407,7 +407,7 @@ int main(void)
     r = run(1, 0);
     CHECK(stub_info(STUB_BOOT) == (0x53420000u | (uint32_t)STUB_VERSION << 8 | 1u), "info: SB, version, decision");
     CHECK(stub_detail(&r, 1) == (STUB_MK_SKIPPED | (uint32_t)STUB_LD_OK << 8 | 0u << 16 | 1u << 24), "detail");
-    CHECK(STUB_VERSION == 3, "this is stub version 3 (firmware/stub/stub.lock, docs/BOOT-SAFETY.md)");
+    CHECK(STUB_VERSION == 4, "this is the FM-1's stub version 4 (firmware/stub/stub.lock, docs/BOOT-SAFETY.md; the SMK-37's stay 3)");
     CHECK(STUB_BODY_OFF - 0x4120u == STUB_LEN && STUB_MARK_SEC + 0x1000u - 32u == STUB_MARK_OFF &&
           STUB_BODY_OFF + STUB_BODY_MAX == STUB_MARK_SEC, "the layout's constants agree");
 

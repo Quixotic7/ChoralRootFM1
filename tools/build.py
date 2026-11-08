@@ -235,7 +235,7 @@ def build_stub():
     (docs/BOOT-SAFETY.md). firmware/stub/stub.lock records the version and hash of the stub that is meant to ship."""
     STB.mkdir(parents=True, exist_ok=True)
     src = FW / "stub"
-    tc_all(("cc", "-Ifirmware/stub", "-c", src / "crt0_stub.S", "-o", STB / "crt0_stub.o"),
+    tc_all(("cc", *BOARD_DEFS[BOARD], "-Ifirmware/stub", "-c", src / "crt0_stub.S", "-o", STB / "crt0_stub.o"),
            ("cc", *CFLAGS, *BOARD_DEFS[BOARD], "-Ifirmware/stub", "-c", src / "stub.c", "-o", STB / "stub.o"))
     elf = STB / "stub.elf"
     tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", src / "stub.ld",
