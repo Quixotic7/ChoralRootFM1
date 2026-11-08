@@ -7548,3 +7548,14 @@ The RemoteFM1 AUv3 (RemoteFM1IOS, its host-clock setting on by default) already 
 into 0xF8 / FA / F2 + FB / FC into this same USB path (RFMHostClock.cpp); its vendored core (FM1VST
 cores/ChoralRootFM1, v0.29.2) needs this change to follow transport with Out. The desktop FM1VST reads no play head. All 24 suites
 pass (install_test once more after a numpy import error of the host Python, as before).
+
+3y254. **Clock Out over Bluetooth on the unit: at Melodee's level, the rest is the Mac's grid.** E81CE2F7, two cores,
+power-ons, Clock Out ~150 s each (the F2 listener). C1 (mask 0, AirPods connected): 6 963 of 6 963 ticks, Bluetooth
+13.2 ms median behind USB, p95 23.0, max 47.3, 53 gaps over two ticks; link events with no reception 5.8 %, bad
+CRCs 3.4 %; our packets acknowledged 1 / 2 / 3 / 4+ events after loading 74.7 / 21.8 / 3.1 / 0.4 %. C2 (AirPods
+off, the Mac idle): 13.5 ms, p95 23.1, 37 gaps; no reception 4.3 %, bad CRCs 4.0 %, acks 68.7 / 27.5 / 3.5 / 0.4 %.
+C3 (bit 32, the full TX calibration, 526 ms at start against 107): 13.8 ms, p95 27.7, 58 gaps and one 3.1 s stall;
+no reception 5.5 %, bad CRCs 5.0 %, acks 66.0 / 28.0 / 5.4 / 0.7 %: no better, so bit 32 stays a diagnostic.
+F2's 17.2 ms and 162 gaps were that session's link; Melodee measured 13.4 ms and 59 gaps in 5 minutes. What is left
+is the Mac stamping BLE-MIDI by arrival on its 7.5 ms events (3y252) and the quarter of our packets that need a
+second event: other devices on the Mac are not the cause. Nothing changed in the firmware.
