@@ -863,24 +863,27 @@ F=$OUT/persist_keys_0.25-classic.bin; L3=$OUT/persist_keys_pick.log; L4=$OUT/per
     ok "Classic chosen after the move: written by itself with the mark (leds 02); the relaunch is Classic, LOCK on B3 with SUS + 9 on C#4 and C4: the move never runs twice" \
     || bad "keys, Classic after the move: $(kl "$L3" 1) / $(kw "$L3" 1) / flash $(python3 tools/emu/seed_keys.py "$F") / $(kl "$L4" 1) / $(kr "$L4" 1) / $(kk "$L4" 1)"
 
-# ---- a slower flash part (3y264: the late-2026 FM-1s' 0xB36014; hal/fm1_flash_wait.h). --erase-ms 450: slow but inside
-# the driver's normal bound (500 ms): the save works and the relaunch has it. --erase-ms 1900: past the bound, inside the
-# extended one (2 s): the driver waits the part out and returns -4 (late): the save is refused, the unit carries on
-# (the script runs to its end), each erase a 1.9 s silence, and the relaunch reads what was there (the defaults)
+# ---- a slower flash part (3y264 / 3y265: the late-2026 FM-1s' 0xB36014; hal/fm1_flash_wait.h, fm1_flash_late.h).
+# --erase-ms 450: slow but inside the driver's normal bound (500 ms): the save works and the relaunch has it.
+# --erase-ms 1900: past the bound, inside the extended one (2 s): the driver waits the part out; late is done (3y265,
+# the owner: "Treat late as success"): the save goes through, each erase counted late and a 1.9 s silence, and the
+# relaunch has it
 SF450=$OUT/persist_slow450.bin; SF1900=$OUT/persist_slow1900.bin
 SL1=$OUT/persist_slow450_1.log; SL2=$OUT/persist_slow450_2.log; SL3=$OUT/persist_slow1900_1.log; SL4=$OUT/persist_slow1900_2.log
 rm -f "$SF450" "$SF1900" "$SL1" "$SL2" "$SL3" "$SL4"
 "$EMU" --headless --erase-ms 450 --flash "$SF450" --script "$S/persist_set.txt" >"$SL1" 2>&1 || bad "slow 450 run 1: exit status"
 "$EMU" --headless --flash "$SF450" --script "$S/persist_check.txt" >"$SL2" 2>&1 || bad "slow 450 run 2: exit status"
-grep -aq '^save: global rc 0' "$SL1" && grep -aq '450 ms each erase' "$SL1" && [ "$(bpm "$SL2")" = 137 ] && grep -aq 'record: current' "$SL2" &&
-    ok "a 450 ms erase (a slow part inside the normal bound): the save works, 137 BPM after a relaunch" \
+grep -aq '^save: global rc 0' "$SL1" && grep -aq '450 ms each erase' "$SL1" && ! grep -aq 'flash late:' "$SL1" &&
+    [ "$(bpm "$SL2")" = 137 ] && grep -aq 'record: current' "$SL2" &&
+    ok "a 450 ms erase (a slow part inside the normal bound): the save works, none late, 137 BPM after a relaunch" \
     || bad "slow 450: $(grep -a '^save:' "$SL1") / bpm $(bpm "$SL2")"
-"$EMU" --headless --erase-ms 1900 --flash "$SF1900" --script "$S/persist_set.txt" >"$SL3" 2>&1 || bad "slow 1900 run 1: exit status (the unit must carry on)"
+"$EMU" --headless --erase-ms 1900 --flash "$SF1900" --script "$S/persist_set.txt" >"$SL3" 2>&1 || bad "slow 1900 run 1: exit status"
 "$EMU" --headless --flash "$SF1900" --script "$S/persist_check.txt" >"$SL4" 2>&1 || bad "slow 1900 run 2: exit status"
-grep -aq '^save: global rc -' "$SL3" && grep -aq '1900 ms each erase' "$SL3" && [ "$(bpm "$SL3")" = 137 ] &&
-    [ "$(bpm "$SL4")" = 120 ] && grep -aq 'record: defaults' "$SL4" &&
-    ok "a 1900 ms erase (late: -4 from the driver): the save refused, the unit runs on at 137 BPM, the relaunch has the defaults (nothing half-written)" \
-    || bad "slow 1900: $(grep -a '^save:' "$SL3") / bpm $(bpm "$SL3") -> $(bpm "$SL4") / $(grep -a 'record:' "$SL4" | head -1)"
+late=$(sed -n 's/.*flash late: \([0-9]*\) erases done past 500 ms (the longest \([0-9]*\) us).*/\1 \2/p' "$SL3" | tail -1)
+grep -aq '^save: global rc 0' "$SL3" && grep -aq '1900 ms each erase' "$SL3" && [ "${late% *}" -ge 1 ] 2>/dev/null &&
+    [ "${late#* }" = 1900000 ] && [ "$(bpm "$SL4")" = 137 ] && grep -aq 'record: current' "$SL4" &&
+    ok "a 1900 ms erase (late: done, 3y265): the save goes through, ${late% *} erases counted late (the longest 1.9 s), 137 BPM after a relaunch" \
+    || bad "slow 1900: $(grep -a '^save:' "$SL3") / late '$late' / bpm $(bpm "$SL3") -> $(bpm "$SL4") / $(grep -a 'record:' "$SL4" | head -1)"
 
 [ $fail = 0 ] && echo PASS || echo FAIL
 exit $fail

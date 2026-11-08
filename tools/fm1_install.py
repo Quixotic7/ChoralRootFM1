@@ -2764,7 +2764,11 @@ DEBUG_PEAK = ["pk_block_us", "pk_tick_us", "pk_part0_us", "pk_part1_us", "pk_fx_
               # the voices the overload shed dropped since power-on (audio.c shed_voice: two halves in a row over
               # 85 % of the 2902 us; the console's voices_shed; shed_voices above is since the last --debug): the
               # rule is 0
-              "voices_shed"]
+              "voices_shed",
+              # 3y265: the erases and page programs since power-on that the flash part finished after the normal bound
+              # (500 ms / 10 ms) but within the extended one (2 s / 50 ms): done, the save went through
+              # (hal/fm1_flash_late.h); and the longest of them in us. On the Puya part: 0
+              "flash_late_ops", "flash_late_max_us"]
 ERASE_WHY = ["other (a sound saved, a store)", "automatic: the Options", "automatic: the favourites",
              "the global save (SAVE held) or Reset Settings", "the calibration / the update gesture",
              "a backup restore", "a loop slot"]
@@ -2948,6 +2952,8 @@ def print_debug(vals, out, stub_only=False, peak=(), usb=(), ble=()):
               f"{d['erases_ahead']} of the {d['flash_erases']} erases done ahead (at power-on or after 10 s idle; the "
               f"rest: saves that had to erase), {d['erases_near']} erases started by the unit while a voice was active or "
               f"within 2 s of an input (the rule: 0), the longest page program {d['flash_prog_us']} us"
+              + (f"; {d['flash_late_ops']} erases / pages finished late (past 500 ms / 10 ms, done), the longest "
+                 f"{d['flash_late_max_us']} us" if 'flash_late_ops' in d else "")
               + ("" if not d["erases_near"] else ": AN ERASE FELL NEAR PLAYING"), file=out)
     if "flash_read_bytes_ps" in d:
         print(f"the UI since the last --debug: a frame took {d['ui_frame_avg_us']} us on average, {d['ui_frame_max_us']} us "

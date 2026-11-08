@@ -193,9 +193,9 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
 /* the device's erase (storage_hw.c st_erase): the audio buffer zeroed and every IRQ off for the 4 KiB erase (typ.
  * ~45 ms on the FM-1's NOR, up to 400 ms): no render, the DMA loops silence. The emulator plays the same hole:
  * EMU_ERASE_MS of zero blocks, the firmware's audio ISR not run meanwhile (emu_fw_audio).
- * --erase-ms N (3y264): a slower part's erase, 1..2000 ms. Past 500 the sector is erased but the call returns -4, as
- * the device's driver does for a part that was still busy at its normal bound (hal/fm1_flash_wait.h
- * FL_ERR_LATE_READY); at 2 s the device resets the part and the chip, which the emulator does not model */
+ * --erase-ms N (3y264): a slower part's erase, 1..2000 ms. Past 500 the erase is late: done, 0, and counted, as the
+ * device's driver does since 3y265 (hal/fm1_flash_late.h; st_late_ops / st_late_max_us, 78 PEAK); at 2 s the device
+ * resets the part and the chip, which the emulator does not model */
 static uint32_t emu_erase_ms_set = 45u;
 #define EMU_ERASE_MS emu_erase_ms_set
 #define EMU_ERASE_LATE_MS 500u                    /* fm1_flash.h fl_erase4k_ram's normal bound */
@@ -207,6 +207,7 @@ static uint32_t st_holes;                         /* .. erases that cut it (audi
  * stall, i.e. not the power-on's erase ahead), the automatic ones near playing, the longest page program; and the
  * model's own: the masked time in all, when the last erase started (fm1_ms) */
 static uint32_t st_erases, st_near, st_prog_us, emu_masked_us, emu_erase_ms;
+static uint32_t st_late_ops, st_late_max_us;      /* (storage_hw.c's: the driver's fl_late_ops / fl_late_max_us) */
 static uint8_t st_auto;
 static uint8_t st_ahead_ok[4];                    /* storage.c's ([3]: the power-on's erase ahead runs) */
 static int cr_erase_near(void);                   /* cr_ui.c */
@@ -227,7 +228,12 @@ static int st_erase(uint32_t off)
     }
     memset(emu_flash + off, 0xFF, 0x1000u);
     emu_flash_sync(off, 0x1000u);
-    return EMU_ERASE_MS > EMU_ERASE_LATE_MS ? -4 : 0;   /* (erased all the same: late, not failed) */
+    if (EMU_ERASE_MS > EMU_ERASE_LATE_MS) {        /* late: done, counted (fm1_flash_late.h fl_late_ok) */
+        st_late_ops++;
+        if (EMU_ERASE_MS * 1000u > st_late_max_us)
+            st_late_max_us = EMU_ERASE_MS * 1000u;
+    }
+    return 0;
 }
 static int emu_prog_left = -1;                    /* the host tests' power cut: programs that still reach the flash (-1:
                                                    * no cut), then every program fails (tests/cr_pool_test.c) */

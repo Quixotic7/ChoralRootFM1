@@ -133,12 +133,21 @@ run "sound pool (floating banks, power cuts)" "$OUT/pool_test"
 # part is busy; -4 past 500 ms / 10 ms; the part and the chip reset at 2 s / 50 ms; across the TIMER4 wrap
 par_build $CC -std=c11 -Wextra -Werror -fsanitize=address,undefined -o "$OUT/flash_wait_test" tests/flash_wait_test.c
 run "flash erase / program wait: never XIP while busy, late at the bound, the reset at 2 s / 50 ms" "$OUT/flash_wait_test"
-run "fm1_flash.h: the erase and the page program wait with fl_wait_issued (500 ms / 2 s, 10 ms / 50 ms), never fl_wait_ready" \
+# 3y265 (the owner: "Treat late as success"): a part idle past 500 ms / 10 ms but before 2 s / 50 ms is done, counted
+par_build $CC -std=c11 -Wextra -Werror -fsanitize=address,undefined -o "$OUT/flash_late_test" tests/flash_late_test.c
+run "flash late erase / page: success and counted; stuck: the reset; other codes unchanged" "$OUT/flash_late_test"
+run "fm1_flash.h: both waits busy-safe (fl_wait_issued 500 ms / 2 s, 10 ms / 50 ms), late as done (fl_late_ok); the loader and the OTA staging through them" \
     sh -c 'f=firmware/hal/fm1_flash.h
            grep -q "rc = fl_wait_issued(issued, 500000u, 2000000u, took_us);" $f &&
            grep -q "rc = fl_wait_issued(issued, 10000u, 50000u, took_us);" $f &&
-           ! grep -q "rc = fl_wait_ready(" $f && grep -q "^#include \"fm1_flash_wait.h\"" $f && echo "ok: both waits busy-safe" ||
-           { echo "FAIL: $f does not use fl_wait_issued for both waits"; exit 1; }'
+           [ "$(grep -c "rc = fl_late_ok(rc, \*took_us);" $f)" = 2 ] &&
+           ! grep -q "rc = fl_wait_ready(" $f && grep -q "^#include \"fm1_flash_wait.h\"" $f &&
+           grep -q "^#include \"fm1_flash_late.h\"" $f &&
+           grep -q "return fl_erase4k_ram(off, &took);" firmware/loader/loader.c &&
+           grep -q "return fl_prog_ram(off, p, n, &took);" firmware/loader/loader.c &&
+           grep -q "return fl_erase4k(off, &took);" firmware/src/ota_hw.c && grep -q "return fl_write(off, p, n);" firmware/src/ota_hw.c &&
+           echo "ok: both waits busy-safe, late as done, the loader and the OTA staging on them" ||
+           { echo "FAIL: $f (or loader.c / ota_hw.c) does not wait busy-safe with late as done"; exit 1; }'
 
 par_build $CC -o "$OUT/upreset_test" tests/upreset_test.c
 run "user sound records (UP_PUT parser, versions, PHYS DRUM -> DRUM on a read, grid records, DIGITAL kept)" "$OUT/upreset_test"

@@ -1199,10 +1199,11 @@ int main(void)
      * erases' writers and times; then seven, 3y50: each core's half; then four, 3y52: the quiet writes; then four,
      * 3y60: the UI frame and the flash reads; then eleven, the dual-core fallback's branch (its 35..45, merged by
      * name): c1_bar, why this boot kept core 1 off, the last crash's record, the reset, the breadcrumb, the voices
-     * shed since power-on); DEBUG keeps its 127 ---- */
+     * shed since power-on; then two, 3y265: the flash's late erases / pages, done, and the longest); DEBUG keeps its
+     * 127 ---- */
     t_begin(78);
     a = t_send(&n);
-    CHECK(a && a[0] == 1 && a[1] == 79 && n == 2u + 5u * 79u, "PEAK: 1, 79, 79 x u32 (n %u)", (unsigned)n);
+    CHECK(a && a[0] == 1 && a[1] == 81 && n == 2u + 5u * 81u, "PEAK: 1, 81, 81 x u32 (n %u)", (unsigned)n);
     t_begin(73);
     a = t_send(&n);
     CHECK(a && a[1] <= 127 && n == 2u + 5u * a[1], "DEBUG after PEAK: its own values, as before (%u; the device's 127 fill its count byte)", a ? a[1] : 0);

@@ -721,7 +721,7 @@ static void crb_debug(void)
  * while a chord is only HELD would be a voice given up and taken again in a circle */
 static void crb_peak(void)
 {
-    uint32_t v[80], k = 0, i;                       /* (79 values; 80 room) */
+    uint32_t v[84], k = 0, i;                       /* (81 values; 84 room) */
 #ifdef FM1_CRASH_MAGIC                               /* (the device: hal/fm1_irq.h; the host and the emulator have no record) */
     int crashed = fm1_crash.magic == FM1_CRASH_MAGIC;
 #else
@@ -869,6 +869,9 @@ static void crb_peak(void)
     v[k++] = shed_count;                             /* voices dropped by the overload shed since power-on (audio.c
                                                       * shed_voice: two halves in a row over 85 %); console voices_shed
                                                       * (value 35, shed_voices, is since the last read) */
+    v[k++] = st_late_ops;                            /* 3y265: erases / pages that finished late (past 500 ms / 10 ms:
+                                                      * done, fm1_flash_late.h) since power-on, and the longest in us */
+    v[k++] = st_late_max_us;
     cr_prof_clear();
     crb_b(1);
     crb_b(k);

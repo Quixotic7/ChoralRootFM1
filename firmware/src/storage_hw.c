@@ -42,6 +42,10 @@ static uint32_t st_erases;                      /* erases done: each one a silen
  * transfer of the page before it is not in it) */
 static uint8_t st_auto;
 static uint32_t st_near, st_prog_us;
+/* 3y265: erases and page programs that finished late (past 500 ms / 10 ms, done: fm1_flash_late.h), since power-on,
+ * and the longest in us; any caller's (saves, the OTA staging), counted by the RAM driver itself */
+#define st_late_ops fl_late_ops
+#define st_late_max_us fl_late_max_us
 #ifndef ST_NEAR_NOW
 #define ST_NEAR_NOW() 0                           /* (choralroot.c: cr_ui.c cr_erase_near) */
 #endif

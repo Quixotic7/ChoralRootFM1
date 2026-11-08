@@ -7702,3 +7702,20 @@ five times (page program 1,972 us at most, read back each time), then that backu
 the unit restarted cleanly (crash_count 0) and backs up the same objects (U121-128 now a written bank of empty slots).
 The first restore stopped once with "no answer to backup command 67" (a PUT not answered in 4 s) after its 14 erases,
 the unit fine (no crash, no USB timeout, no stale half); the second ran through. Not explained; not seen again.
+
+3y265. **A late erase or page program is done (the owner: "Treat late as success").** Through the orchestration
+session, after 3y264: an erase or page program the part finishes after the normal bound (500 ms / 10 ms) but before the
+extended one (2 s / 50 ms) is success, and counted. `hal/fm1_flash_late.h fl_late_ok` (GPL; felucca-bsp's
+`fm1_flash_wait.h` stays unchanged) turns `fl_wait_issued`'s -4 into 0 inside `fm1_flash.h`'s `fl_erase4k_ram` and
+`fl_prog_ram`, so every caller takes it: the app's saves (`storage_hw.c`), the OTA staging (`ota_hw.c` through
+`fl_erase4k` / `fl_write`) and the update loader (`loader.c ldr_erase` / `ldr_prog`, whose sector verify still reads
+every sector back). It counts them in RAM (`fl_late_ops`, `fl_late_max_us`, both in the loader's and the app's .bss:
+the RAM driver writes them with XIP off). Still busy at the extended bound: the reset, as 3y264. 78 PEAK appends
+`flash_late_ops`, `flash_late_max_us` (79 -> 81 values; `fm1_install.py --debug` names them and adds them to the
+quiet-writes line). The emulator's `--erase-ms` past 500 now saves and prints `flash late:`; `test_persist.sh`'s
+1900 ms run: the save goes through, the erases counted late (the longest 1,900,000 us), 137 BPM after a relaunch.
+`tests/flash_late_test.c` (felucca-bsp's wait and the late mapping on the host model: in time 0 and not counted, late 0
+and counted with the longest kept, stuck the reset and not counted, -1..-3 unchanged; returning -4 fails 4 checks),
+the source check in `run_tests.sh` (both waits map late; the loader and the OTA hooks call those routines),
+`install_test.py` (a 79-value firmware: no word of it; 81: the values and the line). `./build.sh` (loader 7,572 B) and
+`BOARD=smk37 ./build.sh`: OK, `.ram_text` no calls. Not tried on the slow part: no unit here has one.

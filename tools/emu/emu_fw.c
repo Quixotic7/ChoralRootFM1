@@ -763,6 +763,9 @@ void emu_fw_dump(void)
                (unsigned)cr_dbg.shed_why, (unsigned)cr_dbg.shed_us, (unsigned)emu_shed_over, (unsigned)emu_shed_at0, (unsigned)emu_shed_at1);
     printf("  flash erases with the audio stalled %u (%u blocks of silence, %u ms each erase)\n", (unsigned)emu_stalls,
            (unsigned)emu_stall_blocks_all, (unsigned)EMU_ERASE_MS);
+    if (st_late_ops)                              /* (--erase-ms past 500: the slow part's late erases, done; 3y265) */
+        printf("  flash late: %u erases done past 500 ms (the longest %u us), each a success\n", (unsigned)st_late_ops,
+               (unsigned)st_late_max_us);
     /* the quiet writes (cr_settings.c, storage.c "erase ahead"): every erase (at power-on too: no audio to stall),
      * those done ahead, those the unit started by itself near playing (the rule: 0), its own saves, the interrupts'
      * masked time by the model (EMU_ERASE_MS an erase, EMU_PROG_US a page), each spare copy's state, and when the

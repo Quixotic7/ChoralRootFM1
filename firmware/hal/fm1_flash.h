@@ -14,7 +14,8 @@
  * (fl_wait_issued, fm1_flash_wait.h): it polls past the normal bound and, if the
  * part is still busy at the extended bound, resets the part and then the chip,
  * from RAM. (felucca-bsp 2d37ec8; until 0.31 a part busy at 500 ms / 10 ms got -4
- * and XIP came back while it was still erasing: docs/HISTORY.md 3y264.)
+ * and XIP came back while it was still erasing: docs/HISTORY.md 3y264.) Idle after the
+ * normal bound but within the extended one is success here, counted (fm1_flash_late.h, 3y265).
  */
 #pragma once
 #include <stdint.h>
@@ -150,6 +151,7 @@ RAMINL void fl_reset_busy(void)
     for (;;) ;
 }
 #include "fm1_flash_wait.h"                       /* fl_wait_issued: shared with the host model (tests/flash_wait_test.c) */
+#include "fm1_flash_late.h"                       /* fl_late_ok: late is done (3y265; tests/flash_late_test.c) */
 
 /* ---- entry points: IRQs OFF, args/buffers in RAM ---- */
 
@@ -205,6 +207,7 @@ static RAMFN int fl_erase4k_ram(uint32_t off, uint32_t *took_us)
         fl_cs(0); fl_tx(0x20); fl_addr(off); fl_cs(1);
         fl_inval(off, 4096u);
         rc = fl_wait_issued(issued, 500000u, 2000000u, took_us);   /* generic NOR max 400 ms */
+        rc = fl_late_ok(rc, *took_us);            /* idle past 500 ms: done, counted (3y265) */
     }
     fl_exit(&s);
     return rc;
@@ -225,6 +228,7 @@ static RAMFN int fl_prog_ram(uint32_t off, const uint8_t *src, uint32_t n, uint3
         fl_cs(1);
         fl_inval(off, n);
         rc = fl_wait_issued(issued, 10000u, 50000u, took_us);      /* generic NOR max 3 ms */
+        rc = fl_late_ok(rc, *took_us);            /* idle past 10 ms: done, counted (3y265) */
     }
     fl_exit(&s);
     return rc;

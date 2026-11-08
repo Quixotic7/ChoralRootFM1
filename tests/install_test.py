@@ -718,7 +718,7 @@ def debug():
        "started at most 640 us behind its boundary, its longest half took 3350 us with TIMER5 nested in it (410 us" in out and
        "once came 1130 us after the one before: masked for about 1030 us, until 0x0200B2C4" in out,
        "--debug: when the ISR got to start (PEAK's values 25..30): the stale halves, the lag, TIMER5, the masked stretch")
-    ok(rc == 0 and len(I.DEBUG_PEAK) == 79 and "key_ons" not in out and "pk_block_us 2580" in out and "pk_late_stage 4 (fx)" in out and
+    ok(rc == 0 and len(I.DEBUG_PEAK) == 81 and "key_ons" not in out and "pk_block_us 2580" in out and "pk_late_stage 4 (fx)" in out and
        "worst half since the last --debug: 2580 us of 2902 (88 %) over 34500 halves" in out and
        "late 12 (the latest: 2950 us, its largest stage fx)" in out and
        "down 40 / 110, delay 90 / 200, reverb 300 / 520, up 35 / 90" in out and
@@ -764,7 +764,7 @@ def debug():
     ok("erases_near" not in out and "quiet writes" not in out, "--debug: a firmware of 60 PEAK values (to 3y50): no word of the quiet writes")
     cr.peak[45:] = [0] * 15 + [7, 3, 0, 612]
     rc, out, err = cli(["--debug"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr))
-    ok(rc == 0 and len(I.DEBUG_PEAK) == 79 and "saves_auto 7" in out and "erases_ahead 3" in out and "erases_near 0" in out and
+    ok(rc == 0 and len(I.DEBUG_PEAK) == 81 and "saves_auto 7" in out and "erases_ahead 3" in out and "erases_near 0" in out and
        "flash_prog_us 612" in out and "quiet writes since power-on: 7 saves by the unit itself (Options, favourites), 3 of "
        "the 14 erases done ahead" in out and "0 erases started by the unit while a voice was active or within 2 s of an "
        "input (the rule: 0), the longest page program 612 us" in out and "NEAR PLAYING" not in out,
@@ -782,7 +782,7 @@ def debug():
     ok("c1_bar" not in out and "last crash" not in out, "--debug: a firmware of 68 PEAK values (to 3y60): no word of the bar")
     cr.peak += [1]
     rc, out, err = cli(["--debug"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr))
-    ok(rc == 0 and len(I.DEBUG_PEAK) == 79 and I.DEBUG_PEAK[68] == "c1_bar" and
+    ok(rc == 0 and len(I.DEBUG_PEAK) == 81 and I.DEBUG_PEAK[68] == "c1_bar" and
        "c1_bar 1 (after a crash beside core 1)" in out and "last crash" not in out and "shed_voices 1" in out,
        "--debug: why this boot kept core 1 off (PEAK's value 69, c1_bar), the values before it as they were")
     cr.peak += [3, 1, 0x0200046E, 0x02007D80, 0, 0x00001000, 184200, 0x40, 1]
@@ -797,8 +797,16 @@ def debug():
     ok(rc == 0 and "last crash: none since the power-on" in out, "--debug: no crash since the power-on")
     cr.peak += [2]
     rc, out, err = cli(["--debug"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr))
-    ok(rc == 0 and "voices_shed 2" in out and I.DEBUG_PEAK[-1] == "voices_shed",
+    ok(rc == 0 and "voices_shed 2" in out and I.DEBUG_PEAK[78] == "voices_shed",
        "--debug: the voices the overload shed dropped since power-on (PEAK's value 79)")
+    ok("flash_late_ops" not in out and "finished late" not in out,
+       "--debug: a firmware of 79 PEAK values (to 3y264): no word of late flash operations")
+    cr.peak += [3, 731250]
+    rc, out, err = cli(["--debug"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr))
+    ok(rc == 0 and I.DEBUG_PEAK[-2:] == ["flash_late_ops", "flash_late_max_us"] and "flash_late_ops 3" in out and
+       "flash_late_max_us 731250" in out and "the longest page program 612 us; 3 erases / pages finished late "
+       "(past 500 ms / 10 ms, done), the longest 731250 us" in out,
+       "--debug: erases / pages the slow part finished late but done (PEAK's values 80..81, 3y265)")
     cr.peak = None
     rc, out, err = cli(["--debug"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr))
     ok(rc == 0 and "pk_block_us" not in out and "stub_ms" in out, "--debug on a firmware without 78 PEAK: 73's values alone")

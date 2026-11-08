@@ -75,14 +75,15 @@ installs 0.29.1 over V15 as on any unit. The web installer and `fm1_install.py` 
 to erase a sector or program a page than the Puya part. Up to 0.31 the driver (`hal/fm1_flash.h`) gave up waiting at
 500 ms (an erase) or 10 ms (a page), returned -4 and switched XIP back on while the part might still be busy: the next
 code fetched from the flash would then be whatever the bus returned. Since 3y264 (felucca-bsp #12, as RemoteFM1 0.3.4)
-the driver never goes back to XIP while the part says busy: it keeps polling to 2 s / 50 ms; done by 500 ms / 10 ms
-is success as before, done later is -4 (the operation finished, the caller sees the old failure code: a save is
-refused and tried again at the next save, an install stops and can be run again); still busy at 2 s / 50 ms, it
-resets the part (66h, 99h, 20 ms) and then the chip, from RAM. Each erase holds the interrupts for its whole time
+the driver never goes back to XIP while the part says busy: it keeps polling to 2 s / 50 ms. Done within that is
+success, the save or the install goes through (3y265, the owner: "Treat late as success"); done after 500 ms / 10 ms
+is counted as late (`--debug`: `flash_late_ops`, `flash_late_max_us`); still busy at 2 s / 50 ms, it resets the part
+(66h, 99h, 20 ms) and then the chip, from RAM. Each erase holds the interrupts for its whole time
 (a silence as long as the erase; the watchdog is 8 s and fed before each erase in the update paths). **Not tried on
 hardware with the slow part:** every unit here has the Puya part (0x856014), where erases take ~18 ms; on those units
 nothing changes but the image. The wait and the reset are checked by a host model (`tests/flash_wait_test.c`) and the
-app's handling of a slow or late erase by the emulator (`tools/emu/test_persist.sh`, `--erase-ms`).
+app's handling of a slow or late erase by the emulator (`tools/emu/test_persist.sh`, `--erase-ms`), late as done by
+`tests/flash_late_test.c`. A unit with the slow part that reads `flash_late_ops` above 0 is worth a report.
 
 ## Bubba Machine (2026-10-17, HISTORY 3y176)
 
