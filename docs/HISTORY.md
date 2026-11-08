@@ -7629,3 +7629,12 @@ checks every session end raises it (and nothing is dropped) and a new case, a co
 an unconfigured one's not; `tools/emu/scripts/cr_usb_lost.txt` (the emulator's new `usblost`): a MIDI C4 held, a chord
 on the keys, the peer goes: part 0's voices 1, 4, 3, 0. MANUAL: USB Host (the plain cable, both directions), MIDI in.
 fm1_alnk0_irq 13 943 (budget 13 890). All 24 suites pass.
+
+3y262. **USB Host Off gives the port back cleanly.** 3y260's U5 on the spare: USB Host set Off and the cable moved to
+the Mac, the Mac saw nothing on the port (not in CoreMIDI, nothing in its USB tree) without a power cycle. Host mode
+writes SIE registers the device driver never writes: DEVCTL's session and host request, EP1's host transfer types,
+intervals and TX mode, the function address, the bus-reset bit; Off only switched the port off and on again (the
+SIE's reset line, CON0 bit 2), which need not clear the OTG block. Now Off (`uh_host_down`) clears them first, then
+leaves the port off the bus for a second (as `usb_replug` does) before `usb_retry` starts the device, so a computer
+already on the cable sees a clean attach. `tests/usb_host_test.c` checks DEVCTL, FADDR, POWER and EP1's host
+registers after Off, and the second off the bus. To be confirmed on the unit (U5 again). All 24 suites pass.

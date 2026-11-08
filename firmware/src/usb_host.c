@@ -497,6 +497,25 @@ static void uh_host_up(void)
     uh.hub[0].addr = uh.hub[1].addr = 0;
 }
 
+/* host -> device (USB Host Off, 3y262): undo what host mode wrote and the device driver never writes, before the
+ * port is switched off: the session and host request (DEVCTL), EP1's transfer types and intervals and its TX mode,
+ * the function address, a bus reset left asserted. The unit's first Off (3y260) left the Mac seeing nothing on the
+ * port until a power cycle: the SIE's reset line (CON0 bit 2, fm1_usb_reset) alone may not clear the OTG block */
+static void uh_host_down(void)
+{
+    sie_wr(S_DEVCTL, 0);
+    sie_wr(S_INDEX, 1);
+    sie_wr(S_TXTYPE, 0);
+    sie_wr(S_TXINTERVAL, 0);
+    sie_wr(S_RXTYPE, 0);
+    sie_wr(S_RXINTERVAL, 0);
+    sie_wr(S_TXCSR2, 0);
+    sie_wr(S_RXCSR1, 0x10u);                            /* (flush: no packet of the device's left in the FIFO) */
+    sie_wr(S_INDEX, 0);
+    sie_wr(S_FADDR, 0);
+    sie_wr(S_POWER, 0);
+}
+
 /* a device is on the line: reset the bus and find the MIDI endpoint */
 static void uh_connect(void)
 {
@@ -572,8 +591,11 @@ static void uh_task(uint32_t now)
             uh.msg = UH_MSG_ON;
         } else {
             uh.on = 0;
+            uh_host_down();
             fm1_usb_off();
-            usb.retry_ms = now - 1000u;                 /* usb_retry makes the port a device again at once */
+            usb.retry_ms = now;                         /* usb_retry makes the port a device a second later: off the
+                                                         * bus that long, a computer plugged in meanwhile sees a clean
+                                                         * attach (as usb_replug) */
             uh.msg = UH_MSG_OFF;
         }
         return;

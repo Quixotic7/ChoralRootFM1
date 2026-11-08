@@ -527,9 +527,13 @@ static void test_keyboard(int via_hub)
     uh.want = 0;
     uh_task(fm1_ms);
     assert(!uh.on && !uh.run && uh.msg == UH_MSG_OFF);
+    assert(common[S_DEVCTL] == 0 && common[S_FADDR] == 0 && !(common[S_POWER] & 8u));   /* 3y262: host state undone */
+    assert(regs[1][S_TXTYPE] == 0 && regs[1][S_RXTYPE] == 0 && regs[1][S_TXCSR2] == 0);
     uh.msg = 0;
     isr_recovery();
     usb.up = 0;
+    usb_retry(fm1_ms);                                  /* off the bus a second first: a computer sees an attach */
+    assert(!usb.up);
     usb_retry(fm1_ms + 5000u);                          /* usb_start again as a device */
     assert(usb.up);
     usb.up = 0;
