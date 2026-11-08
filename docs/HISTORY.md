@@ -7637,4 +7637,9 @@ intervals and TX mode, the function address, the bus-reset bit; Off only switche
 SIE's reset line, CON0 bit 2), which need not clear the OTG block. Now Off (`uh_host_down`) clears them first, then
 leaves the port off the bus for a second (as `usb_replug` does) before `usb_retry` starts the device, so a computer
 already on the cable sees a clean attach. `tests/usb_host_test.c` checks DEVCTL, FADDR, POWER and EP1's host
-registers after Off, and the second off the bus. To be confirmed on the unit (U5 again). All 24 suites pass.
+registers after Off, and the second off the bus. All 24 suites pass. On the unit (a7d94d7b's package on the spare):
+on 7c38211b a Mac replug alone had not brought the port back, a power cycle had (the stuck host state); now, with
+the cable left in the Mac, USB Host On and Off twice: the spare left the Mac's USB tree and came back each time
+(~6-11 s), `--debug` at once with no rescan; the two-unit link (5473E6AA on 0.30, plain cable) both ways, then Off and
+the Mac at once, no reboot, no crash. 3y261's release on the unit: a Mac's held C4 stopped when its cable was pulled
+while a chord held on the spare's keys kept sounding.
