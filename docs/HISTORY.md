@@ -7559,3 +7559,10 @@ no reception 5.5 %, bad CRCs 5.0 %, acks 66.0 / 28.0 / 5.4 / 0.7 %: no better, s
 F2's 17.2 ms and 162 gaps were that session's link; Melodee measured 13.4 ms and 59 gaps in 5 minutes. What is left
 is the Mac stamping BLE-MIDI by arrival on its 7.5 ms events (3y252) and the quarter of our packets that need a
 second event: other devices on the Mac are not the cause. Nothing changed in the firmware.
+
+3y255. **MIDI transport on the unit, every input.** 38f48378's diagnostic package on E81CE2F7, MIDI Clock Out (T1-T4)
+and In (T5); the loop recorded by the owner, the messages from a script (and an OMX-27 for TRS). T1 USB: Start /
+Stop / Start / Stop, the loop followed; with the Arp latched each Start took it back to its first note. T2 Bluetooth:
+followed. T3 TRS (the OMX-27's Play / Stop into MIDI IN): followed. T4: no FA / FB / FC came back on USB or Bluetooth
+in any of them, and LOOP pressed 9 times sent start / stop each time on both. T5 (In): a 97 BPM clock over USB, the
+tempo 97 and the loop following Start / Stop. MANUAL: the incoming tempo is shown in the Geek Out view.

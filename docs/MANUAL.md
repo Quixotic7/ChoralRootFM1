@@ -967,6 +967,7 @@ one to three short gaps in it ([What the FM-1 remembers](#what-the-fm-1-remember
 - The click is not part of the USB recording.
 
 With Options > MIDI Clock set to In, the tempo follows the incoming clock instead ([MIDI and USB](#15-midi-and-usb)).
+To see the tempo the clock set, switch Options > View to **Geek Out**: its status lines show the tempo.
 
 ## 10. The looper
 
