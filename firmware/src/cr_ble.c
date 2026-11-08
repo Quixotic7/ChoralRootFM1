@@ -242,6 +242,9 @@ static void crbl_start(void)                      /* the radio, once a power-on:
         crbl_rec.valid = 1;
         crbl.dirty = 1;
     }
+#ifndef FM1_BLE_FAKE_H
+    fm1_ble_vco_keep = (uint8_t)((cr_ble_test() & CRBL_T_VCO) != 0u);
+#endif
     ie = fm1_icfg();
     fm1_irq_off();
     i = fm1_ticks();
@@ -304,7 +307,7 @@ static uint32_t cr_ble_test(void)                 /* (crbl_rec.rsv0: a release b
 }
 static int cr_ble_set_test(uint32_t m)            /* 82 BLE_TEST: saved, applied at the next power-on */
 {
-    if (!BLE_DIAG || !crbl.booted || m > 31u)
+    if (!BLE_DIAG || !crbl.booted || m > 63u)
         return 1;
     crbl_rec.rsv0 = (uint8_t)m;
     crbl.dirty = 1;
@@ -326,7 +329,8 @@ static void cr_ble_supplies(int ok)               /* (a failed supply sequence: 
  * address, stop; the boot guard's failed count; the BLE start-up step reached (the word's bits 16..23) */
 static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N])
 {
-    uint32_t k = 0;
+    uint32_t k = 0, i = 0;
+    (void)i;                                      /* (the fake radio's zeros: a BLE_DIAG host build) */
     v[k++] = crbl.on;
     v[k++] = crbl.started;
     v[k++] = crbl.pending;
@@ -373,6 +377,17 @@ static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N])
     v[k++] = ble_dg.closes;
     v[k++] = (uint32_t)ble_dg.close_reason | (uint32_t)ble_dg.close_by << 8;
     v[k++] = ble_dg.busy_timeouts;
+#ifndef FM1_BLE_FAKE_H                            /* the VCO band (3y245): the scan's verdict, its band and comparator */
+    v[k++] = fm1_ble_rf_stat.scan_found;          /* word, the band the capture left, rescanned (mask 32), the band in */
+    v[k++] = fm1_ble_rf_stat.scan_band;           /* the register now */
+    v[k++] = fm1_ble_rf_stat.scan_result;
+    v[k++] = fm1_ble_vco_cr.captured;
+    v[k++] = fm1_ble_vco_cr.rescanned;
+    v[k++] = crbl.started ? fm1_ble_vco_band() : 0u;
+#else
+    for (i = 0; i < 6u; i++)
+        v[k++] = 0;
+#endif
 #endif
     return k;
 }

@@ -7436,3 +7436,20 @@ bursty: max gap 274 ms, sd 38 ms (Melodee: 60 ms, sd 7). The link: 133 events a 
 interrupts bad CRC, 3 drops in 5 minutes, each re-established. With the link up and one core, `perf_unit va fm6`:
 VA 12 late halves of 20 s, no stale half; FM6 none late. Open: two cores (the earlier "not seen"; next, Dual Core On at
 mask 0, then mask 2 to tell core 1's work from core 1 running), then the bad-CRC rate, the drops and the TX bursts.
+
+3y245. **Two cores: the receiver fades, and the link never let go.** D1 (the bisect build, mask 0, Dual Core On, the Mac
+bonded and scanning; device session: ble-step2/poll-bisect-D1-mask0-dualcore-on.log, debug-10): listed ~3 s after the
+power-on, connected by ~15 s, then the RX interrupts fell, ~50 a second (20 % bad CRC) at 20-40 s, ~35 at 60-85 s, ~10 at
+93-103 s, none from 103 s, while the connection events ran on (~133 a second) and the unit still said "connected" to a
+Mac that had dropped it, never advertising again. With one core (S0) the RX rate stayed ~50-60 a second for 30 minutes.
+**The link that never let go** (fixed): the driver counted a reception in an event when EVTCOUNT had followed it
+(`rx_any && CB->evtcount == counter`), and on the FM-1 EVTCOUNT keeps following the events with nothing received, so
+the link layer's supervision timer never ran. Now EVTCOUNT alone counts only within 1 s of a real RX interrupt
+(`HW_RX_ALIVE_US`; a healthy link takes ~50 a second): a deaf link closes by supervision (0x08) and advertises again.
+`ble_driver_test` gains the case (O_DEAF: deaf from event 600 with EVTCOUNT moving: closed at event 656, advertising).
+**The fade** (a hypothesis to test): the program's group 8 writes the VCO band and fine code of stock's capture after our
+scan, whose result is "reported only" (hal/fm1_ble_rf.h), so the radio runs on the band the emulator's capture found,
+not one chosen for this chip; a band at its edge would show as ~20 % bad CRC cool and a slow fade as the chip warms (two
+cores). Mask 32 (82 BLE_TEST) runs the scan again after the program and keeps its band (the captured one back when it
+finds none); 81 BLE now reports the scan's verdict, band and comparator word, the captured band, and the band in the
+register. All 24 suites pass.

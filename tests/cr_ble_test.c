@@ -351,7 +351,7 @@ static void t_debug(void)
     cr_ble_start_boot();
     ble_app_midi_in(pk(0x90, 60, 100), 0, 0);
     check("81 BLE: 21 values (39 in a BLE_DIAG build): On, started, nothing owed, the trims measured at the start (3), a packet in",
-          cr_ble_debug(v) == 21u + 19u * BLE_DIAG && v[0] == 1u && v[1] == 1u && v[2] == 0u && v[3] == 3u && v[7] == 1u &&
+          cr_ble_debug(v) == 21u + 25u * BLE_DIAG && v[0] == 1u && v[1] == 1u && v[2] == 0u && v[3] == 3u && v[7] == 1u &&
           v[18] == 0u);
     crbl.connected = 1;
     ble_app_state();
@@ -380,8 +380,8 @@ static void t_debug(void)
     memcpy(st_obj, &r, sizeof r);
     st_len = (int)sizeof r;
     cr_ble_boot();
-    check("82 BLE_TEST: a release build refuses it; a BLE_DIAG build takes 0..31 and saves it",
-          BLE_DIAG ? cr_ble_set_test(32u) == 1 && cr_ble_set_test(8u) == 0 && crbl.dirty && cr_ble_test() == 8u
+    check("82 BLE_TEST: a release build refuses it; a BLE_DIAG build takes 0..63 and saves it",
+          BLE_DIAG ? cr_ble_set_test(64u) == 1 && cr_ble_set_test(8u) == 0 && crbl.dirty && cr_ble_test() == 8u
                    : cr_ble_set_test(8u) == 1 && cr_ble_test() == 0u);
 #if BLE_DIAG
     cr_ble_poll();

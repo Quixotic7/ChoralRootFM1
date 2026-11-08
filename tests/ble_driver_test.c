@@ -97,7 +97,8 @@ static void ble_app_central_keys(const struct ble_keys *k) { (void)k; }
 #define MIDI_EVT 300u                   /* the app's note (after the Mac's discovery, and its pairing) */
 
 enum { C_WAITS, C_MAC, C_SILENT };      /* the central: answers our FEATURE_REQ / asks first (blell8) / never answers */
-enum { O_QUIRK = 1, O_LOSS = 2, O_OLDPOL = 4 };   /* run options */
+enum { O_QUIRK = 1, O_LOSS = 2, O_OLDPOL = 4, O_DEAF = 8 };   /* run options (O_DEAF: ChoralRoot 3y245) */
+#define DEAF_EVT 600u                   /* O_DEAF: from this event the engine hears nothing, EVTCOUNT still moves */
 
 static struct {
     int kind, opt;                      /* C_*, O_* */
@@ -666,7 +667,9 @@ static void event(uint32_t e)
     if (cen.kind == C_MAC && e == MIDI_EVT)
         app.on = 1;
     cen_next();
-    eng_event(b, loss && e % 7u == 3u, loss && e % 11u == 5u);
+    eng_event(b, (loss && e % 7u == 3u) || ((cen.opt & O_DEAF) && e >= DEAF_EVT), loss && e % 11u == 5u);
+    if ((cen.opt & O_DEAF) && e >= DEAF_EVT)
+        CB->evtcount = (uint16_t)e;                                     /* (the FM-1's: it follows the events) */
     eng_save();
     ble_wl82_rx_irq();
     eng_watch(0);
@@ -726,6 +729,15 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
     }
     for (e = 0; e < events && ble_ll_connected(); e++)
         event(e);
+    if (opt & O_DEAF) {
+        uint32_t ms = (uint32_t)((fk.ticks - t_conn) / 24000u);
+        snprintf(what, sizeof what, "%s: deaf from event %u with EVTCOUNT moving: closed by supervision (0x08) at "
+                 "event %u (%u ms after connect), advertising again", name, DEAF_EVT, (unsigned)e, (unsigned)ms);
+        check(what, !ble_ll_connected() && bll.state == LL_ADV && e > DEAF_EVT && e < events &&
+                        DG(ble_dg.closes == 1 && ble_dg.close_reason == BLE_ERR_CONN_TIMEOUT));
+        ble_enable(0);
+        return;
+    }
     if (opt & O_OLDPOL) {
         snprintf(what, sizeof what, "%s: stalls: %u bit0 = 1 writes on loaded buffers, VERSION_IND %d, FEATURE_RSP %d, "
                  "data PDUs sent %u", name, (unsigned)eng.old_writes, cen.ver_rx, cen.feat_rsp_rx,
@@ -821,6 +833,7 @@ int main(void)
     run(C_MAC, O_QUIRK, 0xFFFFFFFFu - 10u * 24000000u, 2100u, "§8.2 engine, TIMER4 wraps 10 s in");
     run(C_SILENT, O_QUIRK, 5000u, 2100u, "§8.2 engine, the central silent");
     run(C_MAC, O_QUIRK | O_OLDPOL, 1000u, 300u, "§8.2 engine, the previous drivers' polarity (bit0 = 1 = loaded)");
+    run(C_MAC, O_QUIRK | O_DEAF, 1000u, 2100u, "§8.2 engine, a Mac, the FM-1 deaf after a while (ChoralRoot 3y245)");
     printf("%s\n", fails ? "BLE driver: FAILED" : "BLE driver: all passed");
     return fails != 0;
 }

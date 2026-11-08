@@ -135,6 +135,7 @@ enum { UPD_CONN = 1, UPD_CHM = 2 };
 static struct {
     uint8_t state, gen;                /* gen: moves on every state change (a callback may stop / restart the link) */
     uint8_t rx_next, rx_sn, rx_seen, rx_any;
+    uint32_t rx_us;                     /* ChoralRoot 3y245: ble_hw_time_us of the last RX interrupt in this link */
     uint8_t win_wide, upd, sca;
     uint16_t interval, last_evt, wide_from, upd_instant, chm_instant;
     struct ble_hw_conn_upd u;
@@ -545,6 +546,7 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     drv.rx_next = 0;
     drv.rx_sn = 0;
     drv.rx_seen = drv.rx_any = 0;
+    drv.rx_us = ble_hw_time_us();
     drv.tx_rec[0] = drv.tx_rec[1] = 0;                     /* no PDU recorded in either buffer (HW §8.2 point 7) */
     drv.tx_md[0] = drv.tx_md[1] = 0;
     drv.upd = 0;
@@ -724,6 +726,11 @@ static void hw_tx_service(void)
  * AdvA there (payload at RXPTR, the sheet's layout) or at offset 8 (the 2 header bytes at RXPTR) holds a packet to us.
  * To tell a new packet from an old one without CNTL, every RX buffer's first 40 bytes and its RXAHDR / RXDHDR /
  * RXSTAT are zeroed when armed. RAM only: no column read (op 2) on this path (see hw_adv_program's note). */
+/* ChoralRoot 3y245: EVTCOUNT alone keeps a link alive only this long after the last RX interrupt. On the FM-1 with
+ * both cores the receiver went deaf while EVTCOUNT kept following the events: the link layer saw a reception in every
+ * event, its supervision timer never ran, and the unit stayed "connected" to a Mac that had dropped it, never
+ * advertising again. A healthy link takes ~50 RX interrupts a second (7.5 ms, a Mac). */
+#define HW_RX_ALIVE_US 1000000u
 #define HW_RX_POLL_US 600u              /* RX ISR poll for a late fill: a CONNECT_IND is 352 us on air at 1M */
 #define HW_RX_SETTLE_US 400u            /* a content-only find this soon after the IRQ waits for the packet's end */
 
@@ -950,6 +957,7 @@ static void hw_rx_service(void)
             BLE_DG(ble_dg.rxc_tog_at++);
         drv.rx_next ^= 1u;
         drv.rx_seen = drv.rx_any = 1;
+        drv.rx_us = ble_hw_time_us();
         if (!hwd.first_rx) {                               /* (diagnostics) the first packet of this connection */
             hwd.first_rx = 1;
             BLE_DG(ble_dg.first_rx_us = (fm1_ticks() - hwd.conn_t0) / FM1_TICKS_PER_US);
@@ -1064,7 +1072,8 @@ static void hw_event_service(void)
     BLE_DG(ble_dg.conn_events++);
     BLE_DG(ble_dg.last_evt = counter);
     /* a reception in this event: an RX interrupt, or EVTCOUNT (also moved by a repeat the engine dropped) */
-    rx_ok = (uint8_t)(drv.rx_seen || (drv.rx_any && CB->evtcount == counter));
+    rx_ok = (uint8_t)(drv.rx_seen || (drv.rx_any && CB->evtcount == counter &&
+                                      ble_hw_time_us() - drv.rx_us < HW_RX_ALIVE_US));
     drv.rx_seen = 0;
     hw_instants(counter);
 #if BLE_CENTRAL
