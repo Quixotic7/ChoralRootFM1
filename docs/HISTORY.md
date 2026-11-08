@@ -7718,4 +7718,10 @@ quiet-writes line). The emulator's `--erase-ms` past 500 now saves and prints `f
 and counted with the longest kept, stuck the reset and not counted, -1..-3 unchanged; returning -4 fails 4 checks),
 the source check in `run_tests.sh` (both waits map late; the loader and the OTA hooks call those routines),
 `install_test.py` (a 79-value firmware: no word of it; 81: the values and the line). `./build.sh` (loader 7,572 B) and
-`BOARD=smk37 ./build.sh`: OK, `.ram_text` no calls. Not tried on the slow part: no unit here has one.
+`BOARD=smk37 ./build.sh`: OK, `.ram_text` no calls. Not tried on the slow part: no unit here has one. `run_all.sh`:
+the 24 suites passed (cr_tests on its own after `cr_backup_test.c`'s PEAK count went to 81). **On a unit**: the spare
+E81CE2F7 (ChoralRoot 3y264), a backup first (`fm1-backup-E81CE2F7-2026-11-08-before-late-success.json`), `caffeinate
+-dimsu fm1_install.py build/choralroot.fwsc --unit E81CE2F7 --yes` (sha256 3291dda0...7de6), the same unit after the
+restart. `--debug`: crash_count 0, c1_faults 0, boot stub v3 marker ok, `flash_late_ops 0`, `flash_late_max_us 0`
+and the new words on the quiet-writes line. Writes: U128 imported and deleted seven times, the backup restored (first
+try, the unit restarted cleanly), then 9 erases and pages up to 1,972 us, every save rc 0, none late (the Puya part).
