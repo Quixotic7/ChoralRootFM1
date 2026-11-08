@@ -247,7 +247,7 @@ static void crbl_start(void)                      /* the radio, once a power-on:
         crbl.dirty = 1;
     }
 #ifndef FM1_BLE_FAKE_H
-    fm1_ble_vco_keep = (uint8_t)((cr_ble_test() & CRBL_T_VCO_HI) ? 2u : (cr_ble_test() & CRBL_T_VCO) ? 1u : 0u);
+    fm1_ble_vco_keep = (uint8_t)((cr_ble_test() & CRBL_T_VCO) ? 1u : 0u);
 #endif
     ie = fm1_icfg();
     fm1_irq_off();
@@ -285,6 +285,11 @@ static void cr_ble_boot(void)                     /* power-on: before the audio 
         crbl.trims = sdk;
         fm1_rf_cal_on = 1;
         crbl.cal = 1;
+        crbl.cal_from = 3;
+    } else if (BLE_DIAG && (crbl_rec.rsv0 & CRBL_T_MEASURE)) {   /* (3y249: the stored record's 187 left out, its
+                                                   * 106..108 kept; on E81CE2F7 the captured band / fine code send
+                                                   * nothing a phone or the Mac hears) */
+        fm1_rf_cal_on = 1;
         crbl.cal_from = 3;
     }
     ble_hw_wl82_attach();                         /* the BLE vectors, masked */
@@ -393,8 +398,12 @@ static uint32_t cr_ble_debug(uint32_t v[CRBL_DBG_N])
     v[k++] = fm1_ble_vco_cr.high[0];
     v[k++] = fm1_ble_vco_cr.high[1];
     v[k++] = fm1_ble_vco_cr.chosen;
+    v[k++] = ((uint32_t)fm1_rfc_scan_rc & 0xFFFFu) | (uint32_t)fm1_rfc_scanned << 16;   /* 3y249: the measured */
+    v[k++] = ((uint32_t)fm1_rfc_trim_rc & 0xFFFFu) | (uint32_t)fm1_rfc_trimmed << 16;   /* calibration (mask 64) */
+    v[k++] = fm1_rfc.mid | (uint32_t)fm1_rfc.top << 8 | (uint32_t)fm1_rfc.bank121 << 16 | (uint32_t)fm1_rfc.mid_found << 24;
+    v[k++] = fm1_rfc.us_total;
 #else
-    for (i = 0; i < 11u; i++)
+    for (i = 0; i < 15u; i++)
         v[k++] = 0;
 #endif
 #endif

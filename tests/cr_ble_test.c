@@ -356,7 +356,7 @@ static void t_debug(void)
     cr_ble_start_boot();
     ble_app_midi_in(pk(0x90, 60, 100), 0, 0);
     check("81 BLE: 21 values (39 in a BLE_DIAG build): On, started, nothing owed, the trims measured at the start (3), a packet in",
-          cr_ble_debug(v) == 21u + 30u * BLE_DIAG && v[0] == 1u && v[1] == 1u && v[2] == 0u && v[3] == 3u && v[7] == 1u &&
+          cr_ble_debug(v) == 21u + 34u * BLE_DIAG && v[0] == 1u && v[1] == 1u && v[2] == 0u && v[3] == 3u && v[7] == 1u &&
           v[18] == 0u);
     crbl.connected = 1;
     ble_app_state();
@@ -400,6 +400,26 @@ static void t_debug(void)
     crbl.boot_go = 1;
     check("bit 16: no stock supplies asked for", cr_ble_will_start() == 0);
     crbl_rec.rsv0 = 0;
+    {                                             /* bit 64: measured at start though a calibration is stored */
+        static const struct ble_rf_trims tr = {{0x0B, 0x0B}, {1, 7, 4, 7, 11, 1, 7}, {0}, {0}};
+        fresh();
+        ble_rf_copy_make(r.rf, &tr, 0);
+        memcpy(st_obj, &r, sizeof r);
+        st_len = (int)sizeof r;
+        fm1_rf_cal_on = 0;
+        cr_ble_boot();
+        check("mask 0: ChoralRoot's stored copy used (ble_cal 2), nothing measured",
+              crbl.cal && !fm1_rf_cal_on && crbl.cal_from == 2u);
+        fresh();
+        r.rsv0 = CRBL_T_MEASURE;
+        memcpy(st_obj, &r, sizeof r);
+        st_len = (int)sizeof r;
+        cr_ble_boot();
+        check("bit 64: the stored copy there, measured at start all the same (ble_cal 3)",
+              crbl.cal && fm1_rf_cal_on && crbl.cal_from == 3u);
+        r.rsv0 = 0;
+        memset(r.rf, 0, sizeof r.rf);
+    }
 #endif
 }
 

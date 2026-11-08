@@ -7484,3 +7484,19 @@ writes the picked band into 0x11938 [25:19] after the program, in place of the c
 program itself makes; an empty map keeps the captured band. 81 BLE: `ble_vco_rescanned` 1 swept, 2 applied. The
 VCO pieces moved into `hal/fm1_ble_rf.h` beside the scan; `tests/ble_rf_replay_test.py`'s prelude stubs the new
 switch (off: the replay unchanged). All 24 suites pass.
+
+3y249. **The radio measured at start, as a test bit.** On E81CE2F7 bisect5 (cd3eedc4) under mask 0 the Mac never saw
+it on cold or warm power-ons; a phone's BLE scanner (nRF Connect) saw "ChoralRoot 8FC2" for a few adverts in the
+first ~3-16 s and the unit heard 4 of its scan requests, then nothing either way and no CONNECT_IND, while
+`ble_adv_events` counted normally and nothing crashed: the radio drifts off within seconds of its start, as the soft
+resets (~10-13 s) and D1 (~100 s) did. Mask 32 (band 56) heard nothing. Under mask 0 bisect5 drives
+the radio as b5844571 did (since then only a read of the band register), which was seen and connected in D1: the
+same code, seen one day and silent the next, so a marginal radio set-up rather than a code change. The radio runs on
+the stored record 187 and the captured band and fine code, and our scan finds no band in lock range on this chip
+(56 low, 57 high). JieLi's own calibration (`hal/fm1_rf_cal.h`: the VCO bank scan, the trim, the RF-die table's
+banks and RX DC from what it measured) already runs at start when no calibration is stored; this unit has one in
+the stock VM, so it never ran. Bit 64 of `--ble-test` (a BLE_DIAG build) now runs it even so: 106..108 stay the
+stored ones, the 187 and the banks are measured. It takes bit 64 from the band-57 sweep (`CRBL_T_VCO_HI`; the
+requests' bytes are 7 bits, so the mask stays 0..127). 81 BLE adds four values (CRBL_DBG_N 60): `ble_cal_scan` and
+`ble_cal_trim` (the return code | ran << 16), `ble_cal_banks` (mid | top << 8 | bank 121's << 16 | mid found
+<< 24) and `ble_cal_us`. `tests/cr_ble_test.c`: a stored copy is used under mask 0 and measured under 64. All 24 suites pass.
