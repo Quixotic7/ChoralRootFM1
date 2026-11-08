@@ -233,9 +233,9 @@ static void crs_sanitize(cr_settings_t *s)
         if (s->midi_ch[i] > 15u) s->midi_ch[i] = d.midi_ch[i];
     }
     CRS_FIX(clock_mode, 0, CRS_CLOCK_IN);
-    CRS_FIX(raw_sound, 0, 0x3F);                   /* (0.24: bits 1 .. 5 MIDI Keys' channel) */
-    if (CRS_MIDI_KEYS(s) > 16u)                    /* (no such channel: Off, Raw Chord Sound kept) */
-        s->raw_sound = (uint8_t)(s->raw_sound & 1u);
+    CRS_FIX(raw_sound, 0, 0xFF);                   /* (0.24: bits 1 .. 5 MIDI Keys' channel; 3y269: bits 6, 7 MIDI CC) */
+    if (CRS_MIDI_KEYS(s) > 16u)                    /* (no such channel: Off, Raw Chord Sound and MIDI CC kept) */
+        s->raw_sound = (uint8_t)(s->raw_sound & (1u | CRS_CC_IN_OFF | CRS_CC_OUT_OFF));
     if ((s->view & 0x38u) || CRS_VIEW(s) > 5u)    /* (v9: bit 7 the lock, v12: bit 6 Dual Core On; 5 Geek Out 2
                                                     * since 0.22; an unknown bit or view: the default view, unlocked;
                                                     * Dual Core as the record has it: since 0.22 the default is On,
@@ -796,7 +796,7 @@ static void crs_capture(cr_settings_t *s)
         if (cs.ch[i])
             s->midi_ch[i] = (uint8_t)(cs.ch[i] - 1u);
     }
-    s->raw_sound = CRS_RAW_BYTE(cs.raw_sound, cs.midi_keys);
+    s->raw_sound = (uint8_t)(CRS_RAW_BYTE(cs.raw_sound, cs.midi_keys) | CRS_CC_BITS(cs.midi_cc));
     s->loop_sync = cs.loop_len;
     s->loop_quant = cs.loop_quant;
     s->loop_count_in = cs.loop_count_in;
@@ -1159,6 +1159,7 @@ static void cr_settings_load(void)
         cs.ch[i] = (uint8_t)(s->midi_en[i] ? s->midi_ch[i] + 1u : 0u);
     cs.raw_sound = (uint8_t)CRS_RAW(s);
     cs.midi_keys = (uint8_t)(CU_FN_KEYS ? CRS_MIDI_KEYS(s) : 0u);
+    cs.midi_cc = (uint8_t)CRS_MIDI_CC(s);          /* Options > MIDI CC (0, an older record's bits: In + Out) */
     cr_route.clock_out = o.clock_out;
     cr_route.clock_in = o.clock_in;
     cs.loop_len = s->loop_sync;

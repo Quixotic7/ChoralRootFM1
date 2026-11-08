@@ -142,6 +142,14 @@ enum { CRS_USB_MASTER, CRS_USB_FIXED };
 #define CRS_LEDS(s) ((unsigned)(s)->leds & CRS_LEDS_STOCK)
 #define CRS_RAW(s) ((unsigned)(s)->raw_sound & 1u)
 #define CRS_MIDI_KEYS(s) (((unsigned)(s)->raw_sound >> 1) & 31u)
+/* Options > MIDI CC (3y269; docs/MANUAL.md section 15): Off, In, Out, In + Out (the default) rides in bits 6 and 7 of
+ * the same byte, set = that direction OFF (bit 6 In off, bit 7 Out off), so 0, every older record's, is In + Out and
+ * there is no version. A firmware before it checks the byte against 0 .. 0x3F: with MIDI CC not In + Out it reads
+ * Raw Chord Sound and MIDI Keys as Off (the byte's default) until set there */
+#define CRS_CC_IN_OFF 0x40u
+#define CRS_CC_OUT_OFF 0x80u
+#define CRS_MIDI_CC(s) ((((unsigned)(s)->raw_sound & CRS_CC_IN_OFF) ? 0u : 1u) | (((unsigned)(s)->raw_sound & CRS_CC_OUT_OFF) ? 0u : 2u))
+#define CRS_CC_BITS(v) ((uint8_t)((((v) & 1u) ? 0u : CRS_CC_IN_OFF) | (((v) & 2u) ? 0u : CRS_CC_OUT_OFF)))
 #define CRS_RAW_BYTE(raw, keys) ((uint8_t)(((raw) ? 1u : 0u) | (((keys) & 31u) << 1)))  /* usb_level: USB audio follows MASTER / takes the full level (docs/USB-AUDIO.md) */
 
 /* Options > Output (0.19, docs/AUDIO-QUALITY.md) rides in bit 1 of pick_roots (bit 0: the retired picker option): set =

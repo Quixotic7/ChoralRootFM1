@@ -454,18 +454,17 @@ static void ce_head(const track_t *t, const eng_deep_t *d, const ce_view_t *v, u
     }
 }
 
-/* the view of part p's current screen */
-static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
+/* the view of group g's screen k with lane ln on the knobs (ce_view: part p's current one; the MIDI CC blocks walk
+ * the lanes with it, ce_cc_lane: the cells a CC reaches are the cells the knobs reach) */
+static void ce_view_at(const track_t *t, uint32_t g, uint32_t k, uint32_t ln, ce_view_t *v)
 {
     static const char *const ROLE[4] = {"amp", "filter", "free", "free"};
     static const char *const H_MOD[4] = {"Source", "Dest", "Amount", ""};
     const eng_deep_t *d = ce_deep(t);
     const engine_t *en = ENGINES[eng_idx(t->eng_req)];
     ce_scr_t sc;
-    uint32_t g, k, ln, i, c;
-    g = ce_fix(t, p, &sc);
-    k = cx.scr[p][g];
-    ln = cx.lane[p][g];
+    uint32_t i, c;
+    ce_scr(t, g, k, &sc);
     for (i = 0; i < sizeof *v; i++)
         ((uint8_t *)v)[i] = 0;
     v->kind = CR_K_EDIT8;
@@ -675,6 +674,12 @@ static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
     }
     if (v->active >= v->n)
         v->active = 0;
+}
+static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
+{
+    ce_scr_t sc;
+    uint32_t g = ce_fix(t, p, &sc);
+    ce_view_at(t, g, cx.scr[p][g], cx.lane[p][g], v);
 }
 
 /* a ref that is one of the part's sends (cr_ui.c cu_send: P_DIST .. P_REV), -1: not one. The FX group's four, and a
@@ -1343,6 +1348,248 @@ static void ce_trace_value(const param_desc_t *d, int32_t v, char *b, uint32_t n
     cp_value(d, v, b, n);
 }
 
+/* ------------------------------------------------- MIDI CC: in and out --- */
+/* (3y269; docs/MANUAL.md section 15 "MIDI in", cr_midi.c crm_cc_*.) A CC on MIDI Perform's channel sets a parameter
+ * of the chord sound, on MIDI Bass's the bass sound's, as a knob turn on its cell would: the sound marked edited, the
+ * cell hot in the editor when it is on the screen, else the knobs' popup. A knob turned on such a cell sends the CC
+ * on the part's channel (Options > MIDI CC Out). Two kinds:
+ *   the common CCs, one meaning on every engine that has the thing: 10 Pan (MIX), 92 Drive (the fourth send; FM
+ *     TONE: the sound's own Drive, as the FX group's cell), 74 / 71 the filter's cutoff / resonance, 73 75 79 72 the
+ *     amp envelope's A D S R, 76 / 77 LFO 1's rate / depth. CE_CCC: the engine's built-in page and column by title
+ *     and label (a compiled layout's pages, P5's rows, reach the same column); an engine without deep pages: the
+ *     platform's ENV and LFO (WHEEL); CC 7 91 93 94 are cr_ui.c's as before (out: here too);
+ *   the editor's blocks: the group's lanes in SELECT order, four CCs a lane (crm_cc_block): the lane found by
+ *     walking the group's screens (ce_scr, ce_lanes) and its cell in the view the knobs would have (ce_view_at), so a
+ *     CC is always the cell the editor shows there, whatever pages an engine has */
+static const struct { uint8_t cc; char page[8], col[7]; } CE_CCC[] = {
+    {74, "FILTER", "CUT"}, {74, "FILTER+", "FREQ"}, {71, "FILTER", "RES"}, {71, "FILTER+", "RESO"},
+    {73, "ENV 1", "ATK"}, {75, "ENV 1", "DEC"}, {79, "ENV 1", "SUS"}, {72, "ENV 1", "REL"},
+    {73, "AMP", "ATK"}, {75, "AMP", "DEC"}, {79, "AMP", "SUS"}, {72, "AMP", "REL"},
+    {76, "LFO 1", "RATE"}, {76, "LFO 1", "SPEED"}, {77, "LFO 1", "DEPTH"}, {77, "LFO 1+", "DEPTH"},
+    {76, "LFO", "RATE"}, {76, "LFO", "SPEED"}, {77, "LFO", "AMOUNT"}, {77, "LFO", "PMD"},
+    {76, "VIB", "RATE"}, {77, "VIB", "DEPTH"}};
+/* a common CC's cell on track t (CC 7 91 93 94 too: the out side's), 0 none on this engine */
+static int ce_cc_common(const track_t *t, uint32_t cc, ce_ref_t *r)
+{
+    static const uint8_t TRK[][2] = {{7, P_LEVEL}, {10, P_PAN}, {91, P_REV}, {92, P_DIST}, {93, P_CHOR}, {94, P_DLY},
+                                     {73, P_ATK}, {75, P_DEC}, {79, P_SUS}, {72, P_REL}, {76, P_LRATE}, {77, P_LD_PIT}};
+    const eng_deep_t *b = ENGINES[eng_idx(t->eng_req)]->deep, *d = cp_deep(t);
+    uint32_t i, p;
+    int32_t c;
+    for (i = 0; i < NELEM(TRK); i++)              /* the part's own (MIX, the sends); an engine without deep pages:
+                                                   * the platform's ENV and LFO */
+        if (TRK[i][0] == cc && (i < 6u || !d)) {
+            *r = ce_r(CE_R_TRK, TRK[i][1], 0);
+            return 1;
+        }
+    if (!b || !d)
+        return 0;
+    for (i = 0; i < NELEM(CE_CCC); i++) {
+        if (CE_CCC[i].cc != cc)
+            continue;
+        for (p = 0; p < b->npages && !cp_eq(b->pages[p].title, CE_CCC[i].page); p++)
+            ;
+        if (p == b->npages || (c = cp_dcol(&b->pages[p], CE_CCC[i].col)) < 0)
+            continue;
+        if (d == b) {
+            *r = ce_r(CE_R_DEEP, p, (uint32_t)c);
+            return 1;
+        }
+#if CR_LAYC_N
+        {   /* a compiled layout (P5's rows): its column bound to that built-in one */
+            uint32_t lp, lc, bp, bc;
+            for (lp = 0; lp < d->npages; lp++)
+                for (lc = 0; lc < 4u; lc++)
+                    if (cp_lay_src(t, lp, lc, &bp, &bc) && bp == p && bc == (uint32_t)c) {
+                        *r = ce_r(CE_R_DEEP, lp, lc);
+                        return 1;
+                    }
+        }
+#endif
+    }
+    return 0;
+}
+/* lane n of group g (SELECT's order across its screens): its screen *k and lane *ln, 0 past the group's last */
+static int ce_cc_lane(const track_t *t, uint32_t g, uint32_t n, uint32_t *k, uint32_t *ln)
+{
+    ce_scr_t sc;
+    uint32_t ns = ce_scr(t, g, 0, &sc), nl;
+    for (*k = 0; *k < ns; (*k)++) {
+        ce_scr(t, g, *k, &sc);
+        nl = ce_lanes(t, g, &sc);
+        if (n < nl) {
+            *ln = n;
+            return 1;
+        }
+        n -= nl;
+    }
+    return 0;
+}
+/* the cell CC cc reaches on track t (crm_cc_eng's, and 7 91 93 94), 0 none: a cell with a parameter */
+static int ce_cc_ref(const track_t *t, uint32_t cc, ce_ref_t *r)
+{
+    uint32_t n, c, k, ln;
+    int32_t g = crm_cc_block(cc, &n, &c);
+    if (g >= 0) {
+        ce_view_t vw;
+        if (!ce_has(t, (uint32_t)g) || !ce_cc_lane(t, (uint32_t)g, n, &k, &ln))
+            return 0;
+        ce_view_at(t, (uint32_t)g, k, ln, &vw);
+        *r = vw.ref[vw.active][c];
+        return r->k == CE_R_DEEP || r->k == CE_R_TRK;   /* (a dash, a text, an empty slot: nothing) */
+    }
+    return ce_cc_common(t, cc, r);
+}
+static int ce_cc_list(const param_desc_t *d) { return d->fmt == F_ENUM || d->fmt == F_ONOFF; }
+static int ce_ref_eq(ce_ref_t a, ce_ref_t b) { return a.k == b.k && a.a == b.a && (a.b & 3u) == (b.b & 3u); }
+
+static crm_echoes_t cu_echo;                      /* the CCs sent last (the echo guard: cr_midi.c crm_echo_*) */
+static uint32_t cu_cc_ch(uint32_t part)           /* the part's MIDI channel + 1, 0 Off */
+{
+    return cs.ch[part ? CR_STREAM_BASS : CR_STREAM_MAIN];
+}
+/* Options > MIDI CC Out: CC cc = v on the part's channel (none while its channel is Off), as the notes go out */
+static void cu_cc_send(uint32_t part, uint32_t cc, uint32_t v)
+{
+    uint32_t ch = cu_cc_ch(part & 1u);
+    if (!(cs.midi_cc & 2u) || !ch || !cc)
+        return;
+    crm_echo_note(&cu_echo, ch - 1u, cc, v, cu_now());
+    cr_post(CRE_CCOUT, ch - 1u, cc, (int32_t)(v & 0x7Fu));
+    cu_trace("cc: out part %u ch %u cc %u %u\n", (unsigned)part, (unsigned)ch, (unsigned)cc, (unsigned)v);
+}
+/* a cell's value out as its CCs: its block's, given the editor's (g, k, ln, knob) (g past CE_MOD: none), and the
+ * common one it is. A send (and FM TONE's AMP+ DRIVE, the part's P_DIST) is its 0..127 as cu_send has it */
+static void ce_cc_out(uint32_t part, const track_t *t, ce_ref_t r, uint32_t g, uint32_t k, uint32_t ln, uint32_t knob)
+{
+    static const uint8_t COMMON[14] = {7, 10, 91, 92, 93, 94, 71, 72, 73, 74, 75, 76, 77, 79};
+    const param_desc_t *d;
+    int32_t v, snd;
+    uint32_t i, n, q, cc, ccv;
+    ce_ref_t x;
+    ce_scr_t sc;
+    if (!(cs.midi_cc & 2u) || !cu_cc_ch(part & 1u) || !(d = ce_param(t, r, &v)))
+        return;
+    snd = ce_send_ref(t, r);
+    ccv = snd >= 0 ? (uint32_t)(v < 0 ? 0 : v > 127 ? 127 : v) : crm_cc_out(v, d->min, d->max, ce_cc_list(d));
+    if (g <= CE_MOD) {                            /* the block's: the lanes of the screens before, then this lane */
+        for (n = 0, q = 0; q < k; q++) {
+            ce_scr(t, g, q, &sc);
+            n += ce_lanes(t, g, &sc);
+        }
+        if ((cc = crm_cc_of(g, n + ln, knob)) != 0)
+            cu_cc_send(part, cc, ccv);
+    }
+    for (i = 0; i < NELEM(COMMON); i++)
+        if (ce_cc_common(t, COMMON[i], &x) &&
+            (ce_ref_eq(x, r) || (snd >= 0 && x.k == CE_R_TRK && x.a == (uint32_t)snd))) {
+            cu_cc_send(part, COMMON[i], ccv);
+            return;
+        }
+}
+/* a part's send turned outside the editor (the FX layer, KNOB 4, the bass level, the SMK-37's faders): its CC */
+static void cu_cc_send_trk(uint32_t part, uint32_t id)
+{
+    static const uint8_t CC[][2] = {{P_LEVEL, 7}, {P_PAN, 10}, {P_REV, 91}, {P_DIST, 92}, {P_CHOR, 93}, {P_DLY, 94}};
+    uint32_t i;
+    int32_t v = id == P_LEVEL || id == P_PAN ? trk[part ? CR_PART_BASS : CR_PART_CHORD].p[id] : cu_send(part, id);
+    for (i = 0; i < NELEM(CC); i++)
+        if (CC[i][0] == id)
+            cu_cc_send(part, CC[i][1], (uint32_t)(id == P_PAN ? v + 64 : v < 0 ? 0 : v > 127 ? 127 : v));
+}
+
+/* the value shown as a knob turn shows it: the cell hot when the editor shows it on that part, else the popup (a
+ * send's as CC 91's; the cell's value, its label, the part's colour) */
+static void ce_cc_show(uint32_t part, const track_t *t, ce_ref_t r, const param_desc_t *d, int32_t v)
+{
+    char tx[16], val[8], lb[32];
+    uint32_t i, j, c;
+    int32_t snd = ce_send_ref(t, r);
+    if (cu.page == PG_EDIT && (ce.part & 1u) == part) {
+        ce_view_t vw;
+        ce_view(t, part, &vw);
+        for (i = 0; i < vw.n; i++)
+            for (c = 0; c < 4u; c++)
+                if (ce_ref_eq(vw.ref[i][c], r)) {
+                    cx.hot_slot = 0;
+                    cx.hot_r = (uint8_t)(i + 1u);
+                    cx.hot_c = (uint8_t)c;
+                    cx.hot_t0 = cu_now();
+                    return;
+                }
+    }
+    if (snd >= 0) {
+        for (i = 0; i < CU_NFX && CU_FX[i].send != (uint32_t)snd; i++)
+            ;
+        cu_send_popup(v, i < CU_NFX ? CU_FX[i].name : "send", part ? CR_COL_ORANGE : CR_COL_GREEN);
+        return;
+    }
+    ce_label(t, r, d, tx, sizeof tx);
+    cu_cpy(lb, part ? "bass " : "", sizeof lb);
+    tx[0] = (char)(tx[0] >= 'A' && tx[0] <= 'Z' ? tx[0] + 32 : tx[0]);   /* ("bass attack", "cutoff": the popups' way) */
+    cu_cat(lb, tx, sizeof lb);
+    ce_text(t, r, d, v, tx, sizeof tx);           /* "683 ms": 683 big, "ms" under it; a name: the name */
+    for (i = 0; tx[i] && i < sizeof val - 1u && ((tx[i] >= '0' && tx[i] <= '9') || tx[i] == '+' || tx[i] == '-' ||
+                                                 tx[i] == '.'); i++)
+        val[i] = tx[i];
+    val[i] = 0;
+    for (j = i; tx[j] == ' '; j++)
+        ;
+    if (!i) {
+        cu_cpy(val, tx, sizeof val);
+        j = str_len(tx);
+    }
+    cu_popup(val, tx + j, lb, part ? CR_COL_ORANGE : CR_COL_WHITE, v, d->min, d->max, 12);
+}
+
+/* Options > MIDI CC In: CC cc = v (0..127) arrived for part 0 / 1 (cr_ui.c cu_midi_poll, from cr_out.c's pending
+ * values): its cell set as a knob turn sets it (ce_knob's three ways: a deep column, a send, a track parameter) */
+static void ce_cc_in(uint32_t part, uint32_t cc, uint32_t v)
+{
+    track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
+    const param_desc_t *d;
+    ce_ref_t r;
+    int32_t v0, nv, snd;
+    uint32_t ch = cu_cc_ch(part);
+    if (ch && crm_echo_hit(&cu_echo, ch - 1u, cc, v, cu_now())) {
+        cu_trace("cc: in part %u cc %u %u: our echo\n", (unsigned)part, (unsigned)cc, (unsigned)v);
+        return;
+    }
+    if (!ce_cc_ref(t, cc, &r) || !(d = ce_param(t, r, &v0))) {
+        cu_trace("cc: in part %u cc %u %u: no cell\n", (unsigned)part, (unsigned)cc, (unsigned)v);
+        return;
+    }
+    snd = ce_send_ref(t, r);
+    nv = crm_cc_val(v, d->min, d->max, ce_cc_list(d));
+    if (snd >= 0) {
+        cu_send_set(part, (uint32_t)snd, (int32_t)v);   /* (a send: 0..127, the CC itself) */
+        nv = cu_send(part, (uint32_t)snd);
+    } else if (r.k == CE_R_DEEP) {
+        const eng_deep_t *dd = cp_deep(t);
+        if (nv != v0) {
+            dd->set(t, r.a, r.b, nv);
+            cu_edited(part);
+        }
+        nv = dd->get(t, r.a, r.b);
+    } else {
+        fm1_irq_off();
+        t->p[r.a] = (int16_t)nv;
+        fm1_irq_on();
+        if (nv != v0)
+            cu_edited(part);
+    }
+    if ((d = ce_param(t, r, &v0)) != 0)           /* (a mode-dependent descriptor: the one the value has now) */
+        ce_cc_show(part, t, r, d, nv);
+    cu_trace("cc: in part %u cc %u %u -> %s %d%s\n", (unsigned)part, (unsigned)cc, (unsigned)v, d ? d->label : "?",
+             (int)nv, psnd[part].edited ? " edited" : "");
+}
+
+/* the editor's knob turned cell r of the view: its CCs out (the group's block, the common one) */
+static void ce_knob_cc(const track_t *t, const ce_view_t *vw, ce_ref_t r, uint32_t knob)
+{
+    uint32_t p = ce.part & 1u, g = cx.grp[p] % CE_NSEC;
+    ce_cc_out(p, t, r, g, cx.scr[p][g], vw->active, knob & 3u);
+}
 /* KNOB 1..4 on the active lane's cell (snap: SHIFT latched or held: cr_pages.c kn_snap; else at the knob's speed) */
 static void ce_knob(uint32_t knob, int32_t s, uint32_t snap)
 {
@@ -1398,6 +1645,7 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t snap)
             dd->set(t, r.a, r.b, v);
             v = dd->get(t, r.a, r.b);
             cu_edited(ce.part);
+            ce_knob_cc(t, &vw, r, knob);
         }
         ce_trace_value(d, v, b, sizeof b);
 #if defined(CR_TRACE) && CR_LAYC_N
@@ -1419,6 +1667,8 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t snap)
                                                     * FM TONE's Drive is the sound's: cu_send_set marks it edited */
         v = cu_send_step(v0, s, snap || cx.shift);                /* (a send's one step, as the FX layer's) */
         cu_send_set(ce.part, i, v);
+        if (v != v0)
+            ce_knob_cc(t, &vw, r, knob);
         cu_send_text(v, b, sizeof b);
         cu_trace("param: part %u %s %s %d -> %d (%s)%s\n", (unsigned)ce.part, CE_SEC_NAME[cx.grp[ce.part & 1u] % CE_NSEC],
                  d->label, (int)v0, (int)v, b, cu_send_quad(ce.part, i) && psnd[ce.part].edited ? " edited" : "");
@@ -1427,8 +1677,10 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t snap)
     fm1_irq_off();
     t->p[r.a] = (int16_t)v;
     fm1_irq_on();
-    if (v != v0)
+    if (v != v0) {
         cu_edited(ce.part);
+        ce_knob_cc(t, &vw, r, knob);
+    }
     cp_value(d, v, b, sizeof b);
     cu_trace("param: part %u %s %s %d -> %d (%s)\n", (unsigned)ce.part, CE_SEC_NAME[cx.grp[ce.part & 1u] % CE_NSEC],
              d->label, (int)v0, (int)v, b);

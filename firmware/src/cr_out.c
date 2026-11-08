@@ -519,7 +519,8 @@ enum {
     CRE_FULLCHORD,    /* v: the Full keyboard's G5 (Full K Shorts): 0 none, 1 chords on every key, 2 single notes
                        * (cr_set_full_chords) */
     CRE_LOOP,         /* a: LP_*, b / v: its argument */
-    CRE_AT            /* v: the keys' aftertouch 0..127 (cr_ui.c cu_touch_poll): both parts, channel pressure out */
+    CRE_AT,           /* v: the keys' aftertouch 0..127 (cr_ui.c cu_touch_poll): both parts, channel pressure out */
+    CRE_CCOUT         /* a: channel 0..15, b: CC, v: value (Options > MIDI CC Out: a knob turned on a mapped cell) */
 };
 /* CRE_LOOP's operations */
 enum { LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR, LP_SET, LP_QUEUE, LP_CONF, LP_METRO,
@@ -664,6 +665,7 @@ static void cr_apply(const cr_ev_in_t *e)
     case CRE_FULLCHORD: cr_set_full_chords(&cr, e->v); break;
     case CRE_LOOP: cr_loop_op(e); break;
     case CRE_AT: cr_touch_at((uint32_t)e->v); break;
+    case CRE_CCOUT: cr_midi(0xB0u | (e->a & 15u), e->b, (uint32_t)e->v); break;   /* (where the notes go: usb.c) */
     default: break;
     }
 }
@@ -677,8 +679,10 @@ static void cr_apply(const cr_ev_in_t *e)
  *                         LP_PLAY path, crm_transport), and Start restarts the Arp / Pattern on the downbeat. In Out
  *                         the loop's start / stop they cause is not sent back out (cr_rt_mute: no echo to the master)
  *   the CHORD / BASS channels (Options' channels; Off: ignored): CC 7 / 91 / 93 / 94 and program changes go to the UI
- *                         (cr_min_q: it applies them as a knob would, with the meter); notes, pedal, bend, pressure and
- *                         the other CCs (123: all notes off) go to midi_event (above) for part 0 or 1
+ *                         (cr_min_q: it applies them as a knob would, with the meter); with Options > MIDI CC In the
+ *                         CCs on the sounds' parameters too (cr_midi.c crm_cc_eng; 3y269), coalesced: the latest value
+ *                         per part and CC waits in cr_ccv and one queue entry says so (cr_cc_post); notes, pedal,
+ *                         bend, pressure and the other CCs (123: all notes off) go to midi_event (above) for part 0 or 1
  *   other channels        ignored */
 #include "cr_midi.c"
 static crm_clock_t cr_cin;
@@ -695,13 +699,46 @@ static uint32_t cr_rt_mute_until;                /* .. its change not sent back 
 static crm_act_t cr_minq[CR_MINQ];
 static volatile uint32_t cr_minq_w, cr_minq_r;
 
-static void cr_min_post(const crm_act_t *a)
+static int cr_min_post(const crm_act_t *a)
 {
     if (cr_minq_w - cr_minq_r >= CR_MINQ)
-        return;                                  /* (a burst of controllers: the latest values lost, nothing stuck) */
+        return 0;                                /* (a burst of controllers: the latest values lost, nothing stuck) */
     cr_minq[cr_minq_w % CR_MINQ] = *a;
     RING_PUBLISH();
     cr_minq_w++;
+    return 1;
+}
+/* Options > MIDI CC (3y269; the UI's cu_route writes it): bit 0 In (crm_map's cc_in), bit 1 Out (the UI's alone) */
+static volatile uint8_t cr_cc_mode = 3u;
+/* the CCs on the sounds' parameters, coalesced (a fast controller, a DAW's snapshot of every CC: never a queue
+ * overflow, never a stale value): per part, per crm_cc_slot, the latest value | 0x80 while the UI has not taken it.
+ * The ISR posts one cr_minq entry when a slot becomes pending (a full queue: cr_cc_sweep, the UI then looks at every
+ * slot); the UI takes the value with the IRQ off (cr_cc_take) */
+static uint8_t cr_ccv[2][CRM_NCC];
+static volatile uint8_t cr_cc_sweep;
+static void cr_cc_post(const crm_act_t *a)
+{
+    int32_t k = crm_cc_slot(a->kind & 0x7Fu);
+    uint8_t was;
+    if (k < 0 || a->part > 1u)
+        return;
+    was = cr_ccv[a->part][k];
+    cr_ccv[a->part][k] = (uint8_t)(0x80u | a->v);
+    if (!(was & 0x80u) && !cr_min_post(a))
+        cr_cc_sweep = 1;
+}
+static int cr_cc_take(uint32_t part, uint32_t cc, uint32_t *v)   /* the UI: 1 with the value pending (then taken) */
+{
+    int32_t k = crm_cc_slot(cc);
+    uint8_t b;
+    if (k < 0 || part > 1u)
+        return 0;
+    fm1_irq_off();
+    b = cr_ccv[part][k];
+    cr_ccv[part][k] = (uint8_t)(b & 0x7Fu);
+    fm1_irq_on();
+    *v = b & 0x7Fu;
+    return (b & 0x80u) != 0;
 }
 static int cr_min_take(crm_act_t *a)             /* the UI */
 {
@@ -846,12 +883,17 @@ static void cr_midi_in(void)
                     cr_mkq_post(kev);
                 continue;
             }
-            n = crm_map(status, d1, d2, en, ch, a);
+            n = crm_map(status, d1, d2, en, ch, cr_cc_mode & 1u, a);
             for (i = 0; i < n; i++) {
                 if (a[i].kind == CRM_FORWARD)
                     midi_event(status & 0xF0u, a[i].part, d1, d2);
+                else if ((a[i].kind & CRM_CC) && (d1 != 38u || cr_mchan(a[i].part)->rpn_msb || cr_mchan(a[i].part)->rpn_lsb))
+                    cr_cc_post(&a[i]);
+                else if (a[i].kind & CRM_CC)     /* CC 38 with RPN 0 selected: its data entry (the bend range's
+                                                  * cents), as before; else FILT's block like its neighbours */
+                    midi_event(status & 0xF0u, a[i].part, d1, d2);
                 else
-                    cr_min_post(&a[i]);
+                    (void)cr_min_post(&a[i]);
             }
         }
     }

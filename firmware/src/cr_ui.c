@@ -600,6 +600,8 @@ static struct {
     uint8_t full_short;                   /* .. Full K Shorts: F#5 / G5 are the Full keyboard's shortcut keys */
     uint8_t midi_keys;                    /* .. MIDI Keys: the channel (1 .. 16) whose notes 53 .. 79 press the keys F3 ..
                                            * G5; 0 Off */
+    uint8_t midi_cc;                      /* Options > MIDI CC (3y269): bit 0 In, bit 1 Out (0 Off .. 3 In+Out, the
+                                           * default) */
 #if BOARD_SMK37
     uint8_t smk_pedal;                    /* Options > Pedal: the pedal jack 0 Sustain, 1 Expression (the session's:
                                            * cr_settings.h smk_pedal; cr_smk_pedal) */
@@ -1178,6 +1180,7 @@ static void cu_route(void)                        /* Options > MIDI: channels an
     }
     cr_route.part[CR_STREAM_RAW] = cs.raw_sound ? CR_PART_CHORD : CR_NOPART;
     cr_mkeys_ch = cs.midi_keys;                   /* MIDI Keys (0 Off; never a part's channel: opt_set) */
+    cr_cc_mode = cs.midi_cc;                      /* MIDI CC (the ISR's In; Out is cr_edit.c cu_cc_send's) */
     cr_post(CRE_STREAM, CR_STREAM_RAW, 0, cs.ch[CR_STREAM_RAW] || cs.raw_sound);
 }
 
@@ -1190,7 +1193,7 @@ enum { O_STYLE, O_EXTADD, O_SECRET,
        O_PEDAL,                           /* the SMK-37's pedal jack (cr_smk_pedal): not in the FM-1's list */
 #endif
        O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
-       O_CLOCK,
+       O_CLOCK, O_MIDI_CC,
 #if CR_BLE
        O_BLE, O_BLE_FORGET,               /* Bluetooth MIDI (cr_ble.c, 3y236; FM-1 only) */
 #endif
@@ -1214,7 +1217,7 @@ static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Sec
     "Pedal",
 #endif
     "Bass Behaviour", "Single Notes", "Split Point", "MIDI Perform", "MIDI Bass", "MIDI Raw Chord", "Raw Chord Sound",
-    "MIDI Clock",
+    "MIDI Clock", "MIDI CC",
 #if CR_BLE
     "Bluetooth", "Forget Bluetooth",
 #endif
@@ -1232,7 +1235,7 @@ static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 
                                    1,
 #endif
                                    3, 2, 11, 16, 16,
-                                   16, 1, 2,
+                                   16, 1, 2, 3,
 #if CR_BLE
                                    1, 0,
 #endif
@@ -1329,6 +1332,7 @@ static int32_t opt_get(uint32_t o)
     case O_CH_MAIN: case O_CH_BASS: case O_CH_RAW: return cs.ch[o - O_CH_MAIN];
     case O_RAW_SOUND: return cs.raw_sound;
     case O_CLOCK: return cr_route.clock_in ? 2 : cr_route.clock_out;
+    case O_MIDI_CC: return cs.midi_cc;
 #if CR_BLE
     case O_BLE: return cr_ble_on();
 #endif
@@ -1394,6 +1398,7 @@ static void opt_set(uint32_t o, int32_t v)
         break;
     case O_RAW_SOUND: cs.raw_sound = (uint8_t)v; cu_route(); break;
     case O_CLOCK: cr_route.clock_in = (uint8_t)(v == 2); cr_route.clock_out = (uint8_t)(v == 1); break;
+    case O_MIDI_CC: cs.midi_cc = (uint8_t)v; cu_route(); break;
 #if CR_BLE
     case O_BLE:                                   /* (not in cs: the Bluetooth record keeps it, cr_ble.c) */
         if (!cr_ble_set((int)v))
@@ -1511,6 +1516,7 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
         else { cu_cpy(d, "ch ", n); cu_int(d + 3, v, 0, n > 3u ? n - 3u : 0u); }
         break;
     case O_CLOCK: cu_cpy(d, CLOCK[v % 3], n); break;
+    case O_MIDI_CC: cu_cpy(d, v == 3 ? "In + Out" : v == 2 ? "Out" : v ? "In" : "Off", n); break;
 #if CR_BLE
     case O_BLE: cu_cpy(d, v ? "On" : "Off", n); break;
     case O_BLE_FORGET: cu_cpy(d, cu_ble_ask ? "OCT+ again: forget" : "the paired computer", n); break;
@@ -4207,6 +4213,8 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             uint32_t sid = CU_FX[e].send;
             v = cu_send(0, sid);
             cu_send_set(0, sid, cu_send_step(v, s, kn.snap));
+            if (cu_send(0, sid) != v)
+                cu_cc_send_trk(0, sid);           /* (MIDI CC Out: CC 91 92 93 94 on MIDI Perform's channel) */
             cu_hot_set(L_FX, knob);               /* (no popup: the knob row is the readout, its cell turns hot) */
             cu_trace("fx: knob %u %s send %u\n", (unsigned)knob + 1u, CU_FX[e].name, (unsigned)cu_send(0, sid));
             break;
@@ -4258,7 +4266,10 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cu_bass_go((uint32_t)(v < 0 ? 0 : v));
             cu_trace("bass: knob 3 sound %u\n", (unsigned)cs.bass_sound);
         } else {                                   /* LEVEL */
+            v = trk[CR_PART_BASS].p[P_LEVEL];
             trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)cu_kval(trk[CR_PART_BASS].p[P_LEVEL], s, 0, 127, kn.snap);
+            if (trk[CR_PART_BASS].p[P_LEVEL] != v)
+                cu_cc_send_trk(1, P_LEVEL);       /* (MIDI CC Out: CC 7 on MIDI Bass's channel) */
             cu_trace("bass: knob 4 level %d\n", (int)trk[CR_PART_BASS].p[P_LEVEL]);
         }
         cu_hot_set(L_BASS, knob);                 /* (no popup: the knob row is the readout, its cell turns hot) */
@@ -5297,8 +5308,10 @@ static int cu_bass_level_hold(int32_t s)
             cu_opened(BT_BASS);
         }
     }
-    (void)v;
+    v = trk[CR_PART_BASS].p[P_LEVEL];
     trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)cu_kval(trk[CR_PART_BASS].p[P_LEVEL], s, 0, 127, 0);
+    if (trk[CR_PART_BASS].p[P_LEVEL] != v)
+        cu_cc_send_trk(1, P_LEVEL);               /* (MIDI CC Out) */
     if (cu_layer() == L_BASS)
         cu_hot_set(L_BASS, 3);
     else
@@ -5557,7 +5570,10 @@ static void cu_knob(uint32_t role, int32_t s)
         cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][0], s, 1);
         break;
     case EN_K4:
+        v = cu_send(0, CU_FX[cs.fx_sel].send);
         cu_send_set(0, CU_FX[cs.fx_sel].send, cu_send_step(cu_send(0, CU_FX[cs.fx_sel].send), s, kn.snap));
+        if (cu_send(0, CU_FX[cs.fx_sel].send) != v)
+            cu_cc_send_trk(0, CU_FX[cs.fx_sel].send);   /* (MIDI CC Out) */
         cu_send_popup(cu_send(0, CU_FX[cs.fx_sel].send), CU_FX[cs.fx_sel].name, CR_COL_GREEN);
         cu_trace("send: knob 4 %s %u (%u%%)\n", CU_FX[cs.fx_sel].name, (unsigned)cu_send(0, CU_FX[cs.fx_sel].send),
                  (unsigned)cu_send_pct(cu_send(0, CU_FX[cs.fx_sel].send)));
@@ -6068,6 +6084,7 @@ static void cu_smk_faders(void)
         if (cc.on)
             continue;
         cu_send_set(cu_fbank, CU_FX[fx].send, (int32_t)v);
+        cu_cc_send_trk(cu_fbank, CU_FX[fx].send);   /* (MIDI CC Out) */
         cu_send_popup((int32_t)v, CU_FX[fx].name, cu_fbank ? CR_COL_ORANGE : CR_COL_GREEN);
         cu.last_input = cu.last_local = cu_now();
     }
@@ -7754,6 +7771,8 @@ static void cu_options_screen(cr_screen_t *s)
         cu_cpy(s->label, "Full: F#5 chord keys \267 G5 chords", sizeof s->label);
     else if (cu.opt_sel == O_MIDI_KEYS)
         cu_cpy(s->label, "notes 53..79 press F3..G5", sizeof s->label);
+    else if (cu.opt_sel == O_MIDI_CC)              /* (docs/MANUAL.md section 15: the CCs on the sounds' parameters) */
+        cu_cpy(s->label, cs.midi_cc ? "the sounds' parameters" : "CC 7 91 93 94 only", sizeof s->label);
     else if (cu.opt_sel == O_SIXTH)                /* (docs/CHORD-NAMES.md "The 6th above a seventh": C7 + 6 and the like) */
         cu_cpy(s->label, cs.sixth_up ? "6 + 7: the 6th on top, a 13th" : "6 + 7: the 6th under the 7th", sizeof s->label);
 #if BOARD_SMK37
@@ -8596,7 +8615,16 @@ static void cu_midi_poll(void)
         cu_trace("bpm: %u (clock in)\n", (unsigned)cs.bpm);
     }
     while (cr_min_take(&a)) {
-        uint32_t p = a.part ? CR_PART_BASS : CR_PART_CHORD, i;
+        uint32_t p = a.part ? CR_PART_BASS : CR_PART_CHORD, i, ch = cu_cc_ch(a.part ? 1u : 0u), v;
+        if (a.kind & CRM_CC) {                    /* a CC on a sound's parameter: its latest value (cr_out.c cr_cc_take) */
+            if (cr_cc_take(a.part ? 1u : 0u, a.kind & 0x7Fu, &v))
+                ce_cc_in(a.part ? 1u : 0u, a.kind & 0x7Fu, v);
+            continue;
+        }
+        if (a.kind != CRM_PROGRAM && ch &&        /* CC 7 91 93 94: our own echo (MIDI CC Out) changes nothing */
+            crm_echo_hit(&cu_echo, ch - 1u, a.kind == CRM_LEVEL ? 7u : a.kind == CRM_SEND_REV ? 91u
+                         : a.kind == CRM_SEND_CHO ? 93u : 94u, a.v, cu_now()))
+            continue;
         if (a.kind == CRM_PROGRAM) {
             if (!p) {                             /* the chord part's pool position (0 INIT) */
                 if (a.v >= pool_count(trk[CR_PART_CHORD].eng_req % NENGINES))
@@ -8627,6 +8655,14 @@ static void cu_midi_poll(void)
             cu_send_popup(a.v, i < CU_NFX ? CU_FX[i].name : "send", p ? CR_COL_ORANGE : CR_COL_GREEN);
             cu_trace("send: part %u %s %u (cc)\n", (unsigned)p, i < CU_NFX ? CU_FX[i].name : "?", (unsigned)a.v);
         }
+    }
+    if (cr_cc_sweep) {                            /* (the queue was full: every pending value, part by part) */
+        uint32_t p, cc, v;
+        cr_cc_sweep = 0;
+        for (p = 0; p < 2u; p++)
+            for (cc = 0; cc < 128u; cc++)
+                if (crm_cc_eng(cc) && cr_cc_take(p, cc, &v))
+                    ce_cc_in(p, cc, v);
     }
 }
 
@@ -8826,6 +8862,7 @@ static void cr_ui_init(void)
     fx_output_set(1, 1);                          /* (a build without the record: nothing else tells fx.c) */
 #endif
     cs.usb_in = 1;                                /* (the record's, cr_settings_load; usb.c got it at boot) */
+    cs.midi_cc = 3;                               /* Options > MIDI CC In + Out (the record's) */
     cu_route();
     cu_set_tempo(cr.bpm ? cr.bpm : 120);
 #if CR_HAVE_SETTINGS

@@ -7748,3 +7748,48 @@ backup first (`~/fm1-backups/fm1-backup-E81CE2F7-2026-11-08-before-0.32.json`, s
 -dimsu fm1_install.py choralroot-0.32.fwsc --unit E81CE2F7 --yes`, exit 0, the same unit after the restart. After:
 `--info` ChoralRoot 0.32, E81CE2F7; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, crash_count 0, stub v3 64.4 ms,
 stale_halves 0, `flash_late_ops 0`, `flash_late_max_us 0` (the Puya part), Bluetooth Off.
+
+## 2026-11-08 (MIDI CC on the sounds' parameters, in and out)
+
+3y269. **MIDI CC sets the sounds' parameters, and a knob turn sends it.** The owner's design (2026-11-08, its
+sections 1 and 1b): a CC on MIDI Perform's channel sets a parameter of the chord sound, on MIDI Bass's the bass
+sound's (one channel for both: both), as a knob turn on that cell would; the CCs ChoralRoot used keep their meaning
+(1 2 4 5 7 11 64 65 91 93 94 120..123, RPN 6 / 38 / 100 / 101). Two kinds. The common CCs, one meaning on every
+engine that has the thing: 10 Pan, 92 the Drive send (the fourth beside 91 93 94; FM TONE: the sound's Drive, as the
+FX group's cell), 74 / 71 cutoff / resonance, 73 75 79 72 the amp envelope, 76 / 77 LFO 1's rate / depth; a small
+const table of built-in (page title, column label) pairs (`cr_edit.c CE_CCC`, P5's compiled rows reach the column
+they bind), WHEEL (no deep pages) the platform's ENV and LFO, FM6 and CZ-1 no filter and no ADSR. The editor's
+blocks: OSC 16..31, FILT 32..47, ENV 48..63, LFO 102..113, MOD 80..90, the group's lanes in SELECT order across its
+screens, four CCs a lane = KNOB 1..4, what does not fit has no CC, an empty cell keeps its slot. No per-engine table:
+`ce_view` is now `ce_view_at(g, k, ln)` (the view of any screen and lane; `ce_view` calls it with the part's own),
+and `ce_cc_lane` walks `ce_scr` / `ce_lanes`, so a CC is always the cell the editor shows there. CC 38 is FILT's
+like its neighbours unless RPN 0 is selected on the part (then the bend range's cents, as before). The value: 0..127
+over the descriptor's range, rounded; a list (F_ENUM, F_ONOFF) in equal slices; out the reverse, rounded to the
+nearest CC (a list: its slice's middle), so value -> CC -> value is exact for 128 steps or fewer (`cr_midi.c
+crm_cc_val` / `crm_cc_out`, pure). In: the audio interrupt's MIDI in (`cr_out.c cr_cc_post`) keeps the latest value
+per part and CC (`cr_ccv[2][81]`, bit 7 pending) and posts one `cr_minq` entry (kind `CRM_CC | cc`) only when a slot
+becomes pending; a full queue asks the UI to sweep every slot (`cr_cc_sweep`): a fast knob or a DAW's snapshot of
+every CC never overflows and never leaves a stale value. The main loop (`cu_midi_poll` -> `ce_cc_in`) sets the cell
+the three ways `ce_knob` does (a deep column, a send through `cu_send_set`, a track parameter), marks the sound
+edited, and shows it as a knob turn: the hot cell when the editor shows that cell of that part, else the knobs'
+popup (a send's as CC 91's; else the value big, its unit under it, "bass attack"). Out (`cu_cc_send`, posted as
+`CRE_CCOUT` to the audio interrupt, which sends it with the notes: USB, TRS on the SMK-37, Bluetooth): the editor's
+knobs (a cell's block CC and its common CC: the VA's cutoff sends 32 and 74), the FX layer's and the FX group's sends
+(91..94), KNOB 4, the bass level both ways (7), the MIX group's Level / Pan (7 / 10), the SMK-37's faders; not on a
+preset load or an engine change; nothing on a part whose channel is Off. The echo guard: the last eight CCs sent
+(channel, CC, value, ms / 8; `crm_echo_*`): one coming back equal to one of them within a second is ignored, CC 7 /
+91 / 93 / 94 too. Options > **MIDI CC** Off / In / Out / In + Out (In + Out the default), after MIDI Clock, in
+`raw_sound` bits 6 / 7 (set = that direction off: 0, every older record's, is In + Out, no version; automatic as the
+other MIDI Options); a firmware before it reads a non-default byte as Raw Chord Sound and MIDI Keys Off. With In off
+those CCs are forwarded as before. Static state +198 B in RAM (`cr_ccv` 162, the echo ring 33, two flags, the
+option's byte), none in .pool. `./build.sh`: XIP 554,880 -> 558,788 (+3,908), RAM 84,784 -> 85,008, POOL 334,184
+unchanged; `BOARD=smk37 ./build.sh`: XIP 554,832 -> 558,816, RAM 81,580 -> 81,772, POOL 331,492 unchanged. Tests:
+`tests/cr_midi_test.c` (which CCs, the blocks both ways, the scaling's round trip for every range of 2..128 steps and
+the wide ones, the echo guard, MIDI CC In off; 65 checks), `tests/cr_cc_test.c` in `run_cr_tests.sh` (on the
+emulator's firmware: the common CCs on the seven engines, every block CC on every engine the cell SELECT reaches at
+its lane, FM TONE and VA pairs, CCs in through usb.c's queue (coalesced, the sweep, the hot cell, the popup, CC 38
+with RPN 0), out from the editor, the FX group, MIX, KNOB 4, the echo guard, the option's four values, a channel Off;
+32 checks; `--map` prints MANUAL section 15's tables), `tests/cr_settings_test.c t_midi_cc`. `sh
+tests/run_cr_tests.sh`: all pass. The emulators (`tools/emu/build.sh`, `tools/emu/web/build_web.sh`) build: they run
+the same firmware, so a CC into the emulator's MIDI in does the same. MANUAL section 15 "MIDI CC" (the common table,
+the block rule, each engine's map), Options; SETTINGS.md. Not tried on a unit.

@@ -3,7 +3,9 @@
 /* ChoralRoot FM-1: MIDI in, the pure part (no firmware state; tests/cr_midi_test.c). cr_out.c includes it and does
  * the plumbing (docs/INTEGRATION.md section 2):
  *   crm_clock_*   the clock-in tempo follower: 24 PPQN pulses (ms stamps) -> BPM 20..300, averaged over a beat
- *   crm_map       a channel message on the CHORD / BASS channels -> what ChoralRoot does with it */
+ *   crm_map       a channel message on the CHORD / BASS channels -> what ChoralRoot does with it
+ *   crm_cc_*      the CCs on the sounds' parameters (Options > MIDI CC; docs/MANUAL.md section 15 "MIDI in"): which
+ *                 CCs, the editor's blocks, the 0..127 scaling both ways, the echo guard (HISTORY 3y269) */
 #include <stdint.h>
 
 /* ---------------------------------------------------- the clock follower --- */
@@ -69,12 +71,102 @@ enum {
     CRM_SEND_REV, CRM_SEND_CHO, CRM_SEND_DLY,   /* v: the part's send 0..127 */
     CRM_PROGRAM      /* v: the sound list position (PRESETS / ALGORITHM) */
 };
+#define CRM_CC 0x80u     /* kind CRM_CC | cc: a CC on a sound's parameter (crm_cc_eng), v its value 0..127 */
 typedef struct { uint8_t kind, part; uint8_t v; } crm_act_t;
 
+/* ------------------------------------------- CCs on the sounds' parameters --- */
+/* Options > MIDI CC In (3y269): these CCs set a parameter of the part's sound (cr_edit.c ce_cc_in), the others are
+ * as before. 10 Pan, 92 the Drive send, 71..77 and 79 the common ones (cutoff, resonance, the amp envelope, LFO 1),
+ * then the editor's groups, a block each (the group's lanes in SELECT order, four CCs a lane = KNOB 1..4; what does
+ * not fit the block has no CC): OSC 16..31, FILT 32..47, ENV 48..63, LFO 102..113, MOD 80..90 */
+static const uint8_t CRM_BLK[5][2] = {{16, 16}, {32, 16}, {48, 16}, {102, 12}, {80, 11}};   /* first CC, CCs */
+#define CRM_NCC 81u      /* the CCs crm_cc_eng takes (crm_cc_slot: 0 .. CRM_NCC - 1) */
+static int crm_cc_eng(uint32_t cc)
+{
+    return cc == 10u || (cc >= 16u && cc <= 63u) || (cc >= 71u && cc <= 79u && cc != 78u) || (cc >= 80u && cc <= 90u) ||
+           cc == 92u || (cc >= 102u && cc <= 113u);
+}
+/* a CC of crm_cc_eng -> 0 .. CRM_NCC - 1 (its place in cr_out.c's pending values), -1 another */
+static int32_t crm_cc_slot(uint32_t cc)
+{
+    if (!crm_cc_eng(cc))
+        return -1;
+    return cc == 10u ? 0 : cc <= 63u ? (int32_t)cc - 15 : cc <= 77u ? (int32_t)cc - 22 : cc == 79u ? 56
+         : cc <= 90u ? (int32_t)cc - 23 : cc == 92u ? 68 : (int32_t)cc - 33;
+}
+/* an editor block's CC -> its group (0 OSC .. 4 MOD; -1: not a block's), *lane the lane 0.. in the group, *knob 0..3 */
+static int32_t crm_cc_block(uint32_t cc, uint32_t *lane, uint32_t *knob)
+{
+    uint32_t g;
+    for (g = 0; g < 5u; g++)
+        if (cc >= CRM_BLK[g][0] && cc < (uint32_t)CRM_BLK[g][0] + CRM_BLK[g][1]) {
+            *lane = (cc - CRM_BLK[g][0]) / 4u;
+            *knob = (cc - CRM_BLK[g][0]) % 4u;
+            return (int32_t)g;
+        }
+    return -1;
+}
+/* .. and back: group g's lane, knob -> its CC, 0 none (past the block) */
+static uint32_t crm_cc_of(uint32_t g, uint32_t lane, uint32_t knob)
+{
+    uint32_t i = lane * 4u + (knob & 3u);
+    return g < 5u && i < CRM_BLK[g][1] ? CRM_BLK[g][0] + i : 0u;
+}
+/* 0..127 -> lo..hi: linear, rounded; list (an enum's names): equal slices. So value -> CC -> value is the value again
+ * for a range of 128 steps or fewer (crm_cc_out rounds to the nearest CC, a list to its slice's middle) */
+static int32_t crm_cc_val(uint32_t cc, int32_t lo, int32_t hi, int list)
+{
+    cc &= 0x7Fu;
+    if (hi <= lo)
+        return lo;
+    if (list)
+        return lo + (int32_t)(cc * (uint32_t)(hi - lo + 1) / 128u);
+    return lo + (int32_t)((cc * (uint32_t)(hi - lo) + 63u) / 127u);
+}
+static uint32_t crm_cc_out(int32_t v, int32_t lo, int32_t hi, int list)
+{
+    uint32_t r, n;
+    if (hi <= lo)
+        return 0;
+    v = v < lo ? lo : v > hi ? hi : v;
+    r = (uint32_t)(v - lo);
+    n = (uint32_t)(hi - lo);
+    if (list) {                                 /* the middle of the slice: its CCs are ceil(r * 128 / (n + 1)) .. */
+        uint32_t a = (r * 128u + n) / (n + 1u), b = ((r + 1u) * 128u + n) / (n + 1u);
+        return a < b ? (a + b - 1u) / 2u : a > 127u ? 127u : a;   /* (more than 128 names: a slice may be empty) */
+    }
+    return (r * 127u + n / 2u) / n;
+}
+/* the echo guard: the CCs the FM-1 sent last (channel, CC, value, when), so that a DAW echoing them back does not move
+ * the parameter again (a value of more than 128 steps would jitter on its CC's rounding, an old echo would step it
+ * back). An incoming CC equal to one sent on its channel within CRM_ECHO_MS is ignored */
+#define CRM_ECHO_N 8u
+#define CRM_ECHO_MS 1000u
+typedef struct { uint8_t ch, cc, v, t; } crm_echo_t;     /* ch + 1 (0: an unused entry), the CC, its value, ms / 8 */
+typedef struct { crm_echo_t e[CRM_ECHO_N]; uint8_t w; } crm_echoes_t;
+static void crm_echo_note(crm_echoes_t *x, uint32_t ch, uint32_t cc, uint32_t v, uint32_t ms)
+{
+    crm_echo_t *e = &x->e[x->w++ % CRM_ECHO_N];
+    e->ch = (uint8_t)((ch & 15u) + 1u);
+    e->cc = (uint8_t)(cc & 0x7Fu);
+    e->v = (uint8_t)(v & 0x7Fu);
+    e->t = (uint8_t)(ms >> 3);
+}
+static int crm_echo_hit(const crm_echoes_t *x, uint32_t ch, uint32_t cc, uint32_t v, uint32_t ms)
+{
+    uint32_t i;
+    for (i = 0; i < CRM_ECHO_N; i++)
+        if (x->e[i].ch == (ch & 15u) + 1u && x->e[i].cc == (cc & 0x7Fu) && x->e[i].v == (v & 0x7Fu) &&
+            (uint8_t)((uint8_t)(ms >> 3) - x->e[i].t) < CRM_ECHO_MS / 8u)   /* (the stamp wraps at 2 s: within 1 s) */
+            return 1;
+    return 0;
+}
+
 /* status (0x80..0xEF), d1, d2; the CHORD and BASS channels (0..15, en 0: Off). Up to two actions (one channel can
- * be both: part 0 and part 1 then). Returns the number written to a[]. */
+ * be both: part 0 and part 1 then). cc_in: Options > MIDI CC In (the CCs of crm_cc_eng: CRM_CC; off: forwarded as
+ * before). Returns the number written to a[]. */
 static int crm_map(uint32_t status, uint32_t d1, uint32_t d2, const uint8_t en[2], const uint8_t ch[2],
-                   crm_act_t a[2])
+                   uint32_t cc_in, crm_act_t a[2])
 {
     uint32_t st = status & 0xF0u, c = status & 0x0Fu, p;
     int n = 0;
@@ -84,7 +176,7 @@ static int crm_map(uint32_t status, uint32_t d1, uint32_t d2, const uint8_t en[2
             continue;
         if (st == 0xB0u)
             k = d1 == 7u ? CRM_LEVEL : d1 == 91u ? CRM_SEND_REV : d1 == 93u ? CRM_SEND_CHO
-              : d1 == 94u ? CRM_SEND_DLY : CRM_FORWARD;
+              : d1 == 94u ? CRM_SEND_DLY : cc_in && crm_cc_eng(d1) ? (uint8_t)(CRM_CC | d1) : CRM_FORWARD;
         else if (st == 0xC0u)
             k = CRM_PROGRAM;
         else if (st == 0x80u || st == 0x90u || st == 0xA0u || st == 0xD0u || st == 0xE0u)

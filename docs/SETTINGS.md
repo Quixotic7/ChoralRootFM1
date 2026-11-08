@@ -52,6 +52,7 @@ from a layer: it goes with the layer (manual).
 | Raw Chord Sound | Options | block `raw_sound` bit 0 | **automatic** |
 | MIDI Keys (0.24, docs/CHORD-LAYOUT.md) | Options | block `raw_sound` bits 1 .. 5 (`CRS_MIDI_KEYS`: 0 Off, 1 .. 16 the channel) | **automatic** |
 | MIDI Clock | Options | block `clock_mode` | **automatic** |
+| MIDI CC (3y269: Off, In, Out, In + Out; docs/MANUAL.md section 15) | Options | block `raw_sound` bits 6 / 7 (`CRS_MIDI_CC`: set = In / Out off, so 0, every older record's, is In + Out, the default: no version) | **automatic** |
 | Motion | Options | block `motion` | **automatic** |
 | Chord Names (0.20) | Options | block `pick_roots` bit 3 | **automatic** |
 | LEDs | Options | block `leds` bit 0 (bit 1: 0.25.1's move to the FM-1 chord keys, `CRS_KEYS_MOVED`, written with it) | **automatic** |

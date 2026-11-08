@@ -1755,6 +1755,7 @@ Tap **OPT** (printed GLO). One setting fills the screen:
 | **MIDI Raw Chord** | Off, ch 1 to ch 16 | Off | the channel for the plain chord, without the performance mode. From Off the first step is ch 1; choose a channel of its own (the Orchid uses 3) |
 | **Raw Chord Sound** | Off, On | Off | On: the plain chord also plays on the chord sound, under an arpeggio or pattern. With no performance mode on, every note then sounds twice |
 | **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop; incoming start / stop work as LOOP. In: follows the clock and start / stop |
+| **MIDI CC** | Off, In, Out, In + Out | In + Out | CCs on the sounds' parameters ([MIDI CC](#midi-cc-the-sounds-parameters)). In: a CC sets the parameter; Out: a knob turned on such a parameter sends its CC. Off: only CC 7, 91, 93 and 94 as before. New after 0.32 |
 | **Bluetooth** | Off, On | Off | the FM-1 only: MIDI over Bluetooth, the same MIDI as over USB ([Bluetooth MIDI](#bluetooth-midi)); the first On takes effect at the next power-on. The line under it says what the link is doing. Kept apart from the other settings (Reset Settings leaves it, a backup does not carry it; Flash Data clears it) |
 | **Forget Bluetooth** | | | OCT+ twice: the FM-1 forgets the computer it paired with. Forget the FM-1 on that computer too |
 | **USB Host** | Off, On | Off | the FM-1 only: the USB-C port hosts a USB MIDI keyboard, controller or second FM-1 instead of talking to a computer ([USB Host](#usb-host-a-midi-device-on-the-fm-1s-usb-c)). Never saved: every start-up is a USB device again |
@@ -1899,7 +1900,8 @@ Over USB the computer sees one device, **ChoralRoot FM-1**: a MIDI port of that 
 | Raw Chord | MIDI Raw Chord, Off | the plain chord as a block, whatever the performance mode does |
 
 With MIDI Clock set to Out (the default) the FM-1 also sends MIDI clock at the tempo, a start when the loop starts
-playing and a stop when it stops. PANIC sends all notes off (CC 123).
+playing and a stop when it stops. PANIC sends all notes off (CC 123). With MIDI CC set to Out or In + Out (the
+default) a knob turned on a sound's parameter sends its CC on the part's channel ([MIDI CC](#midi-cc-the-sounds-parameters)).
 
 ### MIDI in (USB, Bluetooth and the TRS jack)
 
@@ -1911,6 +1913,7 @@ playing and a stop when it stops. PANIC sends all notes off (CC 123).
 | CC 7 | the part's level |
 | CC 91, 93, 94 | the part's reverb, chorus and delay sends (they stay until changed: a program change does not reset them). The screen shows the new send in per cent: controller value 127 is 100 % |
 | CC 64, pitch bend, CC 1, aftertouch | sustain, bend, and the modulation sources of the engines that use them |
+| CC 10, 92, 16 to 63, 71 to 77, 79, 80 to 90, 102 to 113 | with Options > MIDI CC In (the default): the sound's parameters, below |
 | start, continue, stop | with MIDI Clock set to Out or In: as the LOOP (PLAY) button; start also restarts the Arp / Pattern from its first step |
 | clock | with MIDI Clock set to In: the tempo follows it |
 
@@ -1924,6 +1927,185 @@ own keys F3 to G5, exactly as the keybed does: the chord keys of the layout you 
 Window, the Full keyboard and its shortcuts. The note's velocity plays the key; CC 120 and CC 123 let every key go;
 other notes and messages on that channel do nothing. It cannot be the MIDI Perform or MIDI Bass channel (those are
 skipped, and setting one of them to it switches MIDI Keys off).
+
+### MIDI CC: the sounds' parameters
+
+New after 0.32. With Options > **MIDI CC** set to In or In + Out (the default), a CC on the MIDI Perform channel sets
+a parameter of the chord sound, and on the MIDI Bass channel one of the bass sound (one channel for both: both).
+It acts exactly as a knob turn on that parameter in the [sound editor](#12-the-sound-editor): the sound is marked
+edited (`*`), the cell turns hot when the editor shows it, and otherwise the value shows large on the screen. A
+fast controller is fine: only the latest value of each CC is applied. The CCs ChoralRoot already used keep their
+meaning: 1, 2, 4, 5, 7, 11, 64, 65, 91, 93, 94, 120 to 123, and the RPN messages (6, 38, 100, 101; CC 38 is the
+filter block's below unless RPN 0, the bend range, is selected).
+
+With MIDI CC set to Out or In + Out it works the other way too: turning a knob on such a parameter (in the sound
+editor, the FX layer's sends, KNOB 4 on the home view, the bass level) sends its CC on the part's channel, where the
+notes go. A program change or an engine change sends nothing. A part whose channel is Off sends nothing. When the
+computer echoes a CC back, the FM-1 ignores a value it sent itself within the last second, so the knob does not
+jitter.
+
+The value: 0 to 127 spread evenly over the parameter's range (a list of names: in equal slices; FM TONE's values in
+hundredths, such as 0.00 to 127.00, in steps of 1.00). Out is the reverse, so a value of 128 steps or fewer comes
+back exactly.
+
+**The common CCs** mean the same on every engine that has the thing:
+
+| CC | Parameter |
+| --- | --- |
+| 10 | Pan (the MIX group's) |
+| 92 | the Drive send (with 91, 93 and 94: the four sends; FM TONE: the sound's own Drive, as its FX group's Drive cell) |
+| 74 / 71 | the filter's cutoff / resonance (FM TONE: Freq / Reso; FM6, CZ-1 and WHEEL have none) |
+| 73 / 75 / 79 / 72 | the amp envelope's attack / decay / sustain / release (FM TONE: AMP; VA, GRAIN, P5: ENV 1; WHEEL: the ENV page; FM6 and CZ-1: none) |
+| 76 / 77 | LFO 1's rate / depth (FM6: LFO Speed / PM depth; CZ-1: VIB Rate / Depth; P5: LFO Rate / Amount; WHEEL: Rate / Vibrato) |
+
+**The editor's blocks.** Each group of the sound editor has a block of CCs: **OSC 16 to 31, FILT 32 to 47, ENV 48
+to 63, LFO 102 to 113, MOD 80 to 90**. The group's lanes in the order SELECT steps through them (across its
+screens) take four CCs each, KNOB 1 to KNOB 4: lane 1 is the block's first four CCs, lane 2 the next four, and so
+on. A lane past the end of the block has no CC (the common CCs cover the usual ones), and an empty cell keeps its
+place. Because the map follows what the editor shows, it is the same on the screen and on the CC. The FX and MIX
+groups have no block: their parameters are CC 7, 10, 91 to 94. A MOD slot's Dest and Amount take their CC once
+the slot has a source, as on the knobs.
+
+Each engine's map (from `tests/cr_cc_test.c --map`, the firmware's own walk of the editor):
+
+**FM6**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 76 Speed, 77 PM depth |
+| 16-19 | OSC OP 1 · A: Level, Coarse, Fine, Detune |
+| 20-23 | OSC OP 2 · A: Level, Coarse, Fine, Detune |
+| 24-27 | OSC OP 3 · A: Level, Coarse, Fine, Detune |
+| 28-31 | OSC OP 4 · A: Level, Coarse, Fine, Detune |
+| 32-35 | FILT ALGO: Algo, Feedback, Transp, Osc sync |
+| 48-51 | ENV ENV 1: Rate 1, Rate 2, Rate 3, Rate 4 |
+| 52-55 | ENV ENV 1: Level 1, Level 2, Level 3, Level 4 |
+| 56-59 | ENV ENV 2: Rate 1, Rate 2, Rate 3, Rate 4 |
+| 60-63 | ENV ENV 2: Level 1, Level 2, Level 3, Level 4 |
+| 102-105 | LFO LFO: Speed, Delay, PM depth, AM depth |
+| 106-109 | LFO LFO: Wave, Sync, PM sens, - |
+| 80-83 | MOD FUNC: Bend, Porta, Engine, - |
+| 84-87 | MOD FUNC: Step, Porta md, Gliss, DX vel |
+| 88-90 | MOD CTRL: Wheel, W.dst, Foot, (none) |
+
+**FM TONE**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 74 Freq, 71 Reso, 73 Attack, 75 Decay, 79 Sustain, 72 Release, 76 Speed, 77 Depth |
+| 16-19 | OSC SYN 1 · A: Algo, Ratio c, Ratio a, Ratio b |
+| 20-23 | OSC SYN 1 · B: Harm, Dtune, Fdbk, Mix |
+| 24-27 | OSC SYN 2: Ofs c, Ofs a, Ofs b1, Ofs b2 |
+| 32-35 | FILT FILTER · A: Attack, Decay, Sustain, Release |
+| 36-39 | FILT FILTER · B: Freq, Reso, Type, Depth |
+| 40-43 | FILT FILTER 2 · A: Delay, Key trk, Shape, Gain |
+| 44-47 | FILT FILTER 2 · B: Base, Width, Bw rt, - |
+| 48-51 | ENV ENV A/B: A atk, A dec, A end, A lev |
+| 52-55 | ENV ENV A/B: B atk, B dec, B end, B lev |
+| 56-59 | ENV ENV 2: A dly, A trig, A reset, Phrt |
+| 60-63 | ENV ENV 2: B dly, B trig, B reset, Velocity |
+| 102-105 | LFO LFO 1 · A: Speed, Mult, Fade, Dest |
+| 106-109 | LFO LFO 1 · B: Wave, Phase, Trig, Depth |
+| 110-113 | LFO LFO 2 · A: Speed, Mult, Fade, Dest |
+| 80-83 | MOD MOD 1: -, -, Env>Filter, - |
+| 84-87 | MOD MOD 2: -, -, Env>Pitch, - |
+| 88-90 | MOD MOD 3: -, -, Env>Shape, (none) |
+
+**VA**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 74 Cutoff, 71 Reso, 73 Attack, 75 Decay, 79 Sustain, 72 Release, 76 Rate, 77 Depth |
+| 16-19 | OSC OSC 1 · A: Wave, Level, Coarse, Fine |
+| 20-23 | OSC OSC 2 · A: Wave, Level, Coarse, Fine |
+| 24-27 | OSC OSC 3 · A: Wave, Level, Coarse, Fine |
+| 28-31 | OSC OSC 4 · A: Wave, Level, Coarse, Fine |
+| 32-35 | FILT FILTER: Cutoff, Reso, Ftype, Env amt |
+| 36-39 | FILT FILTER: Key trk, -, Spread, Drive |
+| 48-51 | ENV ENV 1 · amp: Attack, Decay, Sustain, Release |
+| 52-55 | ENV ENV 1 · amp: Hold, Velocity, -, - |
+| 56-59 | ENV ENV 2 · filter: Attack, Decay, Sustain, Release |
+| 60-63 | ENV ENV 2 · filter: Hold, -, -, - |
+| 102-105 | LFO LFO 1 · A: Rate, Wave, Depth, Fade |
+| 106-109 | LFO LFO 2 · A: Rate, Wave, Depth, Fade |
+| 110-113 | LFO LFO 3 · A: Rate, Wave, Depth, Fade |
+| 80-83 | MOD MOD 1: Source, Dest, Amount, - |
+| 84-87 | MOD MOD 2: Source, Dest, Amount, - |
+| 88-90 | MOD MOD 3: Source, Dest, Amount, (none) |
+
+**CZ-1**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 76 Rate, 77 Depth |
+| 16-19 | OSC LINE 1 · A: Wave, Wave2, Window, Level |
+| 20-23 | OSC LINE 2 · A: Wave, Wave2, Window, Level |
+| 24-27 | OSC DETUNE: Sign, Oct, Note, Fine |
+| 28-31 | OSC OSC · MIX: Level, Level, -, - |
+| 32-35 | FILT DCW: DCW key 1, DCW key 2, DCW vel 1, DCW vel 2 |
+| 36-39 | FILT DCW: DCA key 1, DCA key 2, DCA vel 1, DCA vel 2 |
+| 48-51 | ENV PITCH 1 · 1-4: Rate 1, Rate 2, Rate 3, Rate 4 |
+| 52-55 | ENV PITCH 1 · 1-4: Level 1, Level 2, Level 3, Level 4 |
+| 56-59 | ENV PITCH 1 · 5-8: Rate 5, Rate 6, Rate 7, Rate 8 |
+| 60-63 | ENV PITCH 1 · 5-8: Level 5, Level 6, Level 7, Level 8 |
+| 102-105 | LFO VIB: Wave, Delay, Rate, Depth |
+| 80-83 | MOD TONE: Line, Mod, Oct, - |
+| 84-87 | MOD EXPR · VEL: -, -, -, - |
+| 88-90 | MOD EXPR · AT: -, -, -, (none) |
+
+**P5**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 74 Cutoff, 71 Reso, 73 Attack, 75 Decay, 79 Sustain, 72 Release, 76 Rate, 77 Amount |
+| 16-19 | OSC OSC A: Freq, Saw, Pulse, Width |
+| 20-23 | OSC OSC A: Sync, Osc A, Osc B, Noise |
+| 24-27 | OSC OSC B: Freq, Saw, Tri, Pulse |
+| 28-31 | OSC OSC B: Fine, Width, Lo freq, Keyboard |
+| 32-35 | FILT FILTER: Cutoff, Reso, Env amt, Filter rev |
+| 36-39 | FILT ENV 2 · filter: Attack, Decay, Sustain, Release |
+| 40-43 | FILT ENV 2 +: Velocity, -, Key trk, Aftertch |
+| 48-51 | ENV ENV 1 · amp: Attack, Decay, Sustain, Release |
+| 52-55 | ENV ENV 1 +: Velocity, Rel sw, -, - |
+| 102-105 | LFO LFO: Rate, Saw, Tri, Square |
+| 106-109 | LFO LFO: Amount, Aftertch, -, - |
+| 110-113 | LFO WHEEL: Noise, Freq A, Freq B, PW A |
+| 80-83 | MOD POLYMOD: Env, Osc B, Freq A, PW A |
+| 84-87 | MOD POLYMOD: Filter, -, -, - |
+| 88-90 | MOD VOICE: Unison, Voices, Detune, (none) |
+
+**WHEEL**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 73 Attack, 75 Decay, 79 Sustain, 72 Release, 76 Rate, 77 Vibrato |
+| 16-19 | OSC BARS: Reg, Sub, Body, Top |
+| 32-35 | FILT TONE: Perc, Click, Drv, Rotr |
+| 48-51 | ENV ENV: Attack, Decay, Sustain, Release |
+| 102-105 | LFO LFO: Rate, Wave, Vibrato, Wah |
+| 80-83 | MOD MOD 1: -, -, Env>Filter, - |
+| 84-87 | MOD MOD 2: -, -, Env>Pitch, - |
+| 88-90 | MOD MOD 3: -, -, Env>Shape, (none) |
+
+**GRAIN**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 74 Cutoff, 71 Reso, 73 Attack, 75 Decay, 79 Sustain, 72 Release, 76 Rate, 77 Depth |
+| 16-19 | OSC SRC · A: Type, Tone, Motion, Seed |
+| 20-23 | OSC SRC · B: Type, Tone, Motion, Seed |
+| 24-27 | OSC GRAIN · A: Size, Dens, Pos, Sprd |
+| 28-31 | OSC GRAIN · B: Morph, Rand, Pitch, Scan |
+| 32-35 | FILT FILTER: Cutoff, Reso, Ftype, Drive |
+| 36-39 | FILT FILTER: Key trk, -, -, - |
+| 48-51 | ENV ENV 1 · amp: Attack, Decay, Sustain, Release |
+| 52-55 | ENV ENV 2 · mod: Attack, Decay, Sustain, Release |
+| 102-105 | LFO LFO 1 · A: Rate, Wave, Depth, Fade |
+| 106-109 | LFO LFO 2 · A: Rate, Wave, Depth, Fade |
+| 110-113 | LFO LFO 1 · B: Sync1, -, -, - |
+| 80-83 | MOD MOD 1: Source, Dest, Amount, - |
+| 84-87 | MOD MOD 2: Source, Dest, Amount, - |
+| 88-90 | MOD MOD 3: Source, Dest, Amount, (none) |
 
 ### Bluetooth MIDI
 
