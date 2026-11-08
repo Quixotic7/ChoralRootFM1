@@ -119,15 +119,19 @@ static void t_out(void)
     crbl.on = 0;
     check("out: nothing queued while Bluetooth is Off", !cr_ble_emit(pk(0x90, 60, 100)) && crbl.tw == 0u);
     crbl.on = 1;
+    fm1_ms = 1000;
     check("out: a note queued", cr_ble_emit(pk(0x90, 60, 100)) && crbl.tw == 1u);
+    fm1_ms = 1010;
     check("out: the clock in its own ring", cr_ble_emit(pk(0xF8, 0, 0)) && crbl.rtw == 1u && crbl.tw == 1u);
     check("out: Song Position in that ring too", cr_ble_emit(pk(0xF2, 16, 1)) && crbl.rtw == 2u);
-    check("out: the clock sent ahead of the note queued first",
-          ble_app_midi_peek(&p, &ms) && p == pk(0xF8, 0, 0) && ms == fm1_ms);
+    fm1_ms = 1025;                                /* (sent a connection event later) */
+    check("out: the clock sent ahead of the note queued first, stamped when it went in (not when sent: 3y246)",
+          ble_app_midi_peek(&p, &ms) && p == pk(0xF8, 0, 0) && ms == 1010u);
     ble_app_midi_pop();
     check("out: then Song Position", ble_app_midi_peek(&p, &ms) && p == pk(0xF2, 16, 1));
     ble_app_midi_pop();
-    check("out: then the note", ble_app_midi_peek(&p, &ms) && p == pk(0x90, 60, 100));
+    check("out: then the note, stamped 1000 (its own time, 25 ms before the send)",
+          ble_app_midi_peek(&p, &ms) && p == pk(0x90, 60, 100) && ms == 1000u);
     ble_app_midi_pop();
     check("out: then nothing", !ble_app_midi_peek(&p, &ms));
     for (i = 0; i < 2u * CRBL_Q; i++)

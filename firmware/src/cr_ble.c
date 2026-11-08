@@ -43,6 +43,7 @@ _Static_assert(sizeof(crbl_rec_t) <= ST_PAYLOAD_MAX, "the Bluetooth record fits 
 static crbl_rec_t crbl_rec;               /* as flash holds it, or will */
 static struct {
     uint32_t rx[CRBL_Q], rx_ms[CRBL_Q], tx[CRBL_Q], rt[CRBL_RT];
+    uint32_t tx_ms[CRBL_Q], rt_ms[CRBL_RT];   /* when each went in: its BLE-MIDI timestamp (3y246, as Melodee's mb.ms) */
     volatile uint32_t rw, rr, tw, tr, rtw, rtr;
     volatile uint8_t ready, connected, lost, overflow, closing;
     uint8_t peeked_rt;
@@ -81,14 +82,15 @@ BLE_API int ble_app_midi_peek(uint32_t *pkt, uint32_t *ms)
     if (crbl.peeked_rt) {
         RING_PUBLISH();
         *pkt = crbl.rt[crbl.rtr % CRBL_RT];
-        *ms = fm1_ms;
+        *ms = crbl.rt_ms[crbl.rtr % CRBL_RT];
         return 1;
     }
     if (crbl.tr == crbl.tw)
         return 0;
     RING_PUBLISH();
     *pkt = crbl.tx[crbl.tr % CRBL_Q];
-    *ms = fm1_ms;
+    *ms = crbl.tx_ms[crbl.tr % CRBL_Q];       /* (3y236 gave the send time: a packet's events all got one stamp,
+                                               * and the Mac played them together, a burst a connection event) */
     return 1;
 }
 BLE_API void ble_app_midi_pop(void)
@@ -160,6 +162,7 @@ static int cr_ble_emit(uint32_t pkt)
         if (crbl.rtw - crbl.rtr >= CRBL_RT)
             return 0;
         crbl.rt[crbl.rtw % CRBL_RT] = pkt;
+        crbl.rt_ms[crbl.rtw % CRBL_RT] = fm1_ms;
         RING_PUBLISH();
         crbl.rtw++;
         return 1;
@@ -167,6 +170,7 @@ static int cr_ble_emit(uint32_t pkt)
     if (crbl.tw - crbl.tr >= CRBL_Q)
         return 0;
     crbl.tx[crbl.tw % CRBL_Q] = pkt;
+    crbl.tx_ms[crbl.tw % CRBL_Q] = fm1_ms;
     RING_PUBLISH();
     crbl.tw++;
     return 1;

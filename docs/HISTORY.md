@@ -7453,3 +7453,13 @@ not one chosen for this chip; a band at its edge would show as ~20 % bad CRC coo
 cores). Mask 32 (82 BLE_TEST) runs the scan again after the program and keeps its band (the captured one back when it
 finds none); 81 BLE now reports the scan's verdict, band and comparator word, the captured band, and the band in the
 register. All 24 suites pass.
+
+3y246. **FM-1 -> Mac timing: each event stamped when it went in.** S0's clock-out test (3y244) found the Bluetooth clock
+bursty on the Mac (pulse intervals median 1.2 ms, sd 38 ms; Melodee sd 7). The stack sends the queued MIDI once a
+connection event and gives every event in a notification a BLE-MIDI timestamp, which CoreMIDI uses to play them at
+their original spacing. Melodee's `ble_app_midi_peek` returns the time each event was queued (`mb.ms`); 3y236's returned
+the time of the send (`fm1_ms`), so the events batched into one notification all carried one stamp and the Mac played
+them together. Now `cr_ble_emit` stamps each event as it goes in (`tx_ms`, `rt_ms`; 320 B of RAM) and peek returns
+it. `cr_ble_test` checks it (an event queued at 1000 ms and sent at 1025 ms carries 1000). The longest gaps (274 ms)
+are likely the link's (sends wait while the queue waits for acknowledgements), so they follow the reception's quality:
+the ~21 % bad CRC and 3y245's fade, whose likely cause (the captured VCO band) mask 32 tests. All 24 suites pass.
