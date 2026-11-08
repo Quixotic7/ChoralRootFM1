@@ -3,6 +3,37 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.31-smk37",
+      "base": "0.31",
+      "date": "2026-11-08",
+      "tag": "v0.31-smk37",
+      "title": "0.31 on the SMK-37: held notes let go when USB goes",
+      "bullets": [
+        "When the computer goes with notes held (a cable pulled, a computer asleep), the keyboard now lets go of the notes MIDI was holding; its own keys and the loop keep theirs (the FM-1's 0.31).",
+        "Everything of 0.30-smk37: incoming start and stop with MIDI Clock Out, the Arp restarted by a Start, the TRS jack's MIDI out.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.30-smk37 keeps everything; a note held over USB then stays on when the computer goes, until PANIC.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "f3ffe9441d05de1a16e1805dc2484829b2ff2b448a08ee57a205d1c1be865bed",
+          "sha256_1core": "605b99c44d73c6bb223f4cfd976371edd9fe929c571bf0eb5014cf7c90eb8e03"
+        },
+        "elite": {
+          "sha256": "079b621089fbef16a0af3796a6a8d2495a7b70bdf84417d35272729600653c5f",
+          "sha256_1core": "413159066031a75e4663d59a8ed6304f041095b0e39b369275a05f1c4fd682f5"
+        },
+        "mke": {
+          "sha256": "a1e9bb078b0b43a7fc8459568eac66affe01e50c4fcf26713f94c5a93fcfcf0a",
+          "sha256_1core": "8347b7c2e08880e535f584de52a8c1dc705137281092cfc8d6495807f5af02b3"
+        }
+      }
+    },
+    {
       "version": "0.30-smk37",
       "base": "0.30",
       "date": "2026-11-07",

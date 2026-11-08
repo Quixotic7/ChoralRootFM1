@@ -7643,3 +7643,26 @@ the cable left in the Mac, USB Host On and Off twice: the spare left the Mac's U
 (~6-11 s), `--debug` at once with no rescan; the two-unit link (5473E6AA on 0.30, plain cable) both ways, then Off and
 the Mac at once, no reboot, no crash. 3y261's release on the unit: a Mac's held C4 stopped when its cable was pulled
 while a chord held on the spare's keys kept sounding.
+
+## 2026-11-08 (0.31 and 0.31-smk37)
+
+3y263. **0.31: USB Host, two FM-1s on one cable, held notes let go when USB goes; 0.31-smk37 beside it.** The owner,
+through the orchestration session: "Merge and tag." 0.31 is 0.30 with 3y260..3y262: Options > USB Host (Melodee's
+host, never saved), two FM-1s over a plain USB-C cable both ways with clock and transport, the device side releasing
+MIDI's held notes when its USB peer goes (`usb_midi_lost`), USB Host Off giving the port back without a restart.
+`./build.sh --release 0.31` and `tools/hub_build.sh 0.31`: the same `SHA256SUMS`; XIP 554,568 of 573,440 (96.7 %),
+1-core 551,384, RES 41,820. `choralroot-0.31.fwsc` 12704d5b...20cd, `-1core` 655de62e...496b. `web/releases.json`
+first, 0.30's entry given its going-back note (no USB Host; a USB-held note stays on until PANIC),
+`docs/releases/0.31.md` (with the limits: keyboards, controllers and hubs not yet tried on a unit; a USB loss also
+stops notes held from Bluetooth or TRS), MANUAL.md's first line, `choralroot.c`'s dev version. **0.31-smk37** (base
+0.31; no USB Host or Bluetooth there, the USB-loss release is board-independent usb.c / cr_out.c): the three models
+and `tools/hub_build.sh 0.31-smk37`, the same `SHA256SUMS` (twelve files); XIP 554,512 (Pro, Elite), 554,496 (MKE-P37).
+`web/releases-smk37.json` first, three bullets, three notes; SMK37.md's status, package names and version line.
+`python3 tests/releases_test.py` ALL OK; `CR_VERSION=0.31 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0
+changed; test_cr 1122 ok; the browser emulators as 0.31). **On a unit**: the spare E81CE2F7 (on a7d94d7b's build,
+reading 0.30; no user sounds), a backup first (`~/fm1-backups/fm1-backup-E81CE2F7-2026-11-08-before-0.31.json`, its
+settings), `caffeinate -dimsu fm1_install.py choralroot-0.31.fwsc --unit E81CE2F7 --yes`, exit 0, the same unit after
+the restart. After: `--info` ChoralRoot 0.31, E81CE2F7; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, crash_count
+0, boot stub v3 64.4 ms marker ok, Bluetooth On and started (`ble_cal` 3, the start 163 ms with the interrupts held);
+stale_halves 55 on the first read, the radio's start at boot (163 ms of 2.9 ms halves), 0 over the next 26 s (worst
+half 391 us of 2,902, the deadline 0). Not tried here: USB Host with this package (3y261 / 3y262 ran its code).

@@ -8,6 +8,27 @@
   },
   "releases": [
     {
+      "version": "0.31",
+      "date": "2026-11-08",
+      "tag": "v0.31",
+      "sha256": "12704d5b91b8ce9b70c397faccb43642e909af29f9287b61e108989a7e4420cd",
+      "sha256_1core": "655de62e347889df548f30c5a2b217e452b63742b1864c8d76c43f37f678496b",
+      "title": "USB Host: two FM-1s on one USB-C cable",
+      "bullets": [
+        "Options > USB Host: the FM-1's USB-C port becomes the host of a USB MIDI device. Never saved: every start-up is a normal USB device again, so updates always work.",
+        "Two FM-1s play each other over one plain USB-C to USB-C cable, on their batteries: notes both ways, and MIDI clock and start / stop in either direction.",
+        "USB Host Off gives the port back to the computer without a restart.",
+        "When USB goes with notes held (a cable pulled, a computer asleep, the other FM-1 gone), the FM-1 now lets go of the notes MIDI was holding. Its own keys and the loop keep theirs.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "USB Host comes from Melodee (Kerem Kilic), with recursivefieldinstruments' work.",
+        "Not yet tried on a unit: USB MIDI keyboards, controllers and hubs. They need power of their own (a powered hub or OTG adapter); full-speed devices only.",
+        "A USB loss also stops notes held from Bluetooth or the TRS jack at that moment.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.30",
       "date": "2026-11-07",
       "tag": "v0.30",
@@ -27,7 +48,15 @@
         "A Mac delivers Bluetooth MIDI on 7.5 ms steps: for tight clock sync, use USB or the TRS jack.",
         "An FM-1 still on ChoralRoot 0.21 or older: install 0.29.2 first and switch on once to keep 0.21's sounds (the installer asks).",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.30 stores everything the same way, so your settings, sounds, loops and favorites stay. It has no USB Host.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.30 again.",
+          "No USB Host: the USB-C port talks to a computer only.",
+          "A note held over USB stays on when the computer or the other FM-1 goes, until PANIC."
+        ]
+      }
     },
     {
       "version": "0.29.2",
