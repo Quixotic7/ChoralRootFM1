@@ -7796,4 +7796,9 @@ step (the keys' and knob's pins, the audio start, USB and the timer, the running
    is retired: `audio_init` now runs before the Bluetooth record is read. **The owner: "Pop gone".**
 Install exit 0, `--debug` halves 9297, late 0, stale halves 0, crash count 0, stub v3 64.4 ms, rails 14 / 5. Suites
 green (`sh tests/run_cr_tests.sh`), `BOARD=smk37` builds (its `audio_init` moves the same way; the SMK-37 had no
-report of a pop). Not tried yet: a boot with Dual Core On and one with Bluetooth On on this build.
+report of a pop). Then a boot with Dual Core On and one with Bluetooth On (the owner): "No pops in either case. BLE
+showed up and connected and working as I expect." `--debug` after (`--unit E81CE2F7`, the only FM-1 on USB):
+c1_state 1, c1_jobs 155180, c1_faults 0, c1_fallback 0, crash_count 0, Bluetooth On, the radio started in 160.7 ms, a
+peer subscribed, late 0. The first read (power-on to 105 s) had 59 stale halves, the radio's start at boot as 0.31's
+55 (3y263), one TIMER5 gap of 17.3 ms and a UI frame of 70 ms (not placed); the second read (9.3 s) stale 0, worst half
+400 us of 2,902, the ISR at most 52 us late.
