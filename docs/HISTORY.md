@@ -8010,3 +8010,28 @@ four bullets, three notes; SMK37.md's status, package names and version line. `p
 OK, `tools/hub_build.sh --check` both lists match; `CR_VERSION=0.34 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279
 goldens, 0 changed; test_cr 1134 ok; test_persist 121 ok; `fm1_alnk0_irq` 14,010 of 13,890 and `fm1_timer5_irq` 4,800
 of 4,511, both inside the 10 %). Not installed as 0.34 on a unit: the spare E81CE2F7 ran c9fc6289's dev build.
+
+3y277. **After 0.34: ARP held switches the PERF layers; the bass's Follow.** The owner, through the orchestration
+session: "once in there, you could just hold ARP to switch between the layers ... on the BASS Perf layer only after OFF
+should be an option to follow the chord perf layer, meaning chord perf layer is the master and both the chord and bass
+synth get the same performance." **The layers** (`cr_ui.c`): ARP held alone in either PERF layer shows the other
+part's (`cu_perf_layer_part`, trace `perf: layer chord|bass`); OCT-, OCT+ and HOME close it (a PERF hold no longer
+does); from outside, ARP held is the chord's and BASS + ARP the bass's, as before; ARP held + a knob in the layer keeps
+its part. **Follow**: the Bass PERF picker is Off, **Follow**, then the seven modes (nine entries; the chord's stays at
+eight). The engine's `bfollow` (`cr_set_perform_follow`, event `CRE_PERFORM_FOLLOW` at the end of the list):
+`crx_pf_mode` / `crx_pf_par` give a following bass the chord's mode and parameters, and `crx_pf_on` lets it perform
+only while the chord part does (the chords on Off: the plain bass note). A chord mode, parameter or Off change
+restarts / rephases a following bass with the chord; both clocks start on the same note-on, so the steps fall on the
+same milliseconds. The bass's own `bperf_mode` / `bpar` are kept for when it leaves Follow. In the layer, Follow reads
+`bass perform · follows chord`, the knob row shows the chord's values, and a knob turned there only shows `follows
+chord` (read-only: the chords' layer is the master). LATCH's gesture clears the chord's Hold for both. Saved in the
+session's `perf_x` bit 3 (`CSS_BASS_FOLLOW`; 0 in every older record: not following). **Tests**: `cr_engine_test
+s_bassfollow` (14 checks x 4 tick rates: the bass's steps at the chord's times, 36 40 43 under 48 52 55, Direction
+followed live, its own parameters kept and unused, the chords Off: plain 36, Follow off: its own Strum, the chord's
+Hold latches both); `cr_settings_test` (the bit's round trip); `tools/emu/scripts/cr_bass_follow.txt` + `test_cr.sh`
+(SELECT +1: Follow, ARP held: chord / bass / chord without BASS, the bass arps 38 42 45 with the chord);
+`cr_perf_toggle.txt` (ARP held again: the Bass PERF layer, HOME closes) and `cr_bass_perf.txt` (SELECT +5 past Follow);
+the emulator's `perf:` line gains `follow`. MANUAL 7 and 18, SETTINGS.md, SMK37.md. **Cost** (`./build.sh`): XIP 561,304
+(+832, 97.9 %), RAM 89,048 (unchanged: the flag sits in padding); SMK-37 XIP 561,280. `fm1_alnk0_irq` 14,030 (14,010
+before; budget 13,890, inside the 10 %), `fm1_timer5_irq` 4,800. `sh tests/run_all.sh`: ALL SUITES PASSED (24;
+test_cr 1140 ok, test_persist 121 ok). Flashed on the spare E81CE2F7 (`--unit`): it boots, `--info` ChoralRoot 0.34.

@@ -1,7 +1,7 @@
 # ChoralRoot: perform on / off (docs/INTEGRATION.md). PERF (ARP) tap: perform on, its LED lit (no message), tap
 # again: off, the LED dim. PERF held: the layer; SELECT +3 picks Arpeggiate (on); a PERF tap in the layer: off / on (the
 # label "perform - off / on", the layer stays); OCT+ closes it (as OCT-: nothing to confirm there), perform still on;
-# PERF held: open again; PERF held again: closed. MAJ + D4 held: the arp steps (notes out climb); PERF tap: off, the
+# PERF held: open again; PERF held again: the Bass PERF layer (after 0.34); HOME: closed. MAJ + D4 held: the arp steps (notes out climb); PERF tap: off, the
 # chord held plain (no more notes out).
 wait 300
 tap ARP
@@ -40,21 +40,24 @@ btn ARP down
 wait 500
 btn ARP up
 wait 300
+dump                          # 7: PERF held again: the Bass PERF layer (layer 2, after 0.34), perform still 1
+btn HOME
+wait 300
 expect led ARP on
-dump                          # 7: PERF held again: closed, perform still 1 (a hold is no tap)
+dump                          # 8: HOME closed it, perform still 1 (a hold is no tap)
 key F3 down
 wait 40
 btn D4 down
 wait 1500
-dump                          # 8: the arp stepping: notes out climb
+dump                          # 9: the arp stepping: notes out climb
 wait 1000
-dump                          # 9: more notes out
+dump                          # 10: more notes out
 tap ARP
 wait 300
 expect led ARP dim
-dump                          # 10: perform 0, the chord held plain
+dump                          # 11: perform 0, the chord held plain
 wait 1000
-dump                          # 11: no more notes out
+dump                          # 12: no more notes out
 btn D4 up
 key F3 up
 wait 500

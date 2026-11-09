@@ -78,7 +78,7 @@ from a layer: it goes with the layer (manual).
 | Transpose | the KEY layer | block `transpose` | manual |
 | the LOCK layer's two settings | B3 held | block `loop_rec` bits 6 / 7 | manual |
 | Perform on, the mode, its parameters | PERF tap, the PERF layer, KNOB 3 | block `perform_on`, `perform_mode`, `perf_sel`, `par` | manual |
-| Chord and Bass Perform (0.34, issue 41): the chord's Off, the bass's mode and its parameters | the PERF layer's Off, the Bass PERF layer (BASS held + ARP) | session `perf_x` (bit 0 the chord Off, bit 1 the bass on a mode, bit 2 the BASS layer's keys pick, bit 7 stored), `bperf_sel` (0..6, as `perf_sel`), `bpar[5][4]` (the bass's KNOB 1..4 of each mode's row), bytes 964 .. 1005 (the end reserve; 0 in every older record: the chord performs, the bass not, its defaults; an older firmware ignores them and plays the chord's Perform as before) | manual |
+| Chord and Bass Perform (0.34, issue 41): the chord's Off, the bass's mode and its parameters | the PERF layer's Off, the Bass PERF layer (BASS held + ARP) | session `perf_x` (bit 0 the chord Off, bit 1 the bass on a mode, bit 2 the BASS layer's keys pick, bit 3 the bass Follows the chord's (after 0.34), bit 7 stored), `bperf_sel` (0..6, as `perf_sel`), `bpar[5][4]` (the bass's KNOB 1..4 of each mode's row), bytes 964 .. 1005 (the end reserve; 0 in every older record: the chord performs, the bass not, its defaults; an older firmware ignores them and plays the chord's Perform as before) | manual |
 | LATCH on | LATCH tap (FM-1 chord keys: GLO held + LFO) | block `sticky` bit 0 | manual |
 | the tempo | SELECT | block `bpm` | manual |
 | the bass register | KNOB 2, the BASS layer | block `bass_voicing` | manual |

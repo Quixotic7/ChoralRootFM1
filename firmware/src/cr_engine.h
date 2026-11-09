@@ -176,6 +176,8 @@ typedef struct {
      * par (as before), the bass part in bperf_mode / bpar. A part not set plays as with Perform off. Default: the
      * chord only (bit 0), as before 0.34 */
     uint8_t perf_parts, bperf_mode;
+    uint8_t bfollow;                 /* the bass Follows (after 0.34): it performs in the chord's mode with its parameters,
+                                      * and only while the chord part performs too (its PERF layer not on Off) */
     int16_t bpar[CR_PM_COUNT][CR_P_COUNT];
     /* runtime */
     cr_out_t out;
@@ -292,6 +294,7 @@ void cr_set_perform_mode_ex(cr_t *c, int part, cr_pmode_t m);
 void cr_set_param_ex(cr_t *c, int part, cr_pmode_t m, cr_param_t p, int value);
 int  cr_get_param_ex(const cr_t *c, int part, cr_pmode_t m, cr_param_t p);
 int  cr_param_default(cr_pmode_t m, cr_param_t p);  /* what cr_init gives both parts */
+void cr_set_perform_follow(cr_t *c, int on);       /* the bass part Follows the chord's mode and parameters (bfollow) */
 void cr_set_sticky(cr_t *c, int on);               /* latch (Sticky Keys) */
 void cr_set_tempo(cr_t *c, int bpm);               /* 20..300; rephases clocked voices */
 void cr_set_stream(cr_t *c, cr_stream_t s, int enabled);   /* gates new gestures; owners finish */

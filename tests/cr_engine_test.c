@@ -2690,6 +2690,58 @@ static int ons_notes(int s, int *v, int max)
     for (i = 0; i < n && i < max; i++) v[i] = LOG[idx[i]].note;
     return n;
 }
+/* Follow (after 0.34): the bass performs the chord's mode with its parameters, step for step */
+static void s_bassfollow(void)
+{
+    int vc[64], vb[64], ic[256], ib[256], nc, nb, k, same;
+    fresh("bass follow");
+    cr_set_bass(&C, 1);
+    cr_set_perform(&C, 1);
+    cr_set_perform_mode(&C, CR_PM_ARP);
+    cr_set_perform_part(&C, CR_PF_BASS, 1);              /* the bass's own mode: Strum */
+    cr_set_perform_follow(&C, 1);
+    MD(CR_MOD_MAJ); K(48, 1); step(900);
+    nc = ons(ic, 256, 0); nb = ons(ib, 256, 1);
+    ons_notes(0, vc, 64); ons_notes(1, vb, 64);
+    for (k = 0, same = nc >= 3 && nc == nb; same && k < nc && k < 64; k++)
+        same = LOG[ic[k]].ms == LOG[ib[k]].ms && vb[k] == vc[k] - 12;
+    ok(same, "Follow: the bass arps the chord's notes in its register, each step with the chord's");
+    ok(nb >= 3 && vb[0] == 36 && vb[1] == 40 && vb[2] == 43, "Follow: 36 40 43 (the chord's Arp, not the bass's Strum)");
+    ok(cr_perform_shown(&C) == CR_PF_CHORD, "Follow: the views show the chord's");
+    R(48, 1); step(400); clear();
+    cr_set_param(&C, CR_PM_ARP, CR_P_DIR, CR_DIR_DOWN);
+    K(48, 1); step(600);
+    ons_notes(0, vc, 64); nb = ons_notes(1, vb, 64);
+    ok(nb >= 3 && vb[0] == 43 && vb[1] == 40 && vb[2] == 36 && vc[0] == 55, "Follow: the chord's Direction Down, both go down");
+    clear();
+    cr_set_param(&C, CR_PM_ARP, CR_P_DIR, CR_DIR_UP); step(600);
+    ons_notes(0, vc, 64); nb = ons_notes(1, vb, 64);
+    ok(nb >= 2 && vb[0] % 12 == vc[0] % 12 && vb[1] % 12 == vc[1] % 12, "Follow: a chord parameter turned while held, the bass follows it");
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR, CR_DIR_DOWN);
+    ok(cr_get_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR) == CR_DIR_DOWN, "Follow: the bass's own parameters are kept");
+    clear(); step(600);
+    ons_notes(0, vc, 64); nb = ons_notes(1, vb, 64);
+    ok(nb >= 2 && vb[0] % 12 == vc[0] % 12, "Follow: the bass's own parameters are not used while it follows");
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR, CR_DIR_UP);
+    /* the chord Off: the bass plays its plain note */
+    cr_set_perform_part(&C, CR_PF_CHORD, 0); step(10); clear(); step(600);
+    ok(count('+', 1) == 0 && SND[1][36] && SND[0][48] && SND[0][52] && SND[0][55], "Follow, the chord Off: no performance, the bass holds 36");
+    cr_set_perform_part(&C, CR_PF_CHORD, 1); step(10); clear(); step(600);
+    ok(count('+', 1) >= 2 && count('+', 0) >= 2, "the chord on again: both arp");
+    /* Follow off: the bass's own mode (Strum) */
+    cr_set_perform_follow(&C, 0); step(300);
+    ok(SND[1][36] && SND[1][40] && SND[1][43], "Follow off: the bass strums (its own mode)");
+    R(48, 1); step(400); clear();
+    /* the chord's Hold latches a following bass */
+    cr_set_perform_follow(&C, 1);
+    cr_set_param(&C, CR_PM_ARP, CR_P_HOLD, 1);
+    ok(cr_latching(&C), "Follow: the chord's Hold latches");
+    K(48, 1); step(100); R(48, 1); step(600);
+    ok(count('+', 1) >= 2, "Follow + Hold: the bass arps on after the keys");
+    cr_set_param(&C, CR_PM_ARP, CR_P_HOLD, 0); step(400);
+    ok(sounding() == 0, "Hold off: both stop");
+    MU(CR_MOD_MAJ); cr_set_perform_follow(&C, 0);
+}
 static void s_bassperf(void)
 {
     int v[64], n, idx[256];
@@ -2828,7 +2880,7 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
     cr_init(&C, &OUT);
     cr_tick(&C, now_ms());
     s_keyboard(); s_sticky(); s_chords(); s_panic(); s_voicing(); s_bass(); s_keymode(); s_pads();
-    s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_transport(); s_bassperf(); s_pattern(); s_live(); s_streams();
+    s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_transport(); s_bassperf(); s_bassfollow(); s_pattern(); s_live(); s_streams();
     s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_snap(); s_loopvoice(); s_queries(); s_limits(); s_torture();
     s_sixth();
     s_fm1();

@@ -1024,11 +1024,13 @@ static void css_perf_put(const cr_session_t *x)
     cs.bperf_sel = (uint8_t)sel;
     cs.perf_off = (uint8_t)off;
     cs.bass_keys = (uint8_t)(x && (x->perf_x & CSS_BASS_KEYS) ? 1u : 0u);
+    cs.bfollow = (uint8_t)(stored && (x->perf_x & CSS_BASS_FOLLOW) ? 1u : 0u);
     fm1_irq_off();
     for (m = 0; m < CR_PM_COUNT; m++)
         for (k = 0; k < CR_P_COUNT; k++)
             cr_set_param_ex(&cr, CR_PF_BASS, (cr_pmode_t)m, (cr_eparam_t)k, cs.bpar[m][k]);
     cr_set_perform_mode_ex(&cr, CR_PF_BASS, (cr_pmode_t)CU_PERF[sel].mode);
+    cr_set_perform_follow(&cr, cs.bfollow);
     cr_set_perform_part(&cr, CR_PF_CHORD, !(off & (1u << CU_PF_CHORD)));
     cr_set_perform_part(&cr, CR_PF_BASS, !(off & (1u << CU_PF_BASS)));
     fm1_irq_on();
@@ -1056,7 +1058,8 @@ static void css_capture(cr_session_t *x)
     css_part_get(0, &x->part[0]);
     css_part_get(1, &x->part[1]);
     x->perf_x = (uint8_t)(CSS_PERF_STORED | (cu_pf_off(CU_PF_CHORD) ? CSS_PERF_CHORD_OFF : 0u) |
-                          (cu_pf_off(CU_PF_BASS) ? 0u : CSS_PERF_BASS_ON) | (cs.bass_keys ? CSS_BASS_KEYS : 0u));
+                          (cu_pf_off(CU_PF_BASS) ? 0u : CSS_PERF_BASS_ON) | (cs.bass_keys ? CSS_BASS_KEYS : 0u) |
+                          (cs.bfollow ? CSS_BASS_FOLLOW : 0u));
     x->bperf_sel = cs.bperf_sel;
     for (i = 0; i < (uint32_t)CR_PM_COUNT * 4u; i++)
         x->bpar[i / 4u][i % 4u] = CU_PERF_KNOB[i / 4u][i % 4u] >= 0 ? cs.bpar[i / 4u][CU_PERF_KNOB[i / 4u][i % 4u]] : 0;

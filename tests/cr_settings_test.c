@@ -1113,7 +1113,7 @@ static void css_fill(cr_session_t *x)              /* a recognisable session: ev
     x->voicing = 2; x->octave = -1; x->bass_on = 1; x->lock = 1;
     x->latched = (uint8_t)((1u << CR_MOD_MAJ) | (1u << CR_MOD_MAJ7));
     x->loop_rate = 2;                              /* x2 */
-    x->perf_x = CSS_PERF_STORED | CSS_PERF_CHORD_OFF | CSS_PERF_BASS_ON | CSS_BASS_KEYS;   /* the bass arps, the chord sustains; the BASS layer's keys pick */
+    x->perf_x = CSS_PERF_STORED | CSS_PERF_CHORD_OFF | CSS_PERF_BASS_ON | CSS_BASS_KEYS | CSS_BASS_FOLLOW;   /* the bass follows, the chord sustains; the BASS layer's keys pick */
     x->bperf_sel = 3;                              /* Arpeggiate */
     x->bpar[2][0] = 8; x->bpar[2][1] = 5; x->bpar[0][0] = 333;   /* Arp 1/16 Random; Strum 333 ms */
     x->fx.sel = CSS_FXE_DELAY;
@@ -1165,7 +1165,7 @@ static void t_session(void)
     css_fill(&SX);
     rc = cr_session_import(&SR, &SX, sizeof SX);
     ok(rc == 1 && !memcmp(&SR, &SX, sizeof SX), "session: every item round-trips, byte for byte (rc 1)");
-    ok(SR.perf_x == (CSS_PERF_STORED | CSS_PERF_CHORD_OFF | CSS_PERF_BASS_ON | CSS_BASS_KEYS) && SR.bperf_sel == 3 && SR.bpar[2][0] == 8 &&
+    ok(SR.perf_x == (CSS_PERF_STORED | CSS_PERF_CHORD_OFF | CSS_PERF_BASS_ON | CSS_BASS_KEYS | CSS_BASS_FOLLOW) && SR.bperf_sel == 3 && SR.bpar[2][0] == 8 &&
        SR.bpar[2][1] == 5 && SR.bpar[0][0] == 333, "session: the Bass Perform round-trips (chord Off, bass Arpeggiate, its knobs)");
     ok(SR.voicing == 2 && SR.octave == -1 && SR.bass_on == 1 && SR.lock == 1 && SR.loop_rate == 2 &&
        SR.latched == ((1u << CR_MOD_MAJ) | (1u << CR_MOD_MAJ7)), "session: voicing +2, octave -1, Bass on, LOCK with MAJ + M7, the loop's Rate x2");

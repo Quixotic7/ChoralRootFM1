@@ -517,9 +517,9 @@ void emu_fw_dump(void)
     {                                               /* Chord and Bass Perform (0.34): the parts, the bass's mode, the
                                                      * layer's part, the bass stream's notes sounding now */
         uint32_t nn;
-        printf("  perf: parts %u bass-mode %u bass-sel %u ui-off %u layer-part %u shown %d bass-sounding",
+        printf("  perf: parts %u bass-mode %u bass-sel %u ui-off %u layer-part %u shown %d follow %u bass-sounding",
                (unsigned)cr.perf_parts, (unsigned)cr.bperf_mode, (unsigned)cs.bperf_sel, (unsigned)cs.perf_off,
-               (unsigned)cu.perf_part, cr_perform_shown(&cr));
+               (unsigned)cu.perf_part, cr_perform_shown(&cr), (unsigned)cr.bfollow);
         for (nn = 0; nn < 128u; nn++)
             if (cr.reg[CR_STREAM_BASS][nn])
                 printf(" %u", (unsigned)nn);

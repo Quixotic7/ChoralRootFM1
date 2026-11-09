@@ -594,13 +594,14 @@ grep -q '^expect led ARP on at [0-9]* ms: ok' "$L" && grep -q '^expect led ARP d
 [ "$(pc 2)" = "1 2" ] && [ "$(pc 3)" = "0 2" ] && [ "$(pc 4)" = "1 2" ] &&
     ok "the perform layer: SELECT picks Arpeggiate (on), a PERF tap off / on, the layer stays open: $OUT/cr_perf_layer_off.ppm" \
     || bad "the perform layer: $(pc 2) / $(pc 3) / $(pc 4)"
-[ "$(pc 5)" = "1 0" ] && [ "$(pc 6)" = "1 2" ] && [ "$(pc 7)" = "1 0" ] &&
-    ok "OCT+ in the perform layer closes it (perform stays on); PERF held again closes it too (no tap: still on)" \
-    || bad "closing the perform layer: $(pc 5) / $(pc 6) / $(pc 7)"
+[ "$(pc 5)" = "1 0" ] && [ "$(pc 6)" = "1 2" ] && [ "$(pc 7)" = "1 2" ] && [ "$(pc 8)" = "1 0" ] &&
+    has '^perf: layer bass' "$L" &&
+    ok "OCT+ in the perform layer closes it (perform stays on); PERF held again: the Bass PERF layer; HOME closes it (no tap: still on)" \
+    || bad "closing the perform layer: $(pc 5) / $(pc 6) / $(pc 7) / $(pc 8)"
 differ cr_perf_layer_off cr_perf_layer_on "the layer's label follows on / off"
-[ "$(no 9)" -gt "$(no 8)" ] && [ "$(no 11)" = "$(no 10)" ] && [ "$(pc 10)" = "0 0" ] &&
-    ok "the arp steps while on ($(no 8) -> $(no 9) notes out), PERF tap off: the chord held plain ($(no 10) -> $(no 11))" \
-    || bad "the arp on / off: notes out $(no 8) $(no 9) $(no 10) $(no 11)"
+[ "$(no 10)" -gt "$(no 9)" ] && [ "$(no 12)" = "$(no 11)" ] && [ "$(pc 11)" = "0 0" ] &&
+    ok "the arp steps while on ($(no 9) -> $(no 10) notes out), PERF tap off: the chord held plain ($(no 11) -> $(no 12))" \
+    || bad "the arp on / off: notes out $(no 9) $(no 10) $(no 11) $(no 12)"
 
 echo "Chord and Bass Perform (0.34, issue 41): BASS held + ARP the Bass PERF layer; Off first; the bass arps under a held chord"
 run cr_bass_perf
@@ -612,7 +613,7 @@ case "$(pc 1) / $(pf 1)" in "0 2 / parts 1 bass-mode 0 bass-sel 0 ui-off 2 layer
     ok "BASS held + ARP: the Bass PERF layer, on Off (Perform off, the chord's Strum untouched): $OUT/cr_bass_perf_layer.ppm";;
     *) bad "BASS + ARP: $(pc 1) / $(pf 1)";; esac
 case "$(pc 2) / $(pf 2)" in "1 2 / parts 3 bass-mode 2 bass-sel 3 ui-off 0 layer-part 1 "*)
-    ok "SELECT +4 in it: the bass's Arpeggiate, Perform on, both parts performing: $OUT/cr_bass_perf_arp.ppm";;
+    ok "SELECT +5 in it (past Follow): the bass's Arpeggiate, Perform on, both parts performing: $OUT/cr_bass_perf_arp.ppm";;
     *) bad "the bass's pick: $(pc 2) / $(pf 2)";; esac
 case "$(pf 3) / $(pf 4)" in "parts 3 "*"layer-part 0 "*" / parts 2 "*"ui-off 1 layer-part 0 "*)
     ok "ARP held in the Bass PERF layer: the chord's layer; SELECT -1 from Strum: Off (the chord plays as with Perform off): $OUT/cr_chord_perf_off.ppm";;
@@ -635,6 +636,27 @@ seen=$(for i in 16 17 18; do bn $i; done | tr ' ' '\n' | grep . | sort -u | tr '
 [ -n "$seen" ] && [ -z "$(echo $seen | tr ' ' '\n' | grep -Ev '^(38|42|45)$')" ] &&
     ok "ENV tap again: the bass arps again under the same chord ($seen)" || bad "Bass on again while held: '$seen'"
 silent_end cr_bass_perf
+
+echo "the bass Follows the chord's Perform (after 0.34): Follow after Off in the Bass PERF layer; ARP held alone switches the layers"
+run cr_bass_follow
+L="$OUT/cr_bass_follow.log"
+pc() { grep -a '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.* perform \([0-9]\) mode \([0-9]*\) .* layer \([0-9]*\) .*/\1 \2 \3/p'; }
+pf() { grep -a '^  perf: parts' "$L" | sed -n "$1p" | sed 's/^  perf: //'; }
+bn() { pf "$1" | sed -n 's/.*bass-sounding *//p'; }
+case "$(pc 1) / $(pf 1)" in "1 0 2 / parts 3 "*"ui-off 0 layer-part 1 "*"follow 1 "*)
+    ok "BASS + ARP, SELECT +1: Follow, Perform on, both parts performing: $OUT/cr_bass_follow_layer.ppm";;
+    *) bad "Follow: $(pc 1) / $(pf 1)";; esac
+case "$(pf 2) / $(pf 3)" in *"layer-part 0 "*" / "*"layer-part 1 "*)
+    ok "ARP held alone in the PERF layer: the chord's; held again: the bass's (no BASS)";;
+    *) bad "ARP held between the layers: $(pf 2) / $(pf 3)";; esac
+case "$(pc 4) / $(pf 4) / $(pc 5)" in "1 2 2 / "*"bass-mode 0 "*"layer-part 0 "*"follow 1 "*" / 1 2 0")
+    ok "the chord's layer, SELECT +3: Arpeggiate (the bass keeps its own Strum underneath); OCT-: closed";;
+    *) bad "the chord's Arpeggiate: $(pc 4) / $(pf 4) / $(pc 5)";; esac
+seen=$(for i in 6 7 8 9; do bn $i; done | tr ' ' '\n' | grep . | sort -u | tr '\n' ' ')
+[ "$(echo $seen | wc -w | tr -d ' ')" -ge 2 ] && [ -z "$(echo $seen | tr ' ' '\n' | grep -Ev '^(38|42|45)$')" ] &&
+    ok "D major held: the bass follows the chord's arp in its register ($seen): $OUT/cr_bass_follow_view.ppm" \
+    || bad "the following bass: notes '$seen'"
+silent_end cr_bass_follow
 
 echo "the arp's Hold off by default: released keys stop it; LATCH holds it; PANIC stops; perform never swaps the view"
 export EMU_UI_LOG=0

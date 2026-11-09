@@ -522,7 +522,8 @@ enum {
     CRE_LOOP,         /* a: LP_*, b / v: its argument */
     CRE_AT,           /* v: the keys' aftertouch 0..127 (cr_ui.c cu_touch_poll): both parts, channel pressure out */
     CRE_CCOUT,        /* a: channel 0..15, b: CC, v: value (Options > MIDI CC Out: a knob turned on a mapped cell) */
-    CRE_PERFORM_PART  /* a: the part (CR_PF_*), v: it performs while Perform is on (the PERF layers' Off entry) */
+    CRE_PERFORM_PART, /* a: the part (CR_PF_*), v: it performs while Perform is on (the PERF layers' Off entry) */
+    CRE_PERFORM_FOLLOW /* v: the bass Follows the chord's mode and parameters (the Bass PERF layer's Follow entry) */
 };
 /* CRE_LOOP's operations */
 enum { LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR, LP_SET, LP_QUEUE, LP_CONF, LP_METRO,
@@ -657,6 +658,7 @@ static void cr_apply(const cr_ev_in_t *e)
     case CRE_PERFORM: cr_set_perform(&cr, e->v); break;
     case CRE_PERFORM_MODE: cr_set_perform_mode_ex(&cr, e->a, (cr_pmode_t)e->v); break;
     case CRE_PERFORM_PART: cr_set_perform_part(&cr, e->a, e->v); break;
+    case CRE_PERFORM_FOLLOW: cr_set_perform_follow(&cr, e->v); break;
     case CRE_PARAM: cr_set_param_ex(&cr, e->a >> 4, (cr_pmode_t)(e->a & 15u), (cr_eparam_t)e->b, e->v); break;
     case CRE_STICKY: cr_set_sticky(&cr, e->v); break;
     case CRE_TEMPO: cr_set_tempo(&cr, e->v); cr_out_bpm = (uint16_t)e->v; break;
@@ -1069,7 +1071,7 @@ static void cr_snapshot(void)
         if (sp < 0)
             sp = (cr.perf_parts & (1u << CR_PF_CHORD)) || !(cr.perf_parts & (1u << CR_PF_BASS)) ? CR_PF_CHORD : CR_PF_BASS;
         cr_snap.perf_part = (uint8_t)sp;
-        cr_snap.perform_mode = sp ? cr.bperf_mode : cr.perform_mode;
+        cr_snap.perform_mode = sp && !cr.bfollow ? cr.bperf_mode : cr.perform_mode;
     }
     cr_snap.bass_on = cr.bass_on;
     cr_snap.playstyle = cr.playstyle;

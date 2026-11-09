@@ -60,7 +60,7 @@ so the whole keybed plays roots. The SMK-37's buttons and knobs map onto the FM-
 | Pads 5-8 (top row) | the free-timing performance modes: Strum, Strum 2 Octaves, Slop, Harp (cyan) |
 | Pads 14-16 (bottom row) | the tempo-synced performance modes: Arpeggiate, Arp 2 Octaves, Pattern (green) |
 | The mode pads | the chord part's modes: a tap picks that mode and switches the performance on; the playing mode's pad again switches it off, as a PERF tap. Bright: the mode playing; dim: the others (none while the chord part is on Off). PERF (ARP) and the PERF layer show the same state |
-| CHORD held + ARP | the Bass PERF layer (new in 0.34, GitHub issue 41): the bass's own performance mode and parameters, Off first, as on the FM-1 with BASS (ENV) held + ARP ([MANUAL.md](docs/MANUAL.md) "Chord and Bass Perform"). The PERF tap is the one switch for both parts |
+| CHORD held + ARP | the Bass PERF layer (new in 0.34, GitHub issue 41): the bass's own performance mode and parameters, Off first, then Follow (the chords' mode and parameters, after 0.34), as on the FM-1 with BASS (ENV) held + ARP ([MANUAL.md](docs/MANUAL.md) "Chord and Bass Perform"). The PERF tap is the one switch for both parts; ARP held in either PERF layer switches to the other |
 | K1 | MASTER (volume): a turn shows the level; it is remembered across power-off |
 | K2 / K3 / K4 | SELECT / ALGORITHM / PRESETS |
 | K5..K8 | KNOB 1..4 (the SAVE menu and the naming help say K5..K8) |
