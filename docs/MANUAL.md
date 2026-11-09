@@ -817,7 +817,7 @@ chorus, the delay and the reverb. They are the same four, in the same order and 
 of the sound editor ([The sound editor](#12-the-sound-editor)), and each is the same value as the **Send** cell on
 the effect's own page: change it in one place and the others show it at once. **A send reads the same everywhere**:
 in per cent, from `0%` (nothing) to `100%` (all of it), on the Sends page, in a Send cell, in the sound editor, and in
-the large number KNOB 4 or a MIDI controller puts on the screen. A knob turned slowly moves a send by one (under
+the large number KNOB 4 puts on the screen. A knob turned slowly moves a send by one (under
 1 %), turned quickly by about 5 % a click, in each of these places ([Knob speed and OPT snap](#knob-speed-and-opt-snap)),
 and both ends are reached exactly. A new FM-1 opens the layer on Sends;
 after that it opens on the page you left it on. While FX is off the four cells read `off`; turning one switches the
@@ -1929,7 +1929,7 @@ default) a knob turned on a sound's parameter sends its CC on the part's channel
 | notes on the MIDI Bass channel | play the bass sound |
 | program change | the sound's place in its engine's pool (chord: 0 = INIT; bass: 0 = off, 1 = INIT, and so on) |
 | CC 7 | the part's level |
-| CC 91, 93, 94 | the part's reverb, chorus and delay sends (they stay until changed: a program change does not reset them). The screen shows the new send in per cent: controller value 127 is 100 % |
+| CC 91, 93, 94 | the part's reverb, chorus and delay sends (they stay until changed: a program change does not reset them), quietly, with no popup: controller value 127 is 100 % |
 | CC 64, pitch bend, CC 1, aftertouch | sustain, bend, and the modulation sources of the engines that use them |
 | CC 10, 92, 16 to 63, 71 to 77, 79, 80 to 90, 102 to 113 | with Options > MIDI CC In (the default): the sound's parameters, below |
 | start, continue, stop | with MIDI Clock set to Out or In: as the LOOP (PLAY) button; start also restarts the Arp / Pattern from its first step |
@@ -1951,7 +1951,7 @@ skipped, and setting one of them to it switches MIDI Keys off).
 New after 0.32. With Options > **MIDI CC** set to In or In + Out (the default), a CC on the MIDI Perform channel sets
 a parameter of the chord sound, and on the MIDI Bass channel one of the bass sound (one channel for both: both).
 It acts exactly as a knob turn on that parameter in the [sound editor](#12-the-sound-editor): the sound is marked
-edited (`*`), the cell turns hot when the editor shows it, and otherwise the value shows large on the screen. A
+edited (`*`) and the cell turns hot when the editor shows it; elsewhere the value changes quietly, with no popup. A
 fast controller is fine: only the latest value of each CC is applied. The CCs ChoralRoot already used keep their
 meaning: 1, 2, 4, 5, 7, 11, 64, 65, 91, 93, 94, 120 to 123, and the RPN messages (6, 38, 100, 101; CC 38 is the
 filter block's below unless RPN 0, the bend range, is selected).

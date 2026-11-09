@@ -1498,48 +1498,24 @@ static void cu_cc_send_trk(uint32_t part, uint32_t id)
             cu_cc_send(part, CC[i][1], (uint32_t)(id == P_PAN ? v + 64 : v < 0 ? 0 : v > 127 ? 127 : v));
 }
 
-/* the value shown as a knob turn shows it: the cell hot when the editor shows it on that part, else the popup (a
- * send's as CC 91's; the cell's value, its label, the part's colour) */
-static void ce_cc_show(uint32_t part, const track_t *t, ce_ref_t r, const param_desc_t *d, int32_t v)
+/* an incoming CC's value: only on the edit page showing that part's cell (the cell hot, as a knob turn); no popup
+ * elsewhere (owner, 2026-11-08) */
+static void ce_cc_show(uint32_t part, const track_t *t, ce_ref_t r)
 {
-    char tx[16], val[8], lb[32];
-    uint32_t i, j, c;
-    int32_t snd = ce_send_ref(t, r);
-    if (cu.page == PG_EDIT && (ce.part & 1u) == part) {
-        ce_view_t vw;
-        ce_view(t, part, &vw);
-        for (i = 0; i < vw.n; i++)
-            for (c = 0; c < 4u; c++)
-                if (ce_ref_eq(vw.ref[i][c], r)) {
-                    cx.hot_slot = 0;
-                    cx.hot_r = (uint8_t)(i + 1u);
-                    cx.hot_c = (uint8_t)c;
-                    cx.hot_t0 = cu_now();
-                    return;
-                }
-    }
-    if (snd >= 0) {
-        for (i = 0; i < CU_NFX && CU_FX[i].send != (uint32_t)snd; i++)
-            ;
-        cu_send_popup(v, i < CU_NFX ? CU_FX[i].name : "send", part ? CR_COL_ORANGE : CR_COL_GREEN);
+    ce_view_t vw;
+    uint32_t i, c;
+    if (cu.page != PG_EDIT || (ce.part & 1u) != part)
         return;
-    }
-    ce_label(t, r, d, tx, sizeof tx);
-    cu_cpy(lb, part ? "bass " : "", sizeof lb);
-    tx[0] = (char)(tx[0] >= 'A' && tx[0] <= 'Z' ? tx[0] + 32 : tx[0]);   /* ("bass attack", "cutoff": the popups' way) */
-    cu_cat(lb, tx, sizeof lb);
-    ce_text(t, r, d, v, tx, sizeof tx);           /* "683 ms": 683 big, "ms" under it; a name: the name */
-    for (i = 0; tx[i] && i < sizeof val - 1u && ((tx[i] >= '0' && tx[i] <= '9') || tx[i] == '+' || tx[i] == '-' ||
-                                                 tx[i] == '.'); i++)
-        val[i] = tx[i];
-    val[i] = 0;
-    for (j = i; tx[j] == ' '; j++)
-        ;
-    if (!i) {
-        cu_cpy(val, tx, sizeof val);
-        j = str_len(tx);
-    }
-    cu_popup(val, tx + j, lb, part ? CR_COL_ORANGE : CR_COL_WHITE, v, d->min, d->max, 12);
+    ce_view(t, part, &vw);
+    for (i = 0; i < vw.n; i++)
+        for (c = 0; c < 4u; c++)
+            if (ce_ref_eq(vw.ref[i][c], r)) {
+                cx.hot_slot = 0;
+                cx.hot_r = (uint8_t)(i + 1u);
+                cx.hot_c = (uint8_t)c;
+                cx.hot_t0 = cu_now();
+                return;
+            }
 }
 
 /* Options > MIDI CC In: CC cc = v (0..127) arrived for part 0 / 1 (cr_ui.c cu_midi_poll, from cr_out.c's pending
@@ -1578,8 +1554,8 @@ static void ce_cc_in(uint32_t part, uint32_t cc, uint32_t v)
         if (nv != v0)
             cu_edited(part);
     }
-    if ((d = ce_param(t, r, &v0)) != 0)           /* (a mode-dependent descriptor: the one the value has now) */
-        ce_cc_show(part, t, r, d, nv);
+    ce_cc_show(part, t, r);
+    d = ce_param(t, r, &v0);                      /* (a mode-dependent descriptor: the one the value has now) */
     cu_trace("cc: in part %u cc %u %u -> %s %d%s\n", (unsigned)part, (unsigned)cc, (unsigned)v, d ? d->label : "?",
              (int)nv, psnd[part].edited ? " edited" : "");
 }

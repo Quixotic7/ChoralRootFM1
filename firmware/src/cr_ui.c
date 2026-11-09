@@ -8652,7 +8652,7 @@ static void cu_midi_poll(void)
             fm1_irq_off();
             trk[p].p[P_LEVEL] = (int16_t)a.v;
             fm1_irq_on();
-            cu_popup_num(a.v, 0, "", p ? "bass level" : "level", p ? CR_COL_ORANGE : CR_COL_WHITE, 0, 127, 12);
+            /* (no popup: incoming CCs change values quietly, owner 2026-11-08) */
             cu_trace("level: part %u %u (cc 7)\n", (unsigned)p, (unsigned)a.v);
         } else {
             uint32_t id = a.kind == CRM_SEND_REV ? P_REV : a.kind == CRM_SEND_CHO ? P_CHOR : P_DLY;
@@ -8660,7 +8660,6 @@ static void cu_midi_poll(void)
                 if (CU_FX[i].send == id)
                     break;
             cu_send_set(a.part ? 1u : 0u, id, a.v);   /* (part 0's sends are the FX amounts: cu_send_set) */
-            cu_send_popup(a.v, i < CU_NFX ? CU_FX[i].name : "send", p ? CR_COL_ORANGE : CR_COL_GREEN);
             cu_trace("send: part %u %s %u (cc)\n", (unsigned)p, i < CU_NFX ? CU_FX[i].name : "?", (unsigned)a.v);
         }
     }

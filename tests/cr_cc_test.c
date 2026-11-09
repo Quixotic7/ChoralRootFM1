@@ -7,7 +7,7 @@
  * - the blocks: CC -> the cell SELECT reaches at that lane of the group (the editor's own order, ce_select), KNOB n; a few
  *   exact pairs on FM TONE and the VA; past a block's end and on an empty cell: nothing;
  * - a CC in through the MIDI queue (usb.c midi_enqueue -> cr_out.c cr_midi_in -> cr_ui.c cu_midi_poll): the value
- *   scaled, the sound edited, the cell hot in the editor, a popup outside it; a burst coalesced (the latest value);
+ *   scaled, the sound edited, the cell hot in the editor, no popup outside it; a burst coalesced (the latest value);
  *   the bass channel the bass sound; CC 38 with RPN 0 selected still its data entry;
  * - out: an editor knob, the FX group's send, KNOB 4 post their CCs (CRE_CCOUT) on the part's channel, its echo is
  *   ignored for a second; Options > MIDI CC Off / In / Out; a part's channel Off sends nothing.
@@ -312,10 +312,10 @@ int main(int argc, char **argv)
     dd = cp_deep(T0);
     psnd[0].edited = psnd[1].edited = 0;
     fm1_ms = 100000;
+    cu.pop.until = 0;
     cc_in(0, 74, 127);
-    OK(dd->get(T0, 8, 0) == 127 && psnd[0].edited && !psnd[1].edited && cu.pop.until > fm1_ms && !strcmp(cu.pop.label, "cutoff"),
-       "in: CC 74 = 127 on ch 1: the VA chord sound's cutoff 127, edited, the popup \"%s\" %s %s", cu.pop.label,
-       cu.pop.value, cu.pop.sub);
+    OK(dd->get(T0, 8, 0) == 127 && psnd[0].edited && !psnd[1].edited && !cu.pop.until,
+       "in: CC 74 = 127 on ch 1: the VA chord sound's cutoff 127, edited, no popup (outside the editor)");
     cc_in(0, 74, 0);
     OK(dd->get(T0, 8, 0) == 0, "in: CC 74 = 0: cutoff 0");
     cc_in(1, 74, 64);
@@ -349,7 +349,7 @@ int main(int argc, char **argv)
     OK(dd->get(T0, 8, 1) == 100 && cx.hot_r == 1 && cx.hot_c == 1 && !cu.pop.until,
        "in: the editor on FILT: CC 71 makes the Reso cell hot (no popup)");
     cc_in(0, 92, 90);
-    OK(cu_send(0, P_DIST) == 90 && cu.pop.until > fm1_ms, "in: CC 92 = 90: the chord part's Drive send, its popup");
+    OK(cu_send(0, P_DIST) == 90 && !cu.pop.until, "in: CC 92 = 90: the chord part's Drive send, no popup");
     cc_in(0, 10, 0);
     OK(T0->p[P_PAN] == track_desc(T0, P_PAN)->min, "in: CC 10 = 0: Pan hard left (%d)", (int)T0->p[P_PAN]);
     ce_close();

@@ -7878,3 +7878,10 @@ refused; a cutoff turned while Off gives All, while Chord keeps Chord). MANUAL.m
 choices and what each place does with the effects; Routing's note), FX.md "The master filter", SETTINGS.md tag 34.
 `sh tests/run_cr_tests.sh` passes; `./build.sh` and `BOARD=smk37 ./build.sh` OK; the emulator builds. Not tried on a
 unit; the Routing page's Filter box does not show the choice.
+
+3y271. **An incoming CC changes its value quietly: no popup.** The owner tried 3y269 / 3y270 on the spare (CC in and out
+and the filter bypass work) and asked that a CC arriving not put a popup on the screen: the value shows only when the
+edit page shows that part's cell. `cr_edit.c ce_cc_show` keeps only the hot cell (the editor on that part, the cell in
+its view); the popup fallback is gone. The older CC 7 (level) and CC 91 / 93 / 94 (sends) popups of `cu_midi_poll`
+go too, so no CC brings one up; a program change still shows the sound's. XIP -528 B. Tests: `cr_cc_test` (CC 74 and
+CC 92 outside the editor: the value set, no popup; the editor on FILT: CC 71's cell hot, no popup).
