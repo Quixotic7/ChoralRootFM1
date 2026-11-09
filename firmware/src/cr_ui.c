@@ -554,6 +554,8 @@ static struct {
      * with Perform off while the other performs. Default: the bass Off (bit 1), as before 0.34 */
     uint8_t perf_off, bperf_sel;
     int16_t bpar[CR_PM_COUNT][CR_P_COUNT];
+    uint8_t bass_keys;                    /* the BASS layer's keys (0.34): 0 play (the default), 1 pick (the white
+                                           * roots = the Behaviour); GLO tapped in the layer, as the KEY layer's */
     uint8_t fx_on, fx_sel, fx_amt[CU_NFX];
     uint8_t fx_page;                      /* the effect's page in the FX layer (0, or 1: Reverb 2, Delay 2), or
                                            * CU_FXPG_SENDS: the Sends page (cs.fx_sel stays the effect last picked:
@@ -3325,6 +3327,11 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
                 cu_loop_keys(!cs.loop_keys);
             break;
         }
+        if (cu.lock == L_BASS) {                  /* the BASS layer: GLO toggles its keys (play / pick), as below */
+            cs.bass_keys ^= 1u;
+            cu_trace("bass: keys %s\n", cs.bass_keys ? "pick" : "play");
+            break;
+        }
         if (cu.lock == L_KEY) {                   /* the KEY layer: GLO toggles its keys (pick / play): no Options
                                                    * from here (OPT held + a knob keeps its second job: a combo) */
             cs.key_play ^= 1u;
@@ -4867,7 +4874,8 @@ static int cu_layer_keys(uint32_t l)
 {                                                  /* (the Routing page owns only its five black keys, cu_rt_key:
                                                     * the rest play, so an effect is heard while it is routed) */
     return l && l != L_PERF && l != L_FX && l != L_LOCK && l != L_EDIT &&
-           !(l == L_LOOP && (!cs.loop_keys || cu.ledit)) && !(l == L_KEY && cs.key_play);
+           !(l == L_LOOP && (!cs.loop_keys || cu.ledit)) && !(l == L_KEY && cs.key_play) &&
+           !(l == L_BASS && !cs.bass_keys);
 }   /* (the PLAY menu with Keys = Play, the loop editor, the KEY layer with keys: play: they play, docs/LOOPER-MODES.md) */
 
 #ifndef CU_KEY_T0
@@ -6582,7 +6590,7 @@ static void cr_leds(void)
     } else
         cu_led(nl, panel.btn[BT_LATCH], cu.clock);
     cu_led(nl, panel.btn[BT_OPT], cu.opt_open || cu_shift() || (l == L_LOOP && cs.loop_keys && !cu.ledit) ||
-                                      (l == L_KEY && cs.key_play));   /* (the PLAY menu: Keys = Loops; the KEY layer:
+                                      (l == L_KEY && cs.key_play) || (l == L_BASS && cs.bass_keys));   /* (the PLAY menu: Keys = Loops; the KEY layer:
                                                                        * keys: play. Lit = not the default) */
     cu_led(nl, panel.btn[BT_EDIT], (cu.page == PG_EDIT || (cu.ledit && l == L_LOOP)) && blink);   /* blinks while the
                                                                        * editor is open (the sound's, the loop's) */
@@ -7768,7 +7776,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_BASS: {
         static char seen[48];
-        cu_picker(s, CU_BASSMODE, 4, cs.bass_mode, CR_COL_ORANGE, "bass", "a root: preview \267 OCT-: back \267 HOME");
+        cu_picker(s, CU_BASSMODE, 4, cs.bass_mode, CR_COL_ORANGE, cs.bass_keys ? "bass \267 keys pick" : "bass \267 keys play",
+                  cs.bass_keys ? "GLO: play \267 OCT-: back \267 HOME" : "GLO: pick \267 OCT-: back \267 HOME");
         s->kind = CR_K_KNOBROW;
         s->orient = 1;
         cu_bass_cells(s);

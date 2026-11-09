@@ -7983,4 +7983,10 @@ switched to the chord's; until then it closed the layer, as a layer's own button
 it again by its Behaviour (`crx_bass_sync`); until now a toggle applied from the next gesture. A bass-side key of Split
 Bass is unchanged (it plays whatever Bass says). `cr_engine_test`: the old "bass off while held: no change" check now
 expects the bass to stop; `s_bassperf` +5 (the arp stops and comes back under a held chord, the plain note too);
-`cr_bass_perf.txt` + `test_cr.sh` (ENV tap: no bass sounding for 800 ms, the chord held; again: 38 42 45).
+`cr_bass_perf.txt` + `test_cr.sh` (ENV tap: no bass sounding for 800 ms, the chord held; again: 38 42 45). **The BASS layer's keys play by default** (owner: "Keybed shortcuts should be off by
+default and use the GLO button to turn on, same as it is done in the In-Key Menu"): `cs.bass_keys` (0 play, 1 pick),
+GLO tapped in the layer toggles it (no Options from there), the GLO LED lit on pick, the header `bass · keys play` /
+`keys pick`, the footer `GLO: pick` / `GLO: play`; saved in the session record's `perf_x` (`CSS_BASS_KEYS` 0x04; 0 in
+older records = play). Until now the white keys D4 .. G4 picked the Behaviour and every root was silent in the layer.
+`cr_bass_row.txt` (F4 first plays, GLO, F4 picks Single) + a `test_cr.sh` check; `cr_bass_both.txt` taps GLO before G4
+(its WAV windows +0.2 s).

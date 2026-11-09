@@ -707,13 +707,17 @@ Hold BASS for the **BASS layer**:
 
 | Control | In the BASS layer |
 | --- | --- |
-| SELECT, KNOB 1, or the white keys D4 E4 F4 G4 | Behaviour (below) |
+| SELECT, KNOB 1, or the white keys D4 E4 F4 G4 (after a GLO tap) | Behaviour (below) |
 | KNOB 2 | Register |
 | KNOB 3 | Sound (as ALGORITHM, without wrapping round) |
 | KNOB 4 | Level |
 | ALGORITHM | the bass sound, as everywhere; **with BASS held: Level** |
+| GLO | the keys: play (the default) or pick |
 
-The root keys do not sound while this layer is open, whatever its footer says; close it to hear the change.
+The keys play while this layer is open, so you hear the bass as you change it (`keys play` at the top). A **GLO** tap
+in the layer turns its keys into shortcuts (`keys pick`, the GLO light on): the white keys D4 to G4 pick the
+Behaviour and the keys do not sound. Another GLO tap: they play again. The choice is kept with the settings, as the
+KEY layer's.
 
 | Behaviour | What the bass does |
 | --- | --- |
@@ -2431,7 +2435,7 @@ More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), 
 | SUS will not come, or C4 / C#4 play roots | the FM-1 chord keys (the default since 0.25.1): SUS is G#3 + A#3, the 9 is B3 | press G#3 and A#3 together, or Options > Chord Keys: Classic |
 | The chord sound is silent, the bass plays | Bass Behaviour is Solo (`Bass Solo`) | BASS layer, another behaviour, or tap BASS |
 | No bass | the bass is off (a new unit, a reset, or you switched it off) | tap BASS |
-| The bass layer's keys make no sound | in that layer the white keys pick the behaviour | close the layer to play |
+| The bass layer's keys make no sound | its keys are on pick (`keys pick`, GLO lit) | tap GLO in the layer, or close it |
 | The loop plays but is silent | its Level is 0 | PLAY menu, page 2, KNOB 1 |
 | REC replaced my loop | the record mode is Overwrite | PLAY menu, ALGORITHM: Overdub. Before the first chord, REC again cancels |
 | In step entry two notes land on the same step | they were held together | let go of the first before pressing the next; OCT- goes back |
@@ -2479,7 +2483,7 @@ A held layer button opens its layer and it stays; holding the same button again 
 | --- | --- | --- | --- |
 | FX | FX | effects on / off (in its layer too) | FX layer: SELECT the page (Sends · Reverb 1 · Reverb 2 · Chorus · Delay 1 · Delay 2 · Drive) · KNOB 1-4 its cells (Sends: the chord part's drive, chorus, delay and reverb sends; KNOB 4 on an effect's first page: its Send) |
 | SEL | KEY | Key Mode on / off | KEY layer: a root = tonic · MAJ / MIN = scale · KNOB 1 Tonic · 2 Scale · 3 Transpose · 4 Single (Full / Split Oct / Split Bass) · SELECT: page 2: KNOB 1 Key plays (Chords / Notes) · 2 Keyboard (Chords / Full) · 4 Numerals (Off / On / Solfège) · GLO: the keys pick / play |
-| ENV | BASS | bass on / off | BASS layer: SELECT behaviour · KNOB 1 Behaviour · 2 Register · 3 Sound · 4 Level. Held + EDIT: edit the bass sound. Held + SAVE: save it. Held + ARP: the Bass PERF layer |
+| ENV | BASS | bass on / off | BASS layer: SELECT behaviour · KNOB 1 Behaviour · 2 Register · 3 Sound · 4 Level · GLO: the keys play / pick. Held + EDIT: edit the bass sound. Held + SAVE: save it. Held + ARP: the Bass PERF layer |
 | LFO | LOCK (Classic chord keys: LATCH) | LOCK on / off; GLO held + LFO: LATCH (Classic: latch on / off) | the LOCK layer: KNOB 1 Type key Clears / Keeps · KNOB 2 Ext keys Toggle / Pushed (Classic: nothing) |
 | EDIT | EDIT | the sound editor; in it: leave | the engine picker: SELECT engine · KNOB 1 presets · KNOB 2 init · the keys play · OCT+ keep · OCT- cancel |
 | GLO | OPT | Options (SELECT setting · KNOB 1 value). In the PLAY menu: its keys play / loops. In the KEY layer: its keys pick / play. In the editor: SHIFT latch | + **SAVE, both held 1 s: revert to the last save** · + PRESETS: engine · + ALGORITHM: bass engine (both wherever the knob alone is the sound: the main screen, the Options, the layers but PLAY; ALGORITHM in the sound editor too) · + KNOB 1: split point · + SELECT: click level · + SEQ: metronome on / off · + REC: the next record mode. In the editor: snap (held or latched); + EDIT: chord / bass sound. Held + a value knob anywhere: the value snaps |
@@ -2538,7 +2542,7 @@ SELECT: the next lane. KNOB 1 to KNOB 4: the lane's values. PRESETS: the engine 
 | D#4, F#4, PLAY menu with its keys on loops | clear the loop (hold 1 s), undo |
 | white roots, naming a sound | letters and digits; D#4 a space; F#4 delete |
 | white roots D4 to B4, then C5, view menu | Chord, Keyboard, Notes, Geek Out, Scope, Geek Out 2; Lock |
-| white roots D4 to G4, BASS layer | the bass behaviour |
+| white roots D4 to G4, BASS layer with its keys on pick (GLO) | the bass behaviour |
 | white roots D4 to F4, the SEQ key's hold menu (metronome) | 4/4, 3/4, 6/8 |
 
 ### At power-on

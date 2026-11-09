@@ -2,7 +2,7 @@
 # tapped: the bass meter popup (cr_bass_both_pop), its LED, then "Bass" in orange top right once the popup has gone
 # (cr_bass_both_on); MAJ + D4 again: part 0 AND part 1 sound (Chords Only, the default Bass Behaviour); ALGORITHM +1
 # with the chord held (another bass sound: VA 18 PUNCH BASS, after the default 17 DEEP SUB): part 0 still sounds; BASS tapped off: its LED off, a chord on part 0 only.
-# Then Bass Behaviour Solo (the BASS layer locked, G4 = Solo, HOME): the bass on silences part 0 by design (the
+# Then Bass Behaviour Solo (the BASS layer locked, GLO: its keys pick, G4 = Solo, HOME): the bass on silences part 0 by design (the
 # device report "the bass stops the main synth": Solo stored in the settings), shown as "Bass Solo" top right
 # (cr_bass_both_solo) and "bass . solo" on the meter; D4 in the layer puts Chords Only back: both parts again.
 wait 300
@@ -48,6 +48,8 @@ btn D4 up
 key F3 up
 wait 1500
 btn ENV 900
+wait 200
+btn GLO
 wait 200
 btn G4 100
 wait 200

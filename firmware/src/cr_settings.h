@@ -311,6 +311,7 @@ static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uin
 #define CSS_MAGIC 0x31535343u           /* "CSS1" */
 #define CSS_PERF_CHORD_OFF 0x01u        /* perf_x: the chord's PERF layer on Off */
 #define CSS_PERF_BASS_ON 0x02u          /* .. the bass's on a mode (bperf_sel) */
+#define CSS_BASS_KEYS 0x04u             /* .. the BASS layer's keys pick (cs.bass_keys; 0: they play) */
 #define CSS_PERF_STORED 0x80u           /* .. bperf_sel and bpar are written (0: an older record, the defaults) */
 #define CSS_VERSION 1u
 #define CSS_SIZE 1024u

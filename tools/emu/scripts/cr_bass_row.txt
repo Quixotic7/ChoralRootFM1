@@ -2,7 +2,7 @@
 # Register / Sound / Level); KNOB 4 turned: the Level cell hot, no popup (EMU_UI_LOG=0: every UI frame "knobrow");
 # 900 ms later the hot block is gone; KNOB 2: the register (the shift glyph moves); KNOB 3: a bass sound (the Sound
 # cell reads its number and name); KNOB 1: the behaviour (Unison; the picker follows); E4 -> F4: the behaviour by a
-# root; OCT- closes the layer.
+# root: F4 first plays (the layer's keys play by default), GLO: they pick, F4 again: the behaviour; OCT- closes the layer.
 wait 300
 btn ENV down
 wait 500
@@ -26,6 +26,10 @@ knob KNOB1 +1
 wait 300
 shot build/emu/test/cr_bass_row_unison.ppm
 wait 900
+btn F4
+wait 300
+btn GLO
+wait 200
 btn F4
 wait 300
 shot build/emu/test/cr_bass_row_single.ppm

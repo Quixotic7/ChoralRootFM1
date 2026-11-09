@@ -150,7 +150,7 @@ def band(t0, t1, f=369.99):
         s = (x[i * ch] + x[i * ch + ch - 1]) / 2 + k * s1 - s2; s2 = s1; s1 = s
     return math.sqrt(max(s1 * s1 + s2 * s2 - k * s1 * s2, 0)) / (b - a)
 r = band(0.4, 0.8)
-print(*('%d' % (100 * band(t, t + 0.4) / r) for t in (3.76, 12.78, 16.65)))
+print(*('%d' % (100 * band(t, t + 0.4) / r) for t in (3.76, 12.98, 16.85)))   # (Solo, Chords Only: +0.2 s for the GLO tap that makes the layer's keys pick)
 PY
 )
 set -- $wv
@@ -799,6 +799,9 @@ differ cr_bass_row_cool cr_bass_row_reg "KNOB 2: the register cell changed: $OUT
 differ cr_bass_row_reg cr_bass_row_sound "KNOB 3: the sound cell changed: $OUT/cr_bass_row_sound.ppm"
 has '^bass: behaviour Unison Bass' "$L" && has '^bass: behaviour Bass Single Notes' "$L" &&
     ok "KNOB 1 and F4: the behaviour (Unison, Single): $OUT/cr_bass_row_unison.ppm" || bad "behaviour: $(grep '^bass: behaviour' "$L" | tr '\n' ' ')"
+kp=$(grep -n '^bass: keys pick' "$L" | head -1 | cut -d: -f1); sg=$(grep -n '^bass: behaviour Bass Single' "$L" | head -1 | cut -d: -f1)
+[ -n "$kp" ] && [ -n "$sg" ] && [ "$sg" -gt "$kp" ] &&
+    ok "the BASS layer's keys play by default (F4 picked nothing); GLO: they pick (F4: Single)" || bad "the bass layer's keys: pick at $kp, Single at $sg"
 
 echo "KEY / LOOP / METRO held: knob rows (KEY: the keyboard as the band; LOOP: no ring)"
 export EMU_UI_LOG=0
