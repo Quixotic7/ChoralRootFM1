@@ -1,6 +1,6 @@
 # ChoralRoot FM-1: the manual
 
-For ChoralRoot 0.32 on the M-VAVE FM-1 (what is new since 0.22 is marked so; 0.32 is 0.31 with a flash driver that waits out a slow erase or write, for the newer FM-1s' slower flash chip, [releases/0.32.md](releases/0.32.md); what 0.31 brought, USB Host and two FM-1s on one cable: [releases/0.31.md](releases/0.31.md); what 0.30 brought, Bluetooth MIDI and incoming start and stop with MIDI Clock Out: [releases/0.30.md](releases/0.30.md); 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
+For ChoralRoot 0.33 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.33 brought, no pop at power-on, MIDI CC on the sounds' parameters and the filter on the chords or the bass alone: [releases/0.33.md](releases/0.33.md); 0.32 is 0.31 with a flash driver that waits out a slow erase or write, for the newer FM-1s' slower flash chip, [releases/0.32.md](releases/0.32.md); what 0.31 brought, USB Host and two FM-1s on one cable: [releases/0.31.md](releases/0.31.md); what 0.30 brought, Bluetooth MIDI and incoming start and stop with MIDI Clock Out: [releases/0.30.md](releases/0.30.md); 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
 FM-1, has installed ChoralRoot with
 the web installer and wants to play it. Nothing here needs the design documents; where one goes deeper, the manual
 links to it.
@@ -1773,7 +1773,7 @@ Tap **OPT** (printed GLO). One setting fills the screen:
 | **MIDI Raw Chord** | Off, ch 1 to ch 16 | Off | the channel for the plain chord, without the performance mode. From Off the first step is ch 1; choose a channel of its own (the Orchid uses 3) |
 | **Raw Chord Sound** | Off, On | Off | On: the plain chord also plays on the chord sound, under an arpeggio or pattern. With no performance mode on, every note then sounds twice |
 | **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop; incoming start / stop work as LOOP. In: follows the clock and start / stop |
-| **MIDI CC** | Off, In, Out, In + Out | In | CCs on the sounds' parameters ([MIDI CC](#midi-cc-the-sounds-parameters)). In: a CC sets the parameter; Out: a knob turned on such a parameter sends its CC. Off: only CC 7, 91, 93 and 94 as before. New after 0.32 |
+| **MIDI CC** | Off, In, Out, In + Out | In | CCs on the sounds' parameters ([MIDI CC](#midi-cc-the-sounds-parameters)). In: a CC sets the parameter; Out: a knob turned on such a parameter sends its CC. Off: only CC 7, 91, 93 and 94 as before. New in 0.33 |
 | **Bluetooth** | Off, On | Off | the FM-1 only: MIDI over Bluetooth, the same MIDI as over USB ([Bluetooth MIDI](#bluetooth-midi)); the first On takes effect at the next power-on. The line under it says what the link is doing. Kept apart from the other settings (Reset Settings leaves it, a backup does not carry it; Flash Data clears it) |
 | **Forget Bluetooth** | | | OCT+ twice: the FM-1 forgets the computer it paired with. Forget the FM-1 on that computer too |
 | **USB Host** | Off, On | Off | the FM-1 only: the USB-C port hosts a USB MIDI keyboard, controller or second FM-1 instead of talking to a computer ([USB Host](#usb-host-a-midi-device-on-the-fm-1s-usb-c)). Never saved: every start-up is a USB device again |
@@ -1948,7 +1948,7 @@ skipped, and setting one of them to it switches MIDI Keys off).
 
 ### MIDI CC: the sounds' parameters
 
-New after 0.32. With Options > **MIDI CC** set to In (the default) or In + Out, a CC on the MIDI Perform channel sets
+New in 0.33. With Options > **MIDI CC** set to In (the default) or In + Out, a CC on the MIDI Perform channel sets
 a parameter of the chord sound, and on the MIDI Bass channel one of the bass sound (one channel for both: both).
 It acts exactly as a knob turn on that parameter in the [sound editor](#12-the-sound-editor): the sound is marked
 edited (`*`) and the cell turns hot when the editor shows it; elsewhere the value changes quietly, with no popup. A

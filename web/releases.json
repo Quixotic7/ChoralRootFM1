@@ -8,6 +8,28 @@
   },
   "releases": [
     {
+      "version": "0.33",
+      "date": "2026-11-09",
+      "tag": "v0.33",
+      "sha256": "fee7577cf418beb92b36cab637da60d413547944eb9f5bdfadfdf4d9c790b577",
+      "sha256_1core": "f4ccce4ee65dd611aa5bc833a33453f40956841a73548c58c8d6f28a894552c0",
+      "title": "No pop at power-on, MIDI CC on the sounds, the filter on one part",
+      "bullets": [
+        "No more pop from the speaker a few seconds after switching on: the audio now starts right after power-on, silent until the FM-1 is ready.",
+        "Options > MIDI CC (In by default): a CC on the Perform or Bass channel sets a parameter of that part's sound, as turning its knob in the sound editor would.",
+        "The common CCs mean the same on every engine (pan, the drive send, filter cutoff and resonance, the amp envelope, LFO 1); MANUAL section 15 has each engine's map.",
+        "With MIDI CC on Out or In + Out, turning a knob on such a parameter sends its CC.",
+        "Incoming CCs change values quietly: no popup.",
+        "The master filter's KNOB 4 is now Off, All, Chord or Bass: filter the chords or the bass alone, the other part going round it.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "Going back to 0.32: the filter on Chord or Bass reads as Off there, and MIDI CC set to anything but In makes 0.32 read Raw Chord Sound and MIDI Keys as Off.",
+        "The supplies are now set to the stock levels on every start, as FM1-Base and Melodee do.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.32",
       "date": "2026-11-08",
       "tag": "v0.32",
@@ -25,7 +47,15 @@
         "The fix is felucca-bsp's (#12, by Julius Vitkauskas), as RemoteFM1 0.3.4 took it. Its two files keep their MPL-2.0 licence.",
         "Not yet tried on a unit with the slow chip: none here has one. If --debug shows flash_late_ops above 0, please report it.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.32 stores everything the same way, so your settings, sounds, loops and favorites stay, but for two settings below.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.32 again. No MIDI CC on the sounds' parameters, and the pop at power-on can come back.",
+          "The filter set to Chord or Bass reads as Off on 0.32 (All reads as On).",
+          "Options > MIDI CC on In (the default) is fine. Set to Off, Out or In + Out, 0.32 reads Raw Chord Sound and MIDI Keys as Off: put MIDI CC back on In first, or set them again on 0.32."
+        ]
+      }
     },
     {
       "version": "0.31",

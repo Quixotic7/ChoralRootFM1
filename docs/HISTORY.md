@@ -7911,3 +7911,25 @@ scripts' SELECT moves past Clock one turn more (`+34` for "past the end"; `cr_lo
 `-5`; `cr_opt_keys`'s walk one entry longer), the expected entry numbers and counts one more; the CC 91 popup checks
 expect no popup (3y271); the SMK test finds TRS MIDI Out after MIDI Clock and MIDI CC. `sh tests/run_all.sh`: all 24
 suites pass; `./build.sh` and `BOARD=smk37 ./build.sh` OK.
+
+## 2026-11-09 (0.33 and 0.33-smk37)
+
+3y274. **0.33: no pop at power-on, MIDI CC on the sounds' parameters, the filter on one part; 0.33-smk37 beside it.**
+The owner, through the orchestration session ("Yes, lets tag and release this"): 2565da82 (claude/cc-fix-suites, on
+origin/main 2569643a). 0.33 is 0.32 with 3y267..3y273: the stock supplies first on every FM-1 boot and the I2S clocks
+~0.1 s after power-on (3y267 / 3y268, the owner: "Pop gone"), MIDI CC in and out on the sounds' parameters with Options
+> MIDI CC defaulting to In (3y269, 3y272), Filter Off / All / Chord / Bass (3y270), no popup for an incoming CC
+(3y271), the suites on the new Options entry and the audio ISR back in budget (3y273). The first try, on 2569643a,
+stopped at the suites (4 of 24 failed on main itself, 3y273); this is the rebuild on 2565da82. `./build.sh --release
+0.33` and `tools/hub_build.sh 0.33`: the same `SHA256SUMS`; XIP 558,920 of 573,440 (97.5 %), 1-core 554,996, RES
+41,820 of 49,088. `choralroot-0.33.fwsc` fee7577c...b577, `-1core` f4ccce4e...52c0. `web/releases.json` first with the
+sha256s, 0.32's entry given its going-back note (Chord / Bass read as Off there; MIDI CC other than In makes 0.32 read
+Raw Chord Sound and MIDI Keys Off, 3y272), `docs/releases/0.33.md`, MANUAL.md's first line and its two "New after
+0.32" now "New in 0.33", `choralroot.c`'s dev version. **0.33-smk37** (base 0.33; the CCs, the faders' CCs out, the
+filter choice and the early audio start, no supplies step: FM-1 only): `BOARD=smk37 [MODEL=elite|mke] ./build.sh
+--release 0.33-smk37` and `tools/hub_build.sh 0.33-smk37`, the same `SHA256SUMS` (twelve files); XIP 558,752 (each
+model), 1-core 554,836. Pro 80d33348...cd59, Elite 225cecdb...d5e2, MKE-P37 daabf9b0...a819. `web/releases-smk37.json`
+first, four bullets, three notes; SMK37.md's status, package names and version line. `python3 tests/releases_test.py`
+ALL OK; `CR_VERSION=0.33 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1122 ok;
+test_persist 121 ok; `fm1_alnk0_irq` 14,109 of 13,890, inside the 10 %; the browser emulators as 0.33). Not installed
+on a unit: the spare E81CE2F7 ran each feature's dev build (3y268, 3y271).

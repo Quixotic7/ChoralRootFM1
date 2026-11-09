@@ -3,6 +3,38 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.33-smk37",
+      "base": "0.33",
+      "date": "2026-11-09",
+      "tag": "v0.33-smk37",
+      "title": "0.33 on the SMK-37: MIDI CC on the sounds, the filter on one part",
+      "bullets": [
+        "Options > MIDI CC (In by default): a CC sets a parameter of the chord or the bass sound; with Out, a knob or a fader turned on one sends its CC.",
+        "The master filter can work on the chords or the bass alone (Filter: Off, All, Chord, Bass).",
+        "The audio starts right after power-on, as on the FM-1, where that took away a pop. Incoming CCs bring up no popup.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.32-smk37: the filter on Chord or Bass reads as Off, and MIDI CC set to anything but In makes it read Raw Chord Sound and MIDI Keys as Off.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "80d333480ded37e079a6be555919c7b3ddc442c7851d05f37b026c71e4f7cd59",
+          "sha256_1core": "aa5592a29ec868aa32b82047cd16e8e40e84da15804a22403f25101b7f197f3d"
+        },
+        "elite": {
+          "sha256": "225cecdbd7b7e06bad5c88d6234a6c984900318d882d5656e4dfe7301bf5d5e2",
+          "sha256_1core": "fa8b485bb2b264cc1660c9e832ea26cc9dc55db9baca068518a2a80bd4d8b36e"
+        },
+        "mke": {
+          "sha256": "daabf9b00fec7593131da68eca522be3a0e30504a8b2d32e23e913ff4465a819",
+          "sha256_1core": "34d24004816d64aef287462f1f5719f66a71070598eb6a034edd834a744bf477"
+        }
+      }
+    },
+    {
       "version": "0.32-smk37",
       "base": "0.32",
       "date": "2026-11-08",
