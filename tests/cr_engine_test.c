@@ -404,11 +404,11 @@ static void s_bass(void)
     K(48, 1); cr_panic(&C);
     ok(sounding() == 0, "panic clears bass notes as well");
     R(48, 1); MU(CR_MOD_MAJ);
-    /* the bass toggle applies to the next gesture; a sounding bass finishes with its chord */
+    /* the bass toggle applies at once to a held chord (0.34) */
     MD(CR_MOD_MAJ); K(48, 1); clear();
     cr_set_bass(&C, 0);
-    expect("", "bass off while held: no change");
-    R(48, 1); expect("-48 -52 -55 -36b", "the held chord's bass ends with it");
+    expect("-36b", "bass off while held: the bass stops, the chord sounds on");
+    R(48, 1); expect("-48 -52 -55", "the held chord ends without a bass");
     K(48, 1); expect("+48 +52 +55", "bass off: the next chord has no bass");
     R(48, 1); MU(CR_MOD_MAJ); clear();
     cr_set_bass(&C, 1);
@@ -2713,6 +2713,20 @@ static void s_bassperf(void)
     ok(n == 4 && grid_ok((ons(idx, 256, 1), idx), 4, 250, 1), "bass Arp: 1/8 steps at 120 BPM");
     ok(cr_perform_shown(&C) == CR_PF_BASS && cr_perform_stepping(&C), "the view shows the bass's arp (the chord's is off)");
     ok(cr_perform_pos(&C, &note) >= 0 && note % 12 == 0, "its position is matched to the chord's notes by name");
+    /* Bass off / on under a held chord: the bass arp stops and starts at once, the chord untouched */
+    clear(); cr_set_bass(&C, 0); step(10);
+    ok(!SND[1][36] && !SND[1][40] && !SND[1][43] && count('-', 0) == 0, "Bass off, chord held: the bass arp stops");
+    step(600);
+    ok(count('+', 1) == 0 && SND[0][48] && SND[0][52] && SND[0][55], "Bass off: no bass steps, the chord sounds on");
+    cr_set_bass(&C, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(n >= 2 && v[0] == 36 && v[1] == 40 && count('+', 0) == 0, "Bass on again, chord held: the bass arps again");
+    cr_set_perform(&C, 0); step(10); clear();
+    cr_set_bass(&C, 0); step(10);
+    ok(!SND[1][36] && sounding() == 3, "Perform off: Bass off stops the held bass note");
+    cr_set_bass(&C, 1); step(10);
+    ok(SND[1][36] && count('+', 1) == 1, "Bass on: the held chord's bass note comes back");
+    cr_set_perform(&C, 1); step(10);
     clear(); R(48, 1); step(400);
     ok(count('+', -1) == 0 && sounding() == 0, "bass Arp: keys up, everything stops");
     clear();

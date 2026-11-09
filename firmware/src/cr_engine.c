@@ -863,7 +863,7 @@ static void crx_bass_sync(cr_t *c, int vi)
     cr_voice_t *v = &c->v[vi];
     int want;
     if (v->zone & CR_Z_BASS) return;                            /* (a bass-side key: its note is the bass) */
-    if (!c->bass_on || !c->stream_on[CR_STREAM_BASS]) return;   /* bass toggles apply to the next gesture */
+    if (!c->bass_on || !c->stream_on[CR_STREAM_BASS]) return;
     want = crx_bass_wanted(c, v);
     if (want && !v->bass.live) crx_bass_start(c, vi);
     else if (!want && v->bass.live) { crx_bass_release(c, vi); v->bass.live = 0; }
@@ -1322,7 +1322,20 @@ void cr_set_keyboard(cr_t *c, int full, int split_note)
     c->split_note = (uint8_t)crx_clamp(split_note, 0, 127);
 }
 void cr_set_full_chords(cr_t *c, int mode) { c->full_chords = (uint8_t)(mode == 1 || mode == 2 ? mode : 0); }
-void cr_set_bass(cr_t *c, int enabled) { c->bass_on = (uint8_t)(enabled != 0); }
+/* Bass on / off (0.34): a held chord's bass follows at once, its note or its Bass Perform stopping or starting */
+void cr_set_bass(cr_t *c, int enabled)
+{
+    int i;
+    enabled = enabled != 0;
+    if (c->bass_on == enabled) return;
+    c->bass_on = (uint8_t)enabled;
+    for (i = 0; i < CR_NVOICE; i++) {
+        cr_voice_t *v = &c->v[i];
+        if (!v->used || (v->zone & CR_Z_BASS)) continue;   /* (a bass-side key plays whatever Bass says) */
+        if (enabled) crx_bass_sync(c, i);
+        else if (v->bass.live) { crx_bass_release(c, i); v->bass.live = 0; }
+    }
+}
 void cr_set_bass_mode(cr_t *c, cr_bassmode_t m) { if ((int)m >= CR_BASS_CHORDS_ONLY && (int)m <= CR_BASS_SOLO) c->bass_mode = (uint8_t)m; }
 void cr_set_stream(cr_t *c, cr_stream_t s, int enabled) { if ((int)s >= 0 && (int)s < CR_NSTREAM) c->stream_on[s] = (uint8_t)(enabled != 0); }
 

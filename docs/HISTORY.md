@@ -7977,4 +7977,10 @@ the bass arps 38 42 45 under the sustained chord; ARP tap: the plain 38; again: 
 ("Chord and Bass Perform"), 3, 5, 14, 15 and 18; SETTINGS.md; SMK37.md. `sh tests/run_all.sh`: ALL SUITES PASSED (24; test_cr
 1131 ok, test_persist 121 ok); `BOARD=smk37 ./build.sh` OK. A dev build on the spare E81CE2F7 (backup
 `fm1-backups/E81CE2F7-before-perf-split-20261109.json`), before the last change (ARP held in the Bass PERF layer
-switched to the chord's; until then it closed the layer, as a layer's own button does).
+switched to the chord's; until then it closed the layer, as a layer's own button does). **Bass on / off under a held chord** (owner, after trying it:
+"I quick click ENV to turn off the Bass, the Bass keeps playing through the arp until I press a new key"):
+`cr_set_bass` now applies at once to every held voice: off releases its bass note or stops its Bass Perform, on starts
+it again by its Behaviour (`crx_bass_sync`); until now a toggle applied from the next gesture. A bass-side key of Split
+Bass is unchanged (it plays whatever Bass says). `cr_engine_test`: the old "bass off while held: no change" check now
+expects the bass to stop; `s_bassperf` +5 (the arp stops and comes back under a held chord, the plain note too);
+`cr_bass_perf.txt` + `test_cr.sh` (ENV tap: no bass sounding for 800 ms, the chord held; again: 38 42 45).

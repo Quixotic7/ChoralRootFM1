@@ -781,6 +781,8 @@ arpeggiated bass, or both can perform at once.
   **Behaviour**: nothing with the bass off, nothing for a single note under Chords Only, the played note with Unison,
   the chord alone with Solo, and with **Split Bass** a key below the split arpeggiates its own note (over the range's
   octaves).
+- **A BASS (ENV) tap** turns the bass on and off at once, also under a chord you are holding: its note or its
+  performance stops, and the next tap brings it back on the same chord, arpeggio and all. The chord plays on.
 - **Hold** (Strum's KNOB 4) of either part keeps the whole chord sounding after you let go, as LATCH does; LATCH's
   gesture turns both off.
 - The top right says `Bass Arp` (in orange) while only the bass performs, and the Chord view's hopping note follows

@@ -1,7 +1,8 @@
 # ChoralRoot: Chord and Bass Perform (0.34, GitHub issue 41). ALGORITHM +18: the bass on (DEEP SUB). BASS (ENV) held +
 # ARP: the Bass PERF layer (orange, "bass perform"), on Off; SELECT +4: the bass's Arpeggiate (Perform on). ARP held
 # there: the chord's layer (not closed), on Strum; SELECT -1: Off. MAJ (F3) + D4 held: the chord sustains, the bass arps D F# A in its
-# register (38 42 45). ARP tap: Perform off, the plain bass note (38); tap again: the bass arps again. Released: silent.
+# register (38 42 45). ARP tap: Perform off, the plain bass note (38); tap again: the bass arps again. ENV tap: the bass
+# and its arp stop under the held chord; tap again: it arps again. Released: silent.
 wait 300
 knob ALGORITHM +18
 wait 700
@@ -56,7 +57,19 @@ tap ARP
 wait 300
 expect led ARP on
 dump                          # 13: perform 1: the bass arps again
+tap ENV
+wait 400
+dump                          # 14: the bass off, the chord held: no bass sounding
+wait 400
+dump                          # 15: still none
+tap ENV
+wait 400
+dump                          # 16: the bass on again: it arps again (16-18)
+wait 125
+dump                          # 17
+wait 125
+dump                          # 18
 btn D4 up
 key F3 up
 wait 2000
-dump                          # 14: silent
+dump                          # 19: silent

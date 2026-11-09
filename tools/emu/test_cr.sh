@@ -629,6 +629,11 @@ case "$(pc 13) / $(bn 13)" in "1 0 / "38|"1 0 / "42|"1 0 / "45|"1 0 / ") ok "ARP
     *) bad "Perform on again: $(pc 13) / $(bn 13)";; esac
 grep -q "^  perf: parts 2 .* shown 1 " "$L" && ok "the views follow the bass's arp while the chord's is Off (shown 1)" \
     || bad "the bass's arp not shown"
+[ -z "$(bn 14)" ] && [ -z "$(bn 15)" ] && [ "$(pc 14)" = "1 0" ] &&
+    ok "ENV tap under the held chord: the bass and its arp stop at once" || bad "Bass off while held: $(bn 14) / $(bn 15) / $(pc 14)"
+seen=$(for i in 16 17 18; do bn $i; done | tr ' ' '\n' | grep . | sort -u | tr '\n' ' ')
+[ -n "$seen" ] && [ -z "$(echo $seen | tr ' ' '\n' | grep -Ev '^(38|42|45)$')" ] &&
+    ok "ENV tap again: the bass arps again under the same chord ($seen)" || bad "Bass on again while held: '$seen'"
 silent_end cr_bass_perf
 
 echo "the arp's Hold off by default: released keys stop it; LATCH holds it; PANIC stops; perform never swaps the view"
