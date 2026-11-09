@@ -7779,3 +7779,21 @@ the spare E81CE2F7, each installed with `--unit E81CE2F7` (a backup first:
 Suites green after each (`sh tests/run_cr_tests.sh`: cr_bootguard 95, cr_stub 16,143, stub_pkg 265), `BOARD=smk37`
 builds. Next: a diagnostic with the steps after the splash 3 s apart, each named on the screen, to place the pop on one
 step (the keys' and knob's pins, the audio start, USB and the timer, the running loop).
+
+3y268. **The power-on pop is gone: the I2S clocks start ~0.1 s after power-on, not 1.5 s or more.** Round 2 of
+3y267, on the spare E81CE2F7 (Bluetooth and Dual Core Off), each install with `--unit E81CE2F7`:
+1. **A labelled diagnostic** (not committed): the steps after the splash 3 s apart, each named on the screen
+   (A the keys' and knob's pins, B `master_boot`, C `audio_init`, D USB and the timer). The owner: "Every time it
+   happens as soon as C starts". So the pop is the I2S clocks' start, ALNK0's MCLK / SCLK / LRCK reaching the DAC,
+   not a sample: the output is digital zero then (3y267), and the start is the same code as FM1-Base's.
+2. **The audio start first** (kept): `fm1_main` runs `audio_init` right after the stock supplies (3y267 try 3), before
+   the flash, the screen and the splash, about 0.1 s after power-on, as FM1-Base starts its audio early. Before this
+   ChoralRoot started the clocks after the splash, 1.5 to 2 s in; at 6 s (the timed diagnostic) it popped every
+   time, and a cold start (the board longer at rest) more often. The DMA loops `audio_init`'s zeroed buffer until
+   the interrupts come on (`fm1_irq_enable_all`), so the output is silence until then; the first rendered block is
+   after `master_boot`, at the knob's level, as before. Core 1 (Dual Core On) and the radio (Bluetooth On) now start
+   with the DMA already running; both still start before the interrupts. `CRBL_T_NOAUDIO` (3y243's bisection switch)
+   is retired: `audio_init` now runs before the Bluetooth record is read. **The owner: "Pop gone".**
+Install exit 0, `--debug` halves 9297, late 0, stale halves 0, crash count 0, stub v3 64.4 ms, rails 14 / 5. Suites
+green (`sh tests/run_cr_tests.sh`), `BOARD=smk37` builds (its `audio_init` moves the same way; the SMK-37 had no
+report of a pop). Not tried yet: a boot with Dual Core On and one with Bluetooth On on this build.

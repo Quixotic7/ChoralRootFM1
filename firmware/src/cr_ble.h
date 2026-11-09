@@ -41,7 +41,7 @@ static void cr_ble_supplies(int ok);             /* main.c: stock's supplies app
 /* the bisection's switches (3y243; BLE_DIAG builds only, else 0): 82 BLE_TEST saves a mask in the Bluetooth record,
  * applied at the next power-on (main.c): a ChoralRoot subsystem Melodee does not run is left off, one at a time */
 #define CRBL_T_NOSCAN 1u                         /* no analog key scan (velocity: the rows PA7 / PA8, the PA10 probe) */
-#define CRBL_T_NOAUDIO 2u                        /* no audio_init (no ALNK DMA, no audio ISR, so no core 1 jobs) */
+#define CRBL_T_NOAUDIO 2u                        /* retired (3y268: audio_init runs before the record is read) */
 #define CRBL_T_NOUART 4u                         /* no TRS MIDI UART */
 #define CRBL_T_LATE 8u                           /* the radio started in the main loop, as Melodee's ble_boot_poll */
 #define CRBL_T_NOSUPPLY 16u                      /* no stock supply sequence (the boot loader's) */

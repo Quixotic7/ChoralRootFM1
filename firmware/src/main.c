@@ -269,6 +269,13 @@ static void fm1_main(void)
     if (!cr_safe)
         cr_boot_supplies = cr_rails_stock();            /* first: before the flash, the screen and the audio */
 #endif
+    CR_STAGE(BS_AUDIO);
+    audio_init();                                       /* the I2S clocks next, ~0.1 s after power-on (HISTORY 3y268: the
+                                                         * power-on pop). The DAC popped when its clocks came 1.5 s or
+                                                         * more after power-on (6 s: every time); FM1-Base starts them
+                                                         * early. The DMA loops the zeroed buffer until the interrupts
+                                                         * come on below (fm1_irq_enable_all): silence; the first block
+                                                         * is rendered after master_boot, at the knob's level, as before */
     persist_boot();                                     /* (stages BS_FLASH .. BS_SETTINGS; SAFE MODE: no object read) */
 #if FELUCCA_OTA
     CR_STAGE(BS_OTA_CLEANUP);
@@ -314,12 +321,7 @@ static void fm1_main(void)
                                                          * MODE, and not when the boot before this one failed
                                                          * (cr_cpu1.h cr_c1_power_on) */
 #endif
-    CR_STAGE(BS_AUDIO);
     master_boot();                            /* the first block already at the knob's level (master.c) */
-#if CR_BLE
-    if (!(cr_ble_test() & CRBL_T_NOAUDIO))    /* (3y243's bisection: a BLE_DIAG build's switch) */
-#endif
-    audio_init();
     CR_STAGE(BS_USB);
     usb_start();
 #if FELUCCA_UART
