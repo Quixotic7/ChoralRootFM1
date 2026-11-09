@@ -1,6 +1,6 @@
 # ChoralRoot FM-1: the manual
 
-For ChoralRoot 0.33 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.33 brought, no pop at power-on, MIDI CC on the sounds' parameters and the filter on the chords or the bass alone: [releases/0.33.md](releases/0.33.md); 0.32 is 0.31 with a flash driver that waits out a slow erase or write, for the newer FM-1s' slower flash chip, [releases/0.32.md](releases/0.32.md); what 0.31 brought, USB Host and two FM-1s on one cable: [releases/0.31.md](releases/0.31.md); what 0.30 brought, Bluetooth MIDI and incoming start and stop with MIDI Clock Out: [releases/0.30.md](releases/0.30.md); 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
+For ChoralRoot 0.34 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.34 brought, Chord and Bass Perform, each part with its own performance mode: [releases/0.34.md](releases/0.34.md); what 0.33 brought, no pop at power-on, MIDI CC on the sounds' parameters and the filter on the chords or the bass alone: [releases/0.33.md](releases/0.33.md); 0.32 is 0.31 with a flash driver that waits out a slow erase or write, for the newer FM-1s' slower flash chip, [releases/0.32.md](releases/0.32.md); what 0.31 brought, USB Host and two FM-1s on one cable: [releases/0.31.md](releases/0.31.md); what 0.30 brought, Bluetooth MIDI and incoming start and stop with MIDI Clock Out: [releases/0.30.md](releases/0.30.md); 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
 FM-1, has installed ChoralRoot with
 the web installer and wants to play it. Nothing here needs the design documents; where one goes deeper, the manual
 links to it.
@@ -766,7 +766,7 @@ When nothing is being stepped (no keys held, or Strum, Slop, Harp) the picker st
 Outside the layer **KNOB 3** turns the mode's first parameter (the strum rate, the slop amount, the arp division,
 the pattern, the harp rate). An arpeggio stops when you let go of the keys; switch LATCH on to keep it running.
 
-### Chord and Bass Perform (new after 0.33)
+### Chord and Bass Perform (new in 0.34)
 
 The chords and the bass each have a performance mode of their own, so slow sustained chords can sit over an
 arpeggiated bass, or both can perform at once.

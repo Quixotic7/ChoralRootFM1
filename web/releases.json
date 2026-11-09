@@ -8,6 +8,27 @@
   },
   "releases": [
     {
+      "version": "0.34",
+      "date": "2026-11-09",
+      "tag": "v0.34",
+      "sha256": "3ae553e3676ef9f7bb304309393dd4d32f30a87d4470b90f251d77e9b1e3c3a6",
+      "sha256_1core": "35e486ca57d21ef16a581e024c461845c98ff7b51c91c992e7b1a1e12c6bc031",
+      "title": "Chord and Bass Perform",
+      "bullets": [
+        "Chord and Bass Perform: the chords and the bass each have their own performance mode, so sustained chords can sit over an arpeggiated bass, or both can perform at once (GitHub issue 41, by etyrnal).",
+        "BASS (ENV) held + ARP opens the Bass PERF layer: the same modes and knobs in orange, with the bass's own settings.",
+        "Both PERF pickers start with Off. The chords start on their mode and the bass on Off, so the FM-1 plays as before until you pick one.",
+        "An ARP tap is still the one switch for both parts.",
+        "A BASS tap turns the bass, and its arpeggio, on and off at once, also under a chord you are holding.",
+        "The BASS layer's keys now play by default; a GLO tap in the layer turns them into its Behaviour shortcuts.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "Going back to 0.33: the bass plays its plain note, a chord part set to Off performs again, and the BASS layer's keys pick the Behaviour.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.33",
       "date": "2026-11-09",
       "tag": "v0.33",
@@ -27,7 +48,15 @@
         "Going back to 0.32: the filter on Chord or Bass reads as Off there, and MIDI CC set to anything but In makes 0.32 read Raw Chord Sound and MIDI Keys as Off.",
         "The supplies are now set to the stock levels on every start, as FM1-Base and Melodee do.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.33 stores everything the same way, so your settings, sounds, loops and favorites stay; only the new Perform settings are not read there.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.33 again. No Bass Perform: the bass plays its plain note.",
+          "A chord part set to Off in its PERF layer performs again with its last mode on 0.33.",
+          "A global save on 0.33 sets the bass's Perform settings back to their defaults, and the BASS layer's keys pick the Behaviour there."
+        ]
+      }
     },
     {
       "version": "0.32",

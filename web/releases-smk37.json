@@ -3,6 +3,38 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.34-smk37",
+      "base": "0.34",
+      "date": "2026-11-09",
+      "tag": "v0.34-smk37",
+      "title": "0.34 on the SMK-37: Chord and Bass Perform",
+      "bullets": [
+        "Chord and Bass Perform: the chords and the bass each have their own performance mode (GitHub issue 41, by etyrnal). CHORD held + ARP opens the Bass PERF layer; the mode pads stay the chords'.",
+        "A BASS tap turns the bass, and its arpeggio, on and off at once, also under a held chord.",
+        "The BASS layer's keys now play by default; a GLO tap in the layer turns them into its Behaviour shortcuts.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.33-smk37: the bass plays its plain note, a chord part set to Off performs again, and the BASS layer's keys pick the Behaviour.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "94747b4c06c3e487511987e96f1be9061c09a909795bb08675e96eefd71c7594",
+          "sha256_1core": "d2a46f747446de850a8fccdc2bcadab8400d1bb291dc2d45b0a670045fe9b4e7"
+        },
+        "elite": {
+          "sha256": "01f6af4757ce065433660cd91aa16f10c024f3c65c4a4e2fbb9970e9e74f8b6c",
+          "sha256_1core": "3d51ecd317da400cb898f54ae09d476a743d611c03564160be239ab30b0ce023"
+        },
+        "mke": {
+          "sha256": "c62a9b9eccfc40dd14dfa6392f9e2aa8d5c9849f3641c02db298f5f49572c085",
+          "sha256_1core": "95b5c24cfde355edcd0d1eac8d792ef64423677437b78b439ba53eb3f6a85f21"
+        }
+      }
+    },
+    {
       "version": "0.33-smk37",
       "base": "0.33",
       "date": "2026-11-09",

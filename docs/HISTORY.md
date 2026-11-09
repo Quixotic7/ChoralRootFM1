@@ -7990,3 +7990,23 @@ GLO tapped in the layer toggles it (no Options from there), the GLO LED lit on p
 older records = play). Until now the white keys D4 .. G4 picked the Behaviour and every root was silent in the layer.
 `cr_bass_row.txt` (F4 first plays, GLO, F4 picks Single) + a `test_cr.sh` check; `cr_bass_both.txt` taps GLO before G4
 (its WAV windows +0.2 s).
+
+## 2026-11-09 (0.34 and 0.34-smk37)
+
+3y276. **0.34: Chord and Bass Perform; 0.34-smk37 beside it.** The owner, through the orchestration session ("The
+feature works great, lets merge, tag and release this!"): claude/perf-split at c9fc6289 (on origin/main 252f4552, 0.33).
+0.34 is 0.33 with 3y275: the chords and the bass each their own performance mode under the one ARP switch (GitHub
+issue 41, by etyrnal; BASS held + ARP the Bass PERF layer, Off first in both pickers), a BASS tap acting at once under
+a held chord, and the BASS layer's keys playing by default (GLO in the layer: they pick the Behaviour). `./build.sh
+--release 0.34` and `tools/hub_build.sh 0.34`: the same `SHA256SUMS`; XIP 560,472 of 573,440 (97.7 %), 1-core 556,964,
+RES 41,820 of 49,088. `choralroot-0.34.fwsc` 3ae553e3...c3a6, `-1core` 35e486ca...c031. `web/releases.json` first
+with the sha256s, 0.33's entry given its going-back note (no Bass Perform there; a chord part on Off performs again;
+a global save on 0.33 resets the bass's Perform settings; the BASS layer's keys pick), `docs/releases/0.34.md`,
+MANUAL.md's first line and "new after 0.33" now "new in 0.34" (MANUAL, SETTINGS.md, SMK37.md), `choralroot.c`'s dev
+version. **0.34-smk37** (base 0.34; CHORD held + ARP the Bass PERF layer): `BOARD=smk37 [MODEL=elite|mke] ./build.sh
+--release 0.34-smk37` and `tools/hub_build.sh 0.34-smk37`, the same `SHA256SUMS` (twelve files); XIP 560,480 (Pro),
+1-core 557,156. Pro 94747b4c...7594, Elite 01f6af47...8b6c, MKE-P37 c62a9b9e...c085. `web/releases-smk37.json` first,
+four bullets, three notes; SMK37.md's status, package names and version line. `python3 tests/releases_test.py` ALL
+OK, `tools/hub_build.sh --check` both lists match; `CR_VERSION=0.34 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279
+goldens, 0 changed; test_cr 1134 ok; test_persist 121 ok; `fm1_alnk0_irq` 14,010 of 13,890 and `fm1_timer5_irq` 4,800
+of 4,511, both inside the 10 %). Not installed as 0.34 on a unit: the spare E81CE2F7 ran c9fc6289's dev build.

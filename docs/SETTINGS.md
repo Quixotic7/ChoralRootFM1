@@ -74,11 +74,11 @@ from a layer: it goes with the layer (manual).
 | Snap (0.22) | the KEY layer's page 2, KNOB 3 | block `key_on` bits 3 .. 4 | manual |
 | Numerals (0.22; its Solfège after 0.22) | the KEY layer's page 2, KNOB 4 | block `bass_on` bit 1 (On); `scale` bit 7 (Solfège) | manual |
 | the KEY layer's keys (pick / play) | GLO in the KEY layer | block `loop_rec` bit 5 | manual |
-| the BASS layer's keys (play / pick, after 0.33) | GLO in the BASS layer | session `perf_x` bit 2 (`CSS_BASS_KEYS`; 0 in older records: play) | manual |
+| the BASS layer's keys (play / pick, 0.34) | GLO in the BASS layer | session `perf_x` bit 2 (`CSS_BASS_KEYS`; 0 in older records: play) | manual |
 | Transpose | the KEY layer | block `transpose` | manual |
 | the LOCK layer's two settings | B3 held | block `loop_rec` bits 6 / 7 | manual |
 | Perform on, the mode, its parameters | PERF tap, the PERF layer, KNOB 3 | block `perform_on`, `perform_mode`, `perf_sel`, `par` | manual |
-| Chord and Bass Perform (after 0.33, issue 41): the chord's Off, the bass's mode and its parameters | the PERF layer's Off, the Bass PERF layer (BASS held + ARP) | session `perf_x` (bit 0 the chord Off, bit 1 the bass on a mode, bit 2 the BASS layer's keys pick, bit 7 stored), `bperf_sel` (0..6, as `perf_sel`), `bpar[5][4]` (the bass's KNOB 1..4 of each mode's row), bytes 964 .. 1005 (the end reserve; 0 in every older record: the chord performs, the bass not, its defaults; an older firmware ignores them and plays the chord's Perform as before) | manual |
+| Chord and Bass Perform (0.34, issue 41): the chord's Off, the bass's mode and its parameters | the PERF layer's Off, the Bass PERF layer (BASS held + ARP) | session `perf_x` (bit 0 the chord Off, bit 1 the bass on a mode, bit 2 the BASS layer's keys pick, bit 7 stored), `bperf_sel` (0..6, as `perf_sel`), `bpar[5][4]` (the bass's KNOB 1..4 of each mode's row), bytes 964 .. 1005 (the end reserve; 0 in every older record: the chord performs, the bass not, its defaults; an older firmware ignores them and plays the chord's Perform as before) | manual |
 | LATCH on | LATCH tap (FM-1 chord keys: GLO held + LFO) | block `sticky` bit 0 | manual |
 | the tempo | SELECT | block `bpm` | manual |
 | the bass register | KNOB 2, the BASS layer | block `bass_voicing` | manual |
@@ -463,7 +463,7 @@ and where it lives. "block" is `cr_settings_t` above, "session" is `cr_session_t
 | the KEY layer: its keys (pick / play), Key plays, Keyboard, Numerals (0.22: `bass_on` bit 1; its Solfège: `scale` bit 7), Single, the split | yes | yes | block `loop_rec` bit 5, `key_on` bits 1 / 2, `single`, `split_pc` |
 | the KEY layer's page, the PLAY menu's page | no | **no, on purpose** | page 1 whenever the layer opens (`cu.kpage`, `cu.lpage`) |
 | the performance mode, its parameters, Perform on | yes | yes | block `perform_mode`, `perf_sel`, `par`, `perform_on` |
-| the chord's Off, the bass's performance mode and parameters (after 0.33) | no | yes (from the build after 0.33) | session `perf_x`, `bperf_sel`, `bpar` |
+| the chord's Off, the bass's performance mode and parameters (0.34) | no | yes (from 0.34) | session `perf_x`, `bperf_sel`, `bpar` |
 | LATCH on | yes | yes | block `sticky` |
 | the chord LATCH was holding, any sounding note | no | **no, on purpose** | |
 | LOCK on | no | **yes** | session `lock` |
