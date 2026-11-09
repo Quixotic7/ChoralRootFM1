@@ -1,0 +1,62 @@
+# ChoralRoot: Chord and Bass Perform (0.34, GitHub issue 41). ALGORITHM +18: the bass on (DEEP SUB). BASS (ENV) held +
+# ARP: the Bass PERF layer (orange, "bass perform"), on Off; SELECT +4: the bass's Arpeggiate (Perform on). ARP held
+# there: the chord's layer (not closed), on Strum; SELECT -1: Off. MAJ (F3) + D4 held: the chord sustains, the bass arps D F# A in its
+# register (38 42 45). ARP tap: Perform off, the plain bass note (38); tap again: the bass arps again. Released: silent.
+wait 300
+knob ALGORITHM +18
+wait 700
+btn ENV down
+wait 100
+btn ARP down
+wait 100
+btn ARP up
+wait 50
+btn ENV up
+wait 300
+shot build/emu/test/cr_bass_perf_layer.ppm
+dump                          # 1: layer 2, layer-part 1, ui-off 2 (the bass Off), perform 0
+knob SELECT +4
+wait 300
+shot build/emu/test/cr_bass_perf_arp.ppm
+dump                          # 2: perform 1, parts 3, bass-mode 2 (Arp), bass-sel 3
+btn ARP down                  # (ARP held alone in the Bass PERF layer: the chord's layer, not closed)
+wait 500
+btn ARP up
+wait 300
+dump                          # 3: layer 2, layer-part 0 (the chord's layer)
+knob SELECT -1
+wait 300
+shot build/emu/test/cr_chord_perf_off.ppm
+dump                          # 4: parts 2 (the chord Off), ui-off 1
+btn OCT-
+wait 200
+key F3 down
+wait 40
+btn D4 down
+wait 380
+dump                          # 5: the bass arps (one of 38 42 45 sounding, or between steps)
+wait 125
+dump                          # 6
+wait 125
+dump                          # 7
+wait 125
+dump                          # 8
+wait 125
+dump                          # 9
+wait 125
+dump                          # 10
+shot build/emu/test/cr_bass_perf_view.ppm
+tap ARP
+wait 300
+expect led ARP dim
+dump                          # 11: perform 0: the plain bass, 38
+wait 400
+dump                          # 12: still 38
+tap ARP
+wait 300
+expect led ARP on
+dump                          # 13: perform 1: the bass arps again
+btn D4 up
+key F3 up
+wait 2000
+dump                          # 14: silent

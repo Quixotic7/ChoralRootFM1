@@ -1001,6 +1001,38 @@ static int css_part_put(uint32_t part, const css_part_t *r)
 #undef r_edited
 #endif
 
+/* Chord and Bass Perform (0.34): the session's -> the UI and the engine (x NULL, or a record without them: the chord
+ * performs, the bass not, its parameters the defaults; nothing sounds yet, the engine directly with the IRQ off) */
+static void css_perf_put(const cr_session_t *x)
+{
+    uint32_t m, k, sel = 0, off = 1u << CU_PF_BASS, stored = x && (x->perf_x & CSS_PERF_STORED);
+    if (stored) {
+        sel = x->bperf_sel < 7u ? x->bperf_sel : 0u;
+        off = (x->perf_x & CSS_PERF_CHORD_OFF ? 1u << CU_PF_CHORD : 0u) | (x->perf_x & CSS_PERF_BASS_ON ? 0u : 1u << CU_PF_BASS);
+    }
+    for (m = 0; m < CR_PM_COUNT; m++)
+        for (k = 0; k < CR_P_COUNT; k++)
+            cs.bpar[m][k] = (int16_t)cr_param_default((cr_pmode_t)m, (cr_eparam_t)k);
+    if (CU_PERF[sel].range)                        /* (its entry's range: Arp 2 Octaves; a knob's below wins) */
+        cs.bpar[CU_PERF[sel].mode][CR_P_RANGE] = CU_PERF[sel].range;
+    for (m = 0; stored && m < CR_PM_COUNT; m++)
+        for (k = 0; k < 4u; k++) {
+            int32_t p = CU_PERF_KNOB[m][k], v = x->bpar[m][k];
+            if (p >= 0 && v >= CU_PAR[p].min && v <= CU_PAR[p].max)
+                cs.bpar[m][p] = (int16_t)v;
+        }
+    cs.bperf_sel = (uint8_t)sel;
+    cs.perf_off = (uint8_t)off;
+    fm1_irq_off();
+    for (m = 0; m < CR_PM_COUNT; m++)
+        for (k = 0; k < CR_P_COUNT; k++)
+            cr_set_param_ex(&cr, CR_PF_BASS, (cr_pmode_t)m, (cr_eparam_t)k, cs.bpar[m][k]);
+    cr_set_perform_mode_ex(&cr, CR_PF_BASS, (cr_pmode_t)CU_PERF[sel].mode);
+    cr_set_perform_part(&cr, CR_PF_CHORD, !(off & (1u << CU_PF_CHORD)));
+    cr_set_perform_part(&cr, CR_PF_BASS, !(off & (1u << CU_PF_BASS)));
+    fm1_irq_on();
+}
+
 /* the unit's state now -> *x (sealed; `bind` is the writer's: css_write) */
 static void css_capture(cr_session_t *x)
 {
@@ -1022,6 +1054,11 @@ static void css_capture(cr_session_t *x)
             cr_session_fx_set(x, CSS_FXG[i].tag, *css_fxg_p(i));
     css_part_get(0, &x->part[0]);
     css_part_get(1, &x->part[1]);
+    x->perf_x = (uint8_t)(CSS_PERF_STORED | (cu_pf_off(CU_PF_CHORD) ? CSS_PERF_CHORD_OFF : 0u) |
+                          (cu_pf_off(CU_PF_BASS) ? 0u : CSS_PERF_BASS_ON));
+    x->bperf_sel = cs.bperf_sel;
+    for (i = 0; i < (uint32_t)CR_PM_COUNT * 4u; i++)
+        x->bpar[i / 4u][i % 4u] = CU_PERF_KNOB[i / 4u][i % 4u] >= 0 ? cs.bpar[i / 4u][CU_PERF_KNOB[i / 4u][i % 4u]] : 0;
 #if BOARD_SMK37
     x->smk_master[0] = (uint8_t)((uint32_t)(smk_master + 1) & 0xFFu);   /* K1's level + 1 (0: not stored) */
     x->smk_master[1] = (uint8_t)((uint32_t)(smk_master + 1) >> 8);
@@ -1071,6 +1108,7 @@ static void css_apply(const cr_session_t *x)
                                                     * takes the change) */
     smk_ut_off = (uint8_t)(x->smk_trs_off == 1u);  /* Options > TRS MIDI Out (0, an older record: On) */
 #endif
+    css_perf_put(x);                               /* the Bass Perform, the chord's Off */
     cu.octave = x->octave;                         /* (cu_post_kbd follows: the split key's note moves with it) */
     cs.loop_rate = (uint8_t)((int)x->loop_rate + (int)CRL_RATE_1);   /* (cu_loop_conf posts it with the looper's) */
     if (x->bass_on) {                              /* v15: the bass comes back on, on its sound (ALGORITHM's place:
@@ -1562,6 +1600,7 @@ static void crs_reinit(void)
     cs.bass_sound = 0;                             /* ALGORITHM at OFF: the bass off */
     cs.bass_on = 0;
     cs.loop_rate = CRL_RATE_1;                     /* the loop's Rate: x1 */
+    css_perf_put(NULL);                            /* the bass's Perform Off, its defaults; the chord's on */
 #if BOARD_SMK37
     cs.smk_pedal = 0;                              /* Options > Pedal: Sustain */
     smk_ut_off = 0;                                /* Options > TRS MIDI Out: On */

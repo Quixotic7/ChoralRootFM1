@@ -514,6 +514,17 @@ void emu_fw_dump(void)
            (unsigned)cs.key_on, (unsigned)cs.tonic, (unsigned)cs.scale, (unsigned)cr.perform_on,
            (unsigned)cr.perform_mode, (unsigned)cr.bass_on, (unsigned)cs.bass_sound, (int)cr.voicing, (int)cu.octave,
            (unsigned)cs.bpm, (unsigned)cs.view, (unsigned)cu_layer(), (unsigned)cu.opt_open, (unsigned)cs.key_play);
+    {                                               /* Chord and Bass Perform (0.34): the parts, the bass's mode, the
+                                                     * layer's part, the bass stream's notes sounding now */
+        uint32_t nn;
+        printf("  perf: parts %u bass-mode %u bass-sel %u ui-off %u layer-part %u shown %d bass-sounding",
+               (unsigned)cr.perf_parts, (unsigned)cr.bperf_mode, (unsigned)cs.bperf_sel, (unsigned)cs.perf_off,
+               (unsigned)cu.perf_part, cr_perform_shown(&cr));
+        for (nn = 0; nn < 128u; nn++)
+            if (cr.reg[CR_STREAM_BASS][nn])
+                printf(" %u", (unsigned)nn);
+        printf("\n");
+    }
     printf("  kbd: plays %s keyboard %s single %u split-note %u page %u (engine: notes %u full %u single %u snap %u)\n",
            cs.key_notes ? "notes" : "chords", cs.kbd_full ? "full" : "chords", (unsigned)cs.single,
            (unsigned)cr.split_note, (unsigned)cu.kpage + 1u, (unsigned)cr.key_notes, (unsigned)cr.full,

@@ -7933,3 +7933,48 @@ first, four bullets, three notes; SMK37.md's status, package names and version l
 ALL OK; `CR_VERSION=0.33 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1122 ok;
 test_persist 121 ok; `fm1_alnk0_irq` 14,109 of 13,890, inside the 10 %; the browser emulators as 0.33). Not installed
 on a unit: the spare E81CE2F7 ran each feature's dev build (3y268, 3y271).
+
+## 2026-11-09 (Chord and Bass Perform, GitHub issue 41)
+
+3y275. **Chord and Bass Perform: each part its own performance mode, under the one PERF switch.** Issue 41 (etyrnal:
+"ARP 1 settings go to CHORDS, ARP 2 settings go to BASS. BOTH can run at the same time") and the owner's design: "2
+perf modes, the bass one accessed using ENV + ARP shortcut ... the option at the beginning in front of Strum to turn
+off ... The quick click of ARP button would still turn on/off." **The engine** (`cr_engine.c`): a voice's performance
+state is now `pf[2]` (`cr_pf_t`: owner, clock, harp gate, last note), [0] the chord's (the MAIN stream, as before), [1]
+the bass's (the BASS stream); every performance function takes the part, the scheduler's owners carry it
+(`CR_OWN_V / _C(vi, part)`, `CR_OWN_PART`). `perform_on` stays the one switch; `perf_parts` says which parts perform
+(default the chord only), `bperf_mode` / `bpar` are the bass's mode and parameters (`cr_set_perform_part`,
+`cr_set_perform_mode_ex`, `cr_set_param_ex`; the old setters are the chord's). A part not performing plays as with
+Perform off: the chord holds its chord, the bass its note. **What the bass performs** (`crx_pf_notes`): the voice's
+unvoiced chord moved by whole octaves so that its root lands nearest the bass note it replaces (`crx_bass_pitch`: the
+BASS layer's Register; Unison's played key; a Split Bass key's own note), wherever that bass note would sound (Bass on,
+its Behaviour, the BASS stream on): Bass off or a single note under Chords Only has no bass arp, Solo arps the bass
+alone, a Split Bass key arps its note over the range. A chord change (Advanced, Free, LOCK) restarts a bass strum and
+substitutes into a running bass arp with Retrig off, as the chord's; a same-root retrigger keeps a no-Retrig bass arp
+running. Either part's Hold latches the gesture (`cr_latching`); MIDI Start, the tempo and the Register rephase or
+restart both. The Chord view and the PERF layer's band show the chord's arp, or the bass's while only it performs
+(`cr_perform_shown`; the bass's note matched to the chord's by name; its hop orange). **The UI** (`cr_ui.c`): ARP held
+opens the chord's PERF layer as before, BASS (ENV) held + ARP the **Bass PERF layer** (orange picker, `bass perform ·
+on`, the same knob rows on `cs.bpar`); ARP held alone there switches to the chord's. Both pickers start with **Off**
+(eight entries; SELECT moves are relative, so the emulator scripts' `+3` still land on Arpeggiate). An ARP tap is the
+switch for both; picking a mode switches Perform on, Off does not touch it. The top right says `Bass Arp` in orange
+while only the bass performs; KNOB 3 of the view turns that part's first parameter; LATCH's gesture clears either
+part's Hold. The SMK-37's mode pads stay the chord part's. **No GLO + ARP page**: nothing is shared that needs one
+(the switch is ARP's tap, the tempo the metronome's, LATCH its own), so the shortcut stays free. **Saving**: the 192-byte
+block is full, so the bass's are in the session record's end reserve (`perf_x`, `bperf_sel`, `bpar[5][4]`: the four
+knobs of each mode's row, bytes 964 .. 1005; 76 bytes of reserve left): 0 in every older record = the chord performs,
+the bass Off, the defaults, exactly as 0.33. The chord's Off is there too (the block's `perf_sel` keeps its last mode),
+so an older firmware plays the chord's Perform as before. Reset Settings sets the bass back to Off. **Cost**
+(`./build.sh`): XIP 560,472 (+1,552, 97.7 %), RAM 89,048 (+4,036: the second owner and clock of 32 voices, 90.6 %),
+POOL 334,468 (unchanged); SMK-37 (`BOARD=smk37 ./build.sh`) XIP 560,304, RAM 85,776. `fm1_alnk0_irq` 14,018 (14,109 before; budget 13,890);
+`fm1_timer5_irq` 4,800 (4,711 before, budget 4,511: register allocation moved with the RAM layout; it calls nothing
+of the engine). Tests: `cr_engine_test s_bassperf` (31 checks x 4 tick rates: the default as before, chord Off + bass
+Arp 36 40 43 on the 1/8 grid, both at once, Perform off / on, the bass's own Direction, Register, Chords Only, Solo,
+Bass off, the bass's Hold, Advanced following, Split Bass, MIDI Start, the part turned off), `cr_settings_test` (the
+fields' bytes, defaults 0, round trip), `tools/emu/scripts/cr_bass_perf.txt` + `test_cr.sh` (BASS + ARP opens the Bass
+PERF layer on Off, SELECT picks the bass's Arpeggiate, ARP held there: the chord's layer, SELECT -1: Off; D major held:
+the bass arps 38 42 45 under the sustained chord; ARP tap: the plain 38; again: the arp; silent after). MANUAL.md 7
+("Chord and Bass Perform"), 3, 5, 14, 15 and 18; SETTINGS.md; SMK37.md. `sh tests/run_all.sh`: ALL SUITES PASSED (24; test_cr
+1131 ok, test_persist 121 ok); `BOARD=smk37 ./build.sh` OK. A dev build on the spare E81CE2F7 (backup
+`fm1-backups/E81CE2F7-before-perf-split-20261109.json`), before the last change (ARP held in the Bass PERF layer
+switched to the chord's; until then it closed the layer, as a layer's own button does).

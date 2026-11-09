@@ -2683,6 +2683,128 @@ static void s_transport(void)                     /* MIDI Start (3y253): the Arp
     cr_set_perform(&C, 0); clear();
 }
 
+/* Chord and Bass Perform (0.34, GitHub issue 41): each part its own mode and parameters under the one switch */
+static int ons_notes(int s, int *v, int max)
+{
+    int idx[256], n = ons(idx, 256, s), i;
+    for (i = 0; i < n && i < max; i++) v[i] = LOG[idx[i]].note;
+    return n;
+}
+static void s_bassperf(void)
+{
+    int v[64], n, idx[256];
+    uint8_t note = 0;
+    fresh("bass perform");
+    ok(C.perf_parts == 1u && C.bperf_mode == CR_PM_STRUM, "default: the chord performs, the bass does not");
+    cr_set_bass(&C, 1);
+    cr_set_perform(&C, 1);
+    cr_set_perform_mode(&C, CR_PM_ARP);
+    MD(CR_MOD_MAJ); K(48, 1); step(10);
+    ok(SND[1][36] && count('+', 1) == 1, "default with Perform on: the chord arps, the bass holds its note (36)");
+    R(48, 1); step(300); clear();
+    /* the bass arps, the chord sustains */
+    cr_set_perform_part(&C, CR_PF_CHORD, 0);
+    cr_set_perform_part(&C, CR_PF_BASS, 1);
+    cr_set_perform_mode_ex(&C, CR_PF_BASS, CR_PM_ARP);
+    K(48, 1); step(900);
+    n = ons_notes(1, v, 64);
+    ok(count('+', 0) == 3 && SND[0][48] && SND[0][52] && SND[0][55], "chord Off, bass Arp: the chord sounds as with Perform off");
+    ok(n == 4 && v[0] == 36 && v[1] == 40 && v[2] == 43 && v[3] == 36, "bass Arp: the chord in the bass register (36 40 43 36)");
+    ok(n == 4 && grid_ok((ons(idx, 256, 1), idx), 4, 250, 1), "bass Arp: 1/8 steps at 120 BPM");
+    ok(cr_perform_shown(&C) == CR_PF_BASS && cr_perform_stepping(&C), "the view shows the bass's arp (the chord's is off)");
+    ok(cr_perform_pos(&C, &note) >= 0 && note % 12 == 0, "its position is matched to the chord's notes by name");
+    clear(); R(48, 1); step(400);
+    ok(count('+', -1) == 0 && sounding() == 0, "bass Arp: keys up, everything stops");
+    clear();
+    /* both at once: the chord strums, the bass arps */
+    cr_set_perform_part(&C, CR_PF_CHORD, 1);
+    cr_set_perform_mode(&C, CR_PM_STRUM);
+    K(48, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(count('+', 0) == 3 && n >= 2 && v[0] == 36 && v[1] == 40, "both: the chord strums, the bass arps");
+    ok(cr_perform_shown(&C) == CR_PF_CHORD, "both: the view shows the chord's");
+    clear();
+    /* one switch: Perform off plays both parts plainly, on again both perform */
+    cr_set_perform(&C, 0); step(600);
+    ok(SND[1][36] && !SND[1][40] && count('+', 1) == 1, "Perform off: the bass holds its note");
+    cr_set_perform_part(&C, CR_PF_CHORD, 0); clear();
+    cr_set_perform(&C, 1); step(10);
+    ok(count('+', 0) == 0 && count('-', 0) == 0, "Perform on, chord Off: the sounding chord is not touched");
+    cr_set_perform(&C, 0); step(10); clear();
+    R(48, 1); step(300); clear();
+    cr_set_perform(&C, 1);
+    /* the bass's parameters are its own */
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR, CR_DIR_DOWN);
+    ok(cr_get_param(&C, CR_PM_ARP, CR_P_DIR) == CR_DIR_UP && cr_get_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR) == CR_DIR_DOWN,
+       "the bass's Direction is its own");
+    K(48, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(n >= 3 && v[0] == 43 && v[1] == 40 && v[2] == 36, "bass Arp Down: 43 40 36");
+    clear();
+    cr_bass_voicing_step(&C, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(n >= 2 && v[0] >= 48 && v[0] <= 55, "Register +1: the bass arp an octave up");
+    R(48, 1); step(400); clear();
+    cr_bass_voicing_step(&C, -1);
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR, CR_DIR_UP);
+    /* the bass Off in its Behaviour's way: a single note under Chords Only has no bass */
+    MU(CR_MOD_MAJ);
+    K(48, 1); step(600);
+    ok(count('+', 1) == 0, "Chords Only: a single note has no bass, so no bass arp");
+    R(48, 1); step(300); clear();
+    /* Solo: the chord silent, the bass arps */
+    cr_set_bass_mode(&C, CR_BASS_SOLO);
+    MD(CR_MOD_MIN); K(50, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(count('+', 0) == 0 && n >= 3 && v[0] == 38 && v[1] == 41 && v[2] == 45, "Solo: no chord, the bass arps Dm (38 41 45)");
+    R(50, 1); step(300); clear(); MU(CR_MOD_MIN);
+    cr_set_bass_mode(&C, CR_BASS_CHORDS_ONLY);
+    /* Bass off: nothing on the bass */
+    cr_set_bass(&C, 0);
+    MD(CR_MOD_MAJ); K(48, 1); step(600);
+    ok(count('+', 1) == 0, "Bass off: no bass arp");
+    R(48, 1); step(300); clear();
+    cr_set_bass(&C, 1);
+    /* the bass's Hold latches the gesture */
+    cr_set_perform_mode_ex(&C, CR_PF_BASS, CR_PM_STRUM);
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_STRUM, CR_P_HOLD, 1);
+    ok(cr_latching(&C), "the bass's Strum Hold latches");
+    K(48, 1); step(300); R(48, 1); step(300);
+    ok(SND[0][48] && SND[1][36] && SND[1][40] && SND[1][43], "Hold: chord and bass strum sound on after the keys");
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_STRUM, CR_P_HOLD, 0); step(10);
+    ok(sounding() == 0, "Hold off: the latch goes");
+    clear();
+    /* the bass's strum follows a chord change (Advanced) */
+    cr_set_playstyle(&C, CR_PS_ADVANCED);
+    K(48, 1); step(300); clear();
+    MD(CR_MOD_MIN); step(300);
+    ok(SND[1][39] && !SND[1][40], "Advanced: a chord type changed, the bass strum follows (Eb)");
+    R(48, 1); MU(CR_MOD_MIN); step(300); clear();
+    cr_set_playstyle(&C, CR_PS_SIMPLE);
+    /* Split Bass: a bass-side key arps its own note over the range */
+    cr_set_perform_mode_ex(&C, CR_PF_BASS, CR_PM_ARP);
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_RANGE, 2);
+    cr_set_single_notes(&C, CR_SINGLE_SPLIT_BASS, 5);
+    MU(CR_MOD_MAJ);
+    K(36, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(count('+', 0) == 0 && n >= 3 && v[0] == 36 && v[1] == 48 && v[2] == 36, "Split Bass: the bass key arps 36 48 36");
+    R(36, 1); step(300); clear();
+    cr_set_single_notes(&C, CR_SINGLE_FULL, 5);
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_RANGE, 1);
+    /* MIDI Start: the bass's arp from its first step */
+    MD(CR_MOD_MAJ); K(48, 1); step(630); clear();
+    cr_transport_start(&C); step(520);
+    n = ons_notes(1, v, 64);
+    ok(n == 3 && v[0] == 36 && v[1] == 40 && v[2] == 43, "Start: the bass arp again from its first note");
+    /* the bass part turned off while it arps: its note comes back */
+    clear(); cr_set_perform_part(&C, CR_PF_BASS, 0); step(300);
+    ok(SND[1][36] && !SND[1][40] && !SND[1][43] && count('+', 1) == 1, "bass part Off: the plain bass note");
+    R(48, 1); MU(CR_MOD_MAJ); step(300); clear();
+    cr_set_perform(&C, 0);
+    cr_set_perform_part(&C, CR_PF_CHORD, 1);
+}
+
 static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
 {
     strcpy(TAG, tag);
@@ -2692,7 +2814,7 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
     cr_init(&C, &OUT);
     cr_tick(&C, now_ms());
     s_keyboard(); s_sticky(); s_chords(); s_panic(); s_voicing(); s_bass(); s_keymode(); s_pads();
-    s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_transport(); s_pattern(); s_live(); s_streams();
+    s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_transport(); s_bassperf(); s_pattern(); s_live(); s_streams();
     s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_snap(); s_loopvoice(); s_queries(); s_limits(); s_torture();
     s_sixth();
     s_fm1();

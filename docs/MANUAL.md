@@ -160,7 +160,7 @@ Two rows of six, and the two octave buttons.
 | GLO | **OPT** | the Options | with a knob: the knob's second job |
 | HOME | **HOME** | back to the view; on the view: the next view | 0.6 s: the view menu |
 | SAVE | **SAVE** | save the sound | held: **save everything** (`saved`). GLO + SAVE held 1 s: back to the last save (`reverted`) |
-| ARP | **PERF** | performance on / off | the PERF layer |
+| ARP | **PERF** | performance on / off | the PERF layer; with BASS (ENV) held: the Bass PERF layer |
 | SEQ | **SEQ** | the loop editor, then the PLAY menu, then back to the view ([The loop editor](#the-loop-editor)). With OPT (GLO) held: metronome on / off | the SEQ key's hold menu (metronome) |
 | PLAY | **LOOP** | play / stop the loop | the PLAY menu |
 | REC | **REC** | record | undo the last layer |
@@ -191,7 +191,7 @@ In a layer KNOB 1 to KNOB 4 are the layer's; in the editor they edit the four va
 - **Top left**: `Key: C` in yellow while Key Mode is on. While a loop records or plays: `Loop 1` in red (no key
   then).
 - **Top right**: one status word, the first of these that applies: `Bass Solo`, the performance mode (`Strum`, `Slop`,
-  `Arp`, `Pattern`, `Harp`), `Bass`, `Oct +1`, `Latch`, `lock`. While a loop records or plays, the looper's state
+  `Arp`, `Pattern`, `Harp`; `Bass Arp` and so on in orange while only the bass performs), `Bass`, `Oct +1`, `Latch`, `lock`. While a loop records or plays, the looper's state
   instead (`Rec · Overwrite`, `Rec 2.3`, `Dub 3.2`), and a small dial at the right end that fills as the loop goes
   round.
 - **The middle**: the chord and its notes ([Views](#13-views) has the other four views), or the open layer, menu,
@@ -666,7 +666,8 @@ KEY, PERF, FX, BASS, SEQ (its hold menu is the metronome's) and LOOP.
 | Layer | Hold | The picker (SELECT) | The root keys | A tap of its button | OCT- / OCT+ |
 | --- | --- | --- | --- | --- | --- |
 | KEY | KEY (SEL) | a keyboard with the tonic lit | set the tonic (OPT tap: they play instead) | Key Mode on / off | close |
-| PERF | PERF (ARP) | the performance mode | play as usual | performance on / off | close |
+| PERF | PERF (ARP) | the performance mode (Off first) | play as usual | performance on / off | close |
+| Bass PERF | BASS (ENV) + PERF (ARP) | the bass's performance mode (Off first) | play as usual | performance on / off | close |
 | FX | FX | the effect | play as usual | effects on / off | close |
 | BASS | BASS (ENV) | the bass behaviour | the white keys D4 E4 F4 G4 pick the behaviour; nothing sounds | bass on / off | close |
 | SEQ's hold menu (metronome) | SEQ | the time signature | D4 E4 F4 pick 4/4, 3/4, 6/8 | metronome on / off (in this layer only; on the view a tap is the loop editor) | close |
@@ -760,6 +761,33 @@ When nothing is being stepped (no keys held, or Strum, Slop, Harp) the picker st
 
 Outside the layer **KNOB 3** turns the mode's first parameter (the strum rate, the slop amount, the arp division,
 the pattern, the harp rate). An arpeggio stops when you let go of the keys; switch LATCH on to keep it running.
+
+### Chord and Bass Perform (new after 0.33)
+
+The chords and the bass each have a performance mode of their own, so slow sustained chords can sit over an
+arpeggiated bass, or both can perform at once.
+
+- **PERF held** is the chord part's PERF layer, as above. **BASS (ENV) held + PERF (ARP)** is the **Bass PERF layer**:
+  the same picker, the same modes and knobs, in the bass's orange, with `bass perform` at the top. The bass has its
+  own mode and its own four parameters for each mode.
+- Both pickers start with **Off**, in front of Strum. A part on Off plays as it does with the performance off: the
+  chord part holds its chord, the bass part its bass note. A new FM-1 (and every older save) has the chords on their
+  mode and the bass on Off, which is how ChoralRoot played before.
+- **A PERF tap is still the one switch**: it turns the performance on and off for both parts. With the chords on
+  Off and the bass on Arpeggiate, a tap turns the bass's arpeggio off, and the next tap brings back only the bass's,
+  because the chords are on Off.
+- What the bass performs: the chord you play, moved down to where the bass note would be (the BASS layer's
+  **Register**, by whole octaves), on the bass sound and on the MIDI Bass channel. It follows the bass's
+  **Behaviour**: nothing with the bass off, nothing for a single note under Chords Only, the played note with Unison,
+  the chord alone with Solo, and with **Split Bass** a key below the split arpeggiates its own note (over the range's
+  octaves).
+- **Hold** (Strum's KNOB 4) of either part keeps the whole chord sounding after you let go, as LATCH does; LATCH's
+  gesture turns both off.
+- The top right says `Bass Arp` (in orange) while only the bass performs, and the Chord view's hopping note follows
+  the bass's arpeggio then, on the chord note of the same name.
+- The tempo, LATCH and a MIDI Start are shared: both parts follow them. A loop plays back with the performance of
+  each part as it is set now, as before.
+- A global save (SAVE held) keeps both parts' modes, Off and their parameters.
 
 On the Chord view, while an arpeggio or a pattern is playing, the screen shows it: the chord's name, its notes on a
 line, and the note sounding lifted onto a block that hops from note to note. When the arpeggio stops the chord view
@@ -1802,7 +1830,7 @@ Anything else cancels: OCT-, HOME, turning SELECT to another entry, closing the 
 - **Reset:** everything in the Options (Play Style back to Simple, 6th with 7th back to In place, Motion, Chord Names, LEDs, Hold Time, the MIDI channels and
   clock, USB Record, USB Level and USB Rate, Dual Core and the rest), Key Mode with its tonic, scale and Transpose, Single
   Notes and the split point, the KEY layer's keys, Key plays and Keyboard, the LOCK layer's two settings, the
-  performance mode with all its parameters and whether it is on, LATCH, the effects being on, the tempo, the
+  performance mode with all its parameters and whether it is on (the bass's back to Off), LATCH, the effects being on, the tempo, the
   metronome, the looper's options (length, record mode, quantize, count-in, level, what its keys do), the bass
   behaviour and register, the view and its lock, and which sound each part plays: the chord part is on TINE EP
   again, the bass on DEEP SUB, and every engine is back at its first preset.
@@ -1866,7 +1894,7 @@ with Standard chosen, the default) puts Dual Core back as your settings say.
 | A global save keeps (SAVE held) | Stored by itself | Never kept, on purpose |
 | --- | --- | --- |
 | Key Mode, the tonic, the scale, Transpose; **Single Notes and the split point**; the KEY layer's keys (pick or play), Key plays, Keyboard and Numerals | **Options:** Play Style, Extension Addition, Secret Chords, 6th with 7th, Velocity | notes that were sounding, a chord LATCH was holding |
-| the performance mode, its parameters, and whether it is on | MIDI Perform, MIDI Bass, MIDI Raw Chord, Raw Chord Sound, MIDI Clock | a playing loop: its slot is loaded, **stopped**. It never starts by itself |
+| the performance mode, its parameters, and whether it is on; the bass's mode, its parameters, and each part's Off | MIDI Perform, MIDI Bass, MIDI Raw Chord, Raw Chord Sound, MIDI Clock | a playing loop: its slot is loaded, **stopped**. It never starts by itself |
 | LATCH; LOCK and what it latched; the LOCK layer's two settings | Motion, Chord Names, LEDs, Hold Time | a take you were recording |
 | the voicing on KNOB 1 and the octave shift | USB Record, USB Level, USB Rate, Dual Core, Output | an open layer, menu, dialog or editor: the FM-1 starts on the view |
 | the bass being on, its **behaviour**, register, level, and which sound it plays | the panel calibration | where you were in the editor, the KEY layer's and the PLAY menu's page |
@@ -1914,7 +1942,7 @@ Over USB the computer sees one device, **ChoralRoot FM-1**: a MIDI port of that 
 | What | Channel (Options) | Carries |
 | --- | --- | --- |
 | Perform | MIDI Perform, ch 1 | what the chord sound plays: the chord, or the performance mode's notes |
-| Bass | MIDI Bass, ch 2 | the bass line |
+| Bass | MIDI Bass, ch 2 | the bass line, or the bass's performance mode's notes |
 | Raw Chord | MIDI Raw Chord, Off | the plain chord as a block, whatever the performance mode does |
 
 With MIDI Clock set to Out (the default) the FM-1 also sends MIDI clock at the tempo, a start when the loop starts
@@ -2449,13 +2477,13 @@ A held layer button opens its layer and it stays; holding the same button again 
 | --- | --- | --- | --- |
 | FX | FX | effects on / off (in its layer too) | FX layer: SELECT the page (Sends · Reverb 1 · Reverb 2 · Chorus · Delay 1 · Delay 2 · Drive) · KNOB 1-4 its cells (Sends: the chord part's drive, chorus, delay and reverb sends; KNOB 4 on an effect's first page: its Send) |
 | SEL | KEY | Key Mode on / off | KEY layer: a root = tonic · MAJ / MIN = scale · KNOB 1 Tonic · 2 Scale · 3 Transpose · 4 Single (Full / Split Oct / Split Bass) · SELECT: page 2: KNOB 1 Key plays (Chords / Notes) · 2 Keyboard (Chords / Full) · 4 Numerals (Off / On / Solfège) · GLO: the keys pick / play |
-| ENV | BASS | bass on / off | BASS layer: SELECT behaviour · KNOB 1 Behaviour · 2 Register · 3 Sound · 4 Level. Held + EDIT: edit the bass sound. Held + SAVE: save it |
+| ENV | BASS | bass on / off | BASS layer: SELECT behaviour · KNOB 1 Behaviour · 2 Register · 3 Sound · 4 Level. Held + EDIT: edit the bass sound. Held + SAVE: save it. Held + ARP: the Bass PERF layer |
 | LFO | LOCK (Classic chord keys: LATCH) | LOCK on / off; GLO held + LFO: LATCH (Classic: latch on / off) | the LOCK layer: KNOB 1 Type key Clears / Keeps · KNOB 2 Ext keys Toggle / Pushed (Classic: nothing) |
 | EDIT | EDIT | the sound editor; in it: leave | the engine picker: SELECT engine · KNOB 1 presets · KNOB 2 init · the keys play · OCT+ keep · OCT- cancel |
 | GLO | OPT | Options (SELECT setting · KNOB 1 value). In the PLAY menu: its keys play / loops. In the KEY layer: its keys pick / play. In the editor: SHIFT latch | + **SAVE, both held 1 s: revert to the last save** · + PRESETS: engine · + ALGORITHM: bass engine (both wherever the knob alone is the sound: the main screen, the Options, the layers but PLAY; ALGORITHM in the sound editor too) · + KNOB 1: split point · + SELECT: click level · + SEQ: metronome on / off · + REC: the next record mode. In the editor: snap (held or latched); + EDIT: chord / bass sound. Held + a value knob anywhere: the value snaps |
 | HOME | HOME | back; on the view: next view | 0.6 s: the view menu (SELECT view · KNOB 1 lock) |
 | SAVE | SAVE | the save menu: SELECT Overwrite / Save as new / Favorite / Favorites filter / Favorite type · KNOB 1 value · KNOB 2 filter · 3 type · 4 favorite · OCT+ saves · held 1 s: delete / reset | **the global save**: everything as it is now, and the loop (`saved`). With GLO, both held 1 s: revert (`reverted`) |
-| ARP | PERF | performance on / off (in its layer too) | PERF layer: SELECT mode · KNOB 1-4 its parameters |
+| ARP | PERF | performance on / off, both parts (in its layers too) | PERF layer (the chords): SELECT mode (Off first) · KNOB 1-4 its parameters. With BASS (ENV) held: the Bass PERF layer, the same for the bass |
 | SEQ | SEQ | the loop editor; in it: the PLAY menu; in the PLAY menu: leave. With GLO held: metronome on / off | its hold menu (metronome): SELECT time signature · KNOB 1 Click · a tap there: metronome on / off |
 | PLAY | LOOP | play / stop the loop; ends a take | PLAY menu: PRESETS slot · ALGORITHM record mode · SELECT page · page 1: KNOB 1 Length · 2 Rate · 3 Quantize · 4 Count-in · page 2: KNOB 1 Level · 2 Metronome · GLO: its keys play / loops · SEQ: leave · EDIT: the loop editor (PRESETS step, heard while the loop is stopped, with GLO 8 steps · SELECT page · ALGORITHM the step's voicing · the keys replace it · REC clears it · OCT the octave · page 1: KNOB 1 Note len · 2 Steps, with GLO to 8 16 32 48 64 · 3 Chance · 4 Velocity · page 2: KNOB 1 Ratchet · 2 Condition · 3 Voicing · SEQ, EDIT or LOOP held: the PLAY menu · HOME: the view) |
 | REC | REC | record by the record mode; ends a take; cancels when armed. With GLO held: the next record mode | undo the last layer |

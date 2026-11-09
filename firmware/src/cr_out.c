@@ -509,8 +509,9 @@ enum {
     CRE_KEYMODE,      /* a: on, b: tonic, v: scale */
     CRE_TRANSPOSE,    /* v */
     CRE_BASS, CRE_BASS_MODE,
-    CRE_PERFORM, CRE_PERFORM_MODE,
-    CRE_PARAM,        /* a: mode, b: param, v: value */
+    CRE_PERFORM,      /* v: Perform on (the ARP tap: both parts' one switch) */
+    CRE_PERFORM_MODE, /* a: the part (cr_engine.h CR_PF_*), v: cr_pmode_t */
+    CRE_PARAM,        /* a: mode | part << 4, b: param, v: value */
     CRE_STICKY, CRE_TEMPO, CRE_STREAM, /* a: stream, v: on */
     CRE_SINGLE,       /* a: cr_single_t, v: split point 0..11 */
     CRE_KEYPLAYS,     /* v: Key plays 0 Chords, 1 Notes */
@@ -520,7 +521,8 @@ enum {
                        * (cr_set_full_chords) */
     CRE_LOOP,         /* a: LP_*, b / v: its argument */
     CRE_AT,           /* v: the keys' aftertouch 0..127 (cr_ui.c cu_touch_poll): both parts, channel pressure out */
-    CRE_CCOUT         /* a: channel 0..15, b: CC, v: value (Options > MIDI CC Out: a knob turned on a mapped cell) */
+    CRE_CCOUT,        /* a: channel 0..15, b: CC, v: value (Options > MIDI CC Out: a knob turned on a mapped cell) */
+    CRE_PERFORM_PART  /* a: the part (CR_PF_*), v: it performs while Perform is on (the PERF layers' Off entry) */
 };
 /* CRE_LOOP's operations */
 enum { LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR, LP_SET, LP_QUEUE, LP_CONF, LP_METRO,
@@ -653,8 +655,9 @@ static void cr_apply(const cr_ev_in_t *e)
     case CRE_BASS: cr_set_bass(&cr, e->v); break;
     case CRE_BASS_MODE: cr_set_bass_mode(&cr, (cr_bassmode_t)e->v); break;
     case CRE_PERFORM: cr_set_perform(&cr, e->v); break;
-    case CRE_PERFORM_MODE: cr_set_perform_mode(&cr, (cr_pmode_t)e->v); break;
-    case CRE_PARAM: cr_set_param(&cr, (cr_pmode_t)e->a, (cr_eparam_t)e->b, e->v); break;
+    case CRE_PERFORM_MODE: cr_set_perform_mode_ex(&cr, e->a, (cr_pmode_t)e->v); break;
+    case CRE_PERFORM_PART: cr_set_perform_part(&cr, e->a, e->v); break;
+    case CRE_PARAM: cr_set_param_ex(&cr, e->a >> 4, (cr_pmode_t)(e->a & 15u), (cr_eparam_t)e->b, e->v); break;
     case CRE_STICKY: cr_set_sticky(&cr, e->v); break;
     case CRE_TEMPO: cr_set_tempo(&cr, e->v); cr_out_bpm = (uint16_t)e->v; break;
     case CRE_STREAM: cr_set_stream(&cr, (cr_stream_t)e->a, e->v); break;
@@ -1024,6 +1027,8 @@ static void cr_click_mix(int32_t *out, uint32_t n)
 typedef struct {
     cr_chord_info_t ci;
     uint8_t mods_held, mods_active, latching, perform_on, perform_mode, bass_on, playstyle;
+    uint8_t perf_part;               /* the part whose performance the screen shows (cr_perform_shown; none: the chord's
+                                      * if it performs, else the bass's); perform_mode is that part's */
     int8_t voicing, bass_voicing;
     int perf_pos;
     uint8_t perf_note;
@@ -1059,7 +1064,13 @@ static void cr_snapshot(void)
     cr_snap.mods_active = cr_mods_active(&cr);
     cr_snap.latching = (uint8_t)cr_latching(&cr);
     cr_snap.perform_on = cr.perform_on;
-    cr_snap.perform_mode = cr.perform_mode;
+    {
+        int sp = cr_perform_shown(&cr);
+        if (sp < 0)
+            sp = (cr.perf_parts & (1u << CR_PF_CHORD)) || !(cr.perf_parts & (1u << CR_PF_BASS)) ? CR_PF_CHORD : CR_PF_BASS;
+        cr_snap.perf_part = (uint8_t)sp;
+        cr_snap.perform_mode = sp ? cr.bperf_mode : cr.perform_mode;
+    }
     cr_snap.bass_on = cr.bass_on;
     cr_snap.playstyle = cr.playstyle;
     cr_snap.voicing = cr.voicing;

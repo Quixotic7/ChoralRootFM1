@@ -602,6 +602,35 @@ differ cr_perf_layer_off cr_perf_layer_on "the layer's label follows on / off"
     ok "the arp steps while on ($(no 8) -> $(no 9) notes out), PERF tap off: the chord held plain ($(no 10) -> $(no 11))" \
     || bad "the arp on / off: notes out $(no 8) $(no 9) $(no 10) $(no 11)"
 
+echo "Chord and Bass Perform (0.34, issue 41): BASS held + ARP the Bass PERF layer; Off first; the bass arps under a held chord"
+run cr_bass_perf
+L="$OUT/cr_bass_perf.log"
+pc() { grep '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.* perform \([0-9]\) .* layer \([0-9]*\) .*/\1 \2/p'; }
+pf() { grep '^  perf: parts' "$L" | sed -n "$1p" | sed 's/^  perf: //'; }
+bn() { pf "$1" | sed -n 's/.*bass-sounding *//p'; }
+case "$(pc 1) / $(pf 1)" in "0 2 / parts 1 bass-mode 0 bass-sel 0 ui-off 2 layer-part 1 "*)
+    ok "BASS held + ARP: the Bass PERF layer, on Off (Perform off, the chord's Strum untouched): $OUT/cr_bass_perf_layer.ppm";;
+    *) bad "BASS + ARP: $(pc 1) / $(pf 1)";; esac
+case "$(pc 2) / $(pf 2)" in "1 2 / parts 3 bass-mode 2 bass-sel 3 ui-off 0 layer-part 1 "*)
+    ok "SELECT +4 in it: the bass's Arpeggiate, Perform on, both parts performing: $OUT/cr_bass_perf_arp.ppm";;
+    *) bad "the bass's pick: $(pc 2) / $(pf 2)";; esac
+case "$(pf 3) / $(pf 4)" in "parts 3 "*"layer-part 0 "*" / parts 2 "*"ui-off 1 layer-part 0 "*)
+    ok "ARP held in the Bass PERF layer: the chord's layer; SELECT -1 from Strum: Off (the chord plays as with Perform off): $OUT/cr_chord_perf_off.ppm";;
+    *) bad "the chord's Off: $(pf 3) / $(pf 4)";; esac
+seen=$(for i in 5 6 7 8 9 10; do bn $i; done | tr ' ' '\n' | grep . | sort -u | tr '\n' ' ')
+nseen=$(echo $seen | wc -w | tr -d ' ')
+odd=$(echo $seen | tr ' ' '\n' | grep -Ev '^(38|42|45)$')
+[ "$nseen" -ge 2 ] && [ -z "$odd" ] && [ "$(pc 5)" = "1 0" ] &&
+    ok "D major held: the bass arps D F# A in its register ($seen), the chord sustained: $OUT/cr_bass_perf_view.ppm" \
+    || bad "the bass arp: notes $seen / $(pc 5)"
+[ "$(bn 11)" = "38" ] && [ "$(bn 12)" = "38" ] && [ "$(pc 11)" = "0 0" ] &&
+    ok "ARP tap: Perform off, the plain bass note (38), steady" || bad "Perform off: $(bn 11) / $(bn 12) / $(pc 11)"
+case "$(pc 13) / $(bn 13)" in "1 0 / "38|"1 0 / "42|"1 0 / "45|"1 0 / ") ok "ARP tap again: the bass performs again ($(bn 13))";;
+    *) bad "Perform on again: $(pc 13) / $(bn 13)";; esac
+grep -q "^  perf: parts 2 .* shown 1 " "$L" && ok "the views follow the bass's arp while the chord's is Off (shown 1)" \
+    || bad "the bass's arp not shown"
+silent_end cr_bass_perf
+
 echo "the arp's Hold off by default: released keys stop it; LATCH holds it; PANIC stops; perform never swaps the view"
 export EMU_UI_LOG=0
 run cr_arp_hold

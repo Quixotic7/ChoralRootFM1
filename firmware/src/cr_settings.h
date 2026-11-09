@@ -309,6 +309,9 @@ static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uin
  * written beside: a session left behind by a downgrade, a restore or another firmware's erase is not applied over
  * settings it does not belong to */
 #define CSS_MAGIC 0x31535343u           /* "CSS1" */
+#define CSS_PERF_CHORD_OFF 0x01u        /* perf_x: the chord's PERF layer on Off */
+#define CSS_PERF_BASS_ON 0x02u          /* .. the bass's on a mode (bperf_sel) */
+#define CSS_PERF_STORED 0x80u           /* .. bperf_sel and bpar are written (0: an older record, the defaults) */
 #define CSS_VERSION 1u
 #define CSS_SIZE 1024u
 #define CSS_HDR 12u
@@ -417,7 +420,14 @@ typedef struct {
     uint8_t rsv[42];
     css_fx_t fx;                        /* (rsv_fx[4] after it until the routing (issue 21): its entry took it) */
     css_part_t part[2];                 /* chord, bass */
-    uint8_t rsv_end[60];
+    /* Chord and Bass Perform (0.34, GitHub issue 41), bytes 964 .. 1005 of the old end reserve (0 in every older
+     * record: the chord performs, the bass not, the defaults: as before 0.34). perf_x: CSS_PERF_*; bperf_sel the Bass
+     * PERF layer's entry 0..6 (cr_ui.c CU_PERF, as the block's perf_sel); bpar[m][k]: the bass's parameter on KNOB k+1
+     * of mode m's row (cr_ui.c CU_PERF_KNOB; 0 under a knob with none). The chord's entry, mode and parameters stay
+     * the block's, so an older firmware reads the chord's Perform as before (and has no bass's) */
+    uint8_t perf_x, bperf_sel;
+    int16_t bpar[CRS_NPM][4];
+    uint8_t rsv_end[18];
 } cr_session_t;
 
 void cr_session_defaults(cr_session_t *x);         /* nothing stored: the unit as it powers on without a session */

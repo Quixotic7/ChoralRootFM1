@@ -1113,6 +1113,9 @@ static void css_fill(cr_session_t *x)              /* a recognisable session: ev
     x->voicing = 2; x->octave = -1; x->bass_on = 1; x->lock = 1;
     x->latched = (uint8_t)((1u << CR_MOD_MAJ) | (1u << CR_MOD_MAJ7));
     x->loop_rate = 2;                              /* x2 */
+    x->perf_x = CSS_PERF_STORED | CSS_PERF_CHORD_OFF | CSS_PERF_BASS_ON;   /* the bass arps, the chord sustains */
+    x->bperf_sel = 3;                              /* Arpeggiate */
+    x->bpar[2][0] = 8; x->bpar[2][1] = 5; x->bpar[0][0] = 333;   /* Arp 1/16 Random; Strum 333 ms */
     x->fx.sel = CSS_FXE_DELAY;
     x->fx.amt[CSS_FXE_REVERB] = 30; x->fx.amt[CSS_FXE_CHORUS] = 0; x->fx.amt[CSS_FXE_DELAY] = 99; x->fx.amt[CSS_FXE_DRIVE] = 127;
     cr_session_fx_set(x, CSS_FXP_DTIME, 5);
@@ -1144,19 +1147,26 @@ static void t_session(void)
        !SD.bass_on && !SD.lock && !SD.latched && !SD.part[0].valid && !SD.part[1].valid && SD.fx.version == CSS_FX_VERSION &&
        SD.fx.n == 0 && SD.fx.sel == CSS_FXE_REVERB && SD.fx.amt[0] == CSS_FX_NONE && SD.fx.amt[CSS_NFXE - 1] == CSS_FX_NONE,
        "session defaults: nothing stored (the unit as it powered on until 0.17: bass off, voicing 0, the sounds' own sends)");
-    ok(sizeof SD.rsv + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 118u && sizeof SD.smk_master == 2u &&
+    ok(!SD.perf_x && !SD.bperf_sel && !SD.bpar[0][0] && (const uint8_t *)&SD.perf_x - (const uint8_t *)&SD == 964 &&
+       (const uint8_t *)&SD.bperf_sel - (const uint8_t *)&SD == 965 && (const uint8_t *)SD.bpar - (const uint8_t *)&SD == 966 &&
+       sizeof SD.bpar == 40u && (const uint8_t *)SD.rsv_end - (const uint8_t *)&SD == 1006,
+       "session: Chord and Bass Perform at bytes 964 .. 1005 (0.34), 0 in the defaults and every older record: the chord "
+       "performs, the bass not, its parameters the defaults");
+    ok(sizeof SD.rsv + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 76u && sizeof SD.smk_master == 2u &&
        (const uint8_t *)SD.smk_master - (const uint8_t *)&SD == 22 && !SD.smk_master[0] && !SD.smk_master[1] &&
        &SD.smk_pedal - (const uint8_t *)&SD == 24 && !SD.smk_pedal &&
        &SD.smk_trs_off - (const uint8_t *)&SD == 25 && !SD.smk_trs_off &&
        (const uint8_t *)&SD.fx - (const uint8_t *)&SD == 68 &&
        CSS_NFXP - 29 == 0 && CSS_NP - 91 == 5,
-       "session: 118 bytes of reserve (the SMK-37's MASTER at bytes 22, 23, 0 = not stored; its Pedal at byte 24, 0 = Sustain; its TRS MIDI Out at byte 25, 0 = On; 119 until the TRS jack, 120 until the pedal, 122 until issue 30, 126 until the routing took rsv_fx's last 4, 142 until 0.22's master filter took 16 of it), no free FX parameter entry of 29, 5 free part parameters");
+       "session: 76 bytes of reserve (118 until 0.34's Bass Perform took 42 of the end's; the SMK-37's MASTER at bytes 22, 23, 0 = not stored; its Pedal at byte 24, 0 = Sustain; its TRS MIDI Out at byte 25, 0 = On; 119 until the TRS jack, 120 until the pedal, 122 until issue 30, 126 until the routing took rsv_fx's last 4, 142 until 0.22's master filter took 16 of it), no free FX parameter entry of 29, 5 free part parameters");
     ok(SD.loop_rate == 0 && (const uint8_t *)&SD.loop_rate - (const uint8_t *)&SD == 21,
        "session: the loop's Rate, byte 21 (the first of the old reserve), 0 = x1: a record written before it reads x1");
     /* every item round-trips */
     css_fill(&SX);
     rc = cr_session_import(&SR, &SX, sizeof SX);
     ok(rc == 1 && !memcmp(&SR, &SX, sizeof SX), "session: every item round-trips, byte for byte (rc 1)");
+    ok(SR.perf_x == (CSS_PERF_STORED | CSS_PERF_CHORD_OFF | CSS_PERF_BASS_ON) && SR.bperf_sel == 3 && SR.bpar[2][0] == 8 &&
+       SR.bpar[2][1] == 5 && SR.bpar[0][0] == 333, "session: the Bass Perform round-trips (chord Off, bass Arpeggiate, its knobs)");
     ok(SR.voicing == 2 && SR.octave == -1 && SR.bass_on == 1 && SR.lock == 1 && SR.loop_rate == 2 &&
        SR.latched == ((1u << CR_MOD_MAJ) | (1u << CR_MOD_MAJ7)), "session: voicing +2, octave -1, Bass on, LOCK with MAJ + M7, the loop's Rate x2");
     ok(SR.fx.sel == CSS_FXE_DELAY && SR.fx.amt[CSS_FXE_DELAY] == 99 && SR.fx.amt[CSS_FXE_DRIVE] == 127 && SR.fx.n == 3 &&

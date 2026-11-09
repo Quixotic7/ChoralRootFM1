@@ -101,6 +101,17 @@ typedef struct {
     uint8_t seq[CR_SEQ_MAX];     /* arp order, or the range-expanded notes for pattern */
 } cr_clk_t;
 
+/* one part's performance of a voice (0.34: Chord and Bass Perform, GitHub issue 41) */
+#define CR_NPF 2
+#define CR_PF_CHORD 0          /* the chord's notes on the MAIN stream */
+#define CR_PF_BASS 1           /* the chord's notes in the bass register on the BASS stream (crx_pf_notes) */
+typedef struct {
+    cr_own_t own;                /* the notes it sounds */
+    cr_clk_t clk;
+    uint16_t gate_t;             /* harp gate, ms (0 = sustain) */
+    uint8_t last_note, has_last;
+} cr_pf_t;
+
 typedef struct {
     uint8_t used, pad;           /* pad: chord-pad slot + 1 (not a keyed voice) */
     uint8_t loop;                /* a loop voice (cr_loop_event): slot + 1; | CR_LOOP_FIXV: its voicing is its own
@@ -113,14 +124,12 @@ typedef struct {
     uint8_t rq;                  /* resolved quality (Key Mode / secret) */
     int16_t root;                /* resolved root note, untransposed */
     uint8_t nbase, base[CR_CHORD_MAX], nnotes, notes[CR_CHORD_MAX];
-    uint16_t gate_t;             /* harp gate, ms (0 = sustain) */
-    uint8_t last_note, has_last;
     uint32_t serial;
     uint32_t gid;                /* gesture id (out.gesture): new at note-on and at a same-root retrigger */
-    cr_own_t main;
+    cr_pf_t pf[CR_NPF];          /* the performance of each part: [CR_PF_CHORD] the MAIN stream's (sustained or
+                                  * performed), [CR_PF_BASS] the bass's while the Bass Perform runs (else `bass`) */
     cr_rown_t raw;
-    cr_bown_t bass;
-    cr_clk_t clk;
+    cr_bown_t bass;              /* the bass note (Bass Perform off), and bass.live: the bass follows this voice */
 } cr_voice_t;
 
 #define CR_LOOP_FIXV 0x80u       /* cr_voice_t.loop */
@@ -162,6 +171,12 @@ typedef struct {
                                       * sounding (Chord; the scale's when none) instead of nothing (cr_snap_note);
                                       * in the padding after the three streams: cr_t keeps its size */
     int16_t par[CR_PM_COUNT][CR_P_COUNT];
+    /* Chord and Bass Perform (0.34, GitHub issue 41): perform_on is the one switch (the ARP tap); then each part whose
+     * bit is set in perf_parts performs in its own mode with its own parameters: the chord part in perform_mode /
+     * par (as before), the bass part in bperf_mode / bpar. A part not set plays as with Perform off. Default: the
+     * chord only (bit 0), as before 0.34 */
+    uint8_t perf_parts, bperf_mode;
+    int16_t bpar[CR_PM_COUNT][CR_P_COUNT];
     /* runtime */
     cr_out_t out;
     uint32_t now, serial, rng, gid;
@@ -264,9 +279,19 @@ int  cr_snap_note(const cr_t *c, uint8_t note);  /* the note a key out of the sc
 void cr_set_bass(cr_t *c, int enabled);
 void cr_set_bass_mode(cr_t *c, cr_bassmode_t m);
 void cr_set_perform(cr_t *c, int enabled);         /* restarts sounding voices, flushes a Hold latch */
-void cr_set_perform_mode(cr_t *c, cr_pmode_t m);
+void cr_set_perform_mode(cr_t *c, cr_pmode_t m);   /* the chord part's (cr_set_perform_mode_ex part 0) */
 void cr_set_param(cr_t *c, cr_pmode_t m, cr_param_t p, int value);   /* live: rephase / rebuild / restart */
 int  cr_get_param(const cr_t *c, cr_pmode_t m, cr_param_t p);
+/* Chord and Bass Perform (0.34): part CR_PF_CHORD / CR_PF_BASS. cr_set_perform_part: that part performs (1) or
+ * plays as with Perform off (0) while Perform is on (perf_parts' bit); the mode and the parameters are each part's.
+ * The Bass Perform plays the voice's chord (its unvoiced notes) moved by whole octaves to where the bass note would
+ * be (the bass register, Unison's played pitch, a Split Bass key's), on the BASS stream, wherever the bass would
+ * sound (Bass on, its Behaviour, the BASS stream on): it replaces the bass note. Both may run at once */
+void cr_set_perform_part(cr_t *c, int part, int on);
+void cr_set_perform_mode_ex(cr_t *c, int part, cr_pmode_t m);
+void cr_set_param_ex(cr_t *c, int part, cr_pmode_t m, cr_param_t p, int value);
+int  cr_get_param_ex(const cr_t *c, int part, cr_pmode_t m, cr_param_t p);
+int  cr_param_default(cr_pmode_t m, cr_param_t p);  /* what cr_init gives both parts */
 void cr_set_sticky(cr_t *c, int on);               /* latch (Sticky Keys) */
 void cr_set_tempo(cr_t *c, int bpm);               /* 20..300; rephases clocked voices */
 void cr_set_stream(cr_t *c, cr_stream_t s, int enabled);   /* gates new gestures; owners finish */
@@ -337,6 +362,8 @@ int  cr_perform_pos(const cr_t *c, uint8_t *note); /* index into the shown chord
                                                     * performed note (-1: none); *note = its pitch */
 int  cr_perform_stepping(const cr_t *c);           /* the shown chord's voice runs a clocked performance (Arp /
                                                     * Pattern: a step is always queued), 0 once it stopped */
+int  cr_perform_shown(const cr_t *c);              /* the part cr_perform_pos / _stepping show: the chord's while it
+                                                    * performs on the shown voice, else the bass's; -1 none */
 int  cr_sounding(const cr_t *c, cr_stream_t s, uint8_t note);   /* registry refcount */
 int  cr_voices(const cr_t *c);                     /* live voices (keyed + pads) */
 int  cr_pending(const cr_t *c);                    /* queued events */

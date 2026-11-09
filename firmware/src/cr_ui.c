@@ -549,6 +549,11 @@ static struct {
     uint8_t bass_on, bass_mode, perform_on, perf_sel, sticky;
     uint16_t bpm;
     int16_t par[CR_PM_COUNT][CR_P_COUNT];
+    /* the Bass Perform (0.34, GitHub issue 41; cr_engine.h perf_parts): its PERF layer's entry (CU_PERF) and its own
+     * parameters; perf_off bit p: part p (CU_PF_CHORD / CU_PF_BASS) is Off, the first entry of its layer: it plays as
+     * with Perform off while the other performs. Default: the bass Off (bit 1), as before 0.34 */
+    uint8_t perf_off, bperf_sel;
+    int16_t bpar[CR_PM_COUNT][CR_P_COUNT];
     uint8_t fx_on, fx_sel, fx_amt[CU_NFX];
     uint8_t fx_page;                      /* the effect's page in the FX layer (0, or 1: Reverb 2, Delay 2), or
                                            * CU_FXPG_SENDS: the Sends page (cs.fx_sel stays the effect last picked:
@@ -1165,15 +1170,36 @@ static void cu_bass_go(uint32_t v)                /* ALGORITHM: 0 OFF, 1.. the b
     cs.bass_on = cs.bass_sound != 0u;
     cr_post(CRE_BASS, 0, 0, cs.bass_on);
 }
-static void cu_perf_pick(uint32_t i)
+/* Chord and Bass Perform (0.34): the two parts' entries, parameters and Off */
+#define CU_PF_CHORD CR_PF_CHORD
+#define CU_PF_BASS CR_PF_BASS
+static uint32_t cu_pf_sel(uint32_t part) { return part ? cs.bperf_sel : cs.perf_sel; }
+static int16_t (*cu_pf_par(uint32_t part))[CR_P_COUNT] { return part ? cs.bpar : cs.par; }
+static uint32_t cu_pf_off(uint32_t part) { return (cs.perf_off >> part) & 1u; }
+static uint32_t cu_pf_item(uint32_t part) { return cu_pf_off(part) ? 0u : cu_pf_sel(part) + 1u; }   /* the layer's
+                                                                                                * picker: 0 Off */
+static void cu_perf_part_set(uint32_t part, uint32_t off)
 {
-    cs.perf_sel = (uint8_t)(i % 7u);
-    cr_post(CRE_PERFORM_MODE, 0, 0, CU_PERF[cs.perf_sel].mode);
-    if (CU_PERF[cs.perf_sel].range) {
-        cs.par[CU_PERF[cs.perf_sel].mode][CR_P_RANGE] = CU_PERF[cs.perf_sel].range;
-        cr_post(CRE_PARAM, CU_PERF[cs.perf_sel].mode, CR_P_RANGE, CU_PERF[cs.perf_sel].range);
-    }
+    if (cu_pf_off(part) == off)
+        return;
+    cs.perf_off = (uint8_t)(off ? cs.perf_off | (1u << part) : cs.perf_off & ~(1u << part));
+    cr_post(CRE_PERFORM_PART, part, 0, (int32_t)!off);
 }
+static void cu_perf_pick_part(uint32_t part, uint32_t i)   /* part's entry i of CU_PERF (it performs again) */
+{
+    uint32_t sel = i % 7u;
+    if (part)
+        cs.bperf_sel = (uint8_t)sel;
+    else
+        cs.perf_sel = (uint8_t)sel;
+    cr_post(CRE_PERFORM_MODE, part, 0, CU_PERF[sel].mode);
+    if (CU_PERF[sel].range) {
+        cu_pf_par(part)[CU_PERF[sel].mode][CR_P_RANGE] = CU_PERF[sel].range;
+        cr_post(CRE_PARAM, CU_PERF[sel].mode | part << 4, CR_P_RANGE, CU_PERF[sel].range);
+    }
+    cu_perf_part_set(part, 0);
+}
+static void cu_perf_pick(uint32_t i) { cu_perf_pick_part(CU_PF_CHORD, i); }
 static void cu_route(void)                        /* Options > MIDI: channels and the RAW stream */
 {
     uint32_t s;
@@ -1579,6 +1605,8 @@ static struct {
     uint8_t lock;                         /* the open layer (locked since its button's hold), L_NONE: none */
     uint32_t perf_t0;                     /* the PERF layer opened / SELECT turned in it: its picker shows for
                                            * CU_PERF_PICK_MS from then, before the arp band may (cu_arp_layer) */
+    uint8_t perf_part;                    /* the part the PERF layer sets: CU_PF_CHORD (ARP held), CU_PF_BASS (BASS
+                                           * held + ARP: the Bass PERF layer) */
     uint32_t swallow;                     /* buttons pressed during another's hold: their release does nothing */
     uint8_t oct_chord;                    /* OCT- and OCT+ were down together (panic): no tap */
     uint8_t oct_mod;                      /* OCT- held was a modifier (the editor: + a knob clears its modulation): no tap */
@@ -2212,32 +2240,38 @@ static void cu_param_text(uint32_t p, int32_t v, char *val, char *sub)
         cu_cpy(sub, p == CR_P_RATE ? "ms" : p == CR_P_RANGE ? "oct" : p == CR_P_ROTATE ? "" : "%", 12);
     }
 }
-static void cu_param_turn(uint32_t mode, int32_t p, int32_t s, int pop)   /* pop 0: the PERF layer's knob row */
+static void cu_param_turn(uint32_t part, uint32_t mode, int32_t p, int32_t s, int pop)   /* pop 0: the PERF layer's knob
+                                                                                         * row */
 {
     char val[8], sub[12], label[24];
+    int16_t (*par)[CR_P_COUNT] = cu_pf_par(part);
     int32_t v;
     if (p < 0)
         return;
     if (CU_PAR[p].step > 1 || p == CR_P_SWING)    /* a value (rate, gate, swing, amount): at the knob's speed, snapped
                                                    * with OPT held; the choices one a detent */
-        v = cu_kval(cs.par[mode][p], s, CU_PAR[p].min, CU_PAR[p].max, kn.snap);
+        v = cu_kval(par[mode][p], s, CU_PAR[p].min, CU_PAR[p].max, kn.snap);
     else
-        v = cs.par[mode][p] + s;
+        v = par[mode][p] + s;
     v = v < CU_PAR[p].min ? CU_PAR[p].min : v > CU_PAR[p].max ? CU_PAR[p].max : v;
-    cs.par[mode][p] = (int16_t)v;
-    cr_post(CRE_PARAM, mode, (uint32_t)p, v);
+    par[mode][p] = (int16_t)v;
+    cr_post(CRE_PARAM, mode | part << 4, (uint32_t)p, v);
     if (!pop) {
-        cu_trace("perf: knob %s %s %d\n", CU_PERF[cs.perf_sel].short_name, CU_PAR[p].name, (int)v);
+        cu_trace("perf: knob %s%s %s %d\n", part ? "bass " : "", CU_PERF[cu_pf_sel(part)].short_name, CU_PAR[p].name,
+                 (int)v);
         return;
     }
     cu_param_text((uint32_t)p, v, val, sub);
-    cu_cpy(label, CU_PERF[cs.perf_sel].short_name, sizeof label);
-    label[0] = (char)(label[0] | 0x20);
+    cu_cpy(label, part ? "bass " : "", sizeof label);
+    cu_cat(label, CU_PERF[cu_pf_sel(part)].short_name, sizeof label);
+    label[part ? 5 : 0] = (char)(label[part ? 5 : 0] | 0x20);
     cu_cat(label, " ", sizeof label);
     cu_cat(label, CU_PAR[p].name, sizeof label);
-    cu_popup(val, sub, label, CR_COL_WHITE, v, CU_PAR[p].min, CU_PAR[p].max, 12);
+    cu_popup(val, sub, label, part ? CR_COL_ORANGE : CR_COL_WHITE, v, CU_PAR[p].min, CU_PAR[p].max, 12);
 }
-static uint32_t cu_perf_mode(void) { return CU_PERF[cs.perf_sel].mode; }
+static uint32_t cu_perf_mode(uint32_t part) { return CU_PERF[cu_pf_sel(part)].mode; }
+/* the part the views show and KNOB 3 of the view sets: the chord's, the bass's while only the bass performs */
+static uint32_t cu_perf_view_part(void) { return cu_pf_off(CU_PF_CHORD) && !cu_pf_off(CU_PF_BASS) ? CU_PF_BASS : CU_PF_CHORD; }
 
 /* ------------------------------------------------------------ the looper --- */
 /* The ten loop slots in flash (docs/LOOPER.md): storage.c's commit record and A/B copies (its hooks st_read /
@@ -3365,8 +3399,15 @@ static void cu_opened(uint32_t b)                 /* a button held past HOLD (or
         cu.kpage = 0;
     if (l == L_LOOP && was != L_LOOP)             /* .. the PLAY menu too */
         cu.lpage = 0;
-    if (l == L_PERF && was != L_PERF)             /* the perform layer opens on its picker (the mode's name) */
-        cu.perf_t0 = cu_now();
+    if (l == L_PERF) {                            /* the perform layer opens on its picker (the mode's name): the chord's
+                                                   * (ARP held) or, BASS held + ARP, the bass's */
+        uint32_t part = cu.armed == BT_BASS ? CU_PF_BASS : CU_PF_CHORD;
+        if (was != L_PERF || part != cu.perf_part)
+            cu.perf_t0 = cu_now();
+        if (part != cu.perf_part)
+            cu_hot.knob = 0;
+        cu.perf_part = (uint8_t)part;
+    }
     cu_trace("layer: open %u%s\n", (unsigned)l, cu.lock ? " (locked)" : "");
     if (l == L_EDIT && was != L_EDIT)             /* the engine picker: a preview of the sound as it is now */
         cu_pick_begin();
@@ -3946,10 +3987,14 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
     case L_PERF:
         cu.perf_t0 = cu_now();                    /* SELECT turned (a detent at the list's end too): the picker, for
                                                    * CU_PERF_PICK_MS from the last detent */
-        if (i < 7) {
-            if (cs.perf_sel != (uint8_t)i)
+        if (i < 8) {
+            if (cu_pf_item(cu.perf_part) != (uint32_t)i)
                 cu_hot.knob = 0;                  /* another mode: its row has no hot cell */
-            cu_perf_pick((uint32_t)i);
+            if (i == 0) {                         /* Off: this part plays as with Perform off; the switch stays */
+                cu_perf_part_set(cu.perf_part, 1);
+                break;
+            }
+            cu_perf_pick_part(cu.perf_part, (uint32_t)i - 1u);
             if (!cs.perform_on) {
                 cs.perform_on = 1;
                 cr_post(CRE_PERFORM, 0, 0, 1);
@@ -4028,7 +4073,7 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
 static int32_t cu_layer_sel(uint32_t l)
 {
     switch (l) {
-    case L_PERF: return cs.perf_sel;
+    case L_PERF: return (int32_t)cu_pf_item(cu.perf_part);
     case L_FX: return (int32_t)cu_fx_pg();
     case L_BASS: return cs.bass_mode;
     case L_EDIT: return cu_engine_rank(cu_edit_trk()->eng_req % NENGINES);
@@ -4042,7 +4087,7 @@ static int32_t cu_layer_count(uint32_t l)
 {
     uint32_t n;
     switch (l) {
-    case L_PERF: return 7;
+    case L_PERF: return 8;
     case L_FX: return CU_NFXP;
     case L_BASS: return 4;
     case L_EDIT: cu_engine_at(0, &n); return (int32_t)n;
@@ -4193,7 +4238,9 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         }
         break;
     case L_PERF:
-        cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][knob], s, 0);
+        if (cu_pf_off(cu.perf_part))              /* Off: no knob row */
+            break;
+        cu_param_turn(cu.perf_part, cu_perf_mode(cu.perf_part), CU_PERF_KNOB[cu_perf_mode(cu.perf_part)][knob], s, 0);
         cu_hot_set(L_PERF, knob);                 /* (no popup: the cell turns hot) */
         break;
     case L_FX: {
@@ -5102,15 +5149,22 @@ static void cu_mkeys_poll(void)
 
 static void cu_latch_toggle(void)                 /* LATCH: LFO tap (Classic), GLO held + LFO (FM-1) */
 {
-    uint32_t mode = CU_PERF[cs.perf_sel].mode;
-    if (!cs.sticky && cs.perform_on && cs.par[mode][CR_P_HOLD]) {   /* the mode's Hold (Strum's KNOB 4, the arp's)
+    uint32_t part, held = 0;
+    for (part = 0; part < 2u; part++)              /* (either part's Hold latches: cr_engine.c cr_latching) */
+        held |= (uint32_t)(!cu_pf_off(part) && cu_pf_par(part)[cu_perf_mode(part)][CR_P_HOLD] != 0) << part;
+    if (!cs.sticky && cs.perform_on && held) {   /* the mode's Hold (Strum's KNOB 4, the arp's)
                                                    * lit the button: a tap turns Hold off and the held notes go, as a
                                                    * tap on a lit LATCH does (the owner, 2026-10-15: "you can't control
                                                    * this using the lock/hold button like you can elsewhere"); the next
                                                    * tap latches as before */
-        cs.par[mode][CR_P_HOLD] = 0;
-        cr_post(CRE_PARAM, mode, CR_P_HOLD, 0);   /* (cr_engine.c: Hold off releases the latched voices) */
-        cu_trace("latch: %s hold off\n", CU_PERF[cs.perf_sel].short_name);
+        for (part = 0; part < 2u; part++)
+            if ((held >> part) & 1u) {
+                uint32_t mode = cu_perf_mode(part);
+                cu_pf_par(part)[mode][CR_P_HOLD] = 0;
+                cr_post(CRE_PARAM, mode | part << 4, CR_P_HOLD, 0);   /* (cr_engine.c: Hold off releases the latched
+                                                                     * voices) */
+                cu_trace("latch: %s%s hold off\n", part ? "bass " : "", CU_PERF[cu_pf_sel(part)].short_name);
+            }
         return;
     }
     cs.sticky ^= 1u;
@@ -5188,6 +5242,9 @@ static void cu_btn_press(uint32_t b)
         cu.lock = L_NONE;
         cu_save_open(1);
     }
+    if (cu.armed == BT_BASS && b == BT_PERF && !(cu.page == PG_EDIT && !cu_layer()))
+        cu_opened(BT_PERF);                        /* BASS held + ARP: the Bass PERF layer (0.34; cu_opened: the part by
+                                                    * the armed button). Not in the sound editor (its ARP group there) */
 }
 
 static void cu_btn_release(uint32_t b)
@@ -5575,7 +5632,8 @@ static void cu_knob(uint32_t role, int32_t s)
         cu.pop.kind = PU_BASS_VOICING;
         break;
     case EN_K3:
-        cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][0], s, 1);
+        cu_param_turn(cu_perf_view_part(), cu_perf_mode(cu_perf_view_part()), CU_PERF_KNOB[cu_perf_mode(cu_perf_view_part())][0],
+                      s, 1);
         break;
     case EN_K4:
         v = cu_send(0, CU_FX[cs.fx_sel].send);
@@ -5950,7 +6008,7 @@ static void cu_smk_pad(uint32_t pad, uint32_t vel)
     if (i >= 0 && vel) {                           /* a mode pad: that mode, performance on; the mode playing: off (as
                                                     * a PERF tap). The same state as PERF and the PERF layer's picker */
         cu_activity();
-        if (cs.perform_on && cs.perf_sel == (uint32_t)i)
+        if (cs.perform_on && !cu_pf_off(CU_PF_CHORD) && cs.perf_sel == (uint32_t)i)
             cu_perf_toggle();
         else {
             cu_perf_pick((uint32_t)i);
@@ -6328,11 +6386,13 @@ static void cr_ui_input(void)
             ce_button(cu.armed, CE_HOLD);
         } else
 #endif
-        if (cu.lock && cu_layer_of(cu.armed) == cu.lock) {   /* a layer's own button held again past the hold time
+        if (cu.lock && cu_layer_of(cu.armed) == cu.lock &&
+            !(cu.lock == L_PERF && cu.perf_part == CU_PF_BASS)) {   /* a layer's own button held again past the hold time
                                                               * (alone: a key or a knob touched meanwhile is a combo in
                                                               * the layer, cu_activity): the layer closes, as it
                                                               * opened; the engine picker keeps its sound (as EDIT
-                                                              * tapped). Its release does nothing */
+                                                              * tapped). Its release does nothing. (ARP held alone in
+                                                              * the Bass PERF layer: the chord's, cu_opened) */
             cu.open = 1;
             cu.hclosed = cu.lock;
             if (cu.lock == L_EDIT)
@@ -6445,7 +6505,8 @@ static void cu_smk_leds(const uint8_t *nl, const uint8_t *nd, const uint8_t *nm,
         uint32_t lv = 0, r = 255, g = 255, b = 255, fid;  /* white */
         int32_t k = CU_PAD_FN[p], i = CU_PAD_PERF[p];
         if (i >= 0) {                              /* a mode: bright while it plays, dim otherwise */
-            lv = panic ? (cu_smk_bit(nl, CU_LK(0)) ? 4u : 0u) : cs.perform_on && cs.perf_sel == (uint32_t)i ? 4u : 2u;
+            lv = panic ? (cu_smk_bit(nl, CU_LK(0)) ? 4u : 0u)
+                       : cs.perform_on && !cu_pf_off(CU_PF_CHORD) && cs.perf_sel == (uint32_t)i ? 4u : 2u;
             if (CU_PERF[i].mode == CR_PM_ARP || CU_PERF[i].mode == CR_PM_PATTERN) {   /* tempo-synced: green */
                 r = 30;
                 g = 200;
@@ -6829,8 +6890,14 @@ static void cu_header(cr_screen_t *s)
     } else if (sn->bass_on && cs.bass_mode == CR_BASS_SOLO && cs.single != CR_SINGLE_SPLIT_BASS) {
         cu_cpy(s->right, "Bass Solo", sizeof s->right);
         s->right_col = CR_COL_ORANGE;
-    } else if (sn->perform_on)
-        cu_cpy(s->right, CU_PERF[cs.perf_sel].short_name, sizeof s->right);
+    } else if (sn->perform_on && cs.perf_off != 3u) {   /* (the part shown: the chord's, the bass's while it alone
+                                                         * performs: "Bass Arp" in its colour) */
+        uint32_t part = cu_perf_view_part();
+        cu_cpy(s->right, part ? "Bass " : "", sizeof s->right);
+        cu_cat(s->right, CU_PERF[cu_pf_sel(part)].short_name, sizeof s->right);
+        if (part)
+            s->right_col = CR_COL_ORANGE;
+    }
     else if (sn->bass_on) {
         cu_cpy(s->right, "Bass", sizeof s->right);
         s->right_col = CR_COL_ORANGE;
@@ -7118,13 +7185,13 @@ static void cu_perf_cells(cr_screen_t *s)
 {
     static const uint8_t ARROW[6] = {0, 96, 160, 160, 0, 255};
     static const char *const DIR[6] = {"Up", "Down", "Up-down", "Down-up", "Played", "Random"};
-    uint32_t m = cu_perf_mode(), k;
-    for (k = 0; k < 4u; k++) {
+    uint32_t part = cu.perf_part, m = cu_perf_mode(part), k;
+    for (k = 0; k < 4u && !cu_pf_off(part); k++) {   /* (Off: an empty row) */
         cr_cell_t *c = &s->cell[0][k];
         int32_t p = CU_PERF_KNOB[m][k], v;
         if (p < 0)
             continue;
-        v = cs.par[m][p];
+        v = cu_pf_par(part)[m][p];
         c->flags = CR_CF_ON;
         cu_cpy(c->label, CU_PAR[p].name, sizeof c->label);
         c->label[0] = (char)(c->label[0] - 'a' + 'A');
@@ -7586,8 +7653,8 @@ static void cu_loopmenu(cr_screen_t *s, uint32_t now)
 static int cu_arp_layer(uint32_t now);
 static void cu_layer_screen(cr_screen_t *s, uint32_t l)
 {
-    static const char *const PERF_ITEMS[7] = {"Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves",
-                                              "Pattern", "Harp"};
+    static const char *const PERF_ITEMS[8] = {"Off", "Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves",
+                                              "Pattern", "Harp"};   /* (CU_PERF's after Off) */
     static const char *const FX_ITEMS[CU_NFX + 3u] = {"Sends", "Reverb", "Chorus", "Delay", "Drive", "Filter",
                                                       "Routing"};
     const char *eng[NENGINES];
@@ -7617,11 +7684,17 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_PERF: {
         static char seen[48];
-        cu_picker(s, PERF_ITEMS, 7, cs.perf_sel, CR_COL_WHITE, cs.perform_on ? "perform \267 on" : "perform \267 off",
-                  "SELECT: mode \267 ARP: on/off \267 OCT-: back");
+        uint32_t part = cu.perf_part;
+        if (part)                                  /* the Bass PERF layer: the bass's colour and name */
+            cu_picker(s, PERF_ITEMS, 8, cu_pf_item(part), CR_COL_ORANGE,
+                      cs.perform_on ? "bass perform \267 on" : "bass perform \267 off",
+                      "SELECT: mode \267 ARP: on/off \267 OCT-: back");
+        else
+            cu_picker(s, PERF_ITEMS, 8, cu_pf_item(part), CR_COL_WHITE,
+                      cs.perform_on ? "perform \267 on" : "perform \267 off", "SELECT: mode \267 ARP: on/off \267 OCT-: back");
         s->kind = CR_K_KNOBROW;
         s->orient = 1;
-        if (cu_arp_layer(cu_now())) {              /* notes are being stepped and the picker's 2 s are over: the
+        if (cr_snap.perf_part == part && cu_arp_layer(cu_now())) {              /* notes are being stepped and the picker's 2 s are over: the
                                                     * band is the arp (the chord's name, the hopping note); the mode's
                                                     * name moves into the label; the knob row as it is */
             const cr_snap_t *sn = &cr_snap;
@@ -7629,8 +7702,9 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
             cu_name(&s->name, &sn->ci);
             cu_notes(s, &sn->ci);
             s->pos = (int8_t)(sn->perf_step && sn->perf_pos >= 0 && sn->perf_pos < (int)s->n_notes ? sn->perf_pos : -1);
-            s->hop_col = CR_COL_WHITE;
-            cu_cpy(s->label, PERF_ITEMS[cs.perf_sel % 7u], sizeof s->label);
+            s->hop_col = part ? CR_COL_ORANGE : CR_COL_WHITE;
+            cu_cpy(s->label, part ? "bass " : "", sizeof s->label);
+            cu_cat(s->label, PERF_ITEMS[cu_pf_item(part) % 8u], sizeof s->label);
             cu_cat(s->label, " \267 on", sizeof s->label);
         }
         cu_perf_cells(s);
@@ -8100,7 +8174,7 @@ static void cu_view_screen(cr_screen_t *s, uint32_t now)
     const cr_snap_t *sn = &cr_snap;
     const cr_chord_info_t *ci = &sn->ci;
     if (cu_arp_on(now)) {
-        uint32_t pm = sn->perform_mode;
+        uint32_t pm = sn->perform_mode, part = sn->perf_part;
         char v[8], sub[12];
         int32_t p = CU_PERF_KNOB[pm][0];
         s->kind = CR_K_ARP;                        /* the arp in motion: the sounding note hops along */
@@ -8108,10 +8182,11 @@ static void cu_view_screen(cr_screen_t *s, uint32_t now)
         cu_notes(s, ci);
         cu_numeral_put(s);
         s->pos = (int8_t)(sn->perf_step && sn->perf_pos >= 0 && sn->perf_pos < (int)s->n_notes ? sn->perf_pos : -1);
-        s->hop_col = CR_COL_WHITE;
-        cu_param_text((uint32_t)p, cs.par[pm][p], v, sub);
-        cu_cpy(s->line, CU_PERF[cs.perf_sel].short_name, sizeof s->line);
-        s->line[0] = (char)(s->line[0] | 0x20);
+        s->hop_col = part ? CR_COL_ORANGE : CR_COL_WHITE;   /* (the bass's arp: its colour) */
+        cu_param_text((uint32_t)p, cu_pf_par(part)[pm][p], v, sub);
+        cu_cpy(s->line, part ? "bass " : "", sizeof s->line);
+        cu_cat(s->line, CU_PERF[cu_pf_sel(part)].short_name, sizeof s->line);
+        s->line[part ? 5 : 0] = (char)(s->line[part ? 5 : 0] | 0x20);
         cu_cat(s->line, " ", sizeof s->line);
         cu_cat(s->line, p == CR_P_DIV || p == CR_P_PATTERN ? sub : v, sizeof s->line);
         s->line_col = CR_COL_MID;
@@ -8817,8 +8892,11 @@ static void cr_ui_init(void)
     cs.vel = 100;
     cs.suswin = 30;                               /* (the settings' default, before a record is read) */
     for (m = 0; m < CR_PM_COUNT; m++)
-        for (p = 0; p < CR_P_COUNT; p++)
+        for (p = 0; p < CR_P_COUNT; p++) {
             cs.par[m][p] = (int16_t)cr_get_param(&cr, (cr_pmode_t)m, (cr_eparam_t)p);
+            cs.bpar[m][p] = (int16_t)cr_get_param_ex(&cr, CR_PF_BASS, (cr_pmode_t)m, (cr_eparam_t)p);
+        }
+    cs.perf_off = (uint8_t)(1u << CU_PF_BASS);    /* (the engine's perf_parts: the chord performs, the bass not) */
     for (k = 0; k < 7u; k++)
         if (CU_PERF[k].mode == cr.perform_mode) {
             cs.perf_sel = (uint8_t)k;
