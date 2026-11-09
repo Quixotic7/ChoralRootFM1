@@ -7885,3 +7885,14 @@ edit page shows that part's cell. `cr_edit.c ce_cc_show` keeps only the hot cell
 its view); the popup fallback is gone. The older CC 7 (level) and CC 91 / 93 / 94 (sends) popups of `cu_midi_poll`
 go too, so no CC brings one up; a program change still shows the sound's. XIP -528 B. Tests: `cr_cc_test` (CC 74 and
 CC 92 outside the editor: the value set, no popup; the editor on FILT: CC 71's cell hot, no popup).
+
+3y272. **Options > MIDI CC defaults to In.** The owner: "Default the CCs to in." New units and an Options reset start on
+In: incoming CCs set the sounds' parameters, knob turns send nothing until Out or In + Out is chosen. The two bits in
+`raw_sound` are now bit 6 Out ON, bit 7 In OFF (3y269 had bit 6 In off, bit 7 Out off), so the byte's 0 is In: every
+record from 0.32 or before reads as In, and a firmware before 3y269 (which checks the byte against 0 .. 0x3F) reads
+Raw Chord Sound and MIDI Keys cleanly with the default. Only Off, Out and In + Out still make an older firmware read
+those two as Off; that can't be avoided in this byte (three of the four choices need a bit an older firmware rejects).
+A record written by the 3y269 dev build (only the spare E81CE2F7) with its default In + Out (bits 0) now reads In;
+one it wrote as In (bit 6) reads In + Out. No migration: no unit outside the dev build has the bits. Tests:
+`cr_settings_test t_midi_cc` (default In, byte 0; the four round-trip; only In passes an older firmware's check),
+`cr_cc_test` (the default: a knob sends nothing; then In + Out for the out checks).

@@ -600,8 +600,8 @@ static struct {
     uint8_t full_short;                   /* .. Full K Shorts: F#5 / G5 are the Full keyboard's shortcut keys */
     uint8_t midi_keys;                    /* .. MIDI Keys: the channel (1 .. 16) whose notes 53 .. 79 press the keys F3 ..
                                            * G5; 0 Off */
-    uint8_t midi_cc;                      /* Options > MIDI CC (3y269): bit 0 In, bit 1 Out (0 Off .. 3 In+Out, the
-                                           * default) */
+    uint8_t midi_cc;                      /* Options > MIDI CC (3y269): bit 0 In, bit 1 Out (0 Off .. 3 In+Out; 1 In,
+                                           * the default, 3y272) */
 #if BOARD_SMK37
     uint8_t smk_pedal;                    /* Options > Pedal: the pedal jack 0 Sustain, 1 Expression (the session's:
                                            * cr_settings.h smk_pedal; cr_smk_pedal) */
@@ -8869,7 +8869,7 @@ static void cr_ui_init(void)
     fx_output_set(1, 1);                          /* (a build without the record: nothing else tells fx.c) */
 #endif
     cs.usb_in = 1;                                /* (the record's, cr_settings_load; usb.c got it at boot) */
-    cs.midi_cc = 3;                               /* Options > MIDI CC In + Out (the record's) */
+    cs.midi_cc = 1;                               /* Options > MIDI CC In (the record's) */
     cu_route();
     cu_set_tempo(cr.bpm ? cr.bpm : 120);
 #if CR_HAVE_SETTINGS

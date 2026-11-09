@@ -1773,7 +1773,7 @@ Tap **OPT** (printed GLO). One setting fills the screen:
 | **MIDI Raw Chord** | Off, ch 1 to ch 16 | Off | the channel for the plain chord, without the performance mode. From Off the first step is ch 1; choose a channel of its own (the Orchid uses 3) |
 | **Raw Chord Sound** | Off, On | Off | On: the plain chord also plays on the chord sound, under an arpeggio or pattern. With no performance mode on, every note then sounds twice |
 | **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop; incoming start / stop work as LOOP. In: follows the clock and start / stop |
-| **MIDI CC** | Off, In, Out, In + Out | In + Out | CCs on the sounds' parameters ([MIDI CC](#midi-cc-the-sounds-parameters)). In: a CC sets the parameter; Out: a knob turned on such a parameter sends its CC. Off: only CC 7, 91, 93 and 94 as before. New after 0.32 |
+| **MIDI CC** | Off, In, Out, In + Out | In | CCs on the sounds' parameters ([MIDI CC](#midi-cc-the-sounds-parameters)). In: a CC sets the parameter; Out: a knob turned on such a parameter sends its CC. Off: only CC 7, 91, 93 and 94 as before. New after 0.32 |
 | **Bluetooth** | Off, On | Off | the FM-1 only: MIDI over Bluetooth, the same MIDI as over USB ([Bluetooth MIDI](#bluetooth-midi)); the first On takes effect at the next power-on. The line under it says what the link is doing. Kept apart from the other settings (Reset Settings leaves it, a backup does not carry it; Flash Data clears it) |
 | **Forget Bluetooth** | | | OCT+ twice: the FM-1 forgets the computer it paired with. Forget the FM-1 on that computer too |
 | **USB Host** | Off, On | Off | the FM-1 only: the USB-C port hosts a USB MIDI keyboard, controller or second FM-1 instead of talking to a computer ([USB Host](#usb-host-a-midi-device-on-the-fm-1s-usb-c)). Never saved: every start-up is a USB device again |
@@ -1919,7 +1919,7 @@ Over USB the computer sees one device, **ChoralRoot FM-1**: a MIDI port of that 
 
 With MIDI Clock set to Out (the default) the FM-1 also sends MIDI clock at the tempo, a start when the loop starts
 playing and a stop when it stops. PANIC sends all notes off (CC 123). With MIDI CC set to Out or In + Out (the
-default) a knob turned on a sound's parameter sends its CC on the part's channel ([MIDI CC](#midi-cc-the-sounds-parameters)).
+default is In) a knob turned on a sound's parameter sends its CC on the part's channel ([MIDI CC](#midi-cc-the-sounds-parameters)).
 
 ### MIDI in (USB, Bluetooth and the TRS jack)
 
@@ -1948,7 +1948,7 @@ skipped, and setting one of them to it switches MIDI Keys off).
 
 ### MIDI CC: the sounds' parameters
 
-New after 0.32. With Options > **MIDI CC** set to In or In + Out (the default), a CC on the MIDI Perform channel sets
+New after 0.32. With Options > **MIDI CC** set to In (the default) or In + Out, a CC on the MIDI Perform channel sets
 a parameter of the chord sound, and on the MIDI Bass channel one of the bass sound (one channel for both: both).
 It acts exactly as a knob turn on that parameter in the [sound editor](#12-the-sound-editor): the sound is marked
 edited (`*`) and the cell turns hot when the editor shows it; elsewhere the value changes quietly, with no popup. A
@@ -1956,7 +1956,7 @@ fast controller is fine: only the latest value of each CC is applied. The CCs Ch
 meaning: 1, 2, 4, 5, 7, 11, 64, 65, 91, 93, 94, 120 to 123, and the RPN messages (6, 38, 100, 101; CC 38 is the
 filter block's below unless RPN 0, the bend range, is selected).
 
-With MIDI CC set to Out or In + Out it works the other way too: turning a knob on such a parameter (in the sound
+With MIDI CC set to Out or In + Out (not the default) it works the other way too: turning a knob on such a parameter (in the sound
 editor, the FX layer's sends, KNOB 4 on the home view, the bass level) sends its CC on the part's channel, where the
 notes go. A program change or an engine change sends nothing. A part whose channel is Off sends nothing. When the
 computer echoes a CC back, the FM-1 ignores a value it sent itself within the last second, so the knob does not

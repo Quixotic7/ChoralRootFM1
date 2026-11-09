@@ -371,6 +371,10 @@ int main(int argc, char **argv)
     cu_edit_open(0);
     cx.grp[0] = CE_FILT;
     cx.scr[0][CE_FILT] = cx.lane[0][CE_FILT] = 0;
+    ce_knob(0, 1, 0);
+    OK(cs.midi_cc == 1u && cr_cc_mode == 1u && outs(&r0, &och, &occ, &ov) == 0,
+       "out: the default (Options > MIDI CC In, 3y272): a knob sends nothing");
+    opt_set(O_MIDI_CC, 3);                        /* In + Out for the rest */
     dd->set(T0, 8, 0, 40);
     ce_knob(0, 1, 0);
     v = dd->get(T0, 8, 0);

@@ -709,7 +709,7 @@ static int cr_min_post(const crm_act_t *a)
     return 1;
 }
 /* Options > MIDI CC (3y269; the UI's cu_route writes it): bit 0 In (crm_map's cc_in), bit 1 Out (the UI's alone) */
-static volatile uint8_t cr_cc_mode = 3u;
+static volatile uint8_t cr_cc_mode = 1u;
 /* the CCs on the sounds' parameters, coalesced (a fast controller, a DAW's snapshot of every CC: never a queue
  * overflow, never a stale value): per part, per crm_cc_slot, the latest value | 0x80 while the UI has not taken it.
  * The ISR posts one cr_minq entry when a slot becomes pending (a full queue: cr_cc_sweep, the UI then looks at every
