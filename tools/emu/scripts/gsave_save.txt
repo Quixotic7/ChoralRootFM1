@@ -30,7 +30,7 @@ knob PRESETS +3
 wait 1300
 btn GLO                       # Options: LEDs Stock
 wait 200
-knob SELECT +23
+knob SELECT +24
 wait 200
 knob KNOB1 +1
 wait 200

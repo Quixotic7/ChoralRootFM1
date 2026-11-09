@@ -716,10 +716,18 @@ static volatile uint8_t cr_cc_mode = 1u;
  * slot); the UI takes the value with the IRQ off (cr_cc_take) */
 static uint8_t cr_ccv[2][CRM_NCC];
 static volatile uint8_t cr_cc_sweep;
-static void cr_cc_post(const crm_act_t *a)
+/* the audio ISR (cr_midi_in): a CC on a sound's parameter, or CC 38 with RPN 0 selected (its data entry, the bend
+ * range's cents, as before). Out of line, as midi_event: inlined, its branches made the ISR's MIDI loop read as
+ * eleven nested loops to tests/target_budget.py (cost 13,942 -> 23,562, 3y273); one call a CC costs nothing */
+static void __attribute__((noinline)) cr_cc_post(const crm_act_t *a, uint32_t st, uint32_t d1, uint32_t d2)
 {
-    int32_t k = crm_cc_slot(a->kind & 0x7Fu);
+    int32_t k;
     uint8_t was;
+    if (d1 == 38u && !cr_mchan(a->part)->rpn_msb && !cr_mchan(a->part)->rpn_lsb) {
+        midi_event(st & 0xF0u, a->part, d1, d2);
+        return;
+    }
+    k = crm_cc_slot(a->kind & 0x7Fu);
     if (k < 0 || a->part > 1u)
         return;
     was = cr_ccv[a->part][k];
@@ -887,11 +895,8 @@ static void cr_midi_in(void)
             for (i = 0; i < n; i++) {
                 if (a[i].kind == CRM_FORWARD)
                     midi_event(status & 0xF0u, a[i].part, d1, d2);
-                else if ((a[i].kind & CRM_CC) && (d1 != 38u || cr_mchan(a[i].part)->rpn_msb || cr_mchan(a[i].part)->rpn_lsb))
-                    cr_cc_post(&a[i]);
-                else if (a[i].kind & CRM_CC)     /* CC 38 with RPN 0 selected: its data entry (the bend range's
-                                                  * cents), as before; else FILT's block like its neighbours */
-                    midi_event(status & 0xF0u, a[i].part, d1, d2);
+                else if (a[i].kind & CRM_CC)     /* (CC 38 with RPN 0 selected: midi_event there, as before) */
+                    cr_cc_post(&a[i], status, d1, d2);
                 else
                     (void)cr_min_post(&a[i]);
             }

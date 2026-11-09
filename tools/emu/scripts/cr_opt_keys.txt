@@ -41,7 +41,7 @@ wait 200
 dump                          # 4
 btn B3
 wait 1500
-knob SELECT +27               # Output (entry 29 since 0.24)
+knob SELECT +28               # Output (entry 29 since 0.24)
 wait 300
 btn A#3 down
 btn D4 down
@@ -184,10 +184,13 @@ dump
 knob SELECT +1
 wait 120
 dump
-knob SELECT -30
+knob SELECT +1                # (3y273: one entry more, MIDI CC)
+wait 120
+dump
+knob SELECT -31
 wait 80                       # (200 - 120: the walk has four entries more since Key Touch, the two Sens and the Curve)
-dump                          # 45: Secret Chords, still Simple (-30: three entries more since 0.24's Chord Keys,
-                              # Full K Shorts, MIDI Keys)
+dump                          # 46: Secret Chords, still Simple (-31: three entries more since 0.24's Chord Keys,
+                              # Full K Shorts, MIDI Keys; one since 3y273's MIDI CC)
 btn GLO
 wait 300
 btn REC                       # armed on the view; the take is played with the menu open

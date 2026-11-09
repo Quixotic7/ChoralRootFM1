@@ -224,8 +224,8 @@ console.log("Options > TRS MIDI Out (GitHub issue 42): after MIDI Clock, On by d
   d.render(ms(200));
   let o = opt(d), seen = [];
   for (let i = 0; i < 40 && o[4] !== "TRS MIDI Out"; i++) { seen.push(o[4]); turn(d, 1, 1); o = opt(d); }   // K2 = SELECT
-  ok(o[1] === "1" && o[4] === "TRS MIDI Out" && seen[seen.length - 1] === "MIDI Clock",
-     `listed after MIDI Clock (entry ${o[2]} of ${o[3]})`);
+  ok(o[1] === "1" && o[4] === "TRS MIDI Out" && seen[seen.length - 1] === "MIDI CC" && seen[seen.length - 2] === "MIDI Clock",
+     `listed after MIDI Clock and MIDI CC (3y269) (entry ${o[2]} of ${o[3]})`);
   ok(o[5] === "On", `On by default (${o[5]})`);
   const sr = (d.dump().match(/screen reads:.*/) || ["?"])[0];
   ok(/label 'the jack: what USB MIDI sends'/.test(sr), `its line: ${(sr.match(/label '[^']*'/) || ["?"])[0]}`);

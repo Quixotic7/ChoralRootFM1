@@ -7896,3 +7896,18 @@ A record written by the 3y269 dev build (only the spare E81CE2F7) with its defau
 one it wrote as In (bit 6) reads In + Out. No migration: no unit outside the dev build has the bits. Tests:
 `cr_settings_test t_midi_cc` (default In, byte 0; the four round-trip; only In passes an older firmware's check),
 `cr_cc_test` (the default: a knob sends nothing; then In + Out for the out checks).
+
+3y273. **Main green again after 3y269 .. 3y272: the audio ISR's static cost back in budget, the tests on the new
+Options entry.** The release flow's 24 suites on main 2569643a failed 4. (1) `run_tests`: `fm1_alnk0_irq` cost 23,566
+against 13,890 (`tests/target_budget.py`, +70 %). Measured on builds of each commit: 478c75c6 (before) 13,942,
+cf3a5a59 (3y269, the CCs) 23,562, 985d10e1 (3y270, the filter bypass) 13,946. The CC handling inlined into the ISR's
+MIDI-in loop (`cr_out.c cr_midi_in`: the CC 38 test and `cr_cc_post`) made the compiler lay the loop out with backward
+jumps the script reads as loops eleven deep (x4 a level); the work a message does was unchanged. `cr_cc_post` is now
+out of line (`noinline`, as `midi_event`), with the CC 38 / RPN test inside it: 14,109 (+1.6 % on the budget, inside
+the 10 %; the budget is not raised). The filter bypass costs no per-sample work at Off or All (`xb_want` false: no
+capture; `xb_begin` a two-part check a block). (2) `test_cr` (45), `test_persist` (12), `web_emu_smk` (1): the MIDI CC
+entry after MIDI Clock moved every later Options entry by one (the emulator lists 34, 35 with the SUS Window). The
+scripts' SELECT moves past Clock one turn more (`+34` for "past the end"; `cr_loop_glow`'s way back to MIDI Clock
+`-5`; `cr_opt_keys`'s walk one entry longer), the expected entry numbers and counts one more; the CC 91 popup checks
+expect no popup (3y271); the SMK test finds TRS MIDI Out after MIDI Clock and MIDI CC. `sh tests/run_all.sh`: all 24
+suites pass; `./build.sh` and `BOARD=smk37 ./build.sh` OK.

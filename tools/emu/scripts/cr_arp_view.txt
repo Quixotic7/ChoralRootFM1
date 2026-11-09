@@ -81,7 +81,7 @@ btn HOME
 wait 300
 btn GLO 80
 wait 300
-knob SELECT +21               # Options > Motion
+knob SELECT +22               # Options > Motion
 wait 300
 knob KNOB1 +2                 # Full -> Calm -> Off
 wait 300
