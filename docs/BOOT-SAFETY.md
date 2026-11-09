@@ -475,6 +475,9 @@ Version 2: the same 14 ms, and the key window instead of the quick exit: 32 samp
 ms (the LCD's init alone waits about 350), so the whole start grows by about a tenth. Version 3 adds two register
 writes: the same figure.
 
+A version 4 that waited 200 ms before the PA2 rail (a power-on pop, HISTORY 3y267) ran on the spare and was reverted:
+the pop was not the rail's.
+
 `STUB_BODY_CRC 0` (`stub_core.h`: trust the marker alone) is not needed at 14 ms.
 
 ### What the stub assumes about the hardware

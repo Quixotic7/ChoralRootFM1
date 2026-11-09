@@ -7749,6 +7749,60 @@ backup first (`~/fm1-backups/fm1-backup-E81CE2F7-2026-11-08-before-0.32.json`, s
 `--info` ChoralRoot 0.32, E81CE2F7; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, crash_count 0, stub v3 64.4 ms,
 stale_halves 0, `flash_late_ops 0`, `flash_late_max_us 0` (the Puya part), Bluetooth Off.
 
+## 2026-11-08 (the power-on pop: not found yet)
+
+3y267. **The power-on pop, round 1: FM1-Base has no pop fix to port; neither the stub's rail nor the supplies is it.**
+The owner, through the orchestration session: a loud pop from the speaker on ChoralRoot's power-on for a long time,
+the volume knob at zero too; "FM1-Base fixed it"; never on FIZZ or RemoteFM1; not every time, more often from a cold
+start (off a while); Bluetooth and Dual Core Off do not stop it. **FM1-Base**: its audio start is felucca-bsp's
+`boards/fm1/fm1_audio.h`, the same sequence as `hal/fm1_audio.h` here (PC0/1/2 the clocks, PC6 held low 5 ms, then the
+DMA), with checks added (the buffer, the audio PLL, a `csync`); no amplifier enable or mute anywhere (its
+headphone-jack commit only reads PB5); no commit or issue in fm1-base, felucca-bsp, FIZZ or RemoteFM1 about a power-on
+pop (FIZZ's "popfix" of 2026-10-26 is a playback pop). What the ROM loader reads is the same for both: flash
+0..0x3FFF of `choralroot.fwsc` and FIZZ 0.12.0's `fizz.fwsc` are byte for byte the same but the directory's CRCs.
+The HAL's pin writes are felucca-bsp's (but the LED lines' high drive on port A and the LCD's pin group). ChoralRoot's
+output is digital zero from power-on (the emulator, MASTER 0 and 512: no sample other than 0 in 3 s). Three tries on
+the spare E81CE2F7, each installed with `--unit E81CE2F7` (a backup first:
+`FIZZ-saves/2026-11-08-E81CE2F7-before-boot-pop-stub4.json`, settings and U121-128):
+1. **Boot stub 4**: the stub's PA2 rail (the backlight, the 595s, the LEDs) 200 ms in instead of within a millisecond
+   (the owner first placed the pop at "switch on, screen dark"). Stub 264 ms, `--stub test` ok. **Still pops.**
+   Reverted (b0d7f177): `stub.lock` is 3 again, no unit rewrites its stub.
+2. **A timed diagnostic** (not committed): the stub's rail at 2 s, the app's start 1.5 s later. The owner: the pop
+   "about 6 seconds in while the splash was playing", so at the audio start or near it, not at the rail.
+3. **Stock supplies first on every FM-1 boot** (48b7be7e, kept): `fm1_main` runs `cr_rails_stock` (`fm1_power_stock`:
+   the 1.3 V rail's DC-DC, VDDIO 3.2 V, the core rails at ChoralRoot's caps) before anything, as FM1-Base's
+   `main_fm1.c` does on every boot (Charles Vestal, fm1-base 5e1e79f) and Melodee 1.6.1; until now only a Bluetooth
+   boot set them, and the spare (Bluetooth and Dual Core Off) started the I2S clocks on the boot loader's supplies
+   (`--debug` rails 11 / 3; now 14 / 5). Not in SAFE MODE; a Bluetooth boot takes the result (`cr_ble_supplies`).
+   FM-1 only. **The owner: "It is the same still."** Kept: it is what FM1-Base, Melodee and stock V15 run on every
+   boot, and the Bluetooth boots ran it already.
+Suites green after each (`sh tests/run_cr_tests.sh`: cr_bootguard 95, cr_stub 16,143, stub_pkg 265), `BOARD=smk37`
+builds. Next: a diagnostic with the steps after the splash 3 s apart, each named on the screen, to place the pop on one
+step (the keys' and knob's pins, the audio start, USB and the timer, the running loop).
+
+3y268. **The power-on pop is gone: the I2S clocks start ~0.1 s after power-on, not 1.5 s or more.** Round 2 of
+3y267, on the spare E81CE2F7 (Bluetooth and Dual Core Off), each install with `--unit E81CE2F7`:
+1. **A labelled diagnostic** (not committed): the steps after the splash 3 s apart, each named on the screen
+   (A the keys' and knob's pins, B `master_boot`, C `audio_init`, D USB and the timer). The owner: "Every time it
+   happens as soon as C starts". So the pop is the I2S clocks' start, ALNK0's MCLK / SCLK / LRCK reaching the DAC,
+   not a sample: the output is digital zero then (3y267), and the start is the same code as FM1-Base's.
+2. **The audio start first** (kept): `fm1_main` runs `audio_init` right after the stock supplies (3y267 try 3), before
+   the flash, the screen and the splash, about 0.1 s after power-on, as FM1-Base starts its audio early. Before this
+   ChoralRoot started the clocks after the splash, 1.5 to 2 s in; at 6 s (the timed diagnostic) it popped every
+   time, and a cold start (the board longer at rest) more often. The DMA loops `audio_init`'s zeroed buffer until
+   the interrupts come on (`fm1_irq_enable_all`), so the output is silence until then; the first rendered block is
+   after `master_boot`, at the knob's level, as before. Core 1 (Dual Core On) and the radio (Bluetooth On) now start
+   with the DMA already running; both still start before the interrupts. `CRBL_T_NOAUDIO` (3y243's bisection switch)
+   is retired: `audio_init` now runs before the Bluetooth record is read. **The owner: "Pop gone".**
+Install exit 0, `--debug` halves 9297, late 0, stale halves 0, crash count 0, stub v3 64.4 ms, rails 14 / 5. Suites
+green (`sh tests/run_cr_tests.sh`), `BOARD=smk37` builds (its `audio_init` moves the same way; the SMK-37 had no
+report of a pop). Then a boot with Dual Core On and one with Bluetooth On (the owner): "No pops in either case. BLE
+showed up and connected and working as I expect." `--debug` after (`--unit E81CE2F7`, the only FM-1 on USB):
+c1_state 1, c1_jobs 155180, c1_faults 0, c1_fallback 0, crash_count 0, Bluetooth On, the radio started in 160.7 ms, a
+peer subscribed, late 0. The first read (power-on to 105 s) had 59 stale halves, the radio's start at boot as 0.31's
+55 (3y263), one TIMER5 gap of 17.3 ms and a UI frame of 70 ms (not placed); the second read (9.3 s) stale 0, worst half
+400 us of 2,902, the ISR at most 52 us late.
+
 ## 2026-11-08 (MIDI CC on the sounds' parameters, in and out)
 
 3y269. **MIDI CC sets the sounds' parameters, and a knob turn sends it.** The owner's design (2026-11-08, its

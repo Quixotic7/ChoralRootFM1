@@ -137,6 +137,11 @@ firmware's source; the stock firmware's package is opaque); no firmware drives a
 or a volume. Whatever filter the DAC has is fixed on the board and the same for every firmware: it cannot be the
 difference to Sloop. The HAL is untouched.
 
+**The power-on pop** (HISTORY 3y267, 3y268) is not in the samples: ChoralRoot's output is digital zero from power-on,
+and FM1-Base starts ALNK0 the same way; no firmware drives an amplifier enable. It was the I2S clocks' start coming
+late: the DAC popped when its clocks first came 1.5 s or more after power-on (after the splash). `fm1_main` now
+starts the audio about 0.1 s after power-on, right after the stock supplies, and the pop is gone.
+
 Two facts from this: the samples are right-aligned in the 32-bit word (not "left-justified" as the HAL's comment
 says), and **the word has 6 dB above what ChoralRoot, Felucca and Sloop send** (`OUT_SHIFT` 7: the Q15 sample's full
 scale is half the 24-bit word's). fm1-x0x has an option that uses it ("LOUD: 6 dB more at the headphones and line
