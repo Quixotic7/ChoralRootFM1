@@ -366,7 +366,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED]);
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
 const UP = { NAME_MAX: 12, PAT: 16, LIST_MAX: 16 };
-const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI: 7, ENUM: 8, BPM: 9, NOTE: 10, ONOFF: 11, OCT: 12, STEPS: 13, TIMEI: 17, FIX2: 18, INTI: 19 };   /* (14..16: FM6's OFS FMNOTE FMFRQ: a number here) */
+const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI: 7, ENUM: 8, BPM: 9, NOTE: 10, ONOFF: 11, OCT: 12, STEPS: 13, TIMEI: 17, FIX2: 18, INTI: 19, GLIDE: 20 };   /* (14..16: FM6's OFS FMNOTE FMFRQ: a number here) */
 
 const v14enc = (v) => { const u = Math.max(-8192, Math.min(8191, Math.round(v))) + 8192; return [u & 0x7F, (u >> 7) & 0x7F]; };
 const v14dec = (lo, hi) => (lo | (hi << 7)) - 8192;
@@ -777,11 +777,12 @@ function fmtValue(d, v) {
     case F.INTI: return [v >= d.max ? "INF" : String(v), ""];   /* FM TONE's AMP DEC / REL: 0..126 + INF */
     case F.TIMEI: if (v >= d.max) return ["INF", ""];   /* QUAD's REL: 127 = INF (the release holds), else TIME */
     /* falls through */
+    case F.GLIDE:                                 /* the glide's time: 3 x TIME's, 3 ms .. 30 s */
     case F.TIME: {
-      const ms10 = Math.round(10 * Math.pow(10000, (v & 127) / 127));
+      const ms10 = Math.round(10 * Math.pow(10000, (v & 127) / 127)) * (d.fmt === F.GLIDE ? 3 : 1);
       if (ms10 < 100) return [(ms10 / 10).toFixed(1), "ms"];
       if (ms10 < 10000) return [String(Math.round(ms10 / 10)), "ms"];
-      return [(ms10 / 10000).toFixed(2), "s"];
+      return ms10 >= 100000 ? [(ms10 / 10000).toFixed(1), "s"] : [(ms10 / 10000).toFixed(2), "s"];
     }
     case F.LFOHZ: { const h = 0.05 * Math.pow(800, (v & 127) / 127); return [h < 10 ? h.toFixed(2) : h.toFixed(1), "Hz"]; }
     case F.CUTOFF: { const h = 30 * Math.pow(16000 / 30, (v & 127) / 127); return h < 1000 ? [String(Math.round(h)), "Hz"] : [(h / 1000).toFixed(1), "kHz"]; }

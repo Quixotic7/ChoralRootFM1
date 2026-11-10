@@ -157,7 +157,8 @@ LAY_EXPORT uint32_t lay_snapshot_bytes(void) { lay_boot(); return lay_snap ? lay
 
 /* ------------------------------------------------------------ the built-in tables --- */
 static const char *const LAY_FMT[] = {"int", "pct", "bipct", "time", "lfohz", "cutoff", "db", "semi", "enum", "bpm",
-                                      "note", "onoff", "oct", "steps", "ofs", "fmnote", "fmfrq", "timei", "fix2", "inti"};
+                                      "note", "onoff", "oct", "steps", "ofs", "fmnote", "fmfrq", "timei", "fix2", "inti",
+                                      "glide"};
 static const char *const LAY_STYPE[] = {"platform", "stack", "columns", "mixer", "edit", "page", "expr", "free"};   /* CE_S_* */
 static const char *const LAY_BAND[] = {"none", "env", "filter", "dx", "cz", "algo", "ade2", "wave"};   /* CR_W_* */
 static const char *const LAY_STYLE[] = {"rule", "big", "ratio", "harm", "detune", "num", "val", "text", "knob", "bar",

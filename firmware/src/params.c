@@ -77,7 +77,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_DLY] = PD("DLY", F_PCT, 0, 127, 0),
     [P_REV] = PD("REV", F_PCT, 0, 127, 0),
     [P_VOICE] = PE("VCE", N_VOICE, 0),
-    [P_GLIDE] = PD("GLD", F_TIME, 0, 127, 0),
+    [P_GLIDE] = PD("GLD", F_GLIDE, 0, 127, 0),
     [P_GLMODE] = PE("GLMOD", N_GLMODE, 0),
     [P_PRIO] = PE("PRIO", N_PRIO, 0),
     [P_ALLOC] = PE("ALLOC", N_ALLOC, 0),
@@ -231,7 +231,7 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         fmt_int(val, v);
         return;
     }
-    switch (d->fmt == F_TIMEI ? (uint8_t)F_TIME : d->fmt) {
+    switch (d->fmt == F_TIMEI || d->fmt == F_GLIDE ? (uint8_t)F_TIME : d->fmt) {
     case F_PCT:                                     /* a 0..100 range (SWG) is its value, others a share of 127 */
         fmt_int(val, d->max == 100 ? v : (v * 100 + 63) / 127);
         *unit = "%";
@@ -247,7 +247,7 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         *unit = "%";
         break;
     case F_TIME: {
-        uint32_t ms10 = TIME_MS_X10[v & 127];
+        uint32_t ms10 = TIME_MS_X10[v & 127] * (d->fmt == F_GLIDE ? 3u : 1u);   /* (the glide: 3 ms .. 30 s) */
         if (ms10 < 100u) {
             fmt_fix(val, (int32_t)ms10, 1);
             *unit = "ms";

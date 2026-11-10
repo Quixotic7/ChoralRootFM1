@@ -756,7 +756,7 @@ static void ce_text(const track_t *t, ce_ref_t r, const param_desc_t *d, int32_t
         for (i = 0; out[i]; i++)
             out[i] = (char)(out[i] >= 'A' && out[i] <= 'Z' ? out[i] + 32 : out[i]);
     l = str_len(out);
-    if (unit[0] && l + 1u + str_len(unit) + 1u <= n && (d->fmt == F_TIME || d->fmt == F_TIMEI || d->fmt == F_LFOHZ || d->fmt == F_CUTOFF)) {
+    if (unit[0] && l + 1u + str_len(unit) + 1u <= n && (d->fmt == F_TIME || d->fmt == F_TIMEI || d->fmt == F_GLIDE || d->fmt == F_LFOHZ || d->fmt == F_CUTOFF)) {
         cu_cat(out, " ", n);
         cu_cat(out, unit, n);
     } else if (unit[0] && l + str_len(unit) + 1u <= n) {

@@ -21,6 +21,8 @@
 # MOD (tests/mod_test.c): the modulation matrix: slots that do nothing are bit-identical, every source on each
 #                   kind of destination, clamping, MIDI CC1 / CC11 / aftertouch routing, the cost of 4 active
 #                   slots (at most +5 %), demos in build/mod_demo/.
+# GLIDE (tests/glide_test.c): the glide's time as the screen shows it (3 ms .. 30 s, TIME and RATE), smooth Q16
+#                   steps, POLY's chord glide (released voices slide to the nearest new note, held ones never taken).
 # INPUT (tests/input_test.c): the key / button debounce of hal/fm1_input.h against the TIMER5 scan and bouncing
 #                   contacts: a press within 2 scans (<= 2.3 ms), one note per bouncy press, no early or hanging
 #                   release, stray samples ignored, fast repeats, the encoders' detents; the LED scan: lit LEDs every
@@ -254,6 +256,8 @@ if [ -f build/gen/felucca_tables.h ]; then
     par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/mod_test" tests/mod_test.c -lm
     mkdir -p build/mod_demo
     run "modulation matrix: off = bit-identical, the math, MIDI CC1 / CC11 / aftertouch, cost, demos" "$OUT/mod_test" build/mod_demo
+    par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/glide_test" tests/glide_test.c -lm
+    run "glide: 3 ms .. 30 s as shown, smooth, chord glide in POLY (issue 46)" "$OUT/glide_test"
     par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/regress" tests/regress.c -lm
     run "regression: golden renders, health, voices, CPU budget" "$OUT/regress" tests/golden.txt tests/cpu_baseline.txt
     par_build $CC -std=gnu11 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/rt_cr_usbtap_test" tests/cr_usbtap_test.c -lm
