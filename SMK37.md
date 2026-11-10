@@ -120,6 +120,15 @@ The driver is Skiff's (illuminus5, [Skiff](https://github.com/illuminus5/skiff),
 finlaysteven1-netizen ([issue 42](https://github.com/Quixotic7/ChoralRootFM1/issues/42)), after genkigenki's hardware
 notes (UART1 TX on PC7, 31250 baud).
 
+### Note names and octaves
+
+The screen names notes with middle C (MIDI note 60) as C4, and the keys, the chords and MIDI out (USB and the TRS jack)
+agree with it: the SMK-37's C4 goes out as note 60. A program that follows Yamaha's naming (Ableton Live, Logic, Cubase
+and others) calls note 60 C3, so it shows every note an octave lower than the screen; nothing is sent wrong (issue 40).
+The bass with Behaviour Solo now plays the chord's root in the octave you play it, the Register moving it by octaves,
+so the three octaves of keys play three octaves of bass (issue 43; until 0.36 Solo played the bass register's octave
+from every key, two octaves under the keys at Register 0).
+
 ### What the FM-1 has and the SMK-37 does not
 
 These came to ChoralRoot after the port was made and have no SMK-37 counterpart; they are left out rather than given

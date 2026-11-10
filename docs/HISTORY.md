@@ -8114,3 +8114,22 @@ after 0.35" now "new in 0.36" (MANUAL, SETTINGS.md, SMK37.md, CR_ENGINE.md), `ch
 be86be3d...59c0, Elite 60c5821d...4100, MKE-P37 a547a47c...1c2b. `web/releases-smk37.json` first, four bullets,
 three notes; SMK37.md's status, package names, version line and splash. `python3 tests/releases_test.py` ALL OK,
 `tools/hub_build.sh --check` both lists match; `CR_VERSION=0.36 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1147 ok; test_persist 121 ok; `fm1_alnk0_irq` 14,030 of 13,890, `fm1_timer5_irq` 4,800 of 4,511, both inside the 10 %). Not pushed, tagged or flashed here (the orchestration session's).
+## 2026-11-09 (issues 40, 43, 39, 26 and 44)
+
+3y282. **Bass Solo follows the keys' octaves; the note names checked against MIDI (GitHub issues 40 and 43).** trs-alt
+(0.29-smk37 / 0.29.2-smk37, the SMK-37's USB and TRS MIDI into a DAW and an FM-1): "When I play C4 according to the
+SMK37 screen my DAW ... is registering a C3", and with the bass in Solo at register 0 the screen's C4 arrived as C1;
+"The three octaves on the keyboard all just play octave 2". **Which side**: neither for the chords. The screen
+(`cr_note_name`: `note / 12 - 1`) and MIDI out (`cr_cb_note_on` sends the engine's note as it is, on both boards)
+read the same number, and the SMK-37's C4 key is note 60 (`test_web_emu_smk.mjs`: C4 + MAJ plays 60 64 67): middle C =
+60 = C4, the usual convention. The DAW names 60 C3 (Yamaha's convention: Ableton Live, Logic, Cubase), so it reads
+every note an octave lower; nothing changes there, and MANUAL 15 / SMK37.md now say so. **The bug** was Solo:
+`crx_bass_pitch` gave it the Chords Only pitch, the root's pitch class in the bass register ((2 + Register + 1) x 12:
+C2..B2 at Register 0, "C1" in that DAW), so every octave of the keys sounded the same one. Solo now plays the root in
+the octave it was played (`v->root`, the resolved root with its octave) moved by the Register, as Unison does with the
+key; the Bass Perform in Solo follows (`crx_pf_notes` takes its octave from that pitch). On both boards (the FM-1's
+Solo had the same single octave), so the FM-1's bass MIDI out in Solo changes with it: Register 0 is now the played
+octave, -2 is where Solo was for keys around C4. Nothing stored changes (the Register keeps its value). **Tests**:
+`cr_engine_test` (Solo: 48 -> 48, 72 -> 72, Register -2: 60 -> 36; the Solo Bass Perform arps Dm where it was played,
+50 53 57; x 4 tick rates). `cr_bass_both` (test_cr.sh's Solo checks) unchanged. MANUAL 6 (Solo) and 15 (note names),
+SMK37.md "Note names and octaves".

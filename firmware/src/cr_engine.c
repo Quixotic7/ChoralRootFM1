@@ -674,6 +674,9 @@ static int crx_bass_ok(const cr_t *c, const cr_voice_t *v)
 static int crx_bass_pitch(const cr_t *c, const cr_voice_t *v)
 {
     if (c->bass_mode == CR_BASS_UNISON || (v->zone & CR_Z_BASS)) return v->note_pressed + v->transpose + 12 * c->bass_voicing;
+    /* Solo (GitHub issues 40, 43): the root in the octave it was played in, the register moving it by octaves; until
+     * 0.36 it was the bass register's, so every octave of the keys sounded the same one */
+    if (c->bass_mode == CR_BASS_SOLO) return v->root + v->transpose + 12 * c->bass_voicing;
     return (CR_BASS_OCT + c->bass_voicing + 1) * 12 + v->pc + v->transpose;   /* root pc in the bass register */
 }
 /* the bass follows voice vi: its note, or with the Bass Perform on its performance (crx_pf_notes) */

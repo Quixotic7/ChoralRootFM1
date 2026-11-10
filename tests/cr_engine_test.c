@@ -1530,8 +1530,16 @@ static void s_bassmodes(void)
     cr_set_playstyle(&C, CR_PS_SIMPLE); clear();
     cr_set_bass_mode(&C, CR_BASS_SOLO);
     MD(CR_MOD_MAJ); K(48, 1);
-    expect("+36/127b", "Solo: bass without main or raw");
-    R(48, 1); MU(CR_MOD_MAJ); expect("-36b", "Solo: release");
+    expect("+48/127b", "Solo: bass without main or raw, the root in the octave played (issues 40, 43)");
+    R(48, 1); MU(CR_MOD_MAJ); expect("-48b", "Solo: release");
+    MD(CR_MOD_MAJ); K(72, 1);
+    expect("+72/127b", "Solo: two octaves up the keys, two octaves up the bass");
+    R(72, 1); MU(CR_MOD_MAJ); clear();
+    cr_bass_voicing_step(&C, -2);
+    MD(CR_MOD_MAJ); K(60, 1);
+    expect("+36/127b", "Solo: the register moves it by octaves (-2: C4 sounds C2)");
+    R(60, 1); MU(CR_MOD_MAJ); clear();
+    cr_bass_voicing_step(&C, 2);
     cr_set_perform(&C, 1); cr_set_perform_mode(&C, CR_PM_ARP); cr_set_param(&C, CR_PM_ARP, CR_P_HOLD, 0);
     MD(CR_MOD_MAJ); K(48, 1); step(600);
     ok(count('+', 0) == 0 && count('+', 1) == 1, "Solo: no performance output, one bass note");
@@ -2823,7 +2831,7 @@ static void s_bassperf(void)
     cr_set_bass_mode(&C, CR_BASS_SOLO);
     MD(CR_MOD_MIN); K(50, 1); step(600);
     n = ons_notes(1, v, 64);
-    ok(count('+', 0) == 0 && n >= 3 && v[0] == 38 && v[1] == 41 && v[2] == 45, "Solo: no chord, the bass arps Dm (38 41 45)");
+    ok(count('+', 0) == 0 && n >= 3 && v[0] == 50 && v[1] == 53 && v[2] == 57, "Solo: no chord, the bass arps Dm where it was played (50 53 57)");
     R(50, 1); step(300); clear(); MU(CR_MOD_MIN);
     cr_set_bass_mode(&C, CR_BASS_CHORDS_ONLY);
     /* Bass off: nothing on the bass */

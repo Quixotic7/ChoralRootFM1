@@ -774,7 +774,7 @@ KEY layer's.
 | **Chords Only** (default) | plays the chord's root, in the bass register, under chords; a single note has no bass |
 | **Unison Bass** | plays under everything, at the pitch of the key you pressed rather than in the bass register (KNOB 2 still moves it by octaves) |
 | **Bass Single Notes** | plays the root under everything; a single note sounds on the bass alone |
-| **Solo** | only the bass sounds; the chord sound is silent (`Bass Solo` at the top right) |
+| **Solo** | only the bass sounds, at the chord's root in the octave you play it (KNOB 2 moves it by octaves); the chord sound is silent (`Bass Solo` at the top right). Until 0.36 Solo played in the bass register, the same octave from every key (GitHub issues 40, 43) |
 
 The same setting is Options > Bass Behaviour. The behaviour, the register and the level are kept by a global save (SAVE held).
 
@@ -2012,6 +2012,11 @@ Over USB the computer sees one device, **ChoralRoot FM-1**: a MIDI port of that 
 With MIDI Clock set to Out (the default) the FM-1 also sends MIDI clock at the tempo, a start when the loop starts
 playing and a stop when it stops. PANIC sends all notes off (CC 123). With MIDI CC set to Out or In + Out (the
 default is In) a knob turned on a sound's parameter sends its CC on the part's channel ([MIDI CC](#midi-cc-the-sounds-parameters)).
+
+**Note names.** The screen names notes the usual way, middle C (MIDI note 60) as **C4**, and MIDI out sends the note
+the screen names: C4 on the screen is note 60. Some programs (Ableton Live, Logic, Cubase and others that follow
+Yamaha's convention) call note 60 **C3**, so there every note reads an octave lower than on the FM-1; the notes are
+the same. The bass's notes are wherever its Behaviour and Register put them ([Bass](#6-bass)).
 
 ### MIDI in (USB, Bluetooth and the TRS jack)
 
