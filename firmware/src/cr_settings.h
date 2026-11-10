@@ -424,10 +424,10 @@ typedef struct {
     css_part_t part[2];                 /* chord, bass */
     /* Chord and Bass Perform (0.34, GitHub issue 41), bytes 964 .. 1005 of the old end reserve (0 in every older
      * record: the chord performs, the bass not, the defaults: as before 0.34). perf_x: CSS_PERF_*; bperf_sel the Bass
-     * PERF layer's entry 0..6 (cr_ui.c CU_PERF, as the block's perf_sel); bpar[m][k]: the bass's parameter on KNOB k+1
-     * of mode m's row as 0.34 had them (cr_ui.c CU_BPAR_SLOT, frozen: issue 26 moved the knobs, not this; 0 under a
-     * knob with none). The chord's entry, mode and parameters stay
-     * the block's, so an older firmware reads the chord's Perform as before (and has no bass's) */
+     * PERF layer's entry 0..6 (cr_ui.c CU_PERF, as the block's perf_sel); bpar[m][k]: the bass's parameter in slot k
+     * of mode m (cr_ui.c CU_BPAR_SLOT, its own table: since issue 26 the knob rows' order; 0.34..0.36 wrote 0.34's knob
+     * order, so their Slop, Pattern and Harp values may land on another parameter; 0 in a slot with none). The chord's
+     * entry, mode and parameters stay the block's, so an older firmware reads the chord's Perform as before (and has no bass's) */
     uint8_t perf_x, bperf_sel;
     int16_t bpar[CRS_NPM][4];
     uint8_t rsv_end[18];
