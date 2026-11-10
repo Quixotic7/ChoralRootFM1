@@ -180,7 +180,7 @@ grep -aq '^save: part 0 slot U001 name ADG rc 0' "$R1" && [ "$(sf "$R1" 1)" = "s
     ok "OCT+ asks (OCT+ again); another entry cancels; OCT- leaves and cancels; the menu reopened is not armed; nothing reset: $OUT/reset_ask.ppm" \
     || bad "the confirm: $(ov "$R2" 3) / $(ov "$R2" 4) / $(ov "$R2" 5) / $(ov "$R2" 6); $(sn "$R2" 6)"
 grep -aq '^options: settings reset (Dual Core starts at the restart)' "$R2" && [ -n "$fresh" ] && [ "$(sn "$R2" 7 | cut -d' ' -f1)" = "$fresh" ] &&
-    [ "$(sf "$R2" 7)" = "style 0 extadd 0 key 0 motion 0 leds 0 hold 1 dualcore 1 usb 1/0 view 64" ] && [ "$(ov "$R2" 7)" = "0 0 Play Style: Simple" ] &&
+    [ "$(sf "$R2" 7)" = "style 0 extadd 0 key 0 motion 0 leds 0 hold 1 dualcore 1 usb 1/0 view 64" ] && [ "$(ov "$R2" 7)" = "0 0 Play: 3 settings" ] &&
     [ "$(grep -a '^  lock: on' "$R2" | sed -n 7p | cut -c1-25)" = "  lock: on 0 latched 00 t" ] && [ "$(grep -a '^  cr: key' "$R2" | sed -n 7p | sed -n 's/.* bpm \([0-9]*\) view \([0-9]\) layer \([0-9]*\) options \([01]\).*/\1 \2 \3 \4/p')" = "120 0 0 0" ] &&
     ok "OCT+ twice: every setting at once what a new unit has (the record's checksum $fresh = a fresh unit's): Simple, Key off, 120 BPM, Motion Full, Hold 1, Dual Core On (0.22's default: it starts at the restart); on the view, LOCK off: $OUT/reset_done.ppm" \
     || bad "the reset: now $(sn "$R2" 7) want $fresh; $(sf "$R2" 7); $(ov "$R2" 7)"

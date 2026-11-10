@@ -222,10 +222,17 @@ console.log("Options > TRS MIDI Out (GitHub issue 42): after MIDI Clock, On by d
   d.render(ms(60));
   ex.web_smk_button(10, 0);
   d.render(ms(200));
+  // (3y290: the group list; SELECT to MIDI, OCT+ into it, then its entries)
+  const into = (x, g) => {
+    let o = opt(x);
+    for (let i = 0; i < 12 && o[4] !== g; i++) { turn(x, 1, 1); o = opt(x); }
+    x.ex.web_smk_button(5, 1); x.render(ms(60)); x.ex.web_smk_button(5, 0); x.render(ms(200));   // OCTAVE+ = OCT+
+  };
+  into(d, "MIDI");
   let o = opt(d), seen = [];
   for (let i = 0; i < 40 && o[4] !== "TRS MIDI Out"; i++) { seen.push(o[4]); turn(d, 1, 1); o = opt(d); }   // K2 = SELECT
   ok(o[1] === "1" && o[4] === "TRS MIDI Out" && seen[seen.length - 1] === "MIDI CC" && seen[seen.length - 2] === "MIDI Clock",
-     `listed after MIDI Clock and MIDI CC (3y269) (entry ${o[2]} of ${o[3]})`);
+     `listed after MIDI Clock and MIDI CC (3y269), the MIDI group's last (entry ${o[2]} of ${o[3]})`);
   ok(o[5] === "On", `On by default (${o[5]})`);
   const sr = (d.dump().match(/screen reads:.*/) || ["?"])[0];
   ok(/label 'the jack: what USB MIDI sends'/.test(sr), `its line: ${(sr.match(/label '[^']*'/) || ["?"])[0]}`);
@@ -250,6 +257,7 @@ console.log("Options > TRS MIDI Out (GitHub issue 42): after MIDI Clock, On by d
   e.render(ms(60));
   e.ex.web_smk_button(10, 0);
   e.render(ms(200));
+  into(e, "MIDI");
   o = opt(e);
   for (let i = 0; i < 40 && o[4] !== "TRS MIDI Out"; i++) { turn(e, 1, 1); o = opt(e); }
   ok(o[4] === "TRS MIDI Out" && o[5] === "Off", `after SAVE held and a power cycle: Off again (${o[5]})`);

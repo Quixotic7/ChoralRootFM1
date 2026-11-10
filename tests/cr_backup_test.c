@@ -338,6 +338,8 @@ int main(void)
         ok &= a && p == n && tags == 0x424349u && a[4 + 5] == 0 && a[4 + 6] == 0;   /* (NTRK 0, CHAIN_ROWS 0: editor.html) */
         memset(&sc, 0, sizeof sc);
         cu.opt_sel = O_VERSION;
+        cu.opt_in = 1;                             /* (3y290: inside System, where Version is) */
+        cu.opt_g = CU_G_SYSTEM;
         cu_options_screen(&sc);
         ok &= !strcmp(sc.label, "unit ID 63E68B82");
         memset(u, 0xFF, sizeof u);
@@ -350,6 +352,8 @@ int main(void)
         memcpy(lab, sc.label, sizeof lab);
         ok &= !strcmp(lab, "no unit ID");
         cu.opt_sel = 0;
+        cu.opt_in = 0;
+        cu.opt_g = 0;
         CHECK(ok, "INFO with the unit's ID (3y66): 49 08 '63E68B82' appended, the bytes before it as without, the "
                   "version to the NUL 'EMU', the tags 42 43 49 in order; Options > Version's line 'unit ID 63E68B82'; "
                   "16 x FF: no ID, no tag, 'no unit ID'");
