@@ -8096,3 +8096,21 @@ or else at a hyphen with 4 letters each side (kept): Harm / Minor, Maj / Pent, D
 (the cell writes "Mixo-lydian"); Major, Hirajoshi, 6-Dim and m6-Dim stay one line at 13 px. The hot block covers both
 lines. Test: `cr_key_scales.txt` shoots Harm Minor and Major, `test_cr.sh` counts ink in the cell's upper half (173 px
 and 0).
+
+## 2026-11-09 (0.36 and 0.36-smk37)
+
+3y281. **0.36: 21 more Key Mode scales (GitHub issues 34 and 45); 0.36-smk37 beside it.** The owner, through the
+orchestration session: "Scales feature checks out, push, merge, tag, release please". The release commit on
+claude/more-scales over 7002be2f (3y279, 3y280), on origin/main 8a6f6866 (0.35). `./build.sh --release 0.36` and
+`tools/hub_build.sh 0.36`: the same `SHA256SUMS`; XIP 563,448 of 573,440 (98.3 %), 1-core 559,684.
+`choralroot-0.36.fwsc` 190a9425...bdbe3, `-1core` 178e936b...97b11. `web/releases.json` first with the sha256s (a
+first bullet over the test's 240 characters shortened), 0.35's entry given its going-back note (a scale other than
+Major or Minor reads as Major there, crs_sanitize since 0.23 and `CRS_FIX(scale, 0, 1)` before; a loop slot holding
+a 6-Dim inverted or 7b9 chord, quality 8 .. 12, fails 0.35's `cr_loop_unpack` and reads empty, still stored; a global
+save on 0.35 stores Major), `docs/releases/0.36.md` (crediting issues 34 and 45), MANUAL.md's first line and "new
+after 0.35" now "new in 0.36" (MANUAL, SETTINGS.md, SMK37.md, CR_ENGINE.md), `choralroot.c`'s dev version.
+**0.36-smk37** (base 0.36): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.36-smk37` and
+`tools/hub_build.sh 0.36-smk37`, the same `SHA256SUMS` (twelve files); XIP 563,472 (Pro), 1-core 560,084. Pro
+be86be3d...59c0, Elite 60c5821d...4100, MKE-P37 a547a47c...1c2b. `web/releases-smk37.json` first, four bullets,
+three notes; SMK37.md's status, package names, version line and splash. `python3 tests/releases_test.py` ALL OK,
+`tools/hub_build.sh --check` both lists match; `CR_VERSION=0.36 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1147 ok; test_persist 121 ok; `fm1_alnk0_irq` 14,030 of 13,890, `fm1_timer5_irq` 4,800 of 4,511, both inside the 10 %). Not pushed, tagged or flashed here (the orchestration session's).

@@ -8,6 +8,25 @@
   },
   "releases": [
     {
+      "version": "0.36",
+      "date": "2026-11-09",
+      "tag": "v0.36",
+      "sha256": "190a9425df105e956e0287a830154b406d35e1a6bbfdb7e673978d87cc7bdbe3",
+      "sha256_1core": "178e936b0269b312cfbd5155044f8625903d0f32ebaacc529b6365db69597b11",
+      "title": "21 more Key Mode scales",
+      "bullets": [
+        "Key Mode has 21 more scales besides Major and Minor: the modes, the pentatonics, Blues, Bebop, Whole Tone, the Diminished scales, eastern scales and Barry Harris's 6-Dim (GitHub issues 34 and 45).",
+        "Each note of the scale plays the chord built from the scale's own notes; the 6, m7, M7 and 9 keys add to it as ever.",
+        "6-Dim plays the tonic's 6th chord with the key you press in the bass (E: C6/E), diminished sevenths between, and a 7b9 chord on the keys outside the scale.",
+        "In the KEY layer KNOB 2 goes through all 23; MIN and MAJ tapped again step to the next scale of their kind.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "Going back to 0.35 or older: a scale other than Major or Minor reads as Major there, and a loop slot holding a 6-Dim inverted or 7b9 chord reads as empty (it plays again on 0.36).",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.35",
       "date": "2026-11-09",
       "tag": "v0.35",
@@ -25,7 +44,15 @@
       "notes": [
         "Going back to 0.34: a bass on Follow plays its own mode there, and holding ARP in a PERF layer closes it again.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.35 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.35 again. Key Mode has Major and Minor only: a saved scale it does not know (any other) reads as Major, the tonic and Key Mode kept.",
+          "A loop slot holding a 6-Dim or m6-Dim chord over its 3rd or 5th, or a 7b9 chord, reads as empty; it is still stored and plays again on 0.36 unless you record or save into that slot.",
+          "A global save on 0.35 stores Major."
+        ]
+      }
     },
     {
       "version": "0.34",

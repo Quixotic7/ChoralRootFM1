@@ -3,6 +3,38 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.36-smk37",
+      "base": "0.36",
+      "date": "2026-11-09",
+      "tag": "v0.36-smk37",
+      "title": "0.36 on the SMK-37: 21 more Key Mode scales",
+      "bullets": [
+        "Key Mode has 21 more scales besides Major and Minor: the modes, the pentatonics, Blues, Bebop, Whole Tone, the Diminished scales, eastern scales and Barry Harris's 6-Dim (GitHub issues 34 and 45).",
+        "Each note of the scale plays the chord built from the scale's own notes; 6-Dim plays the tonic's 6th chord over the key you press and 7b9 chords outside the scale.",
+        "In the KEY layer KNOB 2 goes through all 23; the MIN and MAJ pads tapped again step to the next scale of their kind.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.35-smk37: a scale other than Major or Minor reads as Major there, and a loop slot holding a 6-Dim inverted or 7b9 chord reads as empty (it plays again on 0.36-smk37).",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "be86be3d28baa619d4fe74b549b42024f5889739f6540771ef274ced222059c0",
+          "sha256_1core": "c4ac8df97b54e4243af521ec319be60b4788c5e38100a3a5cfa5275f1ec8b84b"
+        },
+        "elite": {
+          "sha256": "60c5821dbf40fdc4c3a8c4e802d9044e0791d9503e3a07111594a92b744e4100",
+          "sha256_1core": "d14d66d8537953ca387733615c9459a5a00efbaf1cbbb73f2fa519f22554a7f2"
+        },
+        "mke": {
+          "sha256": "a547a47c5e62d929ad12a530bb6d7ee6d8a1c3fdd436a5077690b8aeb59d1c2b",
+          "sha256_1core": "afd2d5fb62b892d185d33ac0f26832750d34f04e767181e9989680683e3b6a0f"
+        }
+      }
+    },
+    {
       "version": "0.35-smk37",
       "base": "0.35",
       "date": "2026-11-09",
