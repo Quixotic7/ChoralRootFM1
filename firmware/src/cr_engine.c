@@ -821,11 +821,17 @@ static void crx_note_last_chord(cr_t *c, int vi)
     c->disp_vi = (uint8_t)vi;
 }
 
+/* the voice of a key: a played one before a Free one (Free can sound the last root again while that key's own voice
+ * still sounds, the Full keyboard's note: its release must end the played one, not the Free copy) */
 static int crx_find_voice(const cr_t *c, int key)
 {
-    int i;
-    for (i = 0; i < CR_MAX_VOICES; i++) if (c->v[i].used && c->v[i].key == key) return i;
-    return -1;
+    int i, f = -1;
+    for (i = 0; i < CR_MAX_VOICES; i++)
+        if (c->v[i].used && c->v[i].key == key) {
+            if (!c->v[i].is_free) return i;
+            if (f < 0) f = i;
+        }
+    return f;
 }
 
 /* the voicing a voice takes: a chord's (the Full keyboard's Key chords too); none for a single note of the Full
@@ -889,13 +895,16 @@ static int crx_snapped_to(const cr_t *c, int note)
             if (c->snapn[i] == note + 1) return 1;
     return 0;
 }
+/* a key held plays this note as itself: down, and Snap has not moved it (a key pressed again under Snap plays another
+ * note: the voice it played as itself before is no longer its, and its release will not end it) */
+static int crx_held_as_itself(const cr_t *c, int note, int id) { return (c->phys[note] & (1u << id)) && !c->snapn[note]; }
 static void crx_latch_sync(cr_t *c)
 {
     int i;
     if (cr_latching(c)) return;
     for (i = 0; i < CR_MAX_VOICES; i++) {
         const cr_voice_t *v = &c->v[i];
-        if (v->used && !(c->phys[v->key] & (1u << v->id)) && !crx_snapped_to(c, v->key))
+        if (v->used && !crx_held_as_itself(c, v->key, v->id) && !crx_snapped_to(c, v->key))
             crx_kill_voice(c, i);   /* latched, not held */
     }
 }
@@ -1178,7 +1187,7 @@ void cr_key_ex(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int down)
             note = (uint8_t)(c->snapn[raw] - 1u);
             c->snapn[raw] = 0;
             c->snapn_n--;
-            if (c->phys[note] & bit) return;      /* .. held as itself too: it stays */
+            if (crx_held_as_itself(c, note, id)) return;   /* .. held as itself too: it stays */
         }
         if (crx_snapped_to(c, note)) return;      /* another held key plays it: it stays */
         vi = crx_find_voice(c, note);
