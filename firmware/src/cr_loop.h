@@ -102,6 +102,11 @@ typedef struct {
      * the master's clock, not the FM-1's, keeps the loop's time (HISTORY 3y224) */
     uint8_t ext_on;
     uint32_t ext_rt;
+    /* (HISTORY 3y283) ext_src: the input the pulses are taken from (cr_loop_clock_pulse: 1 USB, 2 TRS, 3 Bluetooth; the
+     * same clock on a second input is not counted twice); ext_first: a Start / Continue armed the lock, its first pulse
+     * is the downbeat at ext_rt; ext_ms: the last pulse (cr_loop_clock_idle's gap) */
+    uint8_t ext_src, ext_first;
+    uint32_t ext_ms;
     uint8_t rate, rate_want, rfrac;            /* CRL_NRATE: in force; asked for (taken at the loop's start); 0..47 */
     uint32_t rrec0, rcyc0;                     /* the take's / the cycle's start in tempo ticks (the click's grid) */
     uint32_t cyc0, scan;                       /* the current cycle's start (abs ticks); next position to play */
@@ -161,7 +166,15 @@ void cr_loop_seed(cr_loop_t *lp, uint32_t seed);   /* the steps' chance rolls: t
                                                 * timing give the same passes (the host tests) */
 void cr_loop_tick(cr_loop_t *lp, cr_t *c, uint32_t now_ms);
 void cr_loop_ext_pulse(cr_loop_t *lp);         /* a 0xF8 in (Clock In): the tempo ticks lock to the pulses */
-void cr_loop_ext_off(cr_loop_t *lp);           /* no pulses (Clock In off, a gap, FA / FB: the next pulse re-anchors) */
+void cr_loop_ext_off(cr_loop_t *lp);           /* no pulses (Clock In off, a Stop, a long gap: the next pulse re-anchors) */
+/* MIDI Clock In as cr_out.c feeds it (GitHub issue 39, HISTORY 3y283): every pulse of one input counts (none dropped as
+ * a "duplicate", however close two come); 1: counted (the tempo follower takes it too), 0: another input's copy */
+int  cr_loop_clock_pulse(cr_loop_t *lp, uint32_t src, uint32_t now_ms);
+void cr_loop_clock_start(cr_loop_t *lp, uint32_t now_ms);   /* FA / FB, after the loop started: the next pulse is the
+                                                             * downbeat, where the loop is now */
+void cr_loop_clock_idle(cr_loop_t *lp, uint32_t now_ms);    /* every block: no pulse for CRL_EXT_HOLD_MS, the lock goes */
+#define CRL_EXT_HOLD_MS 1000u                  /* the lock holds through a gap this long (the loop waits a pulse past the
+                                                * last one: a late pulse is caught up, never lost) */
 /* cr_out_t.gesture's body */
 void cr_loop_gesture(cr_loop_t *lp, uint32_t gid, int16_t root, uint8_t q, uint8_t ext, uint8_t vel, int on);
 

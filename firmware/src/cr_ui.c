@@ -5751,6 +5751,11 @@ static void cu_knob(uint32_t role, int32_t s)
         cu_trace("sound: part 1 pos %u %s\n", (unsigned)cs.bass_sound, cs.bass_sound ? psnd[1].name : "off");
         break;
     case EN_SELECT:
+        if (cr_route.clock_in && crl.ext_on) {    /* (GitHub issue 39) the clock's tempo, shown, not changed: a turn
+                                                   * here made it jump to 119 / 121 and back with the next pulse */
+            cu_popup_num(cs.bpm, 0, "bpm", "clock in", CR_COL_WHITE, 20, 300, 14);
+            break;
+        }
         cu_set_tempo((int32_t)cs.bpm + s);
         cu_popup_num(cs.bpm, 0, "", "bpm", CR_COL_WHITE, 20, 300, 14);
         break;

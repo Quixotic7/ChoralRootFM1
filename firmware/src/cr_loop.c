@@ -698,12 +698,45 @@ void cr_loop_ext_pulse(cr_loop_t *lp)
     if (!lp->ext_on) {
         lp->ext_on = 1;
         lp->ext_rt = lp->rt;                         /* the first pulse: where the loop is now */
+    } else if (lp->ext_first) {
+        lp->ext_first = 0;                           /* the downbeat after a Start: ext_rt is the loop's start */
     } else {
         lp->ext_rt += CRL_PPQN / 24u;
     }
 }
 
-void cr_loop_ext_off(cr_loop_t *lp) { lp->ext_on = 0; }
+void cr_loop_ext_off(cr_loop_t *lp) { lp->ext_on = 0; lp->ext_src = 0; lp->ext_first = 0; }
+
+/* Clock In (GitHub issue 39): until 3y283 cr_out.c dropped a pulse that came within 2 ms of the one before (meant for
+ * one clock on USB and TRS both), but a USB packet carries several pulses with one stamp and a DAW that sends its clock
+ * once an audio buffer bunches them: each one dropped put the loop a pulse behind for good. Now the input is the key:
+ * the first input's pulses all count, another input's are ignored while it lasts */
+int cr_loop_clock_pulse(cr_loop_t *lp, uint32_t src, uint32_t now_ms)
+{
+    if (lp->ext_on && lp->ext_src && src != lp->ext_src)
+        return 0;
+    lp->ext_src = (uint8_t)src;
+    lp->ext_ms = now_ms;
+    cr_loop_ext_pulse(lp);
+    return 1;
+}
+
+__attribute__((noinline)) void cr_loop_clock_start(cr_loop_t *lp, uint32_t now_ms)
+{
+    lp->ext_on = 1;
+    lp->ext_first = 1;
+    lp->ext_rt = lp->rt;                             /* (crl_start: the loop's cycle starts at this tick) */
+    lp->ext_ms = now_ms;
+}
+
+/* a gap: the loop has waited at most a pulse past the last one (cr_loop_tick); a pulse that comes late is caught up, so
+ * a master's hiccup costs nothing. Only a long silence (the clock unplugged without a Stop) lets the FM-1's clock run
+ * the loop again (until 3y283 that was 150 ms, and the loop re-anchored wherever its own clock had taken it) */
+void cr_loop_clock_idle(cr_loop_t *lp, uint32_t now_ms)
+{
+    if (lp->ext_on && now_ms - lp->ext_ms > CRL_EXT_HOLD_MS)
+        cr_loop_ext_off(lp);
+}
 
 void cr_loop_set_rate(cr_loop_t *lp, int rate)
 {

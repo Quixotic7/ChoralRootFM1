@@ -46,6 +46,26 @@ static void t_clock(void)
         last = applied;
     }
     ok(changes == 0, "clock: steady 120 does not flicker");
+    {                                           /* (3y283) a DAW that sends its clock once an audio buffer (1024
+                                                 * samples at 48 kHz, 21.3 ms): pulses bunch, two often in one ms */
+        double t = clk_t, buf = 1024.0 * 1000.0 / 48000.0;
+        int same = 0;
+        uint32_t prev = 0;
+        changes = 0;
+        for (i = 0; i < 24 * 64; i++) {
+            uint32_t at = (uint32_t)(((int)(t / buf) + 1) * buf);   /* the buffer it goes out in */
+            int b = crm_clock_pulse(&K, at);
+            if (i && at - prev < 2u) same++;
+            prev = at;
+            if (b) { applied = b; if (i >= 96) changes++; }
+            t += 60000.0 / (120.0 * 24.0);
+        }
+        clk_t = t;
+        ok(same > 20 && applied >= 119 && applied <= 121 && changes == 0,
+           "clock: pulses bunched by a DAW's buffers (every one counted): 120, no flicker over the 60 beats after the window fills");
+        printf("  clock: %d of %d pulses came < 2 ms after the one before (each one was ignored before 3y283)\n",
+               same, 24 * 64);
+    }
     pulses(90, 48);                             /* two beats at 90 */
     ok(applied >= 89 && applied <= 91, "clock: a jump to 90 settles within 2 beats");
     pulses(300, 96);

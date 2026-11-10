@@ -2,14 +2,20 @@
  * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
 /* ChoralRoot FM-1: MIDI in, the pure part (no firmware state; tests/cr_midi_test.c). cr_out.c includes it and does
  * the plumbing (docs/INTEGRATION.md section 2):
- *   crm_clock_*   the clock-in tempo follower: 24 PPQN pulses (ms stamps) -> BPM 20..300, averaged over a beat
+ *   crm_clock_*   the clock-in tempo follower: 24 PPQN pulses (ms stamps) -> BPM 20..300, averaged over four beats
  *   crm_map       a channel message on the CHORD / BASS channels -> what ChoralRoot does with it
  *   crm_cc_*      the CCs on the sounds' parameters (Options > MIDI CC; docs/MANUAL.md section 15 "MIDI in"): which
  *                 CCs, the editor's blocks, the 0..127 scaling both ways, the echo guard (HISTORY 3y269) */
 #include <stdint.h>
 
 /* ---------------------------------------------------- the clock follower --- */
-#define CRM_WIN 24u                      /* pulses averaged: one beat (a tempo jump settles within ~1 beat) */
+/* (3y283, GitHub issue 39) four beats averaged, not one: a DAW that sends its clock once an audio buffer stamps the
+ * pulses up to a buffer late (21 ms at 1024 samples), and over one beat that swung the tempo 117..121 and reset the
+ * FM-1's clock at every change. The last beat alone still decides a jump: when it is more than CRM_JUMP % away from the
+ * four beats', the window starts again from it (a tempo jump settles within about a beat, as before) */
+#define CRM_WIN 96u                      /* pulses averaged: four beats */
+#define CRM_BEAT 24u
+#define CRM_JUMP 6u                      /* % (a buffer's stamps over a beat: about 4 %) */
 typedef struct {
     uint32_t t[CRM_WIN + 1u];            /* the last pulses' stamps (ms), a ring */
     uint32_t n;                          /* pulses in the window (0..CRM_WIN + 1) */
@@ -27,31 +33,44 @@ static void crm_clock_reset(crm_clock_t *c)
     c->bpm = c->bpm10 = 0;
 }
 
-/* one 0xF8 at ms. Returns the tempo to apply (20..300), or 0: no change. A gap longer than a 20 BPM pulse (or
- * pulses closer than a 300 BPM one's half) restarts the window: garbage never leaves 20..300. */
+static uint32_t crm_back(const crm_clock_t *c, uint32_t j)   /* the stamp j pulses before the newest */
+{
+    return c->t[(c->w + 2u * (CRM_WIN + 1u) - 1u - j) % (CRM_WIN + 1u)];
+}
+
+/* one 0xF8 at ms. Returns the tempo to apply (20..300), or 0: no change. A gap longer than a 20 BPM pulse restarts the
+ * window; every pulse counts, however close to the one before (until 3y283 one < 2 ms after was ignored as a
+ * duplicate: a burst's pulses are real, and one clock on two inputs is cr_out.c's to count once) */
 static int crm_clock_pulse(crm_clock_t *c, uint32_t ms)
 {
-    uint32_t prev, span, k, b10;
-    if (c->n) {
-        prev = c->t[(c->w + CRM_WIN) % (CRM_WIN + 1u)];
-        span = ms - prev;
-        if (span > 150u) {                  /* (a 20 BPM pulse is 125 ms): a stop, a cable: start again */
-            c->n = 0;
-        } else if (span < 2u && c->n > 1u) {
-            return 0;                       /* a duplicate / burst: ignored (a 300 BPM pulse is 8.3 ms) */
-        }
-    }
+    uint32_t k, b10, g, j, so = 0, sn = 0, oldest, s1;
+    if (c->n && ms - crm_back(c, 0) > 150u)   /* (a 20 BPM pulse is 125 ms): a stop, a cable: start again */
+        c->n = 0;
     c->t[c->w] = ms;
     c->w = (c->w + 1u) % (CRM_WIN + 1u);
     if (c->n <= CRM_WIN)
         c->n++;
     if (c->n < 7u)                          /* 6 intervals (a quarter beat) before the first tempo */
         return 0;
-    k = c->n - 1u;                          /* intervals in the window */
-    span = ms - c->t[(c->w + CRM_WIN + 1u - c->n) % (CRM_WIN + 1u)];
-    if (!span)
+    if (c->n > CRM_BEAT + 1u) {             /* the last beat against the window: a jump starts the window again */
+        uint32_t a, b;
+        s1 = ms - crm_back(c, CRM_BEAT);
+        k = c->n - 1u;
+        a = CRM_BEAT * (ms - crm_back(c, k));
+        b = k * s1;
+        if ((a > b ? a - b : b - a) / CRM_JUMP > b / 100u)
+            c->n = CRM_BEAT + 1u;
+    }
+    /* the window's first and last quarter, each averaged: its ends' stamps without most of their jitter */
+    g = c->n / 4u;
+    oldest = crm_back(c, c->n - 1u);
+    for (j = 0; j < g; j++) {
+        so += crm_back(c, c->n - 1u - j) - oldest;
+        sn += crm_back(c, j) - oldest;
+    }
+    if (sn <= so)
         return 0;
-    b10 = (600000u * k / 24u + span / 2u) / span;        /* tenths of a BPM */
+    b10 = (600000u * (c->n - g) / 24u * g + (sn - so) / 2u) / (sn - so);   /* tenths of a BPM */
     b10 = b10 < 200u ? 200u : b10 > 3000u ? 3000u : b10;
     c->bpm10 = (uint16_t)b10;
     k = (b10 + 5u) / 10u;

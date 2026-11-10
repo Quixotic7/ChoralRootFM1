@@ -1076,8 +1076,9 @@ one to three short gaps in it ([What the FM-1 remembers](#what-the-fm-1-remember
   click's level. OPT + SELECT sets the level without opening the layer.
 - The click is not part of the USB recording.
 
-With Options > MIDI Clock set to In, the tempo follows the incoming clock instead ([MIDI and USB](#15-midi-and-usb)).
-To see the tempo the clock set, switch Options > View to **Geek Out**: its status lines show the tempo.
+With Options > MIDI Clock set to In, the tempo follows the incoming clock instead ([MIDI and USB](#15-midi-and-usb)),
+averaged over four beats. While the clock runs, SELECT does not change the tempo: a turn shows the clock's (`bpm`,
+`clock in`). To see the tempo the clock set, switch Options > View to **Geek Out**: its status lines show the tempo.
 
 ## 10. The looper
 
@@ -1360,7 +1361,10 @@ with MIDI Clock set to Out (the default) or In; Off ignores them. Start also sta
 their first step. With MIDI Clock set to Out the FM-1 sends start and stop with the loop, except for a start or stop
 that came in: it is not sent back. Set to In, the tempo follows the incoming clock too, and the loop keeps time with
 the clock's pulses themselves: it stays with the master however long it plays, even at a tempo between two whole BPMs.
-If the clock stops, the loop plays on at the tempo.
+Every pulse counts, however unevenly a computer or a USB cable delivers them (until 0.36 pulses that came bunched
+together were dropped and the loop slid behind, GitHub issue 39), the pulse after a start is the loop's first beat,
+and with the same clock on two inputs (USB and the TRS jack) the first one is followed. If the pulses pause the loop
+waits for them; if the clock stops for more than a second without a stop, the loop plays on at the tempo.
 
 More detail: [LOOPER.md](LOOPER.md), [LOOPER-MODES.md](LOOPER-MODES.md).
 

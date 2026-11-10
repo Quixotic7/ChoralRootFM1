@@ -8133,3 +8133,33 @@ octave, -2 is where Solo was for keys around C4. Nothing stored changes (the Reg
 `cr_engine_test` (Solo: 48 -> 48, 72 -> 72, Register -2: 60 -> 36; the Solo Bass Perform arps Dm where it was played,
 50 53 57; x 4 tick rates). `cr_bass_both` (test_cr.sh's Solo checks) unchanged. MANUAL 6 (Solo) and 15 (note names),
 SMK37.md "Note names and octaves".
+
+3y283. **Clock In: every pulse counts; the loop cannot slide behind the master (GitHub issue 39).** harrykaden: clocked
+from Reaper (a Focusrite 18i20's MIDI out into the TRS jack, and over USB) or a Sonicware Deconstruct, "the choralroot
+sequence desyncs after a few passes of the loop"; USB "seems to work better ... but it still eventually slides out of
+time"; and with Clock In a SELECT turn made the tempo "jump between 119bpm and 121bpm". Reported the day 3y224 was
+made, and 3y224 locked the loop to the pulses, but its glue kept two ways to lose them. **Causes**: (1) `cr_out.c`
+dropped a pulse that came within 2 ms of the one before, meant for one clock on USB and TRS both. A USB-MIDI packet
+carries several pulses with one stamp, and a DAW that sends its clock once an audio buffer bunches them: at 120 BPM
+with 1024-sample buffers 36 of 1536 pulses come that close (`cr_midi_test`), and each one dropped put the loop 1/24
+beat behind for good (1.5 beats in 64). The loop test's jittery master: 266 such pulses in 10 minutes, 11 beats. (2) A
+gap of 150 ms ended the lock: the loop ran on the FM-1's whole-BPM clock and re-anchored wherever that had taken it.
+(3) The follower averaged one beat of stamps, so a buffer's late stamps swung it 117..121; every change was
+`cr_set_tempo` (a clock reset; the Arp and Pattern rephased) and the 119 / 121 on screen. **Now**: `cr_loop.c`
+`cr_loop_clock_pulse` takes every pulse of one input (`midi_in_source`: USB, TRS, Bluetooth; the first input that
+sends pulses keeps the lock, another's copy is ignored), so none is dropped and none counted twice; the follower gets
+the same pulses and no longer ignores close ones. A gap holds the lock for `CRL_EXT_HOLD_MS` (1 s): the loop waits a
+pulse past the last one and a late burst is caught up; only a longer silence without a Stop lets the FM-1's clock run
+it. FA / FB arm the lock where the loop starts (`cr_loop_clock_start`): the next pulse is its downbeat, not where the
+ms clock had got to. `crm_clock_pulse` averages four beats (96 pulses), the stamps of the window's first and last
+quarter each averaged, and the last beat alone restarts the window when it is more than 6 % away (a jump still
+settles within about a beat): bunched 120 BPM reads 119.6..120.3 and stays at 120. SELECT under a running Clock In shows
+the clock's tempo (`bpm` / `clock in`) and changes nothing. **Tests**: `cr_loop_test s_extclock_jitter` (10 minutes at
+120.4 BPM, each pulse 0..3 ms late or sent once a 21.3 ms buffer, copied onto TRS 1 ms later, a 300 ms hiccup every
+30 s delivered as a burst, a Start at 5 minutes: the loop within 3 ticks of the master throughout and on its last
+pulse at the end, 28,883 pulses each counted once; a gap waits, a long silence lets go); `cr_midi_test` (the bunched
+clock: 120, no change over 60 beats; the old checks: 120, 90 within 2 beats, 300, 20, garbage). `cr_midi_in`'s
+emulator checks unchanged. Not covered, as in 3y224: the Arp and Pattern run at the whole BPM between chords (each
+chord restarts them). RAM: the follower's window +288 bytes, the loop +6. `tools/emu/emu.c`: `--midi-log` headless
+prints the firmware's MIDI out with its ms (as used for issue 44). MANUAL 9 (SELECT under Clock In) and 10 (the loop
+with Clock In).

@@ -691,7 +691,6 @@ static void cr_apply(const cr_ev_in_t *e)
  *   other channels        ignored */
 #include "cr_midi.c"
 static crm_clock_t cr_cin;
-static uint32_t cr_cin_pulse_ms, cr_cin_stamp;   /* cr_now_ms / its stamp at the last 0xF8 in (the loop's lock) */
 static uint8_t cr_cin_mode;                      /* clock_in as last seen (a change resets the follower) */
 static volatile uint16_t cr_in_bpm;              /* the tempo the clock set (the UI mirrors it into cs.bpm) .. */
 static volatile uint32_t cr_in_bpm_n;            /* .. and a count of its changes */
@@ -846,8 +845,7 @@ static void cr_midi_in(void)
         crm_clock_reset(&cr_cin);
         cr_loop_ext_off(&crl);
     }
-    if (crl.ext_on && cr_now_ms - cr_cin_pulse_ms > 150u)
-        cr_loop_ext_off(&crl);                   /* (crm_clock_pulse's gap: a stop, a cable) the FM-1's clock again */
+    cr_loop_clock_idle(&crl, cr_now_ms);         /* (a long silence: a cable pulled without a Stop) the FM-1's clock */
     if (usb_midi_lost) {
         usb_midi_lost = 0;
         cr_mlost();
@@ -867,11 +865,10 @@ static void cr_midi_in(void)
                 if (cr_route.clock_out && (status == 0xFAu || status == 0xFBu || status == 0xFCu))
                     cr_in_transport(status);     /* (Out: start / stop only; the pulses stay ours) */
             } else if (status == 0xF8u) {
-                int b = crm_clock_pulse(&cr_cin, ms);
-                if (!crl.ext_on || ms - cr_cin_stamp >= 2u)   /* (a duplicate: crm_clock_pulse's < 2 ms) */
-                    cr_loop_ext_pulse(&crl);     /* the loop's time from the pulses, not the rounded BPM */
-                cr_cin_pulse_ms = cr_now_ms;
-                cr_cin_stamp = ms;
+                int b;
+                if (!cr_loop_clock_pulse(&crl, midi_in_source[at], cr_now_ms))
+                    continue;                    /* (the same clock on another input: counted once) */
+                b = crm_clock_pulse(&cr_cin, ms);   /* the loop's time from every pulse, the tempo from their stamps */
                 if (b) {
                     cr_in_bpm = (uint16_t)b;
                     cr_in_bpm_n++;
@@ -883,8 +880,13 @@ static void cr_midi_in(void)
                         cr_in_bpm_n++;
                 }
             } else if (status == 0xFAu || status == 0xFBu || status == 0xFCu) {
-                cr_loop_ext_off(&crl);           /* the pulse after FA / FB is the downbeat: anchor there */
+                uint32_t src = crl.ext_src;
+                cr_loop_ext_off(&crl);
                 cr_in_transport(status);
+                if (status != 0xFCu) {           /* the pulse after FA / FB is the downbeat: where the loop starts */
+                    cr_loop_clock_start(&crl, cr_now_ms);
+                    crl.ext_src = (uint8_t)src;
+                }
             }
         } else if (status >= 0x80u && status < 0xF0u) {
             crm_act_t a[2];

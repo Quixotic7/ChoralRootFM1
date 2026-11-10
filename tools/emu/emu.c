@@ -1345,6 +1345,12 @@ static void bench_tick(void)                      /* bn.ms begins: the timer, th
         strike.state = 0;
     }
     emu_fw_tick(bn.ms);
+    if (opt_midi_log) {                           /* --midi-log headless: what the firmware sends, stamped in ms */
+        uint32_t pkt;
+        while (emu_fw_midi_out_take(&pkt))
+            printf("midi out %u: %02X %02X %02X\n", (unsigned)bn.ms, (unsigned)(pkt >> 8) & 0xFFu,
+                   (unsigned)(pkt >> 16) & 0xFFu, (unsigned)(pkt >> 24) & 0xFFu);
+    }
     run_script(bn.ms);
 }
 static void bench_strip(void)
