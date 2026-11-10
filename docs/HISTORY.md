@@ -8181,3 +8181,19 @@ parameter (Slop Rate 42 ms, Direction Down, Range 2 oct, Amount 37 %; Pattern 04
 11 ms, Up-down, 4 oct, Gate 88 %), at its new knob. **Tests**: `cr_perf_row` + `test_cr.sh` (the cells: Rate Direction
 Range Amount, Division Pattern Gate Swing; KNOB 3 in Slop: its range). MANUAL 3 (KNOB 3) and 7 (the table, a line on
 the layout).
+
+3y285. **The Arp's first step, checked (GitHub issue 44): not reproduced; pinned by a test.** trs-alt (0.29.2-smk37):
+"in all the ARP modes ... in both 1/8 and 1/16 time, the initial note struck when the key is pressed is longer than it
+should be", in Key Mode and out, through a chord progression. Measured, nowhere longer: the engine on the host (1 ms
+ticks: step 0 at the press, 174 ms then 177 ms gates, 249 / 250 ms apart; Retrig on and off; legato and gapped chord
+changes); the FM-1 emulator's MIDI out (`--midi-log` headless, 3y283) and its WAV's envelope (a 2-bar progression with
+MAJ held, legato, LATCH: every step 247..252 ms after the one before, every gate 174..177 ms); the SMK-37 browser
+emulator of this tree and of the v0.29.2-smk37 tag, the reporter's build (its keys' two contacts: C4 at velocity 100
+sounds 12 ms after the key, step 1 250 ms later; at velocity 5, 90 ms after the key, then even steps). The one
+difference found runs the other way: a key lands between the audio blocks and is stamped at the block before, so step
+0 can come out up to one block (2.9 ms) shorter. Not looked at on a unit (the spare FM-1 has no way to press keys from
+the Mac without changing its settings). What the engine shares with the bass is the same code (`crx_clocked_step`),
+so the Follow is in the test too. Left open for the reporter: whether the bass was on (Chords Only holds the root under
+the arp for the whole chord, on its own channel), and what played the notes. **Test**: `cr_engine_test s_arp_first`
+(Arp 1/8 and 1/16, four chords with gaps and legato, the chord and the bass's Follow, x 4 tick rates: each chord's
+first step at its press, as long as its second, a step before it).

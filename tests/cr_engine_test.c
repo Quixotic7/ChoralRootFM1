@@ -2880,6 +2880,69 @@ static void s_bassperf(void)
     cr_set_perform_part(&C, CR_PF_CHORD, 1);
 }
 
+/* GitHub issue 44 (trs-alt, 0.29.2-smk37): "the initial note struck when the key is pressed is longer than it should
+ * be", in every Arp mode at 1/8 and 1/16, through a chord progression. Pinned here: each chord of a progression, played
+ * legato (the next down 30 ms before the last up) and with gaps, its first step as long as its second and the second a
+ * step after it; the chord's part and the bass's Follow alike (HISTORY 3y285: not reproduced in the engine or either
+ * emulator) */
+static int s44_len(int i)                          /* LOG[i]'s note-on to its note-off, us (-1: none) */
+{
+    int k;
+    for (k = i + 1; k < nlog; k++)
+        if (LOG[k].k == '-' && LOG[k].s == LOG[i].s && LOG[k].note == LOG[i].note) return (int)(LOG[k].t - LOG[i].t);
+    return -1;
+}
+static void s_arp_first(void)
+{
+    static const int ROOT[4] = { 48, 53, 55, 48 };
+    static const int DIV[2] = { CR_DIV_1_8, CR_DIV_1_16 };
+    int d, ov, c, s, bad;
+    char name[160];
+    fresh("arp first step");
+    cr_set_bass(&C, 1);
+    cr_set_perform(&C, 1);
+    cr_set_perform_mode(&C, CR_PM_ARP);
+    cr_set_perform_part(&C, CR_PF_BASS, 1);
+    cr_set_perform_follow(&C, 1);
+    MD(CR_MOD_MAJ);
+    for (d = 0; d < 2; d++)
+        for (ov = 0; ov < 2; ov++) {               /* ov 1: legato, the next chord down before the last up */
+            double step_ms = d ? 125.0 : 250.0;
+            uint64_t tp[4];
+            cr_set_param(&C, CR_PM_ARP, CR_P_DIV, DIV[d]);
+            clear(); bad = 0;
+            for (c = 0; c < 4; c++) {
+                if (ov && c) { tp[c] = T; K(ROOT[c], 1); step(30); R(ROOT[c - 1], 1); step(970); }
+                else { if (c) { R(ROOT[c - 1], 1); step(40); } tp[c] = T; K(ROOT[c], 1); step(ov ? 1000 : 960); }
+            }
+            R(ROOT[3], 1); step(400);
+            for (s = 0; s < 2; s++)
+                for (c = 0; c < 4; c++) {          /* the chord's first two steps on this stream after its press */
+                    int k, f[2], nf = 0, pc0 = ROOT[c] % 12;
+                    for (k = 0; k < nlog && nf < 2; k++) {
+                        int pc = LOG[k].note % 12 - pc0;
+                        if (pc < 0) pc += 12;
+                        if (LOG[k].k == '+' && LOG[k].s == s && LOG[k].t >= tp[c] && (pc == 0 || pc == 4 || pc == 7) &&
+                            (c == 3 || LOG[k].t < tp[c + 1])) f[nf++] = k;
+                    }
+                    if (nf < 2) { bad++; continue; }
+                    {
+                        double gap = tms(LOG[f[1]].t - LOG[f[0]].t), l0 = s44_len(f[0]) / 1000.0, l1 = s44_len(f[1]) / 1000.0;
+                        /* (a key lands between ticks and is stamped at the tick before: the first step may come
+                         * out up to a tick SHORTER, never longer) */
+                        if (gap < step_ms - 2.0 * TOL() || gap > step_ms + TOL() || l0 < 0 || l1 < 0 ||
+                            l0 > l1 + TOL() || l0 < l1 - 2.0 * TOL() || tms(LOG[f[0]].t - tp[c]) > TOL()) bad++;
+                    }
+                }
+            snprintf(name, sizeof name, "issue 44: Arp %s, a progression %s: each chord's first step at its press, as long "
+                     "as the next, a step before it (the chord and the bass's Follow)", d ? "1/16" : "1/8",
+                     ov ? "played legato" : "with gaps");
+            ok(!bad, name);
+        }
+    MU(CR_MOD_MAJ); step(300);
+    cr_set_perform(&C, 0); clear();
+}
+
 static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
 {
     strcpy(TAG, tag);
@@ -2889,7 +2952,7 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
     cr_init(&C, &OUT);
     cr_tick(&C, now_ms());
     s_keyboard(); s_sticky(); s_chords(); s_panic(); s_voicing(); s_bass(); s_keymode(); s_pads();
-    s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_transport(); s_bassperf(); s_bassfollow(); s_pattern(); s_live(); s_streams();
+    s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_arp_first(); s_transport(); s_bassperf(); s_bassfollow(); s_pattern(); s_live(); s_streams();
     s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_snap(); s_loopvoice(); s_queries(); s_limits(); s_torture();
     s_sixth();
     s_fm1();
