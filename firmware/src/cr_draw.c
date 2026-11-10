@@ -1492,6 +1492,36 @@ static void cr_cvalue(const cr_cell_t *c, int32_t cx, int32_t vy, int32_t w, uin
     cr_text(cx, vy, b, vpx, 1, CR_C, 4096, hot ? T_BG : col, hot ? col : T_BG, (cut ? 9u : 0u) | flags);
 }
 
+/* CR_CF_WRAP: v on two lines centred at cx (Q8), baselines y1 / y2 (Q8), in a cell w (Q8) wide, broken at the space
+ * nearest the middle (dropped), else after the hyphen nearest it with 4 letters each side (kept; "m6-Dim" stays); 15 px, 2 px smaller while a line is too wide
+ * (to 11). 0: no break point, nothing drawn (the caller draws one line). hot: both lines on one block */
+static int cr_cwrap(const char *v, int32_t cx, int32_t y1, int32_t y2, int32_t w, uint16_t col, int hot)
+{
+    char a[16], b[16];
+    int32_t n = 0, i, k = -1, sp = 0;
+    uint32_t px = 15u;
+    while (v[n] && n < 15) n++;
+    for (i = 1; i < n - 1; i++)                      /* the space nearest the middle; else the hyphen nearest it */
+        if (v[i] == ' ' || (v[i] == '-' && !sp && i >= 3 && n - i > 4)) {   /* (a hyphen: 4 letters each side) */
+            int better = k < 0 || (v[i] == ' ' && !sp) || (i - n / 2) * (i - n / 2) < (k - n / 2) * (k - n / 2);
+            if (better) { k = i; sp = v[i] == ' '; }
+        }
+    if (k < 0) return 0;
+    for (i = 0; i < k + !sp; i++) a[i] = v[i];
+    a[i] = 0;
+    for (i = k + 1; i < n; i++) b[i - k - 1] = v[i];
+    b[n - k - 1] = 0;
+    while (px > 11u && (cr_tw(a, px, 1) > w - P8(6) || cr_tw(b, px, 1) > w - P8(6))) px -= 2u;
+    if (hot) {
+        int32_t x0 = (cx - w / 2 + P8(3) + 128) >> 8, x1 = (cx + w / 2 - P8(3) + 128) >> 8;
+        int32_t t = ((y1 + 128) >> 8) - (int32_t)px - 1, bt = ((y2 + 128) >> 8) + 4;
+        cv_rrect(x0, t, x1 - x0, bt - t, 2, col, T_BG);
+    }
+    cr_text(cx, y1, a, px, 1, CR_C, 4096, hot ? T_BG : col, hot ? col : T_BG, 0);
+    cr_text(cx, y2, b, px, 1, CR_C, 4096, hot ? T_BG : col, hot ? col : T_BG, 0);
+    return 1;
+}
+
 /* a number centred at cx (Q8) on baseline vy (Q8) in a cell w (Q8) wide at px: too wide, 2 px smaller at a time (to
  * 7 px), never ellipsised; hot: on a block of its colour */
 static void cr_cnum(const char *v, int32_t cx, int32_t vy, int32_t w, uint32_t px, uint16_t col, int hot)
@@ -2442,7 +2472,9 @@ static void cr_kr_cells(const cr_screen_t *s, int32_t ry, int32_t rh)
         } else {
             if (c.glyph == CR_G_NONE && (c.flags & CR_CF_PCT)) c.glyph = CR_G_BAR;
             if (c.glyph != CR_G_NONE) cr_cglyph(&c, (x + 6) * 16, CR_KY(15) >> 4, 48 * 16, (36 * 16) * rh / CR_KR_ROW, kc);
-            cr_cvalue(&c, cx, CR_KY(66), P8(60), 13, hot ? cr_hcol(s, kc) : kc, hot, 0);
+            if (!((c.flags & CR_CF_WRAP) && c.glyph == CR_G_NONE && cr_tw(c.value, 15, 1) > P8(54) &&
+                  cr_cwrap(c.value, cx, CR_KY(46), CR_KY(66), P8(60), hot ? cr_hcol(s, kc) : kc, hot)))
+                cr_cvalue(&c, cx, CR_KY(66), P8(60), 13, hot ? cr_hcol(s, kc) : kc, hot, 0);
         }
         cr_fill(x + 4, ry + rh - 2, 52, 2, kc);
     }

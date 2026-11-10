@@ -60,3 +60,15 @@ shot build/emu/test/cr_key_scales_e6.ppm
 dump                          # 10: chord E6/G# sounding
 wait 2000
 dump                          # 11: silent
+btn SEL down                  # the layer again: Harm Minor's cell on two lines (CR_CF_WRAP), Major's on one
+wait 500
+btn SEL up
+wait 300
+knob KNOB2 -14                # 6-Dim (21) -> Harm Minor (7)
+wait 1500
+shot build/emu/test/cr_key_scales_wrap.ppm
+knob KNOB2 -7                 # Major
+wait 1500
+shot build/emu/test/cr_key_scales_one.ppm
+btn OCT-
+wait 300

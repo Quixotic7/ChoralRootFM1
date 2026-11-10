@@ -875,6 +875,11 @@ has 'chord E6/G# sounding' "$L" &&
     ok "E 6-Dim: G#4 plays E6 over G# (the tonic's 6th chord over its third): $OUT/cr_key_scales_e6.ppm" \
     || bad "6-Dim's chord: $(grep -a 'chord .* sounding' "$L" | tail -1)"
 silent_end cr_key_scales
+# the Scale cell (x 64..116): ink in its upper half (y 150..176: the glyph's space) for Harm Minor's two lines, none for Major
+ink() { python3 -c "import sys;d=open(sys.argv[1],'rb').read()[15:];print(sum(1 for y in range(150,177) for x in range(64,117) if d[(y*240+x)*3]>150))" "$OUT/$1.ppm"; }
+[ "$(ink cr_key_scales_wrap)" -gt 40 ] && [ "$(ink cr_key_scales_one)" -eq 0 ] &&
+    ok "a long scale name on two lines in the Scale cell (Harm / Minor, 15 px), Major on one: $OUT/cr_key_scales_wrap.ppm" \
+    || bad "the Scale cell's lines: $(ink cr_key_scales_wrap) / $(ink cr_key_scales_one) px of ink above the value"
 
 echo "the key layer's keys: pick / play, toggled with OPT (GLO) in the layer"
 run cr_key_play

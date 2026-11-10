@@ -527,7 +527,7 @@ always do.
 
 KNOB 2 in the KEY layer goes through them in this order; MAJ steps through the major ones (the first column says
 which), MIN through the minor ones, each from its first, Major or Minor, and round again. The top line names the scale
-(`Key: D dorian`; Major shows as `Key: D`). Every key of the scale plays the chord built from the scale's own notes on
+(`Key: D dorian`; Major shows as `Key: D`); in the KEY layer's Scale cell a long name goes on two larger lines (`Harm` over `Minor`). Every key of the scale plays the chord built from the scale's own notes on
 it, as Major and Minor do; the chord keys 6, m7, M7 and 9 add to it as ever. The chords below are in C.
 
 | Scale | Kind | The chords on the scale's notes | Keys outside the scale |

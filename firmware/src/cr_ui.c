@@ -7412,7 +7412,9 @@ static void cu_key_cells(cr_screen_t *s)
         cu_cpy(s->cell[0][k].label, LB[k], sizeof s->cell[0][k].label);
     }
     cu_cpy(s->cell[0][0].value, cs.key_on ? CU_NOTE[cs.tonic % 12u] : "-", sizeof s->cell[0][0].value);
-    cu_cpy(s->cell[0][1].value, cr_scale_name(cs.scale), sizeof s->cell[0][1].value);
+    cu_cpy(s->cell[0][1].value, cs.scale == CR_SCALE_MIXOLYDIAN ? "Mixo-lydian" : cr_scale_name(cs.scale),
+           sizeof s->cell[0][1].value);           /* (a long name on two lines: CR_CF_WRAP; Mixolydian's break) */
+    s->cell[0][1].flags |= CR_CF_WRAP;
     cu_int(s->cell[0][2].value, cs.transpose, 1, sizeof s->cell[0][2].value);
     s->cell[0][2].glyph = CR_G_SHIFT;
     s->cell[0][2].pct = (uint8_t)((uint32_t)(cs.transpose + 24) * 255u / 48u);

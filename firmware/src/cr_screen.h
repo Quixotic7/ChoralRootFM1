@@ -135,6 +135,10 @@ static const cr_wave_t *(*cr_wave_src)(uint32_t part);   /* set by cr_edit.c (en
 #define CR_CF_SPAN2 0x200u          /* .. edit8 / stack: two columns wide (from a cell in column 0..2): the cells after it
                                      * in the row shift a column right (cell index != column then; hot_c is the cell's
                                      * index, the colour its first column's) */
+#define CR_CF_WRAP 0x400u           /* .. knobrow, a text cell without a glyph: a value too wide for one line
+                                     * (at 15 px) goes on two lines at 15 px in the glyph's space, broken at its space (dropped) or
+                                     * else after a hyphen (kept); with neither, one line as ever (the KEY layer's
+                                     * Scale: "Harm / Minor", "Mixo- / lydian") */
 
 /* animations in progress (cr_screen_t.anim); each is a pure function of the fields and cr_draw's anim_ms, the time
  * since the change that started it (cr_draw.c CR_*_MS: the durations) */

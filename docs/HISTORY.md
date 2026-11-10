@@ -8086,3 +8086,13 @@ SMK-37 builds. `fm1_alnk0_irq` 14,030 (unchanged), `fm1_timer5_irq` 4,800. `sh t
 cr_draw failed on its fixed 224-name count, fixed and passed alone (test_cr 1146 ok, test_persist 121 ok, 279 goldens
 unchanged). Flashed on the spare E81CE2F7 (`--unit`): it boots, `--info` ChoralRoot 0.35 (the dev version). On branch
 claude/more-scales, not pushed.
+
+3y280. **The Scale cell: a long name on two lines.** The owner, trying 3y279 on E81CE2F7: "scales with long names get a
+really small font displayed. Since we have the whole parameter box available, I believe we could keep a larger font
+and display scale on two lines when long." Until then the knob row's value shrank 2 px at a time and lost its space
+(`HarmMinor` at 9 px). New cell flag `CR_CF_WRAP` (cr_screen.h, knobrow only, the KEY layer's Scale cell sets it): a
+value too wide for one line at 15 px goes on two lines at 15 px in the glyph's empty box, broken at the space (dropped)
+or else at a hyphen with 4 letters each side (kept): Harm / Minor, Maj / Pent, Dim / W-H, Bebop / Dom, Mixo- / lydian
+(the cell writes "Mixo-lydian"); Major, Hirajoshi, 6-Dim and m6-Dim stay one line at 13 px. The hot block covers both
+lines. Test: `cr_key_scales.txt` shoots Harm Minor and Major, `test_cr.sh` counts ink in the cell's upper half (173 px
+and 0).
