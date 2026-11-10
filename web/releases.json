@@ -8,6 +8,26 @@
   },
   "releases": [
     {
+      "version": "0.38",
+      "date": "2026-11-09",
+      "tag": "v0.38",
+      "sha256": "a12a4f931abb4d3ae08fb5cb9d973f70c4d9f0eb2388e5505c8c6205bf0c2ec1",
+      "sha256_1core": "120d723f071474635018b2b493734f7c1ec778b6d1289d280925299d8c884d74",
+      "title": "Chords that glide, up to 30 seconds",
+      "bullets": [
+        "Chords glide into each other: in POLY with Glide above 0, each note of the next chord slides from the nearest note of the one you let go (GitHub issue 46).",
+        "Glide goes up to 30 s and the knob shows the time the slide really takes; Gl. mode RATE is the time for an octave, TIME the time for any slide.",
+        "Fixed: a chord left sounding (with its Bass Perform arp) after LATCH off with Snap, and a note left on after Free sounded over the Full keyboard.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "Sounds with Glide above 0 now slide for the time the knob shows, so more slowly than before; sounds with Glide at 0 play as before.",
+        "RemoteFM1 and the FM1 plug-in show Glide as a plain number until they are updated.",
+        "Going back to 0.37: Glide slides for at most about 1.5 s again and POLY chords do not glide.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.37",
       "date": "2026-11-09",
       "tag": "v0.37",
@@ -25,7 +45,14 @@
         "The Bass PERF layer's own Slop and Pattern values saved by 0.34 to 0.36 may come back on another parameter; set them again once.",
         "Going back to 0.36: Bass Solo plays in the bass register again and Slop and Pattern have their old knob order.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.37 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.37 again. Glide reads up to 10 s but slides for at most about 1.5 s, and POLY chords do not glide.",
+          "A chord latched under Snap may keep sounding after LATCH off, and a note may stay on after Free over the Full keyboard, as in 0.37."
+        ]
+      }
     },
     {
       "version": "0.36",

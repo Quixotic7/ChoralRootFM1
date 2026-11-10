@@ -3,6 +3,37 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.38-smk37",
+      "base": "0.38",
+      "date": "2026-11-09",
+      "tag": "v0.38-smk37",
+      "title": "0.38 on the SMK-37: chords that glide, up to 30 seconds",
+      "bullets": [
+        "Chords glide into each other: in POLY with Glide above 0, each note of the next chord slides from the nearest note of the one you let go (GitHub issue 46).",
+        "Glide goes up to 30 s and the knob shows the time the slide really takes; Gl. mode RATE is the time for an octave, TIME the time for any slide.",
+        "Fixed: a chord left sounding (with its Bass Perform arp) after LATCH off with Snap, and a note left on after Free sounded over the Full keyboard."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Sounds with Glide above 0 now slide for the time the knob shows, so more slowly than before; going back to 0.37-smk37, Glide slides for at most about 1.5 s again and POLY chords do not glide.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "c3af27fc9492cba344e76c0a4cf3f840d1c3d341f2c6f326622966d453ff5591",
+          "sha256_1core": "e2f117989b8d22a2f45d4382636168ca8024b739c81c4403ca86a858aab98fbc"
+        },
+        "elite": {
+          "sha256": "8dcc28d8bcfe3d9119be816efc58fa2f6122ba7790312d93cbf383a6bcb241d2",
+          "sha256_1core": "eaa68babb65e7b12f53382270b4860e0f73767d207d93ffdc117a8c41d70acb1"
+        },
+        "mke": {
+          "sha256": "82e08555d579c59f83acab65a7633c279c6cdb688d3062664cb1719bda9712fd",
+          "sha256_1core": "95e37e5fd54b539b1bfa72f3396a49e8643431bac7aeb131f9c2d35166ce92c2"
+        }
+      }
+    },
+    {
       "version": "0.37-smk37",
       "base": "0.37",
       "date": "2026-11-09",

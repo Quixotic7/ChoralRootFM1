@@ -8243,3 +8243,22 @@ render the same. **Test**: `tests/glide_test.c` (run_tests.sh): the screen (3.0 
 C E G -> D F A on the same three voices half way at half the time (with and without ChoralRoot's steal fade), C E G ->
 E G C' keeping E and G, GLIDE 0's allocation, a note over a held chord on its own voice. MANUAL (the editor's MIX group: Glide and
 Gl. mode), EDITOR.md (MIX); the layout tool knows the format ("glide": layout_web.c, gen_layout.py, design/layouts/*.json regenerated). XIP 564,268 (+292 B), RAM +256 B (`gpos`), `fm1_alnk0_irq` 13,610 of 13,890 (unchanged); run_all ALL SUITES PASSED (24).
+
+## 2026-11-09 (0.38 and 0.38-smk37)
+
+3y288. **0.38: chords that glide, a Glide of up to 30 s as shown, two notes that kept sounding; 0.38-smk37 beside
+it.** The owner, through the orchestration session, after trying af409242 on E81CE2F7: "This checks out, lets merge,
+tag, release". The release commit on claude/rel-038 over origin/main af409242 (3y287, GitHub issue 46, PR 48; and
+460ab6bf, PR 47: LATCH off ends a latched voice its key no longer plays under Snap, and a key's release ends its own
+voice before a Free copy, `cr_engine_test s_orphans`). `./build.sh --release 0.38` and `tools/hub_build.sh 0.38`: the
+same `SHA256SUMS`; XIP 564,316 of 573,440 (98.4 %), 1-core 560,684. `choralroot-0.38.fwsc` a12a4f93...2ec1, `-1core`
+120d723f...4d74. `web/releases.json` first with the sha256s, 0.37's entry given its going-back note (Glide at most
+about 1.5 s, no chord glide, the two latch notes as in 0.37), `docs/releases/0.38.md` (crediting jhussung-ux for issue
+46; old sounds with Glide above 0 slide for the time shown, so more slowly; RemoteFM1 and the plug-in show Glide as a
+number until they know format 20), MANUAL.md's first line and the Glide mark (new in 0.38), `choralroot.c`'s dev
+version. **0.38-smk37** (base 0.38): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.38-smk37` and
+`tools/hub_build.sh 0.38-smk37`, the same `SHA256SUMS` (twelve files); XIP 564,696 (Pro). Pro c3af27fc...5591, Elite
+8dcc28d8...41d2, MKE-P37 82e08555...12fd. `web/releases-smk37.json` first, three bullets, three notes; SMK37.md's
+status, package names, version line and splash. `python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh` both
+lists match; `CR_VERSION=0.38 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1147 ok;
+test_persist 121 ok; `fm1_alnk0_irq` 13,610 of 13,890). Not pushed, tagged or flashed here (the orchestrator's).
