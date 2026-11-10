@@ -429,6 +429,28 @@ CR_HOT_NOTE static void vsq_drop(track_t *t, uint32_t note)   /* note 128: all *
     vsq[p].n = (uint8_t)k;
 }
 
+/* POLY with GLIDE (issue 46, chord glide): the part's sounding voice nearest the note among those released (a chord
+ * change lets go of the old chord first) slides to it: the new chord's notes take the old one's voices the shortest
+ * way, each restarted from where it is (its level and phases: no click). 0: none (a held voice is never taken; one
+ * fading out for another note is not ours): a free voice as before, its last pitch the nearest */
+static __attribute__((noinline)) voice_t *glide_voice(track_t *t, uint32_t note, uint32_t np)
+{
+    uint32_t i, best = np;
+    int32_t bd = 0x7FFFFFFF;
+    for (i = 0; i < np; i++) {
+        const voice_t *v = &t->v[i];
+        int32_t d = v->gpos - ((int32_t)note << 20);
+        if (!v->active || v->gate || v->stage == 4u)
+            continue;
+        d = d < 0 ? -d : d;
+        if (d < bd) {
+            bd = d;
+            best = i;
+        }
+    }
+    return best < np ? &t->v[best] : 0;
+}
+
 static voice_t *voice_alloc(track_t *t, uint32_t note, uint32_t vel)
 {
     const engine_t *e = ENGINES[t->engine];
@@ -474,6 +496,11 @@ static voice_t *voice_alloc(track_t *t, uint32_t note, uint32_t vel)
             return voice_reuse(t, &t->v[i]);
         }
         nfree += !t->v[i].active;
+    }
+    if (t->p[P_GLIDE] && !e->sampled && !e->oneshot) {   /* GLIDE: a released voice slides to the note (chord glide) */
+        voice_t *g = glide_voice(t, note, np);
+        if (g)
+            return g;
     }
     while (nfree && voices_busy_of(t) + voice_units(t) > VBUDGET) {
         track_t *vp = 0;
@@ -582,21 +609,30 @@ static voice_t *voice_alloc(track_t *t, uint32_t note, uint32_t vel)
     return voice_reuse(t, &t->v[best == np ? 0 : best]);
 }
 
-/* glide: RATE = a fixed speed, TIME = the same time for any interval */
+/* glide (issue 46): GLIDE's time is 3 x F_TIME's, 3 ms .. 30 s (F_GLIDE shows it). RATE: an octave takes that time,
+ * TIME: any interval does. The pitch moves in Q16 steps of 1/16 st (gpos), so a slow glide is smooth and as long as
+ * the screen says (it moved 1/16 st a tick at least before: an octave took 0.14 s at most in RATE, 1.5 s in TIME) */
+static __attribute__((noinline)) int32_t glide_step(const track_t *t, const voice_t *v)
+{
+    uint32_t g = (uint32_t)t->p[P_GLIDE] & 127u, r = ENV_LIN[g ? g : 40u];   /* Q24 of the way per tick, F_TIME's */
+    int32_t d = (v->pitch16 << 16) - v->gpos, st;
+    d = d < 0 ? -d : d;
+    if (t->p[P_GLMODE])                                  /* TIME: the whole interval in the time */
+        st = g ? (int32_t)(((uint64_t)(uint32_t)d * (r / 3u)) >> 24) : d;   /* (GLIDE 0, a slide: at once, as before) */
+    else                                                 /* RATE: an octave (192 << 16) in the time: r * 192 / 3 >> 8 */
+        st = g ? (int32_t)(r >> 2) : (int32_t)(r >> 14) << 16;   /* (GLIDE 0, a slide: ~45 ms, as before) */
+    return st > 0 ? st : 1;
+}
+
 CR_HOT_NOTE static void glide_set(track_t *t, voice_t *v, int glide)
 {
     if (!glide || !v->pitch_cur) {
         v->pitch_cur = v->pitch16;
+        v->gpos = v->pitch16 << 16;
         v->gstep = 0;
         return;
     }
-    if (t->p[P_GLMODE]) {
-        int32_t d = v->pitch16 - v->pitch_cur, ticks = 1 + t->p[P_GLIDE] * t->p[P_GLIDE] / 8;
-        d = d < 0 ? -d : d;
-        v->gstep = d / ticks > 0 ? d / ticks : 1;
-    } else {
-        v->gstep = 0;
-    }
+    v->gstep = glide_step(t, v);
 }
 
 CR_HOT_NOTE static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int glide)
@@ -998,7 +1034,7 @@ CR_HOT_CORE static uint32_t track_render_x(track_t *t, int32_t *out, int32_t *si
     for (i = 0; i < NVOICE; i++) {
         voice_t *v = &t->v[i];
         vmod_t m;
-        int32_t env, pitch;
+        int32_t env, pitch, gf = 0;                     /* gf: the glide's rest below 1/16 st (1/4096) */
         if (!v->active)
             continue;
         if (!pitch_set) {
@@ -1048,27 +1084,27 @@ CR_HOT_CORE static uint32_t track_render_x(track_t *t, int32_t *out, int32_t *si
             m.amp0 = v->env_out;
             v->env_out = m.amp1;
         }
-        if (v->pitch_cur != v->pitch16) {               /* glide */
-            int32_t d = v->pitch16 - v->pitch_cur;
-            int32_t st = v->gstep ? v->gstep : (int32_t)(ENV_LIN[(p[P_GLIDE] ? p[P_GLIDE] : 40) & 127] >> 14);   /* slide: ~45 ms */
-            if (st < 1)
-                st = 1;
-            v->pitch_cur += d > 0 ? (d < st ? d : st) : (-d < st ? d : -st);
+        if (v->pitch_cur != v->pitch16) {               /* glide (glide_set) */
+            int32_t tg = v->pitch16 << 16, d = tg - v->gpos, st = v->gstep;
+            v->gpos += d > 0 ? (d < st ? d : st) : (-d < st ? d : -st);
+            d = tg - v->gpos;                           /* the way left: pitch_cur rounded towards the start */
+            v->pitch_cur = v->pitch16 - (d >= 0 ? (d + 0xFFFF) >> 16 : -((0xFFFF - d) >> 16));
+            gf = ((v->gpos - (v->pitch_cur << 16)) * 947) >> 22;   /* the rest, in 1/4096 (1/16 st = 14.8) */
         }
         if (!env && !m.amp0 && v->stage == 2 && !e->sampled)
             continue;                                   /* held at a silent sustain (SUS 0): nothing to render */
         pitch = v->pitch_cur + tune + bend16 + ((lfo * p[P_LD_PIT] * 3) >> 15) + ((m.envq15 * p[P_ED_PIT] * 3) >> 15);
         m.pitch16 = clamp(pitch, 0, 2047);
         m.inc = pitch_inc(m.pitch16);
-        m.fine = v->fine + tune_fine + bend_fine;
-        if (v->fine + tune_fine + bend_fine)             /* residual below 1/16 semitone */
-            m.inc += (uint32_t)((int32_t)(m.inc >> 12) * (v->fine + tune_fine + bend_fine));
+        m.fine = v->fine + tune_fine + bend_fine + gf;
+        if (m.fine)                                     /* residual below 1/16 semitone */
+            m.inc += (uint32_t)((int32_t)(m.inc >> 12) * m.fine);
         m.cutoff = ((lfo * p[P_LD_FLT]) >> 7) + ((m.envq15 * p[P_ED_FLT]) >> 7);
         if (v->vel > 110)                               /* accent opens the filter with the env */
             m.cutoff += (m.envq15 * 24) >> 7;
         m.shape = (64 << 8) + ((lfo * p[P_LD_SHP]) >> 7) + ((m.envq15 * p[P_ED_SHP]) >> 7);
         if (MODP(t).on)                                     /* the modulation matrix (mod.c) */
-            mod_voice(t, v, &m, v->fine + tune_fine + bend_fine);
+            mod_voice(t, v, &m, v->fine + tune_fine + bend_fine + gf);
         /* 1/16 st and 1/4096 -> Q24 octaves: the voice's own offset (the matrix's pitch too), without TUNE and bend */
         m.plog = (m.pitch16 - tune - bend16 - v->pitch16) * 87381 + (m.fine - tune_fine - bend_fine) * 5909;
 #if P5_SPLIT

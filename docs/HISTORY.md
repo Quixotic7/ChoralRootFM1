@@ -8220,3 +8220,26 @@ MKE-P37 20fbca6f...c4b2. `web/releases-smk37.json` first, four bullets, three no
 names, version line and splash. `python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh --check` both lists
 match; `CR_VERSION=0.37 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1147 ok; test_persist 121 ok; `fm1_alnk0_irq` 13,610 of 13,890). Not pushed, tagged or flashed here (the orchestration
 session's).
+
+## 2026-11-09 (Glide Length, GitHub issue 46)
+
+3y287. **Glide: up to 30 s, the time the screen shows, and chords that glide in POLY.** The owner on 0.37: Glide
+read up to 10 s but slid far shorter, and only glided on MONO; they want chords to slide into each other over long
+times. Why it was short: the pitch moved in whole 1/16 semitones a control tick (`voice.c`, 32 samples), at least one,
+so RATE's slowest octave took 0.14 s and TIME's `1 + g*g/8` ticks topped out at 1.46 s, while the knob showed F_TIME's
+1 ms .. 10 s. POLY took only free voices for a glide, so the chord's own voices (released, still ringing) never slid.
+**Now**: the glide's position is Q16 of 1/16 st (`voice_t.gpos`; `pitch_cur` its whole part, the rest added to the
+voice's fine residual in 1/4096, so the slide is smooth at any speed); GLIDE's time is 3 x F_TIME's, 3 ms .. 30 s (a
+new format `F_GLIDE`, the editor protocol's fmt 20; `web/editor.html` shows it), the step from `ENV_LIN` (`glide_step`,
+flash, through a veneer from the RAM note path): RATE = an octave in that time, TIME = any interval in it. **Chord
+glide** (no new parameter: POLY with GLIDE above 0): `glide_voice` gives a note the part's released, still sounding
+voice nearest it (`gpos`), restarted in place from its level and phases (as a steal in place: no click) and sliding
+from where it is; never a held voice or one fading for another note; none: a free voice as before. Not for sampled
+engines (GRAIN, the samples) or one-shots; FM6 keeps Dexed's own portamento (its own allocation). GLIDE 0: nothing
+changes (the sequencer's slide too, bit for bit). **Golden renders**: 279, 6 changed, the MONO / LEGATO jobs of VA,
+FM6 and P5 that set GLIDE 30 (`regress.c job_mode`: now 26 ms an octave in RATE, was 1.7 ms); every POLY and GLIDE 0
+render the same. **Test**: `tests/glide_test.c` (run_tests.sh): the screen (3.0 ms, 30.0 s), TIME and RATE at GLIDE
+40 / 64 / 100 / 127 within 2 % of the shown time (127: a fifth in 30.09 s) with equal steps and an exact landing, POLY
+C E G -> D F A on the same three voices half way at half the time (with and without ChoralRoot's steal fade), C E G ->
+E G C' keeping E and G, GLIDE 0's allocation, a note over a held chord on its own voice. MANUAL (the editor's MIX group: Glide and
+Gl. mode), EDITOR.md (MIX); the layout tool knows the format ("glide": layout_web.c, gen_layout.py, design/layouts/*.json regenerated). XIP 564,268 (+292 B), RAM +256 B (`gpos`), `fm1_alnk0_irq` 13,610 of 13,890 (unchanged); run_all ALL SUITES PASSED (24).

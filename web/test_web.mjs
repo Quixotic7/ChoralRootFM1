@@ -256,6 +256,9 @@ function mockTables() {
   const ti = { fmt: E.F.TIMEI, min: 0, max: 127 }, tt = { fmt: E.F.TIME, min: 0, max: 127 };
   ok(E.F.TIMEI === 17 && E.fmtValue(ti, 127)[0] === "INF" && E.fmtValue(ti, 126).join() === E.fmtValue(tt, 126).join() &&
      E.fmtValue(tt, 127)[0] !== "INF", "editor: fmt TIMEI 127 = INF, 0..126 as TIME (TIME 127 a time)");
+  const tg = { fmt: E.F.GLIDE, min: 0, max: 127 };
+  ok(E.F.GLIDE === 20 && E.fmtValue(tg, 127).join(" ") === "30.0 s" && E.fmtValue(tg, 0).join(" ") === "3.0 ms" &&
+     E.fmtValue(tg, 64).join(" ") === "311 ms", "editor: fmt GLIDE (issue 46): 3 x TIME, 3 ms .. 30.0 s as the device shows it");
 }
 
 /* ------------------------------------------------------------------ DIGITAL retired --- */

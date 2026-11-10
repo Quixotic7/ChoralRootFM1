@@ -73,6 +73,9 @@ CR_VENEER(uint64_t, fm6_mulhi, (uint64_t a, uint64_t b), (a, b))
  * MIDI in) -> a note's start and end */
 CR_VENEER(void, trk_note_on, (track_t *t, uint32_t note, uint32_t vel), (t, note, vel))
 CR_VENEER(void, trk_note_off, (track_t *t, uint32_t note), (t, note))
+/* glide_set, voice_alloc (RAM) -> the glide's step and the chord glide's voice (flash: only with GLIDE on, issue 46) */
+CR_VENEER(int32_t, glide_step, (const track_t *t, const voice_t *v), (t, v))
+CR_VENEER(voice_t *, glide_voice, (track_t *t, uint32_t note, uint32_t np), (t, note, np))
 /* trk_all_off (flash: a panic, a preset) -> the waiting notes dropped */
 CR_VENEER(void, vsq_drop, (track_t *t, uint32_t note), (t, note))
 /* shed_voice (flash: the overload's) -> the bass protected */

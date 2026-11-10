@@ -1652,6 +1652,24 @@ Two groups are the same for every engine:
 | **FX** | one | Drive · Chorus · Delay · Reverb: the part's four sends (its drive, and how much of it goes into the chorus, the delay and the reverb). They stay when the sound changes (on FM TONE the Drive is the sound's: [FM TONE's Drive](#fm-tones-drive)) |
 | **MIX** | two | Level · Pan · Voice · Glide, and Trans · Detune · Priority · Gl. mode |
 
+**Glide** (new after 0.37, GitHub issue 46) slides the pitch from one note to the next. The knob shows the time it
+really takes, from 3 ms to **30 s**. **Gl. mode** says what that time is: **RATE** (the default) is the time for an
+octave, so a small step is quicker than a big one; **TIME** is the time for any slide, big or small. Glide at 0 is off.
+
+- **MONO, LEGATO, UNISON**: the one note slides to the next (MONO on every note, LEGATO and UNISON while a key is
+  still down).
+- **POLY: chords glide.** When you change chord, each note of the new chord takes the voice of the old chord that is
+  nearest to it and slides there from where it is: C E G to D F A slides C to D, E to F and G to A, and C E G to E G C
+  keeps E and G and slides the C up an octave. The voices go on from where they were (no click, no gap); their
+  envelopes start again from the level they had. It works on the notes you let go of: a note added over a chord you
+  hold gets a voice of its own, and the held chord does not move. A new chord with more notes than the old one starts
+  its extra notes on free voices (they slide from the last pitch those voices played); a chord with fewer notes lets
+  the voices left over ring out. FM6 keeps its own portamento (the patch's), and the sampled engines (GRAIN, the
+  samples) do not glide chords.
+
+Old sounds with Glide above 0 keep their settings but slide for the time the knob now shows: slower than before (until
+0.37 the slowest slide was about 1.5 s whatever the screen said, and RATE much shorter).
+
 The sections below list what the other groups hold for each engine. They name the screens; for what each parameter
 does, follow the link.
 

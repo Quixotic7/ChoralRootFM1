@@ -53,7 +53,7 @@ BANDS = ["none", "env", "filter", "dx", "cz", "algo", "ade2", "wave"]
 PLAN_BAND = {"none": 0, "env": 1, "filter": 2, "algo": 4, "ade2": 5, "wave": 6}   # core.h ENG_B_* (fm1layout.js PLAN_BAND)
 ENG_B = ["ENG_B_NONE", "ENG_B_ENV", "ENG_B_FILTER", "ENG_B_WINDOW", "ENG_B_ALGO", "ENG_B_ADE2"]
 FMTS = ["int", "pct", "bipct", "time", "lfohz", "cutoff", "db", "semi", "enum", "bpm", "note", "onoff", "oct", "steps",
-        "ofs", "fmnote", "fmfrq", "timei", "fix2", "inti"]                # core.h F_* (the catalog's "fmt", layout_web.c)
+        "ofs", "fmnote", "fmfrq", "timei", "fix2", "inti", "glide"]              # core.h F_* (the catalog's "fmt", layout_web.c)
 ELEMENT_TYPES = ["frame", "label", "knob", "switch", "led", "bar", "glyph", "band"]
 BINDABLE = {"knob", "switch", "led", "bar", "glyph"}
 LED_GLYPHS = ["saw", "square", "triangle", "sine", "noise"]

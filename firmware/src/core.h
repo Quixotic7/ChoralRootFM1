@@ -125,8 +125,9 @@ enum {
                                  * a range below 0 signed ("+41.34", "-64.00"); its finest step 1, its whole-number step
                                  * 100; names[0] (if any) = the word for the top whole number (AMP REL: "INF" at
                                  * 127.00 and up); the editor protocol's fmt 18 */
-    F_INTI                      /* a number with its max = "INF" (FM TONE's AMP DEC and REL, its filter REL: 0..126 +
+    F_INTI,                     /* a number with its max = "INF" (FM TONE's AMP DEC and REL, its filter REL: 0..126 +
                                  * INF, the Digitone's); the editor protocol's fmt 19 */
+    F_GLIDE                     /* the glide's time: 3 x F_TIME's (3 ms .. 30 s; issue 46); the editor protocol's fmt 20 */
 };
 #define FMT_HI(f) ((f) == F_FIX2)   /* a hundredths format (cr_pages.c kn_whole: finest step 1, whole numbers 100) */
 
@@ -223,7 +224,9 @@ typedef struct {
     int32_t env;                 /* Q24 */
     int32_t env_out;             /* last control-rate amplitude, Q15 */
     int32_t pitch16, pitch_cur;  /* 1/16 semitone, with glide */
-    int32_t gstep;               /* glide TIME mode: 1/16 st per control tick, 0 = RATE mode */
+    int32_t gstep;               /* glide: 1/16 st in Q16 per control tick (glide_set) */
+    int32_t gpos;                /* glide: where the pitch is, 1/16 st in Q16 (pitch_cur its whole part, rounded
+                                  * towards the start: pitch_cur == pitch16 once it is there) */
     int32_t fine;                /* unison detune: phase increment * (1 + fine / 4096) */
     uint32_t ph[3];
     int32_t s[8];                /* engine state (filters, envs) */

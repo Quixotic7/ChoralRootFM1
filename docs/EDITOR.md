@@ -147,7 +147,7 @@ none and keep the title rules:
 | LFO | 3 | `edit8`, one row | one (the `VOICE` page, the LFO section's last: a page of its own) | Uspread (USPREAD, the unison's stereo spread: docs/VA.md); KNOB 2–4 blank | `VOICE` |
 | MOD | 1 | `stack`, 8 rows, text only | slots 1–8 | Source · Dest · Amount (bipolar; hundredths, `+0.30` `+12.00`: tenths below 6, whole numbers from 6, docs/VA.md "matrix") | `MOD 3` |
 | FX | 1 | `edit8`, one row | one | Drive · Chorus · Delay · Reverb (the platform sends) | `FX` |
-| MIX | 1 | `edit8`, two rows | A, B | A: Level · Pan · Voice · Glide; B: Transpose · Detune · Priority · Gl. mode | `MIX` |
+| MIX | 1 | `edit8`, two rows | A, B | A: Level · Pan · Voice · Glide; B: Transpose · Detune · Priority · Gl. mode (Glide: the format `F_GLIDE`, 3 ms .. 30 s, the editor protocol's fmt 20; issue 46) | `MIX` |
 
 With Sync on, an LFO's Rate is the sync list (`deep->desc`: `8BARD` .. `1/8` .. `256T`, `4ms` `3ms` `2ms`; one item a
 detent, SHIFT / OPT the straight ones: docs/VA.md). The VA's EDIT 1 / EDIT 2 macros are not shown:
