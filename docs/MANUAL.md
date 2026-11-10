@@ -1,6 +1,6 @@
 # ChoralRoot FM-1: the manual
 
-For ChoralRoot 0.36 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.36 brought, 21 more Key Mode scales (the modes, pentatonics, blues, bebop, whole tone, diminished, eastern scales and Barry Harris's 6th-diminished): [releases/0.36.md](releases/0.36.md); what 0.35 brought, the bass Following the chords' performance and PERF held switching between the two PERF layers: [releases/0.35.md](releases/0.35.md); what 0.34 brought, Chord and Bass Perform, each part with its own performance mode: [releases/0.34.md](releases/0.34.md); what 0.33 brought, no pop at power-on, MIDI CC on the sounds' parameters and the filter on the chords or the bass alone: [releases/0.33.md](releases/0.33.md); 0.32 is 0.31 with a flash driver that waits out a slow erase or write, for the newer FM-1s' slower flash chip, [releases/0.32.md](releases/0.32.md); what 0.31 brought, USB Host and two FM-1s on one cable: [releases/0.31.md](releases/0.31.md); what 0.30 brought, Bluetooth MIDI and incoming start and stop with MIDI Clock Out: [releases/0.30.md](releases/0.30.md); 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
+For ChoralRoot 0.37 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.37 brought, Bass Solo in the octave you play, loops locked to MIDI Clock In however the pulses arrive and the PERF knobs in the same places across modes: [releases/0.37.md](releases/0.37.md); what 0.36 brought, 21 more Key Mode scales (the modes, pentatonics, blues, bebop, whole tone, diminished, eastern scales and Barry Harris's 6th-diminished): [releases/0.36.md](releases/0.36.md); what 0.35 brought, the bass Following the chords' performance and PERF held switching between the two PERF layers: [releases/0.35.md](releases/0.35.md); what 0.34 brought, Chord and Bass Perform, each part with its own performance mode: [releases/0.34.md](releases/0.34.md); what 0.33 brought, no pop at power-on, MIDI CC on the sounds' parameters and the filter on the chords or the bass alone: [releases/0.33.md](releases/0.33.md); 0.32 is 0.31 with a flash driver that waits out a slow erase or write, for the newer FM-1s' slower flash chip, [releases/0.32.md](releases/0.32.md); what 0.31 brought, USB Host and two FM-1s on one cable: [releases/0.31.md](releases/0.31.md); what 0.30 brought, Bluetooth MIDI and incoming start and stop with MIDI Clock Out: [releases/0.30.md](releases/0.30.md); 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
 FM-1, has installed ChoralRoot with
 the web installer and wants to play it. Nothing here needs the design documents; where one goes deeper, the manual
 links to it.
@@ -774,7 +774,7 @@ KEY layer's.
 | **Chords Only** (default) | plays the chord's root, in the bass register, under chords; a single note has no bass |
 | **Unison Bass** | plays under everything, at the pitch of the key you pressed rather than in the bass register (KNOB 2 still moves it by octaves) |
 | **Bass Single Notes** | plays the root under everything; a single note sounds on the bass alone |
-| **Solo** | only the bass sounds, at the chord's root in the octave you play it (KNOB 2 moves it by octaves); the chord sound is silent (`Bass Solo` at the top right). Until 0.36 Solo played in the bass register, the same octave from every key (GitHub issues 40, 43) |
+| **Solo** | only the bass sounds, at the chord's root in the octave you play it (KNOB 2 moves it by octaves; new in 0.37); the chord sound is silent (`Bass Solo` at the top right). Until 0.36 Solo played in the bass register, the same octave from every key (GitHub issues 40, 43) |
 
 The same setting is Options > Bass Behaviour. The behaviour, the register and the level are kept by a global save (SAVE held).
 
@@ -807,7 +807,7 @@ When nothing is being stepped (no keys held, or Strum, Slop, Harp) the picker st
 
 - A parameter two modes share is on the same knob in each, in that knob's colour: KNOB 1 is the timing (Rate or
   Division), KNOB 2 the order (Direction; Pattern's figure), KNOB 3 Range in Strum and Slop and Gate in Arpeggiate,
-  Pattern and Harp, KNOB 4 the mode's own (Harp: its Range). Until 0.36 Slop and Pattern had theirs in another order
+  Pattern and Harp, KNOB 4 the mode's own (Harp: its Range). New in 0.37: until 0.36 Slop and Pattern had theirs in another order
   (GitHub issue 26); the values you set are kept as they were.
 - Direction: Up, Down, Up-down, Down-up, Played or Random.
 - Division: 2/1, 1/1, 1/2, 1/4, 1/8, 1/16, 1/32 and the triplets of 1/2 to 1/32.
@@ -1081,7 +1081,7 @@ one to three short gaps in it ([What the FM-1 remembers](#what-the-fm-1-remember
 - The click is not part of the USB recording.
 
 With Options > MIDI Clock set to In, the tempo follows the incoming clock instead ([MIDI and USB](#15-midi-and-usb)),
-averaged over four beats. While the clock runs, SELECT does not change the tempo: a turn shows the clock's (`bpm`,
+averaged over four beats. While the clock runs, SELECT does not change the tempo (new in 0.37): a turn shows the clock's (`bpm`,
 `clock in`). To see the tempo the clock set, switch Options > View to **Geek Out**: its status lines show the tempo.
 
 ## 10. The looper
@@ -1365,7 +1365,7 @@ with MIDI Clock set to Out (the default) or In; Off ignores them. Start also sta
 their first step. With MIDI Clock set to Out the FM-1 sends start and stop with the loop, except for a start or stop
 that came in: it is not sent back. Set to In, the tempo follows the incoming clock too, and the loop keeps time with
 the clock's pulses themselves: it stays with the master however long it plays, even at a tempo between two whole BPMs.
-Every pulse counts, however unevenly a computer or a USB cable delivers them (until 0.36 pulses that came bunched
+Every pulse counts, however unevenly a computer or a USB cable delivers them (new in 0.37; until 0.36 pulses that came bunched
 together were dropped and the loop slid behind, GitHub issue 39), the pulse after a start is the loop's first beat,
 and with the same clock on two inputs (USB and the TRS jack) the first one is followed. If the pulses pause the loop
 waits for them; if the clock stops for more than a second without a stop, the loop plays on at the tempo.
@@ -2021,7 +2021,7 @@ With MIDI Clock set to Out (the default) the FM-1 also sends MIDI clock at the t
 playing and a stop when it stops. PANIC sends all notes off (CC 123). With MIDI CC set to Out or In + Out (the
 default is In) a knob turned on a sound's parameter sends its CC on the part's channel ([MIDI CC](#midi-cc-the-sounds-parameters)).
 
-**Note names.** The screen names notes the usual way, middle C (MIDI note 60) as **C4**, and MIDI out sends the note
+**Note names** (explained in 0.37). The screen names notes the usual way, middle C (MIDI note 60) as **C4**, and MIDI out sends the note
 the screen names: C4 on the screen is note 60. Some programs (Ableton Live, Logic, Cubase and others that follow
 Yamaha's convention) call note 60 **C3**, so there every note reads an octave lower than on the FM-1; the notes are
 the same. The bass's notes are wherever its Behaviour and Register put them ([Bass](#6-bass)).

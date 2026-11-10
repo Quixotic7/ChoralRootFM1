@@ -8199,3 +8199,24 @@ so the Follow is in the test too. Left open for the reporter: whether the bass w
 the arp for the whole chord, on its own channel), and what played the notes. **Test**: `cr_engine_test s_arp_first`
 (Arp 1/8 and 1/16, four chords with gaps and legato, the chord and the bass's Follow, x 4 tick rates: each chord's
 first step at its press, as long as its second, a step before it).
+
+## 2026-11-09 (0.37 and 0.37-smk37)
+
+3y286. **0.37: Bass Solo in the played octave, loops locked to MIDI Clock In, the PERF knobs in the same places; 0.37-smk37
+beside it.** The owner, through the orchestration session: "Works, release it". The release commit on claude/bug-batch
+over 625b7a60 (3y282 .. 3y285 and the Harp row), on origin/main fd9e82c2 (0.36). `./build.sh --release 0.37` and
+`tools/hub_build.sh 0.37`: the same `SHA256SUMS`; XIP 563,944 of 573,440 (98.3 %), 1-core 560,328.
+`choralroot-0.37.fwsc` 386be860...31e3, `-1core` 8bb33865...56b2. `web/releases.json` first with the sha256s, 0.36's
+entry given its going-back note (Solo in the bass register, Slop and Pattern in their old knob order with the chord's
+values on their parameters, the Bass PERF layer's Slop and Pattern values set on 0.37 possibly on another parameter,
+the loop following Clock In as before), `docs/releases/0.37.md` (crediting trs-alt for issues 40 and 43, harrykaden for
+39, dphaine for 26; Solo now in the played octave, Register -2 about the old range; the knob order of Slop and Pattern
+changed with the values kept; issue 44 only as "could not be reproduced"), MANUAL.md's first line and the 0.37 marks
+(Solo, note names, the loop with Clock In, SELECT under Clock In, the knob layout), SMK37.md, `choralroot.c`'s dev
+version. Harp's row ended as it was before issue 26 (the owner's change), so the notes name Slop and Pattern only.
+**0.37-smk37** (base 0.37): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.37-smk37` and `tools/hub_build.sh
+0.37-smk37`, the same `SHA256SUMS` (twelve files); XIP 564,320 (Pro). Pro c8a78ac6...1271, Elite bfee8c5c...d031,
+MKE-P37 20fbca6f...c4b2. `web/releases-smk37.json` first, four bullets, three notes; SMK37.md's status, package
+names, version line and splash. `python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh --check` both lists
+match; `CR_VERSION=0.37 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1147 ok; test_persist 121 ok; `fm1_alnk0_irq` 13,610 of 13,890). Not pushed, tagged or flashed here (the orchestration
+session's).

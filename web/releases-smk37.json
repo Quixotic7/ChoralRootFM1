@@ -3,6 +3,38 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.37-smk37",
+      "base": "0.37",
+      "date": "2026-11-09",
+      "tag": "v0.37-smk37",
+      "title": "0.37 on the SMK-37: Bass Solo in your octave, loops locked to MIDI clock",
+      "bullets": [
+        "Bass Solo plays the chord's root in the octave you play it; the Register moves it by octaves, -2 is about the old range (GitHub issues 40 and 43).",
+        "The screen's C4 is MIDI note 60 over USB and the TRS jack; programs that call 60 C3 show every note an octave lower (issue 40).",
+        "Loops stay locked to MIDI Clock In however the pulses arrive: none dropped, hiccups caught up, the tempo steady (GitHub issue 39).",
+        "The PERF knobs sit in the same places across modes: Slop is Rate, Direction, Range, Amount and Pattern is Division, Pattern, Gate, Swing (GitHub issue 26); the values keep their values."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.36-smk37: Bass Solo plays in the bass register again and Slop and Pattern have their old knob order; the Bass PERF layer's Slop and Pattern values set on 0.37 may come back on another parameter.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "c8a78ac63f16e9a132f0c03974c858ef472a5947da6aafaf00dd1160c6e66d75",
+          "sha256_1core": "3e6c4ee21bb8879e9ae41880029cc0e265cd3804644d4aa09fc98452d1fd828f"
+        },
+        "elite": {
+          "sha256": "bfee8c5c3d2f19692b5c3a7496527d1c8d793b307f6cc79819fba9ea0e6ad031",
+          "sha256_1core": "3aa8481a7c972aa79c114e46224fe33f3a5215b552c06c9bd3d333c51a7c98ba"
+        },
+        "mke": {
+          "sha256": "20fbca6f1273fbb8ead99af1a1c6a876bf1057c90c84148ed6155638af271371",
+          "sha256_1core": "c6e2e1e1d40387740821ef8c7d3103842713a4fe18b8c6cee840cd7036c0c4b2"
+        }
+      }
+    },
+    {
       "version": "0.36-smk37",
       "base": "0.36",
       "date": "2026-11-09",

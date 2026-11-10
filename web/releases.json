@@ -8,6 +8,26 @@
   },
   "releases": [
     {
+      "version": "0.37",
+      "date": "2026-11-09",
+      "tag": "v0.37",
+      "sha256": "386be8609f8ace177423cd295a2babf4f9f9d1ed2d42971cf90e4cd8adeb31e3",
+      "sha256_1core": "8bb33865b8ca747a08e9b89a5e5562f23f59032a7b1cdee7ddd4c7e3cde956b2",
+      "title": "Bass Solo in your octave, loops locked to MIDI clock, steadier PERF knobs",
+      "bullets": [
+        "Bass Solo plays the chord's root in the octave you play it; the Register moves it by octaves, -2 is about the old range (GitHub issues 40 and 43).",
+        "Loops stay locked to MIDI Clock In however the pulses arrive: none dropped, hiccups caught up, the tempo steady (GitHub issue 39).",
+        "The PERF knobs sit in the same places across modes: Slop is Rate, Direction, Range, Amount and Pattern is Division, Pattern, Gate, Swing (GitHub issue 26).",
+        "The screen's C4 is MIDI note 60; programs that call 60 C3 show every note an octave lower.",
+        "Your settings, sounds, loops and favorites are stored as before; the Slop and Pattern values keep their values."
+      ],
+      "notes": [
+        "The Bass PERF layer's own Slop and Pattern values saved by 0.34 to 0.36 may come back on another parameter; set them again once.",
+        "Going back to 0.36: Bass Solo plays in the bass register again and Slop and Pattern have their old knob order.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.36",
       "date": "2026-11-09",
       "tag": "v0.36",
@@ -24,7 +44,15 @@
       "notes": [
         "Going back to 0.35 or older: a scale other than Major or Minor reads as Major there, and a loop slot holding a 6-Dim inverted or 7b9 chord reads as empty (it plays again on 0.36).",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.36 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.36 again. Bass Solo plays in the bass register, the same octave from every key.",
+          "Slop and Pattern have their old knob order; the chord's values stay on their parameters. The Bass PERF layer's Slop and Pattern values set on 0.37 may come back on another parameter.",
+          "The loop follows MIDI Clock In as 0.36 did."
+        ]
+      }
     },
     {
       "version": "0.35",
