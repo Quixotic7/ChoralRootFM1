@@ -2196,6 +2196,45 @@ static void s_snap(void)
     cr_set_key_plays(&C, 0); cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
 }
 
+/* a latched voice whose key, held at LATCH off, plays another note by then (Snap moved it): LATCH off left it (its key
+ * "held"), the key's release ended only the snapped note, and the voice and its Bass Perform arp sounded on for good;
+ * Free sounding the last root again over a Full-keyboard note: the note's release ended the Free copy, not the note */
+static void s_orphans(void)
+{
+    fresh("orphans");
+    cr_set_bass(&C, 1);
+    cr_set_perform(&C, 1);
+    cr_set_perform_part(&C, CR_PF_BASS, 1);
+    cr_set_perform_mode_ex(&C, CR_PF_BASS, CR_PM_ARP);
+    cr_set_key_plays(&C, 1);
+    cr_set_key_snap(&C, CR_KEYSNAP_SCALE);
+    cr_set_key(&C, 1, 2, CR_SCALE_MAJOR);          /* D major: C# plays itself */
+    cr_set_sticky(&C, 1);
+    K(64, 1); K(61, 1); R(61, 1); step(300);       /* E held, C# latched */
+    cr_set_key(&C, 1, 0, CR_SCALE_MAJOR);          /* C major: C# snaps to C now */
+    K(61, 1); step(300);                           /* the same key again: C (E still held: no new gesture) */
+    cr_set_sticky(&C, 0);
+    ok(cr_voices(&C) == 2, "LATCH off with C# down (it plays C now): the latched C# goes, E and C stay");
+    R(61, 1); R(64, 1); step(1000);
+    ok(cr_voices(&C) == 0 && cr_pending(&C) == 0 && sounding() == 0, ".. every key up: nothing left, no bass arp stepping on");
+    /* Free over the Full keyboard: a chord key with only a note held sounds the last root again as a Free voice */
+    fresh("orphans, Free");
+    cr_set_bass(&C, 1);
+    cr_set_perform(&C, 1);
+    cr_set_perform_part(&C, CR_PF_BASS, 1);
+    cr_set_perform_mode_ex(&C, CR_PF_BASS, CR_PM_ARP);
+    cr_set_playstyle(&C, CR_PS_FREE);
+    cr_set_keyboard(&C, 1, 58);
+    K(50, 1); K(61, 1); step(300); R(50, 1);       /* (D's voice slot is free again: the Free copy takes it, before C#'s) */
+    MD(CR_MOD_MAJ); step(300);
+    R(61, 1); step(10);
+    MU(CR_MOD_MAJ); step(1000);
+    ok(cr_voices(&C) == 0 && cr_pending(&C) == 0 && sounding() == 0, "Free over a Full-keyboard note: its release ends the note itself");
+    cr_set_keyboard(&C, 0, 65); cr_set_playstyle(&C, CR_PS_SIMPLE);
+    cr_set_perform(&C, 0);
+    clear();
+}
+
 static void s_loopvoice(void)
 {
     fresh("loop voices");
@@ -2953,7 +2992,7 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
     cr_tick(&C, now_ms());
     s_keyboard(); s_sticky(); s_chords(); s_panic(); s_voicing(); s_bass(); s_keymode(); s_pads();
     s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_arp_first(); s_transport(); s_bassperf(); s_bassfollow(); s_pattern(); s_live(); s_streams();
-    s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_snap(); s_loopvoice(); s_queries(); s_limits(); s_torture();
+    s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_snap(); s_orphans(); s_loopvoice(); s_queries(); s_limits(); s_torture();
     s_sixth();
     s_fm1();
     fresh("end");
