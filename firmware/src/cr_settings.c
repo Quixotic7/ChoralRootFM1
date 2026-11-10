@@ -1017,7 +1017,7 @@ static void css_perf_put(const cr_session_t *x)
         cs.bpar[CU_PERF[sel].mode][CR_P_RANGE] = CU_PERF[sel].range;
     for (m = 0; stored && m < CR_PM_COUNT; m++)
         for (k = 0; k < 4u; k++) {
-            int32_t p = CU_PERF_KNOB[m][k], v = x->bpar[m][k];
+            int32_t p = CU_BPAR_SLOT[m][k], v = x->bpar[m][k];
             if (p >= 0 && v >= CU_PAR[p].min && v <= CU_PAR[p].max)
                 cs.bpar[m][p] = (int16_t)v;
         }
@@ -1062,7 +1062,7 @@ static void css_capture(cr_session_t *x)
                           (cs.bfollow ? CSS_BASS_FOLLOW : 0u));
     x->bperf_sel = cs.bperf_sel;
     for (i = 0; i < (uint32_t)CR_PM_COUNT * 4u; i++)
-        x->bpar[i / 4u][i % 4u] = CU_PERF_KNOB[i / 4u][i % 4u] >= 0 ? cs.bpar[i / 4u][CU_PERF_KNOB[i / 4u][i % 4u]] : 0;
+        x->bpar[i / 4u][i % 4u] = CU_BPAR_SLOT[i / 4u][i % 4u] >= 0 ? cs.bpar[i / 4u][CU_BPAR_SLOT[i / 4u][i % 4u]] : 0;
 #if BOARD_SMK37
     x->smk_master[0] = (uint8_t)((uint32_t)(smk_master + 1) & 0xFFu);   /* K1's level + 1 (0: not stored) */
     x->smk_master[1] = (uint8_t)((uint32_t)(smk_master + 1) >> 8);

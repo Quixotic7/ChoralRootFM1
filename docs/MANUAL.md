@@ -181,7 +181,7 @@ None of them can be pressed. A turn (of any knob but MASTER) shows its value lar
 | ALGORITHM | the bass sound: off, then the bass engine's sounds | the bass sound's engine (with BASS held instead: the bass level) |
 | KNOB 1 | the chord's voicing (on the Full keyboard too, since 0.24) | the Single Notes split point |
 | KNOB 2 | the bass register, in octaves | |
-| KNOB 3 | the first parameter of the performance mode | |
+| KNOB 3 | the main parameter of the performance mode (Rate, Amount, Division, the pattern) | |
 | KNOB 4 | the chord part's send into the selected effect, in per cent | |
 
 In a layer KNOB 1 to KNOB 4 are the layer's; in the editor they edit the four values of the active lane.
@@ -800,11 +800,15 @@ When nothing is being stepped (no keys held, or Strum, Slop, Harp) the picker st
 | Mode in the picker | What it does | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- | --- |
 | **Strum**, **Strum 2 Octaves** | the notes one after another | Rate (ms) | Direction | Range (octaves) | Hold |
-| **Slop** | a strum with uneven timing | Amount (%) | Rate | Direction | Range |
+| **Slop** | a strum with uneven timing | Rate | Direction | Range | Amount (%) |
 | **Arpeggiate**, **Arp 2 Octaves** | the notes in turn, in time with the tempo | Division | Direction | Gate (%) | Swing (%) |
-| **Pattern** | one of twelve rhythmic figures over the chord's notes | Pattern | Division | Gate | Swing |
-| **Harp** | a fast run over several octaves | Rate | Direction | Gate | Range |
+| **Pattern** | one of twelve rhythmic figures over the chord's notes | Division | Pattern | Gate | Swing |
+| **Harp** | a fast run over several octaves | Rate | Direction | Range | Gate |
 
+- A parameter two modes share is on the same knob in each, in that knob's colour: KNOB 1 is the timing (Rate or
+  Division), KNOB 2 the order (Direction; Pattern's figure), KNOB 3 Range in the free modes and Gate in the tempo
+  modes, KNOB 4 the mode's own. Until 0.36 Slop, Pattern and Harp had theirs in another order (GitHub issue 26); the
+  values you set are kept as they were.
 - Direction: Up, Down, Up-down, Down-up, Played or Random.
 - Division: 2/1, 1/1, 1/2, 1/4, 1/8, 1/16, 1/32 and the triplets of 1/2 to 1/32.
 - Rate is in milliseconds at 120 BPM and follows the tempo.
@@ -814,7 +818,7 @@ When nothing is being stepped (no keys held, or Strum, Slop, Harp) the picker st
 - Strum's Hold keeps the strummed chord sounding after you let go, as LATCH does, and lights LATCH; LATCH's gesture
   (GLO held + LFO; Classic: a tap on LFO) turns it off again (0.22).
 
-Outside the layer **KNOB 3** turns the mode's first parameter (the strum rate, the slop amount, the arp division,
+Outside the layer **KNOB 3** turns the mode's main parameter (the strum rate, the slop amount, the arp division,
 the pattern, the harp rate). An arpeggio stops when you let go of the keys; switch LATCH on to keep it running.
 
 ### Chord and Bass Perform (new in 0.34)

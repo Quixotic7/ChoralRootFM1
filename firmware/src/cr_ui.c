@@ -476,8 +476,23 @@ static const struct { const char *name, *short_name; uint8_t mode, range; } CU_P
     {"Strum", "Strum", CR_PM_STRUM, 1}, {"Strum 2 Octaves", "Strum", CR_PM_STRUM, 2}, {"Slop", "Slop", CR_PM_SLOP, 0},
     {"Arpeggiate", "Arp", CR_PM_ARP, 1}, {"Arp 2 Octaves", "Arp", CR_PM_ARP, 2}, {"Pattern", "Pattern", CR_PM_PATTERN, 0},
     {"Harp", "Harp", CR_PM_HARP, 0}};
-/* the four knobs of each perform mode's layer; the first is KNOB 3's main parameter on the view */
+/* the four knobs of each perform mode's layer. GitHub issue 26 (dphaine): a parameter two modes share sits on the same
+ * knob, in the knob's colour: KNOB 1 the time (Rate, Division), KNOB 2 the order (Direction; Pattern's figure), KNOB 3
+ * Range (the free modes) or Gate (the clocked ones), KNOB 4 the mode's own (Hold, Amount, Gate, Swing). Until 0.36 Slop
+ * was Amount / Rate / Direction / Range, Pattern Pattern / Division / Gate / Swing, Harp Rate / Direction / Gate /
+ * Range. The values are the engine's per parameter, so nothing stored moves (the bass's are kept in CU_BPAR_SLOT's
+ * order, below) */
 static const int8_t CU_PERF_KNOB[CR_PM_COUNT][4] = {
+    {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_HOLD},                 /* STRUM */
+    {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_AMOUNT},               /* SLOP */
+    {CR_P_DIV, CR_P_DIR, CR_P_GATE, CR_P_SWING},                  /* ARP */
+    {CR_P_DIV, CR_P_PATTERN, CR_P_GATE, CR_P_SWING},              /* PATTERN */
+    {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_GATE}};                /* HARP */
+/* KNOB 3 on the view (and the arp screen's line): each mode's main parameter, as before issue 26 */
+static const int8_t CU_PERF_MAIN[CR_PM_COUNT] = {CR_P_RATE, CR_P_AMOUNT, CR_P_DIV, CR_P_PATTERN, CR_P_RATE};
+/* the session's bpar[m][k] (cr_settings.h): the bass's parameters in 0.34's knob order, kept so for every record
+ * written since; never change it (issue 26 moved the knobs, not this) */
+static const int8_t CU_BPAR_SLOT[CR_PM_COUNT][4] = {
     {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_HOLD},                 /* STRUM */
     {CR_P_AMOUNT, CR_P_RATE, CR_P_DIR, CR_P_RANGE},               /* SLOP */
     {CR_P_DIV, CR_P_DIR, CR_P_GATE, CR_P_SWING},                  /* ARP */
@@ -5716,7 +5731,7 @@ static void cu_knob(uint32_t role, int32_t s)
         cu.pop.kind = PU_BASS_VOICING;
         break;
     case EN_K3:
-        cu_param_turn(cu_perf_view_part(), cu_perf_mode(cu_perf_view_part()), CU_PERF_KNOB[cu_perf_mode(cu_perf_view_part())][0],
+        cu_param_turn(cu_perf_view_part(), cu_perf_mode(cu_perf_view_part()), CU_PERF_MAIN[cu_perf_mode(cu_perf_view_part())],
                       s, 1);
         break;
     case EN_K4:
@@ -8287,7 +8302,7 @@ static void cu_view_screen(cr_screen_t *s, uint32_t now)
     if (cu_arp_on(now)) {
         uint32_t pm = sn->perform_mode, part = sn->perf_part;
         char v[8], sub[12];
-        int32_t p = CU_PERF_KNOB[pm][0];
+        int32_t p = CU_PERF_MAIN[pm];
         s->kind = CR_K_ARP;                        /* the arp in motion: the sounding note hops along */
         cu_name(&s->name, ci);
         cu_notes(s, ci);

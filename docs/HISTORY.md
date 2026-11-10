@@ -8163,3 +8163,21 @@ emulator checks unchanged. Not covered, as in 3y224: the Arp and Pattern run at 
 chord restarts them). RAM: the follower's window +288 bytes, the loop +6. `tools/emu/emu.c`: `--midi-log` headless
 prints the firmware's MIDI out with its ms (as used for issue 44). MANUAL 9 (SELECT under Clock In) and 10 (the loop
 with Clock In).
+
+3y284. **The PERF layers: a shared parameter on the same knob in every mode (GitHub issue 26).** dphaine: "In Strum and
+Strum x Octaves mode, rate, direction and range are assigned to knobs 1 through 3. But in Slop mode they're assigned
+(and colorized) to knobs 2 through 4", and the same between Arpeggiate and Pattern; the owner: "there's no good reason
+for this inconsistency". `cr_ui.c CU_PERF_KNOB` (the rows of both PERF layers, the chord's and the bass's; a cell's
+colour is its knob's): KNOB 1 the timing (Rate, Division), KNOB 2 the order (Direction; Pattern's figure), KNOB 3
+Range in the free modes and Gate in the tempo ones, KNOB 4 the mode's own. Strum Rate / Direction / Range / Hold and
+Arpeggiate Division / Direction / Gate / Swing as they were; Slop Rate / Direction / Range / Amount (was Amount / Rate /
+Direction / Range), Pattern Division / Pattern / Gate / Swing (was Pattern / Division / ...), Harp Rate / Direction /
+Range / Gate (was ... Gate / Range). KNOB 3 on the view keeps each mode's main parameter (`CU_PERF_MAIN`: the slop
+amount, the pattern), as MANUAL 3 and 7 say. **Nothing stored moves**: the engine keeps the values per parameter, and
+the session's `bpar` (the bass's, 0.34) was written in the knob order through the same table, so that order is now
+its own frozen table, `CU_BPAR_SLOT` (0.34's rows). Checked across versions: a 0.35 emulator set the bass's and the
+chord's Slop, Pattern and Harp (every knob turned), global save; this build loaded that flash: every value on its
+parameter (Slop Rate 42 ms, Direction Down, Range 2 oct, Amount 37 %; Pattern 04, 1/16, Gate 75 %, Swing 54 %; Harp
+11 ms, Up-down, 4 oct, Gate 88 %), at its new knob. **Tests**: `cr_perf_row` + `test_cr.sh` (the cells: Rate Direction
+Range Amount, Division Pattern Gate Swing; KNOB 3 in Slop: its range). MANUAL 3 (KNOB 3) and 7 (the table, a line on
+the layout).

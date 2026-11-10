@@ -1,8 +1,8 @@
 # ChoralRoot: the perform layer is a knob row (CR_K_KNOBROW): PERF (ARP) held and released locks it open on the
 # current mode; SELECT +3 picks Arpeggiate (Division / Direction / Gate / Swing; the roots play the chord in PERF);
 # KNOB 1 turned: the Division cell hot, no popup (run with EMU_UI_LOG=0: every UI frame stays "knobrow"); 900 ms later
-# the hot block is gone; SELECT -3: Strum (Rate / Direction / Range / Hold); +2: Slop (Amount / Rate / Direction /
-# Range); KNOB 3: Slop's direction hot; +3: Pattern (Pattern / Division / Gate / Swing); D4 + MAJ: the chord sounds in
+# the hot block is gone; SELECT -3: Strum (Rate / Direction / Range / Hold); +2: Slop (Rate / Direction / Range /
+# Amount: issue 26); KNOB 3: Slop's range hot; +3: Pattern (Division / Pattern / Gate / Swing); D4 + MAJ: the chord sounds in
 # the layer; OCT- closes the layer.
 wait 300
 btn ARP down
