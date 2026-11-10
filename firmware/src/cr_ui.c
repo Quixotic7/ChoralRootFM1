@@ -478,15 +478,15 @@ static const struct { const char *name, *short_name; uint8_t mode, range; } CU_P
     {"Harp", "Harp", CR_PM_HARP, 0}};
 /* the four knobs of each perform mode's layer. GitHub issue 26 (dphaine): a parameter two modes share sits on the same
  * knob, in the knob's colour: KNOB 1 the time (Rate, Division), KNOB 2 the order (Direction; Pattern's figure), KNOB 3
- * Range (the free modes) or Gate (the clocked ones), KNOB 4 the mode's own (Hold, Amount, Gate, Swing). Until 0.36 Slop
- * was Amount / Rate / Direction / Range, Pattern Pattern / Division / Gate / Swing, Harp Rate / Direction / Gate /
- * Range. The chord's values are stored per parameter; the bass's in CU_BPAR_SLOT's slots, below */
+ * Range (Strum, Slop) or Gate (Arp, Pattern, and Harp, whose Range is then KNOB 4), KNOB 4 the mode's own (Hold,
+ * Amount, Swing, Harp's Range). Until 0.36 Slop was Amount / Rate / Direction / Range, Pattern Pattern / Division /
+ * Gate / Swing (Harp's row is as it was). The chord's values are stored per parameter; the bass's in CU_BPAR_SLOT's slots, below */
 static const int8_t CU_PERF_KNOB[CR_PM_COUNT][4] = {
     {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_HOLD},                 /* STRUM */
     {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_AMOUNT},               /* SLOP */
     {CR_P_DIV, CR_P_DIR, CR_P_GATE, CR_P_SWING},                  /* ARP */
     {CR_P_DIV, CR_P_PATTERN, CR_P_GATE, CR_P_SWING},              /* PATTERN */
-    {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_GATE}};                /* HARP */
+    {CR_P_RATE, CR_P_DIR, CR_P_GATE, CR_P_RANGE}};                /* HARP (Gate on KNOB 3 as Pattern's) */
 /* KNOB 3 on the view (and the arp screen's line): each mode's main parameter, as before issue 26 */
 static const int8_t CU_PERF_MAIN[CR_PM_COUNT] = {CR_P_RATE, CR_P_AMOUNT, CR_P_DIV, CR_P_PATTERN, CR_P_RATE};
 /* the session's bpar[m][k] (cr_settings.h): which of the bass's parameters is stored in slot k of mode m. A table of its
@@ -496,7 +496,7 @@ static const int8_t CU_BPAR_SLOT[CR_PM_COUNT][4] = {
     {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_AMOUNT},               /* SLOP */
     {CR_P_DIV, CR_P_DIR, CR_P_GATE, CR_P_SWING},                  /* ARP */
     {CR_P_DIV, CR_P_PATTERN, CR_P_GATE, CR_P_SWING},              /* PATTERN */
-    {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_GATE}};                /* HARP */
+    {CR_P_RATE, CR_P_DIR, CR_P_GATE, CR_P_RANGE}};                /* HARP */
 static const struct { const char *name; int16_t min, max, step; } CU_PAR[CR_P_COUNT] = {
     {"rate", 1, 1000, 5}, {"division", 0, CR_DIV_COUNT - 1, 1}, {"direction", 0, 5, 1}, {"range", 1, 4, 1},
     {"gate", 1, 200, 5}, {"swing", 50, 90, 1}, {"retrigger", 0, 1, 1}, {"pattern", 1, CR_NPATTERN, 1},

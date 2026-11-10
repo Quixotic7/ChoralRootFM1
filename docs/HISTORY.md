@@ -8169,17 +8169,18 @@ Strum x Octaves mode, rate, direction and range are assigned to knobs 1 through 
 (and colorized) to knobs 2 through 4", and the same between Arpeggiate and Pattern; the owner: "there's no good reason
 for this inconsistency". `cr_ui.c CU_PERF_KNOB` (the rows of both PERF layers, the chord's and the bass's; a cell's
 colour is its knob's): KNOB 1 the timing (Rate, Division), KNOB 2 the order (Direction; Pattern's figure), KNOB 3
-Range in the free modes and Gate in the tempo ones, KNOB 4 the mode's own. Strum Rate / Direction / Range / Hold and
+Range in Strum and Slop, Gate in Arpeggiate, Pattern and Harp, KNOB 4 the mode's own. Strum Rate / Direction / Range / Hold and
 Arpeggiate Division / Direction / Gate / Swing as they were; Slop Rate / Direction / Range / Amount (was Amount / Rate /
-Direction / Range), Pattern Division / Pattern / Gate / Swing (was Pattern / Division / ...), Harp Rate / Direction /
-Range / Gate (was ... Gate / Range). KNOB 3 on the view keeps each mode's main parameter (`CU_PERF_MAIN`: the slop
+Direction / Range), Pattern Division / Pattern / Gate / Swing (was Pattern / Division / ...); Harp stays Rate / Direction /
+Gate / Range (the owner: "For Harp I would switch Range and Gate, feels odd moving from Pattern with Gate on Knob 3 to
+Harp with Gate on Knob 4", after a first try had Range / Gate). KNOB 3 on the view keeps each mode's main parameter (`CU_PERF_MAIN`: the slop
 amount, the pattern), as MANUAL 3 and 7 say. **Stored values**: the chord's are kept per parameter, so they load as
 before (a 0.35 emulator's flash: Slop 42 ms / Down / 2 oct / 37 %, Pattern 1/16 / 04 / 75 % / 54 %, Harp 11 ms /
-Up-down / 4 oct / 88 %, each on its parameter at its new knob). The session's `bpar` (the bass's, 0.34) had been
+Up-down / 88 % / 4 oct, each on its parameter at its knob). The session's `bpar` (the bass's, 0.34) had been
 written through the knob table itself; it now has its own, `CU_BPAR_SLOT`, set to the new rows, so a later knob move
 leaves it alone. The owner: "I wouldn't worry about old saves with the Bass perform, just move it to it's own table":
-a 0.34..0.36 save's bass Strum and Arpeggiate load as before (their rows did not change), its bass Slop, Pattern and
-Harp values may land on another parameter of the mode (each still checked against that parameter's range). **Tests**: `cr_perf_row` + `test_cr.sh` (the cells: Rate Direction
+a 0.34..0.36 save's bass Strum, Arpeggiate and Harp load as before (their rows did not change), its bass Slop and Pattern
+values may land on another parameter of the mode (each still checked against that parameter's range). **Tests**: `cr_perf_row` + `test_cr.sh` (the cells: Rate Direction
 Range Amount, Division Pattern Gate Swing; KNOB 3 in Slop: its range). MANUAL 3 (KNOB 3) and 7 (the table, a line on
 the layout).
 

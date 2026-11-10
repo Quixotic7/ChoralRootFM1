@@ -581,7 +581,7 @@ differ cr_perf_row_hot cr_perf_row_cool "the hot block gone 900 ms later: $OUT/c
 has '^perf: cells Rate Direction Range Hold' "$L" && has '^perf: cells Rate Direction Range Amount' "$L" && has '^perf: cells Division Pattern Gate Swing' "$L" &&
     ok "SELECT picks the mode, the cells follow (Strum, Slop, Pattern): $OUT/cr_perf_row_strum.ppm" || bad "the cells did not follow the mode"
 has '^expect sound .*: ok' "$L" && ok "MAJ + D4 in the perform layer: the chord sounds (performed): $OUT/cr_perf_row_keys.ppm" || bad "the roots in the perform layer"
-has '^perf: knob Slop range' "$L" && ok "KNOB 3 in Slop: its range, as in Strum and Harp (issue 26)" || bad "KNOB 3: no Slop range"
+has '^perf: knob Slop range' "$L" && ok "KNOB 3 in Slop: its range, as in Strum (issue 26)" || bad "KNOB 3: no Slop range"
 differ cr_perf_row cr_perf_row_strum "Arpeggiate / Strum rows differ"
 
 echo "perform on / off: PERF tap, in the perform layer too (OCT+ closes it); the arp stops when off"

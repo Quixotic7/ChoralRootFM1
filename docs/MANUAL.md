@@ -803,12 +803,12 @@ When nothing is being stepped (no keys held, or Strum, Slop, Harp) the picker st
 | **Slop** | a strum with uneven timing | Rate | Direction | Range | Amount (%) |
 | **Arpeggiate**, **Arp 2 Octaves** | the notes in turn, in time with the tempo | Division | Direction | Gate (%) | Swing (%) |
 | **Pattern** | one of twelve rhythmic figures over the chord's notes | Division | Pattern | Gate | Swing |
-| **Harp** | a fast run over several octaves | Rate | Direction | Range | Gate |
+| **Harp** | a fast run over several octaves | Rate | Direction | Gate | Range |
 
 - A parameter two modes share is on the same knob in each, in that knob's colour: KNOB 1 is the timing (Rate or
-  Division), KNOB 2 the order (Direction; Pattern's figure), KNOB 3 Range in the free modes and Gate in the tempo
-  modes, KNOB 4 the mode's own. Until 0.36 Slop, Pattern and Harp had theirs in another order (GitHub issue 26); the
-  values you set are kept as they were.
+  Division), KNOB 2 the order (Direction; Pattern's figure), KNOB 3 Range in Strum and Slop and Gate in Arpeggiate,
+  Pattern and Harp, KNOB 4 the mode's own (Harp: its Range). Until 0.36 Slop and Pattern had theirs in another order
+  (GitHub issue 26); the values you set are kept as they were.
 - Direction: Up, Down, Up-down, Down-up, Played or Random.
 - Division: 2/1, 1/1, 1/2, 1/4, 1/8, 1/16, 1/32 and the triplets of 1/2 to 1/32.
 - Rate is in milliseconds at 120 BPM and follows the tempo.
