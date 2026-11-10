@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include "../firmware/src/cr_engine.h"
+#define CR_Q_OLD 8               /* the qualities up to 0.35 (CR_Q_NONE .. CR_Q_MIN4): the tables copied from then */
 
 /* ------------------------------------------------------------ harness --- */
 typedef struct { char k; uint8_t s, note, vel; uint64_t t; uint32_t ms; } logev_t;
@@ -2254,7 +2255,7 @@ static void s_loopvoice(void)
 /* -------------------------- Options > 6th with 7th (0.20): Octave up --- */
 /* a copy of main's note builder (cr_engine.c at e51baa5: cr_chord_base and cr_voice_apply), which knows nothing of the
  * option: Off must give its notes, bit for bit */
-static const uint16_t M_QUALITY[CR_Q_COUNT] = { 0, 0x6303, 0x7303, 0x7403, 0x7503, 0x8403, 0xC703, 0x5303 };
+static const uint16_t M_QUALITY[CR_Q_OLD] = { 0, 0x6303, 0x7303, 0x7403, 0x7503, 0x8403, 0xC703, 0x5303 };
 static const uint8_t M_EXT_IV[4] = { 9, 10, 11, 14 };
 static void m_sort(uint8_t *a, int n)
 {
@@ -2269,7 +2270,7 @@ static int m_chord_base(int root_note, uint8_t quality, uint8_t ext, uint8_t out
 {
     uint8_t iv[CR_CHORD_MAX];
     int ni = 0, n = 0, j, k;
-    if (quality > CR_Q_NONE && quality < CR_Q_COUNT) {
+    if (quality > CR_Q_NONE && quality < CR_Q_OLD) {
         uint16_t q = M_QUALITY[quality];
         for (j = 1; j <= (int)(q & 15u); j++) iv[ni++] = (uint8_t)((q >> (j * 4)) & 15u);
         for (k = 0; k < 4; k++) {
@@ -2352,7 +2353,7 @@ static void s_sixth_tables(void)
     int bad_off = 0, bad_same = 0, bad_move = 0, bad_top = 0, bad_cnt = 0, bad_voff = 0, bad_vpc = 0, bad_vone = 0, vone = 0, bad_range = 0;
     char name[220];
     strcpy(TAG, "6th");
-    for (q = 0; q < CR_Q_COUNT; q++)
+    for (q = 0; q < CR_Q_OLD; q++)
         for (x = 0; x < 16; x++)
             for (ri = 0; ri < (int)(sizeof ROOTS / sizeof ROOTS[0]); ri++) {
                 int r = ROOTS[ri], na, nb, nm, i;
@@ -2437,11 +2438,11 @@ static void s_sixth_tables(void)
     {
         static const int RT[] = { 36, 48, 57, 60, 72 };
         static const int VK[] = { -12, -5, -2, -1, 0, 1, 2, 3, 7, 12 };
-        static const uint8_t M1[CR_Q_COUNT] = { 0, CR_MOD_DIM, CR_MOD_MIN, CR_MOD_MAJ, CR_MOD_SUS, CR_MOD_MAJ, CR_MOD_DIM, CR_MOD_MIN };
+        static const uint8_t M1[CR_Q_OLD] = { 0, CR_MOD_DIM, CR_MOD_MIN, CR_MOD_MAJ, CR_MOD_SUS, CR_MOD_MAJ, CR_MOD_DIM, CR_MOD_MIN };
         int set, vi, i, bad_lv = 0, bad_fix = 0, bad_pad = 0, bad_key = 0, bad_stuck = 0, n = 0;
         memset(SND, 0, sizeof SND); dup_on = stray_off = 0;
         for (set = 0; set < 2; set++)
-            for (q = 1; q < CR_Q_COUNT; q++)
+            for (q = 1; q < CR_Q_OLD; q++)
                 for (x = 0; x < 16; x++)
                     for (ri = 0; ri < 5; ri++)
                         for (vi = 0; vi < 10; vi++) {
@@ -2891,7 +2892,7 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
 /* docs/CHORD-NAMES.md's table, cell for cell: [quality][extension mask] with the mask's bits 6 = 1, 7 = 2, M7 = 4,
  * 9 = 8, the root C, the three strings read in a row. Both sevenths at once (masks 6, 7, 14, 15) have no name of
  * their own: Orchid's stands there */
-static const char *const STD_NAMES[CR_Q_COUNT][16] = {
+static const char *const STD_NAMES[CR_Q_OLD][16] = {
     /* a note */ { "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C" },
     /* DIM  */ { "Cdim", "Cdim7", "Cm7b5", "Cm13b5", "CdimM7", "CdimM13", "Cdim7 M7", "CdimJAZZ",
                  "Cdimadd9", "Cdim7add9", "Cm9b5", "Cm13b5", "CdimM9", "CdimM13", "CdimJAZZ", "CdimWTF" },
@@ -2913,7 +2914,7 @@ static const char *const STD_NAMES[CR_Q_COUNT][16] = {
 static void orchid_ref(int pc, int quality, int ext, char *root, char *qual, char *sup)
 {
     static const char *const NN[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-    static const char *const QN[CR_Q_COUNT] = { "", "dim", "m", "", "sus", "+", "", "m" };
+    static const char *const QN[CR_Q_OLD] = { "", "dim", "m", "", "sus", "+", "", "m" };
     int bits = (ext & 1) + ((ext >> 1) & 1) + ((ext >> 2) & 1) + ((ext >> 3) & 1);
     strcpy(root, NN[pc % 12]);
     strcpy(qual, QN[quality]);
@@ -2979,7 +2980,7 @@ static void s_names_std(void)
 
     /* Orchid, the default: every cell of every root is 0.19's */
     for (bad = 0, pc = 0; pc < 12; pc++)
-        for (q2 = 0; q2 < CR_Q_COUNT; q2++)
+        for (q2 = 0; q2 < CR_Q_OLD; q2++)
             for (x = 0; x < 16; x++) {
                 orchid_ref(pc, q2, x, want[0], want[1], want[2]);
                 cr_chord_name((uint8_t)pc, (uint8_t)q2, (uint8_t)x, r, q, s);
@@ -2990,7 +2991,7 @@ static void s_names_std(void)
     cr_chord_names_set(1);
     ok(cr_chord_names() == 1, "Chord Names: Standard set");
     /* the table */
-    for (n = 0, q2 = 0; q2 < CR_Q_COUNT; q2++)
+    for (n = 0, q2 = 0; q2 < CR_Q_OLD; q2++)
         for (x = 0; x < 16; x++) {
             cr_chord_name(0, (uint8_t)q2, (uint8_t)x, r, q, s);
             snprintf(nm, sizeof nm, "%s%s%s", r, q, s);
@@ -3006,7 +3007,7 @@ static void s_names_std(void)
     /* the fallbacks: both sevenths, and only those, keep Orchid's three strings; count them */
     {
         int fb = 0, jazz = 0, wtf = 0, lit = 0, wrong = 0, same_other = 0;
-        for (q2 = 1; q2 < CR_Q_COUNT; q2++)
+        for (q2 = 1; q2 < CR_Q_OLD; q2++)
             for (x = 0; x < 16; x++) {
                 int both = (x & 6) == 6, same;
                 orchid_ref(0, q2, x, want[0], want[1], want[2]);
@@ -3032,8 +3033,8 @@ static void s_names_std(void)
     /* what the name says is what sounds: the reader's pitch classes against cr_chord_base's */
     {
         int read = 0, wrongset = 0, unread = 0;
-        unsigned sets[CR_Q_COUNT][16];
-        for (q2 = 1; q2 < CR_Q_COUNT; q2++)
+        unsigned sets[CR_Q_OLD][16];
+        for (q2 = 1; q2 < CR_Q_OLD; q2++)
             for (x = 0; x < 16; x++) {
                 uint8_t out[CR_CHORD_MAX];
                 unsigned eng = 0, req = 0, opt = 0;
@@ -3070,8 +3071,8 @@ static void s_names_std(void)
          * with the 9th and without it (masks 3 / 11 and 5 / 13) */
         {
             int clash = 0, thirteen = 0, a, b;
-            for (a = 16; a < CR_Q_COUNT * 16; a++)
-                for (b = a + 1; b < CR_Q_COUNT * 16; b++) {
+            for (a = 16; a < CR_Q_OLD * 16; a++)
+                for (b = a + 1; b < CR_Q_OLD * 16; b++) {
                     if ((a & 6) == 6 || (b & 6) == 6 || strcmp(STD_NAMES[a / 16][a % 16], STD_NAMES[b / 16][b % 16])) continue;
                     if (sets[a / 16][a % 16] == sets[b / 16][b % 16]) continue;
                     if (a / 16 == b / 16 && (a % 16 | 8) == b % 16 && (a & 1) && (a & 6) &&
@@ -3087,7 +3088,7 @@ static void s_names_std(void)
     {
         int longq = 0, longs = 0, badq = 0, badroot = 0, single = 0, bare = 0, over = 0;
         for (pc = 0; pc < 12; pc++)
-            for (q2 = 0; q2 < CR_Q_COUNT; q2++)
+            for (q2 = 0; q2 < CR_Q_OLD; q2++)
                 for (x = 0; x < 16; x++) {
                     char g[3 + 5 + CR_SUP_MAX + 3];
                     memset(g, 0x55, sizeof g);
@@ -3269,6 +3270,122 @@ static void s_solfege(void)
        "solfege: all 2304 cells written and ended (the longest: 4 characters), each with its numeral's accidental, case and mark");
 }
 
+/* ------------------------------ more Key Mode scales (0.36, issues 34 / 45) --- */
+/* every scale's chord on each of the 12 keys in C, as Standard names spell them (tools/gen_scales.py prints the same
+ * table); then the 6-Dim chords' notes and bass, a loop's replay of one, the masks, the numerals, the clamp */
+static void s_scales(void)
+{
+    static const char *const SC_NAMES[CR_SCALE_COUNT][12] = {
+        { "CM", "Csus4", "Dm", "Dsus4", "Em", "FM", "Gsus4", "GM", "Gsus4", "Am", "Asus4", "Bdim" },   /* Major */
+        { "Cm", "Csus4", "Ddim", "D#M", "D#sus4", "Fm", "Fsus4", "Gm", "G#M", "A#sus4", "A#M", "A#sus4" },   /* Minor */
+        { "Cm", "Csus4", "Dm", "D#M", "Fsus4", "FM", "Fsus4", "Gm", "Gsus4", "Adim", "A#M", "A#sus4" },   /* Dorian */
+        { "Cm", "C#M", "D#sus4", "D#M", "D#sus4", "Fm", "Fsus4", "Gdim", "G#M", "G#sus4", "A#m", "A#sus4" },   /* Phrygian */
+        { "CM", "Dsus4", "DM", "Dsus4", "Em", "Esus4", "F#dim", "GM", "Gsus4", "Am", "Asus4", "Bm" },   /* Lydian */
+        { "CM", "Csus4", "Dm", "Dsus4", "Edim", "FM", "Fsus4", "Gm", "Gsus4", "Am", "A#M", "Csus4" },   /* Mixolydian */
+        { "Cdim", "C#M", "C#sus4", "D#m", "D#sus4", "Fm", "F#M", "G#sus4", "G#M", "G#sus4", "A#m", "A#sus4" },   /* Locrian */
+        { "Cm", "Csus4", "Ddim", "D#+", "D#sus4", "Fm", "Gsus4", "GM", "G#M", "G#sus4", "Bsus4", "Bdim" },   /* Harm Minor */
+        { "Cm", "Csus4", "Dm", "D#+", "D#sus4", "FM", "Gsus4", "GM", "Gsus4", "Adim", "Asus4", "Bdim" },   /* Mel Minor */
+        { "CM", "Csus4", "Dm", "Dsus4", "Em", "FM", "Gsus4", "GM", "Gsus4", "Am", "Asus4", "Bdim" },   /* Maj Pent */
+        { "Cm", "Csus4", "Ddim", "D#M", "D#sus4", "Fm", "Fsus4", "Gm", "G#M", "A#sus4", "A#M", "A#sus4" },   /* Min Pent */
+        { "Cm", "Csus4", "Ddim", "D#M", "D#sus4", "Fm", "F#dim", "Gm", "G#M", "A#sus4", "A#M", "A#sus4" },   /* Blues */
+        { "CM", "C#M", "C#sus4", "Esus4", "Edim", "Fm", "Fsus4", "Gdim", "G#+", "G#sus4", "A#m", "Csus4" },   /* Phryg Dom */
+        { "CM", "C#M", "C#sus4", "Esus4", "Em", "Fm", "Fsus4", "GM", "G#+", "G#sus4", "Bsus4", "Bdim" },   /* Dbl Harm */
+        { "Cm", "Csus4", "Ddim", "D#M", "D#sus4", "Fm", "Fsus4", "Gm", "G#M", "A#sus4", "A#M", "A#sus4" },   /* Hirajoshi */
+        { "C+7", "C#+", "D+7", "D#+", "E+7", "F+", "F#+7", "G+", "G#+7", "A+", "A#+7", "B+" },   /* Whole Tone */
+        { "Cdim7", "C#7b9", "Ddim7", "D#dim7", "E7b9", "Fdim7", "F#dim7", "G7b9", "G#dim7", "Adim7", "A#7b9", "Bdim7" },   /* Dim W-H */
+        { "C7", "C#dim7", "D7b9", "D#7", "Edim7", "F7b9", "F#7", "Gdim7", "G#7b9", "A7", "A#dim7", "B7b9" },   /* Dim H-W */
+        { "CM", "Csus4", "Dm", "Dsus4", "Edim", "FM", "Fsus4", "Gm", "Gsus4", "Am", "A#M", "Bdim7" },   /* Bebop Dom */
+        { "CM", "Csus4", "Dm", "Dsus4", "Em", "FM", "Gsus4", "GM", "G#dim7", "Am", "Asus4", "Bdim" },   /* Bebop Maj */
+        { "Cm", "Csus4", "Dm", "D#M", "Edim7", "FM", "Fsus4", "Gm", "Gsus4", "Adim", "A#M", "A#sus4" },   /* Bebop Min */
+        { "C6", "C#7b9", "Ddim7", "D#7b9", "C6/E", "Fdim7", "F#7b9", "C6/G", "G#dim7", "Am7", "A#7b9", "Bdim7" },   /* 6-Dim */
+        { "Cm6", "C#7b9", "Ddim7", "Cm6/D#", "E7b9", "Fdim7", "F#7b9", "Cm6/G", "G#dim7", "Am7b5", "A#7b9", "Bdim7" },   /* m6-Dim */
+    };
+    cr_chord_info_t ci;
+    char nm[32], rn[CR_NUMERAL_MAX];
+    int sc, pc, bad = 0, badm = 0;
+    fresh("scales");
+    strcpy(TAG, "scales");
+    cr_chord_names_set(1);
+    for (sc = 0; sc < CR_SCALE_COUNT; sc++)
+        for (pc = 0; pc < 12; pc++) {
+            cr_set_key(&C, 1, 0, (cr_scale_t)sc);
+            K(60 + pc, 1);
+            cr_chord_info(&C, &ci);
+            snprintf(nm, sizeof nm, "%s%s%s", ci.root, ci.qual, ci.sup);
+            if (strcmp(nm, SC_NAMES[sc][pc])) {
+                bad++;
+                printf("     %s key %d: %s, want %s\n", cr_scale_name((uint8_t)sc), pc, nm, SC_NAMES[sc][pc]);
+            }
+            R(60 + pc, 1); clear();
+        }
+    cr_chord_names_set(0);
+    ok(!bad, "scales: 23 scales x 12 keys in C, each key's chord as the table");
+    cr_set_key(&C, 1, 0, CR_SCALE_6DIM);
+    K(64, 1); expect("+64 +67 +69 +72", "6-Dim: E plays C6 over E (E G A C)");
+    cr_chord_info(&C, &ci);
+    ok(ci.quality == CR_Q_6_3 && ci.root_pc == 4 && !strcmp(ci.root, "C") && !strcmp(ci.sup, "6/E"),
+       "6-Dim: E's chord is C6/E, quality 6/3 on E");
+    R(64, 1); clear();
+    K(67, 1); expect("+67 +69 +72 +76", "6-Dim: G plays C6 over G (G A C E)");
+    R(67, 1); clear();
+    K(69, 1); expect("+69 +72 +76 +79", "6-Dim: A plays Am7 (C6 over A)");
+    R(69, 1); clear();
+    K(62, 1); expect("+62 +65 +68 +71", "6-Dim: D plays Ddim7 (D F G# B)");
+    cr_chord_info(&C, &ci);
+    ok(ci.quality == CR_Q_DIM && ci.ext == CR_EXT_6, "6-Dim: D's dim7 is DIM with the scale's 6th (a loop records both)");
+    R(62, 1); clear();
+    K(61, 1); expect("+61 +62 +65 +68 +71", "6-Dim: C# (out of the scale) plays C#7b9: C# under Ddim7");
+    R(61, 1); clear();
+    cr_set_bass(&C, 1);
+    K(64, 1);
+    ok(SND[1][40] && !SND[1][36], "6-Dim: the bass of C6/E is E");
+    R(64, 1); cr_set_bass(&C, 0); clear();
+    MD(CR_MOD_MIN); K(64, 1);
+    expect("+64 +67 +71", "6-Dim: a held chord key overrides the scale's chord (Em, no 6th)");
+    R(64, 1); MU(CR_MOD_MIN); clear();
+    cr_set_key(&C, 1, 2, CR_SCALE_6DIM);
+    K(66, 1);
+    cr_chord_info(&C, &ci);
+    ok(!strcmp(ci.root, "D") && !strcmp(ci.sup, "6/F#"), "6-Dim in D: F# plays D6/F#");
+    R(66, 1); clear();
+    cr_set_key(&C, 1, 0, CR_SCALE_M6DIM);
+    K(63, 1); expect("+63 +67 +69 +72", "m6-Dim: Eb plays Cm6 over Eb (Eb G A C)");
+    R(63, 1); clear();
+    cr_set_key(&C, 1, 0, CR_SCALE_WHOLE_TONE);
+    K(60, 1); expect("+60 +64 +68 +70", "Whole Tone: C plays C+7");
+    R(60, 1); clear();
+    cr_set_key(&C, 1, 0, CR_SCALE_DIM_HW);
+    K(63, 1); expect("+63 +67 +70 +73", "Dim H-W: Eb plays Eb7");
+    R(63, 1); clear();
+    cr_set_key(&C, 1, 0, CR_SCALE_6DIM);   /* a loop's replay (the recorded root, quality, extensions) */
+    cr_loop_event(&C, 0, 64, CR_Q_6_3, 0, 100, 1);
+    expect("+64 +67 +69 +72", "a loop replays C6/E as recorded");
+    cr_loop_event(&C, 0, 64, CR_Q_6_3, 0, 0, 0); clear();
+    {
+        static const uint16_t MASK_C[CR_SCALE_COUNT] = {
+            0xAB5, 0x5AD, 0x6AD, 0x5AB, 0xAD5, 0x6B5, 0x56B, 0x9AD, 0xAAD, 0x295, 0x4A9, 0x4E9, 0x5B3, 0x9B3, 0x18D,
+            0x555, 0xB6D, 0x6DB, 0xEB5, 0xBB5, 0x6BD, 0xBB5, 0xBAD };
+        for (sc = 0; sc < CR_SCALE_COUNT; sc++) {
+            cr_set_key(&C, 1, 0, (cr_scale_t)sc);
+            badm += cr_scale_mask(&C) != MASK_C[sc] || !cr_scale_name((uint8_t)sc)[0] ||
+                    strlen(cr_scale_name((uint8_t)sc)) > 10u;
+        }
+    }
+    ok(!badm, "scales: each one's notes in C, and a name of at most 10 characters");
+    ok(cr_scale_bits(2, CR_SCALE_MAJ_PENT) == ((0x295u << 2 | 0x295u >> 10) & 0xFFFu), "scale bits: D major pentatonic");
+    cr_set_key(&C, 1, 0, (cr_scale_t)99);
+    ok(C.scale == CR_SCALE_MAJOR, "an unknown scale is Major");
+    ok(cr_scale_minor(CR_SCALE_DORIAN) && cr_scale_minor(CR_SCALE_BEBOP_MIN) && !cr_scale_minor(CR_SCALE_LYDIAN) &&
+       !cr_scale_minor(CR_SCALE_6DIM) && cr_scale_minor(CR_SCALE_M6DIM) && !cr_scale_minor(99), "scales: MAJ's and MIN's");
+    cr_chord_numeral(4, CR_Q_6_3, 0, CR_SCALE_6DIM, rn);
+    ok(!strcmp(rn, "I"), "numeral: C6/E in C 6-Dim is I");
+    cr_chord_numeral(5, CR_Q_MAJ, 0, CR_SCALE_DORIAN, rn);
+    ok(!strcmp(rn, "IV"), "numeral: F in C Dorian is IV (Minor's degrees)");
+    cr_chord_numeral(9, CR_Q_DIM, 0, CR_SCALE_DORIAN, rn);
+    ok(!strcmp(rn, "#vi\260"), "numeral: Adim in C Dorian is #vi\260");
+    cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
+}
+
 int main(void)
 {
     s_tables();
@@ -3276,6 +3393,7 @@ int main(void)
     s_numerals();
     s_solfege();
     s_sixth_tables();
+    s_scales();
     run_suite(1000, 0, "1ms");
     run_suite(2902, 0, "2.9ms");
     run_suite(5000, 0, "5ms");

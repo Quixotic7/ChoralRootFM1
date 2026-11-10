@@ -1,0 +1,62 @@
+# ChoralRoot: more Key Mode scales (0.36, GitHub issues 34 and 45). In the KEY layer MAJ / MIN pick Major / Minor
+# when the scale is of the other kind, and step through their own kind at the release when it is already theirs
+# (MIN: Minor Dorian Phrygian ..; MAJ: Major Lydian ..); MIN held with a root keeps the minor scale there is (no
+# step). KNOB 2 walks the whole list (no wrap). 6-Dim's E plays C6 over E.
+#   chord block (Classic): G#3 MIN, A#3 MAJ
+keys classic
+wait 300
+btn SEL down
+wait 500
+btn SEL up
+wait 300
+btn G#3                       # Major -> MIN: Minor (at the press)
+wait 300
+dump                          # 1: scale 1
+btn G#3                       # MIN again: Dorian (at the release)
+wait 300
+dump                          # 2: scale 2
+btn G#3                       # Phrygian
+wait 300
+expect led G#3 on             # a minor scale: MIN full, MAJ half
+expect led A#3 dim
+shot build/emu/test/cr_key_scales_phrygian.ppm
+dump                          # 3: scale 3
+btn A#3                       # MAJ: Major
+wait 300
+dump                          # 4: scale 0
+btn A#3                       # MAJ again: Lydian
+wait 300
+expect led A#3 on
+expect led G#3 dim
+dump                          # 5: scale 4
+btn G#3 down                  # MIN held + D4: D minor (from Lydian), no step at the release
+wait 60
+btn D4
+wait 100
+btn G#3 up
+wait 300
+dump                          # 6: tonic 2 scale 1
+btn G#3 down                  # MIN held + E4 in Minor: the scale stays Minor
+wait 60
+btn E4
+wait 100
+btn G#3 up
+wait 300
+dump                          # 7: tonic 4 scale 1
+knob KNOB2 +20                # Minor -> 6-Dim (21)
+wait 300
+shot build/emu/test/cr_key_scales_6dim.ppm
+dump                          # 8: scale 21
+knob KNOB2 +5                 # the end of the list: m6-Dim (22), no wrap
+wait 300
+dump                          # 9: scale 22
+knob KNOB2 -1
+wait 300
+btn OCT-                      # the view, Key: E 6-dim
+wait 300
+btn G#4                       # G#: the tonic E's 6th chord over its third (E6/G#)
+wait 300
+shot build/emu/test/cr_key_scales_e6.ppm
+dump                          # 10: chord E6/G# sounding
+wait 2000
+dump                          # 11: silent

@@ -2987,15 +2987,15 @@ int main(int argc, char **argv)
             fprintf(rep, "chord names (%s): the looper's name line: the widest '%s' %d px at 15 px; the playing name: the widest '%s' %d px at 10 px (of %d), "
                     "%u of %u names at 10 px; the Scope / Notes views: the widest '%s' %d px\n", MODE[mode], widest_line, (int)wline, widest_now,
                     (int)((wnow + 255) >> 8), CR_LM_NOW_W, now10, nows, widest_text, (int)wtext);
-            snprintf(name, sizeof name, "chord names, %s: 224 names as the big name on %u kinds of screen (%u renders): whole, on screen; %u findings, %u cut",
-                     MODE[mode], kinds, cells, nfind - f0, nell - e0);
-            check(name, kinds == NK && okv && cells == kinds * 224u && nfind == f0 && nell == e0);
+            snprintf(name, sizeof name, "chord names, %s: %u names as the big name on %u kinds of screen (%u renders): whole, on screen; %u findings, %u cut",
+                     MODE[mode], (unsigned)(2u * (CR_Q_COUNT - 1u) * 16u), kinds, cells, nfind - f0, nell - e0);
+            check(name, kinds == NK && okv && cells == kinds * (2u * (CR_Q_COUNT - 1u) * 16u) && nfind == f0 && nell == e0);
             snprintf(name, sizeof name, "chord names, %s: the Scope view's header and the Notes view's title (%u screens, widest '%s' %d px): whole",
                      MODE[mode], texts, widest_text, (int)wtext);
-            check(name, texts == 2u && tcells == 448u && okt && nfind == f0 && nell == e0);
+            check(name, texts == 2u && tcells == 2u * 2u * (CR_Q_COUNT - 1u) * 16u && okt && nfind == f0 && nell == e0);
             snprintf(name, sizeof name, "chord names, %s: the looper's name line with '-12' beside 'step 64/64' (widest '%s') and the playing name "
                      "(widest '%s', %d of %d px): whole", MODE[mode], widest_line, widest_now, (int)((wnow + 255) >> 8), CR_LM_NOW_W);
-            check(name, lines == 1u && nows == 224u && okl && okn && nfind == f0 && nell == e0);
+            check(name, lines == 1u && nows == 2u * (CR_Q_COUNT - 1u) * 16u && okl && okn && nfind == f0 && nell == e0);
         }
         cr_chord_names_set(0);
     }

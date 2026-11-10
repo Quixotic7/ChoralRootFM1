@@ -1834,8 +1834,7 @@ static void cu_fsc_enter(void)                    /* the Full keyboard entered (
 }
 static uint32_t cu_scale_bits(void)               /* bit pc: in the key (Key Mode's tonic and scale), as cr_scale_mask */
 {
-    uint32_t m = cs.scale ? 0x5ADu : 0xAB5u, t = cs.tonic % 12u;
-    return ((m << t) | (m >> (12u - t))) & 0xFFFu;
+    return cr_scale_bits(cs.tonic, cs.scale);
 }
 static int cu_blink(uint32_t now) { return ((now / 250u) & 1u) == 0u; }   /* the blinking LEDs' phase (and the dial's dot) */
 
@@ -4152,14 +4151,49 @@ static int32_t cu_layer_count(uint32_t l)
 #define CU_KEY_MIN 3u                              /* G#3 (CU_MOD_OF_KEY) */
 #define CU_KEY_MAJ 5u                              /* A#3 */
 static int cu_key_pick(void) { return cu_layer() == L_KEY && !cs.key_play; }   /* (keys: play: the chord block's own job) */
+/* More scales (0.36): MAJ picks Major and MIN Minor, as before, when the scale is of the other key's kind; when it is
+ * already one of its own (cr_scale_minor), the key steps to the next of them at its release (MAJ: Major Lydian
+ * Mixolydian .. 6-Dim; MIN: Minor Dorian Phrygian .. m6-Dim), unless a root was pressed while it was held (MIN held
+ * with a root keeps the minor scale there is) */
+static uint16_t cu_kcyc;                           /* bit k: MAJ / MIN pressed within its kind: steps at the release */
+static void cu_scale_trace(const char *why)
+{
+    char b[12];
+    uint32_t i;
+    const char *n = cr_scale_name(cs.scale);
+    for (i = 0; n[i] && i < sizeof b - 1u; i++)
+        b[i] = (char)(n[i] >= 'A' && n[i] <= 'Z' ? n[i] | 0x20 : n[i]);
+    b[i] = 0;
+    cu_trace("key: %s scale %s\n", why, b);
+}
 static void cu_key_scale(uint32_t k)               /* a chord key pressed in the KEY layer */
 {
     if (k != CU_KEY_MIN && k != CU_KEY_MAJ)
         return;
+    if (cr_scale_minor(cs.scale) == (k == CU_KEY_MIN)) {
+        cu_kcyc |= (uint16_t)(1u << k);
+        return;
+    }
     cs.scale = k == CU_KEY_MIN ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
     cu_post_key();
     cu_hot_set(L_KEY, 1);                          /* (the Scale cell turns hot, as under KNOB 2) */
-    cu_trace("key: %s scale %s\n", k == CU_KEY_MIN ? "MIN" : "MAJ", cs.scale ? "minor" : "major");
+    cu_scale_trace(k == CU_KEY_MIN ? "MIN" : "MAJ");
+}
+static void cu_key_scale_up(uint32_t k)            /* .. its release */
+{
+    uint32_t s = cs.scale, minor = k == CU_KEY_MIN;
+    if (!((cu_kcyc >> k) & 1u))
+        return;
+    cu_kcyc &= (uint16_t)~(1u << k);
+    if (cu_layer() != L_KEY)
+        return;
+    do
+        s = (s + 1u) % CR_SCALE_COUNT;
+    while ((uint32_t)cr_scale_minor((uint8_t)s) != minor);
+    cs.scale = (uint8_t)s;
+    cu_post_key();
+    cu_hot_set(L_KEY, 1);
+    cu_scale_trace(minor ? "MIN" : "MAJ");
 }
 
 static void cu_layer_key(uint32_t l, uint32_t k)   /* a root key while layer l is open */
@@ -4183,13 +4217,15 @@ static void cu_layer_key(uint32_t l, uint32_t k)   /* a root key while layer l i
                                                     * (so MIN tapped, then a root, is a minor key: until 2026-10-10 a
                                                     * root alone meant major) */
         cs.tonic = (uint8_t)((53u + k) % 12u);
-        if ((cu.kheld >> CU_KEY_MIN) & 1u)
+        cu_kcyc = 0;                               /* (MAJ / MIN held with a root: no step at their release) */
+        if (((cu.kheld >> CU_KEY_MIN) & 1u) && !cr_scale_minor(cs.scale))
             cs.scale = CR_SCALE_MINOR;
-        else if ((cu.kheld >> CU_KEY_MAJ) & 1u)
+        else if (((cu.kheld >> CU_KEY_MAJ) & 1u) && cr_scale_minor(cs.scale))
             cs.scale = CR_SCALE_MAJOR;
         cs.key_on = 1;
         cu_post_key();
-        cu_trace("key: root tonic %s %s\n", CU_NOTE[cs.tonic], cs.scale ? "minor" : "major");
+        cu_trace("key: root tonic %s %s\n", CU_NOTE[cs.tonic], cs.scale == CR_SCALE_MAJOR ? "major"
+                 : cs.scale == CR_SCALE_MINOR ? "minor" : cr_scale_name(cs.scale));
         return;
     }
     if (l == L_LOOP && k == 10u) {                 /* D#4: CLEAR, held 1 s (cu_clear_poll) */
@@ -4244,10 +4280,11 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cs.key_on = 1;
             cu_post_key();
             cu_trace("key: knob 1 tonic %s\n", CU_NOTE[cs.tonic]);
-        } else if (knob == 1) {                    /* SCALE */
-            cs.scale = s > 0 ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
+        } else if (knob == 1) {                    /* SCALE: the list (cr_scale_t), no wrap */
+            v = (int32_t)cs.scale + s;
+            cs.scale = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CR_SCALE_COUNT ? CR_SCALE_COUNT - 1 : v);
             cu_post_key();
-            cu_trace("key: knob 2 scale %s\n", cs.scale ? "minor" : "major");
+            cu_scale_trace("knob 2");
         } else if (knob == 2) {                    /* TRANSPOSE */
             v = kn.snap ? kn_snap_rng(cs.transpose, s, -24, 24, 12, 0) : cs.transpose + s;   /* (a semitone a detent;
                                                     * OPT held: octaves) */
@@ -5069,9 +5106,11 @@ static void cu_key_release(uint32_t k)
         return;
     }
     if (k < 9u && !cu.key_note[k]) {               /* (pressed as a chord key: not a Full-keyboard note, not a root) */
-        if ((cu.kpick >> k) & 1u)                  /* pressed as the KEY layer's: nothing to end (the layer may be
-                                                    * closed by now) */
+        if ((cu.kpick >> k) & 1u) {                /* pressed as the KEY layer's: nothing to end (the layer may be
+                                                    * closed by now); MAJ / MIN may step the scale */
             cu.kpick &= (uint16_t)~(1u << k);
+            cu_key_scale_up(k);
+        }
         else if (cu_fm1() && ((CU_TK_MASK >> k) & 1u))
             cu_tk_release(k);
         else if (cu_mod_of(k) != 0xFFu)
@@ -6075,8 +6114,10 @@ static void cu_smk_pad(uint32_t pad, uint32_t vel)
                 cu.b3_pend = 0;
                 cu_lock_tap();
             }
-        } else if (cu_ppick & bit)
+        } else if (cu_ppick & bit) {
             cu_ppick &= (uint16_t)~bit;
+            cu_key_scale_up((uint32_t)k);
+        }
         else
             cu_mod_release((uint32_t)k);
         return;
@@ -6691,7 +6732,7 @@ static void cr_leds(void)
         }
         if (cu_key_pick()) {
             if (k == CU_KEY_MIN || k == CU_KEY_MAJ) {
-                if ((k == CU_KEY_MIN) == (cs.scale == CR_SCALE_MINOR))
+                if ((k == CU_KEY_MIN) == cr_scale_minor(cs.scale))   /* (the key of the scale's kind) */
                     cu_led(own, CU_LK(k), 1);
                 else if (!cs.leds)
                     cu_led(nd, CU_LK(k), 1);
@@ -6836,7 +6877,8 @@ static void cr_leds(void)
 
 /* ------------------------------------------------------- the view-model --- */
 static const uint8_t CU_TRIAD[CR_Q_COUNT][3] = {     /* intervals of each quality's base (the rest: extensions) */
-    {0, 0, 0}, {0, 3, 6}, {0, 3, 7}, {0, 4, 7}, {0, 5, 7}, {0, 4, 8}, {0, 7, 7}, {0, 3, 5}};
+    {0, 0, 0}, {0, 3, 6}, {0, 3, 7}, {0, 4, 7}, {0, 5, 7}, {0, 4, 8}, {0, 7, 7}, {0, 3, 5},
+    {0, 3, 8}, {0, 5, 9}, {0, 4, 9}, {0, 5, 8}, {0, 4, 7}};   /* (6-Dim's, from the bass: C6/E's C E G; 7b9's X E# G#) */
 
 _Static_assert(sizeof ((cr_name_t *)0)->sup >= CR_SUP_MAX && sizeof ((cr_name_t *)0)->quality >= 5,
                "the screen's name holds the engine's whole (cr_chord_name)");
@@ -6923,8 +6965,17 @@ static void cu_header(cr_screen_t *s)
     if (cs.key_on) {
         cu_cpy(s->mid, "Key: ", sizeof s->mid);
         cu_cat(s->mid, CU_NOTE[cs.tonic], sizeof s->mid);
-        if (cs.scale == CR_SCALE_MINOR)
-            cu_cat(s->mid, " minor", sizeof s->mid);
+        if (cs.scale != CR_SCALE_MAJOR) {         /* " minor", " dorian", " bebop dom" */
+            uint32_t i = 0, j;
+            const char *n = cr_scale_name(cs.scale);
+            cu_cat(s->mid, " ", sizeof s->mid);
+            for (j = 0; s->mid[j]; j++) {}
+            while (n[i] && j < sizeof s->mid - 1u) {
+                s->mid[j++] = (char)(n[i] >= 'A' && n[i] <= 'Z' ? n[i] | 0x20 : n[i]);
+                i++;
+            }
+            s->mid[j] = 0;
+        }
         s->mid_col = CR_COL_YELLOW;
     } else if (cr_safe) {                         /* SAFE MODE: on the top line all session (Options > Safe Mode) */
         cu_cpy(s->mid, "Safe mode", sizeof s->mid);
@@ -7361,7 +7412,7 @@ static void cu_key_cells(cr_screen_t *s)
         cu_cpy(s->cell[0][k].label, LB[k], sizeof s->cell[0][k].label);
     }
     cu_cpy(s->cell[0][0].value, cs.key_on ? CU_NOTE[cs.tonic % 12u] : "-", sizeof s->cell[0][0].value);
-    cu_cpy(s->cell[0][1].value, cs.scale ? "Minor" : "Major", sizeof s->cell[0][1].value);
+    cu_cpy(s->cell[0][1].value, cr_scale_name(cs.scale), sizeof s->cell[0][1].value);
     cu_int(s->cell[0][2].value, cs.transpose, 1, sizeof s->cell[0][2].value);
     s->cell[0][2].glyph = CR_G_SHIFT;
     s->cell[0][2].pct = (uint8_t)((uint32_t)(cs.transpose + 24) * 255u / 48u);

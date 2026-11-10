@@ -8052,3 +8052,37 @@ bullets, three notes; SMK37.md's status, package names and version line. `python
 `tools/hub_build.sh --check` both lists match; `CR_VERSION=0.35 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1140 ok; test_persist 121 ok; `fm1_alnk0_irq` 14,030 of 13,890, `fm1_timer5_irq` 4,800 of 4,511, both inside the 10 %). Fast-forwarded
 onto main and tagged v0.35 / v0.35-smk37 (release.yml builds, signs and publishes). The spare E81CE2F7 ran 30d20d35's
 dev build.
+
+## 2026-11-09 (more Key Mode scales, GitHub issues 34 and 45)
+
+3y279. **Key Mode gets 21 more scales: the modes, Harm / Mel Minor, the pentatonics, Blues, Phryg Dom, Dbl Harm,
+Hirajoshi, Whole Tone, Dim W-H / H-W, Bebop Dom / Maj / Min and Barry Harris's 6-Dim and m6-Dim.** Issue 34 asked for
+more scales than Major and Minor (a comment: "at least all of the modes", blues, eastern scales), issue 45 for the
+6th-diminished scale. The owner: "I think it's a reasonable request to add in more scales"; on the proposal (in the
+more-scales session): whole tone, diminished and bebop as well, and "No need to build in support for rolling back to
+older versions". **Engine**: `CR_KEYMAP` is per scale (`cr_scale_t`, 23) with 16-bit entries: the quality (4 bits),
+the root shift, and extensions the scale adds (the 6th of C6 and of the diminished seventh, the 7th of C7 / C+7),
+OR-ed into the voice's `sx` when no Chord Type is held, so the name, a loop's record and a rebuild see them;
+`CR_SCALE_MASK` holds the notes (5 to 8) for the lights, Notes and Snap. Major and Minor are 0.35's tables
+re-encoded. Five qualities (8 .. 12: 6/3, 6/5, m6/3, m6/5, 7b9) are the 6-Dim scales' chords rooted on the key
+pressed, which is their bass (C6/E = E G A C; C#7b9 = C# under Ddim7): `CR_QUALITY` became 32-bit for their 4 and 5
+notes; a loop's 4-bit quality field holds them. Names: "C6/E", "Cm6/D#", "C#7b9" in both namings; numerals: Major's
+degrees for a MAJ scale, Minor's for a MIN one (`cr_scale_minor`), C6/E reads I. `tools/gen_scales.py` generates the
+tables. **UI**: KNOB 2 walks the 23 (no wrap); MAJ / MIN pick Major / Minor when the scale is of the other kind, and
+when it is already theirs step to the next of their kind at the release, unless a root was pressed while held (MIN
+held + a root keeps the minor scale there is); the chord-key LEDs light the kind's key; the Scale cell and the top
+line name the scale (`Key: D# mixolydian`, which fits beside `Split Bass`). The SMK-37's MIN / MAJ pads do the same.
+**Settings**: `scale` bits 0 .. 6 had room (0.22 left it for more scales): values 2 .. 22, no version, nothing to
+migrate; 23 and up read Major. MANUAL "Scales" (a table of the 23 in C), the KEY layer's table, §18; SETTINGS.md;
+SMK37.md; CR_ENGINE.md.
+**Tests**: `cr_engine_test s_scales` (23 scales x 12 keys in C named as `tools/gen_scales.py`'s table, the 6-Dim notes
+E G A C / G A C E / C# D F G# B and C6/E's bass E, a held chord key overriding, D 6-Dim's D6/F#, m6-Dim, Whole Tone,
+Dim H-W, a loop's replay of C6/E, the masks, the clamp, the numerals; the tests' copies of 0.35's tables loop over the
+8 old qualities, `CR_Q_OLD`); `cr_settings_test` (the 23 round-trip beside Solfege, 23 reads Major);
+`tools/emu/scripts/cr_key_scales.txt` + `test_cr.sh` (MIN: Minor Dorian Phrygian, MAJ: Major Lydian, MIN held + a root,
+KNOB 2 to 6-Dim and the list's end, E 6-Dim's G#4 = E6/G#); `cr_draw_test`'s chord-name fit counts the 12 qualities
+(384 names, all whole). **Cost** (`./build.sh`): XIP 562,824 (+1,520, 98.1 %), RAM 89,048 and POOL unchanged;
+SMK-37 builds. `fm1_alnk0_irq` 14,030 (unchanged), `fm1_timer5_irq` 4,800. `sh tests/run_all.sh`: 23 suites passed,
+cr_draw failed on its fixed 224-name count, fixed and passed alone (test_cr 1146 ok, test_persist 121 ok, 279 goldens
+unchanged). Flashed on the spare E81CE2F7 (`--unit`): it boots, `--info` ChoralRoot 0.35 (the dev version). On branch
+claude/more-scales, not pushed.

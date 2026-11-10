@@ -858,6 +858,24 @@ kk() { grep -a '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.*cr: key \([0-9]\) 
     || bad "the latch changed in the key layer: $(grep -a '^lock:' "$L" | tr '\n' ' ')"
 silent_end cr_key_scale
 
+echo "more scales (0.36): MAJ / MIN step their kind, MIN held with a root keeps a minor scale, KNOB 2 the list, 6-Dim's chord"
+run cr_key_scales
+L="$OUT/cr_key_scales.log"
+ksc() { grep -a '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.*cr: key \([0-9]\) tonic \([0-9]*\) scale \([0-9]*\) .*/\1 \2 \3/p'; }
+[ "$(ksc 1)" = "0 0 1" ] && [ "$(ksc 2)" = "0 0 2" ] && [ "$(ksc 3)" = "0 0 3" ] && [ "$(ksc 4)" = "0 0 0" ] && [ "$(ksc 5)" = "0 0 4" ] &&
+    ! has 'expect.*FAILED' "$L" &&
+    ok "MIN: Minor, Dorian, Phrygian (MIN lit, MAJ half); MAJ: Major, Lydian (MAJ lit): $OUT/cr_key_scales_phrygian.ppm" \
+    || bad "MAJ / MIN's steps: $(ksc 1) / $(ksc 2) / $(ksc 3) / $(ksc 4) / $(ksc 5) $(grep -a 'expect.*FAILED' "$L" | head -2)"
+[ "$(ksc 6)" = "1 2 1" ] && [ "$(ksc 7)" = "1 4 1" ] &&
+    ok "MIN held + a root: Minor from Lydian, Minor kept in Minor (no step at the release)" || bad "MIN + a root: $(ksc 6) / $(ksc 7)"
+[ "$(ksc 8)" = "1 4 21" ] && [ "$(ksc 9)" = "1 4 22" ] && has '^key: knob 2 scale 6-dim' "$L" &&
+    ok "KNOB 2: Minor + 20 = 6-Dim (the cell reads 6-Dim), the list ends at m6-Dim: $OUT/cr_key_scales_6dim.ppm" \
+    || bad "KNOB 2's list: $(ksc 8) / $(ksc 9)"
+has 'chord E6/G# sounding' "$L" &&
+    ok "E 6-Dim: G#4 plays E6 over G# (the tonic's 6th chord over its third): $OUT/cr_key_scales_e6.ppm" \
+    || bad "6-Dim's chord: $(grep -a 'chord .* sounding' "$L" | tail -1)"
+silent_end cr_key_scales
+
 echo "the key layer's keys: pick / play, toggled with OPT (GLO) in the layer"
 run cr_key_play
 L="$OUT/cr_key_play.log"

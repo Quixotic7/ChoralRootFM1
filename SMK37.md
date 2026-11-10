@@ -56,7 +56,7 @@ so the whole keybed plays roots. The SMK-37's buttons and knobs map onto the FM-
 | Pads 1-4 (top row) | DIM, MIN, MAJ, SUS: the chord types (white) |
 | Pads 9-12 (bottom row) | 6, m7, M7, 9: the extensions (orange) |
 | Pad 13 | LOCK (blue; as B3: tap to switch it, hold for the LOCK layer) |
-| The chord pads and LOCK | they are the FM-1's chord keys: a pad holds its function while it is held, pads combine as the keys do, LOCK latches them as on the FM-1, MIN / MAJ pick the scale in the KEY layer. Bright while held or latched (LOCK: while on), dim otherwise |
+| The chord pads and LOCK | they are the FM-1's chord keys: a pad holds its function while it is held, pads combine as the keys do, LOCK latches them as on the FM-1, MIN / MAJ pick the scale in the KEY layer (tapped again, the next scale of their kind: new after 0.35, [MANUAL.md](docs/MANUAL.md) "Scales"). Bright while held or latched (LOCK: while on), dim otherwise |
 | Pads 5-8 (top row) | the free-timing performance modes: Strum, Strum 2 Octaves, Slop, Harp (cyan) |
 | Pads 14-16 (bottom row) | the tempo-synced performance modes: Arpeggiate, Arp 2 Octaves, Pattern (green) |
 | The mode pads | the chord part's modes: a tap picks that mode and switches the performance on; the playing mode's pad again switches it off, as a PERF tap. Bright: the mode playing; dim: the others (none while the chord part is on Off). PERF (ARP) and the PERF layer show the same state |

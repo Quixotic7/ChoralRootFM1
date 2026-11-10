@@ -197,7 +197,7 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(key_on, 0, (int)CRS_KEY_MAX);          /* (v14: bit 1 Key plays Notes, bit 2 the Full keyboard; 0.22:
                                                     * bits 3 .. 4 Snap 0 .. 2, CRS_SNAP) */
     CRS_FIX(tonic, 0, 11);
-    if (CRS_SCALE(s) > CR_SCALE_MINOR)             /* (bits 0..6 the scale; bit 7 Numerals' Solfege, CRS_SOLFEGE: kept) */
+    if (CRS_SCALE(s) >= CR_SCALE_COUNT)            /* (bits 0..6 the scale; bit 7 Numerals' Solfege, CRS_SOLFEGE: kept) */
         s->scale = (uint8_t)((s->scale & CRS_SOLFEGE) | d.scale);
     CRS_FIX(transpose, -24, 24);
     CRS_FIX(single, 0, CR_SINGLE_SPLIT_BASS);      /* (v14: 2 Split Bass) */

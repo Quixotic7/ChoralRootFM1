@@ -12,20 +12,62 @@
 /* Chord intervals: low nibble = count, following nibbles = semitones. dim/min/maj/sus + the 3 Secret
  * types (aug, power, min4 = [0,3,5]) are firmware ground truth (fw 3.63 -> 3.84 diff;
  * ORCHID_FIRMWARE_REFERENCE.md 6.1/7). Indexed by CR_Q_*. */
-static const uint16_t CR_QUALITY[CR_Q_COUNT] = { 0, 0x6303, 0x7303, 0x7403, 0x7503, 0x8403, 0xC703, 0x5303 };
+static const uint32_t CR_QUALITY[CR_Q_COUNT] = { 0, 0x6303, 0x7303, 0x7403, 0x7503, 0x8403, 0xC703, 0x5303,
+    /* the 6-Dim scales' (0.36): 6/3 = 0 3 5 8, 6/5 = 0 2 5 9, m6/3 = 0 4 6 9, m6/5 = 0 2 5 8, 7b9 = 0 1 4 7 10 */
+    0x85304, 0x95204, 0x96404, 0x85204, 0xA74105 };
 
 /* Extension intervals in mask-bit order 6, m7, M7, 9 (ORCHID_FIRMWARE_REFERENCE.md 6.2, high-confidence). */
 static const uint8_t CR_EXT_IV[4] = { 9, 10, 11, 14 };
 #define CR_SIXTH_UP_IV 21        /* the 6th an octave up: the 13th (cr_chord_base_ex) */
 
-/* Key Mode rule table (design.md 10.3/10.4): one byte per pitch class, relative to the tonic. Low 3 bits =
- * quality (1 dim, 2 min, 3 maj, 4 sus); bits 3-4 = root shift (0 none, 8 down, 16 up). Diatonic degrees keep
- * their triad; chromatic degrees resolve to a neighbour as SUS (C# in C -> Csus, measured; the rest a labelled
- * fallback: lower neighbour, upward where its sus4 leaves the scale). */
-static const uint8_t CR_KEYMAP[2][12] = {
-    { 3, 12, 2, 12, 2, 3, 20, 3, 12, 2, 12, 1 },   /* major */
-    { 2, 12, 1, 3, 12, 2, 12, 2, 3, 20, 3, 12 },   /* minor */
+/* Key Mode rule table (design.md 10.3/10.4): per scale (cr_scale_t), one entry per pitch class relative to the tonic.
+ * Bits 0-3 = quality (CR_Q_*), bits 4-5 = root shift (0 none, 1 down, 2 up), bits 8-11 = extensions the scale adds
+ * (CR_EXT_*: the 6th of C6 and of the diminished seventh, the 7th of C7 / C+7). Diatonic degrees keep the triad stacked
+ * in the scale; chromatic degrees resolve to a neighbour as SUS (C# in C -> Csus, measured; the rest a labelled
+ * fallback: lower neighbour, upward where its sus4 leaves the scale). Major and Minor are the tables of 0.35, the
+ * others added in 0.36 (GitHub issues 34, 45; docs/MANUAL.md "Key Mode" has them spelt out):
+ * - the modes, Harm / Mel Minor, Phryg Dom: the same rules. Dbl Harm's G and B stack no triad: G and Bdim
+ * - Maj Pent / Min Pent / Blues / Hirajoshi: the lights, Notes and Snap take their 5 / 6 notes (CR_SCALE_MASK); the
+ *   chords are Major's / Minor's (Blues' b5: dim)
+ * - Bebop Dom / Maj / Min: Mixolydian / Major / Dorian with the passing note a diminished seventh
+ * - Whole Tone: C+7 on its notes, the augmented triad on the others. Dim W-H: dim7 on its notes; Dim H-W: C7 on
+ *   C Eb F# A, dim7 on the others; out of either: X7b9
+ * - 6-Dim (Barry Harris): C6 on C, its inversions over E G A (C6/E, C6/G, Am7 = C6/A), dim7 on D F G# B, X7b9 out of
+ *   the scale; m6-Dim the same with Cm6 (A: Am7b5)
+ * Generated (and Major / Minor checked against 0.35's) by tools/gen_scales.py */
+static const uint16_t CR_SCALE_MASK[CR_SCALE_COUNT] = {
+    0xAB5, 0x5AD, 0x6AD, 0x5AB, 0xAD5, 0x6B5, 0x56B, 0x9AD, 0xAAD, 0x295, 0x4A9, 0x4E9, 0x5B3, 0x9B3, 0x18D, 0x555,
+    0xB6D, 0x6DB, 0xEB5, 0xBB5, 0x6BD, 0xBB5, 0xBAD };
+static const uint16_t CR_KEYMAP[CR_SCALE_COUNT][12] = {
+    { 0x003, 0x014, 0x002, 0x014, 0x002, 0x003, 0x024, 0x003, 0x014, 0x002, 0x014, 0x001 },   /* Major */
+    { 0x002, 0x014, 0x001, 0x003, 0x014, 0x002, 0x014, 0x002, 0x003, 0x024, 0x003, 0x014 },   /* Minor */
+    { 0x002, 0x014, 0x002, 0x003, 0x024, 0x003, 0x014, 0x002, 0x014, 0x001, 0x003, 0x014 },   /* Dorian */
+    { 0x002, 0x003, 0x024, 0x003, 0x014, 0x002, 0x014, 0x001, 0x003, 0x014, 0x002, 0x014 },   /* Phrygian */
+    { 0x003, 0x024, 0x003, 0x014, 0x002, 0x014, 0x001, 0x003, 0x014, 0x002, 0x014, 0x002 },   /* Lydian */
+    { 0x003, 0x014, 0x002, 0x014, 0x001, 0x003, 0x014, 0x002, 0x014, 0x002, 0x003, 0x024 },   /* Mixolydian */
+    { 0x001, 0x003, 0x014, 0x002, 0x014, 0x002, 0x003, 0x024, 0x003, 0x014, 0x002, 0x014 },   /* Locrian */
+    { 0x002, 0x014, 0x001, 0x005, 0x014, 0x002, 0x024, 0x003, 0x003, 0x014, 0x024, 0x001 },   /* Harm Minor */
+    { 0x002, 0x014, 0x002, 0x005, 0x014, 0x003, 0x024, 0x003, 0x014, 0x001, 0x014, 0x001 },   /* Mel Minor */
+    { 0x003, 0x014, 0x002, 0x014, 0x002, 0x003, 0x024, 0x003, 0x014, 0x002, 0x014, 0x001 },   /* Maj Pent */
+    { 0x002, 0x014, 0x001, 0x003, 0x014, 0x002, 0x014, 0x002, 0x003, 0x024, 0x003, 0x014 },   /* Min Pent */
+    { 0x002, 0x014, 0x001, 0x003, 0x014, 0x002, 0x001, 0x002, 0x003, 0x024, 0x003, 0x014 },   /* Blues */
+    { 0x003, 0x003, 0x014, 0x024, 0x001, 0x002, 0x014, 0x001, 0x005, 0x014, 0x002, 0x024 },   /* Phryg Dom */
+    { 0x003, 0x003, 0x014, 0x024, 0x002, 0x002, 0x014, 0x003, 0x005, 0x014, 0x024, 0x001 },   /* Dbl Harm */
+    { 0x002, 0x014, 0x001, 0x003, 0x014, 0x002, 0x014, 0x002, 0x003, 0x024, 0x003, 0x014 },   /* Hirajoshi */
+    { 0x205, 0x005, 0x205, 0x005, 0x205, 0x005, 0x205, 0x005, 0x205, 0x005, 0x205, 0x005 },   /* Whole Tone */
+    { 0x101, 0x00C, 0x101, 0x101, 0x00C, 0x101, 0x101, 0x00C, 0x101, 0x101, 0x00C, 0x101 },   /* Dim W-H */
+    { 0x203, 0x101, 0x00C, 0x203, 0x101, 0x00C, 0x203, 0x101, 0x00C, 0x203, 0x101, 0x00C },   /* Dim H-W */
+    { 0x003, 0x014, 0x002, 0x014, 0x001, 0x003, 0x014, 0x002, 0x014, 0x002, 0x003, 0x101 },   /* Bebop Dom */
+    { 0x003, 0x014, 0x002, 0x014, 0x002, 0x003, 0x024, 0x003, 0x101, 0x002, 0x014, 0x001 },   /* Bebop Maj */
+    { 0x002, 0x014, 0x002, 0x003, 0x101, 0x003, 0x014, 0x002, 0x014, 0x001, 0x003, 0x014 },   /* Bebop Min */
+    { 0x103, 0x00C, 0x101, 0x00C, 0x008, 0x101, 0x00C, 0x009, 0x101, 0x202, 0x00C, 0x101 },   /* 6-Dim */
+    { 0x102, 0x00C, 0x101, 0x00A, 0x00C, 0x101, 0x00C, 0x00B, 0x101, 0x201, 0x00C, 0x101 },   /* m6-Dim */
 };
+#define CR_SCALE_MINORS 0x514DCEu   /* bit s: scale s is a minor one (the MIN key's; Minor's numerals) */
+static const char *const CR_SCALE_NAMES[CR_SCALE_COUNT] = {
+    "Major", "Minor", "Dorian", "Phrygian", "Lydian", "Mixolydian", "Locrian", "Harm Minor", "Mel Minor", "Maj Pent",
+    "Min Pent", "Blues", "Phryg Dom", "Dbl Harm", "Hirajoshi", "Whole Tone", "Dim W-H", "Dim H-W", "Bebop Dom",
+    "Bebop Maj", "Bebop Min", "6-Dim", "m6-Dim" };
 
 /* Divisions in 1/24-beat units (2/1 .. 1/32T), the order of cr_div_t (design.md 12.3). */
 static const uint8_t CR_DIV_UNITS[CR_DIV_COUNT] = { 192, 96, 48, 32, 24, 16, 12, 8, 6, 4, 3, 2 };
@@ -68,7 +110,7 @@ static const int16_t CR_PAR_MAX[CR_P_COUNT] = { 1000, CR_DIV_COUNT - 1, CR_DIR_R
 
 /* Orchid Standard Chord Naming (manual 6; label strings ORCHID_FIRMWARE_REFERENCE.md 6.4). */
 static const char *const CR_NOTE_NAMES[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-static const char *const CR_QUAL_NAMES[CR_Q_COUNT] = { "", "dim", "m", "", "sus", "+", "", "m" };   /* pow / min4: sup "5" / "add4" */
+static const char *const CR_QUAL_NAMES[CR_Q_COUNT] = { "", "dim", "m", "", "sus", "+", "", "m", "", "", "m", "m", "" };   /* pow / min4: sup "5" / "add4" */
 
 #define CR_VOICE_MIN (-12)       /* chord voicing rotation clamp (design.md 8) */
 #define CR_VOICE_MAX 12
@@ -200,7 +242,7 @@ int cr_chord_base_ex(int root_note, uint8_t quality, uint8_t ext, int sixth_up, 
     uint8_t iv[CR_CHORD_MAX];
     int ni = 0, n = 0, j, k;
     if (quality > CR_Q_NONE && quality < CR_Q_COUNT) {
-        uint16_t q = CR_QUALITY[quality];
+        uint32_t q = CR_QUALITY[quality];
         for (j = 1; j <= (int)(q & 15u); j++) iv[ni++] = (uint8_t)((q >> (j * 4)) & 15u);
         for (k = 0; k < 4; k++) {   /* extensions need a Chord Type (or Key Mode) */
             int dup = 0;
@@ -292,10 +334,14 @@ static void crx_build_base(const cr_t *c, cr_voice_t *v)
     if (c->key_on && !c->key_notes && !(v->zone & CR_Z_BASS) && !((v->zone & CR_Z_FULL) && c->full_chords == 2)) {   /* (Key plays Notes, a bass-side key: no chord. The
                                                     * Full keyboard, Key plays Chords: the key's chord, as a lone root's
                                                     * on the Chords keyboard; until 0.22 every key there was a note) */
-        int e = CR_KEYMAP[c->scale][crx_mod(v->pc_pressed - c->tonic, 12)], sh = e >> 3;
+        int e = CR_KEYMAP[c->scale % CR_SCALE_COUNT][crx_mod(v->pc_pressed - c->tonic, 12)], sh = (e >> 4) & 3;
         if (sh == 1) { root--; pc = crx_mod(pc - 1, 12); }
         else if (sh == 2) { root++; pc = crx_mod(pc + 1, 12); }
-        if (!q) q = e & 7;
+        if (!q) {
+            q = e & 15;
+            v->sx |= (uint8_t)(e >> 8);   /* the scale's 6th / 7th (0.36): the voice's own from here (a loop records
+                                           * it, the name shows it, a rebuild finds it set) */
+        }
     }
     if (!q && root >= 12 && ((v->zone & CR_Z_LOW) ||
                              (!v->zone && c->single == CR_SINGLE_SPLIT && v->pc_pressed < c->split_pc)))
@@ -1282,7 +1328,7 @@ void cr_set_key(cr_t *c, int enabled, uint8_t tonic_pc, cr_scale_t scale)
 {
     c->key_on = (uint8_t)(enabled != 0);
     c->tonic = (uint8_t)(tonic_pc % 12u);
-    c->scale = (uint8_t)(scale == CR_SCALE_MINOR);
+    c->scale = (uint8_t)((unsigned)scale < CR_SCALE_COUNT ? scale : CR_SCALE_MAJOR);
 }
 void cr_set_transpose(cr_t *c, int semis) { c->transpose = (int8_t)crx_clamp(semis, -24, 24); }
 void cr_set_single_notes(cr_t *c, cr_single_t mode, int split_pc)
@@ -1702,6 +1748,14 @@ void cr_chord_name(uint8_t root_pc, uint8_t quality, uint8_t ext, char root[3], 
     if (quality >= CR_Q_COUNT) quality = CR_Q_NONE;
     crx_str(qual, CR_QUAL_NAMES[quality], 5);
     if (quality == CR_Q_NONE) return;
+    if (quality >= CR_Q_6_3) {       /* the 6-Dim scales' (0.36), in either naming: "C6/E" "Cm6/D#" (the chord's root, its
+                                      * bass after the slash; the extension keys add notes, not to the name), "C#7b9" */
+        if (quality == CR_Q_7B9) { crx_str(sup, "7b9", CR_SUP_MAX); return; }
+        crx_str(root, CR_NOTE_NAMES[(root_pc % 12u + (quality == CR_Q_6_3 ? 8u : quality == CR_Q_M6_3 ? 9u : 5u)) % 12u], 3);
+        crx_str(sup, "6/", CR_SUP_MAX);
+        crx_app(sup, CR_NOTE_NAMES[root_pc % 12u], CR_SUP_MAX);
+        return;
+    }
     ext &= 15u;
     if (crx_names && crx_name_std(quality, ext, qual, sup)) return;
     crx_str(qual, CR_QUAL_NAMES[quality], 5);
@@ -1732,9 +1786,18 @@ static void crx_degree(uint8_t root_pc, uint8_t quality, uint8_t tonic, uint8_t 
     static const uint8_t DEG[2][12] = {
         { 0, 0x11, 1, 0x12, 2, 3, 0x23, 4, 0x15, 5, 0x16, 6 },
         { 0, 0x11, 1, 2, 0x22, 3, 0x23, 4, 5, 0x25, 6, 0x26 } };
-    uint8_t d = DEG[scale == CR_SCALE_MINOR][(root_pc % 12u + 12u - tonic % 12u) % 12u];
-    const char *n = nm[d & 7u];
-    int i = 0, low = quality == CR_Q_MIN || quality == CR_Q_DIM || quality == CR_Q_MIN4;
+    uint8_t d;
+    const char *n;
+    int i = 0, low;
+    /* the 6-Dim scales' inversions read as the 6th chord they are (C6/E: I), 7b9 as a major chord on its bass */
+    if (quality >= CR_Q_6_3 && quality < CR_Q_COUNT) {
+        root_pc = (uint8_t)(root_pc % 12u + 12u - (quality == CR_Q_6_3 ? 4u : quality == CR_Q_M6_3 ? 3u
+                                                                     : quality == CR_Q_7B9 ? 0u : 7u));
+        quality = quality == CR_Q_M6_3 || quality == CR_Q_M6_5 ? CR_Q_MIN : CR_Q_MAJ;
+    }
+    d = DEG[cr_scale_minor(scale)][(root_pc % 12u + 12u - tonic % 12u) % 12u];
+    n = nm[d & 7u];
+    low = quality == CR_Q_MIN || quality == CR_Q_DIM || quality == CR_Q_MIN4;
     if (d & 0x30u) buf[i++] = d & 0x10u ? 'b' : '#';
     while (*n) buf[i++] = (char)(low ? *n++ | 0x20 : *n++);
     if (quality == CR_Q_DIM) buf[i++] = (char)0xB0;
@@ -1784,19 +1847,21 @@ void cr_chord_info(const cr_t *c, cr_chord_info_t *ci)
         ci->root[0] = ci->qual[0] = ci->sup[0] = 0;
         return;
     }
-    ci->secret = ci->quality >= CR_Q_AUG;
+    ci->secret = ci->quality >= CR_Q_AUG && ci->quality <= CR_Q_MIN4;
     cr_chord_name(ci->root_pc, ci->quality, ci->ext, ci->root, ci->qual, ci->sup);
 }
 
 uint16_t cr_scale_mask(const cr_t *c)
 {
-    uint16_t m = 0;
-    int r;
-    if (!c->key_on) return 0;
-    for (r = 0; r < 12; r++)
-        if (CR_KEYMAP[c->scale][r] < 8u) m |= (uint16_t)(1u << ((c->tonic + r) % 12));
-    return m;
+    return c->key_on ? cr_scale_bits(c->tonic, c->scale) : 0;
 }
+uint16_t cr_scale_bits(uint8_t tonic, uint8_t scale)
+{
+    uint32_t m = CR_SCALE_MASK[scale < CR_SCALE_COUNT ? scale : 0], t = tonic % 12u;
+    return (uint16_t)(((m << t) | (m >> (12u - t))) & 0xFFFu);
+}
+const char *cr_scale_name(uint8_t scale) { return CR_SCALE_NAMES[scale < CR_SCALE_COUNT ? scale : 0]; }
+int cr_scale_minor(uint8_t scale) { return scale < CR_SCALE_COUNT && ((CR_SCALE_MINORS >> scale) & 1u); }
 
 uint8_t cr_mods_held(const cr_t *c) { return c->mods_down; }
 

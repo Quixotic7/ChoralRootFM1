@@ -51,8 +51,12 @@ typedef struct {
 typedef enum { CR_MOD_DIM, CR_MOD_MIN, CR_MOD_MAJ, CR_MOD_SUS, CR_MOD_6, CR_MOD_M7, CR_MOD_MAJ7, CR_MOD_9 } cr_mod_t;
 #define CR_NMOD 8
 
-/* chord qualities (ids 1-4 equal the KEYMAP quality codes; 5-7 are the Secret Chords) */
-enum { CR_Q_NONE = 0, CR_Q_DIM, CR_Q_MIN, CR_Q_MAJ, CR_Q_SUS, CR_Q_AUG, CR_Q_POW, CR_Q_MIN4, CR_Q_COUNT };
+/* chord qualities (ids 1-4 equal the KEYMAP quality codes; 5-7 are the Secret Chords; 8-12 (0.36, more scales) only
+ * Key Mode's 6-Dim scales play, rooted on the key pressed, which is their bass: the tonic's 6th chord over its 3rd or
+ * 5th (C6/E = E G A C, C6/G; Cm6/Eb, Cm6/G) and X7b9 (X under the diminished seventh a semitone up). A loop records
+ * them as any quality (its 4-bit field) */
+enum { CR_Q_NONE = 0, CR_Q_DIM, CR_Q_MIN, CR_Q_MAJ, CR_Q_SUS, CR_Q_AUG, CR_Q_POW, CR_Q_MIN4,
+       CR_Q_6_3, CR_Q_6_5, CR_Q_M6_3, CR_Q_M6_5, CR_Q_7B9, CR_Q_COUNT };
 /* extension mask bits (the Lua ext_mask() packing) */
 enum { CR_EXT_6 = 1, CR_EXT_M7 = 2, CR_EXT_MAJ7 = 4, CR_EXT_9 = 8 };
 
@@ -60,7 +64,12 @@ enum { CR_EXT_6 = 1, CR_EXT_M7 = 2, CR_EXT_MAJ7 = 4, CR_EXT_9 = 8 };
 typedef enum { CR_PS_SIMPLE, CR_PS_ADVANCED, CR_PS_FREE } cr_playstyle_t;
 typedef enum { CR_EXTADD_ADD_NOTE, CR_EXTADD_PLAY_CHORD } cr_extadd_t;
 typedef enum { CR_SECRET_OFF, CR_SECRET_SIMPLE, CR_SECRET_ALL } cr_secret_t;
-typedef enum { CR_SCALE_MAJOR, CR_SCALE_MINOR } cr_scale_t;
+/* Key Mode's scales (0.36, GitHub issues 34 and 45): the settings' value (docs/SETTINGS.md); 0 and 1 as ever */
+typedef enum { CR_SCALE_MAJOR, CR_SCALE_MINOR, CR_SCALE_DORIAN, CR_SCALE_PHRYGIAN, CR_SCALE_LYDIAN,
+               CR_SCALE_MIXOLYDIAN, CR_SCALE_LOCRIAN, CR_SCALE_HARM_MINOR, CR_SCALE_MEL_MINOR, CR_SCALE_MAJ_PENT,
+               CR_SCALE_MIN_PENT, CR_SCALE_BLUES, CR_SCALE_PHRYG_DOM, CR_SCALE_DBL_HARM, CR_SCALE_HIRAJOSHI,
+               CR_SCALE_WHOLE_TONE, CR_SCALE_DIM_WH, CR_SCALE_DIM_HW, CR_SCALE_BEBOP_DOM, CR_SCALE_BEBOP_MAJ,
+               CR_SCALE_BEBOP_MIN, CR_SCALE_6DIM, CR_SCALE_M6DIM, CR_SCALE_COUNT } cr_scale_t;
 typedef enum { CR_SINGLE_FULL, CR_SINGLE_SPLIT, CR_SINGLE_SPLIT_BASS } cr_single_t;   /* Single Notes (design.md 8.3):
                                   * Full, Split Oct (below the split an octave lower), Split Bass (below the split key
                                   * the BASS stream alone, from it up the chord streams alone: cr_set_keyboard) */
@@ -359,6 +368,9 @@ void cr_chord_numeral(uint8_t root_pc, uint8_t quality, uint8_t tonic, uint8_t s
 void cr_chord_solfege(uint8_t root_pc, uint8_t quality, uint8_t tonic, uint8_t scale, char buf[CR_NUMERAL_MAX]);
 void cr_note_name(uint8_t note, char buf[5]);     /* "C#4" (MIDI 60 = C4) */
 uint16_t cr_scale_mask(const cr_t *c);             /* bit pc = in the scale; 0 when Key Mode is off */
+uint16_t cr_scale_bits(uint8_t tonic, uint8_t scale);   /* .. of any tonic / scale (an unknown scale: Major's) */
+const char *cr_scale_name(uint8_t scale);          /* "Major", "Mixolydian", "6-Dim" (at most 10 characters) */
+int cr_scale_minor(uint8_t scale);                 /* 1: a minor scale (the MIN key's, Minor's numerals), 0: MAJ's */
 uint8_t cr_mods_held(const cr_t *c);               /* bit m = physically held */
 uint8_t cr_mods_active(const cr_t *c);             /* held, or latched in a held voice (Advanced / Free) */
 int  cr_perform_pos(const cr_t *c, uint8_t *note); /* index into the shown chord's notes of the last

@@ -69,7 +69,7 @@ from a layer: it goes with the layer (manual).
 | Split Point | Options **and** OPT + KNOB 1 | block `split_pc` | manual |
 | View | Options **and** HOME (tap, the view menu) | block `view` bits 0..2 | manual |
 | the view's lock | the view menu | block `view` bit 7 | manual |
-| Key Mode, tonic, scale | KEY tap, the KEY layer | block `key_on` bit 0, `tonic`, `scale` | manual |
+| Key Mode, tonic, scale | KEY tap, the KEY layer | block `key_on` bit 0, `tonic`, `scale` (bits 0 .. 6: 23 scales after 0.35) | manual |
 | Key plays, Keyboard | the KEY layer's page 2 | block `key_on` bits 1 / 2 | manual |
 | Snap (0.22) | the KEY layer's page 2, KNOB 3 | block `key_on` bits 3 .. 4 | manual |
 | Numerals (0.22; its Solfège after 0.22) | the KEY layer's page 2, KNOB 4 | block `bass_on` bit 1 (On); `scale` bit 7 (Solfège) | manual |
@@ -299,7 +299,7 @@ The block has its own header:
 | field | range | default |
 | --- | --- | --- |
 | playstyle / extadd / secret | Simple–Free / Add Note, Play Chord / Off, Simple, All | Simple, Add Note, Off |
-| key_on, tonic, scale | bit 0 Key Mode 0/1 (**v14: bit 1 the KEY layer's Key plays**, 0 Chords / 1 Notes, `CRS_KEY_NOTES`, `cs.key_notes`; **bit 2 its Keyboard**, 0 Chords / 1 Full, `CRS_KBD_FULL`, `cs.kbd_full`; `CRS_KEY_ON` / `CRS_KEY_PLAYS` / `CRS_KEYBOARD` / `CRS_KEY_BYTE`; **0.22: bits 3 .. 4 its Snap**, 0 Off / 1 Scale / 2 Chord, `CRS_SNAP`, `CRS_SNAP_BITS`, `cs.snap`, `cr_keysnap_t`; a higher bit or a Snap of 3, 24 .. 255: the byte's default, `CRS_KEY_MAX`), 0..11, Major/Minor (bits 0..6; **bit 7 after 0.22: the KEY layer's Numerals Solfège**, `CRS_SOLFEGE`, `CRS_SCALE` / `CRS_SOL`; an unknown scale: Major, the bit kept) | off, Chords, Chords, Off, C, Major; a v1..v13 record: its Key Mode, Chords, Chords, Off |
+| key_on, tonic, scale | bit 0 Key Mode 0/1 (**v14: bit 1 the KEY layer's Key plays**, 0 Chords / 1 Notes, `CRS_KEY_NOTES`, `cs.key_notes`; **bit 2 its Keyboard**, 0 Chords / 1 Full, `CRS_KBD_FULL`, `cs.kbd_full`; `CRS_KEY_ON` / `CRS_KEY_PLAYS` / `CRS_KEYBOARD` / `CRS_KEY_BYTE`; **0.22: bits 3 .. 4 its Snap**, 0 Off / 1 Scale / 2 Chord, `CRS_SNAP`, `CRS_SNAP_BITS`, `cs.snap`, `cr_keysnap_t`; a higher bit or a Snap of 3, 24 .. 255: the byte's default, `CRS_KEY_MAX`), 0..11, the scale (bits 0..6: 0 Major, 1 Minor, **after 0.35** 2 .. 22 the other scales, `cr_scale_t`, docs/MANUAL.md "Scales"; 23 and up unknown; **bit 7 after 0.22: the KEY layer's Numerals Solfège**, `CRS_SOLFEGE`, `CRS_SCALE` / `CRS_SOL`; an unknown scale: Major, the bit kept) | off, Chords, Chords, Off, C, Major; a v1..v13 record: its Key Mode, Chords, Chords, Off |
 | transpose | −24..24 | 0 |
 | single, split_pc | 0 Full Octave / 1 Split Oct ("Split" until v14) / **v14: 2 Split Bass**, 0..11 (the Chords layout's split, a pitch class; the Full keyboard splits at F4, fixed, not stored) | Full Octave, F (5) |
 | vel | 1..127 (the keys' velocity) | 100 |

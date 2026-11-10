@@ -1515,9 +1515,23 @@ static void t_solfege(void)
         ok(CRS_SOL(&r) && CRS_SCALE(&r) == sc, ".. and its capture keeps the bit");
     }
     s = d;
-    s.scale = (uint8_t)(CRS_SOLFEGE | 5u);         /* an unknown scale: Major, the bit kept */
+    s.scale = (uint8_t)(CRS_SOLFEGE | CR_SCALE_COUNT);   /* an unknown scale (0.36: 23 and up): Major, the bit kept */
     cr_settings_seal(&s);
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_SOL(&r) && CRS_SCALE(&r) == CR_SCALE_MAJOR, "scale 5 with Solfege: Major, Solfege kept");
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_SOL(&r) && CRS_SCALE(&r) == CR_SCALE_MAJOR, "scale 23 with Solfege: Major, Solfege kept");
+    {                                              /* more scales (0.36): every one round-trips and reaches the engine */
+        int sc2, bad2 = 0;
+        for (sc2 = 0; sc2 < CR_SCALE_COUNT; sc2++) {
+            s = d;
+            s.scale = (uint8_t)(CRS_SOLFEGE | sc2);
+            cr_settings_seal(&s);
+            bad2 += cr_settings_import(&r, &s, sizeof s) != 1 || CRS_SCALE(&r) != (unsigned)sc2 || !CRS_SOL(&r);
+            cr_init(&E, &OUT);
+            cr_settings_apply(&r, &E, &o);
+            bad2 += E.scale != sc2;
+        }
+        ok(!bad2, "the 23 scales (0.36): each round-trips beside Solfege, the engine gets it");
+    }
+    s = d;
     s.scale = 0x7Fu;
     cr_settings_seal(&s);
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.scale == CR_SCALE_MAJOR, "scale 127: Major, no Solfege");

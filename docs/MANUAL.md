@@ -490,7 +490,9 @@ SUS, MAJ + SUS, MIN + SUS). On the Full keyboard B3 is a note, so there is no LO
 Tap **KEY** (printed SEL): the KEY light comes on and `Key: C` shows at the top left. Now a root key on its own plays
 the chord that belongs on that note of the scale. In C major: D gives `Dm`, E `Em`, F `F`, G `G`, A `Am`, B `Bdim`.
 A key outside the scale plays a sus chord on a neighbouring scale note (C# in C gives `Csus`). A chord key held
-overrides the scale's choice of type. The root keys light the key: the scale's notes glow, the tonic's keys are
+overrides the scale's choice of type. Besides Major and Minor there are 21 more scales (new after 0.35): the modes,
+pentatonics, blues, bebop, whole tone, diminished, some eastern scales and Barry Harris's 6th-diminished
+([Scales](#scales)). The root keys light the key: the scale's notes glow, the tonic's keys are
 brighter, the keys outside the scale are dark ([The lights](#the-lights)).
 
 Hold KEY to open the **KEY layer**:
@@ -499,10 +501,10 @@ Hold KEY to open the **KEY layer**:
 
 | Control | In the KEY layer |
 | --- | --- |
-| any root key | that note becomes the tonic and Key Mode switches on. The scale stays as it is, unless MAJ or MIN is held with the root |
-| MAJ, MIN (the chord keys) | the scale: Major or Minor (`Key: E minor`), at the press, with LOCK on or off. In this layer they are not chord keys: the chord you have latched with LOCK is untouched and is back when the layer closes. The other chord keys do nothing here; LFO is still LOCK (Classic: B3) |
+| any root key | that note becomes the tonic and Key Mode switches on. The scale stays as it is, unless MIN is held with the root while the scale is a major one (then Minor), or MAJ while it is a minor one (then Major) |
+| MAJ, MIN (the chord keys) | the scale, with LOCK on or off. MIN picks Minor (`Key: E minor`) at the press when the scale is a major one; when it is already a minor one, MIN tapped steps to the next minor scale (Dorian, Phrygian ..). MAJ does the same with Major and the major scales ([Scales](#scales)). In this layer they are not chord keys: the chord you have latched with LOCK is untouched and is back when the layer closes. The other chord keys do nothing here; LFO is still LOCK (Classic: B3) |
 | KNOB 1 | Tonic, step by step (Key Mode switches on) |
-| KNOB 2 | Scale: Major or Minor |
+| KNOB 2 | Scale: all 23, in the order of the table in [Scales](#scales) |
 | KNOB 3 | Transpose, -24 to +24 semitones. It moves everything you play from then on, in or out of Key Mode |
 | KNOB 4 | Single: Full, Split Oct or Split Bass (below) |
 | SELECT | turns the layer's page: page 1 is the four settings above, page 2 has Key plays, Keyboard, Snap and Numerals (below). The top line says `1/2` or `2/2`. SELECT does not change the tempo in this layer |
@@ -517,9 +519,57 @@ A quick way to set a key: hold KEY and press a root at once (the layer opens str
 For a minor key press MIN as well, before or after the root.
 
 While the layer is open the chord keys' lights show the scale instead of the chord: MAJ and MIN glow, the one of
-the selected scale is fully lit, and the six chord keys without a job here are dark. (With Options > LEDs set to
+the selected scale's kind (MAJ for the major scales, MIN for the minor ones) is fully lit, and the six chord keys without a job here are dark. (With Options > LEDs set to
 Stock, which has no half level, only the selected scale's key is lit.) Outside the layer the lights mean what they
 always do.
+
+#### Scales
+
+KNOB 2 in the KEY layer goes through them in this order; MAJ steps through the major ones (the first column says
+which), MIN through the minor ones, each from its first, Major or Minor, and round again. The top line names the scale
+(`Key: D dorian`; Major shows as `Key: D`). Every key of the scale plays the chord built from the scale's own notes on
+it, as Major and Minor do; the chord keys 6, m7, M7 and 9 add to it as ever. The chords below are in C.
+
+| Scale | Kind | The chords on the scale's notes | Keys outside the scale |
+| --- | --- | --- | --- |
+| Major | MAJ | C Dm Em F G Am Bdim | a sus chord on a neighbour |
+| Minor | MIN | Cm Ddim Eb Fm Gm Ab Bb | the same |
+| Dorian | MIN | Cm Dm Eb F Gm Adim Bb | the same |
+| Phrygian | MIN | Cm Db Eb Fm Gdim Ab Bbm | the same |
+| Lydian | MAJ | C D Em F#dim G Am Bm | the same |
+| Mixolydian | MAJ | C Dm Edim F Gm Am Bb | the same |
+| Locrian | MIN | Cdim Db Ebm Fm Gb Ab Bbm | the same |
+| Harm Minor | MIN | Cm Ddim Eb+ Fm G Ab Bdim | the same |
+| Mel Minor | MIN | Cm Dm Eb+ F G Adim Bdim | the same |
+| Maj Pent | MAJ | C D E G A: C Dm Em G Am | Major's chords (F, Bdim) |
+| Min Pent | MIN | C Eb F G Bb: Cm Eb Fm Gm Bb | Minor's chords (Ddim, Ab) |
+| Blues | MIN | C Eb F F# G Bb: Cm Eb Fm F#dim Gm Bb | Minor's chords |
+| Phryg Dom | MAJ | C Db Edim Fm Gdim Ab+ Bbm | a sus chord on a neighbour |
+| Dbl Harm | MAJ | C Db Em Fm G Ab+ Bdim | the same |
+| Hirajoshi | MIN | C D Eb G Ab: Cm Ddim Eb Gm Ab | Minor's chords |
+| Whole Tone | MAJ | C+7 D+7 E+7 F#+7 G#+7 A#+7 | an augmented chord |
+| Dim W-H | MIN | C D Eb F F# G# A B: a diminished seventh on each | a 7b9 chord (below) |
+| Dim H-W | MAJ | C Db Eb E F# G A Bb: C7 Eb7 F#7 A7, a diminished seventh on Db E G Bb | a 7b9 chord |
+| Bebop Dom | MAJ | Mixolydian's, and the passing B: Bdim7 | a sus chord on a neighbour |
+| Bebop Maj | MAJ | Major's, and the passing G#: G#dim7 | the same |
+| Bebop Min | MIN | Dorian's, and the passing E: Edim7 | the same |
+| 6-Dim | MAJ | C6 on C, E, G and A (below), Ddim7 Fdim7 G#dim7 Bdim7 | a 7b9 chord |
+| m6-Dim | MIN | Cm6 on C, Eb, G and A, Ddim7 Fdim7 G#dim7 Bdim7 | a 7b9 chord |
+
+The pentatonics, Blues and Hirajoshi have five or six notes. The lights, Key plays `Notes` and Snap use just those
+notes; the chords are the major or minor scale's, so a key between them still plays a chord that fits. In Dbl Harm, G
+and B stack no plain chord in the scale: they play G and Bdim.
+
+**6-Dim and m6-Dim** are Barry Harris's 6th-diminished scales (GitHub issue 45): the major (or minor) scale with a
+raised 5th added, eight notes, each with one of two chords. The tonic's 6th chord sits on C, E, G and A, always with
+the key you press in the bass: E plays `C6/E` (E G A C), G `C6/G` (G A C E), A `Am7` (A C E G, the same four notes).
+D, F, G# and B play the diminished seventh on them. A key outside the scale plays its **7b9 chord**: the key in the
+bass under the diminished seventh a semitone up (C# plays C# D F G# B, `C#7b9`). The chord name shows the slash
+(`C6/E`, `Cm6/D#`); the bass part plays the key you press. The two Dim scales (whole-half and half-whole) give their
+keys outside the scale the same 7b9 chord. A loop records these chords as played and plays them back the same way.
+
+**Numerals** in the new scales count the degrees as Major does for a MAJ scale and as Minor does for a MIN scale: F
+in C Dorian is IV, A is #vi° (Locrian's flat fifth reads #IV). C6/E reads I.
 
 **Keys: pick or play.** The layer opens with its keys on **pick**: the root keys set the tonic, MAJ and MIN the
 scale, and nothing sounds. Tap **OPT** (printed GLO) in the layer and the keys **play** instead, exactly as outside
@@ -2491,7 +2541,7 @@ is the exception: held again it switches between the chords' and the bass's PERF
 | Button (printed label) | ChoralRoot | Tap | Hold |
 | --- | --- | --- | --- |
 | FX | FX | effects on / off (in its layer too) | FX layer: SELECT the page (Sends · Reverb 1 · Reverb 2 · Chorus · Delay 1 · Delay 2 · Drive) · KNOB 1-4 its cells (Sends: the chord part's drive, chorus, delay and reverb sends; KNOB 4 on an effect's first page: its Send) |
-| SEL | KEY | Key Mode on / off | KEY layer: a root = tonic · MAJ / MIN = scale · KNOB 1 Tonic · 2 Scale · 3 Transpose · 4 Single (Full / Split Oct / Split Bass) · SELECT: page 2: KNOB 1 Key plays (Chords / Notes) · 2 Keyboard (Chords / Full) · 4 Numerals (Off / On / Solfège) · GLO: the keys pick / play |
+| SEL | KEY | Key Mode on / off | KEY layer: a root = tonic · MAJ / MIN = scale (again: the next of its kind) · KNOB 1 Tonic · 2 Scale (23) · 3 Transpose · 4 Single (Full / Split Oct / Split Bass) · SELECT: page 2: KNOB 1 Key plays (Chords / Notes) · 2 Keyboard (Chords / Full) · 4 Numerals (Off / On / Solfège) · GLO: the keys pick / play |
 | ENV | BASS | bass on / off | BASS layer: SELECT behaviour · KNOB 1 Behaviour · 2 Register · 3 Sound · 4 Level · GLO: the keys play / pick. Held + EDIT: edit the bass sound. Held + SAVE: save it. Held + ARP: the Bass PERF layer |
 | LFO | LOCK (Classic chord keys: LATCH) | LOCK on / off; GLO held + LFO: LATCH (Classic: latch on / off) | the LOCK layer: KNOB 1 Type key Clears / Keeps · KNOB 2 Ext keys Toggle / Pushed (Classic: nothing) |
 | EDIT | EDIT | the sound editor; in it: leave | the engine picker: SELECT engine · KNOB 1 presets · KNOB 2 init · the keys play · OCT+ keep · OCT- cancel |
