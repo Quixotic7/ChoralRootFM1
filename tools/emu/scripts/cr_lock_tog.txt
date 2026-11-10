@@ -50,8 +50,9 @@ dump                          # 12: silent
 # once per push
 btn GLO
 wait 200
+btn OCT+ 30
 knob SELECT +1
-wait 200
+wait 170
 knob KNOB1 +1
 wait 200
 btn GLO

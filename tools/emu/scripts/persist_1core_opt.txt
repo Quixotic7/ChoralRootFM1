@@ -7,13 +7,14 @@ shot build/emu/test/persist_1core_splash.ppm
 wait 200
 btn GLO 80
 wait 300
-knob SELECT +31               # Dual Core (0.25.1: the FM-1 chord keys, the default, list SUS Window too)
-wait 300
+knob SELECT +6
+btn OCT+ 30  # Dual Core (0.25.1: the FM-1 chord keys, the default, list SUS Window too)
+wait 270
 knob KNOB1 -1
 wait 400
 shot build/emu/test/persist_1core_opt.ppm
 dump
-knob SELECT +2                # Version (past Output)
+knob SELECT +1  # Version (past Output)
 wait 300
 shot build/emu/test/persist_1core_version.ppm
 dump

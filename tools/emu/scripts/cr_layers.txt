@@ -5,8 +5,10 @@ wait 300
 btn GLO 80
 wait 300
 shot build/emu/test/cr_options.ppm
-knob SELECT +7
-wait 300
+knob SELECT +1
+btn OCT+ 30
+knob SELECT +3
+wait 270
 knob KNOB1 +1
 wait 300
 shot build/emu/test/cr_options_sel.ppm

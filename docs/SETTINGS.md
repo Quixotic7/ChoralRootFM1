@@ -37,6 +37,11 @@ restart: `restored: restart first`.
 unchanged); manual = written only by the global save. The rule for a setting reachable both from the Options and
 from a layer: it goes with the layer (manual).
 
+**3y290: the Options in groups.** The Options menu lists its entries in groups (Play, Chords, Keys, MIDI, Screen,
+Audio, System; Reset Settings is the group list's last item; Safe Mode and Flash Data form a Safe Mode group in SAFE
+MODE only: `cr_ui.c O_ORD`, docs/MANUAL.md section 14). That is the menu alone: no entry moved in the block or the
+session, and nothing below changed. "Options" in this table is any of the groups.
+
 | setting | where it is set | record | side |
 | --- | --- | --- | --- |
 | Play Style | Options | block `playstyle` | **automatic** |

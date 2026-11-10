@@ -10,8 +10,9 @@ wait 3000
 dump                          # 1: nothing changed: no save
 btn GLO
 wait 200
+btn OCT+ 30
 knob KNOB1 +1
-wait 200
+wait 170
 btn GLO
 wait 4500
 dump                          # 2: the settings saved once

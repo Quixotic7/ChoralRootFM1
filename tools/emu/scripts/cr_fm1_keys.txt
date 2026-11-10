@@ -15,13 +15,14 @@
 wait 500
 btn GLO 80                    # Options: Chord Keys is the 4th entry listed (after Secret Chords)
 wait 300
-knob SELECT +3
-wait 200
+knob SELECT +1
+btn OCT+ 30
+wait 170
 knob KNOB1 +1
 wait 300
 dump                          # 1
 shot build/emu/test/cr_fm1_opt_layout.ppm
-knob SELECT +1                # SUS Window (listed in FM-1 only)
+knob SELECT +1  # SUS Window (listed in FM-1 only)
 wait 200
 knob KNOB1 +10                # 30 (the default) -> 80 ms (a wide window: the emulator's frames are coarse)
 wait 300
@@ -191,10 +192,13 @@ btn OCT- 80
 wait 300
 btn GLO 80                    # back to Classic: the latch kept, C#4 is SUS again
 wait 300
-knob SELECT -40
-wait 200
-knob SELECT +3
-wait 200
+knob SELECT -1
+btn OCT+ 30
+wait 170
+btn OCT- 30
+knob SELECT +1
+btn OCT+ 30
+wait 140
 knob KNOB1 -1
 wait 200
 btn GLO 80

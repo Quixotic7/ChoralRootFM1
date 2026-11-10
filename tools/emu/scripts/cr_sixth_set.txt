@@ -4,8 +4,10 @@ keys classic                  # (0.25.1: FM-1 is the default; this script was wr
 wait 500
 btn GLO 80
 wait 300
-knob SELECT +6
-wait 300
+knob SELECT +1
+btn OCT+ 30
+knob SELECT +2
+wait 270
 knob KNOB1 +1
 wait 400
 btn GLO 80

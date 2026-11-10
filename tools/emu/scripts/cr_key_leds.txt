@@ -68,8 +68,10 @@ expect led D4 off
 dump                          # 7: 000000000000000000
 btn GLO 80                    # Options > LEDs: Stock (two levels: the idle keys lit, the active dark)
 wait 300
-knob SELECT +25
-wait 300
+knob SELECT +4
+btn OCT+ 30
+knob SELECT +3
+wait 270
 knob KNOB1 +1
 wait 300
 btn GLO 80
@@ -92,8 +94,10 @@ wait 2500
 dump                          # 9: silent
 btn GLO 80                    # LEDs: Glow again; Key Mode off: a held root is the only root light
 wait 300
+btn OCT+ 30
+knob SELECT +3
 knob KNOB1 -1
-wait 300
+wait 270
 btn GLO 80
 wait 300
 btn SEL
@@ -107,8 +111,10 @@ btn D4 up
 wait 300
 btn GLO 80                    # Stock, Key Mode off: as it was: every root and chord key lit (idle = lit)
 wait 300
+btn OCT+ 30
+knob SELECT +3
 knob KNOB1 +1
-wait 300
+wait 270
 btn GLO 80
 wait 300
 expect led D4 on

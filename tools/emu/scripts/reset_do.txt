@@ -12,7 +12,7 @@ btn A#3
 wait 300
 btn GLO
 wait 200
-knob SELECT +35               # past the end: the last entry: Reset Settings
+knob SELECT +7  # past the end: the last entry: Reset Settings
 wait 300
 shot build/emu/test/reset_entry.ppm
 dump                          # 2: entry 25 'Reset Settings', 'all options to default'
@@ -20,14 +20,17 @@ btn OCT+                      # the first OCT+: asks
 wait 300
 shot build/emu/test/reset_ask.ppm
 dump                          # 3: 'OCT+ again: reset'
-knob SELECT -1                # another entry: cancelled
-wait 200
+knob SELECT -1
+btn OCT+ 30
+knob SELECT +2  # another entry: cancelled
+wait 170
+btn OCT- 30
 knob SELECT +1
-wait 200
+wait 170
 dump                          # 4: 'all options to default' again, nothing reset
 btn OCT+                      # asks again ..
 wait 200
-btn OCT-                      # .. OCT-: back out of the Options: cancelled
+btn OCT-                      # .. OCT- on the group list: out of the Options: cancelled
 wait 300
 dump                          # 5: the Options closed, the settings as they were
 btn GLO                       # the Options again, still on the entry: the "again" is not pending

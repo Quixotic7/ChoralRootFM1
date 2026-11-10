@@ -14,8 +14,10 @@ btn D4 up
 wait 300
 btn GLO 80                    # Options
 wait 300
-knob SELECT +8                # Key Touch
-wait 200
+knob SELECT +2
+btn OCT+ 30
+knob SELECT +1  # Key Touch
+wait 170
 knob KNOB1 +2                 # Velocity + Aftertouch
 wait 200
 btn GLO 80
@@ -44,8 +46,9 @@ btn D4 up
 wait 300
 btn GLO 80
 wait 300
-knob SELECT +2                # Velocity Curve (entry 7)
-wait 200
+btn OCT+ 30
+knob SELECT +3  # Velocity Curve (entry 7)
+wait 170
 knob KNOB1 +3                 # +3
 wait 200
 btn GLO 80

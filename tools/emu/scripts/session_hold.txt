@@ -18,8 +18,9 @@ expect sound
 dump                          # 2: written: session saves 1
 btn GLO
 wait 200
+btn OCT+ 30
 knob KNOB1 +1                 # Play Style: Advanced (an Option: automatic)
-wait 200
+wait 170
 btn GLO
 wait 3000
 expect sound

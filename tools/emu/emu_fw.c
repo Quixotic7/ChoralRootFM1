@@ -649,18 +649,37 @@ void emu_fw_dump(void)
                 id[k] = (char)CRB_OUT[5u + k];
         id[k] = 0;
         printf("  version: options '%s' identity '%s' build '%s'\n", ov, id, FELUCCA_VERSION);
-        {                                            /* the Options: the entry selected (its place among those
-                                                      * listed, cu_opt_vis: what SELECT counts) and its value's text */
-            uint32_t o, at = 0, n = 0;
-            for (o = 0; o < cu_opt_n(); o++)
-                if (cu_opt_vis(o)) {
-                    if (o == cu.opt_sel)
-                        at = n;
-                    n++;
-                }
-            opt_text(cu.opt_sel, ov, sizeof ov);
+        {                                            /* the Options: the item selected at the level shown (3y290:
+                                                      * the group list, or a group's entries listed, cu_opt_vis: what
+                                                      * SELECT counts) and its value's text; then the group */
+            uint32_t i, at = 0, n = 0;
+            const char *nm = O_NAME[cu.opt_sel % O_N];
+            if (!cu.opt_in) {
+                for (i = 0; i <= CU_G_RESET; i++)
+                    if (cu_g_vis(i)) {
+                        if (i == cu.opt_g)
+                            at = n;
+                        n++;
+                    }
+                nm = CU_G_NAME[cu.opt_g % (CU_G_RESET + 1u)];
+            } else
+                for (i = cu_g_at(cu.opt_g); O_ORD[i] != CU_G_END; i++)
+                    if (cu_opt_vis(O_ORD[i])) {
+                        if (O_ORD[i] == cu.opt_sel)
+                            at = n;
+                        n++;
+                    }
+            if (cu.opt_in || cu.opt_g == CU_G_RESET)
+                opt_text(cu.opt_sel, ov, sizeof ov);
+            else {
+                uint32_t k = 0;
+                for (i = cu_g_at(cu.opt_g); O_ORD[i] != CU_G_END; i++)
+                    k += (uint32_t)cu_opt_vis(O_ORD[i]);
+                snprintf(ov, sizeof ov, "%u settings", (unsigned)k);
+            }
             printf("  options: open %u entry %u of %u '%s' value '%s'\n", (unsigned)cu.opt_open, (unsigned)at,
-                   (unsigned)n, O_NAME[cu.opt_sel % O_N], ov);
+                   (unsigned)n, nm, ov);
+            printf("  options group: in %u group '%s'\n", (unsigned)cu.opt_in, CU_G_NAME[cu.opt_g % (CU_G_RESET + 1u)]);
         }
     }
     printf("  boot: %s reset %s failed %u pending %u prev_stage %u\n", bootguard_mode_name(bootguard.mode),

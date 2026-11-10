@@ -81,7 +81,7 @@ btn EDIT
 wait 400
 btn GLO
 wait 200
-knob SELECT +35
+knob SELECT +7
 wait 300
 btn OCT+
 wait 200

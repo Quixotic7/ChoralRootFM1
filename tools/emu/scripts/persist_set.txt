@@ -16,8 +16,9 @@ btn OCT-
 wait 200
 btn GLO
 wait 200
+btn OCT+ 30
 knob KNOB1 +1
-wait 200
+wait 170
 btn GLO
 wait 200
 btn SAVE 900                  # the global save

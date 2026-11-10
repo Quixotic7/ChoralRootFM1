@@ -21,18 +21,27 @@ knob SELECT +17               # 137 BPM
 wait 200
 btn GLO                       # Options: Play Style Advanced
 wait 200
+btn OCT+ 30
 knob KNOB1 +1
-wait 200
-knob SELECT +23               # Motion: Off
-wait 200
+wait 170
+btn OCT- 30
+knob SELECT +4
+btn OCT+ 30
+knob SELECT +1  # Motion: Off
+wait 140
 knob KNOB1 +2
 wait 200
-knob SELECT +3                # Hold Time: +1 (entry 17, past Chord Names and LEDs)
-wait 200
+btn OCT- 30
+knob SELECT -2
+btn OCT+ 30
+knob SELECT +5  # Hold Time: +1 (entry 17, past Chord Names and LEDs)
+wait 140
 knob KNOB1 +1
 wait 200
-knob SELECT +4                # Dual Core: Off (entry 21; On is the default since 0.22)
-wait 200
+btn OCT- 30
+knob SELECT +4
+btn OCT+ 30  # Dual Core: Off (entry 21; On is the default since 0.22)
+wait 140
 knob KNOB1 -1
 wait 200
 btn GLO

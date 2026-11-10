@@ -9,8 +9,10 @@ keys classic                  # (0.25.1: FM-1 is the default; this script was wr
 wait 300
 btn GLO 80
 wait 200
-knob SELECT +25
-wait 100
+knob SELECT +4
+btn OCT+ 30
+knob SELECT +3
+wait 70
 knob KNOB1 +1
 wait 200
 shot build/emu/test/cr_glow_options.ppm
@@ -48,8 +50,10 @@ expect led F#4 on
 dump
 btn GLO 80
 wait 200
-knob SELECT -6                # (MIDI Clock: past MIDI CC since 3y273, MIDI Roots since 3y289)
-wait 100
+knob SELECT -1
+btn OCT+ 30
+knob SELECT +6  # (MIDI Clock: past MIDI CC since 3y273, MIDI Roots since 3y289)
+wait 70
 knob KNOB1 -1
 wait 100
 btn GLO 80

@@ -6,8 +6,9 @@
 wait 500
 btn GLO 80                    # Chord Keys FM-1
 wait 300
-knob SELECT +3
-wait 200
+knob SELECT +1
+btn OCT+ 30
+wait 170
 knob KNOB1 +1
 wait 200
 btn GLO 80

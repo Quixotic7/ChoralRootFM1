@@ -15,21 +15,28 @@
 wait 500
 btn GLO 80                    # Options: Chord Keys FM-1, then MIDI Keys and Full K Shorts
 wait 300
-knob SELECT +3
-wait 200
+knob SELECT +1
+btn OCT+ 30
+wait 170
 knob KNOB1 +1
 wait 200
-knob SELECT +1                # SUS Window: 80 ms (30 by default: the emulator's frames are coarse)
+knob SELECT +1  # SUS Window: 80 ms (30 by default: the emulator's frames are coarse)
 wait 200
 knob KNOB1 +10
 wait 200
-knob SELECT +2                # MIDI Keys (Chord Keys, SUS Window, Full K Shorts, MIDI Keys)
-wait 200
+btn OCT- 30
+knob SELECT +2
+btn OCT+ 30
+knob SELECT +4  # MIDI Keys (Chord Keys, SUS Window, Full K Shorts, MIDI Keys)
+wait 140
 knob KNOB1 +5                 # Off -> ch 5 (ch 1 and 2 are the parts': not offered)
 wait 300
 dump                          # 1
-knob SELECT -1                # Full K Shorts
-wait 200
+btn OCT- 30
+knob SELECT -2
+btn OCT+ 30
+knob SELECT +2  # Full K Shorts
+wait 140
 knob KNOB1 +1
 wait 300
 dump                          # 2

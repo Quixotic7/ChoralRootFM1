@@ -5,15 +5,17 @@
 #   3 after more roots tapped: still entry 2                            4 B3 tapped in the menu: LOCK on
 #   5 / 6 / 7 a chord struck in the menu, Output Clean -> Classic -> Clean under it (60 ms after each turn)
 #   8 Reset Settings asked (OCT+ once)   9 after keys played: still asked, nothing reset   10 OCT-: the menu closed
-#   11 Calibrate with keys played: not started     12 .. 46 every entry, by SELECT alone (35 since 3y289)
+#   11 Calibrate with keys played: not started     12 .. 45 every entry, group by group (SELECT, OCT+, OCT-; 3y290)
+#   46 Reset Settings, the group list's last item
 #   47 Secret Chords still Simple (no reset happened)   48 a take recorded from inside the menu   49 silent
 keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 btn GLO 80
 wait 300
+btn OCT+ 30
 knob SELECT +2
 knob KNOB1 +1                 # Secret Chords: Simple (what a reset would undo)
-wait 300
+wait 270
 shot build/emu/test/cr_opt_keys_idle.ppm
 dump                          # 1
 btn A#3 down                  # MAJ + D4, the menu open
@@ -41,8 +43,10 @@ wait 200
 dump                          # 4
 btn B3
 wait 1500
-knob SELECT +29               # Output (entry 29 since 0.24, 30 since 3y289's MIDI Roots)
-wait 300
+btn OCT- 30
+knob SELECT +5
+btn OCT+ 30  # Output (entry 29 since 0.24, 30 since 3y289's MIDI Roots)
+wait 240
 btn A#3 down
 btn D4 down
 wait 1500
@@ -60,8 +64,9 @@ wait 1000
 btn D4 up
 btn A#3 up
 wait 1500
-knob SELECT +34               # Reset Settings, the last entry
-wait 300
+btn OCT- 30
+knob SELECT +2  # Reset Settings, the last entry
+wait 270
 btn OCT+                      # asks
 wait 300
 dump                          # 8
@@ -72,24 +77,35 @@ btn A#3
 btn F3
 wait 300
 dump                          # 9
-btn OCT-                      # OCT-: back, nothing reset
+btn OCT-                      # OCT- on the group list: closed, nothing reset
 wait 300
 dump                          # 10
 btn GLO
 wait 300
-knob SELECT -1                # Calibrate: OCT+ starts it, no key does
-wait 200
+knob SELECT -1
+btn OCT+ 30
+knob SELECT +2  # Calibrate: OCT+ starts it, no key does
+wait 170
 btn D4
 btn G5
 btn A#3
 wait 300
 dump                          # 11
-knob SELECT -34
-wait 200
-dump                          # 12: entry 0
-
+btn OCT- 30                   # (3y290) the group list, Play, its first entry: the walk by SELECT and OCT+ / OCT-
+knob SELECT -6
+btn OCT+ 30
+wait 140
+dump                          # 12: Play's entry 0
 knob SELECT +1
 wait 120
+dump
+knob SELECT +1
+wait 120
+dump
+btn OCT- 30
+knob SELECT +1
+btn OCT+ 30
+wait 60
 dump
 knob SELECT +1
 wait 120
@@ -106,8 +122,10 @@ dump
 knob SELECT +1
 wait 120
 dump
+btn OCT- 30
 knob SELECT +1
-wait 120
+btn OCT+ 30
+wait 60
 dump
 knob SELECT +1
 wait 120
@@ -124,44 +142,10 @@ dump
 knob SELECT +1
 wait 120
 dump
+btn OCT- 30
 knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
-dump
-knob SELECT +1
-wait 120
+btn OCT+ 30
+wait 60
 dump
 knob SELECT +1
 wait 120
@@ -184,16 +168,54 @@ dump
 knob SELECT +1
 wait 120
 dump
-knob SELECT +1                # (3y273: one entry more, MIDI CC)
+btn OCT- 30
+knob SELECT +1
+btn OCT+ 30
+wait 60
+dump
+knob SELECT +1
 wait 120
 dump
-knob SELECT +1                # (3y289: one entry more, MIDI Roots)
+knob SELECT +1
 wait 120
 dump
-knob SELECT -32
-wait 80                       # (200 - 120: the walk has four entries more since Key Touch, the two Sens and the Curve)
-dump                          # 47: Secret Chords, still Simple (-32: three entries more since 0.24's Chord Keys,
-                              # Full K Shorts, MIDI Keys; one since 3y273's MIDI CC, one since 3y289's MIDI Roots)
+knob SELECT +1
+wait 120
+dump
+btn OCT- 30
+knob SELECT +1
+btn OCT+ 30
+wait 60
+dump
+knob SELECT +1
+wait 120
+dump
+knob SELECT +1
+wait 120
+dump
+knob SELECT +1
+wait 120
+dump
+btn OCT- 30
+knob SELECT +1
+btn OCT+ 30
+wait 60
+dump
+knob SELECT +1
+wait 120
+dump
+knob SELECT +1
+wait 120
+dump
+btn OCT- 30
+knob SELECT +1                # the group list's last item: Reset Settings
+wait 90
+dump                          # 46
+knob SELECT -7                # Play, Secret Chords
+btn OCT+ 30
+knob SELECT +2
+wait 50
+dump                          # 47: Secret Chords, still Simple
 btn GLO
 wait 300
 btn REC                       # armed on the view; the take is played with the menu open

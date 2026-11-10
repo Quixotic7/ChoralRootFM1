@@ -1326,20 +1326,6 @@ static int cu_opt_vis(uint32_t o)
         return CU_FN_KEYS && (o != O_SUSWIN || cs.layout);
     return 1;
 }
-static uint32_t cu_opt_next(uint32_t from, int32_t s)   /* SELECT in the Options: s listed entries on from entry
-                                                    * from, stopping at the ends */
-{
-    int32_t o = (int32_t)from, d = s < 0 ? -1 : 1, n = s < 0 ? -s : s;
-    while (n-- > 0) {
-        int32_t t = o + d;
-        while (t >= 0 && t < (int32_t)cu_opt_n() && !cu_opt_vis((uint32_t)t))
-            t += d;
-        if (t < 0 || t >= (int32_t)cu_opt_n())
-            break;
-        o = t;
-    }
-    return (uint32_t)o;
-}
 static uint8_t cu_erase_ask;              /* Options > Flash Data: OCT+ pressed once (the second erases) */
 static uint8_t cu_reset_ask;              /* Options > Reset Settings: OCT+ pressed once (the second resets) */
 #if CR_BLE
@@ -1693,6 +1679,8 @@ static struct {
                                            * layer's / a picker's; 0: not pressed, or pressed as a chord key */
     int8_t octave;
     uint8_t opt_open, opt_sel;
+    uint8_t opt_in, opt_g;                /* Options' groups (3y290): inside a group (0: the group list), the group
+                                           * chosen there (CU_G_*; CU_G_RESET: Reset Settings, the list's last item) */
     uint8_t page;                         /* PG_* */
     uint32_t last_sound;                  /* the last time a chord sounded or a key was held */
     uint32_t last_input;                  /* the last key, button, knob or MIDI message in (the screensaver, CR_IDLE_MS) */
@@ -1735,6 +1723,106 @@ static struct {
     uint8_t fsc_was[2];                   /* .. each switch's state before its press (a long press goes back to it) */
     uint32_t fsc_t0[2];                   /* .. its press (0: up) */
 } cu;
+/* Options' groups (3y290, the owner: "the settings get organized into Groups. So Enter Settings, select a group,
+ * OCT+ to enter the group, OCT- To exit the group"; their grouping, with Play first and Reset Settings at the end of
+ * the group list). Only the menu: every entry keeps its O_* and where it is stored. O_ORD: the entries in the order
+ * shown, CU_G_END closing each group, in CU_G_* order; Reset Settings is no group's (the group list's last item) */
+enum { CU_G_PLAY, CU_G_CHORDS, CU_G_KEYS, CU_G_MIDI, CU_G_SCREEN, CU_G_AUDIO, CU_G_SYSTEM, CU_G_SAFE, CU_G_N };
+#define CU_G_RESET CU_G_N                         /* (the group list's last item) */
+#define CU_G_END 0xFFu
+static const char *const CU_G_NAME[CU_G_N + 1] = {"Play", "Chords", "Keys", "MIDI", "Screen", "Audio", "System",
+                                                  "Safe Mode", "Reset Settings"};
+static const uint8_t O_ORD[] = {
+    O_STYLE, O_EXTADD, O_SECRET, CU_G_END,
+    O_LAYOUT, O_SUSWIN, O_FULLSHORT, O_SIXTH, O_BASSMODE, O_SINGLE, O_SPLIT, CU_G_END,
+    O_VEL, O_TOUCH, O_VSENS, O_VCURVE, O_ATSENS, O_HOLD,
+#if BOARD_SMK37
+    O_PEDAL,
+#endif
+    CU_G_END,
+    O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND, O_MIDI_KEYS, O_MIDI_ROOTS, O_CLOCK, O_MIDI_CC,
+#if CR_BLE
+    O_BLE, O_BLE_FORGET,
+#endif
+#if CR_USB_HOST
+    O_USB_HOST,
+#endif
+#if BOARD_SMK37
+    O_TRS,
+#endif
+    CU_G_END,
+    O_VIEW, O_MOTION, O_NAMES, O_LEDS, CU_G_END,
+    O_OUTPUT, O_USB_IN, O_USB_LEVEL, O_USB_RATE, CU_G_END,
+    O_DUALCORE, O_VERSION, O_CALIB, CU_G_END,
+    O_SAFE, O_ERASE, CU_G_END};
+static __attribute__((noinline)) uint32_t cu_g_at(uint32_t g)               /* group g's first place in O_ORD */
+{
+    uint32_t i = 0;
+    while (g && i < sizeof O_ORD)
+        if (O_ORD[i++] == CU_G_END)
+            g--;
+    return i;
+}
+static __attribute__((noinline)) int cu_g_vis(uint32_t g)                   /* an item of the group list (Safe Mode: in SAFE MODE only) */
+{
+    return g == CU_G_SAFE ? cr_safe : g <= CU_G_RESET;
+}
+static __attribute__((noinline)) uint32_t cu_g_of(uint32_t o)               /* the group of entry o (Reset Settings: CU_G_RESET) */
+{
+    uint32_t i, g = 0;
+    for (i = 0; i < sizeof O_ORD; i++)
+        if (O_ORD[i] == CU_G_END)
+            g++;
+        else if (O_ORD[i] == o)
+            return g;
+    return CU_G_RESET;
+}
+/* SELECT inside a group: s listed entries on from entry from, stopping at the group's ends; the group list: s items
+ * on from group from */
+static __attribute__((noinline)) uint32_t cu_opt_next(uint32_t from, int32_t s)
+{
+    int32_t d = s < 0 ? -1 : 1, n = s < 0 ? -s : s;
+    if (!cu.opt_in) {
+        int32_t g = (int32_t)from;
+        while (n-- > 0) {
+            int32_t t = g + d;
+            while (t >= 0 && t <= CU_G_RESET && !cu_g_vis((uint32_t)t))
+                t += d;
+            if (t < 0 || t > CU_G_RESET)
+                break;
+            g = t;
+        }
+        return (uint32_t)g;
+    }
+    {
+        int32_t i = (int32_t)cu_g_at(cu_g_of(from)), at = i;
+        while (O_ORD[at] != from)
+            at++;
+        while (n-- > 0) {
+            int32_t t = at + d;
+            while (t >= i && O_ORD[t] != CU_G_END && !cu_opt_vis(O_ORD[t]))
+                t += d;
+            if (t < i || O_ORD[t] == CU_G_END)
+                break;
+            at = t;
+        }
+        return O_ORD[at];
+    }
+}
+static __attribute__((noinline)) void cu_opt_root(uint32_t g)   /* the group list, on group g */
+{
+    cu.opt_in = 0;
+    cu.opt_g = (uint8_t)g;
+    cu.opt_sel = g == CU_G_RESET ? O_RESET : O_N;  /* (O_N: no entry: Reset's OCT+ is the only one the list has) */
+}
+static __attribute__((noinline)) void cu_opt_enter(void)   /* OCT+ on a group: its first entry listed */
+{
+    uint32_t i = cu_g_at(cu.opt_g);
+    while (O_ORD[i] != CU_G_END && !cu_opt_vis(O_ORD[i]))
+        i++;
+    cu.opt_in = 1;
+    cu.opt_sel = O_ORD[i];
+}
 /* the Full keyboard (KEY layer, Keyboard: Full) with Full K Shorts: F#5 and G5 are its switches, F#5 brings the
  * layout's chord keys back on the low keys (cu.full_chk: the Chords keyboard then, its roots to F5) */
 static int cu_fshort(void) { return CU_FN_KEYS && cs.kbd_full && cs.full_short; }
@@ -3393,6 +3481,14 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
         cu.page = PG_NONE;
         cu.lock = L_NONE;
         cu.opt_open ^= 1u;
+        if (cu.opt_open) {                        /* (3y290) the group list, on the group last used; SAFE MODE's
+                                                   * first opening: inside Safe Mode, on its entry */
+            if (cr_safe && cu_g_of(cu.opt_sel) == CU_G_SAFE) {
+                cu.opt_in = 1;
+                cu.opt_g = CU_G_SAFE;
+            } else
+                cu_opt_root(cu.opt_g);
+        }
         break;
     case BT_EDIT:                                 /* the chord sound's editor (BASS held + EDIT: cu_btn_press) */
         if (cu.lock == L_LOOP) {                  /* the PLAY menu: the loop editor, and out of it */
@@ -3533,7 +3629,7 @@ static void cu_reset(void)
 #if CR_HAVE_SETTINGS
     cr_settings_reset();
 #endif
-    cu.opt_sel = O_STYLE;
+    cu_opt_root(CU_G_PLAY);                       /* (the group list, on its first group) */
     cu_message(cr_c1_off && cs.dualcore && !CR_SINGLE_CORE ? "settings reset \267 restart" : "settings reset", CR_COL_GREEN);   /* (Dual Core
                                                    * was Off at this power-on: On, the default since 0.22, is saved,
                                                    * the core starts at the next; but not in a power-on that kept
@@ -3556,6 +3652,21 @@ static void cu_oct_tap(uint32_t b)
         else
             cu_save_close();
         return;
+    }
+    if (cu.opt_open && !cu.lock && !cu.page) {    /* the Options' groups (3y290): OCT+ enters the group, OCT- back to
+                                                   * the group list, OCT- there leaves (Reset Settings, the list's last
+                                                   * item: its OCT+ below) */
+        if (!cu.opt_in && cu.opt_g != CU_G_RESET) {
+            if (b == B_OCTUP)
+                cu_opt_enter();
+            else
+                cu_close_all();
+            return;
+        }
+        if (cu.opt_in && b != B_OCTUP) {
+            cu_opt_root(cu.opt_g);
+            return;
+        }
     }
     if (b == B_OCTUP && cu.opt_open && cu.opt_sel == O_ERASE && cr_safe && !cu.lock && !cu.page) {
         if (!cu_erase_ask) {
@@ -3618,6 +3729,8 @@ static void cu_oct_tap(uint32_t b)
             cu_layer_close();
         return;
     }
+    if (b == B_OCTUP && cu.opt_open && cu.opt_in && !cu.lock && !cu.page)
+        return;                                   /* (an entry of a group: OCT+ does nothing, the owner's choice) */
     if (cu_picker_ctx()) {                        /* OCT+: OK (a picker's change is live already), OCT-: back */
         cu_close_all();
         return;
@@ -5741,8 +5854,10 @@ static void cu_knob(uint32_t role, int32_t s)
         return;
     }
     if (cu.opt_open && (role == EN_SELECT || role == EN_K1)) {
-        if (role == EN_SELECT) {
-            cu.opt_sel = (uint8_t)cu_opt_next(cu.opt_sel, s);   /* (the entries listed: cu_opt_vis) */
+        if (!cu.opt_in)                           /* the group list: SELECT or KNOB 1 picks a group */
+            cu_opt_root(cu_opt_next(cu.opt_g, s));
+        else if (role == EN_SELECT) {
+            cu.opt_sel = (uint8_t)cu_opt_next(cu.opt_sel, s);   /* (the group's entries listed: cu_opt_vis) */
         } else {
             opt_set(cu.opt_sel, cu.opt_sel == O_VEL ? cu_kval(opt_get(O_VEL), s, 1, 127, kn.snap) : opt_get(cu.opt_sel) + s);
                                                    /* (Velocity: a value; the others are choices, one a detent) */
@@ -8025,6 +8140,41 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
 }
 
+/* the picker's items (3y290): the group list (each group's entries counted under it; Reset Settings, its last item,
+ * shows as the entry it is), or the group's entries listed (cu_opt_vis). 1: the group list on a group (done) */
+static __attribute__((noinline)) int cu_options_list(cr_screen_t *s)
+{
+    const char *it[O_N];
+    char t[32];
+    uint32_t i, n = 0, at = 0;
+    if (!cu.opt_in) {
+        for (i = 0; i <= CU_G_RESET; i++)
+            if (cu_g_vis(i)) {
+                if (i == cu.opt_g)
+                    at = n;
+                it[n++] = CU_G_NAME[i];
+            }
+        cu_picker(s, it, n, at, CR_COL_WHITE, "settings \267 OCT+ opens", "SELECT: group \267 OCT+: open \267 OCT-: back");
+        if (cu.opt_g == CU_G_RESET)
+            return 0;
+        for (i = cu_g_at(cu.opt_g), n = 0; O_ORD[i] != CU_G_END; i++)
+            n += (uint32_t)cu_opt_vis(O_ORD[i]);
+        cu_int(s->value, (int32_t)n, 0, sizeof s->value);
+        cu_cat(s->value, " settings", sizeof s->value);
+        return 1;
+    }
+    for (i = cu_g_at(cu.opt_g); O_ORD[i] != CU_G_END; i++)
+        if (cu_opt_vis(O_ORD[i])) {
+            if (O_ORD[i] == cu.opt_sel)
+                at = n;
+            it[n++] = O_NAME[O_ORD[i]];
+        }
+    cu_cpy(t, CU_G_NAME[cu.opt_g], sizeof t);
+    cu_cat(t, " \267 KNOB 1 sets", sizeof t);
+    cu_picker(s, it, n, at, CR_COL_WHITE, t, "SELECT: move \267 OCT-: groups \267 HOME");
+    return 0;
+}
+
 static void cu_options_screen(cr_screen_t *s)
 {
     s->batt = (uint8_t)cu_batt();                  /* the one page with the battery level */
@@ -8036,17 +8186,8 @@ static void cu_options_screen(cr_screen_t *s)
     if (cu.opt_sel != O_BLE_FORGET)
         cu_ble_ask = 0;
 #endif
-    {                                              /* the entries listed (cu_opt_vis), the selected one's place */
-        const char *it[O_N];
-        uint32_t o, n = 0, at = 0;
-        for (o = 0; o < cu_opt_n(); o++)
-            if (cu_opt_vis(o)) {
-                if (o == cu.opt_sel)
-                    at = n;
-                it[n++] = O_NAME[o];
-            }
-        cu_picker(s, it, n, at, CR_COL_WHITE, "options \267 KNOB 1 sets", "SELECT: move \267 OCT-: back \267 HOME");
-    }
+    if (cu_options_list(s))
+        return;
     opt_text(cu.opt_sel, s->value, sizeof s->value);
     if (cu.opt_sel == O_SAFE)                      /* "Safe mode: flash data skipped \267 OCT- OCT+ HOME 5 s: update" (0.18) */
         cu_cpy(s->label, "OCT- OCT+ HOME 5 s: update", sizeof s->label);

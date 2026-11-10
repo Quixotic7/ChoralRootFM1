@@ -5,9 +5,11 @@ keys classic                  # (0.25.1: FM-1 is the default; this script was wr
 wait 300
 btn GLO 80                     # Options: MIDI Clock -> In
 wait 100
-knob SELECT +19
+knob SELECT +3
+btn OCT+ 30
+knob SELECT +6
 knob KNOB1 +2
-wait 100
+wait 70
 btn GLO 80
 wait 200
 btn REC
@@ -52,8 +54,10 @@ wait 200
 expect led GREEN off         # 8
 btn GLO 80                     # Options: MIDI Clock -> Out
 wait 100
+btn OCT+ 30
+knob SELECT +6
 knob KNOB1 -1
-wait 100
+wait 70
 btn GLO 80
 wait 200
 midi FA                      # Out: plays, as LOOP; no FA sent back
@@ -77,8 +81,10 @@ wait 300
 expect led GREEN off         # 14
 btn GLO 80                     # Options: MIDI Clock -> Off
 wait 100
+btn OCT+ 30
+knob SELECT +6
 knob KNOB1 -1
-wait 100
+wait 70
 btn GLO 80
 wait 200
 midi FA                      # Off: ignored

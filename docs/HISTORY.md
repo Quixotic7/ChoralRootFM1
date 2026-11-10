@@ -8284,3 +8284,24 @@ Tests: `cr_midi_test t_roots` and the pads, `cr_settings_test t_midi_roots`, `to
 (the home view's name: the emulator dump's new `screen name:` line; `mroots` on its `chord keys:` line); the Options
 walk (`cr_opt_keys`) and every script that jumps past MIDI CC moved by one entry. MANUAL.md "MIDI in" and the Options
 table, SETTINGS.md. Not on the SMK-37 (hidden with MIDI Keys).
+
+3y290. **The Options in groups.** The owner, trying MIDI Roots (3y289) on 5473E6AA: "The Global settings has a bunch
+of options now. It would be nice to clean this up, so the settings get organized into Groups. So Enter Settings,
+select a group, OCT+ to enter the group, OCT- To exit the group." The grouping as proposed, with the owner's two
+changes ("I would separate Play Style, Extension Addition, Secret Chords into it's own goup at the front. I'd also add
+the "Reset Settings" option at end of root level"), and OCT+ on a setting does nothing (their choice): **Play** (Play
+Style, Extension Addition, Secret Chords), **Chords** (Chord Keys, SUS Window, Full K Shorts, 6th with 7th, Bass
+Behaviour, Single Notes, Split Point), **Keys** (Velocity, Key Touch, the two Sens, Velocity Curve, Hold Time; the
+SMK-37's Pedal), **MIDI** (Perform, Bass, Raw Chord, Raw Chord Sound, MIDI Keys, MIDI Roots, Clock, CC, Bluetooth,
+Forget Bluetooth, USB Host; the SMK-37's TRS MIDI Out), **Screen** (View, Motion, Chord Names, LEDs), **Audio**
+(Output, USB Record, USB Level, USB Rate), **System** (Dual Core, Version, Calibrate), then **Reset Settings** as the
+group list's last item (OCT+ twice there, as before). SAFE MODE adds a Safe Mode group (Safe Mode, Flash Data) and
+opens inside it, on Safe Mode, as before. OPT opens the group list on the group last used (the same picker screen,
+"N settings" under the group); SELECT or KNOB 1 picks, OCT+ enters, OCT- goes back, OCT- on the list leaves; OPT and
+HOME close from anywhere. A Reset Settings goes back to the list on Play. `cr_ui.c`: `O_ORD` (the entries in the
+order shown, per group), `cu_opt_next` / `cu_opt_root` / `cu_opt_enter` / `cu_options_list` (noinline); every O_*
+and every stored bit unchanged. The emulator's `options:` line is the place at the level shown, and a new `options
+group:` line says the group. 38 scripts that went to an entry by counting SELECT steps rewritten to the group moves
+(timing kept: an inserted OCT press's 30 ms comes off the next wait), `cr_opt_keys`'s walk now goes group by group,
+`lp_run`'s preamble enters Play. XIP 565,980 (98.7 %, +912). MANUAL.md section 14 (a table per group), SETTINGS.md.
+

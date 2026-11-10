@@ -81,8 +81,10 @@ btn HOME
 wait 300
 btn GLO 80
 wait 300
-knob SELECT +23               # Options > Motion
-wait 300
+knob SELECT +4
+btn OCT+ 30
+knob SELECT +1  # Options > Motion
+wait 270
 knob KNOB1 +2                 # Full -> Calm -> Off
 wait 300
 btn GLO 80
@@ -99,8 +101,10 @@ key F3 up
 wait 300
 btn GLO 80
 wait 300
+btn OCT+ 30
+knob SELECT +1
 knob KNOB1 -1                 # Calm
-wait 300
+wait 270
 btn GLO 80
 wait 400
 key F3 down
@@ -113,8 +117,10 @@ key F3 up
 wait 300
 btn GLO 80
 wait 300
+btn OCT+ 30
+knob SELECT +1
 knob KNOB1 -1                 # Full
-wait 300
+wait 270
 btn GLO 80
 wait 400
 btn ARP down

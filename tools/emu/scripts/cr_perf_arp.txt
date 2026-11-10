@@ -67,8 +67,10 @@ btn OCT-
 wait 200
 btn GLO 80                    # Options > Motion Off
 wait 300
-knob SELECT +23
-wait 300
+knob SELECT +4
+btn OCT+ 30
+knob SELECT +1
+wait 270
 knob KNOB1 +2
 wait 300
 btn GLO 80

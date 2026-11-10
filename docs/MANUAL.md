@@ -1856,59 +1856,98 @@ Options > Motion (Full, Calm, Off) sets how much the screens animate; the hoppin
 
 ## 14. Options
 
-Tap **OPT** (printed GLO). One setting fills the screen:
+Tap **OPT** (printed GLO). The settings are in groups (new in 0.39): **Play**, **Chords**, **Keys**, **MIDI**,
+**Screen**, **Audio** and **System**, and the list ends with **Reset Settings**. OPT opens the group list, on the
+group you used last; under the group's name, how many settings it holds.
+
+- **SELECT** (or **KNOB 1**) picks a group; **OCT+** opens it.
+- In a group one setting fills the screen, the group's name at the top:
 
 <img src="manual/options.png" width="240" alt="An Options page: Play Style, value Simple, the next entry Extension Addition under it, the battery at the top right">
 
-- **SELECT** moves to the next or previous setting.
-- **KNOB 1** changes the value. Changes act at once.
-- **OPT**, **HOME**, **OCT-** or **OCT+** closes the Options. The bottom line of the screen says so.
+- **SELECT** moves to the next or previous setting of the group, **KNOB 1** changes the value. Changes act at once.
+- **OCT-** goes back to the group list; OCT- on the group list closes the Options. **OPT** or **HOME** closes them
+  from anywhere. OCT+ on a setting does nothing (it only opens a group, and starts Calibrate, Forget Bluetooth and
+  Reset Settings).
 - **The keys play**, exactly as on the view you opened the Options from: chords, LOCK, Key Mode, the split, the
   arpeggio, LATCH, and a loop being recorded takes what you play. Their lights show what plays, and OPT is lit while
   the Options are open. So you can hold a chord and turn KNOB 1 to hear a setting change: Output between Classic and
   Clean, for one. KNOB 2 to 4, PRESETS and ALGORITHM also keep the jobs they have on the view. Only OCT- and OCT+ are
-  different: they close the Options instead of shifting the octave. (Until 0.19 the white keys jumped to the first
-  eleven settings and nothing sounded.)
+  different: they move through the groups (above) instead of shifting the octave. (Until 0.19 the white keys jumped
+  to the first eleven settings and nothing sounded.)
 - No key confirms or cancels anything in the Options. Calibrate and Reset Settings are started with OCT+ only.
+
+**Play**
 
 | Setting | Values | Default | What it does |
 | --- | --- | --- | --- |
 | **Play Style** | Simple, Advanced, Free | Simple | what chord keys do while a root is held ([Play styles](#play-styles)) |
 | **Extension Addition** | Add Note, Play Chord | Add Note | in Advanced and Free: an extension adds its note, or replays the chord |
 | **Secret Chords** | Off, Simple, All | Off | two chord types together make a third chord ([Secret chords](#secret-chords)) |
+
+**Chords**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
 | **Chord Keys** | FM-1, Classic | FM-1 (since 0.25.1; an updated unit is moved to it once) | which keys are the chord keys: FM-1 (SUS = G#3 + A#3, the 9 on B3, C4 and C#4 roots, LOCK on LFO; [The FM-1 chord keys](#the-fm-1-chord-keys)) or Classic, the Orchid's (DIM MIN MAJ SUS on F#3 G#3 A#3 C#4, the 9 on C4, LOCK on B3; [The Classic chord keys](#the-classic-chord-keys)). Not on the SMK-37 |
 | **SUS Window** | 30 to 80 ms, 5 ms a step | 30 ms | listed with the FM-1 chord keys only: how long a root waits for the second key of G#3 + A#3 ([The FM-1 chord keys](#the-fm-1-chord-keys)) |
 | **Full K Shorts** | Off, On | Off | on the Full keyboard, F#5 brings the chord keys back and G5 plays a chord on every key ([Key Mode](#key-mode)) |
-| **MIDI Keys** | Off, ch 1 to ch 16 | Off | the channel whose notes 53 to 79 press the FM-1's keys F3 to G5, and notes 36 to 44 (a pad controller's first pads) the chord keys F3 to C#4 ([MIDI in](#midi-in-usb-bluetooth-and-the-trs-jack)); the MIDI Perform, MIDI Bass and MIDI Roots channels are skipped |
 | **6th with 7th** | In place, Octave up | In place | where the 6th sounds in a chord that also has a seventh (7 or M7). In place: 9 semitones above the root, under the seventh, as the Orchid plays it. Octave up: an octave higher, on top, which makes it a 13th chord (D + 7 + 6: D F# A C B). Chords without a seventh never change; the name does not change ([Types and extensions](#types-and-extensions)) |
-| **Velocity** | 1 to 127 | 100 | the velocity of every key, for the sound and for MIDI out |
-| **Pedal** | Sustain, Expression | Sustain | the SMK-37 only: what its pedal jack does. Sustain: a switch pedal holds the notes; Expression: an expression pedal sets both parts' expression (CC 11). Kept by the global save ([SMK37.md](../SMK37.md#the-pedal-jack)) |
 | **Bass Behaviour** | Chords Only, Unison Bass, Bass Single Notes, Solo | Chords Only | what the bass plays ([Bass](#6-bass)) |
 | **Single Notes** | Full Octave, Split Oct, Split Bass | Full Octave | Split Oct: single notes below the split point sound an octave lower. Split Bass: the keys below it play the bass part ([Key Mode](#key-mode)) |
 | **Split Point** | C to B | F | where that split is on the Chords keyboard; reads `(Split off)` while Single Notes is Full Octave. The Full keyboard splits at its second F |
+
+**Keys**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
+| **Velocity** | 1 to 127 | 100 | the velocity of every key, for the sound and for MIDI out |
+| **Hold Time** | 300, 400, 500, 600 ms | 400 ms | how long a hold is |
+| **Pedal** | Sustain, Expression | Sustain | the SMK-37 only: what its pedal jack does. Sustain: a switch pedal holds the notes; Expression: an expression pedal sets both parts' expression (CC 11). Kept by the global save ([SMK37.md](../SMK37.md#the-pedal-jack)) |
+
+**MIDI**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
 | **MIDI Perform** | Off, ch 1 to ch 16 | ch 1 | the channel the chord sound's notes go out on, and come in on |
 | **MIDI Bass** | Off, ch 1 to ch 16 | ch 2 | the same for the bass |
 | **MIDI Raw Chord** | Off, ch 1 to ch 16 | Off | the channel for the plain chord, without the performance mode. From Off the first step is ch 1; choose a channel of its own (the Orchid uses 3) |
 | **Raw Chord Sound** | Off, On | Off | On: the plain chord also plays on the chord sound, under an arpeggio or pattern. With no performance mode on, every note then sounds twice |
+| **MIDI Keys** | Off, ch 1 to ch 16 | Off | the channel whose notes 53 to 79 press the FM-1's keys F3 to G5, and notes 36 to 44 (a pad controller's first pads) the chord keys F3 to C#4 ([MIDI in](#midi-in-usb-bluetooth-and-the-trs-jack)); the MIDI Perform, MIDI Bass and MIDI Roots channels are skipped |
+| **MIDI Roots** | Off, ch 1 to ch 16 | Off | the channel whose every note is a root at its own pitch: a whole keyboard plays chords, with the chord keys held on the FM-1 or over MIDI Keys ([MIDI in](#midi-in-usb-bluetooth-and-the-trs-jack)); the MIDI Perform, MIDI Bass and MIDI Keys channels are skipped. Not on the SMK-37. New in 0.39 |
 | **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop; incoming start / stop work as LOOP. In: follows the clock and start / stop |
 | **MIDI CC** | Off, In, Out, In + Out | In | CCs on the sounds' parameters ([MIDI CC](#midi-cc-the-sounds-parameters)). In: a CC sets the parameter; Out: a knob turned on such a parameter sends its CC. Off: only CC 7, 91, 93 and 94 as before. New in 0.33 |
-| **MIDI Roots** | Off, ch 1 to ch 16 | Off | the channel whose every note is a root at its own pitch: a whole keyboard plays chords, with the chord keys held on the FM-1 or over MIDI Keys ([MIDI in](#midi-in-usb-bluetooth-and-the-trs-jack)); the MIDI Perform, MIDI Bass and MIDI Keys channels are skipped. Not on the SMK-37. New in 0.39 |
 | **Bluetooth** | Off, On | Off | the FM-1 only: MIDI over Bluetooth, the same MIDI as over USB ([Bluetooth MIDI](#bluetooth-midi)); the first On takes effect at the next power-on. The line under it says what the link is doing. Kept apart from the other settings (Reset Settings leaves it, a backup does not carry it; Flash Data clears it) |
 | **Forget Bluetooth** | | | OCT+ twice: the FM-1 forgets the computer it paired with. Forget the FM-1 on that computer too |
 | **USB Host** | Off, On | Off | the FM-1 only: the USB-C port hosts a USB MIDI keyboard, controller or second FM-1 instead of talking to a computer ([USB Host](#usb-host-a-midi-device-on-the-fm-1s-usb-c)). Never saved: every start-up is a USB device again |
+
+**Screen**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
 | **View** | Chord, Keyboard, Notes, Geek Out, Scope, Geek Out 2 | Chord | the view ([Views](#13-views)) |
 | **Motion** | Full, Calm, Off | Full | screen animation |
 | **Chord Names** | Orchid, Standard | Orchid | how a chord is named on every screen. Orchid: by the keys held, as the Orchid does (`A` `7 9`, `JAZZ`). Standard: as a lead sheet names the notes that sound (`A9`, `Aadd9`, `A13`). Only the name changes, never the notes ([Chord names](#chord-names)) |
 | **LEDs** | Glow, Stock | Glow | Glow: idle keys glow dim, active ones are bright. Stock: the reverse |
-| **Hold Time** | 300, 400, 500, 600 ms | 400 ms | how long a hold is |
+
+**Audio**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
+| **Output** | Classic, Clean | Clean | the last stage before the headphones, the speaker and the USB recording. Classic: as 0.18 and before. Clean: 0.19's, with less distortion on chords and at low MASTER settings; a single note is a little quieter, a full chord with the bass a little louder, and everything sounds 0.7 ms later (its limiter looks ahead). You can switch while you play to compare |
 | **USB Record** | Off, On | On | On: the computer can record the FM-1 ([USB audio recording](#usb-audio-recording)) |
 | **USB Level** | Master, Fixed | Master | Master: the recording follows the MASTER knob. Fixed: it is recorded at full level and MASTER only sets what you hear |
 | **USB Rate** | 44.1 kHz, 44.1 + 48 kHz | 44.1 kHz | 44.1 kHz: the computer records at the FM-1's own rate, as in 0.18. 44.1 + 48 kHz: the computer may also choose 48 kHz, which the FM-1 converts for it; that takes some of its processor time while a recording runs ([USB audio recording](#usb-audio-recording)). The FM-1 leaves USB for a second when you change it |
+
+**System**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
 | **Dual Core** | Off, On | On (a new unit; an updated unit keeps what it had) | On: the chip's second core shares the work, so more voices sound (below). Takes effect after a restart |
-| **Output** | Classic, Clean | Clean | the last stage before the headphones, the speaker and the USB recording. Classic: as 0.18 and before. Clean: 0.19's, with less distortion on chords and at low MASTER settings; a single note is a little quieter, a full chord with the bass a little louder, and everything sounds 0.7 ms later (its limiter looks ahead). You can switch while you play to compare |
 | **Version** | | | the firmware's version; the line under it is this FM-1's unit ID (`unit ID A1B2C3D4`, its flash chip's: the same after any install), which tells several FM-1s on one computer apart (`fm1_install.py --unit`, the device manager) |
 | **Calibrate** | | | OCT+ starts the panel calibration ([Calibration](#calibration)) |
-| **Reset Settings** | | | OCT+ twice puts every setting back to its default (below) |
+
+**Reset Settings** (the group list's last item, not a group): OCT+ twice puts every setting back to its default (below)
 
 In SAFE MODE two more entries appear at the end, Safe Mode and Flash Data ([SAFE MODE](#safe-mode)).
 

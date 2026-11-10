@@ -10,11 +10,13 @@
 wait 500
 btn GLO 80
 wait 300
-knob SELECT +6                # MIDI Keys
-wait 200
+knob SELECT +3
+btn OCT+ 30
+knob SELECT +4  # MIDI Keys
+wait 170
 knob KNOB1 +5                 # ch 5
 wait 200
-knob SELECT +16               # MIDI Roots (after MIDI CC)
+knob SELECT +1  # MIDI Roots (after MIDI CC)
 wait 200
 knob KNOB1 +1                 # Off -> ch 3 (ch 1 and 2 are the parts': skipped)
 wait 300
