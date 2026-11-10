@@ -5,7 +5,7 @@ wait 300
 shot build/emu/test/cr_version_splash.ppm    # the splash: the version under the stripes
 btn GLO                       # Options
 wait 200
-knob SELECT +32               # Version (after Output; since 0.24 Chord Keys, Full K Shorts, MIDI Keys come after Secret Chords;
+knob SELECT +33               # Version (after Output; since 0.24 Chord Keys, Full K Shorts, MIDI Keys come after Secret Chords;
                               # since 0.25.1 the FM-1 chord keys are the default, and SUS Window is listed too)
 wait 300
 shot build/emu/test/cr_version.ppm

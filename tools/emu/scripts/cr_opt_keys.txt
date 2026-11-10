@@ -5,8 +5,8 @@
 #   3 after more roots tapped: still entry 2                            4 B3 tapped in the menu: LOCK on
 #   5 / 6 / 7 a chord struck in the menu, Output Clean -> Classic -> Clean under it (60 ms after each turn)
 #   8 Reset Settings asked (OCT+ once)   9 after keys played: still asked, nothing reset   10 OCT-: the menu closed
-#   11 Calibrate with keys played: not started     12 .. 44 every entry, by SELECT alone (33 since 0.24)
-#   45 Secret Chords still Simple (no reset happened)   46 a take recorded from inside the menu   47 silent
+#   11 Calibrate with keys played: not started     12 .. 46 every entry, by SELECT alone (35 since 3y289)
+#   47 Secret Chords still Simple (no reset happened)   48 a take recorded from inside the menu   49 silent
 keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 btn GLO 80
@@ -41,7 +41,7 @@ wait 200
 dump                          # 4
 btn B3
 wait 1500
-knob SELECT +28               # Output (entry 29 since 0.24)
+knob SELECT +29               # Output (entry 29 since 0.24, 30 since 3y289's MIDI Roots)
 wait 300
 btn A#3 down
 btn D4 down
@@ -60,7 +60,7 @@ wait 1000
 btn D4 up
 btn A#3 up
 wait 1500
-knob SELECT +33               # Reset Settings, the last entry
+knob SELECT +34               # Reset Settings, the last entry
 wait 300
 btn OCT+                      # asks
 wait 300
@@ -84,7 +84,7 @@ btn G5
 btn A#3
 wait 300
 dump                          # 11
-knob SELECT -33
+knob SELECT -34
 wait 200
 dump                          # 12: entry 0
 
@@ -187,10 +187,13 @@ dump
 knob SELECT +1                # (3y273: one entry more, MIDI CC)
 wait 120
 dump
-knob SELECT -31
+knob SELECT +1                # (3y289: one entry more, MIDI Roots)
+wait 120
+dump
+knob SELECT -32
 wait 80                       # (200 - 120: the walk has four entries more since Key Touch, the two Sens and the Curve)
-dump                          # 46: Secret Chords, still Simple (-31: three entries more since 0.24's Chord Keys,
-                              # Full K Shorts, MIDI Keys; one since 3y273's MIDI CC)
+dump                          # 47: Secret Chords, still Simple (-32: three entries more since 0.24's Chord Keys,
+                              # Full K Shorts, MIDI Keys; one since 3y273's MIDI CC, one since 3y289's MIDI Roots)
 btn GLO
 wait 300
 btn REC                       # armed on the view; the take is played with the menu open

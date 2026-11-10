@@ -1,0 +1,56 @@
+# ChoralRoot 3y289: Options > MIDI Roots (every note on its channel a root at its own pitch) with the chord keys from
+# MIDI Keys' pads (notes 36 .. 44 = F3 .. C#4), on the FM-1 layout. tools/emu/test_cr.sh reads the dumps by number:
+#   1 MIDI Keys ch 5, MIDI Roots ch 3 (ch 1 and 2, the parts', skipped)
+#   2 root 48 (C3) over MIDI Roots: C at 48, shown on the home view    3 let go: nothing held, silent
+#   4 pad 39 (G#3, MIN) then root 50 (D3) 20 ms later: the root waits for the window
+#   5 .. the window over: Dm at 50                                     6 pad 41 (A#3, MAJ) joins: SUS (Dm keeps sounding)
+#   7 root 74 (D5) too: Dsus there                                    8 CC 123 on ch 3: every root up, the pads' keys kept
+#   9 the pads let go: nothing held                                    10 a note on MIDI Perform (ch 1): the sound directly
+#   11 silent
+wait 500
+btn GLO 80
+wait 300
+knob SELECT +6                # MIDI Keys
+wait 200
+knob KNOB1 +5                 # ch 5
+wait 200
+knob SELECT +16               # MIDI Roots (after MIDI CC)
+wait 200
+knob KNOB1 +1                 # Off -> ch 3 (ch 1 and 2 are the parts': skipped)
+wait 300
+dump                          # 1
+btn GLO 80
+wait 500
+midi 92 30 64                 # root 48 over MIDI Roots
+wait 300
+dump                          # 2
+midi 82 30 00
+wait 800
+dump                          # 3
+midi 94 27 64                 # pad 39: G#3 (MIN)
+wait 20
+midi 92 32 64                 # root 50, 20 ms later: waits for the window
+wait 5
+dump                          # 4
+wait 300
+dump                          # 5
+midi 94 29 64                 # pad 41: A#3 (MAJ)
+wait 300
+dump                          # 6
+midi 92 4A 64                 # root 74
+wait 300
+dump                          # 7
+midi B2 7B 00                 # CC 123 on ch 3
+wait 500
+dump                          # 8
+midi 84 27 00
+midi 84 29 00
+wait 800
+dump                          # 9
+midi 90 3C 64                 # MIDI Perform (ch 1): the sound directly, no root
+wait 300
+dump                          # 10
+midi 80 3C 00
+wait 800
+wait 2000
+dump                          # 11: silent

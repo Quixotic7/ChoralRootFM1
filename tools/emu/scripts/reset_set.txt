@@ -23,7 +23,7 @@ btn GLO                       # Options: Play Style Advanced
 wait 200
 knob KNOB1 +1
 wait 200
-knob SELECT +22               # Motion: Off
+knob SELECT +23               # Motion: Off
 wait 200
 knob KNOB1 +2
 wait 200

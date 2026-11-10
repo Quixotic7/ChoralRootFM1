@@ -762,21 +762,24 @@ static int cr_min_take(crm_act_t *a)             /* the UI */
     return 1;
 }
 
-/* MIDI Keys (crm_key): the keys' events, ISR -> UI, a queue of their own (cr_minq drops a burst: a lost note-off
- * would hold a key). A note-on is taken while fewer than CR_MKQ_ON wait, a note-off while there is room; one that
- * finds the queue full asks for every key up instead (cr_mkq_allup), so nothing stays held */
+/* MIDI Keys (crm_key) and MIDI Roots (crm_root, CRM_ROOT set): their events, ISR -> UI, a queue of their own
+ * (cr_minq drops a burst: a lost note-off would hold a key). A note-on is taken while fewer than CR_MKQ_ON wait, a
+ * note-off while there is room; one that finds the queue full asks for every key and root up instead (cr_mkq_allup:
+ * CR_MKQ_EVERY), so nothing stays held */
 #define CR_MKQ 64u                               /* (a power of two) */
 #define CR_MKQ_ON 48u
 #define CR_MKQ_ALLUP CRM_KEY_ALLUP
+#define CR_MKQ_EVERY 30u                         /* every MIDI key and root up (not a key: 0 .. 26) */
 static volatile uint8_t cr_mkeys_ch;             /* the keys' channel 1 .. 16, 0 Off (the UI's cu_route) */
+static volatile uint8_t cr_mroots_ch;            /* MIDI Roots' channel 1 .. 16, 0 Off (the same) */
 static uint16_t cr_mkq[CR_MKQ];
 static volatile uint32_t cr_mkq_w, cr_mkq_r;
 static volatile uint8_t cr_mkq_allup;
 static void cr_mkq_post(uint32_t ev)
 {
-    uint32_t used = cr_mkq_w - cr_mkq_r;
-    if (((ev >> 12) & 1u) ? used >= CR_MKQ_ON : used >= CR_MKQ) {
-        if (!((ev >> 12) & 1u))
+    uint32_t used = cr_mkq_w - cr_mkq_r, down = (ev >> ((ev & CRM_ROOT) ? 14 : 12)) & 1u;
+    if (down ? used >= CR_MKQ_ON : used >= CR_MKQ) {
+        if (!down)
             cr_mkq_allup = 1;
         return;
     }
@@ -789,7 +792,7 @@ static int cr_mkq_take(uint32_t *ev)             /* the UI */
     if (cr_mkq_r == cr_mkq_w) {
         if (cr_mkq_allup) {                      /* (an off was lost: every key up, once the queue is empty) */
             cr_mkq_allup = 0;
-            *ev = CR_MKQ_ALLUP;
+            *ev = CR_MKQ_EVERY;
             return 1;
         }
         return 0;
@@ -798,6 +801,19 @@ static int cr_mkq_take(uint32_t *ev)             /* the UI */
     RING_PUBLISH();
     cr_mkq_r++;
     return 1;
+}
+
+/* MIDI Keys (crm_key) and MIDI Roots (crm_root): a message on either's channel posted to the UI; 1: it was theirs
+ * (nothing else takes it). Out of the ISR's loop body: called only while one of them is on */
+static __attribute__((noinline)) int cr_in_keys(uint32_t status, uint32_t d1, uint32_t d2)
+{
+    uint32_t ev;
+    int r = crm_key(status, d1, d2, cr_mkeys_ch, &ev);
+    if (r < 0)
+        r = crm_root(status, d1, d2, cr_mroots_ch, &ev);
+    if (r > 0)
+        cr_mkq_post(ev);
+    return r >= 0;
 }
 
 static void cr_loop_op(const cr_ev_in_t *e);
@@ -890,14 +906,11 @@ static void cr_midi_in(void)
             }
         } else if (status >= 0x80u && status < 0xF0u) {
             crm_act_t a[2];
-            uint32_t kev;
-            int i, n, kr = crm_key(status, d1, d2, cr_mkeys_ch, &kev);
+            int i, n;
             cr_in_msg_n++;
-            if (kr >= 0) {                       /* MIDI Keys' channel: the FM-1's keys, nothing else */
-                if (kr)
-                    cr_mkq_post(kev);
-                continue;
-            }
+            if ((cr_mkeys_ch | cr_mroots_ch) && cr_in_keys(status, d1, d2))
+                continue;                        /* MIDI Keys' or MIDI Roots' channel: the FM-1's keys / roots, nothing
+                                                  * else */
             n = crm_map(status, d1, d2, en, ch, cr_cc_mode & 1u, a);
             for (i = 0; i < n; i++) {
                 if (a[i].kind == CRM_FORWARD)

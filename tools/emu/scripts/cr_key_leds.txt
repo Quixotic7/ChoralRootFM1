@@ -68,7 +68,7 @@ expect led D4 off
 dump                          # 7: 000000000000000000
 btn GLO 80                    # Options > LEDs: Stock (two levels: the idle keys lit, the active dark)
 wait 300
-knob SELECT +24
+knob SELECT +25
 wait 300
 knob KNOB1 +1
 wait 300

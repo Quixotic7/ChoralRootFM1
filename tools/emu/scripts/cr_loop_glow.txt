@@ -9,7 +9,7 @@ keys classic                  # (0.25.1: FM-1 is the default; this script was wr
 wait 300
 btn GLO 80
 wait 200
-knob SELECT +24
+knob SELECT +25
 wait 100
 knob KNOB1 +1
 wait 200
@@ -48,7 +48,7 @@ expect led F#4 on
 dump
 btn GLO 80
 wait 200
-knob SELECT -5                # (MIDI Clock: past MIDI CC since 3y273)
+knob SELECT -6                # (MIDI Clock: past MIDI CC since 3y273, MIDI Roots since 3y289)
 wait 100
 knob KNOB1 -1
 wait 100

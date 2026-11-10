@@ -622,7 +622,9 @@ static struct {
     uint8_t suswin;                       /* .. SUS Window, ms (30 .. 80, 5 a step; 30 the default): FM-1's type keys */
     uint8_t full_short;                   /* .. Full K Shorts: F#5 / G5 are the Full keyboard's shortcut keys */
     uint8_t midi_keys;                    /* .. MIDI Keys: the channel (1 .. 16) whose notes 53 .. 79 press the keys F3 ..
-                                           * G5; 0 Off */
+                                           * G5 (36 .. 44: F3 .. C#4, a pad controller's); 0 Off */
+    uint8_t midi_roots;                   /* .. MIDI Roots (3y289): the channel (1 .. 16) whose every note is a root at its
+                                           * own pitch (cu_mroot); 0 Off */
     uint8_t midi_cc;                      /* Options > MIDI CC (3y269): bit 0 In, bit 1 Out (0 Off .. 3 In+Out; 1 In,
                                            * the default, 3y272) */
 #if BOARD_SMK37
@@ -1246,6 +1248,7 @@ static void cu_route(void)                        /* Options > MIDI: channels an
     }
     cr_route.part[CR_STREAM_RAW] = cs.raw_sound ? CR_PART_CHORD : CR_NOPART;
     cr_mkeys_ch = cs.midi_keys;                   /* MIDI Keys (0 Off; never a part's channel: opt_set) */
+    cr_mroots_ch = cs.midi_roots;                 /* MIDI Roots (the same; never MIDI Keys' either) */
     cr_cc_mode = cs.midi_cc;                      /* MIDI CC (the ISR's In; Out is cr_edit.c cu_cc_send's) */
     cr_post(CRE_STREAM, CR_STREAM_RAW, 0, cs.ch[CR_STREAM_RAW] || cs.raw_sound);
 }
@@ -1259,7 +1262,7 @@ enum { O_STYLE, O_EXTADD, O_SECRET,
        O_PEDAL,                           /* the SMK-37's pedal jack (cr_smk_pedal): not in the FM-1's list */
 #endif
        O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
-       O_CLOCK, O_MIDI_CC,
+       O_CLOCK, O_MIDI_CC, O_MIDI_ROOTS,  /* (MIDI Roots, 3y289: after the MIDI Options, so no entry before it moves) */
 #if CR_BLE
        O_BLE, O_BLE_FORGET,               /* Bluetooth MIDI (cr_ble.c, 3y236; FM-1 only) */
 #endif
@@ -1283,7 +1286,7 @@ static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Sec
     "Pedal",
 #endif
     "Bass Behaviour", "Single Notes", "Split Point", "MIDI Perform", "MIDI Bass", "MIDI Raw Chord", "Raw Chord Sound",
-    "MIDI Clock", "MIDI CC",
+    "MIDI Clock", "MIDI CC", "MIDI Roots",
 #if CR_BLE
     "Bluetooth", "Forget Bluetooth",
 #endif
@@ -1301,7 +1304,7 @@ static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 
                                    1,
 #endif
                                    3, 2, 11, 16, 16,
-                                   16, 1, 2, 3,
+                                   16, 1, 2, 3, 16,
 #if CR_BLE
                                    1, 0,
 #endif
@@ -1319,7 +1322,7 @@ static int cu_opt_vis(uint32_t o)
 {
     if (o >= cu_opt_n())
         return 0;
-    if (o == O_LAYOUT || o == O_SUSWIN || o == O_FULLSHORT || o == O_MIDI_KEYS)
+    if (o == O_LAYOUT || o == O_SUSWIN || o == O_FULLSHORT || o == O_MIDI_KEYS || o == O_MIDI_ROOTS)
         return CU_FN_KEYS && (o != O_SUSWIN || cs.layout);
     return 1;
 }
@@ -1372,6 +1375,7 @@ static void cu_usb_apply(void)
 }
 
 static void cu_layout_set(uint32_t fm1);           /* Options > Chord Keys (below, with the keys) */
+static void cu_mroot_allup(void);                 /* Options > MIDI Roots (below) */
 static void cu_fsc_set(uint32_t on);              /* Options > Full K Shorts */
 static int32_t opt_get(uint32_t o)
 {
@@ -1383,6 +1387,7 @@ static int32_t opt_get(uint32_t o)
     case O_SUSWIN: return (cs.suswin - 30) / 5;
     case O_FULLSHORT: return cs.full_short;
     case O_MIDI_KEYS: return cs.midi_keys;
+    case O_MIDI_ROOTS: return cs.midi_roots;
     case O_SIXTH: return cs.sixth_up;
     case O_VEL: return cs.vel;
     case O_TOUCH: return cs.touch;
@@ -1431,13 +1436,18 @@ static void opt_set(uint32_t o, int32_t v)
     case O_LAYOUT: cu_layout_set((uint32_t)v); break;
     case O_SUSWIN: cs.suswin = (uint8_t)(30 + 5 * v); break;
     case O_FULLSHORT: cu_fsc_set((uint32_t)v); break;
-    case O_MIDI_KEYS: {                               /* (a channel of its own: the parts' are skipped) */
-        int32_t d = v > cs.midi_keys ? 1 : -1;
-        while (v && (v == cs.ch[CR_STREAM_MAIN] || v == cs.ch[CR_STREAM_BASS]))
+    case O_MIDI_KEYS: case O_MIDI_ROOTS: {           /* (a channel of its own: the parts' and the other's are
+                                                       * skipped) */
+        uint8_t *mine = o == O_MIDI_KEYS ? &cs.midi_keys : &cs.midi_roots;
+        uint8_t other = o == O_MIDI_KEYS ? cs.midi_roots : cs.midi_keys;
+        int32_t d = v > *mine ? 1 : -1;
+        while (v && (v == cs.ch[CR_STREAM_MAIN] || v == cs.ch[CR_STREAM_BASS] || v == other))
             v += d;
         if (v < 0 || v > 16)
             break;
-        cs.midi_keys = (uint8_t)v;
+        if (o == O_MIDI_ROOTS && v != *mine)
+            cu_mroot_allup();                     /* (the old channel's roots held: up) */
+        *mine = (uint8_t)v;
         cu_route();
         break;
     }
@@ -1459,6 +1469,11 @@ static void opt_set(uint32_t o, int32_t v)
         if (o != O_CH_RAW && v && v == cs.midi_keys) {   /* a part on MIDI Keys' channel: MIDI Keys off */
             cs.midi_keys = 0;
             cu_message("MIDI Keys off", CR_COL_WHITE);
+        }
+        if (o != O_CH_RAW && v && v == cs.midi_roots) {   /* .. on MIDI Roots': MIDI Roots off */
+            cu_mroot_allup();
+            cs.midi_roots = 0;
+            cu_message("MIDI Roots off", CR_COL_WHITE);
         }
         cu_route();
         break;
@@ -1558,7 +1573,7 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
     case O_LAYOUT: cu_cpy(d, v ? "FM-1" : "Classic", n); break;
     case O_SUSWIN: cu_int(d, 30 + 5 * v, 0, n); cu_cat(d, " ms", n); break;
     case O_FULLSHORT: cu_cpy(d, ONOFF[v & 1], n); break;
-    case O_MIDI_KEYS:
+    case O_MIDI_KEYS: case O_MIDI_ROOTS:
         if (!v) cu_cpy(d, "Off", n);
         else { cu_cpy(d, "ch ", n); cu_int(d + 3, v, 0, n > 3u ? n - 3u : 0u); }
         break;
@@ -4795,9 +4810,75 @@ static void cu_tk_post(const uint8_t *w, uint32_t n, int press, int force)
         cr_post(CRE_MOD, w[n - 1u], 0, CR_MOD_PRESS);
     cu_trace("chord keys: types 0x%x%s\n", (unsigned)wb, press ? " (press)" : "");
 }
+/* Options > MIDI Roots (3y289; docs/MANUAL.md "MIDI in"): every note on that channel is a root at its own pitch, so a
+ * full keyboard plays the chords while the chord keys come from the FM-1, MIDI Keys (a pad controller) or LOCK. It
+ * plays as a root key's note does at the end of cu_key_press (CRE_KEY with the note: the engine builds the chord, and
+ * the screen and the keys' lights show it as for a key), in every layer and page (the keyboard has no layer jobs),
+ * with the note's velocity, and it waits for FM-1's open type-key gesture as a root key does (cu_tk_flush). The notes
+ * held are a bit set: the same note again while held is one press */
+#define CU_MRW 8u                                  /* roots waiting for a gesture (more: they play at once) */
+static struct {
+    uint32_t held[4];                              /* bit n: note n held over MIDI Roots */
+    uint8_t n;                                     /* .. how many */
+    uint8_t nw;                                    /* waiting for the gesture: w[0 .. nw - 1] */
+    struct { uint8_t note, vel, up; } w[CU_MRW];
+} cmr;
+static __attribute__((noinline)) void cu_mroot(uint32_t note, uint32_t vel, uint32_t down)
+{
+    uint32_t i, bit = 1u << (note & 31u), *h = &cmr.held[(note >> 5) & 3u];
+    if (down) {
+        if (*h & bit)
+            return;
+        *h |= bit;
+        cmr.n++;
+        cu.last_sound = cu_now();
+        if (cu.g_open && cmr.nw < CU_MRW) {        /* (a type-key gesture not decided yet: the root waits for it) */
+            cmr.w[cmr.nw].note = (uint8_t)note;
+            cmr.w[cmr.nw].vel = (uint8_t)vel;
+            cmr.w[cmr.nw].up = 0;
+            cmr.nw++;
+            cu_trace("midi roots: %u waits for the window\n", (unsigned)note);
+            return;
+        }
+        cr_post(CRE_KEY, note, vel, 1);
+        cu.last_vel = (uint8_t)vel;
+        cu_trace("midi roots: %u vel %u\n", (unsigned)note, (unsigned)vel);
+        return;
+    }
+    if (!(*h & bit))
+        return;
+    *h &= ~bit;
+    cmr.n--;
+    for (i = 0; i < cmr.nw; i++)
+        if (cmr.w[i].note == note && !cmr.w[i].up) {   /* (still waiting: it plays then, briefly) */
+            cmr.w[i].up = 1;
+            return;
+        }
+    cr_post(CRE_KEY, note, 0, 0);
+}
+static __attribute__((noinline)) void cu_mroot_allup(void)   /* every root MIDI Roots holds: up */
+{
+    uint32_t n;
+    for (n = 0; cmr.n && n < 128u; n++)
+        if ((cmr.held[n >> 5] >> (n & 31u)) & 1u)
+            cu_mroot(n, 0, 0);
+}
+static __attribute__((noinline)) void cu_mroot_flush(void)   /* the gesture decided: the waiting roots play */
+{
+    uint32_t i;
+    for (i = 0; i < cmr.nw; i++) {
+        cr_post(CRE_KEY, cmr.w[i].note, cmr.w[i].vel, 1);
+        if (cmr.w[i].up)
+            cr_post(CRE_KEY, cmr.w[i].note, 0, 0);
+    }
+    cmr.nw = 0;
+}
+
 static void cu_tk_flush(void)                      /* the roots that waited for the decision: they start now */
 {
     uint32_t k;
+    if (cmr.nw)
+        cu_mroot_flush();
     for (k = 0; k < CU_NKEY; k++) {
         uint32_t bit = 1u << k;
         if (!(cu.kwait & bit))
@@ -4952,6 +5033,7 @@ static void cu_tk_quiet(void)                      /* PANIC, a layout change: no
     cu.g_keys = 0;
     cu_tk_prune();
     cu.kwait = cu.kwait_up = 0;
+    cmr.nw = 0;                                    /* (MIDI Roots' waiting: dropped too, as the keys' are) */
 }
 
 /* the root keys belong to layer l (its map), else they play: PERF and FX play the chord so a mode or an effect is
@@ -5215,7 +5297,15 @@ static void cu_mkeys_poll(void)
     while (cr_mkq_take(&e)) {
         uint32_t k = e & 31u, vel = (e >> 5) & 127u, down = (e >> 12) & 1u, bit;
         cu.last_input = cu_now();
-        if (k == CR_MKQ_ALLUP) {
+        if (e == CRM_ROOT_ALLUP || e == CR_MKQ_EVERY)
+            cu_mroot_allup();                      /* (MIDI Roots: CC 120 / 123 there, or a queue overflow) */
+        if (e == CRM_ROOT_ALLUP)
+            continue;
+        if (e & CRM_ROOT) {                        /* MIDI Roots: a note */
+            cu_mroot(e & 127u, (e >> 7) & 127u, (e >> 14) & 1u);
+            continue;
+        }
+        if (k == CR_MKQ_ALLUP || e == CR_MKQ_EVERY) {
             for (k = 0; k < CU_NKEY; k++)
                 if ((cu.kmidi >> k) & 1u) {
                     cu.kmidi &= ~(1u << k);
@@ -6007,9 +6097,10 @@ static void cu_scan_step(void)                     /* step entry: every key up (
 {
     static uint8_t down;
 #if BOARD_SMK37
-    uint8_t dn = (uint8_t)(cu.kheld || cu_xheld || (cu.mlatch && !cu_full()));
+    uint8_t dn = (uint8_t)(cu.kheld || cmr.n || cu_xheld || (cu.mlatch && !cu_full()));
 #else
-    uint8_t dn = (uint8_t)(cu.kheld || (cu.mlatch && !cu_full()));   /* (the Full keyboard: the latch waits) */
+    uint8_t dn = (uint8_t)(cu.kheld || cmr.n || (cu.mlatch && !cu_full()));   /* (the Full keyboard: the latch
+                                                    * waits; MIDI Roots' notes are keys down) */
 #endif
     if (cr_snap.lcap == CRL_CAP_STEP && down && !dn) {
         cr_post(CRE_LOOP, LP_STEP, 0, CRL_STEP_KEYSUP);
@@ -7632,7 +7723,7 @@ static void cu_loopmenu(cr_screen_t *s, uint32_t now)
          * playback, I would like this to always show chord/notes of the selected step"), but while a root key is DOWN:
          * then the chord the player plays into it (his own, never a loop voice's: until then ci, the engine's "most
          * recent voice", which is the loop's whenever the loop strikes and a latched chord's whenever it does not) */
-        if ((cu.kheld >> cu_root0()) && sn->pl_on) {
+        if (((cu.kheld >> cu_root0()) || cmr.n) && sn->pl_on) {
             cr_chord_name(sn->pl_pc, sn->pl_q, sn->pl_x, r, q, sup);
             cu_cpy(s->sub, r, sizeof s->sub);
             cu_cat(s->sub, q, sizeof s->sub);
@@ -7977,7 +8068,9 @@ static void cu_options_screen(cr_screen_t *s)
     else if (cu.opt_sel == O_FULLSHORT)
         cu_cpy(s->label, "Full: F#5 chord keys \267 G5 chords", sizeof s->label);
     else if (cu.opt_sel == O_MIDI_KEYS)
-        cu_cpy(s->label, "notes 53..79 press F3..G5", sizeof s->label);
+        cu_cpy(s->label, "53..79 F3..G5 \267 36..44 pads", sizeof s->label);
+    else if (cu.opt_sel == O_MIDI_ROOTS)
+        cu_cpy(s->label, "every note a root", sizeof s->label);
     else if (cu.opt_sel == O_MIDI_CC)              /* (docs/MANUAL.md section 15: the CCs on the sounds' parameters) */
         cu_cpy(s->label, cs.midi_cc ? "the sounds' parameters" : "CC 7 91 93 94 only", sizeof s->label);
     else if (cu.opt_sel == O_SIXTH)                /* (docs/CHORD-NAMES.md "The 6th above a seventh": C7 + 6 and the like) */
@@ -8482,7 +8575,7 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         cu_calib_screen(s);
         return;
     }
-    if (sn->ci.sounding || (cu.kheld >> cu_root0()))
+    if (sn->ci.sounding || (cu.kheld >> cu_root0()) || cmr.n)
         cu.last_sound = now;
     if (cr_safe && now - cu_boot_ms < CR_SAFE_MS && !cu.bheld && !cu.kheld) {   /* 0. SAFE MODE, after the boot */
         cu_safe_screen(s);

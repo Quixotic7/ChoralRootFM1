@@ -212,7 +212,8 @@ static int crm_map(uint32_t status, uint32_t d1, uint32_t d2, const uint8_t en[2
 
 /* --------------------------------------------------------- MIDI Keys --- */
 /* Options > MIDI Keys (docs/CHORD-LAYOUT.md "MIDI in"): on that channel (keys_ch 1 .. 16, 0 Off) a note n 53 .. 79
- * presses the FM-1's key n - 53 (F3 .. G5) as the keybed does, through the active layout. A message on the channel
+ * presses the FM-1's key n - 53 (F3 .. G5) as the keybed does, through the active layout; 3y289: a note 36 .. 44 (a
+ * pad controller's first pads) presses the key n - 36 too, F3 .. C#4, the chord block. A message on the channel
  * -> *ev = key | vel << 5 | down << 12 (CRM_KEY_ALLUP as the key: every key MIDI holds up: CC 120, CC 123). Returns
  * 1 with an event, 0 for a message on the channel that does nothing (a note out of range, another message), -1: not
  * the keys' channel */
@@ -226,9 +227,29 @@ static int crm_key(uint32_t status, uint32_t d1, uint32_t d2, uint32_t keys_ch, 
         *ev = CRM_KEY_ALLUP;
         return 1;
     }
-    if ((st != 0x90u && st != 0x80u) || d1 < 53u || d1 > 79u)
+    if ((st != 0x90u && st != 0x80u) || d1 > 79u || (d1 < 53u && (d1 < 36u || d1 > 44u)))
         return 0;
-    *ev = (d1 - 53u) | (d2 & 0x7Fu) << 5 | (st == 0x90u && d2 ? 1u : 0u) << 12;
+    *ev = (d1 - (d1 < 53u ? 36u : 53u)) | (d2 & 0x7Fu) << 5 | (st == 0x90u && d2 ? 1u : 0u) << 12;
+    return 1;
+}
+
+/* Options > MIDI Roots (3y289): on that channel (roots_ch 1 .. 16, 0 Off) every note is a root at its own pitch, as
+ * the root keys play one (cr_ui.c cu_mroot). *ev = CRM_ROOT | note | vel << 7 | down << 14; CC 120 / 123:
+ * CRM_ROOT_ALLUP. The same returns as crm_key */
+#define CRM_ROOT 0x8000u
+#define CRM_ROOT_ALLUP (CRM_ROOT | 1u << 14 | 127u)   /* (down with velocity 0: no note's) */
+static int crm_root(uint32_t status, uint32_t d1, uint32_t d2, uint32_t roots_ch, uint32_t *ev)
+{
+    uint32_t st = status & 0xF0u;
+    if (!roots_ch || (status & 0x0Fu) != roots_ch - 1u)
+        return -1;
+    if (st == 0xB0u && (d1 == 120u || d1 == 123u)) {
+        *ev = CRM_ROOT_ALLUP;
+        return 1;
+    }
+    if (st != 0x90u && st != 0x80u)
+        return 0;
+    *ev = CRM_ROOT | d1 | d2 << 7 | (st == 0x90u && d2 ? 1u : 0u) << 14;
     return 1;
 }
 

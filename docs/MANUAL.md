@@ -1879,7 +1879,7 @@ Tap **OPT** (printed GLO). One setting fills the screen:
 | **Chord Keys** | FM-1, Classic | FM-1 (since 0.25.1; an updated unit is moved to it once) | which keys are the chord keys: FM-1 (SUS = G#3 + A#3, the 9 on B3, C4 and C#4 roots, LOCK on LFO; [The FM-1 chord keys](#the-fm-1-chord-keys)) or Classic, the Orchid's (DIM MIN MAJ SUS on F#3 G#3 A#3 C#4, the 9 on C4, LOCK on B3; [The Classic chord keys](#the-classic-chord-keys)). Not on the SMK-37 |
 | **SUS Window** | 30 to 80 ms, 5 ms a step | 30 ms | listed with the FM-1 chord keys only: how long a root waits for the second key of G#3 + A#3 ([The FM-1 chord keys](#the-fm-1-chord-keys)) |
 | **Full K Shorts** | Off, On | Off | on the Full keyboard, F#5 brings the chord keys back and G5 plays a chord on every key ([Key Mode](#key-mode)) |
-| **MIDI Keys** | Off, ch 1 to ch 16 | Off | the channel whose notes 53 to 79 press the FM-1's keys F3 to G5 ([MIDI in](#midi-in-usb-bluetooth-and-the-trs-jack)); the MIDI Perform and MIDI Bass channels are skipped |
+| **MIDI Keys** | Off, ch 1 to ch 16 | Off | the channel whose notes 53 to 79 press the FM-1's keys F3 to G5, and notes 36 to 44 (a pad controller's first pads) the chord keys F3 to C#4 ([MIDI in](#midi-in-usb-bluetooth-and-the-trs-jack)); the MIDI Perform, MIDI Bass and MIDI Roots channels are skipped |
 | **6th with 7th** | In place, Octave up | In place | where the 6th sounds in a chord that also has a seventh (7 or M7). In place: 9 semitones above the root, under the seventh, as the Orchid plays it. Octave up: an octave higher, on top, which makes it a 13th chord (D + 7 + 6: D F# A C B). Chords without a seventh never change; the name does not change ([Types and extensions](#types-and-extensions)) |
 | **Velocity** | 1 to 127 | 100 | the velocity of every key, for the sound and for MIDI out |
 | **Pedal** | Sustain, Expression | Sustain | the SMK-37 only: what its pedal jack does. Sustain: a switch pedal holds the notes; Expression: an expression pedal sets both parts' expression (CC 11). Kept by the global save ([SMK37.md](../SMK37.md#the-pedal-jack)) |
@@ -1892,6 +1892,7 @@ Tap **OPT** (printed GLO). One setting fills the screen:
 | **Raw Chord Sound** | Off, On | Off | On: the plain chord also plays on the chord sound, under an arpeggio or pattern. With no performance mode on, every note then sounds twice |
 | **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop; incoming start / stop work as LOOP. In: follows the clock and start / stop |
 | **MIDI CC** | Off, In, Out, In + Out | In | CCs on the sounds' parameters ([MIDI CC](#midi-cc-the-sounds-parameters)). In: a CC sets the parameter; Out: a knob turned on such a parameter sends its CC. Off: only CC 7, 91, 93 and 94 as before. New in 0.33 |
+| **MIDI Roots** | Off, ch 1 to ch 16 | Off | the channel whose every note is a root at its own pitch: a whole keyboard plays chords, with the chord keys held on the FM-1 or over MIDI Keys ([MIDI in](#midi-in-usb-bluetooth-and-the-trs-jack)); the MIDI Perform, MIDI Bass and MIDI Keys channels are skipped. Not on the SMK-37. New in 0.39 |
 | **Bluetooth** | Off, On | Off | the FM-1 only: MIDI over Bluetooth, the same MIDI as over USB ([Bluetooth MIDI](#bluetooth-midi)); the first On takes effect at the next power-on. The line under it says what the link is doing. Kept apart from the other settings (Reset Settings leaves it, a backup does not carry it; Flash Data clears it) |
 | **Forget Bluetooth** | | | OCT+ twice: the FM-1 forgets the computer it paired with. Forget the FM-1 on that computer too |
 | **USB Host** | Off, On | Off | the FM-1 only: the USB-C port hosts a USB MIDI keyboard, controller or second FM-1 instead of talking to a computer ([USB Host](#usb-host-a-midi-device-on-the-fm-1s-usb-c)). Never saved: every start-up is a USB device again |
@@ -2065,9 +2066,26 @@ connection going); the notes of the FM-1's own keys and the loop keep sounding.
 
 **MIDI Keys** (Options > MIDI Keys, Off by default; new in 0.24): on that channel the notes 53 to 79 press the FM-1's
 own keys F3 to G5, exactly as the keybed does: the chord keys of the layout you chose, the roots, LOCK, the SUS
-Window, the Full keyboard and its shortcuts. The note's velocity plays the key; CC 120 and CC 123 let every key go;
-other notes and messages on that channel do nothing. It cannot be the MIDI Perform or MIDI Bass channel (those are
-skipped, and setting one of them to it switches MIDI Keys off).
+Window, the Full keyboard and its shortcuts. Notes 36 to 44 (C2 to G#2, where most pad controllers' first pads sit)
+press F3 to C#4 too, the chord block, so pads can hold the chord keys (new in 0.39): pad 1 is F3, pad 2 F#3, and so
+on. The note's velocity plays the key; CC 120 and CC 123 let every key go; other notes and messages on that channel
+do nothing. It cannot be the MIDI Perform, MIDI Bass or MIDI Roots channel (those are skipped, and setting a part to
+it switches MIDI Keys off).
+
+**MIDI Roots** (Options > MIDI Roots, Off by default; new in 0.39): on that channel every note is a root at its own
+pitch, from the lowest note to the highest, so a whole keyboard plays ChoralRoot's chords. It plays as the FM-1's
+root keys do: with the chord keys held (on the FM-1, or on pads over MIDI Keys), LOCK and LATCH, the play style,
+Key Mode, the bass, the arpeggio or pattern and the looper, and the home screen shows the chord's name, its notes and
+the lit keys as for a key press. The keyboard's own octave sets the pitch (OCT- and OCT+ do not move it), and the
+note's velocity plays it. A root played while the FM-1 chord keys wait for their SUS Window waits too, as a root key
+does. The notes play whatever layer or page is open. CC 120 and CC 123 let every root go; other messages on that
+channel do nothing (a sustain pedal there holds nothing: use LATCH). It cannot be the MIDI Perform, MIDI Bass or
+MIDI Keys channel. Not on the SMK-37.
+
+A keyboard and a pad controller together: set the keyboard to the MIDI Roots channel and the pads to the MIDI Keys
+channel. Pads 1 to 9 (notes 36 to 44) are F3 to C#4; with the FM-1 chord keys that is 6, DIM, m7, MIN, M7, MAJ, 9 on
+pads 1 to 7 (MIN and MAJ together: SUS), and pads 8 and 9 are the roots C4 and C#4; with the Classic chord keys pads
+1 to 9 are 6, DIM, m7, MIN, M7, MAJ, LOCK, 9 and SUS.
 
 ### MIDI CC: the sounds' parameters
 

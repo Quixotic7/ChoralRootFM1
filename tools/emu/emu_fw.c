@@ -544,9 +544,10 @@ void emu_fw_dump(void)
         unsigned lfo = q == 0xFFu ? 0u : ((fm1_led[q >> 3] >> (q & 7u)) & 1u) ? 4u : ((fm1_led_dim2[q >> 3] >> (q & 7u)) & 1u) ? 3u
                        : ((fm1_led_dim[q >> 3] >> (q & 7u)) & 1u) ? 2u : ((fm1_led_faint[q >> 3] >> (q & 7u)) & 1u) ? 1u : 0u;
 #endif
-        printf("  chord keys: layout %s types-held %02X posted %02X gesture %u kwait %07X kmidi %07X full-chk %u full-all %u"
+        printf("  chord keys: layout %s types-held %02X posted %02X gesture %u kwait %07X kmidi %07X mroots %u/%u/%u full-chk %u full-all %u"
                " suswin %u midi-keys %u full-short %u latch %u lfo-led %u\n", cu_fm1() ? "fm1" : "classic", (unsigned)cu.tk_held,
-               (unsigned)cu.tposted, (unsigned)cu.g_open, (unsigned)cu.kwait, (unsigned)cu.kmidi, (unsigned)cu.full_chk,
+               (unsigned)cu.tposted, (unsigned)cu.g_open, (unsigned)cu.kwait, (unsigned)cu.kmidi, (unsigned)cs.midi_roots,
+               (unsigned)cmr.n, (unsigned)cmr.nw, (unsigned)cu.full_chk,
                (unsigned)cu.full_all, (unsigned)cs.suswin, (unsigned)cs.midi_keys, (unsigned)cs.full_short,
                (unsigned)cs.sticky, lfo);
     }   /* (FM-1's
@@ -752,6 +753,11 @@ void emu_fw_dump(void)
                     if (sc->cell[r][c].flags & CR_CF_ON)
                         printf(" %u.%u:%s=%s", r, c, sc->cell[r][c].label, sc->cell[r][c].value);
             printf("\n  screen foot: '%s'\n", sc->footer);   /* (the bottom line: a layer's keys, the Options') */
+            printf("  screen name: '%s%s%s' notes", sc->name.root, sc->name.quality, sc->name.sup);   /* (the chord
+                                                     * name the view draws, its notes line: MIDI Roots, 3y289) */
+            for (r = 0; r < sc->n_notes && r < CR_NOTES_MAX; r++)
+                printf(" %s", sc->note[r].t);
+            printf("\n");
             if (sc->kind == CR_K_ROUTE) {          /* the FX layer's Routing page: the blocks in order, the mode, the
                                                     * block held (cr_screen.h rt_*) */
                 static const char *const RB[4] = {"Chorus", "Delay", "Reverb", "Filter"};

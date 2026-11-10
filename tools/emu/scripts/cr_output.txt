@@ -15,7 +15,7 @@ wait 1500
 dump
 btn GLO 80
 wait 300
-knob SELECT +30
+knob SELECT +31
 wait 300
 shot build/emu/test/cr_output_clean.ppm
 knob KNOB1 -1

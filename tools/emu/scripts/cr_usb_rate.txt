@@ -8,7 +8,7 @@ keys classic                  # (0.25.1: FM-1 is the default; this script was wr
 wait 500
 btn GLO 80
 wait 300
-knob SELECT +28
+knob SELECT +29
 wait 300
 dump                          # 1
 shot build/emu/test/cr_usb_rate_44.ppm

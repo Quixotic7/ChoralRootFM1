@@ -229,9 +229,12 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(loop_count_in, 0, 1);
     CRS_FIX(loop_level, 0, 100);
     for (i = 0; i < 3; i++) {
-        if (s->midi_en[i] > 1u) s->midi_en[i] = d.midi_en[i];
+        if (s->midi_en[i] > (i == 2 ? 0x3Fu : 1u)) s->midi_en[i] = d.midi_en[i];   /* (midi_en[2] bits 1 .. 5: MIDI
+                                                    * Roots, 3y289) */
         if (s->midi_ch[i] > 15u) s->midi_ch[i] = d.midi_ch[i];
     }
+    if (CRS_MIDI_ROOTS(s) > 16u)                   /* (no such channel: Off, MIDI Raw Chord kept) */
+        s->midi_en[2] = (uint8_t)CRS_EN(s, 2);
     CRS_FIX(clock_mode, 0, CRS_CLOCK_IN);
     CRS_FIX(raw_sound, 0, 0xFF);                   /* (0.24: bits 1 .. 5 MIDI Keys' channel; 3y269: bits 6, 7 MIDI CC) */
     if (CRS_MIDI_KEYS(s) > 16u)                    /* (no such channel: Off, Raw Chord Sound and MIDI CC kept) */
@@ -550,10 +553,10 @@ void cr_settings_apply(const cr_settings_t *s, cr_t *c, cr_settings_out_t *o)
     cr_set_perform(c, s->perform_on);
     cr_set_sticky(c, (int)CRS_LATCH(s));           /* (bit 0: the other bits are the UI's Options) */
     cr_set_tempo(c, s->bpm);
-    cr_set_stream(c, CR_STREAM_RAW, s->midi_en[CR_STREAM_RAW] || CRS_RAW(s));
+    cr_set_stream(c, CR_STREAM_RAW, CRS_EN(s, CR_STREAM_RAW) || CRS_RAW(s));
     if (o) {
         for (i = 0; i < 3; i++) {
-            o->midi_en[i] = s->midi_en[i];
+            o->midi_en[i] = (uint8_t)CRS_EN(s, i);
             o->ch[i] = s->midi_ch[i];
         }
         o->part[CR_STREAM_MAIN] = 0;
@@ -590,7 +593,7 @@ void cr_settings_capture(cr_settings_t *s, const cr_t *c, const cr_settings_out_
             s->par[m][p] = (int16_t)cr_get_param(c, (cr_pmode_t)m, p);
     if (o) {
         for (i = 0; i < 3; i++) {
-            s->midi_en[i] = o->midi_en[i] ? 1u : 0u;
+            s->midi_en[i] = (uint8_t)((s->midi_en[i] & 0x3Eu) | (o->midi_en[i] ? 1u : 0u));   /* (MIDI Roots kept) */
             s->midi_ch[i] = (uint8_t)(o->ch[i] & 15u);
         }
         s->raw_sound = (uint8_t)((s->raw_sound & (uint8_t)~1u) | (o->part[CR_STREAM_RAW] != CRS_NONE ? 1u : 0u));
@@ -792,7 +795,7 @@ static void crs_capture(cr_settings_t *s)
     for (i = 0; i < (uint32_t)CRS_NPM * CRS_NPAR; i++)
         s->par[i / CRS_NPAR][i % CRS_NPAR] = cs.par[i / CRS_NPAR][i % CRS_NPAR];
     for (i = 0; i < 3u; i++) {
-        s->midi_en[i] = cs.ch[i] != 0u;
+        s->midi_en[i] = (uint8_t)((cs.ch[i] != 0u) | (i == 2u ? (cs.midi_roots & 31u) << 1 : 0u));   /* (MIDI Roots) */
         if (cs.ch[i])
             s->midi_ch[i] = (uint8_t)(cs.ch[i] - 1u);
     }
@@ -1198,9 +1201,10 @@ static void cr_settings_load(void)
     for (i = 0; i < (uint32_t)CRS_NPM * CRS_NPAR; i++)
         cs.par[i / CRS_NPAR][i % CRS_NPAR] = s->par[i / CRS_NPAR][i % CRS_NPAR];
     for (i = 0; i < 3u; i++)
-        cs.ch[i] = (uint8_t)(s->midi_en[i] ? s->midi_ch[i] + 1u : 0u);
+        cs.ch[i] = (uint8_t)(CRS_EN(s, i) ? s->midi_ch[i] + 1u : 0u);
     cs.raw_sound = (uint8_t)CRS_RAW(s);
     cs.midi_keys = (uint8_t)(CU_FN_KEYS ? CRS_MIDI_KEYS(s) : 0u);
+    cs.midi_roots = (uint8_t)(CU_FN_KEYS ? CRS_MIDI_ROOTS(s) : 0u);
     cs.midi_cc = (uint8_t)CRS_MIDI_CC(s);          /* Options > MIDI CC (0, an older record's bits: In) */
     cr_route.clock_out = o.clock_out;
     cr_route.clock_in = o.clock_in;

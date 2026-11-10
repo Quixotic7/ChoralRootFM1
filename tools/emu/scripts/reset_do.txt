@@ -12,7 +12,7 @@ btn A#3
 wait 300
 btn GLO
 wait 200
-knob SELECT +34               # past the end: the last entry: Reset Settings
+knob SELECT +35               # past the end: the last entry: Reset Settings
 wait 300
 shot build/emu/test/reset_entry.ppm
 dump                          # 2: entry 25 'Reset Settings', 'all options to default'

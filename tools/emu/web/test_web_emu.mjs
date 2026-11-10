@@ -86,6 +86,10 @@ function parseScript(text) {   // -> [{ms, op, ...}] (the subset the checks use;
     else if (c === "expect" && a === "led") at({ op: "led", name: b, want: words[3] });
     else if (c === "expect" && (a === "sound" || a === "silence")) at({ op: a });
     else if (c === "dump") at({ op: "dump" });
+    else if (c === "midi") {   // (emu.c's: a status and up to two data bytes in hex, as a USB-MIDI packet)
+      const st = parseInt(a, 16), d1 = b ? parseInt(b, 16) : 0, d2 = words[3] ? parseInt(words[3], 16) : 0;
+      at({ op: "midi", pkt: ((st >= 0xf0 ? 0x0f : st >> 4) | st << 8 | (d1 & 0x7f) << 16 | (d2 & 0x7f) << 24) >>> 0 });
+    }
     else if (c === "quit") at({ op: "quit" });
     else throw new Error(`script: ${raw}`);
   }
@@ -147,6 +151,7 @@ function runScript(ex, events, log) {
       if (e.op === "down" || e.op === "up") panel.apply(e.op, e.m);
       else if (e.op === "turn") ex.web_enc(e.role, e.n);
       else if (e.op === "master") ex.web_master(e.v);
+      else if (e.op === "midi") ex.web_midi_in(e.pkt);
       else if (e.op === "shot") shots[e.name] = fbCopy(ex);
       else if (e.op === "led") {
         const got = ledState(ex, e.name);
@@ -228,6 +233,20 @@ ok(true, `speed: ${secs.toFixed(2)} s of device time in ${took.toFixed(2)} s (${
   const avg = ts.reduce((a, b) => a + b, 0) / ts.length, budget = 128 / 44.1;
   ok(ts[ts.length - 1] < budget * 4, `render quantum (128 frames, budget ${budget.toFixed(2)} ms): avg ${avg.toFixed(3)} ms, ` +
      `99th ${ts[Math.floor(ts.length * 0.99)].toFixed(3)} ms, max ${ts[ts.length - 1].toFixed(3)} ms (node, this machine)`);
+}
+
+// MIDI Roots (3y289): a keyboard's notes on its channel are roots, pads on MIDI Keys hold the chord keys, and the home
+// view shows the chord: tools/emu/scripts/cr_midi_roots.txt on a fresh module (test_cr.sh checks the same dumps natively)
+{
+  const exm = await load();
+  exm.web_boot();
+  const mlog = [];
+  runScript(exm, parseScript(fs.readFileSync(path.join(ROOT, "tools/emu/scripts/cr_midi_roots.txt"), "utf8")), mlog);
+  const md = mlog.filter((l) => l[0] === "dump").map((l) => l[2]);
+  const nm = (i) => (/screen name: (.*)/.exec(md[i] || "") || [])[1];
+  ok(md.length === 11 && /'MIDI Roots' value 'ch 3'/.test(md[0]) && nm(1) === "'C' notes C3" && nm(4) === "'Dm' notes D3 F3 A3" &&
+     nm(6) === "'Dsus' notes D5 G5 A5" && /mroots 3\/0\/0 /.test(md[7]) && /parts busy 0/.test(md[10]),
+     `MIDI Roots: ch 3's notes are roots on the home view (${nm(1)}, with pad MIN ${nm(4)}, with MIN + MAJ ${nm(6)}); CC 123 lets them go`);
 }
 
 // ===================================================================================================== 2 ===

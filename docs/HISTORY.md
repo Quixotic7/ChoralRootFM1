@@ -8262,3 +8262,25 @@ version. **0.38-smk37** (base 0.38): `BOARD=smk37 [MODEL=elite|mke] ./build.sh -
 status, package names, version line and splash. `python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh` both
 lists match; `CR_VERSION=0.38 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1147 ok;
 test_persist 121 ok; `fm1_alnk0_irq` 13,610 of 13,890). Not pushed, tagged or flashed here (the orchestrator's).
+
+3y289. **MIDI Roots: a whole keyboard plays the chords; pads hold the chord keys.** The owner (through the
+orchestration session): "Sending Midi in if on the home menu does not show any of the notes like you would get if you
+were pressing the FM-1's keys. ... Would also be good if there was dedicated Midi for the chord modifier keys, so you
+could have a full keyboard send in the notes, then have a pad controller setup to drive the chord modifiers." Notes on
+the MIDI Perform channel play the chord sound as a plain synth (no chord is built), so the home view had nothing to
+show. The design, OKed by the owner before the build ("Build it as proposed"; the Perform channel's own notes stay
+unshown, "MIDI Roots covers it"): **Options > MIDI Roots** (Off, ch 1 .. 16, after MIDI CC so no earlier entry moves),
+every note on that channel a root at its own pitch, posted as a root key's (`CRE_KEY` with the note: `cr_ui.c
+cu_mroot`), so the chord, the home view's name and notes and the keys' lights are the key's; it waits for FM-1's
+open type-key gesture as a root key does (`cmr.w`, flushed by `cu_tk_flush`, dropped by `cu_tk_quiet`), plays in
+every layer, takes the note's velocity, and CC 120 / 123 there let every root go (`crm_root`, `CRM_ROOT_ALLUP`). The
+chord keys from pads: **MIDI Keys' notes 36 .. 44** (most pad controllers' first pads) press F3 .. C#4 as 53 .. 61 do.
+MIDI Keys and MIDI Roots skip the parts' channels and each other's; a part set to MIDI Roots' channel switches it off.
+Stored in `midi_en[2]` bits 1 .. 5 (no version; an older firmware reads MIDI Raw Chord Off there). The ISR: both
+channels' parsing moved into one noinline helper (`cr_out.c cr_in_keys`, called only while one is on), so
+`fm1_alnk0_irq` is smaller than before (13,518 of 13,890, was 13,610); the queue to the UI is MIDI Keys' own
+(`CRM_ROOT` events beside the keys', `CR_MKQ_EVERY` on an overflow or a lost USB peer). XIP 565,068 (98.5 %, +752).
+Tests: `cr_midi_test t_roots` and the pads, `cr_settings_test t_midi_roots`, `tools/emu/scripts/cr_midi_roots.txt`
+(the home view's name: the emulator dump's new `screen name:` line; `mroots` on its `chord keys:` line); the Options
+walk (`cr_opt_keys`) and every script that jumps past MIDI CC moved by one entry. MANUAL.md "MIDI in" and the Options
+table, SETTINGS.md. Not on the SMK-37 (hidden with MIDI Keys).

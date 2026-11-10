@@ -150,6 +150,12 @@ enum { CRS_USB_MASTER, CRS_USB_FIXED };
 #define CRS_CC_IN_OFF 0x80u
 #define CRS_MIDI_CC(s) ((((unsigned)(s)->raw_sound & CRS_CC_IN_OFF) ? 0u : 1u) | (((unsigned)(s)->raw_sound & CRS_CC_OUT_ON) ? 2u : 0u))
 #define CRS_CC_BITS(v) ((uint8_t)((((v) & 1u) ? 0u : CRS_CC_IN_OFF) | (((v) & 2u) ? CRS_CC_OUT_ON : 0u)))
+/* Options > MIDI Roots (3y289; docs/MANUAL.md "MIDI in"): the channel whose every note is a root, 0 Off, 1 .. 16, in
+ * bits 1 .. 5 of midi_en[2] (the Raw Chord stream's MIDI out on: bit 0, as ever). No version: 0, every older record's,
+ * is Off. A firmware before it checks the byte against 0 .. 1 and takes its default for it, MIDI Raw Chord Off (the
+ * default), until set there; nothing else is touched */
+#define CRS_EN(s, i) ((unsigned)(s)->midi_en[i] & 1u)
+#define CRS_MIDI_ROOTS(s) (((unsigned)(s)->midi_en[2] >> 1) & 31u)
 #define CRS_RAW_BYTE(raw, keys) ((uint8_t)(((raw) ? 1u : 0u) | (((keys) & 31u) << 1)))  /* usb_level: USB audio follows MASTER / takes the full level (docs/USB-AUDIO.md) */
 
 /* Options > Output (0.19, docs/AUDIO-QUALITY.md) rides in bit 1 of pick_roots (bit 0: the retired picker option): set =

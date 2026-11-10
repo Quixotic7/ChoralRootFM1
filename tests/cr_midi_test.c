@@ -144,6 +144,24 @@ static void t_keys(void)
     ok(crm_key(0xB4, 7, 100, 5, &ev) == 0 && crm_key(0xC4, 3, 0, 5, &ev) == 0 && crm_key(0xE4, 0, 64, 5, &ev) == 0,
        "keys: other messages on the keys' channel do nothing");
     ok(crm_key(0x90, 60, 100, 5, &ev) == -1 && crm_key(0x94, 60, 100, 0, &ev) == -1, "keys: another channel, or MIDI Keys Off: not the keys'");
+    ok(crm_key(0x94, 36, 90, 5, &ev) == 1 && ev == (0u | 90u << 5 | 1u << 12) && crm_key(0x94, 44, 1, 5, &ev) == 1 &&
+       (ev & 31u) == 8u, "keys (3y289): the pads' 36 .. 44 are F3 .. C#4, the chord block");
+    ok(crm_key(0x94, 35, 1, 5, &ev) == 0 && crm_key(0x94, 45, 1, 5, &ev) == 0, "keys: 35 and 45: nothing");
+}
+
+/* 3y289: MIDI Roots (crm_root): every note on its channel is a root at its own pitch */
+static void t_roots(void)
+{
+    uint32_t ev = 0;
+    ok(crm_root(0x92, 48, 100, 3, &ev) == 1 && ev == (CRM_ROOT | 48u | 100u << 7 | 1u << 14), "roots: ch 3 note-on 48: down, its velocity");
+    ok(crm_root(0x82, 48, 64, 3, &ev) == 1 && ev == (CRM_ROOT | 48u | 64u << 7), "roots: note-off: up");
+    ok(crm_root(0x92, 48, 0, 3, &ev) == 1 && !((ev >> 14) & 1u), "roots: note-on at velocity 0: up");
+    ok(crm_root(0x92, 0, 1, 3, &ev) == 1 && (ev & 127u) == 0u && crm_root(0x92, 127, 127, 3, &ev) == 1 &&
+       (ev & 127u) == 127u && ev != CRM_ROOT_ALLUP, "roots: every note 0 .. 127, none mistaken for every root up");
+    ok(crm_root(0xB2, 123, 0, 3, &ev) == 1 && ev == CRM_ROOT_ALLUP && crm_root(0xB2, 120, 0, 3, &ev) == 1 && ev == CRM_ROOT_ALLUP,
+       "roots: CC 123 and CC 120: every root up");
+    ok(crm_root(0xB2, 64, 127, 3, &ev) == 0 && crm_root(0xE2, 0, 64, 3, &ev) == 0, "roots: other messages do nothing");
+    ok(crm_root(0x90, 48, 100, 3, &ev) == -1 && crm_root(0x92, 48, 100, 0, &ev) == -1, "roots: another channel, or Off: not the roots'");
 }
 
 /* 3y269: the CCs on the sounds' parameters (Options > MIDI CC; docs/MANUAL.md section 15) */
@@ -258,6 +276,7 @@ int main(void)
 {
     t_transport();
     t_keys();
+    t_roots();
     t_clock();
     t_map();
     t_cc();

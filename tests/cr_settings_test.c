@@ -1707,6 +1707,47 @@ static void t_midi_cc(void)
        "MIDI CC: an older firmware (0 .. 0x3F) reads the byte as before with the default (In); off it, not");
 }
 
+/* 3y289: Options > MIDI Roots in bits 1 .. 5 of midi_en[2] (bit 0 stays MIDI Raw Chord's out): 0 the default (no
+ * version), the range, automatic, the engine's apply / capture see bit 0 alone, and an older firmware's check of the
+ * byte against 0 .. 1 (modelled) */
+static void t_midi_roots(void)
+{
+    cr_settings_t d, s, r, m, o2;
+    cr_settings_out_t o;
+    cr_settings_defaults(&d);
+    ok(CRS_MIDI_ROOTS(&d) == 0u && d.midi_en[2] == 0, "MIDI Roots: Off by default, the byte 0 (MIDI Raw Chord Off)");
+    s = d;
+    s.midi_en[2] = (uint8_t)(1u | 16u << 1);
+    s.midi_ch[2] = 4;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_MIDI_ROOTS(&r) == 16u && CRS_EN(&r, 2) == 1u && r.midi_ch[2] == 4,
+       "MIDI Roots ch 16 beside MIDI Raw Chord on ch 5: both kept");
+    s.midi_en[2] = (uint8_t)(1u | 17u << 1);
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_MIDI_ROOTS(&r) == 0u && CRS_EN(&r, 2) == 1u,
+       "MIDI Roots 17 (no such channel): Off, MIDI Raw Chord kept");
+    s.midi_en[2] = 0x41u;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.midi_en[2] == d.midi_en[2], "an unknown bit 6: the byte's default");
+    s.midi_en[0] = 3u;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.midi_en[0] == d.midi_en[0], "the other streams' bytes keep their 0 .. 1");
+    cr_settings_defaults(&m);
+    cr_settings_defaults(&o2);
+    o2.midi_en[2] = (uint8_t)(7u << 1);
+    cr_settings_auto(&m, &o2);
+    ok(CRS_MIDI_ROOTS(&m) == 7u && CRS_EN(&m, 2) == 0u, "MIDI Roots: automatic");
+    cr_init(&C, &OUT);
+    s = d;
+    s.midi_en[2] = (uint8_t)(9u << 1);
+    cr_settings_apply(&s, &C, &o);
+    ok(!C.stream_on[CR_STREAM_RAW] && !o.midi_en[CR_STREAM_RAW],
+       "the engine takes bit 0 alone: a MIDI Roots channel switches on neither the RAW stream nor its MIDI out");
+    cr_settings_capture(&s, &C, &o);
+    ok(CRS_MIDI_ROOTS(&s) == 9u && CRS_EN(&s, 2) == 0u, "the engine's capture writes bit 0 and keeps MIDI Roots");
+    ok(s.midi_en[2] > 1u, "an older firmware: the byte is out of its range 0 .. 1 (MIDI Raw Chord Off, its default, there)");
+}
+
 /* 0.25.1: FM-1 is the default Chord Keys; every record no 0.25.1 firmware wrote moves to FM-1 once, marked in bit 1 of
  * `leds` (cr_settings.h CRS_KEYS_MOVED); a marked record keeps its layout */
 static cr_settings_t keys_rec(unsigned version, uint8_t sticky, uint8_t leds)
@@ -1790,6 +1831,7 @@ int main(void)
     t_auto();
     t_layout();
     t_midi_cc();
+    t_midi_roots();
     t_keys_default();
     t_defaults();
     t_fresh_playstyle();
