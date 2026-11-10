@@ -8,6 +8,26 @@
   },
   "releases": [
     {
+      "version": "0.35",
+      "date": "2026-11-09",
+      "tag": "v0.35",
+      "sha256": "98b82fa724403ec1ef68e9e5792dcad315724af8264ccde1dcc1a1d6e1895d1b",
+      "sha256_1core": "9bff4d404ab9bf226f8e6e7fe678b4e48b515dc1f9551fce70e988d3b146ba52",
+      "title": "The bass Follows the chords' performance",
+      "bullets": [
+        "The Bass PERF layer has a new entry after Off, Follow: the bass performs the chords' mode with their parameters, each step together with the chords'.",
+        "The chords' layer is the master: change its mode or turn its knobs and a following bass follows at once.",
+        "With the chords on Off, a following bass plays its plain note; the bass's own mode and parameters are kept for later.",
+        "Holding ARP inside either PERF layer switches to the other one, chords to bass and back.",
+        "OCT-, OCT+ or HOME closes a PERF layer.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "Going back to 0.34: a bass on Follow plays its own mode there, and holding ARP in a PERF layer closes it again.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.34",
       "date": "2026-11-09",
       "tag": "v0.34",
@@ -26,7 +46,15 @@
       "notes": [
         "Going back to 0.33: the bass plays its plain note, a chord part set to Off performs again, and the BASS layer's keys pick the Behaviour.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.34 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.34 again. No Follow: a bass on Follow plays its own mode (Strum, or the one you last picked for it).",
+          "Holding ARP in a PERF layer closes it again instead of switching to the other one.",
+          "A global save on 0.34 forgets Follow."
+        ]
+      }
     },
     {
       "version": "0.33",

@@ -8035,3 +8035,20 @@ the emulator's `perf:` line gains `follow`. MANUAL 7 and 18, SETTINGS.md, SMK37.
 (+832, 97.9 %), RAM 89,048 (unchanged: the flag sits in padding); SMK-37 XIP 561,280. `fm1_alnk0_irq` 14,030 (14,010
 before; budget 13,890, inside the 10 %), `fm1_timer5_irq` 4,800. `sh tests/run_all.sh`: ALL SUITES PASSED (24;
 test_cr 1140 ok, test_persist 121 ok). Flashed on the spare E81CE2F7 (`--unit`): it boots, `--info` ChoralRoot 0.34.
+
+## 2026-11-09 (0.35 and 0.35-smk37)
+
+3y278. **0.35: the bass Follows the chords' performance, PERF held switches the PERF layers; 0.35-smk37 beside it.**
+The owner, in the perf-split session: "This checks out, lets merge and tag release": claude/perf-follow at 30d20d35 (on
+origin/main b23f325a, 0.34). 0.35 is 0.34 with 3y277. `./build.sh --release 0.35` and `tools/hub_build.sh 0.35`: the
+same `SHA256SUMS`; XIP 561,304 of 573,440 (97.9 %), 1-core 557,908, RES 41,820 of 49,088. `choralroot-0.35.fwsc`
+98b82fa7...5d1b, `-1core` 9bff4d40...ba52. `web/releases.json` first with the sha256s, 0.34's entry given its
+going-back note (Follow plays the bass's own mode there; ARP held closes a PERF layer; a global save on 0.34 forgets
+Follow), `docs/releases/0.35.md`, MANUAL.md's first line and "new after 0.34" now "new in 0.35" (MANUAL, SETTINGS.md,
+SMK37.md), `choralroot.c`'s dev version. **0.35-smk37** (base 0.35): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release
+0.35-smk37` and `tools/hub_build.sh 0.35-smk37`, the same `SHA256SUMS` (twelve files); XIP 561,280 (Pro), 1-core
+558,004. Pro 3d4d5f44...16cd, Elite e406b6b1...03e2, MKE-P37 0a0fe922...74b0. `web/releases-smk37.json` first, four
+bullets, three notes; SMK37.md's status, package names and version line. `python3 tests/releases_test.py` ALL OK,
+`tools/hub_build.sh --check` both lists match; `CR_VERSION=0.35 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1140 ok; test_persist 121 ok; `fm1_alnk0_irq` 14,030 of 13,890, `fm1_timer5_irq` 4,800 of 4,511, both inside the 10 %). Fast-forwarded
+onto main and tagged v0.35 / v0.35-smk37 (release.yml builds, signs and publishes). The spare E81CE2F7 ran 30d20d35's
+dev build.
