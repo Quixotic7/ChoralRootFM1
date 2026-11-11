@@ -610,12 +610,19 @@ static __attribute__((noinline)) void crd_beat_step(uint32_t st)
     crd_now = (uint8_t)(st + 1u);
 }
 
-/* the drums' block into the master's mix (l, r: Q15 units, before the limiter); nothing when none rings */
-static __attribute__((noinline)) void cr_drum_mix(int32_t *l, int32_t *r, uint32_t n)
+/* each drum's FX send (the SEQ layer's Mix page): Q15 (0..127 x 258), the same amount into the delay's bus and the
+ * reverb's (the parts' sends, fx.c mix_part_out); 0: none, the drums dry as before the sends */
+static uint8_t crd_send[3] CRD_BSS;
+static const uint8_t CRD_DRUM_OF[DSS_N] = {CRD_KICK, CRD_SNARE, CRD_SNARE, CRD_HAT, CRD_HAT};
+
+/* the drums' block into the mix (l, r: Q15 units; fx.c mix_block, with the parts, before the effects) and their sends
+ * into the delay's and the reverb's buses (sd, sr; none with FX off: fxoff); nothing when none rings */
+static __attribute__((noinline)) void cr_drum_mix(int32_t *l, int32_t *r, int32_t *sd, int32_t *sr, int fxoff, uint32_t n)
 {
     int32_t bus[CTL], y[CTL];
     uint32_t i, k, any = 0;
     for (k = 0; k < DSS_N; k++) {
+        int32_t g;
         if (!crd_v[k].live)
             continue;
         ds_run(&crd_v[k], y, n);
@@ -624,6 +631,13 @@ static __attribute__((noinline)) void cr_drum_mix(int32_t *l, int32_t *r, uint32
         else
             for (i = 0; i < n; i++) bus[i] += y[i];
         any = 1;
+        g = fxoff ? 0 : crd_send[CRD_DRUM_OF[k]] * 258;
+        if (g)
+            for (i = 0; i < n; i++) {
+                int32_t x = (y[i] * g) >> 15;
+                sd[i] += x;
+                sr[i] += x;
+            }
     }
     if (!any)
         return;

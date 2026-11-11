@@ -56,7 +56,7 @@ static uint64_t instr_now(void)
     return 0;
 }
 
-static int32_t L[CTL], R[CTL];
+static int32_t L[CTL], R[CTL], SD[CTL], SR[CTL];   /* (the delay's and the reverb's buses: the sends) */
 static int lr_differ;
 static uint32_t render(uint32_t blocks, int32_t *peak, uint64_t *hash)   /* blocks rendered while anything rang */
 {
@@ -67,7 +67,7 @@ static uint32_t render(uint32_t blocks, int32_t *peak, uint64_t *hash)   /* bloc
         if (!any) break;
         memset(L, 0, sizeof L);
         memset(R, 0, sizeof R);
-        cr_drum_mix(L, R, CTL);
+        cr_drum_mix(L, R, SD, SR, 0, CTL);
         live++;
         for (i = 0; i < CTL; i++) {
             int32_t a = L[i] < 0 ? -L[i] : L[i];
@@ -80,7 +80,7 @@ static uint32_t render(uint32_t blocks, int32_t *peak, uint64_t *hash)   /* bloc
 }
 
 static const char *const SN[DSS_N] = {"kick", "snare", "clap", "hat closed", "hat open"};
-static const uint8_t SD[DSS_N] = {CRD_KICK, CRD_SNARE, CRD_SNARE, CRD_HAT, CRD_HAT};
+static const uint8_t SDRUM[DSS_N] = {CRD_KICK, CRD_SNARE, CRD_SNARE, CRD_HAT, CRD_HAT};
 static void knobs(uint32_t chr)
 {
     for (uint32_t k = 0; k < CRD_N; k++) {
@@ -118,7 +118,7 @@ static void beat_bar(int32_t *peak)
         if ((bar_hits[1] >> st) & 1u && crd_v[DSS_CLAP].live) bar_clap |= 1u << st;
         for (b = 0; b < 6u; b++) {                   /* (a 32nd at 120 BPM: 172 samples) */
             memset(L, 0, sizeof L);
-            cr_drum_mix(L, R, CTL);
+            cr_drum_mix(L, R, SD, SR, 0, CTL);
             for (d = 0; d < CTL; d++) if (peak && (L[d] < 0 ? -L[d] : L[d]) > *peak) *peak = L[d] < 0 ? -L[d] : L[d];
         }
     }
@@ -168,9 +168,37 @@ int main(int argc, char **argv)
         int32_t i, same = 1;
         quiet();
         for (i = 0; i < CTL; i++) L[i] = R[i] = i * 7 - 50;
-        cr_drum_mix(L, R, CTL);
+        cr_drum_mix(L, R, SD, SR, 0, CTL);
         for (i = 0; i < CTL; i++) same &= L[i] == i * 7 - 50 && R[i] == i * 7 - 50;
         check(same, "nothing ringing: the mix as it was");
+    }
+    {   /* the FX sends (the Mix page): none by default; the snare's into the delay and the reverb alike, the dry mix the
+         * same; FX off: none */
+        int32_t i, sd = 0, dry0[CTL], same = 1, eq = 1;
+        crd_kit_load(0);
+        knobs(32);
+        crd_send[0] = crd_send[1] = crd_send[2] = 0;
+        crd_kit.vary = 0;                          /* (each hit the same) */
+        quiet();
+        crd_hit(DSS_SNARE, 1);
+        memset(SD, 0, sizeof SD); memset(SR, 0, sizeof SR); memset(L, 0, sizeof L);
+        cr_drum_mix(L, R, SD, SR, 0, CTL);
+        for (i = 0; i < CTL; i++) { sd |= SD[i] | SR[i]; dry0[i] = L[i]; }
+        check(!sd, "sends 0 (the default): nothing into the effects");
+        crd_send[1] = 100;
+        quiet();
+        crd_hit(DSS_SNARE, 1);
+        memset(SD, 0, sizeof SD); memset(SR, 0, sizeof SR); memset(L, 0, sizeof L);
+        cr_drum_mix(L, R, SD, SR, 0, CTL);
+        for (i = 0, sd = 0; i < CTL; i++) { sd |= SD[i]; eq &= SD[i] == SR[i]; same &= L[i] == dry0[i]; }
+        check(sd && eq && same, "the snare's send 100: into the delay and the reverb alike, the dry mix as it was");
+        quiet();
+        crd_hit(DSS_SNARE, 1);
+        memset(SD, 0, sizeof SD); memset(SR, 0, sizeof SR);
+        cr_drum_mix(L, R, SD, SR, 1, CTL);
+        for (i = 0, sd = 0; i < CTL; i++) sd |= SD[i] | SR[i];
+        check(!sd, "FX off: no send");
+        crd_send[1] = 0;
     }
     {   /* the choke */
         uint32_t b;
@@ -288,13 +316,13 @@ int main(int argc, char **argv)
                 for (k = 0; k < 40u; k++) {
                     crd_hit(v, 1);
                     do {
-                        cr_drum_mix(L, R, CTL);
+                        cr_drum_mix(L, R, SD, SR, 0, CTL);
                         smp += CTL;
                     } while (crd_v[v].live);
                 }
                 i0 = instr_now() - i0;
                 printf("cpu: %s %-10s %4.0f instructions / sample while it rings (Character %u, %.0f ms a hit)\n",
-                       CRD_KIT_NAME[kit], SN[v], (double)i0 / smp, crd_knob[SD[v]].chr, smp * 1000.0 / 40.0 / 44100.0);
+                       CRD_KIT_NAME[kit], SN[v], (double)i0 / smp, crd_knob[SDRUM[v]].chr, smp * 1000.0 / 40.0 / 44100.0);
                 tot += i0 / smp;
             }
             knobs(crd_kit.morph);
@@ -305,7 +333,7 @@ int main(int argc, char **argv)
                 for (v = 0; v < DSS_N; v++) crd_hit(v, 1);
                 crd_v[DSS_HATO].choke = 0;
                 for (b = 0; b < 8u; b++)                 /* 5.8 ms: all five ring */
-                    cr_drum_mix(L, R, CTL);
+                    cr_drum_mix(L, R, SD, SR, 0, CTL);
             }
             i0 = instr_now() - i0;
             printf("cpu: %s all five ringing at once (the snare at 96): %.0f instructions / sample (the five alone "
@@ -313,7 +341,7 @@ int main(int argc, char **argv)
         }
         quiet();
         i0 = instr_now();
-        for (k = 0; k < 20000u; k++) cr_drum_mix(L, R, CTL);
+        for (k = 0; k < 20000u; k++) cr_drum_mix(L, R, SD, SR, 0, CTL);
         i0 = instr_now() - i0;
         printf("cpu: nothing ringing: %.1f instructions / sample\n", (double)i0 / (20000.0 * CTL));
         crd_kit_load(0);                           /* a busy beat: the map's middle, Fill and Density high */
@@ -326,7 +354,7 @@ int main(int argc, char **argv)
         for (t = 0, nsmp = 0; t < 8u * 32u; t++) {   /* 8 bars at 120 BPM: a 32nd 172 samples */
             crd_beat_step(t & 31u);
             for (b = 0; b < 6u; b++, nsmp += CTL)
-                cr_drum_mix(L, R, CTL);
+                cr_drum_mix(L, R, SD, SR, 0, CTL);
         }
         i0 = instr_now() - i0;
         printf("cpu: a busy beat (X Club, 8 bars at 120 BPM, hits included): %.0f instructions / sample on average\n",

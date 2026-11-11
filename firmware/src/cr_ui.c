@@ -590,6 +590,7 @@ static struct {
     uint8_t dr_kit, dr_level;             /* Drums: the kit 0..5 (cr_drum_kits.h), the level 0..100 */
     uint8_t dr_x, dr_y, dr_dens, dr_chaos;   /* the Beat page: Map X, Map Y, Density, Chaos 0..127 */
     uint8_t dr[3][4];                     /* kick, snare, hats: Tune 0..24 (12: as voiced), Decay, Character, Fill 0..127 */
+    uint8_t dr_send[3];                   /* .. their FX sends 0..127 (the Mix page; into the delay and the reverb) */
     uint8_t loop_len, loop_quant, loop_count_in, loop_level;   /* SYNC (0 Free, 1..16 bars), QUANT, COUNT-IN, LEVEL */
     uint8_t loop_rate;                    /* the loop's Rate, 0..CRL_NRATE-1 (x1/16 .. x4; CRL_RATE_1; the session's) */
     uint8_t loop_slot;                    /* the slot in RAM (0..9) */
@@ -2910,11 +2911,12 @@ static void cu_row_trace(const cr_screen_t *s, const char *who, char *seen, uint
 /* The SEQ layer's preset (the DRUMS plan, docs/MANUAL.md "The beat"): Metronome (the click, as ever) or Drums (a Grids
  * beat on CoralFlower's morph drum synth, cr_drum.c). GLO + SEQ is the beat on / off whatever the preset (cs.metro, the
  * block's metro_on); the preset, the kit and the drums' knobs are the session's drum block (cr_settings.h css_drum_t),
- * saved by the global save. The drums ride the loop as the arp does: they play while a loop plays or a take records,
- * on its grid (cr_loop.c), and are never part of a loop. With Drums and their region not there (cr_res.h: a cut
- * install), the beat is the click (cu_drums_ok 0) */
-#define CU_DR_NPAGE 5u
-enum { CU_DRP_PRESET, CU_DRP_BEAT, CU_DRP_KICK, CU_DRP_SNARE, CU_DRP_HATS };
+ * saved by the global save. The beat on, the drums play: free on the tempo, on a loop's grid while one plays or a take
+ * records (cr_loop.c), and never part of a loop. With Drums and their region not there (cr_res.h: a cut install), the
+ * beat is the click (cu_drums_ok 0). In the layer (the owner, after the first drums build): ALGORITHM switches the
+ * preset, PRESETS starts / stops the beat, on every page; the keys play */
+#define CU_DR_NPAGE 6u
+enum { CU_DRP_PRESET, CU_DRP_BEAT, CU_DRP_KICK, CU_DRP_SNARE, CU_DRP_HATS, CU_DRP_MIX };
 static const uint8_t CU_DRUM_DEF[3][4] = {{12, 64, 32, 72}, {12, 64, 32, 64}, {12, 64, 32, 88}};   /* Tune Decay
                                                                  * Character Fill: kick, snare, hats */
 static uint8_t cu_drums_ok;                       /* Drums is what plays (the kit and the map in RAM) */
@@ -2930,9 +2932,11 @@ static void cu_drum_defaults(void)                /* the drum block's defaults (
     cs.dr_x = cs.dr_y = 64;
     cs.dr_dens = 64;
     cs.dr_chaos = 0;
-    for (d = 0; d < 3u; d++)
+    for (d = 0; d < 3u; d++) {
         for (k = 0; k < 4u; k++)
             cs.dr[d][k] = CU_DRUM_DEF[d][k];
+        cs.dr_send[d] = 0;                        /* (no FX: the drums dry, as before the sends) */
+    }
 }
 /* the beat's state -> cr_drum.c and the looper: the kit and the map into RAM, the knobs; the click on when the beat is
  * on with Metronome (or Drums without their region), the drums with Drums. force: post both (power-on, a revert) */
@@ -2949,6 +2953,8 @@ static void cu_beat_post(int force)
     }
     crd_level = cs.dr_level;
     crd_rand = (uint8_t)(cs.dr_chaos * 2u);
+    for (i = 0; i < 3u; i++)
+        crd_send[i] = cs.dr_send[i];
     crd_beat_dens(cs.dr_dens);
     if (drums)
         drums = crd_kit_load(cs.dr_kit) && crd_beat_blend(cs.dr_x * 2u, cs.dr_y * 2u);
@@ -3007,6 +3013,7 @@ static void cu_metro_set(uint32_t on)
     cs.metro = (uint8_t)(on != 0u);
     cu_beat_post(0);
 }
+static void cu_beat_turn(int32_t s);
 static void cu_metro_toggle(void)
 {
     cu_metro_set(!cs.metro);
@@ -3017,9 +3024,9 @@ static void cu_metro_toggle(void)
     cu_trace("metro: %s%s\n", cs.metro ? "on" : "off", cs.beat_preset == 1u ? " (drums)" : "");
 }
 
-/* the SEQ layer's knobs (cu.mpage: the page; Metronome has the preset page alone). Page 0: Preset, Level (the click's or
- * the drums'), Meter (4/4 3/4 6/8; D4 E4 F4 too), Kit (Drums). Beat: Map X, Map Y, Density, Chaos. Kick, Snare, Hats:
- * Tune (-12 .. +12 semitones), Decay, Character, Fill */
+/* the SEQ layer's knobs (cu.mpage: the page; Metronome has the preset page alone). Page 0: Level (the click's or the
+ * drums'), Meter (4/4 3/4 6/8), Kit (Drums), Beat (on / off). Beat: Map X, Map Y, Density, Chaos. Kick, Snare, Hats:
+ * Tune (-12 .. +12 semitones), Decay, Character, Fill. Mix: each drum's FX send (KNOB 4 nothing) */
 static void cu_drum_knob(uint32_t knob, int32_t s)
 {
     uint32_t pg = cs.beat_preset == 1u ? cu.mpage : 0u, d;
@@ -3027,38 +3034,32 @@ static void cu_drum_knob(uint32_t knob, int32_t s)
     uint8_t *p = 0;
     if (pg == CU_DRP_PRESET) {
         if (knob == 0u) {
-            v = s > 0 ? 1 : 0;
-            if ((uint32_t)v != cs.beat_preset) {
-                cs.beat_preset = (uint8_t)v;
-                cu.mpage = 0;
-                cu_beat_post(0);
-                cu_trace("metro: knob 1 preset %s\n", v ? "drums" : "metronome");
-            }
-        } else if (knob == 1u) {
             if (cs.beat_preset == 1u) {
                 v = cs.dr_level + s * 5;
                 cs.dr_level = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
                 cu_beat_post(0);
-                cu_trace("metro: knob 2 level %u\n", (unsigned)cs.dr_level);
+                cu_trace("metro: knob 1 level %u\n", (unsigned)cs.dr_level);
             } else {
                 v = cs.metro_vol + s * 5;
                 cs.metro_vol = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
                 cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
-                cu_trace("metro: knob 2 click %u\n", (unsigned)cs.metro_vol);
+                cu_trace("metro: knob 1 click %u\n", (unsigned)cs.metro_vol);
             }
-        } else if (knob == 2u) {
+        } else if (knob == 1u) {
             v = (int32_t)cs.metro_sig + (s > 0 ? 1 : -1);
             cu_layer_pick(L_METRO, v < 0 ? 0 : v >= (int32_t)CRL_NSIG ? (int32_t)CRL_NSIG - 1 : v);
-            cu_trace("metro: knob 3 meter %s\n", CU_SIG[cs.metro_sig]);
-        } else if (cs.beat_preset == 1u) {
+            cu_trace("metro: knob 2 meter %s\n", CU_SIG[cs.metro_sig]);
+        } else if (knob == 2u) {
+            if (cs.beat_preset != 1u)
+                return;
 #if CR_DRUMS
             v = (int32_t)cs.dr_kit + (s > 0 ? 1 : -1);
             cs.dr_kit = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CRD_NKIT ? (int32_t)CRD_NKIT - 1 : v);
             cu_beat_post(0);
-            cu_trace("metro: knob 4 kit %s\n", CRD_KIT_NAME[cs.dr_kit]);
+            cu_trace("metro: knob 3 kit %s\n", CRD_KIT_NAME[cs.dr_kit]);
 #endif
         } else {
-            return;
+            cu_beat_turn(s);                       /* (as PRESETS: the beat on / off) */
         }
         cu_hot_set(L_METRO, knob);
         return;
@@ -3069,6 +3070,12 @@ static void cu_drum_knob(uint32_t knob, int32_t s)
         cu_beat_post(0);
         cu_trace("metro: beat x %u y %u density %u chaos %u\n", (unsigned)cs.dr_x, (unsigned)cs.dr_y,
                  (unsigned)cs.dr_dens, (unsigned)cs.dr_chaos);
+    } else if (pg == CU_DRP_MIX) {
+        if (knob > 2u)
+            return;
+        cs.dr_send[knob] = (uint8_t)cu_send_step(cs.dr_send[knob], s, kn.snap);
+        cu_beat_post(0);
+        cu_trace("metro: mix sends %u %u %u\n", (unsigned)cs.dr_send[0], (unsigned)cs.dr_send[1], (unsigned)cs.dr_send[2]);
     } else {
         d = pg - CU_DRP_KICK;
         p = &cs.dr[d % 3u][knob & 3u];
@@ -3078,6 +3085,31 @@ static void cu_drum_knob(uint32_t knob, int32_t s)
                  (unsigned)cs.dr[d % 3u][1], (unsigned)cs.dr[d % 3u][2], (unsigned)cs.dr[d % 3u][3]);
     }
     cu_hot_set(L_METRO, knob);
+}
+/* ALGORITHM in the SEQ layer, any page (the owner: "I would make the ALGO knob change between Metronome and Drums"): a
+ * detent right Drums, left Metronome (the encoder turns, it has no press: the PLAY menu's ALGORITHM picks its record
+ * mode the same way). The pages after the preset's are Drums' alone: a switch to Metronome shows the preset page */
+static void cu_beat_preset_turn(int32_t s)
+{
+    uint32_t v = s > 0 ? 1u : 0u;
+    if (v == cs.beat_preset)
+        return;
+    cs.beat_preset = (uint8_t)v;
+    if (!v)
+        cu.mpage = 0;
+    cu_hot.knob = 0;
+    cu_beat_post(0);
+    cu_message(v ? "Drums" : "Metronome", v ? CR_COL_MAGENTA : CR_COL_WHITE);
+    cu_trace("metro: algorithm preset %s\n", v ? "drums" : "metronome");
+}
+/* PRESETS in the SEQ layer, any page ("with the PRESETS knob it should start/stop the drums or metronome"): a detent
+ * right starts the beat, left stops it (as the PLAY menu's Beat cell: a direction, not a toggle, so a turn of several
+ * detents lands where it points) */
+static void cu_beat_turn(int32_t s)
+{
+    if ((s > 0) == (cs.metro != 0u))
+        return;
+    cu_metro_toggle();
 }
 /* SELECT in the SEQ layer: the page (Drums: the preset, Beat, Kick, Snare, Hats; Metronome: the one page) */
 static void cu_drum_page(int32_t s)
@@ -3109,7 +3141,7 @@ static void cu_dr_pct(char *b, uint32_t v, uint32_t n)       /* 0..127 as "62%" 
 /* the SEQ layer's screen (cr_screen.h CR_K_DRUM) */
 static void cu_drum_screen(cr_screen_t *s)
 {
-    static const char *const PG[CU_DR_NPAGE] = {"Drums", "Beat", "Kick", "Snare", "Hats"};
+    static const char *const PG[CU_DR_NPAGE] = {"Drums", "Beat", "Kick", "Snare", "Hats", "Mix"};
     static char seen[48];
     const char *it[CU_DR_NPAGE];
     uint32_t drums = cs.beat_preset == 1u, pg = drums ? cu.mpage % CU_DR_NPAGE : 0u, now = cu_now(), k, d;
@@ -3129,14 +3161,22 @@ static void cu_drum_screen(cr_screen_t *s)
     s->dr_step = crd_now <= s->dr_steps ? crd_now : 0u;
 #endif
     if (pg == CU_DRP_PRESET) {
-        cu_dr_cell(&s->cell[0][0], "Preset", drums ? "Drums" : "Metro", CR_G_NONE, 0);
         cu_int(b, drums ? cs.dr_level : cs.metro_vol, 0, sizeof b);
-        cu_dr_cell(&s->cell[0][1], drums ? "Level" : "Click", b, CR_G_BAR, (drums ? cs.dr_level : cs.metro_vol) * 255u / 100u);
-        cu_dr_cell(&s->cell[0][2], "Meter", CU_SIG[cs.metro_sig % CRL_NSIG], CR_G_NONE, 0);
+        cu_dr_cell(&s->cell[0][0], drums ? "Level" : "Click", b, CR_G_BAR, (drums ? cs.dr_level : cs.metro_vol) * 255u / 100u);
+        cu_dr_cell(&s->cell[0][1], "Meter", CU_SIG[cs.metro_sig % CRL_NSIG], CR_G_NONE, 0);
 #if CR_DRUMS
         if (drums)
-            cu_dr_cell(&s->cell[0][3], "Kit", CRD_KIT_NAME[cs.dr_kit % CRD_NKIT], CR_G_NONE, 0);
+            cu_dr_cell(&s->cell[0][2], "Kit", CRD_KIT_NAME[cs.dr_kit % CRD_NKIT], CR_G_NONE, 0);
 #endif
+        cu_dr_cell(&s->cell[0][3], "Beat", cs.metro ? "On" : "Off", CR_G_GATE, cs.metro ? 255u : 26u);
+    } else if (pg == CU_DRP_MIX) {
+        static const char *const L[3] = {"Kick FX", "Snare FX", "Hats FX"};
+        for (k = 0; k < 3u; k++) {
+            cu_send_text(cs.dr_send[k], b, sizeof b);
+            cu_dr_cell(&s->cell[0][k], L[k], b, CR_G_MIX, cs.dr_send[k] * 255u / 127u);
+            s->dr_send[k] = cs.dr_send[k];
+            s->dr_pul[k] = (uint8_t)cu_beat_pulse(k, now, 150u);
+        }
     } else if (pg == CU_DRP_BEAT) {
         static const char *const L[4] = {"Map X", "Map Y", "Density", "Chaos"};
         const uint8_t *v[4] = {&cs.dr_x, &cs.dr_y, &cs.dr_dens, &cs.dr_chaos};
@@ -4926,8 +4966,9 @@ static void cu_activity(void)
             cu.open = 1;
             cu.blvl = 0;
             if (cu.armed == BT_METRO && cu.ledit && cu.lock == L_LOOP)
-                return;                           /* the loop editor: SEQ is its way out, no METRO layer from there
-                                                   * (SEQ held + a knob: the knob stays the editor's) */
+                return;                           /* the loop editor: SEQ down + a knob inside the hold time: the knob
+                                                   * stays the editor's (its step cursor); SEQ held past it: the SEQ
+                                                   * layer (the hold, below) */
 #if CR_EDIT_HOOKS
             if (cu.page == PG_EDIT && !cu_layer() && ce_owns(cu.armed))
                 return;                           /* the editor's button: a combo, no layer */
@@ -5437,7 +5478,8 @@ static void cu_tk_quiet(void)                      /* PANIC, a layout change: no
 static int cu_layer_keys(uint32_t l)
 {                                                  /* (the Routing page owns only its five black keys, cu_rt_key:
                                                     * the rest play, so an effect is heard while it is routed) */
-    return l && l != L_PERF && l != L_FX && l != L_LOCK && l != L_EDIT &&
+    return l && l != L_PERF && l != L_FX && l != L_LOCK && l != L_EDIT && l != L_METRO &&   /* (the SEQ layer: they play,
+                                                    * the owner after the first drums build; the meter is KNOB 2) */
            !(l == L_LOOP && (!cs.loop_keys || cu.ledit)) && !(l == L_KEY && cs.key_play) &&
            !(l == L_BASS && !cs.bass_keys);
 }   /* (the PLAY menu with Keys = Play, the loop editor, the KEY layer with keys: play: they play, docs/LOOPER-MODES.md) */
@@ -6090,6 +6132,14 @@ static void cu_knob(uint32_t role, int32_t s)
     }
     if (l && role >= EN_K1) {
         cu_layer_knob(l, role - EN_K1, s);
+        return;
+    }
+    if (l == L_METRO && (role == EN_PRESET || role == EN_ALGO)) {   /* the SEQ layer: PRESETS starts / stops the beat,
+                                                    * ALGORITHM picks the preset (Metronome / Drums), on every page */
+        if (role == EN_PRESET)
+            cu_beat_turn(s);
+        else
+            cu_beat_preset_turn(s);
         return;
     }
     if (l == L_LOOP && role == EN_PRESET) {        /* the PLAY menu: PRESETS the slot, ALGORITHM the record mode */
@@ -6959,13 +7009,20 @@ static void cr_ui_input(void)
     }
     if (cu.armed != NB && !cu.open && ((cu.bheld >> cu.armed) & 1u) && !(cu.armed == BT_SAVE && cu.page == PG_SAVE) &&
         now - cu.t0 >= (uint32_t)HOLD_MS[settings_hold % 4u]) {
-        if ((cu.armed == BT_EDIT || cu.armed == BT_METRO) && cu.ledit && cu.lock == L_LOOP) {   /* the loop editor:
-                                                    * EDIT or SEQ held again closes it, as a layer's own button does (no
-                                                    * engine picker, no METRO layer from there; a knob turned while the
-                                                    * button is still down: nothing, cu_knob) */
+        if (cu.armed == BT_EDIT && cu.ledit && cu.lock == L_LOOP) {   /* the loop editor: EDIT held again closes it, as
+                                                    * a layer's own button does (no engine picker from there; a knob
+                                                    * turned while the button is still down: nothing, cu_knob) */
             cu.open = 1;
             cu.hclosed = 0xFF;
             cu_ledit_close();
+        } else
+        if (cu.armed == BT_METRO && cu.ledit && cu.lock == L_LOOP) {   /* .. SEQ held there: the SEQ layer (the owner,
+                                                    * after the first drums build: "when you hold seq from the sequencer
+                                                    * it takes you to the drums"); EDIT keeps the editor / PLAY menu
+                                                    * switch. Until then SEQ held closed the editor */
+            cu.open = 1;
+            cu_ledit_close();
+            cu_opened(BT_METRO);
         } else
         if (cu.armed == BT_LOOP && cu.ledit && cu.lock == L_LOOP) {   /* .. LOOP held there: the PLAY menu (the owner,
                                                     * 2026-10-11: "from the Sequencer, holding the play key should

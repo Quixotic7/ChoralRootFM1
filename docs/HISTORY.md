@@ -8468,3 +8468,28 @@ ReadDrumMap at 257 places, the beat's Fill / Density / accents / clap / Chaos, e
 and `cr_backup_test` (the drum block, an older record), test_cr `cr_drums` (the layer's pages, the toggle, waiting,
 playing with the loop, stopping, the WAV), test_persist (the drums after a relaunch), gen_cr_screens (the preset page,
 Beat, Kick, Hats, the home chip); `sh tests/run_all.sh`: ALL SUITES PASSED (24; test_cr 1164 ok, test_persist 124 ok, the web emulator's two). Two builds of the FM-1 package: the same bytes. The CR_DRUM_TEST harness is gone.
+
+3y299. **The drums after the owner's first play (drums-dev on a unit: it runs, the second region works).** Eight notes,
+fixed in their order. (1) "I would make the ALGO knob change between Metronome and Drums ... with the PRESETS knob it
+should start/stop": in the SEQ layer, on every page, ALGORITHM picks the preset (a detent right Drums, left
+Metronome) and PRESETS starts / stops the beat (right on, left off: a direction, as the PLAY menu's Beat cell, so a
+fast turn lands where it points); both encoders turn and have no press. The preset page's knobs: KNOB 1 Level, 2
+Meter, 3 Kit, 4 Beat (on / off). (2) SEQ held from the loop editor opens the SEQ layer (the editor closed); a knob
+inside the hold time is still the editor's; EDIT keeps the editor / PLAY menu switch (LOOPER.md, `cr_seq.txt`). (3)
+"if there is no loop the drums don't start": the beat on = the drums play: free on the tempo from the moment they
+are turned on, taken over by a loop (its start is their bar 1; the count-in's grid before a take), running on in
+step when it stops (`cr_loop.c crl_tick1`, `dr0`). (4) "The volume of the metronome does not change when reducing
+the master volume": the click and the count-in take MASTER (`cr_out.c cr_click_mix`; with USB Level Fixed audio.c
+applies it after), still out of the limiter and the recording; the drums were always in the mix, under MASTER. (5)
+Map Y up: the map drawn with Y from the bottom (`cr_draw.c cr_dr_beat`); X right, as it was. (6) The keys play in
+the SEQ layer (`cu_layer_keys`); D4 E4 F4 no longer pick the meter. (7) The top row's dim LEDs (C#5, D#5 and the
+white keys to F5, Key Mode off): the PA10 probe of Key Touch (3y123), in 0.39 too, nothing of the drums or the
+regions: its tick makes the LED line of row PA6 an input with its pull-up, a little current through each top-row LED,
+one tick in 33. Not changed (the reading is that current); Key Touch Fixed, the default, has no probe (VELOCITY.md).
+(8) Each drum's FX send: a sixth page, **Mix** (Kick FX, Snare FX with the clap, Hats FX), the same amount into the
+delay's and the reverb's buses; the drums now go into the mix with the parts, before the effects (`fx.c mix_block`),
+so the master filter sees them too; FX off closes the sends; 0 by default (dry, as before); saved in the drum block
+(24 bytes now: the sends in the reserve's bytes, 0 in a first-build record: no new version). Sizes: FM-1 XIP 561,464
+(97.9 %), RES 48,880, RES2 14,136; SMK-37 XIP 542,516, RES 40,020. `fm1_alnk0_irq` 13,485 of 13,890 (the click's loop
+out of line now; the drums' anchor and the sends' call in). Host: the busy beat 448 instructions a sample, all five
+ringing 547 .. 683 by kit. `sh tests/run_all.sh`: ALL SUITES PASSED (24; test_cr 1164 ok, test_persist 124 ok).

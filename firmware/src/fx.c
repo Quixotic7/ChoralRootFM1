@@ -1604,7 +1604,7 @@ static __attribute__((noinline)) void mix_fx_chain(uint32_t n)
 #endif
 
 #if CR_DRUMS
-static void cr_drum_mix(int32_t *l, int32_t *r, uint32_t n);   /* (cr_drum.c: the drums into the master's mix) */
+static void cr_drum_mix(int32_t *l, int32_t *r, int32_t *sd, int32_t *sr, int fxoff, uint32_t n);   /* (cr_drum.c) */
 #endif
 static void mix_block(int32_t *out, uint32_t n)
 {
@@ -1641,6 +1641,11 @@ static void mix_block(int32_t *out, uint32_t n)
         mix_part(&trk[i], n);
     for (; i < NPART; i++)
         mix_part_idle(&trk[i], n);
+#if CR_DRUMS
+    cr_drum_mix(mix_l, mix_r, send_d, send_r, CR_FX ? fx_off : 0, n);   /* (cr_drum.c: the drums with the parts: dry
+                                                         * into the mix, their sends into the delay and the reverb;
+                                                         * nothing while none rings) */
+#endif
 #if CR_FX
     if (xfp[XP_RMODE] == 1)
         mix_fx_chain(n);                                /* (cr_fx.c THE ROUTING: Chain, the master filter inside it) */
@@ -1680,10 +1685,6 @@ static void mix_block(int32_t *out, uint32_t n)
     }
 #endif
     CR_PROF(CRP_FX);
-#if CR_DRUMS
-    cr_drum_mix(mix_l, mix_r, n);                       /* (cr_drum.c: the drums, dry, into the master before the
-                                                         * limiter; nothing while none rings) */
-#endif
 #ifdef FX_MIX_HOOK
     FX_MIX_HOOK(mix_l, mix_r, n);                       /* (tests/cr_align_test.c: a sample put into the mix) */
 #endif

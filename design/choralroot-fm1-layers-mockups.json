@@ -1072,7 +1072,7 @@
   },
   {
    "name": "7 \u00b7 SEQ \u00b7 the beat's preset page (Metronome)",
-   "notes": "SEQ held (the SEQ key's hold menu): the beat's preset page. Since the drums (the DRUMS plan, after 0.39) the device draws it as its own panel (CR_K_DRUM: the Metronome and Drums tiles under the page's name; the v3 sheet design/drums-mockups/drums-v3-overview.png, the drum pages Beat, Kick, Snare, Hats after it with Drums); this sheet keeps the knob row: Preset (KNOB 1), Click (KNOB 2, a bar), Meter (KNOB 3; D4 E4 F4 pick it too), and with Drums Kit (KNOB 4). GLO held + SEQ toggles the beat, and so does SEQ tapped in this layer (a SEQ tap anywhere else opens the loop editor). (OPT + SELECT sets the click's level from anywhere.)",
+   "notes": "SEQ held (the SEQ key's hold menu): the beat's preset page. Since the drums (the DRUMS plan, after 0.39) the device draws it as its own panel (CR_K_DRUM: the Metronome and Drums tiles under the page's name; the v3 sheet design/drums-mockups/drums-v3-overview.png, the drum pages Beat, Kick, Snare, Hats after it with Drums); this sheet keeps the knob row: Click (KNOB 1, a bar), Meter (KNOB 2), with Drums Kit (KNOB 3), Beat (KNOB 4: on / off). ALGORITHM picks the preset and PRESETS starts / stops the beat on every page; the keys play. GLO held + SEQ toggles the beat, and so does SEQ tapped in this layer (a SEQ tap anywhere else opens the loop editor). (OPT + SELECT sets the click's level from anywhere.)",
    "export": true,
    "keys": [
     0,
@@ -1144,20 +1144,20 @@
      "value": ""
     },
     "KNOB1": {
-     "note": "PRESET",
-     "value": "Metro"
-    },
-    "KNOB2": {
      "note": "CLICK",
      "value": "70"
     },
-    "KNOB3": {
+    "KNOB2": {
      "note": "METER",
      "value": "4/4"
     },
-    "KNOB4": {
+    "KNOB3": {
      "note": "",
      "value": ""
+    },
+    "KNOB4": {
+     "note": "BEAT",
+     "value": "Off"
     }
    },
    "screen": {
@@ -1180,10 +1180,6 @@
      "label": "",
      "cells": [
       {
-       "label": "Preset",
-       "value": "Metro"
-      },
-      {
        "label": "Click",
        "value": "70",
        "glyph": "bar",
@@ -1193,7 +1189,13 @@
        "label": "Meter",
        "value": "4/4"
       },
-      null
+      null,
+      {
+       "label": "Beat",
+       "value": "Off",
+       "glyph": "gate",
+       "pct": 0.1
+      }
      ],
      "hot": null,
      "value": ""

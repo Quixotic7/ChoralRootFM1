@@ -666,12 +666,18 @@ static void crl_tick1(cr_loop_t *lp, cr_t *c, int adv)
             lp->bpos = (uint8_t)((rel % bar) / beat + 1u);
         }
     }
-    /* the drums (cr_drum.c): on the loop's grid as the click, but only while a loop plays (an overdub too) or a take
-     * records (never in the count-in), from a beat on: a 32nd's step (CRL_PPQN / 8 ticks) of the bar, step 0 the bar's
-     * first. LOOP starts them at bar 1 (the cycle's start is a beat), stopped they stop; turned on while a loop plays
-     * they join on its next beat */
-    if (lp->drums && (lp->cap == CRL_CAP_REC || (lp->state == CRL_PLAYING && lp->cap != CRL_CAP_COUNTIN))) {
-        rel = lp->rt - (lp->cap == CRL_CAP_REC ? lp->rrec0 : lp->rcyc0);
+    /* the drums (cr_drum.c): the beat on = the drums play (the owner, after the first drums build: "if there is no
+     * loop the drums don't start"). Their grid: a take recording, its start (rrec0: bar 1 at the take's start); the
+     * count-in, its (cin0: in step with the count's clicks, and so with the take's bar after it); a loop playing (an
+     * overdub too), its cycle's (rcyc0: LOOP's start restarts them at bar 1); nothing of these, their own (dr0: from
+     * the moment they were turned on, or where the loop left them: stopped, they run on in step). A 32nd's step
+     * (CRL_PPQN / 8 ticks) of the bar, step 0 the bar's first; turned on while a loop plays they join on its next beat;
+     * turned on with nothing playing, at once */
+    if (lp->drums) {
+        uint32_t a = lp->cap == CRL_CAP_REC ? lp->rrec0 : lp->cap == CRL_CAP_COUNTIN ? lp->cin0 :
+                     lp->state == CRL_PLAYING ? lp->rcyc0 : lp->dr0;
+        lp->dr0 = a;
+        rel = lp->rt - a;
         if (!lp->drum_run && rel % beat == 0u) lp->drum_run = 1;
         if (lp->drum_run && rel % (CRL_PPQN / 8u) == 0u) {
             lp->dstep = (uint8_t)((rel % bar) / (CRL_PPQN / 8u) + 1u);
@@ -1377,6 +1383,7 @@ void cr_loop_drums(cr_loop_t *lp, int on)
     lp->drums = (uint8_t)(on != 0);
     lp->drum_run = 0;
     lp->dstep = 0;
+    lp->dr0 = lp->rt;                                /* (nothing playing: they start at once, from here) */
 }
 
 void cr_loop_metro(cr_loop_t *lp, int on)

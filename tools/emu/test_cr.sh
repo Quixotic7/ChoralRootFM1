@@ -936,57 +936,63 @@ done
 grep -q '^loop: cells' "$L" && differ cr_loop_row_playing cr_loop_row_playing_level "playing, page 2, KNOB 1: the level cell hot: $OUT/cr_loop_row_playing_level.ppm"
 run cr_metro_row
 L="$OUT/cr_metro_row.log"
-has '^metro: cells Preset Click Meter -' "$L" && grep -q "^ui: frame.*device): drum .*item 'Metronome'" "$L" &&
-    ok "SEQ held: the preset page, Metronome: Preset, Click, Meter over the tiles: $OUT/cr_metro_row.ppm" || bad "no metro cells"
-has '^metro: knob 2 click' "$L" && grep -q '^ui: frame.*device): drum .*hot 1\.1$' "$L" && ok "KNOB 2: the click level, its cell hot" || bad "metro knob"
+has '^metro: cells Click Meter - Beat' "$L" && grep -q "^ui: frame.*device): drum .*item 'Metronome'" "$L" &&
+    ok "SEQ held: the preset page, Metronome: Click, Meter, Beat over the tiles: $OUT/cr_metro_row.ppm" || bad "no metro cells"
+has '^metro: knob 1 click' "$L" && grep -q '^ui: frame.*device): drum .*hot 1\.0$' "$L" && ok "KNOB 1: the click level, its cell hot" || bad "metro knob"
 mt=$(grep -c '^ui: frame.*device): meter ' "$L")
 [ "$mt" = 0 ] && ok "no popup in the metro layer" || bad "a popup in the metro layer ($mt meters)"
 differ cr_metro_row_hot cr_metro_row_cool "the hot block gone: $OUT/cr_metro_row_cool.ppm"
-differ cr_metro_row_cool cr_metro_row_34 "KNOB 3: 3/4: $OUT/cr_metro_row_34.ppm"
+differ cr_metro_row_cool cr_metro_row_34 "KNOB 2: 3/4: $OUT/cr_metro_row_34.ppm"
 unset EMU_UI_LOG
 
-# the drums (the DRUMS plan; docs/MANUAL.md "The beat", docs/LOOPER.md "The drums"): the SEQ layer's preset page and its
-# pages, the toggle in the layer and GLO + SEQ, the drums waiting with no loop, playing on its grid, stopping with it
+# the drums (the DRUMS plan; docs/MANUAL.md "The drums", docs/LOOPER.md "The drums"): the SEQ layer's preset page
+# (ALGORITHM the preset, PRESETS the beat on / off) and its pages to Mix, the keys playing there, the drums free with no
+# loop, on its grid while it plays, running on when it stops, GLO + SEQ off
 export EMU_UI_LOG=1
 run cr_drums --wav "$OUT/cr_drums.wav"
 unset EMU_UI_LOG
 L="$OUT/cr_drums.log"
 dr() { grep -a '^  drums:' "$L" | sed -n "$1p"; }
 df() { echo "$1" | sed -n "s/.* $2 \([0-9]*\) .*/\1/p"; }
-[ "$(df "$(dr 1)" preset)" = 0 ] && [ "$(df "$(dr 1)" page)" = 1 ] && has '^metro: cells Preset Click Meter -' "$L" &&
+hits() { echo "$1" | sed -n 's/.* hits \([0-9]*\) \([0-9]*\) \([0-9]*\) .*/\1 \2 \3/p'; }
+[ "$(df "$(dr 1)" preset)" = 0 ] && [ "$(df "$(dr 1)" page)" = 1 ] && has '^metro: cells Click Meter - Beat' "$L" &&
     [ "$(df "$(dr 2)" preset)" = 1 ] && [ "$(df "$(dr 2)" kit)" = 1 ] && [ "$(df "$(dr 2)" ok)" = 1 ] &&
-    has '^metro: cells Preset Level Meter Kit' "$L" && has '^metro: knob 4 kit X Deep' "$L" &&
-    ok "SEQ held: the preset page (Metronome); KNOB 1: Drums (Preset Level Meter Kit), KNOB 4: the kit X Deep and back: $OUT/cr_drums_preset.ppm" \
+    has '^metro: algorithm preset drums' "$L" && has '^metro: cells Level Meter Kit Beat' "$L" && has '^metro: knob 3 kit X Deep' "$L" &&
+    ok "SEQ held: the preset page (Metronome); ALGORITHM: Drums (Level Meter Kit Beat), KNOB 3: the kit X Deep and back: $OUT/cr_drums_preset.ppm" \
     || bad "the preset page: $(dr 1) / $(dr 2)"
 [ "$(df "$(dr 3)" page)" = 2 ] && [ "$(df "$(dr 3)" x)" -gt 64 ] && [ "$(df "$(dr 3)" y)" -lt 64 ] && [ "$(df "$(dr 3)" density)" -gt 64 ] &&
     has '^metro: cells Map X Map Y Density Chaos' "$L" && grep -aq "device): drum .*item 'Beat'" "$L" &&
     ok "SELECT: Beat (the map, the lanes): KNOB 1..3 Map X, Map Y, Density: $OUT/cr_drums_beat.ppm" || bad "the Beat page: $(dr 3)"
 [ "$(df "$(dr 4)" page)" = 3 ] && echo "$(dr 4)" | grep -q ' kick 12/64/[0-9]*/72 ' && ! echo "$(dr 4)" | grep -q ' kick 12/64/32/72 ' &&
-    has '^metro: cells Tune Decay Character Fill' "$L" && [ "$(df "$(dr 5)" page)" = 5 ] && grep -aq "device): drum .*item 'Hats'" "$L" &&
-    ok "SELECT: Kick (KNOB 3: its Character), Snare, Hats, the last page: $OUT/cr_drums_kick.ppm $OUT/cr_drums_hats.ppm" \
+    has '^metro: cells Tune Decay Character Fill' "$L" && [ "$(df "$(dr 5)" page)" = 6 ] && grep -aq "device): drum .*item 'Mix'" "$L" &&
+    has '^metro: cells Kick FX Snare FX Hats FX -' "$L" && grep -aq '^metro: mix sends [1-9][0-9]* 0 0' "$L" &&
+    ok "SELECT: Kick (KNOB 3: its Character), Snare, Hats, Mix (KNOB 1: the kick's FX send), the last page: $OUT/cr_drums_kick.ppm $OUT/cr_drums_mix.ppm" \
     || bad "the drum pages: $(dr 4) / $(dr 5)"
-[ "$(df "$(dr 6)" beat)" = 1 ] && [ "$(df "$(dr 6)" drums)" = 1 ] && [ "$(df "$(dr 6)" click)" = 0 ] && grep -aq "msg 'drums on'" "$L" &&
-    ok "SEQ tapped in the layer: the beat on, 'drums on' (the drums in the looper, no click)" || bad "the toggle: $(dr 6)"
-[ "$(df "$(dr 7)" run)" = 0 ] && [ "$(df "$(dr 7)" now)" = 0 ] && echo "$(dr 7)" | grep -q ' hits 0 0 0 ' &&
-    ok "no loop: the drums wait (no step, no hit)" || bad "waiting: $(dr 7)"
-h8=$(echo "$(dr 8)" | sed -n 's/.* hits \([0-9]*\) \([0-9]*\) \([0-9]*\) .*/\1 \2 \3/p')
-[ "$(df "$(dr 8)" run)" = 1 ] && [ "$(echo "$h8" | cut -d' ' -f1)" -gt 0 ] && [ "$(echo "$h8" | cut -d' ' -f3)" -gt 0 ] &&
+grep -a '^  cr: voices' "$L" | sed -n 6p | grep -q ' chord DM sounding 1 ' &&
+    ok "a chord played in the SEQ layer sounds (the keys play there)" || bad "keys in the layer: $(grep -a '^  cr: voices' "$L" | sed -n 6p)"
+h7=$(hits "$(dr 7)")
+[ "$(df "$(dr 7)" beat)" = 1 ] && [ "$(df "$(dr 7)" drums)" = 1 ] && [ "$(df "$(dr 7)" click)" = 0 ] && [ "$(df "$(dr 7)" run)" = 1 ] &&
+    [ "$(echo "$h7" | cut -d' ' -f1)" -gt 0 ] && grep -aq "msg 'drums on'" "$L" &&
+    ok "PRESETS: the beat on, 'drums on'; no loop: the drums play at once, free on the tempo (hits $h7): $OUT/cr_drums_free.ppm" \
+    || bad "the drums on, free: $(dr 7)"
+h8=$(hits "$(dr 8)")
+[ "$(df "$(dr 8)" run)" = 1 ] && [ "$(echo "$h8" | cut -d' ' -f1)" -gt "$(echo "$h7" | cut -d' ' -f1)" ] &&
     [ "$(echo "$(dr 8)" | sed -n 's/.* bpos \([0-9]*\)$/\1/p')" -gt 0 ] &&
-    ok "REC + a chord + REC: the loop plays and the drums with it (hits $h8): $OUT/cr_drums_home.ppm $OUT/cr_drums_beat_playing.ppm" \
+    ok "REC + a chord + REC: the loop plays and the drums go on with it (hits $h8): $OUT/cr_drums_home.ppm $OUT/cr_drums_beat_playing.ppm" \
     || bad "playing: $(dr 8)"
-[ "$(df "$(dr 9)" run)" = 0 ] && [ "$(df "$(dr 9)" now)" = 0 ] && [ "$(df "$(dr 10)" beat)" = 0 ] && [ "$(df "$(dr 10)" drums)" = 0 ] &&
-    grep -aq "msg 'drums off'" "$L" && ok "LOOP: the loop stops and the drums with it; GLO + SEQ: 'drums off'" || bad "stop / off: $(dr 9) / $(dr 10)"
+[ "$(df "$(dr 9)" run)" = 1 ] && [ "$(df "$(dr 10)" beat)" = 0 ] && [ "$(df "$(dr 10)" drums)" = 0 ] && [ "$(df "$(dr 10)" run)" = 0 ] &&
+    grep -aq "msg 'drums off'" "$L" && ok "LOOP: the loop stops, the drums (on before it) run on; GLO + SEQ: 'drums off'" || bad "stop / off: $(dr 9) / $(dr 10)"
 r=$(python3 - "$OUT/cr_drums.wav" <<'PY'
 import sys, wave, struct
 w = wave.open(sys.argv[1]); fs = w.getframerate(); ch = w.getnchannels(); n = w.getnframes()
 a = struct.unpack('<%dh' % (n * ch), w.readframes(n))
 def peak(t0, t1):
     return max(abs(x) for x in a[int(t0 * fs) * ch:int(t1 * fs) * ch] or [0])
-print(peak(6.2, 7.6), peak(14.6, 16.5))
+print(peak(5.0, 6.9), peak(9.1, 9.6))
 PY
 )
 [ "$(echo "$r" | cut -d' ' -f1)" -lt 50 ] && [ "$(echo "$r" | cut -d' ' -f2)" -gt 1000 ] &&
-    ok "the WAV: silence while the drums wait, the loop and the drums after it (peaks $r)" || bad "the WAV: peaks $r"
+    ok "the WAV: silence before the beat, the drums alone with no loop (peaks $r)" || bad "the WAV: peaks $r"
 
 echo "EDIT: the sound editor (cr_edit.c): groups, screens, lanes, knobs, memory"
 export EMU_UI_LOG=5
@@ -1749,7 +1755,7 @@ unset EMU_UI_LOG
 SQ="$OUT/cr_seq.log"
 q() { L cr_seq "$1"; }
 sq() { echo "$(ly "$SQ" "$1") $(l2 "$SQ" "$1" edit) $(lf "$(q "$1")" metro)"; }   # layer options edit metro
-[ "$(sq 1)" = "8 0 1 0" ] && [ "$(sq 2)" = "8 0 0 0" ] && [ "$(sq 3)" = "0 0 0 0" ] && [ "$(grep -ac '^loopedit: from the view' "$SQ")" = 3 ] &&
+[ "$(sq 1)" = "8 0 1 0" ] && [ "$(sq 2)" = "8 0 0 0" ] && [ "$(sq 3)" = "0 0 0 0" ] && [ "$(grep -ac '^loopedit: from the view' "$SQ")" = 4 ] &&
     has 'expect led SEQ on .*: ok' "$SQ" && [ "$(grep -ac 'expect led SEQ dim .*: ok' "$SQ")" = 2 ] && has 'expect led OCT- dim .*: ok' "$SQ" &&
     grep -aq "loopmenu .*item 'Step' .*foot '1/2 . PRESETS: step . REC: clear . SEQ: back'" "$SQ" &&
     ok "SEQ's cycle: the view -> the loop editor (its bottom line 'SEQ: back') -> the PLAY menu (SEQ's LED lit) -> the view (dim): $OUT/cr_seq_editor.ppm" \
@@ -1762,16 +1768,16 @@ has '^loop: cells Level Beat - -' "$SQ" && [ "$(sq 8)" = "8 0 0 1" ] && [ "$(sq 
     ok "the PLAY menu's page 2, KNOB 2: Beat (the metronome's switch) On / Off, its cell hot: $OUT/cr_seq_p2_on.ppm" || bad "the metronome cell: $(sq 8) / $(sq 9)"
 differ cr_seq_p2_off cr_seq_p2_on "the Metronome cell shows On"
 [ "$(sq 10)" = "0 0 0 1" ] && [ "$(sq 11)" = "0 0 0 0" ] && grep -aq "msg 'metronome on'" "$SQ" && grep -aq "msg 'metronome off'" "$SQ" &&
-    [ "$(grep -ac '^metro: o' "$SQ")" = 2 ] &&
-    ok "GLO held + SEQ: the metronome on / off with its message (no Options, no editor); SEQ's LED does not show the click; SEQ alone never toggled it (the 2 toggles of the script are these)" \
+    [ "$(grep -ac '^metro: o' "$SQ")" = 4 ] &&
+    ok "GLO held + SEQ: the metronome on / off with its message (no Options, no editor); SEQ's LED does not show the click; SEQ alone never toggled it (the 4 toggles of the script are these two and PRESETS on / off in the SEQ layer, H)" \
     || bad "GLO + SEQ: $(sq 10) / $(sq 11), $(grep -ac '^metro: o' "$SQ") toggles"
 [ "$(sq 12)" = "3 0 0 0" ] && [ "$(sq 13)" = "3 0 0 0" ] && [ "$(sq 14)" = "0 1 0 0" ] && ! has '^fx: o' "$SQ" &&
     ok "SEQ in the FX layer and in the Options: nothing (the layer stays, no editor, no click)" || bad "SEQ in a layer: $(sq 12) / $(sq 13) / $(sq 14)"
 [ "$(lf "$(q 15)" cap)" != 0 ] && [ "$(sq 15)" = "0 0 0 0" ] && has '^loopedit: open rc 1' "$SQ" && grep -aq "msg 'end the take first'" "$SQ" &&
     ok "SEQ with a take open: refused (end the take first), the view stays" || bad "SEQ during a capture: cap $(lf "$(q 15)" cap), $(sq 15)"
-[ "$(sq 17)" = "7 0 0 0" ] && [ "$(sq 18)" = "8 0 0 0" ] && [ "$(lf "$(q 18)" slot)" = 1 ] && [ "$(sq 19)" = "8 0 1 0" ] &&
+[ "$(sq 17)" = "7 0 0 0" ] && [ "$(sq 18)" = "7 0 0 1" ] && [ "$(lf "$(q 18)" slot)" = 1 ] && [ "$(sq 19)" = "8 0 1 0" ] &&
     [ "$(grep -a '^  loop3:' "$SQ" | sed -n 19p | sed -n 's/.* cursor \([0-9]*\) .*/\1/p')" = 2 ] &&
-    ok "SEQ held: the METRO layer on the view, as before; in the editor it closes it to the PLAY menu and PRESETS with SEQ still down does nothing (slot 1); turned inside the hold: the step cursor (2), the editor stays" \
+    ok "SEQ held: the SEQ layer on the view, as before; in the editor too (the editor closed; PRESETS with SEQ still down: the layer's, the beat on; slot 1); turned inside the hold: the step cursor (2), the editor stays" \
     || bad "SEQ held + PRESETS: $(sq 17) / $(sq 18) slot $(lf "$(q 18)" slot) / $(sq 19)"
 [ "$(sq 20)" = "8 0 0 0" ] && [ "$(lf "$(q 20)" slot)" = 2 ] && [ "$(sq 21)" = "8 0 1 0" ] && [ "$(sq 22)" = "8 0 0 0" ] && [ "$(sq 23)" = "0 0 0 0" ] &&
     [ "$(grep -ac '^sound: part 0 pos' "$SQ")" = 0 ] &&
@@ -3574,8 +3580,8 @@ gyes 20 "$A" "$P" 2 "a layer over the sound editor (PERF)"
 grep -a '^ui: frame.* picker ' "$GK" | grep -aq "item 'CZ-1' value '64 presets'" && grep -a '^ui: frame.* picker ' "$GK" | grep -aq "item 'FM TONE' value '16 presets'" &&
     ok "the picker itself is the home pages': the engine big, its presets' count: $OUT/cr_glo_knobs_key_pick.ppm (the KEY layer), cr_glo_knobs_edit_pick.ppm (the editor), cr_glo_knobs_opt.ppm" \
     || bad "the engine picker's screen in a layer"
-[ "$(gp 1 31)" = "VA / SLOW STRINGS" ] && [ "$(gl 31)" = 7 ] && [ "$(gp 0 31)" = "FM6 / FM BELL" ] &&
-    ok "the held-layer rule: SEQ held past the hold time and still down, GLO pressed too, ALGORITHM: the bass sound (VA 04), SEQ's layer open; no engine picker (GLO is the shift only when it is the button held)" \
+[ "$(gp 1 31)" = "VA / GLASS PAD" ] && [ "$(gl 31)" = 7 ] && [ "$(gp 0 31)" = "FM6 / FM BELL" ] && has '^metro: algorithm preset drums' "$GK" &&
+    ok "the held-layer rule: SEQ held past the hold time and still down, GLO pressed too, ALGORITHM: the SEQ layer's (since the drums: its preset, Drums; the bass sound kept), the layer open; no engine picker (GLO is the shift only when it is the button held)" \
     || bad "SEQ held + GLO + ALGORITHM: bass '$(gp 1 31)' layer $(gl 31)"
 [ "$(gb 32)" = 0 ] && [ "$(gp 1 32)" = "$B" ] && [ "$(gl 32)" = 3 ] &&
     ok "a bass that is off, in the FX layer: GLO + ALGORITHM changes its engine ($B), the bass stays off (as on the home pages)" \

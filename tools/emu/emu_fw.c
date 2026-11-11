@@ -589,11 +589,12 @@ void emu_fw_dump(void)
          * kit, the layer's page, the step playing + 1, the hits so far (kick snare hats), the Beat page's knobs, the
          * level, the chip's beat */
         printf("  drums: preset %u beat %u click %u drums %u ok %u run %u kit %u page %u now %u hits %u %u %u "
-               "x %u y %u density %u chaos %u level %u kick %u/%u/%u/%u snare %u/%u/%u/%u hats %u/%u/%u/%u bpos %u\n",
+               "x %u y %u density %u chaos %u level %u sends %u %u %u kick %u/%u/%u/%u snare %u/%u/%u/%u hats %u/%u/%u/%u bpos %u\n",
                (unsigned)cs.beat_preset, (unsigned)cs.metro, (unsigned)crl.metro, (unsigned)crl.drums,
                (unsigned)cu_drums_ok, (unsigned)crl.drum_run, (unsigned)cs.dr_kit, (unsigned)cu.mpage + 1u,
                (unsigned)crd_now, (unsigned)crd_hitn[0], (unsigned)crd_hitn[1], (unsigned)crd_hitn[2],
                (unsigned)cs.dr_x, (unsigned)cs.dr_y, (unsigned)cs.dr_dens, (unsigned)cs.dr_chaos, (unsigned)cs.dr_level,
+               (unsigned)cs.dr_send[0], (unsigned)cs.dr_send[1], (unsigned)cs.dr_send[2],
                (unsigned)cs.dr[0][0], (unsigned)cs.dr[0][1], (unsigned)cs.dr[0][2], (unsigned)cs.dr[0][3],
                (unsigned)cs.dr[1][0], (unsigned)cs.dr[1][1], (unsigned)cs.dr[1][2], (unsigned)cs.dr[1][3],
                (unsigned)cs.dr[2][0], (unsigned)cs.dr[2][1], (unsigned)cs.dr[2][2], (unsigned)cs.dr[2][3],

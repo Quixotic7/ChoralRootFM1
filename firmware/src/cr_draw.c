@@ -2571,7 +2571,7 @@ static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
  * marks under it), the middle (rows CR_DR_TOP .. the row), knobrow's row of four knob cells (72 px). The middle:
  *   page 0  the preset: two tiles 84 x 76, Metronome (four beat bars) and Drums (the roundel), the chosen one lit in
  *           its colour (white / magenta) with a 3 px frame, the other dim
- *   page 1  Beat: Grids' 5 x 5 map (tiles 16 px, 4 apart), the four around the dot tinted magenta by their weight in
+ *   page 1  Beat: Grids' 5 x 5 map (tiles 16 px, 4 apart; X to the right, Y up), the four around the dot tinted by their weight in
  *           the blend, the cross through the dot, the dot (a white ring on magenta); right of it the bar's three lanes
  *           (BD, SD, HH), a row a step from the top: a hit magenta, an accent white, a rest a dim tick; the step
  *           playing framed white across the three
@@ -2621,16 +2621,17 @@ static void cr_dr_beat(const cr_screen_t *s)
 {
     int32_t mx = 8, my = CR_DR_TOP + 2, i, j, d;
     int32_t fx = ((int32_t)s->dr_x << 2) & 255, fy = ((int32_t)s->dr_y << 2) & 255, ti = s->dr_x >> 6, tj = s->dr_y >> 6;
-    int32_t dx = mx + 8 + (int32_t)s->dr_x * 80 / 256, dy = my + 8 + (int32_t)s->dr_y * 80 / 256;
+    int32_t dx = mx + 8 + (int32_t)s->dr_x * 80 / 256, dy = my + 8 + (255 - (int32_t)s->dr_y) * 80 / 256;
     int32_t n = s->dr_steps ? s->dr_steps : 32, rh = 96 / n, ly = my + (98 - rh * n) / 2;
-    for (i = 0; i < 5; i++)                      /* the map: x across, y down (Grids' drum_map[x][y]) */
+    for (i = 0; i < 5; i++)                      /* the map: x across, y UP (Grids' drum_map[x][y]; the owner: "Map Y
+                                                  * ... should go up when turning CW"): row j from the bottom */
         for (j = 0; j < 5; j++) {
             int32_t w = 0;
             if (i == ti && j == tj) w = (255 - fx) * (255 - fy);
             else if (i == ti + 1 && j == tj) w = fx * (255 - fy);
             else if (i == ti && j == tj + 1) w = (255 - fx) * fy;
             else if (i == ti + 1 && j == tj + 1) w = fx * fy;
-            cr_box(mx + i * 20, my + j * 20, 16, 16, w ? ux_mix(T_SURF, CR_MAG, w * 100 / 65025) : T_SURF, 2, 0);
+            cr_box(mx + i * 20, my + (4 - j) * 20, 16, 16, w ? ux_mix(T_SURF, CR_MAG, w * 100 / 65025) : T_SURF, 2, 0);
         }
     cr_fill(mx, dy, 96, 1, T_MID);               /* the cross */
     cr_fill(dx, my, 1, 96, T_MID);
@@ -2688,6 +2689,19 @@ static void cr_dr_drum(const cr_screen_t *s)
         }
     }
 }
+/* page 5, Mix: the three drums' icons in a row, each in a ring (r 30, 4 px: the track dim, the send magenta clockwise
+ * from 12 o'clock, as full as the send), the ring 3 px wider at the drum's thump */
+static void cr_dr_mix(const cr_screen_t *s)
+{
+    int32_t k;
+    for (k = 0; k < 3; k++) {
+        int32_t cx = (40 + k * 80) * 16, cy = (CR_DR_TOP + 50) * 16, w = 4 * 16 + s->dr_pul[k] * 48 / 255;
+        uint32_t sw = (uint32_t)s->dr_send[k] * 65536u / 127u;
+        cr_arc(cx, cy, 30 * 16, 4 * 16, 0, 65536u, 0, 0, 0, T_SURF);
+        if (sw) cr_arc(cx, cy, 30 * 16, w, 49152u, sw >= 65536u ? 65535u : sw, 0, 0, 0, CR_MAG);
+        cr_dr_icon((uint32_t)k + 2u, cx, cy, s->dr_send[k] ? CR_WHITE : T_DIM);
+    }
+}
 static void cr_p_drum(const cr_screen_t *s, const cr_frame_t *fr)
 {
     int32_t ry = cr_kr_rowy(s);
@@ -2695,6 +2709,7 @@ static void cr_p_drum(const cr_screen_t *s, const cr_frame_t *fr)
     if (cr_in_strip(CR_DR_TOP, ry)) {
         if (s->dr_page == 0u) cr_dr_tiles(s);
         else if (s->dr_page == 1u) cr_dr_beat(s);
+        else if (s->dr_page == 5u) cr_dr_mix(s);
         else cr_dr_drum(s);
     }
     cr_kr_cells(s, ry, CR_KR_ROW);

@@ -10,9 +10,10 @@
 # E. GLO held + SEQ: the click on / off, no Options, no editor.
 # F. The FX layer, the Options: SEQ changes nothing.
 # G. A take armed: SEQ is refused ("end the take first"), the view stays.
-# H. SEQ held on the view: the METRO layer, as before. In the editor SEQ held closes it to the PLAY menu and PRESETS
-#    turned with SEQ still down does nothing (no slot, no sound); turned inside the hold time it is the editor's step
-#    cursor and the editor stays.
+# H. SEQ held on the view: the SEQ layer, as before. In the editor SEQ held opens the SEQ layer too (the owner, after the
+#    first drums build: "when you hold seq from the sequencer it takes you to the drums"), the editor closed, and
+#    PRESETS turned with SEQ still down is that layer's (the beat on), never the slot or the sound; turned inside the
+#    hold time it is the editor's step cursor and the editor stays.
 # I. In the editor LOOP held: the PLAY menu (the editor closed, the menu open), PRESETS with LOOP still down: the
 #    menu's slot. A LOOP tap in the editor: play / stop, the editor stays. LOOP held with no knob: the PLAY menu.
 wait 300
@@ -128,8 +129,12 @@ knob PRESETS +1
 wait 200
 btn SEQ up
 wait 500
-dump                              # 18: layer 8, edit 0, slot 1 (the PLAY menu; the knob did nothing)
-btn EDIT
+dump                              # 18: layer 7, edit 0, slot 1, metro 1 (the SEQ layer; PRESETS: the beat on)
+knob PRESETS -1
+wait 200
+btn OCT-
+wait 300
+btn SEQ
 wait 300
 btn SEQ down
 wait 100

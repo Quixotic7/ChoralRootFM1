@@ -396,7 +396,7 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
 
 /* ------------------------------------------------------ the session record --- */
 typedef char css_size_ok[sizeof(cr_session_t) == CSS_SIZE && sizeof(css_fx_t) == 128 && sizeof(css_part_t) == 384 &&
-                         sizeof(css_drum_t) == 20 ? 1 : -1];
+                         sizeof(css_drum_t) == 24 ? 1 : -1];
 static uint32_t css_fnv(const cr_session_t *x, uint32_t from, uint32_t size)
 {
     const uint8_t *b = (const uint8_t *)x;
@@ -1056,6 +1056,8 @@ static void css_drum_get(css_drum_t *d)
     for (i = 0; i < 3u; i++)
         for (k = 0; k < 4u; k++)
             d->dr[i][k] = cs.dr[i][k];
+    for (i = 0; i < 3u; i++)
+        d->send[i] = cs.dr_send[i];
 }
 static void css_drum_put(const cr_session_t *x)
 {
@@ -1076,6 +1078,8 @@ static void css_drum_put(const cr_session_t *x)
     for (i = 0; i < 3u; i++)
         for (k = 0; k < 4u; k++)
             if (d->dr[i][k] <= (k ? 127u : 24u)) cs.dr[i][k] = d->dr[i][k];
+    for (i = 0; i < 3u; i++)
+        if (d->send[i] <= 127u) cs.dr_send[i] = d->send[i];
 }
 
 /* the unit's state now -> *x (sealed; `bind` is the writer's: css_write) */

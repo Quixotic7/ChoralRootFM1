@@ -720,14 +720,14 @@ KEY, PERF, FX, BASS, SEQ (its hold menu is the beat's: the metronome or the drum
 | Bass PERF | BASS (ENV) + PERF (ARP) | the bass's performance mode (Off first) | play as usual | performance on / off | close |
 | FX | FX | the effect | play as usual | effects on / off | close |
 | BASS | BASS (ENV) | the bass behaviour | the white keys D4 E4 F4 G4 pick the behaviour; nothing sounds | bass on / off | close |
-| SEQ's hold menu (the beat) | SEQ | the page: with Drums, the preset, Beat, Kick, Snare, Hats ([The drums](#the-drums)) | D4 E4 F4 pick 4/4, 3/4, 6/8 | the beat on / off (in this layer only; on the view a tap is the loop editor) | close |
+| SEQ's hold menu (the beat) | SEQ | the page: with Drums, the preset, Beat, Kick, Snare, Hats, Mix ([The drums](#the-drums)) | play as usual | the beat on / off (in this layer only; on the view a tap is the loop editor) | close |
 | PLAY menu | LOOP (PLAY) | see [The looper](#10-the-looper) | play, or pick loop slots | play / stop | close (in step entry: back a step / a rest) |
 
 Three more things open the same way and are described in their own chapters: **EDIT** held is the engine picker
 ([Sounds](#11-sounds)), **HOME** held for 0.6 s is the view menu ([Views](#13-views)), and **SAVE** held is not a layer: it is the global save ([What the FM-1 remembers](#what-the-fm-1-remembers)). (Until 0.17 SAVE held showed the
 loop slots for as long as it was held.)
 
-PRESETS and ALGORITHM keep their jobs in a layer (except in the PLAY menu). The hold time is set in Options > Hold
+PRESETS and ALGORITHM keep their jobs in a layer (except in the PLAY menu and in SEQ's hold menu, where they are the beat's: [The drums](#the-drums)). The hold time is set in Options > Hold
 Time (300, 400, 500 or 600 ms).
 
 ## 6. Bass
@@ -1076,12 +1076,14 @@ one to three short gaps in it ([What the FM-1 remembers](#what-the-fm-1-remember
   On or Off.
 - From anywhere outside the sound editor, **hold OPT (GLO) and tap SEQ** for the same thing
   (`metronome on`). SEQ tapped by itself opens the loop editor (until 0.18 it was the click).
-- Hold SEQ for **the SEQ key's hold menu, the beat's**. Its first page is the preset: two tiles, **Metronome** (the
-  click, as ever) and **Drums** (new after 0.39, [below](#the-drums)). KNOB 1 picks the preset, KNOB 2 is the level
-  (the click's, or the drums'), KNOB 3 (or D4, E4, F4) the time signature, 4/4, 3/4 or 6/8, and with Drums KNOB 4 the
-  kit. A tap of SEQ in this menu is the beat on / off. OPT + SELECT sets the click's level without opening the menu.
-  (Until 0.39 SELECT picked the time signature here and KNOB 1 was the level.)
-- The click is not part of the USB recording.
+- Hold SEQ for **the SEQ key's hold menu, the beat's** (also from the loop editor, new after 0.39). Its first page is
+  the preset: two tiles, **Metronome** (the click, as ever) and **Drums** (new after 0.39, [below](#the-drums)).
+  On every page of the menu **ALGORITHM** picks the preset (a turn right Drums, left Metronome) and **PRESETS** starts
+  and stops the beat (right on, left off; a tap of SEQ does the same). KNOB 1 is the level (the click's, or the
+  drums'), KNOB 2 the time signature, 4/4, 3/4 or 6/8, with Drums KNOB 3 the kit, and KNOB 4 shows the beat on or off
+  (and turns it too). The keys play as usual in this menu. OPT + SELECT sets the click's level without opening the
+  menu. (Until 0.39 SELECT and D4, E4, F4 picked the time signature here and KNOB 1 was the level.)
+- The click follows MASTER (new after 0.39), the count-in's too. It is not part of the USB recording.
 
 ### The drums
 
@@ -1093,28 +1095,33 @@ turns into a clap, and closed and open hats, playing a beat you morph rather tha
   enough for its **Fill**.
 - **The sound** is CoralFlower's morph drum synth: each drum has a soft and a hard setting, and **Character** sets
   where it sits between them. Six kits: X Club, X Deep, X Lo-Fi, X Live, X Tech and X Break.
-- **On and off**: GLO + SEQ from anywhere (`drums on`, `drums off`), a tap of SEQ in its menu, or the PLAY menu's page
-  2, KNOB 2 (**Beat**). It is the metronome's switch: whichever preset is chosen is what plays.
-- **They play with the loop**, like the arp: they start at bar 1 when LOOP starts a loop, stop when it stops, and play
-  under a take while you record it (not in the count-in). Turned on while a loop plays, they join on its next beat, in
-  step with its bar. Turned on with nothing playing, they wait for LOOP. **They are never part of a loop**: nothing of
-  them is recorded or saved in a slot (they are in the sound that goes out, USB recording included).
+- **On and off**: GLO + SEQ from anywhere (`drums on`, `drums off`), PRESETS or a tap of SEQ in its menu, or the PLAY
+  menu's page 2, KNOB 2 (**Beat**). It is the metronome's switch: whichever preset is chosen is what plays.
+- **On is playing.** With nothing playing they start at once, on the tempo. When a loop starts they follow it: LOOP's
+  start is bar 1 for them too, and they stay in step with its bars; under a take they start with it (in the count-in,
+  in step with its clicks). When the loop stops they keep going. Turned on while a loop plays, they come in on its
+  next beat. **They are never part of a loop**: nothing of them is recorded or saved in a slot (they are in the sound
+  that goes out, USB recording included).
 - **3/4 and 6/8**: Grids' patterns are bars of 4/4; in 3/4 and 6/8 the drums play the first three quarters of each.
 
 With Drums, **SELECT** turns the menu's pages after the preset page:
 
 | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- |
-| the preset (both presets) | Preset: Metronome or Drums | Level (the click's, or the drums') | Meter: 4/4, 3/4, 6/8 | Kit (Drums) |
+| the preset (both presets; ALGORITHM picks it) | Level (the click's, or the drums') | Meter: 4/4, 3/4, 6/8 | Kit (Drums) | Beat: on or off (as PRESETS) |
 | **Beat**: the map, the dot where you are and the four patterns it blends, beside it the bar the three drums play (kick, snare, hats, top to bottom; white: an accent), the step playing framed | Map X | Map Y | Density: more or fewer hits on all three | Chaos: a few hits added at random, new each bar |
 | **Kick**, **Snare**, **Hats**: the drum's sound drawn (as tall as its tune, as long as its decay, smooth when soft, striped when hard) | Tune, -12 to +12 semitones | Decay | Character: soft to hard (the snare: past the middle it becomes a clap) | Fill: how many of the map's hits this drum plays |
+| **Mix**: the three drums, each in a ring as full as its send | Kick FX | Snare FX (the clap too) | Hats FX | |
 
+- **The map**: turning Map X right moves the dot right, turning Map Y right moves it up.
+- **FX**: each drum's send on the Mix page goes into the delay and the reverb, the same amount into each, as a part's
+  sends do (0, the default: the drums dry). FX off closes them. The drums go through the master filter as the parts do.
 - **Accents**: where the map's pattern is strongest, the kick and the snare play louder, and the hats play the **open
   hat**, which the next closed hat cuts short.
 - **The home screen** shows a small chip at the top right while the beat is on: four blocks, the beat lit, and with
-  Drums a drum roundel that thumps on the kick. Before the drums start (no loop playing) no block is lit.
-- **Saved** with everything else by the global save (SAVE held): the preset, the kit, the level, the Beat page and
-  each drum's knobs. A new unit, and one coming from an older ChoralRoot, starts on Metronome. The drums are not in a
+  Drums a drum roundel that thumps on the kick.
+- **Saved** with everything else by the global save (SAVE held): the preset, the kit, the level, the Beat page,
+  each drum's knobs and its FX send. A new unit, and one coming from an older ChoralRoot, starts on Metronome. The drums are not in a
   settings backup (the same as the FX layer and the Bass Perform: the backup keeps the Options).
 - If the drums' data is missing from the unit (an interrupted install), Drums plays the click instead: install
   ChoralRoot again.
@@ -1265,7 +1272,8 @@ change it one step at a time. **SEQ goes round three places**: the main screen, 
 the main screen again. So from the editor one tap of SEQ is the PLAY menu (the slots, the record mode, Length, Rate,
 the metronome) and one more is back where you started. In the PLAY menu **EDIT** opens the same editor. (Outside the
 PLAY menu EDIT is the sound editor, as ever.) SEQ does not open the editor from another layer, the Options or the
-sound editor, and not while a take is being recorded (`end the take first`).
+sound editor, and not while a take is being recorded (`end the take first`). **Hold SEQ** in the editor for the
+beat's menu (the metronome or the drums; new after 0.39): the editor closes under it.
 
 <img src="manual/loop-editor.png" width="240" alt="The loop editor, page Step: a row of sixteen steps, three red, the second outlined, a white bar along its foot and the next three; Am, step 2/16; cells Note len 4, Steps 16, Chance 100%, Velocity 100">
 <img src="manual/loop-editor-trig.png" width="240" alt="The loop editor, page Trig: the same row, the second step with two ticks at its top and a blue strip at its right; Am +2 under the grid; cells Ratchet x2, Condition 1:2, Voicing +2, Transpose A4">
@@ -2678,7 +2686,7 @@ is the exception: held again it switches between the chords' and the bass's PERF
 | HOME | HOME | back; on the view: next view | 0.6 s: the view menu (SELECT view · KNOB 1 lock) |
 | SAVE | SAVE | the save menu: SELECT Overwrite / Save as new / Favorite / Favorites filter / Favorite type · KNOB 1 value · KNOB 2 filter · 3 type · 4 favorite · OCT+ saves · held 1 s: delete / reset | **the global save**: everything as it is now, and the loop (`saved`). With GLO, both held 1 s: revert (`reverted`) |
 | ARP | PERF | performance on / off, both parts (in its layers too) | PERF layer (the chords): SELECT mode (Off first) · KNOB 1-4 its parameters. With BASS (ENV) held: the Bass PERF layer, the same for the bass (Off, Follow, the modes). Held again in a PERF layer: the other part's |
-| SEQ | SEQ | the loop editor; in it: the PLAY menu; in the PLAY menu: leave. With GLO held: the beat on / off | its hold menu (the beat): KNOB 1 Preset (Metronome / Drums) · 2 Level · 3 Meter (D4 E4 F4 too) · 4 Kit · SELECT: Beat (Map X, Map Y, Density, Chaos), Kick, Snare, Hats (Tune, Decay, Character, Fill) · a tap there: the beat on / off |
+| SEQ | SEQ | the loop editor; in it: the PLAY menu; in the PLAY menu: leave. With GLO held: the beat on / off | its hold menu (the beat; from the loop editor too): ALGORITHM Preset (Metronome / Drums) · PRESETS the beat on / off · KNOB 1 Level · 2 Meter · 3 Kit · 4 Beat · SELECT: Beat (Map X, Map Y, Density, Chaos), Kick, Snare, Hats (Tune, Decay, Character, Fill), Mix (Kick FX, Snare FX, Hats FX) · the keys play · a tap there: the beat on / off |
 | PLAY | LOOP | play / stop the loop; ends a take | PLAY menu: PRESETS slot · ALGORITHM record mode · SELECT page · page 1: KNOB 1 Length · 2 Rate · 3 Quantize · 4 Count-in · page 2: KNOB 1 Level · 2 Beat · GLO: its keys play / loops · SEQ: leave · EDIT: the loop editor (PRESETS step, heard while the loop is stopped, with GLO 8 steps · SELECT page · ALGORITHM the step's voicing · the keys replace it · REC clears it · OCT the octave · page 1: KNOB 1 Note len · 2 Steps, with GLO to 8 16 32 48 64 · 3 Chance · 4 Velocity · page 2: KNOB 1 Ratchet · 2 Condition · 3 Voicing · SEQ, EDIT or LOOP held: the PLAY menu · HOME: the view) |
 | REC | REC | record by the record mode; ends a take; cancels when armed. With GLO held: the next record mode | undo the last layer |
 | OCT- | octave down | roots down an octave (to -2). In layers, menus, dialogs: back / cancel (closes). In step entry: back a step | in the editor, + a knob: clear that parameter's modulation |

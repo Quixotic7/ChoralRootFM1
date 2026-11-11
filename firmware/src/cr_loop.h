@@ -85,8 +85,8 @@ typedef struct {
     /* settings (the UI's, posted) */
     uint8_t sync, quant, count_in, level;      /* 0..5, 0..6, 0/1, 0..100 (loop velocity %) */
     uint8_t sig, metro, metro_vol;             /* CRL_SIG_*, click on, click level 0..100 */
-    uint8_t drums;                             /* the drums on (cr_drum.c; the DRUMS plan): they play while a loop plays or a
-                                                * take records, on its grid, joining on a beat (crl_tick1) */
+    uint8_t drums;                             /* the drums on (cr_drum.c; the DRUMS plan): they play, free on the tempo or on
+                                                * the loop's grid while one plays or a take records (crl_tick1) */
     uint8_t mode;                              /* CRL_MODE_*: what REC does with no capture (Advance: the UI's slot jump,
                                                 * then as Overwrite) */
     /* the loop */
@@ -117,6 +117,7 @@ typedef struct {
      * taken by the audio block (choralroot.c mix_block: cr_drum.c crd_beat_step); bpos, the beat the click or the drums
      * are on + 1 (0: none; the home page's beat chip) */
     uint8_t drum_run, dstep, bpos;
+    uint32_t dr0;                              /* the drums' own grid's start (nothing playing: their free run) */
     struct { uint32_t gid, t0; int16_t root; uint8_t used, q, ext, vel, rep; } open[CRL_OPEN];   /* held gestures
                                                 * (rep: opened while replacing; used 2: its key is up and it sounds on,
                                                 * latched, and the editor has written it: CR_G_KEYUP) */
@@ -205,7 +206,7 @@ void cr_loop_queue(cr_loop_t *lp, cr_t *c, const crl_data_t *d);  /* playing: at
                                                 * An overdub armed or an undo before then cancels it (the loop
                                                 * being edited stays), as a stop or a clear does */
 void cr_loop_metro(cr_loop_t *lp, int on);     /* the click on / off (its grid restarts) */
-void cr_loop_drums(cr_loop_t *lp, int on);     /* the drums on / off (they wait for the loop's next beat) */
+void cr_loop_drums(cr_loop_t *lp, int on);     /* the drums on / off (at once; a loop playing: on its next beat) */
 /* the Rate (0..CRL_NRATE-1: x1/16 x1/12 x1/8 x1/6 x1/4 x1/2 x3/4 x1 x1.5 x2 x4; out of range: x1): how fast the
  * loop's own time runs against the tempo. Taken
  * at once when nothing plays and no take runs, else at the loop's next start (the end of the cycle): the position

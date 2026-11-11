@@ -398,7 +398,10 @@ typedef struct {
     uint8_t preset, kit, level;         /* 0 Metronome / 1 Drums; the kit 0..5; the drums' level 0..100 */
     uint8_t x, y, density, chaos;       /* the Beat page: Map X, Map Y, Density, Chaos 0..127 */
     uint8_t dr[3][4];                   /* kick, snare, hats: Tune 0..24 (12: as voiced), Decay, Character, Fill 0..127 */
-} css_drum_t;                           /* 20 bytes */
+    uint8_t send[3];                    /* .. their FX sends 0..127 (the Mix page; 0 in a record of the first drums
+                                         * builds: these were the reserve's, so no new version) */
+    uint8_t pad;                        /* 0 */
+} css_drum_t;                           /* 24 bytes */
 typedef struct {
     uint8_t valid;                      /* 1: a sound is stored */
     uint8_t eng, preset, user;          /* core.h track_t eng_req, preset, user (the slot it is as stored, + 1) */
@@ -435,10 +438,10 @@ typedef struct {
                                          * smk_ut_off): 0 On (the default: an older record, a record of the FM-1
                                          * build), 1 Off. The FM-1 build neither writes nor reads it. Byte 25 (the old
                                          * reserve's fourth) */
-    css_drum_t drum;                    /* the beat's preset and the drums (the DRUMS plan; bytes 26..45, the old
+    css_drum_t drum;                    /* the beat's preset and the drums (the DRUMS plan; bytes 26..49, the old
                                          * reserve's): ver CSS_DRUM_VERSION when stored, 0 in every older record (the
                                          * defaults: Metronome, as before the drums) */
-    uint8_t rsv[22];
+    uint8_t rsv[18];
     css_fx_t fx;                        /* (rsv_fx[4] after it until the routing (issue 21): its entry took it) */
     css_part_t part[2];                 /* chord, bass */
     /* Chord and Bass Perform (0.34, GitHub issue 41), bytes 964 .. 1005 of the old end reserve (0 in every older

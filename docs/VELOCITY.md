@@ -152,6 +152,13 @@ sets how many octaves make 127 (0.12 .. 0.8; a light rest to a firm press measur
 only on change). Velo's first idea, "how lightly held" from the pull-up floor, made every soft note full pressure
 and was dropped.
 
+**A glow on the top row** (the owner, after 0.39's drums build: "the LEDs on the keybed with scale turned off always
+dimly light up" C#5, D#5 and the white keys up to F5): the probe's price, since it came (3y123), with Key Touch on
+(Dynamic, Velocity + Aftertouch, Vel + Poly AT) whatever the build: its tick makes PA10, the LED line of row PA6, an
+input with its pull-up, and "the LED in column n passes a little current" (`hal/fm1_input.h`), one tick in 33 for
+each of the seven top-row keys C#5 .. G5. With Key Mode off their own LEDs are dark, so the glow shows. Key Touch
+Fixed (the default) runs no probe and lights nothing. Not changed: the reading is the current through that LED.
+
 **The top row** (PA6, no converter): MONK-1 probes it through PA10, the LED line of row PA6, which is channel 2: for
 that tick PA10 is an input with its pull-up and PA6 is driven high at the weakest level, so a pressed PA6 key pushes
 a current through its pill into the column and lifts the 595 output's low level, more when pressed harder (contact

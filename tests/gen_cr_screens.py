@@ -305,7 +305,7 @@ def screen(sc, prev_name):
         if p.get("size"):
             f.append(f".size = {p['size']}")
     elif kind == "drum":                               # the SEQ layer (cr_screen.h CR_K_DRUM, dr_*): the knobrow's band
-        items = p.get("items") or ["Drums", "Beat", "Kick", "Snare", "Hats"]   # and cells, the page's middle
+        items = p.get("items") or ["Drums", "Beat", "Kick", "Snare", "Hats", "Mix"]   # and cells, the middle
         sel = max(0, min(len(items) - 1, p.get("sel") or 0))
         f.append(".item = {" + ", ".join(cstr(t, 24) for t in items[:8]) + "}")
         f.append(f".n_items = {len(items)}")
@@ -331,6 +331,9 @@ def screen(sc, prev_name):
         f.append(f".dr_decay = {int(p.get('decay', 64))}")
         f.append(f".dr_chr = {int(p.get('chr', 32))}")
         f.append(f".dr_pulse = {q8c(p.get('pulse', 0))}")
+        if p.get("sends"):
+            f.append(".dr_send = {" + ", ".join(str(int(v)) for v in p["sends"]) + "}")
+            f.append(".dr_pul = {" + ", ".join(str(q8c(v)) for v in p.get("pulses") or [0, 0, 0]) + "}")
     elif kind == "knobrow":
         # a layer screen: the picker's band (horizontal) over one row of the four knobs' cells (cell[0])
         items = [it if isinstance(it, str) else (it or {}).get("t", "") for it in (p.get("items") or [])]
@@ -669,9 +672,10 @@ DEVICE_STATES = [
     {"name": "Device · Drums: the SEQ layer's preset page (Drums)",
      "screen": {"header": {"batt": False},
                 "panel": {"kind": "drum", "col": "drums", "sel": 0, "page": 0, "preset": "drums",
-                          "cells": [{"label": "Preset", "value": "Drums"},
-                                    {"label": "Level", "value": "80", "glyph": "bar", "pct": 0.8},
-                                    {"label": "Meter", "value": "4/4"}, {"label": "Kit", "value": "X Club"}]}}},
+                          "items": ["Drums", "Beat", "Kick", "Snare", "Hats", "Mix"],
+                          "cells": [{"label": "Level", "value": "80", "glyph": "bar", "pct": 0.8},
+                                    {"label": "Meter", "value": "4/4"}, {"label": "Kit", "value": "X Club"},
+                                    {"label": "Beat", "value": "On", "glyph": "gate", "pct": 1.0}]}}},
     {"name": "Device · Drums: Beat (the map, the lanes)",
      "screen": {"header": {"batt": False},
                 "panel": {"kind": "drum", "col": "drums", "sel": 1, "x": 100, "y": 90, "step": 9, "steps": 32,
@@ -695,6 +699,13 @@ DEVICE_STATES = [
                                     {"label": "Decay", "value": "18%", "glyph": "bar", "pct": 0.18},
                                     {"label": "Character", "value": "hard", "glyph": "mix", "pct": 0.94},
                                     {"label": "Fill", "value": "85%", "glyph": "bar", "pct": 0.85}]}}},
+    {"name": "Device · Drums: Mix (each drum's FX send)",
+     "screen": {"header": {"batt": False},
+                "panel": {"kind": "drum", "col": "drums", "sel": 5, "sends": [40, 90, 0], "pulses": [0.5, 0, 0],
+                          "items": ["Drums", "Beat", "Kick", "Snare", "Hats", "Mix"],
+                          "cells": [{"label": "Kick FX", "value": "31%", "glyph": "mix", "pct": 0.31},
+                                    {"label": "Snare FX", "value": "71%", "glyph": "mix", "pct": 0.71},
+                                    {"label": "Hats FX", "value": "0%", "glyph": "mix", "pct": 0}]}}},
     {"name": "Device · HOME with the drums playing (the beat chip)",
      "screen": {"header": {"mid": "Key: D minor", "midCol": "yellow", "batt": False},
                 "beat": {"drums": True, "n": 4, "pos": 2, "pulse": 0.7},

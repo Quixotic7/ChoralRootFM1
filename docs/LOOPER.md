@@ -83,30 +83,40 @@ chord part. Until 0.17 it was recorded as an ordinary single note and came back 
   (page 2, KNOB 1) scales the loop's velocities (0 = mute).
 - **Metronome**: on / off in the PLAY menu (page 2, KNOB 2) or by GLO held + SEQ from anywhere but the sound editor
   (`metronome on`; SEQ's tap was the click until 2026-10-11: it is the loop editor's key now, below); it clicks on the
-  take's / the loop's / its own grid. SEQ held = 4/4 3/4 6/8 picker (a SEQ tap in that layer is still the
-  click on / off: the layer's own button), KNOB 1 there or OPT + SELECT = click level. The click is a 25 ms two-pole sine burst mixed after fx.c (cr_out.c
-  `cr_click_mix`), 2.5 kHz on the bar's first beat. Since the drums the PLAY menu's KNOB 2 is labelled **Beat** and
+  take's / the loop's / its own grid. SEQ held = the SEQ layer (the beat's preset and the drums: a SEQ tap or PRESETS
+  there is the beat on / off), KNOB 1 there or OPT + SELECT = click level. The click is a 25 ms two-pole sine burst mixed after fx.c (cr_out.c
+  `cr_click_mix`), 2.5 kHz on the bar's first beat, at MASTER's level (after 0.39: the owner, "The volume of the
+  metronome does not change when reducing the master volume"; until then it was mixed after the master at its own
+  level only), still out of the limiter and out of the recording. Since the drums the PLAY menu's KNOB 2 is labelled **Beat** and
   GLO + SEQ is the beat on / off: the click with the SEQ layer's preset on Metronome, the drums with Drums (below).
 
 ## The drums (after 0.39; `cr_drum.c`, `cr_loop.c crl_tick1`, `cr_ui.c cu_beat_post`)
 
-The SEQ layer's preset Drums (docs/MANUAL.md "The drums"): a Grids beat on CoralFlower's morph drum synth. The drums
-ride the loop as the arp does, and are never part of it:
+The SEQ layer's preset Drums (docs/MANUAL.md "The drums"): a Grids beat on CoralFlower's morph drum synth. The beat
+on, the drums play; they follow a loop while one plays, and are never part of it:
 
 - **Not in a loop.** No event, no layer, nothing in a slot or `crl_data_t`; their state is the session's drum block
   (docs/SETTINGS.md), saved by the global save. Undo, Clear, the record modes and the loop editor never see them.
-- **The grid.** `crl_tick1`, after the click: with `crl.drums` on (the beat on with Drums: `LP_DRUMS`) and a loop
-  playing (an overdub too) or a take recording (`CRL_CAP_REC`; never the count-in), the step is the tempo tick's place
-  in the bar from the take's start (`rrec0`) or the cycle's (`rcyc0`): a 32nd (`CRL_PPQN / 8` = 12 ticks), Grids' step,
-  0 .. 31 in 4/4. `crl.dstep` (step + 1) is taken by the audio block (`choralroot.c mix_block`: `crd_beat_step`).
-- **Start, stop, join.** `drum_run` goes on at the first anchored tick that is a beat (`rel % beat == 0`): LOOP's start
-  is the cycle's (a beat), so they start at bar 1; turned on while a loop plays they join on its next beat, in step
-  with its bar; LOOP stopping clears `drum_run` (the voices ring out). On with nothing playing: they wait. A cycle that
-  is not whole bars (Free) restarts them at its start, as the click's grid.
+- **The grid.** `crl_tick1`, after the click, with `crl.drums` on (the beat on with Drums: `LP_DRUMS`): the step is
+  the tempo tick's place in the bar from an anchor: a take recording, its start (`rrec0`); the count-in, its start
+  (`cin0`: in step with the count, and so with the take after it); a loop playing (an overdub too), its cycle's
+  (`rcyc0`); none of these, the drums' own (`dr0`). A 32nd (`CRL_PPQN / 8` = 12 ticks), Grids' step, 0 .. 31 in 4/4.
+  `crl.dstep` (step + 1) is taken by the audio block (`choralroot.c mix_block`: `crd_beat_step`).
+- **Start, stop, join** (after 0.39's first drums build, the owner: "if there is no loop the drums don't start"):
+  the beat on = the drums play. Turned on with nothing playing they start at once, free on the tempo (`dr0` = the
+  tick they were turned on: a beat). Turned on while a loop plays, they join on its next beat (`drum_run` waits for
+  `rel % beat == 0`), in step with its bar. A loop starting while they run takes them over: its start is step 0, bar 1
+  (the anchor jumps to `rcyc0`). LOOP stopping does not stop them: `dr0` keeps the last anchor, so they run on in the
+  same step; only the beat off (GLO + SEQ, PRESETS or SEQ in the layer, the PLAY menu's Beat) stops them. A cycle that
+  is not whole bars (Free) restarts them at its start, as the click's grid. A take armed and waiting for its first
+  chord (Free): they run free; the take's start re-anchors them (its first chord is step 0).
 - **3/4 and 6/8.** The bar is 288 ticks: steps 0 .. 23, the first 24 of Grids' 32 (12 of each 16 sixteenths; the plan's
   open question 1, option a). The click's grid is unchanged.
 - **The Rate** does not change them: they follow the tempo's ticks (`crl.rt`), as the click.
-- **The home chip** reads `crl.bpos` (the beat the click or the drums are on + 1; 0 while they wait).
+- **The home chip** reads `crl.bpos` (the beat the click or the drums are on + 1; 0 with the beat off).
+- **The sound** goes into the mix with the parts' (`fx.c mix_block`, after the parts, before the effects): the master
+  filter and the limiter see it as the parts', and each drum's FX send (the layer's Mix page) feeds the delay's and
+  the reverb's buses at the same amount (none with FX off).
 
 ## The Rate (0.18)
 
@@ -370,7 +380,8 @@ version 1, and 0.14 .. 0.17 read an edited loop's record as any other (`tests/cr
 | LOOP tap | play / stop from the loop's start, as ever; the cursor does not follow the playback, the playhead shows it. A length changed under the playhead: the playhead where it is in the new cycle (`crl_ed_renorm`) |
 | REC held | the looper's undo, as outside (below) |
 | GLO tapped | nothing (the keys play; GLO held is the shift of PRESETS, Steps and the voicing above) |
-| SEQ / EDIT tapped, EDIT or SEQ held again | close it, back to the PLAY menu (`cr_loop_ed_close`), however it was opened: nothing to confirm, an edit is applied when it is made. A knob turned while EDIT or SEQ is still down after closing it by the hold does nothing (it would be the PLAY menu's: PRESETS there is the slot). **No hold menu (the metronome's) from the editor**: SEQ held there closes it, and SEQ held + a knob inside the hold time leaves the knob the editor's (`cu_activity`; `tools/emu/scripts/cr_seq.txt`) |
+| SEQ / EDIT tapped, EDIT held again | close it, back to the PLAY menu (`cr_loop_ed_close`), however it was opened: nothing to confirm, an edit is applied when it is made. A knob turned while EDIT is still down after closing it by the hold does nothing (it would be the PLAY menu's: PRESETS there is the slot) |
+| SEQ held | **the SEQ layer** (the beat: Metronome / Drums), the editor closed (after 0.39, the owner: "when you hold seq from the sequencer it takes you to the drums"; until then SEQ held closed the editor and there was no hold menu from it). A key or a knob with SEQ held past nothing: the layer at once, as SEQ held; a knob inside the hold time is still the editor's (`cu_activity`, `cu_knob`; `tools/emu/scripts/cr_seq.txt`). EDIT keeps the editor / PLAY menu switch |
 | **LOOP held** | the PLAY menu: the editor closes, the menu stays (the owner, 2026-10-11: "from the Sequencer, holding the play key should enter the Play Menu, not return to home"; until then it closed the menu with the editor). A knob turned with LOOP still down is the menu's (PRESETS: the slot), never the sound's. A LOOP tap is play / stop as ever, the editor stays |
 | HOME | the view: the editor and the menu close (it went back to the PLAY menu until 2026-10-11; with SEQ's cycle HOME is "home" here as everywhere). Another layer, a revert: the same |
 

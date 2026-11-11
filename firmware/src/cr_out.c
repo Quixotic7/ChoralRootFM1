@@ -1019,9 +1019,13 @@ static void cr_audio_block(uint32_t n)
 static int32_t cr_ck_y1, cr_ck_y2, cr_ck_a1;
 static uint32_t cr_ck_n, cr_ck_wait;
 #define CR_CK_A2 16335                           /* r^2, r = 0.9985 per sample: ~25 ms */
-static void cr_click_mix(int32_t *out, uint32_t n)
+static __attribute__((noinline)) void cr_click_mix(int32_t *out, uint32_t n)   /* (out of line: its loop is not the ISR's budget) */
 {
     uint32_t i;
+    /* MASTER (the owner, after the drums' first build: "The volume of the metronome does not change when reducing the
+     * master volume"): the click is mixed after the master, where the knob had already been applied to the mix; it
+     * takes MASTER itself now (Q12; USB Level Fixed: audio.c usb_fixed_dac applies MASTER after this, to all of it) */
+    int32_t mg = fx_usb_fixed ? 4096 : (int32_t)song.master_q12;
     if (crl.click) {
         int32_t amp = 10000 * (int32_t)crl.metro_vol / 100;
         if (crl.click == 2u) { cr_ck_a1 = 30665; cr_ck_y1 = amp * 3487 / 10000; }   /* 2 r cos w, amp sin w */
@@ -1037,8 +1041,8 @@ static void cr_click_mix(int32_t *out, uint32_t n)
         int32_t y = ((cr_ck_a1 * cr_ck_y1) >> 14) - ((CR_CK_A2 * cr_ck_y2) >> 14);
         cr_ck_y2 = cr_ck_y1;
         cr_ck_y1 = y;
-        out[2u * i] += y;
-        out[2u * i + 1u] += y;
+        out[2u * i] += (y * mg) >> 12;
+        out[2u * i + 1u] += (y * mg) >> 12;
     }
 }
 
