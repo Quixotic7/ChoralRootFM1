@@ -389,6 +389,16 @@ typedef struct {
 } css_fx_t;                             /* 128 bytes (124 until the routing: par[] took rsv_fx's four bytes for one more
                                          * entry; 108 until 0.22: par[] grew by four entries into rsv_fx, the
                                          * entries before them where they were) */
+/* the beat (the SEQ layer: cr_ui.c cu_drum_*, cr_drum.c): its own version byte, so a record of a firmware before it
+ * (0 here) loads the defaults, and a later layout can tell itself apart; every field checked on import (cr_settings.c
+ * css_drum_put: out of range, the default) */
+#define CSS_DRUM_VERSION 1u
+typedef struct {
+    uint8_t ver;                        /* CSS_DRUM_VERSION; 0: none stored */
+    uint8_t preset, kit, level;         /* 0 Metronome / 1 Drums; the kit 0..5; the drums' level 0..100 */
+    uint8_t x, y, density, chaos;       /* the Beat page: Map X, Map Y, Density, Chaos 0..127 */
+    uint8_t dr[3][4];                   /* kick, snare, hats: Tune 0..24 (12: as voiced), Decay, Character, Fill 0..127 */
+} css_drum_t;                           /* 20 bytes */
 typedef struct {
     uint8_t valid;                      /* 1: a sound is stored */
     uint8_t eng, preset, user;          /* core.h track_t eng_req, preset, user (the slot it is as stored, + 1) */
@@ -425,7 +435,10 @@ typedef struct {
                                          * smk_ut_off): 0 On (the default: an older record, a record of the FM-1
                                          * build), 1 Off. The FM-1 build neither writes nor reads it. Byte 25 (the old
                                          * reserve's fourth) */
-    uint8_t rsv[42];
+    css_drum_t drum;                    /* the beat's preset and the drums (the DRUMS plan; bytes 26..45, the old
+                                         * reserve's): ver CSS_DRUM_VERSION when stored, 0 in every older record (the
+                                         * defaults: Metronome, as before the drums) */
+    uint8_t rsv[22];
     css_fx_t fx;                        /* (rsv_fx[4] after it until the routing (issue 21): its entry took it) */
     css_part_t part[2];                 /* chord, bass */
     /* Chord and Bass Perform (0.34, GitHub issue 41), bytes 964 .. 1005 of the old end reserve (0 in every older

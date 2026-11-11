@@ -86,9 +86,9 @@
 #define CR_CPU1 1                /* the bass part's render on the second core (cr_cpu1.h, hal/fm1_cpu1.h, docs/DUALCORE.md):
                                   * started at power-on; if it does not answer, single core with the shared budget */
 #endif
-#ifndef CR_DRUM_TEST
-#define CR_DRUM_TEST 0           /* 1: the drums' voices (cr_drum.c) in the master, a fixed busy pattern on the tempo's
-                                  * 16ths: the CPU test of the DRUMS plan (CR_DRUM_TEST=1 ./build.sh), never shipped */
+#ifndef CR_DRUMS
+#define CR_DRUMS 1               /* the drums (cr_drum.c, docs/MANUAL.md "The beat"): the SEQ layer's Drums preset, a
+                                  * Grids beat on CoralFlower's morph drum synth, dry into the master */
 #endif
 #ifndef CV_ROWS
 #define CV_ROWS 120u             /* gfx.c's canvas: cr_draw.c's strip and its two DMA buffers, 3 x 40 rows, are all this
@@ -155,11 +155,13 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #define CR_RES 1
 #define AF_RES __attribute__((section(".res.font")))
 #define CRD_RES __attribute__((section(".res.drum")))   /* the drums' six kits (cr_drum_kits.h) */
+#define CRG_RES __attribute__((section(".res.grids")))  /* the beat's map (cr_grids_map.h) */
 #endif
 #if !BOARD_SMK37
 #define CR_RES 1
 #define AF_RES __attribute__((section(".res.font")))
 #define CZ_RES __attribute__((section(".res.cz")))   /* Casio's CZ-1 tones, packed (melodee_cz1.h; eng_cz.c) */
+#define CRG_RES __attribute__((section(".res.grids")))  /* the beat's map (cr_grids_map.h; 2400 B) */
 #ifndef CR_BLE
 #define CR_BLE 1                 /* Bluetooth LE MIDI, the FM-1 as a peripheral (cr_ble.h, HISTORY 3y236); CR_BLE=0: none */
 #endif
@@ -194,8 +196,8 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #endif
 #include "voice.c"
 #include "slicer.c"
-#if CR_DRUM_TEST
-#include "cr_drum.c"             /* the drums' voices (the CPU test: mixed by fx.c, clocked by mix_block below) */
+#if CR_DRUMS
+#include "cr_drum.c"             /* the drums: the voices and the beat (mixed by fx.c, clocked by mix_block below) */
 #endif
 #define mix_block fx_mix_block   /* fx.c's mix; audio.c gets ChoralRoot's (below) */
 #include "fx.c"
@@ -224,14 +226,12 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 {
     CR_PROF_START();             /* the ISR's stages (cr_cpu1.h): the tick from here to fx.c's parts */
     cr_audio_block(n);
-#if CR_DRUM_TEST
-    {                            /* the test pattern's hits on this 16th (cr_drum.c); its kits not there (the resource
-                                  * region refused): the metronome's click instead, turned on once */
-        static uint8_t crd_click;
-        if (!cr_drum_test_clock(crl.rt, CRL_PPQN / 4u) && !crd_click) {
-            crd_click = 1;
-            cr_loop_metro(&crl, 1);
-        }
+#if CR_DRUMS
+    if (crl.dstep) {             /* the drums' step due in this block (cr_loop.c crl_tick1: the loop's grid) */
+        crd_beat_step(crl.dstep - 1u);
+        crl.dstep = 0;
+    } else if (!crl.drum_run) {
+        crd_now = 0;             /* (stopped: no step on the screens) */
     }
 #endif
 #if FELUCCA_UAC

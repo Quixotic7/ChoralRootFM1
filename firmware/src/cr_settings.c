@@ -395,7 +395,8 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
 }
 
 /* ------------------------------------------------------ the session record --- */
-typedef char css_size_ok[sizeof(cr_session_t) == CSS_SIZE && sizeof(css_fx_t) == 128 && sizeof(css_part_t) == 384 ? 1 : -1];
+typedef char css_size_ok[sizeof(cr_session_t) == CSS_SIZE && sizeof(css_fx_t) == 128 && sizeof(css_part_t) == 384 &&
+                         sizeof(css_drum_t) == 20 ? 1 : -1];
 static uint32_t css_fnv(const cr_session_t *x, uint32_t from, uint32_t size)
 {
     const uint8_t *b = (const uint8_t *)x;
@@ -1039,6 +1040,44 @@ static void css_perf_put(const cr_session_t *x)
     fm1_irq_on();
 }
 
+/* the beat (the SEQ layer) <-> the session's drum block. A record without it (ver 0: before the drums), or a field out
+ * of range: the defaults (cr_ui.c cu_drum_defaults: Metronome) */
+static void css_drum_get(css_drum_t *d)
+{
+    uint32_t i, k;
+    d->ver = CSS_DRUM_VERSION;
+    d->preset = cs.beat_preset;
+    d->kit = cs.dr_kit;
+    d->level = cs.dr_level;
+    d->x = cs.dr_x;
+    d->y = cs.dr_y;
+    d->density = cs.dr_dens;
+    d->chaos = cs.dr_chaos;
+    for (i = 0; i < 3u; i++)
+        for (k = 0; k < 4u; k++)
+            d->dr[i][k] = cs.dr[i][k];
+}
+static void css_drum_put(const cr_session_t *x)
+{
+    const css_drum_t *d = x ? &x->drum : 0;
+    uint32_t i, k;
+    cu_drum_defaults();
+    if (!d || d->ver != CSS_DRUM_VERSION)
+        return;
+    if (d->preset <= 1u) cs.beat_preset = d->preset;
+#if CR_DRUMS
+    if (d->kit < CRD_NKIT) cs.dr_kit = d->kit;
+#endif
+    if (d->level <= 100u) cs.dr_level = d->level;
+    if (d->x <= 127u) cs.dr_x = d->x;
+    if (d->y <= 127u) cs.dr_y = d->y;
+    if (d->density <= 127u) cs.dr_dens = d->density;
+    if (d->chaos <= 127u) cs.dr_chaos = d->chaos;
+    for (i = 0; i < 3u; i++)
+        for (k = 0; k < 4u; k++)
+            if (d->dr[i][k] <= (k ? 127u : 24u)) cs.dr[i][k] = d->dr[i][k];
+}
+
 /* the unit's state now -> *x (sealed; `bind` is the writer's: css_write) */
 static void css_capture(cr_session_t *x)
 {
@@ -1064,6 +1103,7 @@ static void css_capture(cr_session_t *x)
                           (cu_pf_off(CU_PF_BASS) ? 0u : CSS_PERF_BASS_ON) | (cs.bass_keys ? CSS_BASS_KEYS : 0u) |
                           (cs.bfollow ? CSS_BASS_FOLLOW : 0u));
     x->bperf_sel = cs.bperf_sel;
+    css_drum_get(&x->drum);
     for (i = 0; i < (uint32_t)CR_PM_COUNT * 4u; i++)
         x->bpar[i / 4u][i % 4u] = CU_BPAR_SLOT[i / 4u][i % 4u] >= 0 ? cs.bpar[i / 4u][CU_BPAR_SLOT[i / 4u][i % 4u]] : 0;
 #if BOARD_SMK37
@@ -1116,6 +1156,7 @@ static void css_apply(const cr_session_t *x)
     smk_ut_off = (uint8_t)(x->smk_trs_off == 1u);  /* Options > TRS MIDI Out (0, an older record: On) */
 #endif
     css_perf_put(x);                               /* the Bass Perform, the chord's Off */
+    css_drum_put(x);                               /* the beat's preset and the drums (cu_loop_conf posts them) */
     cu.octave = x->octave;                         /* (cu_post_kbd follows: the split key's note moves with it) */
     cs.loop_rate = (uint8_t)((int)x->loop_rate + (int)CRL_RATE_1);   /* (cu_loop_conf posts it with the looper's) */
     if (x->bass_on) {                              /* v15: the bass comes back on, on its sound (ALGORITHM's place:
@@ -1609,6 +1650,7 @@ static void crs_reinit(void)
     cs.bass_on = 0;
     cs.loop_rate = CRL_RATE_1;                     /* the loop's Rate: x1 */
     css_perf_put(NULL);                            /* the bass's Perform Off, its defaults; the chord's on */
+    css_drum_put(NULL);                            /* the beat: Metronome, the drums' defaults */
 #if BOARD_SMK37
     cs.smk_pedal = 0;                              /* Options > Pedal: Sustain */
     smk_ut_off = 0;                                /* Options > TRS MIDI Out: On */

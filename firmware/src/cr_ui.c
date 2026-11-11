@@ -584,7 +584,12 @@ static struct {
     uint8_t ch[CR_NSTREAM];               /* MIDI channel 1..16, 0 = off */
     uint8_t raw_sound;                    /* RAW also plays part 0 */
     uint8_t split;                        /* Single Notes' split point, pitch class 0..11 */
-    uint8_t metro, metro_sig, metro_vol;  /* the click: on, CRL_SIG_*, level 0..100 */
+    uint8_t metro, metro_sig, metro_vol;  /* the beat on (GLO + SEQ; the click or the drums), CRL_SIG_*, the click's level
+                                           * 0..100 */
+    uint8_t beat_preset;                  /* the SEQ layer's preset: 0 Metronome, 1 Drums (the session's drum block) */
+    uint8_t dr_kit, dr_level;             /* Drums: the kit 0..5 (cr_drum_kits.h), the level 0..100 */
+    uint8_t dr_x, dr_y, dr_dens, dr_chaos;   /* the Beat page: Map X, Map Y, Density, Chaos 0..127 */
+    uint8_t dr[3][4];                     /* kick, snare, hats: Tune 0..24 (12: as voiced), Decay, Character, Fill 0..127 */
     uint8_t loop_len, loop_quant, loop_count_in, loop_level;   /* SYNC (0 Free, 1..16 bars), QUANT, COUNT-IN, LEVEL */
     uint8_t loop_rate;                    /* the loop's Rate, 0..CRL_NRATE-1 (x1/16 .. x4; CRL_RATE_1; the session's) */
     uint8_t loop_slot;                    /* the slot in RAM (0..9) */
@@ -682,6 +687,7 @@ static void cu_post_single(void)
 {
     cr_post(CRE_SINGLE, cs.single, 0, cs.split);
 }
+static void cu_beat_post(int force);              /* (the beat, below) */
 static void cu_loop_conf(void)                    /* the looper's settings -> the ISR */
 {
     cr_post(CRE_LOOP, LP_CONF, LC_SYNC, cs.loop_len);
@@ -690,7 +696,7 @@ static void cu_loop_conf(void)                    /* the looper's settings -> th
     cr_post(CRE_LOOP, LP_CONF, LC_LEVEL, cs.loop_level);
     cr_post(CRE_LOOP, LP_CONF, LC_SIG, cs.metro_sig);
     cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
-    cr_post(CRE_LOOP, LP_METRO, 0, cs.metro);
+    cu_beat_post(1);                              /* the click or the drums (the SEQ layer's preset) */
     cr_post(CRE_LOOP, LP_CONF, LC_MODE, cs.loop_mode);
     cr_post(CRE_LOOP, LP_CONF, LC_RATE, cs.loop_rate);
 }
@@ -1662,6 +1668,8 @@ static struct {
                                            * it goes off (another chord key pressed meanwhile: it stays) */
     uint8_t kpage;                        /* the KEY layer's page (SELECT): 0 Tonic Scale Transpose Single, 1 Key plays
                                            * Keyboard; the first page whenever the layer opens */
+    uint8_t mpage;                        /* the SEQ layer's page (SELECT, Drums only): 0 the preset, 1 Beat, 2 Kick,
+                                           * 3 Snare, 4 Hats; the first whenever the layer opens */
     uint8_t lpage;                        /* the PLAY menu's page (SELECT): 0 Length Rate Quantize Count-in, 1 Level;
                                            * the first page whenever the menu opens */
     uint8_t ledit;                        /* the loop editor is open (EDIT in the PLAY menu; cu_ledit_*) */
@@ -2894,12 +2902,288 @@ static void cu_ledit_close(void)
  * button, the click on / off as before. Every other layer, the Options, the naming page: nothing (the sound editor:
  * its MOD group, cu_tap) */
 static void cu_layer_close(void);
+static void cu_layer_pick(uint32_t l, int32_t i);
+static void cu_picker(cr_screen_t *s, const char *const *items, uint32_t n, uint32_t sel, uint32_t col,
+                      const char *label, const char *footer);
+static void cu_row_trace(const cr_screen_t *s, const char *who, char *seen, uint32_t n);
+/* ------------------------------------------------------------- the beat --- */
+/* The SEQ layer's preset (the DRUMS plan, docs/MANUAL.md "The beat"): Metronome (the click, as ever) or Drums (a Grids
+ * beat on CoralFlower's morph drum synth, cr_drum.c). GLO + SEQ is the beat on / off whatever the preset (cs.metro, the
+ * block's metro_on); the preset, the kit and the drums' knobs are the session's drum block (cr_settings.h css_drum_t),
+ * saved by the global save. The drums ride the loop as the arp does: they play while a loop plays or a take records,
+ * on its grid (cr_loop.c), and are never part of a loop. With Drums and their region not there (cr_res.h: a cut
+ * install), the beat is the click (cu_drums_ok 0) */
+#define CU_DR_NPAGE 5u
+enum { CU_DRP_PRESET, CU_DRP_BEAT, CU_DRP_KICK, CU_DRP_SNARE, CU_DRP_HATS };
+static const uint8_t CU_DRUM_DEF[3][4] = {{12, 64, 32, 72}, {12, 64, 32, 64}, {12, 64, 32, 88}};   /* Tune Decay
+                                                                 * Character Fill: kick, snare, hats */
+static uint8_t cu_drums_ok;                       /* Drums is what plays (the kit and the map in RAM) */
+static uint8_t cu_beat_sent[2] = {0xFF, 0xFF};    /* the click and the drums as last posted (a repost restarts them) */
+static struct { uint8_t hitn[3]; uint32_t t[3]; } cu_bt;   /* the drums' last hits seen (the screens' thumps) */
+
+static void cu_drum_defaults(void)                /* the drum block's defaults (an older session: none stored) */
+{
+    uint32_t d, k;
+    cs.beat_preset = 0;
+    cs.dr_kit = 0;
+    cs.dr_level = 80;
+    cs.dr_x = cs.dr_y = 64;
+    cs.dr_dens = 64;
+    cs.dr_chaos = 0;
+    for (d = 0; d < 3u; d++)
+        for (k = 0; k < 4u; k++)
+            cs.dr[d][k] = CU_DRUM_DEF[d][k];
+}
+/* the beat's state -> cr_drum.c and the looper: the kit and the map into RAM, the knobs; the click on when the beat is
+ * on with Metronome (or Drums without their region), the drums with Drums. force: post both (power-on, a revert) */
+static void cu_beat_post(int force)
+{
+    uint32_t on[2], i;
+    int drums = cs.beat_preset == 1u;
+#if CR_DRUMS
+    for (i = 0; i < 3u; i++) {
+        crd_knob[i].tune = cs.dr[i][0];
+        crd_knob[i].decay = cs.dr[i][1];
+        crd_knob[i].chr = cs.dr[i][2];
+        crd_knob[i].fill = cs.dr[i][3];
+    }
+    crd_level = cs.dr_level;
+    crd_rand = (uint8_t)(cs.dr_chaos * 2u);
+    crd_beat_dens(cs.dr_dens);
+    if (drums)
+        drums = crd_kit_load(cs.dr_kit) && crd_beat_blend(cs.dr_x * 2u, cs.dr_y * 2u);
+#else
+    (void)i;
+    drums = 0;
+#endif
+    cu_drums_ok = (uint8_t)drums;
+    on[0] = cs.metro && !drums;
+    on[1] = cs.metro && drums;
+    if (force || on[0] != cu_beat_sent[0])
+        cr_post(CRE_LOOP, LP_METRO, 0, (int32_t)on[0]);
+    if (force || on[1] != cu_beat_sent[1])
+        cr_post(CRE_LOOP, LP_DRUMS, 0, (int32_t)on[1]);
+    cu_beat_sent[0] = (uint8_t)on[0];
+    cu_beat_sent[1] = (uint8_t)on[1];
+}
+/* the drums' hits since the last frame: their times (a thump on the screens: 255 at the hit, gone after 150 ms) */
+static void cu_beat_track(uint32_t now)
+{
+#if CR_DRUMS
+    for (uint32_t d = 0; d < 3u; d++)
+        if (crd_hitn[d] != cu_bt.hitn[d]) {
+            cu_bt.hitn[d] = crd_hitn[d];
+            cu_bt.t[d] = now;
+        }
+#else
+    (void)now;
+#endif
+}
+static uint32_t cu_beat_pulse(uint32_t d, uint32_t now, uint32_t ms)
+{
+    uint32_t dt = now - cu_bt.t[d % 3u];
+    if (cr_motion == CR_MOTION_OFF || !cu_bt.t[d % 3u] || dt >= ms)
+        return 0;
+    return 255u * (ms - dt) / ms;
+}
+/* the home pages' beat chip (the view): the beat's blocks, the roundel with Drums */
+static void cu_beat_chip(cr_screen_t *s, uint32_t now)
+{
+    if (!s->header || !cs.metro)
+        return;
+    cu_beat_track(now);
+    s->beat_on = cu_drums_ok ? 2u : 1u;
+    s->beat_n = (uint8_t)(cs.metro_sig == CRL_SIG_44 ? 4u : cs.metro_sig == CRL_SIG_34 ? 3u : 6u);
+    s->beat_pos = crl.bpos <= s->beat_n ? crl.bpos : 0u;
+    if (cu_drums_ok) {
+        s->beat_pulse = (uint8_t)cu_beat_pulse(0, now, 120u);
+        s->beat_flash = (uint8_t)(cu_beat_pulse(1, now, 100u) != 0u);
+    }
+}
+
+/* GLO + SEQ, SEQ tapped in the layer, the PLAY menu's Beat: the beat on / off */
+static void cu_metro_set(uint32_t on)
+{
+    cs.metro = (uint8_t)(on != 0u);
+    cu_beat_post(0);
+}
 static void cu_metro_toggle(void)
 {
-    cs.metro ^= 1u;
-    cr_post(CRE_LOOP, LP_METRO, 0, cs.metro);
-    cu_message(cs.metro ? "metronome on" : "metronome off", CR_COL_WHITE);
-    cu_trace("metro: %s\n", cs.metro ? "on" : "off");
+    cu_metro_set(!cs.metro);
+    if (cs.beat_preset == 1u && cu_drums_ok)
+        cu_message(cs.metro ? "drums on" : "drums off", CR_COL_MAGENTA);
+    else
+        cu_message(cs.metro ? "metronome on" : "metronome off", CR_COL_WHITE);
+    cu_trace("metro: %s%s\n", cs.metro ? "on" : "off", cs.beat_preset == 1u ? " (drums)" : "");
+}
+
+/* the SEQ layer's knobs (cu.mpage: the page; Metronome has the preset page alone). Page 0: Preset, Level (the click's or
+ * the drums'), Meter (4/4 3/4 6/8; D4 E4 F4 too), Kit (Drums). Beat: Map X, Map Y, Density, Chaos. Kick, Snare, Hats:
+ * Tune (-12 .. +12 semitones), Decay, Character, Fill */
+static void cu_drum_knob(uint32_t knob, int32_t s)
+{
+    uint32_t pg = cs.beat_preset == 1u ? cu.mpage : 0u, d;
+    int32_t v;
+    uint8_t *p = 0;
+    if (pg == CU_DRP_PRESET) {
+        if (knob == 0u) {
+            v = s > 0 ? 1 : 0;
+            if ((uint32_t)v != cs.beat_preset) {
+                cs.beat_preset = (uint8_t)v;
+                cu.mpage = 0;
+                cu_beat_post(0);
+                cu_trace("metro: knob 1 preset %s\n", v ? "drums" : "metronome");
+            }
+        } else if (knob == 1u) {
+            if (cs.beat_preset == 1u) {
+                v = cs.dr_level + s * 5;
+                cs.dr_level = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
+                cu_beat_post(0);
+                cu_trace("metro: knob 2 level %u\n", (unsigned)cs.dr_level);
+            } else {
+                v = cs.metro_vol + s * 5;
+                cs.metro_vol = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
+                cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
+                cu_trace("metro: knob 2 click %u\n", (unsigned)cs.metro_vol);
+            }
+        } else if (knob == 2u) {
+            v = (int32_t)cs.metro_sig + (s > 0 ? 1 : -1);
+            cu_layer_pick(L_METRO, v < 0 ? 0 : v >= (int32_t)CRL_NSIG ? (int32_t)CRL_NSIG - 1 : v);
+            cu_trace("metro: knob 3 meter %s\n", CU_SIG[cs.metro_sig]);
+        } else if (cs.beat_preset == 1u) {
+#if CR_DRUMS
+            v = (int32_t)cs.dr_kit + (s > 0 ? 1 : -1);
+            cs.dr_kit = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CRD_NKIT ? (int32_t)CRD_NKIT - 1 : v);
+            cu_beat_post(0);
+            cu_trace("metro: knob 4 kit %s\n", CRD_KIT_NAME[cs.dr_kit]);
+#endif
+        } else {
+            return;
+        }
+        cu_hot_set(L_METRO, knob);
+        return;
+    }
+    if (pg == CU_DRP_BEAT) {
+        p = knob == 0u ? &cs.dr_x : knob == 1u ? &cs.dr_y : knob == 2u ? &cs.dr_dens : &cs.dr_chaos;
+        *p = (uint8_t)cu_kval(*p, s, 0, 127, kn.snap);
+        cu_beat_post(0);
+        cu_trace("metro: beat x %u y %u density %u chaos %u\n", (unsigned)cs.dr_x, (unsigned)cs.dr_y,
+                 (unsigned)cs.dr_dens, (unsigned)cs.dr_chaos);
+    } else {
+        d = pg - CU_DRP_KICK;
+        p = &cs.dr[d % 3u][knob & 3u];
+        *p = (uint8_t)(knob == 0u ? cu_kval(*p, s, 0, 24, kn.snap) : cu_kval(*p, s, 0, 127, kn.snap));
+        cu_beat_post(0);
+        cu_trace("metro: drum %u tune %u decay %u character %u fill %u\n", (unsigned)d, (unsigned)cs.dr[d % 3u][0],
+                 (unsigned)cs.dr[d % 3u][1], (unsigned)cs.dr[d % 3u][2], (unsigned)cs.dr[d % 3u][3]);
+    }
+    cu_hot_set(L_METRO, knob);
+}
+/* SELECT in the SEQ layer: the page (Drums: the preset, Beat, Kick, Snare, Hats; Metronome: the one page) */
+static void cu_drum_page(int32_t s)
+{
+    int32_t pg = (int32_t)cu.mpage + (s > 0 ? 1 : -1);
+    if (cs.beat_preset != 1u)
+        return;
+    pg = pg < 0 ? 0 : pg >= (int32_t)CU_DR_NPAGE ? (int32_t)CU_DR_NPAGE - 1 : pg;
+    if ((uint32_t)pg != cu.mpage) {
+        cu.mpage = (uint8_t)pg;
+        cu_hot.knob = 0;
+        cu_trace("metro: page %u\n", (unsigned)pg + 1u);
+    }
+}
+
+static void cu_dr_cell(cr_cell_t *c, const char *label, const char *value, uint32_t glyph, uint32_t pct)
+{
+    c->flags = CR_CF_ON;
+    cu_cpy(c->label, label, sizeof c->label);
+    cu_cpy(c->value, value, sizeof c->value);
+    c->glyph = (uint8_t)glyph;
+    c->pct = (uint8_t)(pct > 255u ? 255u : pct);
+}
+static void cu_dr_pct(char *b, uint32_t v, uint32_t n)       /* 0..127 as "62%" */
+{
+    cu_int(b, (int32_t)((v * 100u + 63u) / 127u), 0, n);
+    cu_cat(b, "%", n);
+}
+/* the SEQ layer's screen (cr_screen.h CR_K_DRUM) */
+static void cu_drum_screen(cr_screen_t *s)
+{
+    static const char *const PG[CU_DR_NPAGE] = {"Drums", "Beat", "Kick", "Snare", "Hats"};
+    static char seen[48];
+    const char *it[CU_DR_NPAGE];
+    uint32_t drums = cs.beat_preset == 1u, pg = drums ? cu.mpage % CU_DR_NPAGE : 0u, now = cu_now(), k, d;
+    char b[12];
+    for (k = 0; k < CU_DR_NPAGE; k++)
+        it[k] = PG[k];
+    if (!drums)
+        it[0] = "Metronome";
+    cu_beat_track(now);
+    cu_picker(s, it, drums ? CU_DR_NPAGE : 1u, pg, drums ? CR_COL_MAGENTA : CR_COL_WHITE, "", "");
+    s->kind = CR_K_DRUM;
+    s->orient = 1;
+    s->dr_page = (uint8_t)pg;
+    s->dr_preset = (uint8_t)drums;
+    s->dr_steps = (uint8_t)(cs.metro_sig == CRL_SIG_44 ? 32u : 24u);
+#if CR_DRUMS
+    s->dr_step = crd_now <= s->dr_steps ? crd_now : 0u;
+#endif
+    if (pg == CU_DRP_PRESET) {
+        cu_dr_cell(&s->cell[0][0], "Preset", drums ? "Drums" : "Metro", CR_G_NONE, 0);
+        cu_int(b, drums ? cs.dr_level : cs.metro_vol, 0, sizeof b);
+        cu_dr_cell(&s->cell[0][1], drums ? "Level" : "Click", b, CR_G_BAR, (drums ? cs.dr_level : cs.metro_vol) * 255u / 100u);
+        cu_dr_cell(&s->cell[0][2], "Meter", CU_SIG[cs.metro_sig % CRL_NSIG], CR_G_NONE, 0);
+#if CR_DRUMS
+        if (drums)
+            cu_dr_cell(&s->cell[0][3], "Kit", CRD_KIT_NAME[cs.dr_kit % CRD_NKIT], CR_G_NONE, 0);
+#endif
+    } else if (pg == CU_DRP_BEAT) {
+        static const char *const L[4] = {"Map X", "Map Y", "Density", "Chaos"};
+        const uint8_t *v[4] = {&cs.dr_x, &cs.dr_y, &cs.dr_dens, &cs.dr_chaos};
+        for (k = 0; k < 4u; k++) {
+            if (k < 2u) cu_int(b, (int32_t)((*v[k] * 100u + 63u) / 127u), 0, sizeof b);
+            else cu_dr_pct(b, *v[k], sizeof b);
+            cu_dr_cell(&s->cell[0][k], L[k], b, CR_G_BAR, *v[k] * 255u / 127u);
+        }
+        s->dr_x = (uint8_t)(cs.dr_x * 2u);
+        s->dr_y = (uint8_t)(cs.dr_y * 2u);
+#if CR_DRUMS
+        for (d = 0; d < 3u; d++)
+            for (k = 0; k < s->dr_steps; k++) {
+                uint32_t h = crd_beat_at(d, k);
+                if (h) s->dr_lane[d] |= 1u << k;
+                if (h == 2u) s->dr_acc[d] |= 1u << k;
+            }
+#endif
+    } else {
+        const uint8_t *v;
+        static const char *const CH[4] = {"soft", "mid", "hard", "hard"};
+        d = pg - CU_DRP_KICK;
+        v = cs.dr[d % 3u];
+        cu_int(b, (int32_t)v[0] - 12, 1, sizeof b);
+        if (v[0] == 12u) cu_cpy(b, "0", sizeof b);
+        cu_dr_cell(&s->cell[0][0], "Tune", b, CR_G_BAR, v[0] * 255u / 24u);
+        s->cell[0][0].flags |= CR_CF_BIP;
+        cu_dr_pct(b, v[1], sizeof b);
+        cu_dr_cell(&s->cell[0][1], "Decay", b, CR_G_BAR, v[1] * 255u / 127u);
+        if (d == 1u)                               /* the snare: soft .. hard, then toward the clap */
+            cu_dr_cell(&s->cell[0][2], "Character", v[2] < 32u ? "soft" : v[2] < 64u ? "hard" : v[2] < 96u ? "+clap" : "clap",
+                       CR_G_MIX, v[2] * 255u / 127u);
+        else
+            cu_dr_cell(&s->cell[0][2], "Character", CH[v[2] / 43u], CR_G_MIX, v[2] * 255u / 127u);
+        cu_dr_pct(b, v[3], sizeof b);
+        cu_dr_cell(&s->cell[0][3], "Fill", b, CR_G_BAR, v[3] * 255u / 127u);
+        s->dr_tune = v[0];
+        s->dr_decay = v[1];
+        s->dr_chr = v[2];
+        s->dr_pulse = (uint8_t)cu_beat_pulse(d, now, 150u);
+#if CR_DRUMS
+        for (k = 0; k < s->dr_steps; k++)
+            if (crd_beat_at(d, k)) s->dr_lane[0] |= 1u << k;
+#endif
+    }
+    cu_hot_row(s, L_METRO);
+    cu_row_trace(s, "metro", seen, sizeof seen);
 }
 static void cu_seq_tap(void)
 {
@@ -3566,6 +3850,8 @@ static void cu_opened(uint32_t b)                 /* a button held past HOLD (or
         cu.kpage = 0;
     if (l == L_LOOP && was != L_LOOP)             /* .. the PLAY menu too */
         cu.lpage = 0;
+    if (l == L_METRO && was != L_METRO)           /* .. the SEQ layer: its preset page */
+        cu.mpage = 0;
     if (l == L_PERF) {                            /* the perform layer opens on its picker (the mode's name): the chord's
                                                    * (ARP held) or, BASS held + ARP, the bass's; ARP held + a knob in the
                                                    * layer: the part it shows */
@@ -4586,8 +4872,7 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         if (cu.lpage) {
             if (knob == 1) {                       /* the click on / off (SEQ's tap until 0.18: the owner, 2026-10-11:
                                                     * "Add Metronome to the second param page of the play menu") */
-                cs.metro = s > 0;
-                cr_post(CRE_LOOP, LP_METRO, 0, cs.metro);
+                cu_metro_set(s > 0);               /* (the beat: the click or the drums, the SEQ layer's preset) */
                 cu_trace("loop: knob 2 metronome %s\n", cs.metro ? "on" : "off");
             } else if (knob != 0)
                 break;
@@ -4622,14 +4907,8 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         }
         cu_hot_set(L_LOOP, knob);                 /* (no popup: the cell turns hot) */
         break;
-    case L_METRO:                                  /* KNOB 1: the click level */
-        if (knob == 0) {
-            v = cs.metro_vol + s * 5;
-            cs.metro_vol = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
-            cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
-            cu_trace("metro: knob 1 click %u\n", (unsigned)cs.metro_vol);
-            cu_hot_set(L_METRO, 0);               /* (no popup: the cell turns hot) */
-        }
+    case L_METRO:                                  /* the SEQ layer: the preset page, the drums' pages (cu_drum_knob) */
+        cu_drum_knob(knob, s);                    /* (no popup: the cell turns hot) */
         break;
     default:
         break;
@@ -5786,9 +6065,14 @@ static void cu_knob(uint32_t role, int32_t s)
             cu_post_single();
             cu_popup(CU_NOTE[cs.split], cu_full() ? "Full: at F4" : cs.single == 2u ? "split bass" :
                      cs.single ? "split oct" : "split off", "split point", CR_COL_BLUE, cs.split, 0, 11, 12);
-        } else {                                   /* SELECT: the metronome level */
-            cu_layer_knob(L_METRO, 0, s);
-            if (cu_layer() != L_METRO)             /* (outside the layer: the popup is the readout) */
+        } else {                                   /* SELECT: the metronome level (the click's) */
+            v = cs.metro_vol + s * 5;
+            cs.metro_vol = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
+            cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
+            cu_trace("metro: knob 1 click %u\n", (unsigned)cs.metro_vol);
+            if (cu_layer() == L_METRO)             /* (in the layer: its Click / Level cell turns hot) */
+                cu_hot_set(L_METRO, 1);
+            else                                   /* (outside the layer: the popup is the readout) */
                 cu_popup_num(cs.metro_vol, 0, "%", "click level", CR_COL_WHITE, 0, 100, 10);
         }
         return;
@@ -5839,6 +6123,11 @@ static void cu_knob(uint32_t role, int32_t s)
             cu_hot.knob = 0;
             cu_trace("loop: page %u\n", (unsigned)pg + 1u);
         }
+        return;
+    }
+    if (l == L_METRO && role == EN_SELECT) {       /* the SEQ layer: SELECT turns its page (Drums: Beat, Kick, Snare,
+                                                    * Hats; the meter is KNOB 3 and D4 E4 F4) */
+        cu_drum_page(s);
         return;
     }
     if (l == L_KEY && role == EN_SELECT) {         /* the KEY layer: SELECT turns its page (no tempo there) */
@@ -7670,7 +7959,8 @@ static void cu_loop_cells(cr_screen_t *s)
         s->cell[0][0].glyph = CR_G_BAR;
         s->cell[0][0].pct = (uint8_t)(cs.loop_level * 255u / 100u);
         s->cell[0][1].flags = CR_CF_ON;            /* the click, as Count-in on page 1 */
-        cu_cpy(s->cell[0][1].label, "Metronome", sizeof s->cell[0][1].label);
+        cu_cpy(s->cell[0][1].label, "Beat", sizeof s->cell[0][1].label);   /* (the click or the drums: the SEQ layer's
+                                                    * preset; "Metronome" until the drums) */
         cu_cpy(s->cell[0][1].value, cs.metro ? "On" : "Off", sizeof s->cell[0][1].value);
         s->cell[0][1].glyph = CR_G_GATE;
         s->cell[0][1].pct = cs.metro ? 255 : 26;
@@ -8130,20 +8420,9 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     case L_LOOP:                                   /* the PLAY menu (no ring: a loop running shows the dial) */
         cu_loopmenu(s, cu_now());
         break;
-    case L_METRO: {                                /* layers sheet 7: the time signature over Click (KNOB 1) */
-        static char seen[48];
-        cu_picker(s, CU_SIG, CRL_NSIG, cs.metro_sig, CR_COL_WHITE, "metronome", "OCT-: back \267 HOME: home");
-        s->kind = CR_K_KNOBROW;
-        s->orient = 1;
-        s->cell[0][0].flags = CR_CF_ON;
-        cu_cpy(s->cell[0][0].label, "Click", sizeof s->cell[0][0].label);
-        cu_int(s->cell[0][0].value, cs.metro_vol, 0, sizeof s->cell[0][0].value);
-        s->cell[0][0].glyph = CR_G_BAR;
-        s->cell[0][0].pct = (uint8_t)(cs.metro_vol * 255u / 100u);
-        cu_hot_row(s, L_METRO);
-        cu_row_trace(s, "metro", seen, sizeof seen);
+    case L_METRO:                                  /* the SEQ layer: the beat's preset, the drums' pages */
+        cu_drum_screen(s);
         break;
-    }
     default:
         break;
     }
@@ -8846,6 +9125,7 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
     /* 5. the View */
     cu_view_screen(s, now);
     cu_dial(s, now);
+    cu_beat_chip(s, now);                          /* (the beat on: its blocks, the drums' roundel) */
 }
 
 /* the animations' clock: restarted when what animates changed (cr_anim.c, cr_draw.c CR_A_*) */
@@ -9305,6 +9585,7 @@ static void cr_ui_init(void)
     cs.loop_level = 100;
     cs.loop_rate = CRL_RATE_1;
     cs.metro_vol = 70;
+    cu_drum_defaults();                           /* (the session's drum block: cr_settings.c css_drum_put) */
     cs.dualcore = 1;                              /* Options > Dual Core On (the record's: cr_settings_load) */
     cs.out_clean = 1;                             /* Options > Output Clean (the record's) */
     cs.usb48 = 0;                                 /* Options > USB Rate 44.1 kHz (the record's) */

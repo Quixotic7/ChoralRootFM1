@@ -38,10 +38,16 @@
  * the FM-1: crd_kit_load copies one into RAM in the main loop (the ISR never reads the region), or says it is not
  * there (cr_res.h CR_RES_GONE): then the beat is the metronome's click.
  *
- * Use: crd_kit_load (the main loop), crd_hit at a hit (the ISR's clock; the coefficients are set there, once),
- * cr_drum_mix per block (the ISR): every voice ringing, summed under a soft knee into the master's mix before the
- * limiter (fx.c mix_block). All out of line: the audio ISR only calls them. CR_DRUM_TEST (choralroot.c, 0 by
- * default): the drums in the master and a fixed busy pattern on the tempo's 16ths, to measure the CPU on a unit. */
+ * Use: crd_kit_load and crd_beat_blend / crd_beat_dens (the main loop: cr_ui.c cu_beat_post), crd_beat_step on each
+ * step of the loop's grid (the ISR: cr_loop.c sets crl.dstep, choralroot.c mix_block plays it), crd_hit a hit (the
+ * coefficients are set there, once), cr_drum_mix per block (the ISR): every voice ringing, summed under a soft knee
+ * into the master's mix before the limiter (fx.c mix_block). All out of line: the audio ISR only calls them. Measured
+ * on a unit (HISTORY 3y297): Geek Out 2 peaks 70..80 % with FM TONE and P5 chords and every effect on */
+
+#ifndef CRD_IRQ_OFF                              /* (the host test: none) */
+#define CRD_IRQ_OFF() fm1_irq_off()
+#define CRD_IRQ_ON() fm1_irq_on()
+#endif
 
 #ifndef CF_DRUM_VARY
 #define CF_DRUM_VARY 1
@@ -102,13 +108,15 @@ typedef struct {
     uint32_t kbr;                                /* .. its decay a block (Q16) */
 } ds_voice_t;
 
-typedef struct { uint8_t tune, decay, chr, level; } crd_knob_t;  /* 0..127 (tune, decay 64: as voiced) */
+typedef struct { uint8_t tune, decay, chr, fill; } crd_knob_t;   /* Tune 0..24 (12: as voiced; semitones + 12), Decay
+                                                  * 0..127 (64: as voiced), Character 0..127, Fill 0..127 (the beat's) */
 
 #include "cr_drum_kits.h"                        /* CRD_KITS: X Club, X Deep (CoralFlower's) */
 
 static crd_kit_t crd_kit;                        /* the kit playing: a RAM copy (crd_kit_load) */
 static uint8_t crd_kit_ok;                       /* 1: crd_kit holds a kit; 0: none (the region refused: the click) */
-static crd_knob_t crd_knob[CRD_N] = {{64, 64, 32, 100}, {64, 64, 32, 100}, {64, 64, 32, 100}};
+static crd_knob_t crd_knob[CRD_N] = {{12, 64, 32, 72}, {12, 64, 32, 64}, {12, 64, 32, 88}};   /* (cr_ui.c's defaults
+                                                  * too: CU_DRUM_DEF) */
 static ds_voice_t crd_v[DSS_N];
 static int32_t ds_rng = 0x2F6B1D3;               /* VARY's dice (one for every sound: the hits' order picks) */
 
@@ -168,7 +176,8 @@ static void ds_morph(ds_snd_t *s, const ds_snd_t *a, const ds_snd_t *b, int32_t 
         ps[i] = (uint8_t)(pa[i] + (pb[i] - pa[i]) * m / 127);
 }
 
-/* a hit of sound sn of the kit at morph m (0..127), Tune and Decay (0..127, 64 as voiced), level lvl (0..100 %) */
+/* a hit of sound sn of the kit at morph m (0..127), Tune (0..24: semitones + 12) and Decay (0..127, 64 as voiced), level
+ * lvl (0..100 %) */
 static __attribute__((noinline)) void ds_strike(ds_voice_t *v, const crd_kit_t *K, uint32_t sn, int32_t m, uint32_t tune,
                                                 uint32_t decay, uint32_t lvl)
 {
@@ -180,7 +189,7 @@ static __attribute__((noinline)) void ds_strike(ds_voice_t *v, const crd_kit_t *
                                                   * 2.414 (1 + sqrt 2) and their modulators 1.341, 1.618 (the golden
                                                   * ratio), 2.236 (sqrt 5) of MPITCH: no two in a whole ratio */
     ds_snd_t s;
-    int32_t r[4] = {0, 0, 0, 0}, p16, g, dt = ((int32_t)tune - 64) * 3, dd = ((int32_t)decay - 64) * 20 / 64;
+    int32_t r[4] = {0, 0, 0, 0}, p16, g, dt = ((int32_t)tune - 12) * 16, dd = ((int32_t)decay - 64) * 20 / 64;
     uint32_t i, ft, tv, rng = (uint32_t)v->rng;
     const uint16_t *mr;
 #if !CF_DRUM_VARY
@@ -191,7 +200,7 @@ static __attribute__((noinline)) void ds_strike(ds_voice_t *v, const crd_kit_t *
             r[i] = (int32_t)noise32(&ds_rng) >> 16;     /* -32768 .. 32767 */
     ds_morph(&s, A, B, clamp(m + ((r[0] * (int32_t)vary) >> 16), 0, 127));
     /* (ChoralRoot: Tune +-12 semitones on the pitches and the filter, Decay +-2 octaves on the two times) */
-    s.cut = (uint8_t)clamp(s.cut + dt * 14 / 48, 0, 127);
+    s.cut = (uint8_t)clamp(s.cut + dt * 7 / 96, 0, 127);   /* (a CUT step: 0.86 semitone) */
     s.odec = (uint8_t)clamp(s.odec + dd, 0, 127);
     s.ndec = (uint8_t)clamp(s.ndec + dd, 0, 127);
     s.mpitch = (int16_t)(s.mpitch + dt);
@@ -456,7 +465,8 @@ static __attribute__((noinline)) void ds_run(ds_voice_t *v, int32_t *y, uint32_t
 }
 
 /* ------------------------------------------------------------------- ChoralRoot's API --- */
-/* kit k into RAM (the main loop): 1, or 0 when it is not there (cr_res.h: the resource region refused; nothing read) */
+/* kit k into RAM (the main loop): 1, or 0 when it is not there (cr_res.h: the region refused; nothing read). The copy is
+ * made with the audio IRQ off (a hit in the ISR reads it) */
 static int crd_kit_load(uint32_t k)
 {
     const crd_kit_t *K = &CRD_KITS[k < CRD_NKIT ? k : 0u];
@@ -464,14 +474,75 @@ static int crd_kit_load(uint32_t k)
         crd_kit_ok = 0;
         return 0;
     }
+    CRD_IRQ_OFF();
     memcpy(&crd_kit, K, sizeof crd_kit);
     crd_kit_ok = 1;
+    CRD_IRQ_ON();
     return 1;
 }
 
-/* a hit of sound sn (the ISR, before cr_drum_mix): its drum's knobs; the snare's Character past 64 fades the snare out
- * and the clap in; the closed hat chokes the open one */
-static __attribute__((noinline)) void crd_hit(uint32_t sn)
+/* ---- the beat: Mutable Instruments Grids' pattern generator (pattern_generator.cc EvaluateDrums, ReadDrumMap; GPL-3.0-or-
+ * later, Emilie Gillet), with ChoralRoot's knobs: Map X / Y pick the place on the 5 x 5 map of nodes (cr_grids_map.h),
+ * each drum's Fill its density (Grids' three FILL knobs), Density shifts the three together, Chaos is Grids' RANDOMNESS:
+ * at each bar's first step every drum draws a perturbation, added to its levels for the bar. A drum hits on a step when
+ * its level clears 255 - its density; above 192 the hit is an accent (Grids' accent outputs): the kick and the snare
+ * louder, the hats' accent is the open hat (choked by the next closed one). 32 steps a bar of 4/4 (32nds, as Grids);
+ * 3/4 and 6/8 play the bar's first 24 (cr_loop.c: the step from the loop's grid). The map is blended at X / Y in the
+ * main loop (crd_beat_blend: 96 bytes in RAM); the ISR reads that, never the region */
+#include "cr_grids_map.h"
+static uint8_t crd_blend[3][32];                 /* the map at X / Y: each drum's level a step, 0..255 */
+static uint8_t crd_dens[3];                      /* each drum's density 0..255 (Fill and Density: crd_beat_dens) */
+static uint8_t crd_rand;                         /* Chaos: Grids' randomness 0..255 */
+static uint8_t crd_level = 80;                   /* the drums' level 0..100 (the preset page's KNOB 2) */
+static uint8_t crd_map_ok;                       /* 1: crd_blend holds the map (0: its region refused: no drums) */
+static uint8_t crd_pert[3];                      /* this bar's perturbations */
+static int32_t crd_rng = 0x1F3D5B79;             /* Chaos's dice */
+static volatile uint8_t crd_now;                 /* the step last played + 1 (0: none since the beat stopped): the UI */
+static volatile uint8_t crd_hitn[3];             /* hits so far, per drum (the screens' thump: a change is a hit) */
+static volatile uint8_t crd_acc[3];              /* .. the last hit's accent */
+
+/* Grids' U8Mix: a .. b by balance 0..255 */
+static uint32_t crd_mix8(uint32_t a, uint32_t b, uint32_t bal) { return (a * (255u - bal) + b * bal) >> 8; }
+
+/* the map at x, y (0..255) into crd_blend (the main loop): Grids' ReadDrumMap for every drum and step. 0 when the
+ * map's region is not there (crd_map_ok 0: the beat falls back to the click) */
+static int crd_beat_blend(uint32_t x, uint32_t y)
+{
+    uint8_t b[3][32];
+    uint32_t i = (x & 255u) >> 6, j = (y & 255u) >> 6, fx = (x << 2) & 255u, fy = (y << 2) & 255u, d, st;
+    const uint8_t *A = CRG_NODE[CRG_GRID[i][j]], *B = CRG_NODE[CRG_GRID[i + 1u][j]];
+    const uint8_t *C = CRG_NODE[CRG_GRID[i][j + 1u]], *D = CRG_NODE[CRG_GRID[i + 1u][j + 1u]];
+    if (CR_RES_GONE(CRG_NODE) || CR_RES2_GONE(CRG_NODE)) {
+        crd_map_ok = 0;
+        return 0;
+    }
+    for (d = 0; d < 3u; d++)
+        for (st = 0; st < 32u; st++) {
+            uint32_t o = d * 32u + st;
+            b[d][st] = (uint8_t)crd_mix8(crd_mix8(A[o], B[o], fx), crd_mix8(C[o], D[o], fx), fy);
+        }
+    CRD_IRQ_OFF();
+    memcpy(crd_blend, b, sizeof b);
+    crd_map_ok = 1;
+    CRD_IRQ_ON();
+    return 1;
+}
+/* each drum's density from its Fill (0..127) and the Density (0..127, 64: none) */
+static void crd_beat_dens(uint32_t density)
+{
+    for (uint32_t d = 0; d < 3u; d++)
+        crd_dens[d] = (uint8_t)clamp((int32_t)crd_knob[d].fill * 2 + ((int32_t)density - 64) * 2, 0, 255);
+}
+/* drum d's level at step st as the ISR will see it without Chaos (the screens' lanes): 0 no hit, 1 a hit, 2 an accent */
+static uint32_t crd_beat_at(uint32_t d, uint32_t st)
+{
+    uint32_t lv = crd_blend[d % 3u][st & 31u];
+    return lv > 255u - crd_dens[d % 3u] ? (lv > 192u ? 2u : 1u) : 0u;
+}
+
+/* a hit of sound sn (the ISR): its drum's knobs; acc: an accent (the full level; else 70 %). The snare's Character past
+ * 64 fades the snare out and the clap in; the closed hat chokes the open one */
+static __attribute__((noinline)) void crd_hit(uint32_t sn, int acc)
 {
     const crd_knob_t *kn;
     uint32_t c, lvl, m, xf;
@@ -479,7 +550,7 @@ static __attribute__((noinline)) void crd_hit(uint32_t sn)
         return;
     kn = &crd_knob[sn == DSS_KICK ? CRD_KICK : sn <= DSS_CLAP ? CRD_SNARE : CRD_HAT];
     c = kn->chr;
-    lvl = kn->level * 100u / 127u;
+    lvl = (uint32_t)crd_level * (acc ? 100u : 70u) / 100u;
     m = c;
     if (sn == DSS_SNARE || sn == DSS_CLAP) {
         xf = c > 64u ? (c - 64u) * 127u / 63u : 0u;           /* the clap's share, 0..127 */
@@ -496,6 +567,37 @@ static __attribute__((noinline)) void crd_hit(uint32_t sn)
     if (sn == DSS_HATC)
         crd_v[DSS_HATO].choke = 1;
     ds_strike(&crd_v[sn], &crd_kit, sn, (int32_t)m, kn->tune, kn->decay, lvl);
+}
+
+/* the beat's step st (0..31) now (the ISR, cr_loop.c's grid: choralroot.c mix_block) */
+static __attribute__((noinline)) void crd_beat_step(uint32_t st)
+{
+    uint32_t d;
+    if (!crd_map_ok || !crd_kit_ok)
+        return;
+    st &= 31u;
+    if (!st)                                     /* the bar's start: Chaos's perturbations (Grids: randomness >> 2) */
+        for (d = 0; d < 3u; d++)
+            crd_pert[d] = (uint8_t)(((noise32(&crd_rng) >> 24) * (uint32_t)(crd_rand >> 2)) >> 8);
+    for (d = 0; d < 3u; d++) {
+        uint32_t lv = crd_blend[d][st], p = crd_pert[d];
+        int acc;
+        lv = lv < 255u - p ? lv + p : 255u;
+        if (lv <= 255u - crd_dens[d])
+            continue;
+        acc = lv > 192u;
+        if (d == 0u) {
+            crd_hit(DSS_KICK, acc);
+        } else if (d == 1u) {
+            crd_hit(DSS_SNARE, acc);
+            crd_hit(DSS_CLAP, acc);
+        } else {
+            crd_hit(acc ? DSS_HATO : DSS_HATC, 1);
+        }
+        crd_acc[d] = (uint8_t)acc;
+        crd_hitn[d]++;
+    }
+    crd_now = (uint8_t)(st + 1u);
 }
 
 /* the drums' block into the master's mix (l, r: Q15 units, before the limiter); nothing when none rings */
@@ -525,39 +627,3 @@ static __attribute__((noinline)) void cr_drum_mix(int32_t *l, int32_t *r, uint32
         r[i] += s;
     }
 }
-
-#if CR_DRUM_TEST
-/* the CPU test (CR_DRUM_TEST=1 ./build.sh): a fixed busy bar on the tempo's 16ths, whatever the loop does: the kick on
- * the quarters, the snare (at Character 96: the snare and the clap both sound) on 2 and 4, a hat on every 16th, the
- * open one on the 8ths (choked by the closed one a 16th later: both hats ring in every block). Kit X Club, VARY at the
- * kit's. crd_test_boot: the main loop, after the resource region's check (main.c) */
-static uint32_t crd_test_step = ~0u;
-static uint8_t crd_test_state;                           /* 0 not yet booted, 1 the drums, 2 the region refused */
-static void crd_test_boot(void)
-{
-    uint32_t k;
-    for (k = 0; k < CRD_N; k++)
-        crd_knob[k].chr = 32;                            /* (X Club's MORPH; not read from the region: it may be gone) */
-    crd_knob[CRD_SNARE].chr = 96;
-    crd_test_state = crd_kit_load(0) ? 1 : 2;
-}
-/* rt: the tempo clock's tick, t16 its ticks a 16th (choralroot.c); 0 when the kits are not there (the click instead) */
-static __attribute__((noinline)) int cr_drum_test_clock(uint32_t rt, uint32_t t16)
-{
-    uint32_t step = rt / t16;
-    if (crd_test_state != 1u)
-        return crd_test_state != 2u;
-    if (step == crd_test_step)
-        return 1;
-    crd_test_step = step;
-    step &= 15u;
-    if (!(step & 3u))
-        crd_hit(DSS_KICK);
-    if (step == 4u || step == 12u) {
-        crd_hit(DSS_SNARE);
-        crd_hit(DSS_CLAP);
-    }
-    crd_hit(step & 1u ? DSS_HATC : DSS_HATO);
-    return 1;
-}
-#endif

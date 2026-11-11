@@ -527,8 +527,9 @@ enum {
 };
 /* CRE_LOOP's operations */
 enum { LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR, LP_SET, LP_QUEUE, LP_CONF, LP_METRO,
-       LP_STEP, LP_PREVIEW };                                    /* LP_SET / QUEUE: b 1 = empty; LP_STEP: v CRL_STEP_*;
-                                                                 * LP_PREVIEW: the loop editor's cursor step heard */
+       LP_STEP, LP_PREVIEW, LP_DRUMS };                         /* LP_SET / QUEUE: b 1 = empty; LP_STEP: v CRL_STEP_*;
+                                                                 * LP_PREVIEW: the loop editor's cursor step heard;
+                                                                 * LP_DRUMS: the drums on / off (cr_drum.c) */
 enum { LC_SYNC, LC_QUANT, LC_COUNTIN, LC_LEVEL, LC_SIG, LC_VOL, LC_MODE, LC_RATE };   /* LP_CONF: b, v */
 typedef struct { uint8_t op, a, b, rsv; int16_t v; } cr_ev_in_t;
 #define CR_EVQ 128u                              /* a power of two */
@@ -618,6 +619,7 @@ static void cr_loop_op(const cr_ev_in_t *e)
         crl_stage_busy = crl.next_on ? 2u : 0u;    /* (the block frees it once the switch is taken) */
         break;
     case LP_METRO: cr_loop_metro(&crl, e->v); break;
+    case LP_DRUMS: cr_loop_drums(&crl, e->v); break;
     case LP_STEP: cr_loop_step(&crl, e->v); break;
     case LP_PREVIEW: cr_loop_ed_preview(&crl, &cr); break;      /* (nothing while the loop plays: cr_loop.c) */
     case LP_CONF:

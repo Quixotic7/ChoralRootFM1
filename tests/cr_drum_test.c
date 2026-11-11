@@ -1,15 +1,19 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
-/* Host test of the drums' voices (firmware/src/cr_drum.c: CoralFlower's morph drum synth, the kits X Club and X Deep;
- * the DRUMS plan Phase 3's CPU gate), no HAL: on core.h, dsp.c and felucca_tables.h.
+/* Host test of the drums (firmware/src/cr_drum.c: CoralFlower's morph drum synth, its six kits; the beat, Mutable
+ * Instruments Grids' pattern generator; the DRUMS plan), no HAL: on core.h, dsp.c and felucca_tables.h.
  *   sh tests/run_cr_tests.sh          (or: cc -std=c99 -O2 -Ibuild/gen -o build/host/cr_drum_test tests/cr_drum_test.c
  *                                      && build/host/cr_drum_test --cpu)
- * Checks, both kits: each sound at Character 0, 64 and 127 sounds (peak above -30 dBFS), stays under full scale and
- * rings out (stops computing) within 8 s (X Deep's kick: up to 4); the same bytes for the same hit at VARY 0; nothing ringing leaves the mix as
- * it was; the closed hat chokes the open one; the snare's Character past 64 fades the snare out as the clap comes in;
- * Tune and Decay move the kick; the test pattern for 8 bars. --cpu: the host's instructions per sample (kernel-counted,
- * macOS) of each sound while it rings, of all five at once, and of the test pattern (information: the unit's figure is
- * Geek Out's). */
+ * Checks, every kit: each sound at Character 0, 64 and 127 sounds (peak above -30 dBFS), stays under full scale and
+ * rings out (stops computing) within 8 s; the same bytes for the same hit at VARY 0; an accent louder than a plain hit;
+ * nothing ringing leaves the mix as it was; the closed hat chokes the open one; the snare's Character past 64 fades
+ * the snare out as the clap comes in; Tune and Decay move the kick. The beat: the blend at every 16th place of X and Y
+ * against a reference written from Grids' pattern_generator.cc (drum_map, ReadDrumMap, avrlib's U8Mix) on its
+ * resources.cc nodes; the corners are the nodes; Fill 0 plays nothing, Fill and Density full play every step with a
+ * level; each step's hits as crd_beat_at says (Chaos 0); an accented hat is the open one, a snare hit strikes the clap
+ * with it; Chaos only ever adds hits; 8 bars of a busy beat under full scale. --cpu: the host's instructions per sample
+ * (kernel-counted, macOS) of each sound while it rings, of all five at once, and of the busy beat (information: the
+ * unit's figure is Geek Out's). */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +31,8 @@
 #define FELUCCA_VA 1
 #define FELUCCA_CZ 1
 #define FELUCCA_QUAD 1
-#define CR_DRUM_TEST 1
+#define CRD_IRQ_OFF() ((void)0)
+#define CRD_IRQ_ON() ((void)0)
 #include "felucca_tables.h"
 #include "../firmware/src/core.h"
 #include "../firmware/src/dsp.c"
@@ -79,9 +84,43 @@ static const uint8_t SD[DSS_N] = {CRD_KICK, CRD_SNARE, CRD_SNARE, CRD_HAT, CRD_H
 static void knobs(uint32_t chr)
 {
     for (uint32_t k = 0; k < CRD_N; k++) {
-        crd_knob[k].tune = crd_knob[k].decay = 64;
+        crd_knob[k].tune = 12;
+        crd_knob[k].decay = 64;
         crd_knob[k].chr = (uint8_t)chr;
-        crd_knob[k].level = 100;
+        crd_knob[k].fill = 64;
+    }
+    crd_level = 100;
+}
+/* Grids (pattern_generator.cc, resources.cc; GPL-3.0-or-later, Emilie Gillet), as written there: the reference */
+static const uint8_t REF_MAP[5][5] = {{10, 8, 0, 9, 11}, {15, 7, 13, 12, 6}, {18, 14, 4, 5, 3}, {23, 16, 21, 1, 2},
+                                      {24, 19, 17, 20, 22}};
+static uint8_t ref_u8mix(uint8_t a, uint8_t b, uint8_t bal) { return (uint8_t)((a * (255 - bal) + b * bal) >> 8); }
+static uint8_t ref_read(uint8_t step, uint8_t inst, uint8_t x, uint8_t y)
+{
+    uint8_t i = x >> 6, j = y >> 6, off = (uint8_t)(inst * 32 + step);
+    uint8_t a = CRG_NODE[REF_MAP[i][j]][off], b = CRG_NODE[REF_MAP[i + 1][j]][off];
+    uint8_t c = CRG_NODE[REF_MAP[i][j + 1]][off], d = CRG_NODE[REF_MAP[i + 1][j + 1]][off];
+    return ref_u8mix(ref_u8mix(a, b, (uint8_t)(x << 2)), ref_u8mix(c, d, (uint8_t)(x << 2)), (uint8_t)(y << 2));
+}
+/* a bar of the beat (32 steps, crd_beat_step as the loop's grid calls it) with the mix run between: the hits seen */
+static uint32_t bar_hits[3], bar_open, bar_clap;
+static void beat_bar(int32_t *peak)
+{
+    uint32_t st, d, b;
+    bar_hits[0] = bar_hits[1] = bar_hits[2] = bar_open = bar_clap = 0;
+    for (st = 0; st < 32u; st++) {
+        uint8_t h0[3];
+        for (d = 0; d < 3u; d++) h0[d] = crd_hitn[d];
+        crd_beat_step(st);
+        for (d = 0; d < 3u; d++)
+            if (crd_hitn[d] != h0[d]) bar_hits[d] |= 1u << st;
+        if ((bar_hits[2] >> st) & 1u && crd_acc[2]) bar_open |= 1u << st;
+        if ((bar_hits[1] >> st) & 1u && crd_v[DSS_CLAP].live) bar_clap |= 1u << st;
+        for (b = 0; b < 6u; b++) {                   /* (a 32nd at 120 BPM: 172 samples) */
+            memset(L, 0, sizeof L);
+            cr_drum_mix(L, R, CTL);
+            for (d = 0; d < CTL; d++) if (peak && (L[d] < 0 ? -L[d] : L[d]) > *peak) *peak = L[d] < 0 ? -L[d] : L[d];
+        }
     }
 }
 static void quiet(void) { memset(crd_v, 0, sizeof crd_v); }
@@ -105,16 +144,23 @@ int main(int argc, char **argv)
                 crd_kit.vary = 0;
                 knobs(ch);
                 quiet();
-                crd_hit(v);
+                crd_hit(v, 1);
                 blocks = render(44100u * 8u / CTL, &peak, &h1);
                 snprintf(s, sizeof s, "%s: %s at Character %u: peak %d (%.1f dBFS), rings %.0f ms, then stops",
                          CRD_KIT_NAME[kit], SN[v], ch, peak,
                          peak ? 20.0 * __builtin_log10((double)peak / 32768.0) : -999.0, blocks * CTL * 1000.0 / 44100.0);
                 check(peak > 1036 && peak < 32768 && blocks < 44100u * 8u / CTL && !crd_v[v].live, s);
                 quiet();
-                crd_hit(v);
+                crd_hit(v, 1);
                 render(44100u * 8u / CTL, 0, &h2);
                 if (h1 != h2) check(0, "the same hit at VARY 0 renders the same bytes");
+                if (c == 1u) {                       /* a plain hit: quieter than the accent */
+                    int32_t pk = 0;
+                    quiet();
+                    crd_hit(v, 0);
+                    render(44100u * 8u / CTL, &pk, 0);
+                    if (!(pk < peak)) check(0, "a plain hit quieter than an accented one");
+                }
             }
     }
     check(!lr_differ, "left and right the same (the drums are mono)");
@@ -131,9 +177,9 @@ int main(int argc, char **argv)
         crd_kit_load(0);
         knobs(32);
         quiet();
-        crd_hit(DSS_HATO);
+        crd_hit(DSS_HATO, 1);
         render(20, 0, 0);
-        crd_hit(DSS_HATC);
+        crd_hit(DSS_HATC, 1);
         for (b = 0; b < 200u && crd_v[DSS_HATO].live; b++) render(1, 0, 0);
         snprintf(s, sizeof s, "the closed hat chokes the open one: silent %u blocks (%.1f ms) after", b,
                  b * CTL * 1000.0 / 44100.0);
@@ -145,8 +191,8 @@ int main(int argc, char **argv)
         for (c = 0; c < 3u; c++) {
             quiet();
             crd_knob[CRD_SNARE].chr = C[c];
-            crd_hit(DSS_SNARE);
-            crd_hit(DSS_CLAP);
+            crd_hit(DSS_SNARE, 1);
+            crd_hit(DSS_CLAP, 1);
             snprintf(s, sizeof s, "snare Character %u: snare %s, clap %s", C[c], crd_v[DSS_SNARE].live ? "on" : "off",
                      crd_v[DSS_CLAP].live ? "on" : "off");
             check(crd_v[DSS_SNARE].live == WANT[c][0] && crd_v[DSS_CLAP].live == WANT[c][1], s);
@@ -156,30 +202,76 @@ int main(int argc, char **argv)
         uint32_t i0, i1, b0, b1;
         crd_kit.vary = 0;
         knobs(32);
-        quiet(); crd_hit(DSS_KICK); i0 = crd_v[DSS_KICK].inc; b0 = render(44100u * 8u / CTL, 0, 0);
-        crd_knob[CRD_KICK].tune = 127; crd_knob[CRD_KICK].decay = 127;
-        quiet(); crd_hit(DSS_KICK); i1 = crd_v[DSS_KICK].inc; b1 = render(44100u * 8u / CTL, 0, 0);
-        snprintf(s, sizeof s, "kick Tune 127: x%.2f the pitch; Decay 127: rings %u blocks for %u", (double)i1 / i0, b1, b0);
+        quiet(); crd_hit(DSS_KICK, 1); i0 = crd_v[DSS_KICK].inc; b0 = render(44100u * 8u / CTL, 0, 0);
+        crd_knob[CRD_KICK].tune = 24; crd_knob[CRD_KICK].decay = 127;
+        quiet(); crd_hit(DSS_KICK, 1); i1 = crd_v[DSS_KICK].inc; b1 = render(44100u * 8u / CTL, 0, 0);
+        snprintf(s, sizeof s, "kick Tune +12: x%.2f the pitch; Decay 127: rings %u blocks for %u", (double)i1 / i0, b1, b0);
         check(i1 > i0 * 19u / 10u && i1 < i0 * 21u / 10u && b1 > b0, s);
     }
-    {   /* the test pattern: 8 bars at 120 BPM (a 16th = 5512.5 samples), kit X Club at its VARY */
+    {   /* the blend against Grids */
+        uint32_t x, y, d, st, bad = 0, n = 0;
+        for (x = 0; x < 256u; x += 16u)
+            for (y = 0; y < 256u; y += 16u) {
+                crd_beat_blend(x, y);
+                for (d = 0; d < 3u; d++)
+                    for (st = 0; st < 32u; st++, n++)
+                        bad += crd_blend[d][st] != ref_read((uint8_t)st, (uint8_t)d, (uint8_t)x, (uint8_t)y);
+            }
+        crd_beat_blend(254, 254);
+        for (d = 0; d < 3u; d++)
+            for (st = 0; st < 32u; st++, n++)
+                bad += crd_blend[d][st] != ref_read((uint8_t)st, (uint8_t)d, 254, 254);
+        snprintf(s, sizeof s, "the blend: %u levels at 257 places of X / Y as Grids' ReadDrumMap, %u differ", n, bad);
+        check(!bad && crd_map_ok, s);
+        crd_beat_blend(0, 0);                      /* the corner: node 10, through U8Mix's a * 255 >> 8 twice */
+        for (st = 0, bad = 0; st < 32u; st++)
+            bad += crd_blend[0][st] != ((CRG_NODE[10][st] * 255 >> 8) * 255 >> 8);
+        check(!bad, "X 0, Y 0: node_10 (drum_map[0][0])");
+    }
+    {   /* the beat: Fill, Density, accents, the clap, Chaos */
+        uint32_t d, st, want[3] = {0, 0, 0}, wacc = 0, lv = 0;
         int32_t peak = 0;
-        uint32_t t;
         crd_kit_load(0);
-        crd_test_boot();
-        crd_test_step = ~0u;
+        knobs(32);
+        crd_rand = 0;
         quiet();
-        for (t = 0; t < 8u * 16u * 5512u; t += CTL) {
-            int any = 0;
-            cr_drum_test_clock(t, 5512u);
-            memset(L, 0, sizeof L);
-            cr_drum_mix(L, R, CTL);
-            for (v = 0; v < CTL; v++) if ((L[v] < 0 ? -L[v] : L[v]) > peak) peak = L[v] < 0 ? -L[v] : L[v];
-            (void)any;
+        crd_beat_blend(128, 128);
+        for (d = 0; d < 3u; d++) crd_knob[d].fill = 0;
+        crd_beat_dens(0);
+        beat_bar(0);
+        check(!bar_hits[0] && !bar_hits[1] && !bar_hits[2], "Fill 0, Density 0: no hit");
+        for (d = 0; d < 3u; d++) crd_knob[d].fill = 127;
+        crd_beat_dens(127);
+        beat_bar(0);
+        for (d = 0, lv = 1; d < 3u; d++)
+            for (st = 0; st < 32u; st++)
+                lv &= ((bar_hits[d] >> st) & 1u) == (crd_blend[d][st] > 0u);
+        check(lv, "Fill and Density full: a hit on every step with a level, none on the others");
+        for (d = 0; d < 3u; d++) crd_knob[d].fill = (uint8_t)(56 + d * 8);
+        crd_beat_dens(64);
+        for (d = 0; d < 3u; d++)
+            for (st = 0; st < 32u; st++) {
+                if (crd_beat_at(d, st)) want[d] |= 1u << st;
+                if (d == 2u && crd_beat_at(d, st) == 2u) wacc |= 1u << st;
+            }
+        beat_bar(&peak);
+        snprintf(s, sizeof s, "Fill 56 64 72: the bar as crd_beat_at says (kick %08X snare %08X hats %08X, open %08X)",
+                 (unsigned)bar_hits[0], (unsigned)bar_hits[1], (unsigned)bar_hits[2], (unsigned)bar_open);
+        check(bar_hits[0] == want[0] && bar_hits[1] == want[1] && bar_hits[2] == want[2] && bar_open == wacc &&
+              (want[0] | want[1] | want[2]) != 0u, s);
+        crd_knob[CRD_SNARE].chr = 96;
+        beat_bar(0);
+        check(bar_clap == bar_hits[1] && bar_hits[1], "the snare's Character 96: every snare hit strikes the clap");
+        crd_knob[CRD_SNARE].chr = 32;
+        crd_rand = 254;
+        for (st = 0, lv = 1; st < 8u; st++) {      /* Chaos: hits only ever added (the perturbation is >= 0) */
+            beat_bar(&peak);
+            for (d = 0; d < 3u; d++) lv &= (bar_hits[d] & want[d]) == want[d];
         }
-        snprintf(s, sizeof s, "the test pattern, 8 bars at 120 BPM: peak %d (%.1f dBFS)", peak,
+        snprintf(s, sizeof s, "Chaos full: 8 bars, every hit of the bar without it kept; peak %d (%.1f dBFS)", peak,
                  20.0 * __builtin_log10((double)peak / 32768.0));
-        check(peak < 32768 && peak > 8000, s);
+        check(lv && peak < 32768 && peak > 8000, s);
+        crd_rand = 0;
     }
     if (cpu) {   /* each sound while it rings (40 hits, one count), all five at once, the test pattern: the drums alone */
         uint64_t i0, tot = 0, smp;
@@ -194,7 +286,7 @@ int main(int argc, char **argv)
                 smp = 0;
                 i0 = instr_now();
                 for (k = 0; k < 40u; k++) {
-                    crd_hit(v);
+                    crd_hit(v, 1);
                     do {
                         cr_drum_mix(L, R, CTL);
                         smp += CTL;
@@ -210,7 +302,7 @@ int main(int argc, char **argv)
             quiet();
             i0 = instr_now();
             for (k = 0; k < 400u; k++) {
-                for (v = 0; v < DSS_N; v++) crd_hit(v);
+                for (v = 0; v < DSS_N; v++) crd_hit(v, 1);
                 crd_v[DSS_HATO].choke = 0;
                 for (b = 0; b < 8u; b++)                 /* 5.8 ms: all five ring */
                     cr_drum_mix(L, R, CTL);
@@ -224,18 +316,21 @@ int main(int argc, char **argv)
         for (k = 0; k < 20000u; k++) cr_drum_mix(L, R, CTL);
         i0 = instr_now() - i0;
         printf("cpu: nothing ringing: %.1f instructions / sample\n", (double)i0 / (20000.0 * CTL));
-        crd_kit_load(0);
-        crd_test_boot();
-        crd_test_step = ~0u;
+        crd_kit_load(0);                           /* a busy beat: the map's middle, Fill and Density high */
+        knobs(32);
+        crd_beat_blend(128, 128);
+        for (k = 0; k < 3u; k++) crd_knob[k].fill = 100;
+        crd_beat_dens(90);
         quiet();
         i0 = instr_now();
-        for (t = 0, nsmp = 0; t < 8u * 16u * 5512u; t += CTL, nsmp += CTL) {
-            cr_drum_test_clock(t, 5512u);
-            cr_drum_mix(L, R, CTL);
+        for (t = 0, nsmp = 0; t < 8u * 32u; t++) {   /* 8 bars at 120 BPM: a 32nd 172 samples */
+            crd_beat_step(t & 31u);
+            for (b = 0; b < 6u; b++, nsmp += CTL)
+                cr_drum_mix(L, R, CTL);
         }
         i0 = instr_now() - i0;
-        printf("cpu: the test pattern (X Club, 8 bars at 120 BPM, hits included): %.0f instructions / sample on "
-               "average\n", (double)i0 / nsmp);
+        printf("cpu: a busy beat (X Club, 8 bars at 120 BPM, hits included): %.0f instructions / sample on average\n",
+               (double)i0 / nsmp);
     }
     printf("cr drum tests %s: %d checks, %d failed\n", fails ? "FAILED" : "passed", oks + fails, fails);
     return fails != 0;

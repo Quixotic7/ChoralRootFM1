@@ -661,7 +661,25 @@ static void crl_tick1(cr_loop_t *lp, cr_t *c, int adv)
     }
     if (on) {
         rel = lp->rt - anchor;
-        if (rel % beat == 0u) lp->click = rel % bar == 0u ? 2u : 1u;
+        if (rel % beat == 0u) {
+            lp->click = rel % bar == 0u ? 2u : 1u;
+            lp->bpos = (uint8_t)((rel % bar) / beat + 1u);
+        }
+    }
+    /* the drums (cr_drum.c): on the loop's grid as the click, but only while a loop plays (an overdub too) or a take
+     * records (never in the count-in), from a beat on: a 32nd's step (CRL_PPQN / 8 ticks) of the bar, step 0 the bar's
+     * first. LOOP starts them at bar 1 (the cycle's start is a beat), stopped they stop; turned on while a loop plays
+     * they join on its next beat */
+    if (lp->drums && (lp->cap == CRL_CAP_REC || (lp->state == CRL_PLAYING && lp->cap != CRL_CAP_COUNTIN))) {
+        rel = lp->rt - (lp->cap == CRL_CAP_REC ? lp->rrec0 : lp->rcyc0);
+        if (!lp->drum_run && rel % beat == 0u) lp->drum_run = 1;
+        if (lp->drum_run && rel % (CRL_PPQN / 8u) == 0u) {
+            lp->dstep = (uint8_t)((rel % bar) / (CRL_PPQN / 8u) + 1u);
+            if (rel % beat == 0u) lp->bpos = (uint8_t)((rel % bar) / beat + 1u);
+        }
+    } else {
+        lp->drum_run = 0;
+        if (!on) lp->bpos = 0;
     }
 }
 
@@ -1352,6 +1370,13 @@ uint32_t cr_loop_pos(const cr_loop_t *lp)
     if (lp->cap == CRL_CAP_REC) return lp->t - lp->rec0;
     if (lp->state == CRL_PLAYING && lp->d.len) return (lp->t - lp->cyc0) % lp->d.len;
     return 0;
+}
+
+void cr_loop_drums(cr_loop_t *lp, int on)
+{
+    lp->drums = (uint8_t)(on != 0);
+    lp->drum_run = 0;
+    lp->dstep = 0;
 }
 
 void cr_loop_metro(cr_loop_t *lp, int on)

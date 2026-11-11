@@ -19,6 +19,7 @@ enum {
     CR_COL_NONE,                    /* the field's default (as the designer's colOf fallback) */
     CR_COL_WHITE, CR_COL_RED, CR_COL_BLUE, CR_COL_YELLOW, CR_COL_ORANGE, CR_COL_GREEN, CR_COL_GREY, CR_COL_BLACK,
     CR_COL_BG, CR_COL_SURF, CR_COL_TEXT, CR_COL_THEME, CR_COL_ACCENT, CR_COL_MID, CR_COL_DIM, CR_COL_LINE, CR_COL_REC,
+    CR_COL_MAGENTA,                 /* the drums' (#E04BD8, the DRUMS v3 mock-ups; fixed RGB, as the seven) */
     CR_COL_N
 };
 
@@ -38,6 +39,9 @@ enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOA
        CR_K_ROUTE,                  /* the FX layer's Routing page (GitHub issue 21, second design): the signal flow as
                                      * boxes, Chain (IN, four boxes in a row, OUT) or Parallel (the three buses stacked
                                      * into a sum, the Filter after it); a held block lifted (rt_*) */
+       CR_K_DRUM,                   /* the SEQ layer (the beat: Metronome / Drums; the DRUMS plan's v3 mock-ups): the page
+                                     * band (the knobrow's picker band, smaller), the page's middle (dr_page), the knob row
+                                     * (cell[0][0..3], hot_r / hot_c as a knobrow's) */
        CR_K_N };
 
 /* CR_K_LOOPMENU's middle (lm_mid) */
@@ -361,6 +365,24 @@ typedef struct {
     uint8_t rt_mode;                /* 0 Parallel, 1 Chain (xfp[XP_RMODE]) */
     uint8_t rt_held, rt_drop;       /* the block held (its black key down) + 1, the block let go and landing + 1; 0 none */
     uint8_t rt_fx_on, rt_filter_on; /* FX off: the whole picture grey; the Filter Off: its box hollow */
+
+    /* panel: drum (CR_K_DRUM, the SEQ layer; cr_ui.c cu_drum_screen). The band is a knobrow's picker (items / sel / col:
+     * the pages' names), the row its knob cells. The middle by dr_page: */
+    uint8_t dr_page;                /* 0 the preset: two tiles, Metronome and Drums, dr_preset's lit; 1 Beat: Grids' 5 x 5
+                                     * map (the dot at dr_x / dr_y, the four tiles round it tinted by their weight) and
+                                     * the bar's lanes (dr_lane / dr_acc, dr_steps rows, dr_step framed); 2..4 Kick, Snare,
+                                     * Hats: the drum's icon in a roundel (dr_pulse: its thump) and its sound as a shape
+                                     * (height dr_tune, length dr_decay, smooth .. striped by dr_chr) */
+    uint8_t dr_preset;              /* 0 Metronome, 1 Drums */
+    uint8_t dr_x, dr_y;             /* Beat: the place on the map, 0..255 (Grids' X / Y) */
+    uint8_t dr_step, dr_steps;      /* the step playing + 1 (0: none); the steps a bar (32; 24 in 3/4 and 6/8) */
+    uint8_t dr_tune, dr_decay, dr_chr, dr_pulse;   /* a drum page: Tune 0..24, Decay, Character 0..127; the thump
+                                     * 0..255 (the producer's clock: full at a hit, gone after ~150 ms) */
+    uint32_t dr_lane[3], dr_acc[3]; /* Beat: each drum's hits on the bar (bit = step), its accents */
+    /* the home pages' beat chip (top right, left of the corner dial): beat_on 0 none, 1 the beat blocks (Metronome),
+     * 2 the blocks and the drum roundel (Drums); beat_n the blocks (beats a bar), beat_pos the beat lit + 1 (0: none,
+     * waiting); beat_pulse the roundel's thump (the kick, 0..255), beat_flash its centre white (the snare) */
+    uint8_t beat_on, beat_n, beat_pos, beat_pulse, beat_flash, dr_rsv[3];
 } cr_screen_t;
 
 /* the filter's FTYPE position's name (eng_va.c's names): "LP" "BP" "HP" "NOTCH" at 0 32 64 96, "LP>BP" .. "NT>LP"

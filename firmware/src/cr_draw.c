@@ -43,6 +43,7 @@ static uint16_t cr_rgb(uint32_t c, uint16_t def)
     case CR_COL_DIM: return T_DIM;
     case CR_COL_LINE: return T_LINE;
     case CR_COL_REC: return T_REC;
+    case CR_COL_MAGENTA: return CR_RGB(224, 75, 216);
     default: return def;
     }
 }
@@ -288,6 +289,27 @@ static void cr_dial(const cr_screen_t *s)
         cr_disc(CR_DIAL_X, CR_DIAL_Y, CR_DIAL_DOT, CR_RED);
 }
 
+/* the home pages' beat chip (the DRUMS plan's v3, mock-up 1): beat_n blocks 5 x 10 (the beat lit: white, magenta with
+ * Drums; waiting: none lit), and with Drums the roundel after them (r 8, its ring 2 px, 4 at the kick's thump; its
+ * centre white at the snare's flash). x: the chip's left edge; rows 7..21 (strip 0) */
+static int32_t cr_chip_w(const cr_screen_t *s)
+{
+    int32_t n = s->beat_n ? s->beat_n : 4;
+    return n * 7 - 2 + 6 + (s->beat_on == 2u ? 22 : 0);
+}
+static void cr_beat_chip(const cr_screen_t *s, int32_t x)
+{
+    int32_t n = s->beat_n ? s->beat_n : 4, drums = s->beat_on == 2u;
+    if (cr_row0() > 23) return;
+    for (int32_t i = 0; i < n; i++)
+        cr_fill(x + i * 7, 7, 5, 10, i == s->beat_pos - 1 ? (drums ? CR_RGB(224, 75, 216) : CR_WHITE) : T_DIM);
+    if (drums) {
+        int32_t cx = (x + n * 7 + 9) * 16 + 8, cy = 12 * 16;
+        cr_arc(cx, cy, 8 * 16, 32 + s->beat_pulse * 32 / 255, 0, 65536u, 0, 0, 0, CR_RGB(224, 75, 216));
+        cr_disc(cx, cy, 3 * 16, s->beat_flash ? CR_WHITE : CR_RGB(224, 75, 216));
+    }
+}
+
 static void cr_header(const cr_screen_t *s)
 {
     int bare = s->icon == CR_ICON_NONE, px = bare ? 15 : 12;
@@ -308,6 +330,12 @@ static void cr_header(const cr_screen_t *s)
     if (s->dial_on) {
         rx -= CR_DIAL_SHIFT;
         rightw += CR_DIAL_SHIFT;
+    }
+    if (s->beat_on) {                    /* the beat chip, left of the dial (cr_beat_chip) */
+        int32_t w = cr_chip_w(s);
+        cr_beat_chip(s, rx - w + 4);
+        rx -= w;
+        rightw += w;
     }
     if (s->batt != 255u) rightw += 26;
     if (s->right[0]) rightw += (cr_tw(s->right, 12, 1) >> 8) + 8;
@@ -2538,6 +2566,140 @@ static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
     cr_kr_cells(s, ry, CR_KR_ROW);
 }
 
+/* CR_K_DRUM (the SEQ layer: the beat's preset and the drums' pages; the DRUMS plan's v3 mock-ups, design/drums-mockups):
+ * the page band at the top (the page's name 26 px bold in its colour, the neighbours 13 px dim at the edges, the square
+ * marks under it), the middle (rows CR_DR_TOP .. the row), knobrow's row of four knob cells (72 px). The middle:
+ *   page 0  the preset: two tiles 84 x 76, Metronome (four beat bars) and Drums (the roundel), the chosen one lit in
+ *           its colour (white / magenta) with a 3 px frame, the other dim
+ *   page 1  Beat: Grids' 5 x 5 map (tiles 16 px, 4 apart), the four around the dot tinted magenta by their weight in
+ *           the blend, the cross through the dot, the dot (a white ring on magenta); right of it the bar's three lanes
+ *           (BD, SD, HH), a row a step from the top: a hit magenta, an accent white, a rest a dim tick; the step
+ *           playing framed white across the three
+ *   page 2..4  Kick, Snare, Hats: the drum's icon in a magenta roundel (r 34; the ring 3 px, 3 more at a hit's
+ *           thump), its sound as a filled shape right of it: an attack edge as tall as Tune (the lowest half of it at -12,
+ *           the whole at +12), falling over a length set by Decay; Character from smooth (soft) to striped (hard) */
+#define CR_DR_TOP 64                     /* the middle's top row */
+#define CR_MAG CR_RGB(224, 75, 216)
+static void cr_dr_band(const cr_screen_t *s, const cr_frame_t *fr)
+{
+    int32_t n = s->n_items, sel = s->sel < n ? s->sel : n - 1, base = P8(CR_PY0 + 24), bw;
+    uint16_t col = cr_rgb(s->col, T_TEXT);
+    if (!cr_in_strip(CR_PY0, CR_DR_TOP) || n < 1) return;
+    bw = cr_tw(cr_item(s, sel), 26, 1);
+    if (bw > P8(150)) bw = P8(150);
+    cr_pick_sides(s, n, sel, base + P8(2), 6, 234, (P8(228) - bw) / 2 - P8(10));
+    cr_pick_item(s, fr, sel, 26, 150, 1, base, P8(CR_PY0), P8(CR_PY0 + 28), col);
+    if (n > 1) cr_pick_marks(n, sel, CR_PY0 + 30, col);
+}
+/* the beat bars (Metronome's icon, the chip's blocks): n bars w x h at (x, y), gap g, bar lit - 1 white, the rest c */
+static void cr_dr_bars(int32_t x, int32_t y, int32_t w, int32_t h, int32_t g, int32_t n, int32_t lit, uint16_t on,
+                       uint16_t c)
+{
+    for (int32_t i = 0; i < n; i++)
+        cr_fill(x + i * (w + g), y, w, h, i == lit - 1 ? on : c);
+}
+/* the drum roundel at (cx, cy) Q4, radius r Q4: the ring (w Q4) in c, a dot in the middle (dot: its radius, Q4) */
+static void cr_dr_roundel(int32_t cx, int32_t cy, int32_t r, int32_t w, int32_t dot, uint16_t c, uint16_t dc)
+{
+    cr_arc(cx, cy, r, w, 0, 65536u, 0, 0, 0, c);
+    if (dot) cr_disc(cx, cy, dot, dc);
+}
+static void cr_dr_tiles(const cr_screen_t *s)
+{
+    static const char *const NM[2] = {"Metronome", "Drums"};
+    int32_t k, y = CR_DR_TOP + 10;
+    for (k = 0; k < 2; k++) {
+        int lit = s->dr_preset == (uint8_t)k, x = k ? 128 : 28;
+        uint16_t c = lit ? (k ? CR_MAG : CR_WHITE) : T_DIM, fc = lit ? c : T_LINE;
+        cr_box(x, y, 84, 82, fc, 6, lit ? 3 : 1);
+        if (!k) cr_dr_bars(x + 21, y + 16, 8, 30, 6, 4, 1, lit ? CR_WHITE : T_DIM, lit ? T_MID : T_LINE);
+        else cr_dr_roundel((x + 42) * 16, (y + 31) * 16, 15 * 16, 3 * 16, 7 * 16, c, c);
+        cr_text(P8(x + 42), P8(y + 72), NM[k], 13, 1, CR_C, 4096, lit ? c : T_DIM, T_BG, 0);
+    }
+}
+static void cr_dr_beat(const cr_screen_t *s)
+{
+    int32_t mx = 8, my = CR_DR_TOP + 2, i, j, d;
+    int32_t fx = ((int32_t)s->dr_x << 2) & 255, fy = ((int32_t)s->dr_y << 2) & 255, ti = s->dr_x >> 6, tj = s->dr_y >> 6;
+    int32_t dx = mx + 8 + (int32_t)s->dr_x * 80 / 256, dy = my + 8 + (int32_t)s->dr_y * 80 / 256;
+    int32_t n = s->dr_steps ? s->dr_steps : 32, rh = 96 / n, ly = my + (98 - rh * n) / 2;
+    for (i = 0; i < 5; i++)                      /* the map: x across, y down (Grids' drum_map[x][y]) */
+        for (j = 0; j < 5; j++) {
+            int32_t w = 0;
+            if (i == ti && j == tj) w = (255 - fx) * (255 - fy);
+            else if (i == ti + 1 && j == tj) w = fx * (255 - fy);
+            else if (i == ti && j == tj + 1) w = (255 - fx) * fy;
+            else if (i == ti + 1 && j == tj + 1) w = fx * fy;
+            cr_box(mx + i * 20, my + j * 20, 16, 16, w ? ux_mix(T_SURF, CR_MAG, w * 100 / 65025) : T_SURF, 2, 0);
+        }
+    cr_fill(mx, dy, 96, 1, T_MID);               /* the cross */
+    cr_fill(dx, my, 1, 96, T_MID);
+    cr_disc(dx * 16 + 8, dy * 16 + 8, 7 * 16, CR_WHITE);
+    cr_disc(dx * 16 + 8, dy * 16 + 8, 5 * 16, CR_MAG);
+    for (d = 0; d < 3; d++) {                    /* the lanes */
+        int32_t x = 116 + d * 40;
+        for (i = 0; i < n; i++) {
+            uint32_t b = 1u << i;
+            int32_t y = ly + i * rh;
+            if (s->dr_acc[d] & b) cr_fill(x, y, 34, rh - 1, CR_WHITE);
+            else if (s->dr_lane[d] & b) cr_fill(x, y, 34, rh - 1, CR_MAG);
+            else cr_fill(x + 13, y, 8, rh - 1, T_SURF);
+        }
+    }
+    if (s->dr_step && s->dr_step <= n) {         /* the step playing */
+        int32_t y = ly + (s->dr_step - 1) * rh;
+        cr_box(112, y - 2, 122, rh + 3, CR_WHITE, 0, 1);
+    }
+}
+static void cr_dr_icon(uint32_t page, int32_t cx, int32_t cy, uint16_t c)
+{
+    if (page == 2u) {                            /* the kick: a target */
+        cr_disc(cx, cy, 18 * 16, c);
+        cr_disc(cx, cy, 9 * 16, T_BG);
+        cr_disc(cx, cy, 4 * 16, c);
+    } else if (page == 3u) {                     /* the snare: a drum seen from the side, its wires */
+        cr_frect(cx - 18 * 16, cy - 10 * 16, 36 * 16, 20 * 16, c);
+        cr_frect(cx - 18 * 16, cy - 3 * 16, 36 * 16, 2 * 16, T_BG);
+        cr_frect(cx - 18 * 16, cy + 3 * 16, 36 * 16, 2 * 16, T_BG);
+    } else {                                     /* the hats: two cymbals on a stand */
+        cr_frect(cx - 19 * 16, cy - 7 * 16, 38 * 16, 5 * 16, c);
+        cr_frect(cx - 19 * 16, cy + 2 * 16, 38 * 16, 5 * 16, c);
+        cr_frect(cx - 2 * 16, cy - 18 * 16, 4 * 16, 36 * 16, c);
+    }
+}
+static void cr_dr_drum(const cr_screen_t *s)
+{
+    int32_t cx = 46 * 16, cy = (CR_DR_TOP + 48) * 16, x0 = 92, base = CR_DR_TOP + 96, top = CR_DR_TOP + 6;
+    int32_t h = (base - top) * (12 + (int32_t)s->dr_tune) / 36, len = 24 + (int32_t)s->dr_decay * 116 / 127, x;
+    int32_t gap = s->dr_chr < 43 ? 0 : s->dr_chr < 86 ? 1 : 2, pul = s->dr_pulse;
+    cr_dr_roundel(cx, cy, 34 * 16, (3 * 16) + pul * 48 / 255, 0, CR_MAG, CR_MAG);
+    cr_dr_icon(s->dr_page, cx, cy, pul > 128 ? CR_MAG : CR_WHITE);
+    cr_fill(x0, base, 236 - x0, 2, T_LINE);
+    for (x = 0; x < len && x0 + x < 236; x++) {  /* the shape: (1 - t)^2 under the attack edge */
+        int32_t t = (len - x) * 256 / len, v = h * t * t / 65536, y;
+        if (!gap) {
+            cr_fill(x0 + x, base - v, 1, v, CR_MAG);
+            continue;
+        }
+        for (y = base; y > base - v; y -= 5) {   /* (hard: 5 px stripes, the top 1 or 2 px of each cut) */
+            int32_t hh = 5 - gap;
+            if (y - hh < base - v) hh = y - (base - v);
+            cr_fill(x0 + x, y - hh, 1, hh, CR_MAG);
+        }
+    }
+}
+static void cr_p_drum(const cr_screen_t *s, const cr_frame_t *fr)
+{
+    int32_t ry = cr_kr_rowy(s);
+    cr_dr_band(s, fr);
+    if (cr_in_strip(CR_DR_TOP, ry)) {
+        if (s->dr_page == 0u) cr_dr_tiles(s);
+        else if (s->dr_page == 1u) cr_dr_beat(s);
+        else cr_dr_drum(s);
+    }
+    cr_kr_cells(s, ry, CR_KR_ROW);
+}
+
 /* CR_K_LOOPMENU (FORMAT.md "The looper's PLAY menu", docs/LOOPER-MODES.md): the looper's PLAY menu under the top line,
  * red: the slot strip (rows 28..54), the record mode as a horizontal picker band (56..92: the item 28 px bold squeezed
  * to 150, the neighbours 13 px dim, the marks), the middle (92 .. the knob row: the big text `title` with `sub` under
@@ -3178,6 +3340,7 @@ static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
     case CR_K_KNOBROW: cr_p_knobrow(s, fr, ph); break;
     case CR_K_LOOPMENU: cr_p_loopmenu(s, fr); break;
     case CR_K_ROUTE: cr_p_route(s, fr); break;
+    case CR_K_DRUM: cr_p_drum(s, fr); break;
 #if CR_LAY_FREE
     case CR_K_FREE: cr_p_free(s); break;
 #endif

@@ -1116,6 +1116,13 @@ static void css_fill(cr_session_t *x)              /* a recognisable session: ev
     x->perf_x = CSS_PERF_STORED | CSS_PERF_CHORD_OFF | CSS_PERF_BASS_ON | CSS_BASS_KEYS | CSS_BASS_FOLLOW;   /* the bass follows, the chord sustains; the BASS layer's keys pick */
     x->bperf_sel = 3;                              /* Arpeggiate */
     x->bpar[2][0] = 8; x->bpar[2][1] = 5; x->bpar[0][0] = 333;   /* Arp 1/16 Random; Strum 333 ms */
+    x->drum.ver = CSS_DRUM_VERSION;                /* the drums: Drums, X Live, level 66, the map, a snare at the clap */
+    x->drum.preset = 1; x->drum.kit = 3; x->drum.level = 66; x->drum.x = 100; x->drum.y = 20; x->drum.density = 90;
+    x->drum.chaos = 33;
+    for (k = 0; k < 3u; k++) {
+        x->drum.dr[k][0] = (uint8_t)(10 + k); x->drum.dr[k][1] = (uint8_t)(40 + k);
+        x->drum.dr[k][2] = (uint8_t)(k == 1u ? 110 : 20); x->drum.dr[k][3] = (uint8_t)(70 + k);
+    }
     x->fx.sel = CSS_FXE_DELAY;
     x->fx.amt[CSS_FXE_REVERB] = 30; x->fx.amt[CSS_FXE_CHORUS] = 0; x->fx.amt[CSS_FXE_DELAY] = 99; x->fx.amt[CSS_FXE_DRIVE] = 127;
     cr_session_fx_set(x, CSS_FXP_DTIME, 5);
@@ -1152,13 +1159,17 @@ static void t_session(void)
        sizeof SD.bpar == 40u && (const uint8_t *)SD.rsv_end - (const uint8_t *)&SD == 1006,
        "session: Chord and Bass Perform at bytes 964 .. 1005 (0.34), 0 in the defaults and every older record: the chord "
        "performs, the bass not, its parameters the defaults");
-    ok(sizeof SD.rsv + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 76u && sizeof SD.smk_master == 2u &&
+    ok(sizeof SD.rsv + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 56u && sizeof SD.smk_master == 2u &&
        (const uint8_t *)SD.smk_master - (const uint8_t *)&SD == 22 && !SD.smk_master[0] && !SD.smk_master[1] &&
        &SD.smk_pedal - (const uint8_t *)&SD == 24 && !SD.smk_pedal &&
        &SD.smk_trs_off - (const uint8_t *)&SD == 25 && !SD.smk_trs_off &&
        (const uint8_t *)&SD.fx - (const uint8_t *)&SD == 68 &&
        CSS_NFXP - 29 == 0 && CSS_NP - 91 == 5,
-       "session: 76 bytes of reserve (118 until 0.34's Bass Perform took 42 of the end's; the SMK-37's MASTER at bytes 22, 23, 0 = not stored; its Pedal at byte 24, 0 = Sustain; its TRS MIDI Out at byte 25, 0 = On; 119 until the TRS jack, 120 until the pedal, 122 until issue 30, 126 until the routing took rsv_fx's last 4, 142 until 0.22's master filter took 16 of it), no free FX parameter entry of 29, 5 free part parameters");
+       "session: 56 bytes of reserve (76 until the drums' block took 20 at byte 26; 118 until 0.34's Bass Perform took 42 of the end's; the SMK-37's MASTER at bytes 22, 23, 0 = not stored; its Pedal at byte 24, 0 = Sustain; its TRS MIDI Out at byte 25, 0 = On; 119 until the TRS jack, 120 until the pedal, 122 until issue 30, 126 until the routing took rsv_fx's last 4, 142 until 0.22's master filter took 16 of it), no free FX parameter entry of 29, 5 free part parameters");
+    ok(sizeof(css_drum_t) == 20u && (const uint8_t *)&SD.drum - (const uint8_t *)&SD == 26 && !SD.drum.ver &&
+       !SD.drum.preset && CSS_DRUM_VERSION == 1u,
+       "session: the drums' block at bytes 26..45 (the old reserve's), version 0 in the defaults and every older record "
+       "(cr_settings.c css_drum_put: the defaults then, the Metronome preset)");
     ok(SD.loop_rate == 0 && (const uint8_t *)&SD.loop_rate - (const uint8_t *)&SD == 21,
        "session: the loop's Rate, byte 21 (the first of the old reserve), 0 = x1: a record written before it reads x1");
     /* every item round-trips */
@@ -1167,6 +1178,10 @@ static void t_session(void)
     ok(rc == 1 && !memcmp(&SR, &SX, sizeof SX), "session: every item round-trips, byte for byte (rc 1)");
     ok(SR.perf_x == (CSS_PERF_STORED | CSS_PERF_CHORD_OFF | CSS_PERF_BASS_ON | CSS_BASS_KEYS | CSS_BASS_FOLLOW) && SR.bperf_sel == 3 && SR.bpar[2][0] == 8 &&
        SR.bpar[2][1] == 5 && SR.bpar[0][0] == 333, "session: the Bass Perform round-trips (chord Off, bass Arpeggiate, its knobs)");
+    ok(SR.drum.ver == CSS_DRUM_VERSION && SR.drum.preset == 1 && SR.drum.kit == 3 && SR.drum.level == 66 &&
+       SR.drum.x == 100 && SR.drum.y == 20 && SR.drum.density == 90 && SR.drum.chaos == 33 && SR.drum.dr[1][2] == 110 &&
+       SR.drum.dr[2][3] == 72 && SR.drum.dr[0][0] == 10, "session: the drums round-trip (the preset, the kit, the Beat page, "
+       "each drum's Tune Decay Character Fill)");
     ok(SR.voicing == 2 && SR.octave == -1 && SR.bass_on == 1 && SR.lock == 1 && SR.loop_rate == 2 &&
        SR.latched == ((1u << CR_MOD_MAJ) | (1u << CR_MOD_MAJ7)), "session: voicing +2, octave -1, Bass on, LOCK with MAJ + M7, the loop's Rate x2");
     ok(SR.fx.sel == CSS_FXE_DELAY && SR.fx.amt[CSS_FXE_DELAY] == 99 && SR.fx.amt[CSS_FXE_DRIVE] == 127 && SR.fx.n == 3 &&

@@ -1,0 +1,88 @@
+# ChoralRoot: the drums (the DRUMS plan; docs/MANUAL.md "The beat"). The SEQ layer (SEQ held) opens on its preset page:
+# Metronome, one page. KNOB 1 +1: Drums (the pages Beat Kick Snare Hats after it); KNOB 4 +1: kit X Deep, -1: X Club.
+# SELECT: Beat (the map, the lanes); KNOB 1 / 2: Map X / Y, KNOB 3 Density; SELECT: Kick, KNOB 3 its Character;
+# SELECT to the end (Hats) and back to the preset page. SEQ tapped in the layer: the beat on ("drums on"), OCT-
+# closes it. With no loop the drums wait (no step, no hit). REC + a chord + REC: a 1-bar loop; the drums play on its
+# grid from bar 1 (hits, a step), the home page's chip; LOOP: the loop stops and the drums with it. GLO + SEQ: off
+# ("drums off"). The WAV: the take's chord and the drums under the loop.
+keys classic
+wait 300
+btn SEQ down
+wait 500
+btn SEQ up
+wait 300
+dump                              # 1: layer 7, preset 0, page 1
+shot build/emu/test/cr_drums_metro.ppm
+knob KNOB1 +1
+wait 200
+knob KNOB4 +1
+wait 200
+dump                              # 2: preset 1, kit 1
+knob KNOB4 -1
+wait 900
+shot build/emu/test/cr_drums_preset.ppm
+knob SELECT +1
+wait 200
+knob KNOB1 +12
+wait 100
+knob KNOB2 -8
+wait 100
+knob KNOB3 +6
+wait 900
+dump                              # 3: page 2, x 76 y 56 density 70
+shot build/emu/test/cr_drums_beat.ppm
+knob SELECT +1
+wait 200
+knob KNOB3 +10
+wait 900
+dump                              # 4: page 3, kick character 42
+shot build/emu/test/cr_drums_kick.ppm
+knob SELECT +1
+wait 200
+knob SELECT +1
+wait 200
+knob SELECT +1
+wait 300
+dump                              # 5: page 5 (Hats; no further)
+shot build/emu/test/cr_drums_hats.ppm
+knob SELECT -4
+wait 200
+btn SEQ
+wait 300
+dump                              # 6: beat 1, drums 1, page 1 (the toggle in the layer)
+btn OCT-
+wait 1500
+dump                              # 7: layer 0, run 0, now 0, hits 0 0 0 (no loop: they wait)
+shot build/emu/test/cr_drums_wait.ppm
+btn REC
+wait 300
+btn A#3 down
+btn D4 down
+wait 300
+btn D4 up
+btn A#3 up
+wait 3500
+btn REC
+wait 2500
+dump                              # 8: the loop plays, run 1, hits
+shot build/emu/test/cr_drums_home.ppm
+btn SEQ down
+wait 500
+btn SEQ up
+wait 200
+knob SELECT +1
+wait 600
+shot build/emu/test/cr_drums_beat_playing.ppm
+btn OCT-
+wait 300
+btn PLAY
+wait 600
+dump                              # 9: the loop stopped, run 0
+btn GLO down
+wait 50
+btn SEQ
+wait 100
+btn GLO up
+wait 600
+dump                              # 10: beat 0, drums 0
+quit

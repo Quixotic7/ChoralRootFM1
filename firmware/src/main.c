@@ -277,10 +277,6 @@ static void fm1_main(void)
                                                          * come on below (fm1_irq_enable_all): silence; the first block
                                                          * is rendered after master_boot, at the knob's level, as before */
     persist_boot();                                     /* (stages BS_FLASH .. BS_SETTINGS; SAFE MODE: no object read) */
-#if CR_DRUM_TEST
-    crd_test_boot();                                    /* (the drums' CPU test: its kit from the resource region, or
-                                                         * the click when it is not there; cr_drum.c) */
-#endif
 #if FELUCCA_OTA
     CR_STAGE(BS_OTA_CLEANUP);
     if (flash_ok)

@@ -585,6 +585,19 @@ void emu_fw_dump(void)
                (unsigned)crl.rate, (unsigned)crl.rate_want, (unsigned)crl.dirty, (unsigned)cu.lpage + 1u, (unsigned)crl.ed,
                (unsigned)crl.ed_t0, (unsigned)(crl.ed ? cr_loop_ed_nlen(&crl) : 0u), (unsigned)crl.ed_g, (unsigned)crl.ed_len,
                (unsigned)cu.gsave_pend, (unsigned)crl.step_end, (unsigned)crl.step_len, (unsigned)crl.step_no);
+        /* the beat (the SEQ layer, cr_drum.c): the preset, the beat on, the drums on in the looper and running, the
+         * kit, the layer's page, the step playing + 1, the hits so far (kick snare hats), the Beat page's knobs, the
+         * level, the chip's beat */
+        printf("  drums: preset %u beat %u click %u drums %u ok %u run %u kit %u page %u now %u hits %u %u %u "
+               "x %u y %u density %u chaos %u level %u kick %u/%u/%u/%u snare %u/%u/%u/%u hats %u/%u/%u/%u bpos %u\n",
+               (unsigned)cs.beat_preset, (unsigned)cs.metro, (unsigned)crl.metro, (unsigned)crl.drums,
+               (unsigned)cu_drums_ok, (unsigned)crl.drum_run, (unsigned)cs.dr_kit, (unsigned)cu.mpage + 1u,
+               (unsigned)crd_now, (unsigned)crd_hitn[0], (unsigned)crd_hitn[1], (unsigned)crd_hitn[2],
+               (unsigned)cs.dr_x, (unsigned)cs.dr_y, (unsigned)cs.dr_dens, (unsigned)cs.dr_chaos, (unsigned)cs.dr_level,
+               (unsigned)cs.dr[0][0], (unsigned)cs.dr[0][1], (unsigned)cs.dr[0][2], (unsigned)cs.dr[0][3],
+               (unsigned)cs.dr[1][0], (unsigned)cs.dr[1][1], (unsigned)cs.dr[1][2], (unsigned)cs.dr[1][3],
+               (unsigned)cs.dr[2][0], (unsigned)cs.dr[2][1], (unsigned)cs.dr[2][2], (unsigned)cs.dr[2][3],
+               (unsigned)crl.bpos);
         /* 0.18: the loop editor's page and its cursor step's properties (-1: none), its notes' part of a step
          * (quarters; 0: whole steps); the pass of the loop (mod 12); the steps that have a property; the loop voices
          * in use (sounding or a ratchet between two hits) */
@@ -849,14 +862,14 @@ uint32_t emu_fw_layout(void) { return (uint32_t)cu_fm1(); }
 void emu_fw_ui_info(char *buf, uint32_t n)
 {
     static const char *const K[] = {"none", "stripes", "chord", "picker", "meter", "keyboard", "arp", "params", "geek",
-                                    "text", "big", "scope", "edit8", "stack", "knobrow", "loopmenu"};
+                                    "text", "big", "scope", "edit8", "stack", "knobrow", "loopmenu", "free", "route", "drum"};
     static const char *const DM[] = {"play", "armed", "rec", "od"};    /* cr_screen.h CR_DIAL_* */
     const cr_screen_t *s = &cu_scr;
     snprintf(buf, n, "%s view %u name '%s|%s|%s' from '%s|%s|%s' item '%s' value '%s' title '%s' size %u squeeze %u "
              "anim %02X %u ms ring %u/%u dial %s/%u/%u msg '%s' blits %u/%u bytes %u wv %u,%u,%u,%u,%u "
              "lm %u/%u/%u/%u lanes %u/%u slot %u jump %u sub '%s' right '%s' foot '%s' now '%s' hot %u.%u",
              s->kind < CR_K_N && s->kind < sizeof K / sizeof K[0] ? K[s->kind] : "?", (unsigned)cs.view, s->name.root, s->name.quality, s->name.sup,
-             s->from.root, s->from.quality, s->from.sup, s->kind == CR_K_PICKER || s->kind == CR_K_KNOBROW || s->kind == CR_K_LOOPMENU ? cr_item(s, s->sel) : "",
+             s->from.root, s->from.quality, s->from.sup, s->kind == CR_K_PICKER || s->kind == CR_K_KNOBROW || s->kind == CR_K_LOOPMENU || s->kind == CR_K_DRUM ? cr_item(s, s->sel) : "",
              s->value, s->title, (unsigned)s->size, (unsigned)s->squeeze, (unsigned)s->anim,
              (unsigned)cr_anim_ms(&cu_anim, cu_now()), (unsigned)s->ring_on, (unsigned)s->ring,
              !s->dial_on ? "-" : s->dial_mode < 4u ? DM[s->dial_mode] : "?", (unsigned)s->dial, (unsigned)s->dial_dot, s->message,
