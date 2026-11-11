@@ -95,7 +95,28 @@ def ram_on(flag):
     v = os.environ.get(flag)
     return v == "1" or (flag in RAM_DEFAULT_ON and v != "0")
 XIP_LEN, RAM_LEN, POOL_LEN, NOINIT_LEN = fm1pkg_make.BODY_MAX, 96 * 1024, 0x54000, 0x3D30   # firmware/app.ld
-RES_XIP, RES_LEN = 0x0208F040, fm1pkg_make.RES_HI - fm1pkg_make.RES_DATA   # firmware/app.ld RES (cr_res.h, FM-1 only)
+RES_LEN = fm1pkg_make.RES_HI - fm1pkg_make.RES_DATA   # firmware/app.ld RES (cr_res.h): 48 KB less the header
+RES_LD = "RES    (r)   : ORIGIN = 0x0208F040,"     # app.ld's RES line (the FM-1's place; app_ld() moves it for the SMK)
+RES2_LEN = fm1pkg_make.RES2_HI - fm1pkg_make.RES2_DATA   # firmware/app.ld RES2 (cr_res.h CR_RES2): the FM-1's second
+RES2_XIP = 0x02000000 + fm1pkg_make.RES2_DATA - 0x4000   # region, 16 KB less the header, XIP 0x020D8040 (HISTORY 3y296)
+
+
+def res_xip():
+    """where the region's data reads (hal/fm1_xip.h FM1_XIP of FL_RES_DATA): 0x0208F040 on the FM-1, 0x02099040 on
+    the SMK-37 (3y295); fm1pkg_make.set_board has picked the board's region"""
+    return 0x02000000 + fm1pkg_make.RES_DATA - 0x4000
+
+
+def app_ld():
+    """the app's linker script: firmware/app.ld; for the SMK-37 a copy in build/ with RES at its own region"""
+    if BOARD == "fm1":
+        return FW / "app.ld"
+    src = (FW / "app.ld").read_text()
+    if src.count(RES_LD) != 1 or fm1pkg_make.RES_HI - fm1pkg_make.RES_DATA != RES_LEN:
+        raise SystemExit("build: firmware/app.ld's RES line is not the one app_ld() moves")
+    out = OUT / f"app-{BOARD}.ld"
+    out.write_text(src.replace(RES_LD, f"RES    (r)   : ORIGIN = {res_xip():#010x},"))
+    return out
 
 
 def toolchain():
@@ -373,12 +394,13 @@ def build_app(stub, single=False):
     # engine's and the looper's API this unit does not call, fm1_vec.S's weak fault handler when cr_cpu1.h has its
     # own). app.ld KEEPs crt0, .ram_text and .c1_text; the vector stubs, the ISR wrappers and the second core's entry
     # are referred to from C (fm1_irq.h, fm1_cpu1.h), so they stay
-    tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", FW / "app.ld", OUT / "crt0.o", OUT / "fm1_vec.o",
+    tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", app_ld(), OUT / "crt0.o", OUT / "fm1_vec.o",
        OUT / "fm1_isr.o", OUT / "fm1_cpu1.o", OUT / f"{UNIT}.o", "-o", elf)
-    for sect in ("text.bin", "data.bin", "ramtext.bin", "c1text.bin", "res.bin"):
+    for sect in ("text.bin", "data.bin", "ramtext.bin", "c1text.bin", "res.bin", "res2.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".res", elf, OUT / "res.bin"),
+                               ("common/bin/objcopy", "-O", "binary", "-j", ".res2", elf, OUT / "res2.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".c1_text", elf, OUT / "c1text.bin"),
@@ -427,23 +449,38 @@ def size_line(hdr):
         s += f", NOINIT {sz['.noinit']} B of {NOINIT_LEN} ({100 * sz['.noinit'] / NOINIT_LEN:.1f}%)"
     if sz.get(".res"):              # the resource region's data (firmware/src/cr_res.h): outside the slot
         s += f", RES {sz['.res']} B of {RES_LEN} ({100 * sz['.res'] / RES_LEN:.1f}%)"
+    if sz.get(".res2"):             # the FM-1's second region (cr_res.h CR_RES2, 3y296)
+        s += f", RES2 {sz['.res2']} B of {RES2_LEN} ({100 * sz['.res2'] / RES2_LEN:.1f}%)"
     return s
 
 
 def res_data(syms):
-    """the resource region's data (.res, firmware/app.ld) as tools/fm1pkg_make.py --res takes it; None for a board
-    without the region (SMK-37: the section must be empty)"""
+    """the resource region's data (.res, firmware/app.ld) as tools/fm1pkg_make.py --res takes it (both boards: the
+    SMK-37's since 3y295)"""
     p = OUT / "res.bin"
     data = p.read_bytes() if p.exists() else b""
     m = re.search(r"^([0-9a-f]+) .*\s_res_start$", syms, re.M)
-    if BOARD != "fm1":
-        if data:
-            raise SystemExit(f"build: {BOARD} has no resource region, but .res holds {len(data)} B")
-        return None
-    if not m or int(m.group(1), 16) != RES_XIP:
-        raise SystemExit(f"build: _res_start is not at {RES_XIP:#x} (firmware/app.ld RES)")
+    if not m or int(m.group(1), 16) != res_xip():
+        raise SystemExit(f"build: _res_start is not at {res_xip():#x} (firmware/app.ld RES)")
     if not data or len(data) > RES_LEN:
         raise SystemExit(f"build: the resource region's data is {len(data)} B (1 .. {RES_LEN})")
+    return data
+
+
+def res2_data(syms):
+    """the FM-1's second region's data (.res2, firmware/app.ld; cr_res.h CR_RES2, HISTORY 3y296) as
+    tools/fm1pkg_make.py res2_image takes it; None on the SMK-37, which has none (its .res2 must be empty)"""
+    p = OUT / "res2.bin"
+    data = p.read_bytes() if p.exists() else b""
+    if BOARD != "fm1":
+        if data:
+            raise SystemExit(f"build: {BOARD} has no second resource region, .res2 holds {len(data)} B")
+        return None
+    m = re.search(r"^([0-9a-f]+) .*\s_res2_start$", syms, re.M)
+    if not m or int(m.group(1), 16) != RES2_XIP:
+        raise SystemExit(f"build: _res2_start is not at {RES2_XIP:#x} (firmware/app.ld RES2)")
+    if not data or len(data) > RES2_LEN:
+        raise SystemExit(f"build: the second region's data is {len(data)} B (1 .. {RES2_LEN})")
     return data
 
 
@@ -451,7 +488,7 @@ def res_ble(syms):
     """the radio program's slot in the region's data (hal/ble_rf_tables.h ble_rf_prog, cr_ble.h): (offset, length),
     (0, 0) without Bluetooth"""
     m = re.search(r"^([0-9a-f]+) .*\.res\s+([0-9a-f]+) ble_rf_prog$", syms, re.M)
-    return (int(m.group(1), 16) - RES_XIP, int(m.group(2), 16)) if m and BOARD == "fm1" else (0, 0)
+    return (int(m.group(1), 16) - res_xip(), int(m.group(2), 16)) if m and BOARD == "fm1" else (0, 0)
 
 
 def check(img, syms, dis, rt):
@@ -637,7 +674,9 @@ def main():
         if errors:
             raise SystemExit("build: checks failed")
         flash = fm1pkg_make.flash_image(img, fm1pkg_make.KEY, res=res_data(syms), ble=res_ble(syms))
-        pkg = fm1pkg_make.ufw(flash, ota, PRODUCT)
+        r2 = res2_data(syms)
+        pkg = fm1pkg_make.ufw(flash, ota, PRODUCT,
+                              res2=fm1pkg_make.res2_image(bytes(img), r2) if r2 is not None else None)
         print(f"sector 0x4000 (the directory and the stub: constant while the stub is) sha256 "
               f"{hashlib.sha256(flash[0x4000:0x5000]).hexdigest()[:16]}; marker at 0x91fe0, body "
               f"{len(img) - STUB_LEN + (-len(img) % 4)} B")

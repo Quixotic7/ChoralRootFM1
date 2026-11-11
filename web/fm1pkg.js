@@ -290,6 +290,19 @@ export function flashSizeOf(img) {
   }
   return 0;
 }
+// the second resource region's entry (res2.bin, type 200; firmware/src/cr_res.h CR_RES2, HISTORY 3y296): its length,
+// 0 when there is none. The loader reads it whole (16 KB: 32 reads) after the first region
+export function res2SizeOf(img) {
+  if (!filesOk(img)) return 0;
+  const h = img.slice(0, 0x40);
+  enc(h, 0, 0x40);
+  for (let i = 0, n = u16(h, 8); i < n; i++) {
+    const e = img.slice(0x40 + i * 0x50, 0x90 + i * 0x50);
+    enc(e, 0, 0x50);
+    if (u16(e, 0) === 200) return u32(e, 12);
+  }
+  return 0;
+}
 
 export async function sha256hex(bytes) {
   const d = await crypto.subtle.digest("SHA-256", bytes);

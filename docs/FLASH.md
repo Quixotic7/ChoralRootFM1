@@ -114,7 +114,7 @@ docs/BOOT-SAFETY.md. "Linked" sizes are from `nm -S` on build/choralroot.elf.
 | 0xB4000..0xB7FFF | the session, the favourites | live |
 | 0xB8000..0xC7FFF | the sound pool (13 banks over 16 sectors) | live |
 | 0xC8000..0xDBFFF | the ten loop slots | live |
-| 0xDC000..0xDFFFF | 0.21's user banks (before them Felucca's user presets) | **free since 3y231** |
+| 0xDC000..0xDFFFF | **the second resource region since 3y296** (cr_res.h CR_RES2): its header, then the kerning of M and CRB, the factory presets' lists of PROPHET, CZ-1, VA and FM6, FM6's factory voices (12 540 of 16 320 B; room kept for drum kits). Before: 0.21's user banks (before them Felucca's user presets), free since 3y231 | the update loader writes it (the package's res2.bin); the app reads it |
 | 0xE0000..0xE4FFF | the update loader's staging | during an update only |
 | 0xE5000..0xE7FFF | 12 KB (fm1-base and FIZZ keep their BLE store here; Melodee reads 0xE7000 as a possible VM) | **never used** |
 | 0xE8000 | the stock VM: the radio's factory calibration (records 106, 107, 108, 187) | kept, never written (Bluetooth would read it: docs/BLE-LINK.md) |
@@ -126,8 +126,26 @@ docs/BOOT-SAFETY.md. "Linked" sizes are from `nm -S` on build/choralroot.elf.
 So 28 KB were never used (0x93000..0x96FFF, 0xE5000..0xE7FFF) and 64 KB are free since 3y231 (0.21's sound objects:
 0.22 .. 0.29.2 copied them into the pool once; nothing reads them now). 0x93000..0x9EFFF, one contiguous 48 KB run in
 the plain XIP window, is the resource region since 3y234 (docs/BOOT-SAFETY.md "The resource region"): free now are
-0xB2000..0xB3FFF, 0xDC000..0xDFFFF (24 KB) and 0xE5000..0xE7FFF (12 KB) (0xA0000..0xA1FFF holds Bluetooth since 3y236). On the SMK-37 the same retirement frees 0x9D000..0xA8FFF and
-0xB0000..0xB3FFF (storage.c's SMK map); its stock VM is ChoralRoot's store there.
+0xB2000..0xB3FFF, 0xDC000..0xDFFFF (24 KB) and 0xE5000..0xE7FFF (12 KB) (0xA0000..0xA1FFF holds Bluetooth since 3y236).
+Since 3y296 0xDC000..0xDFFFF is the FM-1's second resource region (docs/BOOT-SAFETY.md "The second resource region"):
+read-only tables only the main loop reads moved out of the app slot, XIP 566 012 -> 553 916 B (12 096 B freed), RES2
+12 540 of 16 320 B; free now are 0xB2000..0xB3FFF (8 KB, in the plain window, between the CZ-1 banks and the
+session) and 0xE5000..0xE7FFF (12 KB, after the staging).
+
+**What else only the main loop reads, and is big** (3y296's audit, `nm` sizes of the 0.39-based FM-1 build), for a
+third move or the second region's room (3 780 B free there, 2 056 of them meant for four drum kits):
+`P5_FPACK` 6 325 B (PROPHET's factory programs, `p5_preset_patch`; a fallback: INIT P5), `cr_ring` 6 100 B (the
+chord ring's coverage, `cr_draw.c`; a fallback: no ring), the engines' `*_PAGES` 14 112 B (CZ 3 108, FM6 3 276, VA
+2 688, QUAD 1 848, GRAIN 1 596, P5 1 596: the sound editor's descriptors, read wherever a deep parameter is named or
+ranged; a fallback would need every such reader to go without, the hardest of these; not audited reader by reader), `CR_LAYC_PAGES` 1 428, the other
+presets' lists (QUAD 384, GRAIN 192, WHEEL 120: `eng_preset` would cover them, their engines' own reads would need
+the VA's guard). `CZ_FACTORY_LZ4` 4 660 goes to the first region on claude/drums. Not candidates: everything the
+audio ISR or the second core reads (`QUAD_HARM`, `CZ_RECIP`, `CZ_CARRIER`, `FM6_EXP2`, `FM6_FREQ`, `P5_TANH_Q15`,
+`SINE`, `UAC_FIR`, ...), and S's glyphs (`AF_S_DATA`, the fallback font). On the SMK-37 the same retirement freed 0x9D000..0xA8FFF and
+0xB0000..0xB3FFF (storage.c's SMK map); its stock VM is ChoralRoot's store there. Since 3y295 0x9D000..0xA8FFF is the
+SMK's resource region (docs/BOOT-SAFETY.md "The SMK-37's resource region"): the fonts M, CRX and CRB moved out of its
+app slot, XIP 566 360 -> 531 032 B (35 328 B freed: 42 408 B of margin), RES 36 024 of 49 088 B; 0xB0000..0xB3FFF is
+still free.
 
 **Felucca's code that is still in the tree.** Nothing unused is linked: the image is a unity build, so a static
 function or table nothing calls is dropped by the compiler (Felucca's factory patterns, its sequencer, the retired

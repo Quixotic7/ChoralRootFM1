@@ -114,6 +114,10 @@ par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -DCZ_FACTORY_R
 t ./build/host/cr_backup_test
 par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_pool_test tests/cr_pool_test.c -lm
 t ./build/host/cr_pool_test
+# the FM-1's second resource region refused (cr_res.h CR_RES2, HISTORY 3y296): the factory presets' lists, FM6's voices
+# and the kerning of M and CRB go without, the counts and the user's sounds as before
+par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_res2_test tests/cr_res2_test.c -lm
+t ./build/host/cr_res2_test
 # the editor on P5's compiled rows (cr_pages.c cp_deep, cr_edit.c's screen plan; docs/LAYOUT-TOOL.md "Step 4"): the
 # layout's pages (copies of the built-in descriptors), its screens (EXPR after VOICE), every cell turned (the parameter at
 # its built-in address, edited, hot), empty slots inert, SELECT across lanes and screens

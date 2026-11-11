@@ -8,6 +8,7 @@
  * Sections: sizes, parameters, voices and engines, tracks and the song, system. */
 #include <stdint.h>
 #include "cr_ram.h"              /* the CR_RAM_* build switches (code in RAM: docs/FX.md) */
+#include "cr_res.h"              /* the resource regions: RES2_PRESET, CR_RES2_GONE (the factory presets' lists) */
 
 /* ------------------------------------------------------------ sizes --- */
 #define NVOICE 16                /* voice slots per part (FM6 plays Dexed's 16; Melodee's voice model) */
@@ -420,6 +421,29 @@ typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c 
      * is given (each engine's audit: docs/PROPHET.md, docs/VA.md "Two cores") */
     uint8_t split;
 } engine_t;
+/* engine en's factory preset k (k < npresets): every reader in the firmware goes through here, so a list in the FM-1's
+ * second resource region (cr_res.h RES2_PRESET) that is not this build's reads as a stand-in rather than as another
+ * build's bytes or erased flash: "NO PRESET", the engine's EDIT defaults, a plain envelope, no sends (a valid sound on
+ * every engine; FM6's PTCH default names F1, whose voice is then the init voice: eng_fm6.c fm6_slot_get). The count
+ * stays, so the pool's places, the favourites and the stored bindings keep their numbers. Main loop only (one stand-in,
+ * in RAM) */
+#if CR_RES2
+static preset_t eng_no_preset;
+#endif
+static inline const preset_t *eng_preset(const engine_t *en, uint32_t k)
+{
+#if CR_RES2
+    if (CR_RES2_GONE(en->presets)) {
+        uint32_t i;
+        eng_no_preset.name = "NO PRESET";
+        for (i = 0; i < 8u; i++)
+            eng_no_preset.e[i] = (int8_t)en->edit[i].def;
+        eng_no_preset.env[2] = 127u;                /* (ATK 0, DEC 0, SUS 127, REL 0: the INIT envelope of FM6 / P5) */
+        return &eng_no_preset;
+    }
+#endif
+    return &en->presets[k];
+}
 /* voice_start: what the voice it starts did just before (0 free, 1 released, 2 its key down: a steal or a move);
  * engine_t.note_on may read it */
 static uint8_t voice_was;

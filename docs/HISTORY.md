@@ -8359,7 +8359,68 @@ counts): instructions a sample while ringing, kick 88, snare 120, clap 62, a hat
 are out of line, one call). XIP 566,364 with the test, +4,880 over 3y293. The default build is 3y293's byte for byte.
 The unit's Geek Out figure is the gate.
 
-3y295. **The drums' voices are CoralFlower's morph drum synth (the CPU gate, second step).** The lean voices of
+## 2026-11-10 (the SMK-37's resource region)
+
+3y295. **The SMK-37 gets a resource region of its own; its fonts M, CRX and CRB move there (35 KB of its app slot
+free for the drums).** The owner chose option A of the DRUMS plan's Phase 2 (2026-11-10). On claude/smk-res from main
+36867e5c (0.39); 3y293 / 3y294 are claude/drums'. The region is the FM-1's (3y234, docs/BOOT-SAFETY.md) at the SMK's
+place: **0x9D000..0xA8FFF**, the stock VM's first 12 sectors (0.21's sound objects until 3y231, nothing since), right
+after its app area (PRCT 0x9D000) and at the start of its plain XIP window (the data from 0x9D040, XIP 0x02099040).
+`hal/fm1_flash_map.h`: the SMK's `FL_RES_LO` / `FL_RES_HI`, its `FL_DATA` from 0xA9000 (the app cannot write the
+region). `storage.c`: no object moves; `ST_SMK_REGIONS` (an owner change and Flash Data) starts at 0xA9000, not
+0x9D000, else the first start over another firmware's store would erase the fonts just installed. `ldr_core.c`
+`LDR_RES_HI` 0xA9000 on the SMK; the stub unchanged (its plain window already starts there; `stub_smk37.lock` holds).
+`fm1pkg_make.py`: the region per board (`RES_AT`), `--res` for both. `tools/build.py`: BOARD=smk37 links with
+`build/app-smk37.ld` (app.ld's RES line at the SMK's origin) and packs `build/res.bin`. `choralroot.c`: `CR_RES 1` and
+`AF_RES` for the SMK in a block of their own (the FM-1's block untouched, for claude/drums). `web/smk37.html`'s
+progress bar counts the longer package. **Sizes**: SMK XIP 566,360 -> 531,032 of 573,440 B (35,328 B freed, 42,408 of
+margin), RES 36,024 of 49,088 B; the package 651,914 -> 701,061 B (flash.bin 0xA9000). The FM-1 package is byte for
+byte 0.39's (b2e190bf...31e7). **Tests**: `smk_flash_test` (the region: the loader's to write, never the app's, never
+cleared), `smk_owner_test` (an owner change leaves it), `smk_pkg_test.py` (header, CRCs, body CRC = the marker's),
+`ldr_test` SMK build over a package with the region (every cut a rescue or the finished boot, 1325 requests) and a
+downgrade that leaves it. `sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1155 ok;
+test_persist 121 ok); `BOARD=smk37 ./build.sh` builds. **Not tried on a unit** (no SMK-37 here): SMK37.md "What to
+test" 16, before it ships. Not pushed, tagged or flashed.
+
+## 2026-11-10 (the FM-1's second resource region)
+
+3y296. **The FM-1 gets a second resource region at 0xDC000..0xDFFFF; 12.5 KB of read-only tables move there (12,096 B
+of app slot freed).** The owner chose, for the drums (2026-11-10): two kits now, and a second FM-1 region in unused
+flash so the other four kits and later features fit. On claude/fm1-res2 from claude/smk-res 27422c1b (3y295; 3y293 /
+3y294 are claude/drums'). **The place**: of the FM-1's free flash (docs/FLASH.md: 0xB2000..0xB3FFF, 0xDC000..0xDFFFF,
+0xE5000..0xE7FFF) the one contiguous 16 KB run in the plain window right below the staging (0xE0000), 0.21's user banks
+until 3y231 and nothing since; checked against `fm1_flash_map.h`, `storage.c`'s FM-1 map, `cr_ui.c cu_flash_erase`
+(its list ends at the loop slots, 0xDBFFF: now asserted) and `ota.c` (staging 0xE0000..0xE4FFF). **The pieces**:
+`fm1_flash_map.h` `FL_RES2_*`, `FL_DATA` ends at 0xDC000; `cr_res.h` `CR_RES2`, `cr_res2_ok`, `CR_RES2_GONE`, magic
+"CRE2", entry type 200; `cr_shim.c cr_res2_boot` (the first region's checks, its own magic) after `cr_res_boot`;
+`app.ld` RES2 at XIP 0x020D8040 and `.res2` (`.res`'s pattern narrowed to `.res.*`); `choralroot.c` `CR_RES2`,
+`AF_RES2`, `RES2_PRESET`, `RES2_FM6`, `RES2_DRUM` (the drum kits' place, unused here) for the FM-1 in a block of its
+own; `build.py` takes `.res2` (`_res2_start` checked, empty on the SMK), prints RES2 and packs it;
+`fm1pkg_make.py res2_image` / `--res2`: the package's entry `res2.bin` after `ota.bin` (not a longer `flash.bin`: the
+store lies between the regions), refused if a sector would start with "FELU"; `ldr_core.c` writes its four sectors
+after the first region's and before the marker, skips them in the record sweep, refuses an entry of another length.
+**What moved** (FM-1 only): the kerning of M and CRB (3,476 B; `gen_aa_font.py RES2`), the factory presets' lists of
+PROPHET, CZ-1, VA and FM6 (5,544 B), FM6's factory voices (`FM6_FACTORY`, `FM6_ROM`: 3,520 B). Every reader checked:
+the UI, the pool and the console read the lists through `core.h eng_preset`; `va_track_loaded`, `fm6_slot_get`,
+`fm6_blob_preset` and `gfx.c kern` check `CR_RES2_GONE`; all main loop, and no RAM code or second-core code refers to
+the region (the image scanned for its addresses). **Refused** (a cut install the stub missed, the Transporter's rescue,
+another build's): M and CRB unkerned; each factory preset of those lists "NO PRESET" with the engine's defaults (the
+counts, places and bindings unchanged); FM6's F1..F24 the init voice; the splash PRESETS MISSING / INSTALL CHORALROOT
+AGAIN. **Sizes**: FM-1 XIP 566,012 -> 553,916 of 573,440 B (19,524 B of margin), RES2 12,540 of 16,320 B (3,780 free:
+four drum kits are 2,056), the package 659,880 -> 676,628 B. SMK-37 XIP 531,032 -> 531,064 (its splash's second
+message; its tables stay in its image). docs/FLASH.md lists what else only the main loop reads and is big (`P5_FPACK`
+6,325, `cr_ring` 6,100, the `*_PAGES` 14,112). **Tests**: `tests/ldr_test.c` (both regions over stale bytes and a
+record-like sector end: every cut a rescue or the finished boot, the unprotected windows as before, 1277 requests; a
+downgrade leaves the region, also its record-like bytes, which a loader without the sweep's skip erases);
+`tests/cr_res2_test.c` (new, in run_cr_tests.sh: the emulator's firmware with `CR_RES2` 1, the region refused: 25
+checks); the web installer's bar counts the 32 reads (`fm1pkg.js res2SizeOf`). `sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1155 ok; test_persist 121 ok; `tests/text_spacing_test.py` reads `AF_RES2` too); `BOARD=smk37 ./build.sh` builds; `build/choralroot.fwsc` sha256 0af5b430...3072. **Not tried on a unit**:
+an install over 0.39 (no PRESETS MISSING, M kerned, the factory sounds named), a cut install resumed, a downgrade to
+0.39 and back, the first install from V15 with a three-entry package, M-Flasher (it writes `flash.bin` only: the unit
+starts with PRESETS MISSING until ChoralRoot's own installer runs once; docs/BOOT-SAFETY.md). Not pushed, tagged or flashed.
+
+## 2026-11-10 (the drums, continued)
+
+3y297. **The drums' voices are CoralFlower's morph drum synth (the CPU gate, second step).** The lean voices of
 3y294 ran on the unit at Geek Out 80-90 % peaks with FM TONE / P5 chords and every effect on, the same as without
 them; the owner then chose CoralFlower's engine (FicusFicusov's `drum_synth.c`, 0.6, GPL-3.0-only; LICENSING.md) for
 its sound, with two of its kits for now: X Club (909-ish) and X Deep (808-ish). `cr_drum.c` is that engine with five

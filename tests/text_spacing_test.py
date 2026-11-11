@@ -48,7 +48,7 @@ def parse(path):
     faces = {}
     for m in re.finditer(r"static const aafont_t AF_(\w+) = \{([^}]*)\};", t):
         name, f = m.group(1), [x.strip() for x in m.group(2).split(",")]
-        arr = lambda n: [int(v, 0) for v in re.search(r"AF_%s_%s\[\d+\](?: AF_RES)? = \{([^}]*)\}" % (name, n), t)
+        arr = lambda n: [int(v, 0) for v in re.search(r"AF_%s_%s\[\d+\](?: AF_RES2?)? = \{([^}]*)\}" % (name, n), t)
                          .group(1).replace("\n", " ").split(",") if v.strip()]
         g = [tuple(int(v) for v in e.split(",")) for e in
              re.findall(r"\{(-?\d+, -?\d+, -?\d+, -?\d+, -?\d+, -?\d+)\}",

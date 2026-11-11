@@ -140,7 +140,7 @@ static int cz_native_done(track_t *t, voice_t *v)
 }
 #define CZ_FACTORY_PRESET(n, bank, ptch, pat) \
     {n, {bank, ptch, 0, 0, 0, 0, 0, CZ_NATIVE}, {0, 70, 127, 60}, 0, 0, FX(0, 0, 0, 0), PAT(pat)},
-static const preset_t CZ_PRESETS[] = {
+static const preset_t CZ_PRESETS[] RES2_PRESET = {   /* (FM-1: the second resource region, cr_res.h) */
     {"INIT TONE", {0, 0, 0, 0, 0, 0, 0, CZ_NATIVE}, {0, 70, 127, 60}, 0, 0, FX(0, 0, 0, 0), PAT(1)},
     CZ_FACTORY_PRESETS(CZ_FACTORY_PRESET)   /* Casio's, dry as the CZ-1 (no effects) */
 };

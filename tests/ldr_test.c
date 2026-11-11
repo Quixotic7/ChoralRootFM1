@@ -18,10 +18,15 @@
  *                                                             from its last page on; the window between is the same
  * A cut state is: B the stub boots it, R the stub rescues (the staged loader), O the old firmware still whole (no
  * stub yet, nothing it uses touched), U unprotected (no working stub in sector 0x4000 and not the whole old app).
- * The resource region (HISTORY 3y234, firmware/src/cr_res.h; FM-1): a NEW whose flash.bin runs on to 0x9F000 carries
+ * The resource region (HISTORY 3y234, firmware/src/cr_res.h; the SMK-37's since 3y295): a NEW whose flash.bin runs on
+ * to T_RES_HI (0x9F000; SMK 0xA9000) carries
  * it; every base starts with stale bytes there (0.21's objects, another firmware's data), so every cut leaves some of
  * it written, and B (the stub boots) is allowed only with the whole region in place. A NEW without it (an older
- * package: the downgrade) must leave the region as it was, byte for byte. */
+ * package: the downgrade) must leave the region as it was, byte for byte.
+ * The second region (FM-1, HISTORY 3y296): a NEW with the entry res2.bin writes 0xDC000..0xDFFFF from it, before the
+ * marker; every base starts with stale bytes there too (0.21's user banks), among them a valid-looking update record
+ * at the end of a sector, which the record sweep must leave; B needs it whole as well. A NEW without the entry leaves
+ * it as it was. */
 #include <setjmp.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -33,7 +38,7 @@
 /* the board's places (-DBOARD_SMK37=1: the SMK-37's, on SMK-layout packages: PRCT 0x9D000, the staging at 0xBB000) */
 #if BOARD_SMK37
 #define T_APP_HI 0x9D000u                /* the end of the app area the loader writes (ldr_core.c LDR_APP_HI) */
-#define T_RES_HI T_APP_HI                /* (no resource region on the SMK-37) */
+#define T_RES_HI 0xA9000u                /* the resource region's end (LDR_RES_HI): 0x9D000 .. (3y295) */
 #define T_REC_HI 0xC0000u                /* .. and of its record window (LDR_REC_HI) */
 #define T_OTA 0xBB000u                   /* the staging area (ota.c OTA_AREA) */
 #else
@@ -41,6 +46,8 @@
 #define T_RES_HI 0x9F000u                /* the resource region's end (ldr_core.c LDR_RES_HI): 0x93000 .. */
 #define T_REC_HI 0xFC000u
 #define T_OTA 0xE0000u
+#define T_RES2_LO 0xDC000u               /* the second region (ldr_core.c LDR_RES2_LO .. HI, 3y296) */
+#define T_RES2_HI 0xE0000u
 #endif
 
 static uint8_t nor[0x100000], *logical;
@@ -136,7 +143,11 @@ static int ldr_prog(uint32_t off, const void *p, uint32_t n)
 {
     const uint8_t *s = p;
     uint32_t i;
-    if (off < 0x4000u || off + n > T_RES_HI || ((off & 0xFFu) + n) > 256u) bad_range++;
+    int in = off >= 0x4000u && off + n <= T_RES_HI;
+#ifdef T_RES2_LO
+    in |= off >= T_RES2_LO && off + n <= T_RES2_HI;
+#endif
+    if (!in || ((off & 0xFFu) + n) > 256u) bad_range++;
     for (i = 0; i < n; i++) nor[off + i] &= s[i];
     op_done(off);
     return 0;
@@ -191,10 +202,54 @@ static uint32_t flash_len(const uint8_t *lg)        /* flash.bin's length in the
     return 0;
 }
 static uint32_t t_end;                              /* what NEW writes: T_RES_HI with the region, else T_APP_HI */
+static uint32_t t_res2(const uint8_t *lg)           /* the res2.bin entry's offset in a logical image, 0 = none */
+{
+    uint8_t h[0x400];
+    uint32_t i, n;
+    memcpy(h, lg, sizeof h);
+    ota_jl_enc(h, 0x40);
+    n = ota_rd16(h + 8);
+    for (i = 0; i < n; i++) {
+        uint8_t *e = h + 0x40 + i * 0x50u;
+        ota_jl_enc(e, 0x50);
+        if (ota_rd16(e) == 200u) return ota_rd32(e + 8);
+    }
+    return 0;
+}
+#ifdef T_RES2_LO
+static uint8_t res2_before[T_RES2_HI - T_RES2_LO];  /* the second region before an install of a NEW without it */
+#endif
+static uint32_t new_r2;                             /* NEW's res2.bin in logical, 0 = none */
+static void res2_record(void)
+{
+#ifdef T_RES2_LO
+    /* a valid-looking update record at the end of the second region's last sector (the region's data could read so):
+     * the record sweep must leave it */
+    uint8_t r[80] = {0};
+    r[2] = 0x0D; r[3] = 0x5A; r[4] = 0x01; r[5] = 0x5A; r[6] = 0x41; r[7] = 0x54;
+    ota_wr16(r, ota_crc16(r + 2, 78, 0));
+    memcpy(nor + T_RES2_HI - 0x100u, r, sizeof r);
+#endif
+}
 static void stale_res(void)                         /* the region's sectors as a unit from 0.21 or another firmware */
 {                                                   /* leaves them (not erased: the loader must write them over) */
     uint32_t i;
     for (i = T_APP_HI; i < T_RES_HI; i++) nor[i] = (uint8_t)(0xA5u ^ (i >> 4));
+#ifdef T_RES2_LO
+    for (i = T_RES2_LO; i < T_RES2_HI; i++) nor[i] = (uint8_t)(0x5Au ^ (i >> 4));
+    res2_record();
+    if (!new_r2)
+        memcpy(res2_before, nor + T_RES2_LO, sizeof res2_before);
+#endif
+}
+static int res2_done(void)                          /* the second region as the install must leave it */
+{
+#ifdef T_RES2_LO
+    return new_r2 ? !memcmp(nor + T_RES2_LO, logical + new_r2, T_RES2_HI - T_RES2_LO)
+                  : !memcmp(nor + T_RES2_LO, res2_before, T_RES2_HI - T_RES2_LO);
+#else
+    return 1;
+#endif
 }
 
 static int check(const char *what, int ok) { printf("%-56s %s\n", what, ok ? "ok" : "FAIL"); return ok ? 0 : 1; }
@@ -263,7 +318,7 @@ static int cut_case(const char *name, const uint8_t *base, int base_stub, int ba
     ops = 0; cut_at = 0; requests = 0;
     rc = ldr_session();
     n = ops; req = requests;
-    bad += rc != 0 || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, t_end - LDR_APP_LO) != 0;
+    bad += rc != 0 || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, t_end - LDR_APP_LO) != 0 || !res2_done();
     bad += stub_says(&r) != STUB_BOOT || n > sizeof oplog / sizeof oplog[0];
     for (k = 0; k < n; k++)                                           /* the stub's sector whole from this op on */
         if (oplog[k] == LDR_STUB_SEC + 0xF00u) stub_done = k + 1u;
@@ -282,7 +337,8 @@ static int cut_case(const char *name, const uint8_t *base, int base_stub, int ba
             st = d == STUB_BOOT ? 3 : 2;
             bad += d == STUB_UBOOT;                                   /* (the staged loader is there: never) */
             if (d == STUB_BOOT)                                       /* boot: only the finished image */
-                bad += k != n || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, t_end - LDR_APP_LO) != 0;
+                bad += k != n || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, t_end - LDR_APP_LO) != 0 ||
+                       !res2_done();
         } else {
             int whole = base_whole && marker_free;                    /* the old app, but for a sector it never used */
             for (i = LDR_APP_LO; whole && i < LDR_APP_HI; i += 0x1000u)
@@ -295,7 +351,7 @@ static int cut_case(const char *name, const uint8_t *base, int base_stub, int ba
         ops = 0;
         rc = ldr_session();                                           /* resume from the cut state */
         bad += rc != 0 || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, t_end - LDR_APP_LO) != 0 ||
-               memcmp(nor, head, sizeof head) != 0;
+               memcmp(nor, head, sizeof head) != 0 || !res2_done();
     }
     bad += cnt[1] != want_u || cnt[3] != (n ? 1u : 0u) || bad_range;
     if (cnt[1]) {                                                     /* the window: nothing but the stub's sector */
@@ -321,15 +377,23 @@ int main(int argc, char **argv)
     ofo = flash_off(old);
     nfo = flash_off(logical);
     t_end = flash_len(logical) >= T_RES_HI ? T_RES_HI : T_APP_HI;
-    printf("  NEW's flash.bin: %#x B (%s)\n", (unsigned)flash_len(logical),
-           t_end > T_APP_HI ? "with the resource region" : "no resource region");
+    new_r2 = t_res2(logical);
+    printf("  NEW's flash.bin: %#x B (%s)%s\n", (unsigned)flash_len(logical),
+           t_end > T_APP_HI ? "with the resource region" : "no resource region", new_r2 ? ", res2.bin" : "");
     /* device: OLD installed (its region too when it has one, else stale bytes there), a valid update record at 0xE4F00 */
     memset(nor, 0xFF, sizeof nor);
     memcpy(nor, old + ofo, T_APP_HI);
+    stale_res();
     if (flash_len(old) >= T_RES_HI && T_RES_HI > T_APP_HI)
         memcpy(nor + T_APP_HI, old + ofo + T_APP_HI, T_RES_HI - T_APP_HI);
-    else
-        stale_res();
+#ifdef T_RES2_LO
+    if (t_res2(old)) {                              /* (OLD's second region, as its install left it) */
+        memcpy(nor + T_RES2_LO, old + t_res2(old), T_RES2_HI - T_RES2_LO);
+        res2_record();
+        if (!new_r2)
+            memcpy(res2_before, nor + T_RES2_LO, sizeof res2_before);
+    }
+#endif
     memcpy(head, nor, sizeof head);
     {
         static uint8_t res_before[T_RES_HI - T_APP_HI + 1u];
@@ -345,12 +409,16 @@ int main(int argc, char **argv)
     bad += check("install completes", rc == 0);
     bad += check("app area == the new package's flash.bin", !memcmp(nor + 0x4000, logical + nfo + 0x4000, T_APP_HI - 0x4000));
     if (t_end > T_APP_HI)
-        bad += check("resource region == the package's (0x93000..0x9EFFF)",
+        bad += check("resource region == the package's (T_APP_HI..T_RES_HI)",
                      !memcmp(nor + T_APP_HI, logical + nfo + T_APP_HI, T_RES_HI - T_APP_HI));
     else if (T_RES_HI > T_APP_HI)
-        bad += check("no resource region in it: 0x93000..0x9EFFF as before (a downgrade)",
+        bad += check("no resource region in it: T_APP_HI..T_RES_HI as before (a downgrade)",
                      !memcmp(nor + T_APP_HI, res_before, T_RES_HI - T_APP_HI));
     }
+#ifdef T_RES2_LO
+    bad += check(new_r2 ? "second region == the package's res2.bin (0xDC000..0xDFFFF)"
+                        : "no res2.bin: 0xDC000..0xDFFFF as before, its record-like bytes kept", res2_done());
+#endif
     bad += check("flash head [0, 0x4000) untouched", !memcmp(nor, head, sizeof head));
     bad += check("finish asked (0xF0000000)", f0_asked >= 1);
     bad += check("update record cleared (RAM + flash)", record_cleared && nor[T_OTA + 0x4F06u] == 0xFF);

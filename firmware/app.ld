@@ -21,8 +21,13 @@ MEMORY
     NOINIT (rw)  : ORIGIN = 0x01C7C020, LENGTH = 0x3D30
     /* the resource region's data (firmware/src/cr_res.h, HISTORY 3y234): flash 0x93040..0x9EFFF, XIP through the
      * plain window; not in app.bin: tools/build.py takes .res alone, tools/fm1pkg_make.py --res puts it after the
-     * slot with its header at 0x93000. The SMK-37 build has none (the section stays empty: build.py checks) */
+     * slot with its header at 0x93000. The SMK-37's (3y295): flash 0x9D040..0xA8FFF, XIP 0x02099040: tools/build.py
+     * links BOARD=smk37 with a copy of this file whose RES line has that origin (the length is the same) */
     RES    (r)   : ORIGIN = 0x0208F040, LENGTH = 0xBFC0
+    /* the FM-1's second resource region's data (cr_res.h CR_RES2, HISTORY 3y296): flash 0xDC040..0xDFFFF, XIP
+     * through the plain window; not in app.bin: tools/build.py takes .res2 alone, tools/fm1pkg_make.py --res2 packs
+     * it as the package's res2.bin with its header at 0xDC000. The SMK-37 has none (.res2 empty: tools/build.py) */
+    RES2   (r)   : ORIGIN = 0x020D8040, LENGTH = 0x3FC0
 }
 SECTIONS
 {
@@ -47,6 +52,7 @@ SECTIONS
     .noinit (NOLOAD) : { *(.noinit*) } > NOINIT
     _guard0 = 0x01C74000; _ustack_lo = 0x01C74100; _ustack_top = 0x01C7A000;
     _guard1 = 0x01C7A000; _sstack_lo = 0x01C7A100; _sstack_top = 0x01C7C000;
-    .res : { _res_start = .; KEEP(*(.res*)) . = ALIGN(4); _res_end = .; } > RES
+    .res : { _res_start = .; KEEP(*(.res.*)) . = ALIGN(4); _res_end = .; } > RES
+    .res2 : { _res2_start = .; KEEP(*(.res2.*)) . = ALIGN(4); _res2_end = .; } > RES2
     /DISCARD/ : { *(.comment) *(.note*) }
 }

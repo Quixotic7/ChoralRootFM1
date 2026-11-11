@@ -268,7 +268,7 @@ static void pool_name(uint32_t e, uint32_t pos, char *b)  /* the entry's name (b
     if (en.kind == PK_USER)
         up_name(en.slot, b);
     else if (en.kind == PK_FACTORY)
-        str_cpy(b, ENGINES[e]->presets[en.fk].name, 13);
+        str_cpy(b, eng_preset(ENGINES[e], en.fk)->name, 13);
     else
         str_cpy(b, "INIT", 13);
 }
@@ -335,7 +335,7 @@ static void cb_init(void)
         const engine_t *e = ENGINES[CB_TRIM[i].engine % NENGINES];
         cb_trim_k[i] = 0xFFu;
         for (k = 0; k < e->npresets; k++)
-            if (cb_streq(e->presets[k].name, CB_TRIM[i].preset)) {
+            if (cb_streq(eng_preset(e, k)->name, CB_TRIM[i].preset)) {
                 cb_trim_k[i] = (uint8_t)k;
                 break;
             }

@@ -458,9 +458,109 @@ M, CRX and CRB (36 024 B) and, since 3y293, Casio's 64 CZ-1 tones packed (`CZ_FA
   ChoralRoot record: booted on the defaults; the settings backup restored byte for byte); the splash normal and every
   font drawn, no garbled text: the region read through the plain window as the host said.
 - **Not affected**: the backups (objects over SysEx, never the region), SAFE MODE's Flash Data (`cu_flash_erase`: its
-  list starts at 0x9F000, asserted), the SMK-37 (no region: its build keeps every font in the image, its loader's
-  window is unchanged). A package made from V15 and an app.bin alone (`fm1pkg.js buildFeluccaPackage`, not used by
+  list starts at 0x9F000, asserted). A package made from V15 and an app.bin alone (`fm1pkg.js buildFeluccaPackage`, not used by
   ChoralRoot's pages) would carry no region: such a unit shows FONTS MISSING.
+
+### The SMK-37's resource region (HISTORY 3y295)
+
+The SMK-37 build has its own region since 3y295, the same in every part as the FM-1's above, 48 KB at another place:
+**0x9D000..0xA8FFF**, the stock VM's first 12 sectors, right after its app area (PRCT 0x9D000) and at the start of its
+plain XIP window (XIP 0x02099000; the data from flash 0x9D040, XIP 0x02099040). They held 0.21's sound objects until
+3y231 and nothing since. The data is the glyph data of the fonts M, CRX and CRB (36 024 B of 49 088); no radio program
+(the SMK has no Bluetooth).
+
+- **The flash map** (`hal/fm1_flash_map.h`): `FL_RES_LO` / `FL_RES_HI` for the SMK; its `FL_DATA` starts at 0xA9000
+  (was 0x9D000), so the app can neither erase nor write the region. The loader's window (`FL_LDR_RANGE_OK`: the record
+  window 0x9D000..0xBFFFF) already covers it; the boot stub's plain window already starts at 0x9D000, so the stub is
+  unchanged (`stub_smk37.lock`).
+- **The store** (`storage.c`): no object moves. `ST_SMK_REGIONS`, the sectors an owner change and Flash Data erase,
+  started at 0x9D000 (18 sectors, 12 of them 0.21's); it starts at 0xA9000 now (6 sectors: the FM6 bank, the settings,
+  the session), so neither erases the region. Without that the first start after an install over another firmware's
+  store would erase the fonts the install had just written.
+- **The package and the loader**: `fm1pkg_make.py --board smk37 --res` makes `flash.bin` 0xA9000 long (PRCT still
+  0x9D000, the stock region table unchanged); `ldr_core.c` `LDR_RES_HI` is 0xA9000 for the SMK. The record sweep runs
+  from 0xC0000 down to 0xA9000. `tests/ldr_test.c` (SMK build): every cut of an install with the region over each base
+  is a rescue or the finished boot, with the same unprotected windows as before; 1325 requests an install (96 more).
+  A package without the region (0.39-smk37 and before) leaves those sectors as they were (its second run).
+- **The build** (`tools/build.py`): links BOARD=smk37 with `build/app-smk37.ld`, a copy of `firmware/app.ld` whose RES
+  line has the SMK's origin, checks `_res_start` there and hands `build/res.bin` to the package.
+- **Downgrade**: 0.39-smk37 and before neither read nor write 0x9D000..0xA8FFF (their store starts there but their
+  objects start at 0xA9000); only their owner change and Flash Data erase it, and the next install of this firmware
+  writes it again.
+- **Not tried on a unit** (the project has no SMK-37): SMK37.md "What to test" 16.
+
+### The second resource region (HISTORY 3y296, FM-1 only)
+
+Since 3y296 the FM-1 has a second region, 16 KB at **0xDC000..0xDFFFF**: the store's last four sectors, which held
+0.21's user banks (and before them Felucca's user presets) and nothing since 3y231, right below the update's staging
+(0xE0000). It lies in the plain XIP window (from 0x93000 up: `fl_plain_window_init`), XIP 0x020D8000; the header at
+0xDC000 (the first region's `cr_res_hdr_t`, magic **"CRE2"**, the radio fields 0), the data from 0xDC040 (XIP
+0x020D8040). It holds read-only tables that only the main loop reads (12 540 of 16 320 B):
+
+| section | what | bytes |
+| --- | --- | --- |
+| `.res2.kern` | the kerning pairs of M and CRB (`AF_M_KB` / `_KD`, `AF_CRB_KB` / `_KD`; the row tables stay, and S's pairs: S is the fallback font) | 3 476 |
+| `.res2.preset` | the factory presets' lists (`engine_t.presets`) of PROPHET (2 784), CZ-1 (1 560), VA (600) and FM6 (600) | 5 544 |
+| `.res2.fm6` | FM6's factory voices F1..F24 (`FM6_FACTORY` 1 024, `FM6_ROM` 2 496) | 3 520 |
+| `.res2.drum` | kept for the drum kits that do not fit the first region (514 B a kit: four of them are 2 056) | 0 |
+
+XIP 566 012 -> 553 916 B (12 096 freed). The host, the emulator and the SMK-37 keep these tables in their image.
+
+- **The flash map** (`hal/fm1_flash_map.h`): `FL_RES2_LO` / `FL_RES2_HI`; `FL_DATA` ends at 0xDC000 (was 0xE0000), so
+  the app can neither erase nor write the region. Flash Data and an owner change never listed those sectors (0.21's
+  since 3y231).
+- **The package** (`fm1pkg_make.py --res2`, `build.py`): not a longer `flash.bin` (what lies between the two regions
+  is the user's store, which a tool that writes `flash.bin` from 0, as M-Flasher or the ROM's download mode, must
+  never cover) but an entry of its own, **`res2.bin`, type 200**, after `ota.bin`, holding the 16 KB whole: header,
+  data, erased bytes. Entries 0 and 1 are as before; the readers (`ota.c ota_ufw`, `fm1pkg.js`, `fm1_install.py`, the
+  Transporter's tools) take `flash.bin` and `ota.bin` by type and the bounds of the rest, as they already did for the
+  stock packer's other entries. `fm1pkg_make.py` refuses a region whose sector would start with a store record's magic
+  ("FELU"), so 0.22 .. 0.29.2's 0.21 import can never take its bytes for a bank.
+- **The loader** (`ldr_core.c`): finds the entry by type in the header `ota_ufw` left decrypted (another length:
+  refused, rc -13, before anything is written); writes its four sectors plain, in the same pass as the body: after the
+  first region's sectors, after the marker's sector went blank, before the marker. The record sweep at the end skips
+  them. A package without the entry (every one before 3y296, the SMK's) writes none and leaves them.
+- **The interruption model** (`tests/ldr_test.c`), every base holding stale bytes in both regions and a valid-looking
+  update record at the end of the second's last sector: the stub boots only the finished install, both regions whole;
+  every other cut is a rescue. The unprotected windows are unchanged:
+
+  | old state -> this build (both regions) | cut points | rescue | boot | old firmware whole | unprotected |
+  | --- | --- | --- | --- | --- | --- |
+  | the same stub, another body | 2602 | 2601 | 1 (the last) | 0 | **0** |
+  | no stub: the 0.16 layout | 2619 | 2601 | 1 (the last) | 1 | **16** (cuts 2..17) |
+  | the dark unit | 2619 | 2601 | 1 (the last) | 0 | **17** (cuts 1..17) |
+  | an earlier stub, another body | 2619 | 2602 | 1 (the last) | 0 | **16** (cuts 2..17) |
+
+  1277 requests an install (32 more: 4 sectors of 8 reads; the web installer's bar counts them, `res2SizeOf`). The
+  downgrade run leaves the region and its record-like bytes as they were (without the sweep's skip it erases them:
+  checked).
+- **The app** (`cr_shim.c cr_res2_boot`, right after `cr_res_boot`, before the stores load): the same checks as the
+  first region's, under its magic: the header whole, the length this build's `.res2`, the data's CRC-32, the body's
+  CRC-32 the one in this build's marker. Until then and when refused, `cr_res2_ok` is 0 and every reader goes without
+  (`CR_RES2_GONE`): `gfx.c kern` finds no pairs on M and CRB (they draw unkerned); every factory preset of the four
+  lists reads as `eng_preset`'s stand-in (`core.h`: **NO PRESET**, the engine's EDIT defaults, ATK 0 DEC 0 SUS 127 REL
+  0, no sends), with the counts unchanged, so the pool's places, the favourites and the user records' bindings keep
+  their numbers; FM6's F1..F24 read as the init voice (`eng_fm6.c fm6_slot_get`); VA's factory load plays the init
+  patch under the macros; the loud presets' trims resolve to none. The user's own sounds load as stored. The splash
+  says **PRESETS MISSING / INSTALL CHORALROOT AGAIN** in S for 3 s (FONTS MISSING when the first region is refused).
+  PROPHET's programs (`P5_FPACK`) and CZ-1's tones stay in the image (or the first region), so those factory loads
+  still play their program, named NO PRESET. `tests/cr_res2_test.c` (the emulator's firmware with `CR_RES2` 1) checks
+  all of it, and that the tables come back with the region.
+- **Who reads it**: the UI and the stores in the main loop (`cr_ui.c`, `cr_bank.c`, `console.c` through
+  `eng_preset`; `eng_va.c va_track_loaded`, `eng_fm6.c fm6_slot_get` / `fm6_blob_preset`, all main loop); nothing in
+  the audio ISR, the RAM code (`.ram_text`, `.rhot`) or the second core (`.c1_text`) refers to its addresses.
+- **Downgrade**: an older package has no `res2.bin`, so its loader leaves 0xDC000..0xDFFFF; no older firmware reads
+  it but 0.22 .. 0.29.2's one-time 0.21 import, which looks for store records there and finds none (the "FELU" check
+  above). The next install of this firmware writes it again.
+- **The Transporter** writes 0x4000..0x92FFF only: after its rescue both regions need an install (FONTS MISSING).
+- **M-Flasher** (the owner's advice for switching firmwares, 3y237) writes a package's `flash.bin` and erases its
+  declared areas (the VM descriptor: 0x93000..0xE8FFF): the first region comes with `flash.bin`, the second does not,
+  so a unit M-Flasher installed starts with PRESETS MISSING (no kerning on M and CRB, the four lists NO PRESET, its
+  own sounds fine) until ChoralRoot is installed once more over itself with its own installer (the web page or
+  `fm1_install.py`), whose loader writes `res2.bin`. Not tried: M-Flasher may take entries it does not know
+  differently.
+- **Not tried on a unit**: an install over 0.39 (no PRESETS MISSING, kerned M), a cut install resumed, a downgrade to
+  0.39 and back.
 
 ### Size and time
 

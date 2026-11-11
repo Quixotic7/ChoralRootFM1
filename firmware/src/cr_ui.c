@@ -239,7 +239,7 @@ static int cu_engine_melodic(uint32_t e)
 static const char *cu_preset_name(uint32_t e, uint32_t p)
 {
     const engine_t *en = ENGINES[e % NENGINES];
-    return en->npresets ? en->presets[p % en->npresets].name : en->name;
+    return en->npresets ? eng_preset(en, p % en->npresets)->name : en->name;
 }
 static int cu_kept(uint32_t i) { return param_kept(i); }
 /* FM TONE's Drive is its preset's (below, at cu_fx_apply): every load that changes a part's engine or loads an FM
@@ -260,7 +260,7 @@ static void cu_load(track_t *t, uint32_t e, uint32_t pi, int bass)
     if (!en->npresets)
         return;
     pi = cu_preset_orig(en, pi % en->npresets);
-    pr = &en->presets[pi];
+    pr = eng_preset(en, pi);
     fm1_irq_off();
     cu_drive_load(t, e % NENGINES, cu_preset_drive(pr));
     t->eng_req = (uint8_t)(e % NENGINES);
@@ -3800,16 +3800,16 @@ static void cu_engine_switch(uint32_t part, uint32_t e)
     if (eng_idx(t->eng_req) == ENGI_PROPHET)
         p5_leave(t);                              /* (the mix is kept: not a UNISON that a P5 program gave the part) */
 #endif
-    cu_drive_load(t, e, en->npresets ? cu_preset_drive(&en->presets[p0]) : 0);   /* (FM TONE: its first preset's) */
+    cu_drive_load(t, e, en->npresets ? cu_preset_drive(eng_preset(en, p0)) : 0);   /* (FM TONE: its first preset's) */
     t->eng_req = (uint8_t)e;
     t->preset = (uint8_t)p0;
     t->trim = 0;
     for (i = 0; i < 8u; i++)
-        t->p[P_E0 + i] = en->npresets ? (int16_t)en->presets[p0].e[i] : en->edit[i].def;
+        t->p[P_E0 + i] = en->npresets ? (int16_t)eng_preset(en, p0)->e[i] : en->edit[i].def;
     panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
     fm1_irq_on();
     fm6_track_loaded(t);
-    str_cpy(psnd[part].name, en->npresets ? en->presets[p0].name : en->name, sizeof psnd[0].name);
+    str_cpy(psnd[part].name, en->npresets ? eng_preset(en, p0)->name : en->name, sizeof psnd[0].name);
     cu_snd_set(part, pool_f0(e) > p0 || !en->npresets ? PK_INIT : PK_FACTORY, p0, PF_NONE);   /* (its first preset) */
     cu_edited(part);
     cu_pos_sync();
@@ -7392,7 +7392,8 @@ static void cu_safe_screen(cr_screen_t *s)
 /* Options > Flash Data (SAFE MODE, OCT+ twice): erase every data object ChoralRoot keeps (not the firmware, not the
  * update area) and reboot; the boot after it loads nothing (an erased flash: factory sounds, default settings,
  * calibration from RAM or the default). The FM-1's regions (SMK-37: storage.c ST_SMK_REGIONS, the same as a new owner
- * clears; storage.c's map): FM6 bank copy A 0x9F000, the eight CZ-1 banks 0xA2000..0xB1FFF, the session 0xB4000..0xB5FFF
+ * clears, its resource region left out; storage.c's map): FM6 bank copy A 0x9F000, the eight CZ-1 banks
+ * 0xA2000..0xB1FFF, the session 0xB4000..0xB5FFF
  * (0.18) and the favourites 0xB6000..0xB7FFF (0.22: marks on sounds that are gone would name whatever takes their
  * slots), the sound pool 0xB8000..0xC7FFF (storage.c sp_*, the user sounds since 0.22: until 0.24-beta2 it was left out,
  * so the sounds stayed), the loop slots 0xC8000..0xDBFFF (CRL_FL_BASE), the settings A / B and FM6 bank copy B
@@ -7420,6 +7421,11 @@ static void cu_flash_erase(void)
                    "Flash Data: the pool lies between the favourites and the loop slots");
 #ifdef FL_RES_HI                                    /* (the device's flash map: hal/fm1_flash_map.h) */
     _Static_assert(FL_RES_HI <= 0x9F000u, "Flash Data: the resource region (cr_res.h) below everything it erases");
+#endif
+#ifdef FL_RES2_LO                                   /* (the FM-1's second region, 3y296: between the loop slots and the
+                                                     * settings, none of it erased) */
+    _Static_assert(CRL_FL_BASE + 2u * CRL_SLOTS * ST_SECTOR <= FL_RES2_LO && FL_RES2_HI <= 0xFC000u,
+                   "Flash Data: the second resource region lies outside everything it erases");
 #endif
 #endif
 #endif
@@ -8299,7 +8305,7 @@ static void cu_save_screen(cr_screen_t *s, uint32_t now)
         s->kind = CR_K_BIG;
         cu_2d(s->value, cu_part_pos(part), sizeof s->value);
         if (ce.del_ask == 2u && psnd[part].kind == PK_USER && cb_bound(psnd[part].slot) != PF_NONE)
-            cu_cpy(s->sub, ENGINES[e]->presets[cb_bound(psnd[part].slot)].name, sizeof s->sub);
+            cu_cpy(s->sub, eng_preset(ENGINES[e], cb_bound(psnd[part].slot))->name, sizeof s->sub);
         else
             cu_cpy(s->sub, psnd[part].name, sizeof s->sub);
         cu_cpy(s->label, ce.del_ask == 2u ? "reset to factory?" : "delete?", sizeof s->label);
@@ -9213,7 +9219,7 @@ static uint32_t cu_pool_find(uint32_t e, const char *name)
     const engine_t *en = ENGINES[e % NENGINES];
     uint32_t k;
     for (k = pool_f0(e); k < en->npresets; k++)
-        if (cu_eq(en->presets[k].name, name))
+        if (cu_eq(eng_preset(en, k)->name, name))
             return pool_pos_factory(e, k);
     return 1u;
 }

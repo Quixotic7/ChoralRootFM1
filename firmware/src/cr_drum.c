@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
  * Copyright (C) 2026 CoralFlower contributors (FicusFicusov, <https://github.com/FicusFicusov/CoralFlower>)
  * Modifications Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
-/* The drums' voices (the DRUMS plan, Phase 3; HISTORY 3y294, 3y295): CoralFlower's morph drum synth (its drum_synth.c,
+/* The drums' voices (the DRUMS plan, Phase 3; HISTORY 3y294, 3y297): CoralFlower's morph drum synth (its drum_synth.c,
  * 0.6, 7c44dc1: "the second drum engine", GPL-3.0-only, CoralFlower being a fork of ChoralRoot) with the helpers it
  * took from Felucca's drum_voice.c (dv_exp2, dv_k, dv_kb, dv_slow, the metal ratios; removed here in e8f4b360).
  * CoralFlower's notes, kept:

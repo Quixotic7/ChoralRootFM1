@@ -153,7 +153,12 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 
 /* the resource region (cr_res.h, HISTORY 3y234): on the FM-1 the glyph data of the fonts M, CRX and CRB and Casio's
  * packed CZ-1 tones (3y293) live outside the app slot, at flash 0x93040 (firmware/app.ld .res, tools/fm1pkg_make.py
- * --res); the SMK-37 keeps them in its image */
+ * --res); the SMK-37 since 3y295 its own, at flash 0x9D040 (the same fonts; tools/build.py links .res there for
+ * BOARD=smk37) */
+#if BOARD_SMK37
+#define CR_RES 1
+#define AF_RES __attribute__((section(".res.font")))
+#endif
 #if !BOARD_SMK37
 #define CR_RES 1
 #define AF_RES __attribute__((section(".res.font")))
@@ -165,6 +170,16 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #ifndef CR_USB_HOST
 #define CR_USB_HOST 1            /* the USB-C port as a MIDI host, Options > USB Host (usb_host.c, HISTORY 3y260) */
 #endif
+#endif
+/* the second resource region (cr_res.h CR_RES2, HISTORY 3y296): FM-1 only, flash 0xDC040.. (firmware/app.ld .res2,
+ * tools/fm1pkg_make.py --res2): the kerning of M and CRB, the factory presets' lists, FM6's factory voices; RES2_DRUM
+ * is the place kept for the drum kits that do not fit the first region */
+#if !BOARD_SMK37
+#define CR_RES2 1
+#define AF_RES2 __attribute__((section(".res2.kern")))
+#define RES2_PRESET __attribute__((section(".res2.preset")))
+#define RES2_FM6 __attribute__((section(".res2.fm6")))
+#define RES2_DRUM __attribute__((section(".res2.drum")))
 #endif
 
 /* ----------------------------------------------------- base, display --- */

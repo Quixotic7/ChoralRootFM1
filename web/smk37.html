@@ -294,7 +294,7 @@ $("go").addEventListener("click", async () => {
     const m = modelOf(id.model);
     if (!m) throw /^(ota-)?FM-1$/i.test(id.model) ? coded("fm1") : coded("notsmk", id.text);
     if (OTHER_SMK(id)) throw coded("other");
-    const total = 74 + 1167;
+    const total = 74 + 1167 + (0xA9000 - 0x93000) / 512;   // (the SMK's app area past the FM-1's and its resource region, 3y295)
     const step = (k, a) => {
       log(`${k} ${a ?? ""}`);
       if (k === "start") { began = true; sayK("start"); }

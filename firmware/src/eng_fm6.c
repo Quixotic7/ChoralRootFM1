@@ -263,8 +263,10 @@ static void fm6_set_patch(uint32_t tr, const uint8_t *v)
 /* PTCH value s -> its packed record (F1..F24; the bank, an empty slot: the init voice) */
 static void fm6_slot_get(uint32_t s, uint8_t *pk)
 {
-    if (s < FM6_NFAC)
+    if (s < FM6_NFAC && !CR_RES2_GONE(FM6_FACTORY) && !CR_RES2_GONE(FM6_ROM))
         fm6_factory(s, pk);
+    else if (s < FM6_NFAC)                         /* (the FM-1's second region refused: cr_res.h) */
+        memcpy(pk, FM6_INIT, FM6_PACKED);
     else if (s >= FM6_NSLOT || !fm6_bank_read || fm6_bank_read(s - FM6_NFAC, pk))
         memcpy(pk, FM6_INIT, FM6_PACKED);
 }
@@ -1125,7 +1127,7 @@ _Static_assert(NELEM(N_FM6_PATCH) == FM6_NSLOT + 1u, "a PTCH name per slot");
  * (Melodee's) as they are */
 #define FM6_PR(name, ptch, mono, fx) {name, {0, 0, 0, 0, 0, 0, 0, ptch}, {0, 0, 127, 0}, 0, mono, fx}
 #define FM6_NM(felucca, choralroot) choralroot
-static const preset_t FM6_PRESETS[] = {
+static const preset_t FM6_PRESETS[] RES2_PRESET = {   /* (FM-1: the second resource region, cr_res.h) */
     {"TINE EP", {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 127, 0}, 0, 0, FX(0, 45, 25, 35), PAT(6)},
     {FM6_NM("BELL", "FM BELL"), {0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 127, 0}, 0, 0, FX(0, 10, 30, 70), PAT(7)},
     {"FM BASS", {0, 0, 0, 0, 0, 0, 0, 2}, {0, 0, 127, 0}, 0, 1, FX(0, 0, 10, 10), PAT(2)},
@@ -1266,7 +1268,8 @@ static void fm6_blob_preset(track_t *t, uint32_t k)       /* factory preset k: i
     if (tr >= NTRK || k >= NELEM(FM6_PRESETS))
         return;
     memcpy(fm6_fn[tr], FM6_FNDEF, FM6_NFN);
-    fm6_load_slot(tr, (uint32_t)clamp(FM6_PRESETS[k].e[7], 0, FM6_NSLOT - 1));
+    fm6_load_slot(tr, CR_RES2_GONE(FM6_PRESETS) ? 0u                 /* (refused: F1, the init voice; cr_res.h) */
+                                                : (uint32_t)clamp(FM6_PRESETS[k].e[7], 0, FM6_NSLOT - 1));
 }
 
 /* ------------------------------------------------- ChoralRoot: deep pages --- */
