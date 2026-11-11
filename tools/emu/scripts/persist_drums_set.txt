@@ -1,0 +1,35 @@
+# test_persist.sh, the drums run 1: SEQ held: the SEQ layer; KNOB 1 +1: Drums; KNOB 2 -2: the level; KNOB 4 +2: the
+# kit X Lo-Fi; SELECT: Beat, KNOB 1 +3 / KNOB 4 +2: Map X, Chaos; SELECT: Kick, KNOB 1 +2: Tune; SELECT: Snare, KNOB 3
+# +8: Character; SEQ: the beat on; OCT-; SAVE held: the global save (the session's drum block); a dump; quit
+wait 500
+btn SEQ down
+wait 500
+btn SEQ up
+wait 300
+knob KNOB1 +1
+wait 150
+knob KNOB2 -2
+wait 150
+knob KNOB4 +2
+wait 150
+knob SELECT +1
+wait 150
+knob KNOB1 +3
+wait 150
+knob KNOB4 +2
+wait 150
+knob SELECT +1
+wait 150
+knob KNOB1 +2
+wait 150
+knob SELECT +1
+wait 150
+knob KNOB3 +8
+wait 150
+btn SEQ
+wait 300
+btn OCT-
+btn SAVE 900                  # SAVE held: the global save (the session with the drum block)
+wait 3000
+dump
+quit

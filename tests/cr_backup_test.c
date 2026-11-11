@@ -1145,6 +1145,30 @@ int main(void)
             css_part_get(0, &sp);
             CHECK(css_part_put(0, &sp) == 1, "session: a part on FM6 is taken as before");
         }
+        {   /* the drums' block (the DRUMS plan): a session of a firmware before it (its bytes 26..45 0, the old reserve)
+             * loads Metronome and the drums' defaults; one of this firmware round-trips; a field out of range takes its
+             * default, the rest kept. The session is not in a backup (as the FX layer and the Bass Perform): a restored
+             * settings object comes up on the beat's defaults with them */
+            static cr_session_t x;
+            cr_session_defaults(&x);
+            memset(&x.drum, 0, sizeof x.drum);
+            cs.beat_preset = 1; cs.dr_kit = 4; cs.dr_x = 9;
+            css_drum_put(&x);
+            CHECK(cs.beat_preset == 0 && cs.dr_kit == 0 && cs.dr_x == 64 && cs.dr_level == 80 && cs.dr[1][3] == 64,
+                  "session: an older record (no drum block): Metronome, kit X Club, the drums' defaults");
+            cs.beat_preset = 1; cs.dr_kit = 5; cs.dr_level = 33; cs.dr_chaos = 99; cs.dr[2][0] = 20; cs.dr[0][2] = 111;
+            css_drum_get(&x.drum);
+            cu_drum_defaults();
+            css_drum_put(&x);
+            CHECK(x.drum.ver == CSS_DRUM_VERSION && cs.beat_preset == 1 && cs.dr_kit == 5 && cs.dr_level == 33 &&
+                  cs.dr_chaos == 99 && cs.dr[2][0] == 20 && cs.dr[0][2] == 111,
+                  "session: the drum block round-trips through the UI (Drums, X Break, the level, Chaos, the hats' Tune, the kick's Character)");
+            x.drum.kit = 9; x.drum.dr[1][0] = 30; x.drum.level = 101;
+            css_drum_put(&x);
+            CHECK(cs.beat_preset == 1 && cs.dr_kit == 0 && cs.dr[1][0] == 12 && cs.dr_level == 80 && cs.dr_chaos == 99,
+                  "session: a drum field out of range takes its default (kit 9, Tune 30, level 101), the others kept");
+            cu_drum_defaults();
+        }
 #undef NRET
     }
 

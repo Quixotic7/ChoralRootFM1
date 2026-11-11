@@ -1,0 +1,5 @@
+# test_persist.sh, the drums run 2 (the same flash file): the dump's "drums:" line as run 1 left it (the preset, the beat
+# on, the kit, the knobs); quit
+wait 500
+dump
+quit

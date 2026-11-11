@@ -908,10 +908,10 @@ L="$OUT/cr_loop_row.log"
 has '^loop: cells Length Rate Quantize Count-in' "$L" && ok "LOOP held, stopped: the PLAY menu's page 1 over Length / Rate / Quantize / Count-in: $OUT/cr_loop_row.ppm" || bad "no loop cells"
 has '^loop: length 1' "$L" && has '^loop: knob 2 rate x3/4' "$L" && has '^loop: knob 3 quantize 1/4' "$L" && has '^loop: knob 4 count-in off' "$L" &&
     ok "page 1, KNOB 1..4: length (1 bar), rate (x3/4), quantize (1/4), count-in (off)" || bad "loop knobs: $(grep '^loop: knob\|^loop: length' "$L" | tr '\n' ' ')"
-has '^loop: page 2' "$L" && has '^loop: cells Level Metronome - -' "$L" && has '^loop: knob 1 level 90' "$L" && has '^loop: page 1' "$L" &&
+has '^loop: page 2' "$L" && has '^loop: cells Level Beat - -' "$L" && has '^loop: knob 1 level 90' "$L" && has '^loop: page 1' "$L" &&
     [ "$(grep -c '^loop: knob [234] ' "$L")" = 8 ] && has '^loop: knob 2 metronome on' "$L" && has '^loop: knob 2 metronome off' "$L" &&
     grep -a '^  loop2:' "$L" | sed -n 1p | grep -q ' page 2 ' && grep -a '^  loop:' "$L" | sed -n 1p | grep -q ' metro 1 ' &&
-    ok "SELECT turns the page (not the length): page 2 is Level on KNOB 1, Metronome on KNOB 2 (on, off), KNOB 3 / 4 nothing there; SELECT back: page 1: $OUT/cr_loop_row_p2.ppm" \
+    ok "SELECT turns the page (not the length): page 2 is Level on KNOB 1, Beat on KNOB 2 (on, off), KNOB 3 / 4 nothing there; SELECT back: page 1: $OUT/cr_loop_row_p2.ppm" \
     || bad "the PLAY menu's pages: $(grep '^loop: page\|^loop: cells' "$L" | tr '\n' ' ')"
 grep -q "^ui: frame.*device): loopmenu .*foot '1/2 . keys: play . GLO: loops'" "$L" && grep -q "^ui: frame.*device): loopmenu .*foot '2/2 . keys: play . GLO: loops'" "$L" &&
     ok "the bottom line: the page (1/2, 2/2), what the keys do, what GLO makes them" || bad "the PLAY menu's bottom line: $(grep -o "loopmenu .*foot '[^']*'" "$L" | sed "s/.*foot //" | sort -u | tr '\n' ' ')"
@@ -936,13 +936,57 @@ done
 grep -q '^loop: cells' "$L" && differ cr_loop_row_playing cr_loop_row_playing_level "playing, page 2, KNOB 1: the level cell hot: $OUT/cr_loop_row_playing_level.ppm"
 run cr_metro_row
 L="$OUT/cr_metro_row.log"
-has '^metro: cells Click - - -' "$L" && ok "METRO held: the time signature over Click: $OUT/cr_metro_row.ppm" || bad "no metro cells"
-has '^metro: knob 1 click' "$L" && grep -q '^ui: frame.*device): knobrow .*hot 1\.0$' "$L" && ok "KNOB 1: the click level, its cell hot" || bad "metro knob"
+has '^metro: cells Preset Click Meter -' "$L" && grep -q "^ui: frame.*device): drum .*item 'Metronome'" "$L" &&
+    ok "SEQ held: the preset page, Metronome: Preset, Click, Meter over the tiles: $OUT/cr_metro_row.ppm" || bad "no metro cells"
+has '^metro: knob 2 click' "$L" && grep -q '^ui: frame.*device): drum .*hot 1\.1$' "$L" && ok "KNOB 2: the click level, its cell hot" || bad "metro knob"
 mt=$(grep -c '^ui: frame.*device): meter ' "$L")
 [ "$mt" = 0 ] && ok "no popup in the metro layer" || bad "a popup in the metro layer ($mt meters)"
 differ cr_metro_row_hot cr_metro_row_cool "the hot block gone: $OUT/cr_metro_row_cool.ppm"
-differ cr_metro_row_cool cr_metro_row_34 "SELECT: 3/4: $OUT/cr_metro_row_34.ppm"
+differ cr_metro_row_cool cr_metro_row_34 "KNOB 3: 3/4: $OUT/cr_metro_row_34.ppm"
 unset EMU_UI_LOG
+
+# the drums (the DRUMS plan; docs/MANUAL.md "The beat", docs/LOOPER.md "The drums"): the SEQ layer's preset page and its
+# pages, the toggle in the layer and GLO + SEQ, the drums waiting with no loop, playing on its grid, stopping with it
+export EMU_UI_LOG=1
+run cr_drums --wav "$OUT/cr_drums.wav"
+unset EMU_UI_LOG
+L="$OUT/cr_drums.log"
+dr() { grep -a '^  drums:' "$L" | sed -n "$1p"; }
+df() { echo "$1" | sed -n "s/.* $2 \([0-9]*\) .*/\1/p"; }
+[ "$(df "$(dr 1)" preset)" = 0 ] && [ "$(df "$(dr 1)" page)" = 1 ] && has '^metro: cells Preset Click Meter -' "$L" &&
+    [ "$(df "$(dr 2)" preset)" = 1 ] && [ "$(df "$(dr 2)" kit)" = 1 ] && [ "$(df "$(dr 2)" ok)" = 1 ] &&
+    has '^metro: cells Preset Level Meter Kit' "$L" && has '^metro: knob 4 kit X Deep' "$L" &&
+    ok "SEQ held: the preset page (Metronome); KNOB 1: Drums (Preset Level Meter Kit), KNOB 4: the kit X Deep and back: $OUT/cr_drums_preset.ppm" \
+    || bad "the preset page: $(dr 1) / $(dr 2)"
+[ "$(df "$(dr 3)" page)" = 2 ] && [ "$(df "$(dr 3)" x)" -gt 64 ] && [ "$(df "$(dr 3)" y)" -lt 64 ] && [ "$(df "$(dr 3)" density)" -gt 64 ] &&
+    has '^metro: cells Map X Map Y Density Chaos' "$L" && grep -aq "device): drum .*item 'Beat'" "$L" &&
+    ok "SELECT: Beat (the map, the lanes): KNOB 1..3 Map X, Map Y, Density: $OUT/cr_drums_beat.ppm" || bad "the Beat page: $(dr 3)"
+[ "$(df "$(dr 4)" page)" = 3 ] && echo "$(dr 4)" | grep -q ' kick 12/64/[0-9]*/72 ' && ! echo "$(dr 4)" | grep -q ' kick 12/64/32/72 ' &&
+    has '^metro: cells Tune Decay Character Fill' "$L" && [ "$(df "$(dr 5)" page)" = 5 ] && grep -aq "device): drum .*item 'Hats'" "$L" &&
+    ok "SELECT: Kick (KNOB 3: its Character), Snare, Hats, the last page: $OUT/cr_drums_kick.ppm $OUT/cr_drums_hats.ppm" \
+    || bad "the drum pages: $(dr 4) / $(dr 5)"
+[ "$(df "$(dr 6)" beat)" = 1 ] && [ "$(df "$(dr 6)" drums)" = 1 ] && [ "$(df "$(dr 6)" click)" = 0 ] && grep -aq "msg 'drums on'" "$L" &&
+    ok "SEQ tapped in the layer: the beat on, 'drums on' (the drums in the looper, no click)" || bad "the toggle: $(dr 6)"
+[ "$(df "$(dr 7)" run)" = 0 ] && [ "$(df "$(dr 7)" now)" = 0 ] && echo "$(dr 7)" | grep -q ' hits 0 0 0 ' &&
+    ok "no loop: the drums wait (no step, no hit)" || bad "waiting: $(dr 7)"
+h8=$(echo "$(dr 8)" | sed -n 's/.* hits \([0-9]*\) \([0-9]*\) \([0-9]*\) .*/\1 \2 \3/p')
+[ "$(df "$(dr 8)" run)" = 1 ] && [ "$(echo "$h8" | cut -d' ' -f1)" -gt 0 ] && [ "$(echo "$h8" | cut -d' ' -f3)" -gt 0 ] &&
+    [ "$(echo "$(dr 8)" | sed -n 's/.* bpos \([0-9]*\)$/\1/p')" -gt 0 ] &&
+    ok "REC + a chord + REC: the loop plays and the drums with it (hits $h8): $OUT/cr_drums_home.ppm $OUT/cr_drums_beat_playing.ppm" \
+    || bad "playing: $(dr 8)"
+[ "$(df "$(dr 9)" run)" = 0 ] && [ "$(df "$(dr 9)" now)" = 0 ] && [ "$(df "$(dr 10)" beat)" = 0 ] && [ "$(df "$(dr 10)" drums)" = 0 ] &&
+    grep -aq "msg 'drums off'" "$L" && ok "LOOP: the loop stops and the drums with it; GLO + SEQ: 'drums off'" || bad "stop / off: $(dr 9) / $(dr 10)"
+r=$(python3 - "$OUT/cr_drums.wav" <<'PY'
+import sys, wave, struct
+w = wave.open(sys.argv[1]); fs = w.getframerate(); ch = w.getnchannels(); n = w.getnframes()
+a = struct.unpack('<%dh' % (n * ch), w.readframes(n))
+def peak(t0, t1):
+    return max(abs(x) for x in a[int(t0 * fs) * ch:int(t1 * fs) * ch] or [0])
+print(peak(6.2, 7.6), peak(14.6, 16.5))
+PY
+)
+[ "$(echo "$r" | cut -d' ' -f1)" -lt 50 ] && [ "$(echo "$r" | cut -d' ' -f2)" -gt 1000 ] &&
+    ok "the WAV: silence while the drums wait, the loop and the drums after it (peaks $r)" || bad "the WAV: peaks $r"
 
 echo "EDIT: the sound editor (cr_edit.c): groups, screens, lanes, knobs, memory"
 export EMU_UI_LOG=5
@@ -1714,8 +1758,8 @@ sq() { echo "$(ly "$SQ" "$1") $(l2 "$SQ" "$1" edit) $(lf "$(q "$1")" metro)"; } 
     ok "the editor opened by SEQ, EDIT: the PLAY menu; EDIT there: the editor; HOME: the view (it does not step the view)" || bad "SEQ then EDIT / HOME: $(sq 4) / $(sq 5)"
 [ "$(sq 6)" = "0 0 0 0" ] && [ "$(sq 7)" = "8 0 0 0" ] &&
     ok "the PLAY menu entered by LOOP held: SEQ leaves to the view; the menu > EDIT, then SEQ: back in the PLAY menu" || bad "SEQ in the PLAY menu: $(sq 6) / $(sq 7)"
-has '^loop: cells Level Metronome - -' "$SQ" && [ "$(sq 8)" = "8 0 0 1" ] && [ "$(sq 9)" = "8 0 0 0" ] && grep -aq "loopmenu .*hot 1\.1" "$SQ" &&
-    ok "the PLAY menu's page 2, KNOB 2: Metronome On / Off, its cell hot: $OUT/cr_seq_p2_on.ppm" || bad "the metronome cell: $(sq 8) / $(sq 9)"
+has '^loop: cells Level Beat - -' "$SQ" && [ "$(sq 8)" = "8 0 0 1" ] && [ "$(sq 9)" = "8 0 0 0" ] && grep -aq "loopmenu .*hot 1\.1" "$SQ" &&
+    ok "the PLAY menu's page 2, KNOB 2: Beat (the metronome's switch) On / Off, its cell hot: $OUT/cr_seq_p2_on.ppm" || bad "the metronome cell: $(sq 8) / $(sq 9)"
 differ cr_seq_p2_off cr_seq_p2_on "the Metronome cell shows On"
 [ "$(sq 10)" = "0 0 0 1" ] && [ "$(sq 11)" = "0 0 0 0" ] && grep -aq "msg 'metronome on'" "$SQ" && grep -aq "msg 'metronome off'" "$SQ" &&
     [ "$(grep -ac '^metro: o' "$SQ")" = 2 ] &&

@@ -29,10 +29,11 @@ NAMES = {"white": "WHITE", "cream": "WHITE", "red": "RED", "coral": "RED", "mage
          "teal": "BLUE", "navy": "BLUE", "yellow": "YELLOW", "orange": "ORANGE", "green": "GREEN", "mint": "GREEN",
          "grey": "GREY", "black": "BLACK",
          "theme": "RED", "accent": "YELLOW", "text": "WHITE", "mid": "MID", "dim": "DIM", "rec": "REC", "line": "LINE",
-         "bg": "BG", "surf": "SURF"}
+         "bg": "BG", "surf": "SURF",
+         "drums": "MAGENTA"}                          # (the drums' magenta, #E04BD8: the device's own, not the palette's)
 KIND = {"stripes": "STRIPES", "chord": "CHORD", "picker": "PICKER", "meter": "METER", "keyboard": "KEYBOARD",
         "arp": "ARP", "geek": "GEEK", "text": "TEXT", "big": "BIG", "scope": "SCOPE", "edit8": "EDIT8",
-        "stack": "STACK", "knobrow": "KNOBROW", "loopmenu": "LOOPMENU", "route": "ROUTE"}
+        "stack": "STACK", "knobrow": "KNOBROW", "loopmenu": "LOOPMENU", "route": "ROUTE", "drum": "DRUM"}
 ICON = {"none": "NONE", "play": "PLAY", "rec": "REC", "loop": "LOOP", "stop": "NONE"}
 DIAL = {"armed": "ARMED", "rec": "REC", "od": "OD"}         # the corner dial's REC looks (FORMAT.md loop dial `rec`)
 CELL_GLYPH = {"knob": "KNOB", "bar": "BAR", "wave": "WAVE", "saw": "SAW", "square": "SQUARE", "steps": "STEPS",
@@ -153,6 +154,14 @@ def screen(sc, prev_name):
             f.append(f".dial_mode = CR_DIAL_{DIAL[lp['rec']]}")
             if lp.get("dot", True):
                 f.append(".dial_dot = 1")
+    bt = sc.get("beat")                                      # the home pages' beat chip (cr_screen.h beat_*)
+    if bt:
+        f.append(f".beat_on = {2 if bt.get('drums') else 1}")
+        f.append(f".beat_n = {int(bt.get('n', 4))}")
+        f.append(f".beat_pos = {int(bt.get('pos', 0))}")
+        f.append(f".beat_pulse = {q8c(bt.get('pulse', 0))}")
+        if bt.get("flash"):
+            f.append(".beat_flash = 1")
     if sc.get("message"):
         f.append(f".message = {cstr(sc['message'], 24)}")
         f.append(f".message_col = {col(sc.get('messageCol'), 'WHITE')}")
@@ -295,6 +304,33 @@ def screen(sc, prev_name):
         f.append(f".line_col = {col(p.get('lineCol'), 'MID')}")
         if p.get("size"):
             f.append(f".size = {p['size']}")
+    elif kind == "drum":                               # the SEQ layer (cr_screen.h CR_K_DRUM, dr_*): the knobrow's band
+        items = p.get("items") or ["Drums", "Beat", "Kick", "Snare", "Hats"]   # and cells, the page's middle
+        sel = max(0, min(len(items) - 1, p.get("sel") or 0))
+        f.append(".item = {" + ", ".join(cstr(t, 24) for t in items[:8]) + "}")
+        f.append(f".n_items = {len(items)}")
+        f.append(f".sel = {sel}")
+        f.append(".orient = 1")
+        f.append(f".col = {col(p.get('col'), 'WHITE')}")
+        cells = ((p.get("cells") or []) + [None] * 4)[:4]
+        f.append(".cell = {{" + ", ".join(cell_init(c) for c in cells) + "}}")
+        f.append(".n_rows = 1")
+        if p.get("hot") not in (None, ""):
+            f.append(".hot_r = 1")
+            f.append(f".hot_c = {int(p['hot'])}")
+        f.append(f".dr_page = {int(p.get('page', sel))}")
+        f.append(f".dr_preset = {1 if p.get('preset') == 'drums' else 0}")
+        f.append(f".dr_x = {int(p.get('x', 128))}")
+        f.append(f".dr_y = {int(p.get('y', 128))}")
+        f.append(f".dr_step = {int(p.get('step', 0))}")
+        f.append(f".dr_steps = {int(p.get('steps', 32))}")
+        lanes = p.get("lanes") or ["", "", ""]          # a lane: one character a step, '.' none, 'x' a hit, 'X' an accent
+        f.append(".dr_lane = {" + ", ".join("0x%08Xu" % sum(1 << i for i, c in enumerate(l) if c in "xX") for l in lanes) + "}")
+        f.append(".dr_acc = {" + ", ".join("0x%08Xu" % sum(1 << i for i, c in enumerate(l) if c == "X") for l in lanes) + "}")
+        f.append(f".dr_tune = {int(p.get('tune', 12))}")
+        f.append(f".dr_decay = {int(p.get('decay', 64))}")
+        f.append(f".dr_chr = {int(p.get('chr', 32))}")
+        f.append(f".dr_pulse = {q8c(p.get('pulse', 0))}")
     elif kind == "knobrow":
         # a layer screen: the picker's band (horizontal) over one row of the four knobs' cells (cell[0])
         items = [it if isinstance(it, str) else (it or {}).get("t", "") for it in (p.get("items") or [])]
@@ -628,6 +664,43 @@ DEVICE_STATES = [
                                      "dim": True},
                                     {"label": "RAM", "value": "83%", "glyph": "bar", "pct": 0.828, "pct2": 0},
                                     {"label": "POOL", "value": "92%", "glyph": "bar", "pct": 0.917, "pct2": 0}]]}}},
+    # the drums (the DRUMS plan's v3 mock-ups, design/drums-mockups; cr_draw.c cr_p_drum, cr_beat_chip): the SEQ layer's
+    # preset page with Drums lit, Beat (the map, the lanes, the step playing), Kick (its thump), Hats; the home page's chip
+    {"name": "Device · Drums: the SEQ layer's preset page (Drums)",
+     "screen": {"header": {"batt": False},
+                "panel": {"kind": "drum", "col": "drums", "sel": 0, "page": 0, "preset": "drums",
+                          "cells": [{"label": "Preset", "value": "Drums"},
+                                    {"label": "Level", "value": "80", "glyph": "bar", "pct": 0.8},
+                                    {"label": "Meter", "value": "4/4"}, {"label": "Kit", "value": "X Club"}]}}},
+    {"name": "Device · Drums: Beat (the map, the lanes)",
+     "screen": {"header": {"batt": False},
+                "panel": {"kind": "drum", "col": "drums", "sel": 1, "x": 100, "y": 90, "step": 9, "steps": 32,
+                          "lanes": ["X.......x.......X.....x...x.....", "........X...............X.......",
+                                    "x.x.X.x.x.x.X.x.x.x.X.x.x.x.X.x."],
+                          "cells": [{"label": "Map X", "value": "39", "glyph": "bar", "pct": 0.39},
+                                    {"label": "Map Y", "value": "35", "glyph": "bar", "pct": 0.35},
+                                    {"label": "Density", "value": "62%", "glyph": "bar", "pct": 0.62},
+                                    {"label": "Chaos", "value": "20%", "glyph": "bar", "pct": 0.2}]}}},
+    {"name": "Device · Drums: Kick (a hit's thump)",
+     "screen": {"header": {"batt": False},
+                "panel": {"kind": "drum", "col": "drums", "sel": 2, "tune": 9, "decay": 89, "chr": 20, "pulse": 0.6,
+                          "cells": [{"label": "Tune", "value": "-3", "glyph": "bar", "pct": 0.375, "bipolar": True},
+                                    {"label": "Decay", "value": "70%", "glyph": "bar", "pct": 0.7},
+                                    {"label": "Character", "value": "soft", "glyph": "mix", "pct": 0.16},
+                                    {"label": "Fill", "value": "60%", "glyph": "bar", "pct": 0.6}]}}},
+    {"name": "Device · Drums: Hats (hard)",
+     "screen": {"header": {"batt": False},
+                "panel": {"kind": "drum", "col": "drums", "sel": 4, "tune": 17, "decay": 23, "chr": 120,
+                          "cells": [{"label": "Tune", "value": "+5", "glyph": "bar", "pct": 0.71, "bipolar": True},
+                                    {"label": "Decay", "value": "18%", "glyph": "bar", "pct": 0.18},
+                                    {"label": "Character", "value": "hard", "glyph": "mix", "pct": 0.94},
+                                    {"label": "Fill", "value": "85%", "glyph": "bar", "pct": 0.85}]}}},
+    {"name": "Device · HOME with the drums playing (the beat chip)",
+     "screen": {"header": {"mid": "Key: D minor", "midCol": "yellow", "batt": False},
+                "beat": {"drums": True, "n": 4, "pos": 2, "pulse": 0.7},
+                "panel": {"kind": "chord", "root": "D", "quality": "m", "sup": "7", "cols": {"sup": "orange"},
+                          "bubbles": [{"t": "D4", "col": "white"}, {"t": "F4", "col": "white"},
+                                      {"t": "A4", "col": "white"}, {"t": "C5", "col": "orange", "mark": True}]}}},
     # the FX layer's Routing page (GitHub issue 21, second design; cr_draw.c cr_p_route): Chain settled, Chain with
     # Delay held and lifted mid-move (C D R F -> C R D F), Parallel, Parallel with the Filter first (the third pass), FX off
     {"name": "Device · FX Routing (Chain)",
