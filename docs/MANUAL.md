@@ -1095,13 +1095,20 @@ turns into a clap, and closed and open hats, playing a beat you morph rather tha
   enough for its **Fill**.
 - **The sound** is CoralFlower's morph drum synth: each drum has a soft and a hard setting, and **Character** sets
   where it sits between them. Six kits: X Club, X Deep, X Lo-Fi, X Live, X Tech and X Break.
-- **On and off**: GLO + SEQ from anywhere (`drums on`, `drums off`), PRESETS or a tap of SEQ in its menu, or the PLAY
-  menu's page 2, KNOB 2 (**Beat**). It is the metronome's switch: whichever preset is chosen is what plays.
-- **On is playing.** With nothing playing they start at once, on the tempo. When a loop starts they follow it: LOOP's
-  start is bar 1 for them too, and they stay in step with its bars; under a take they start with it (in the count-in,
-  in step with its clicks). When the loop stops they keep going. Turned on while a loop plays, they come in on its
-  next beat. **They are never part of a loop**: nothing of them is recorded or saved in a slot (they are in the sound
-  that goes out, USB recording included).
+- **Armed, then played.** GLO + SEQ from anywhere, PRESETS or a tap of SEQ in its menu, the menu's Beat cell, or the
+  PLAY menu's page 2, KNOB 2 (**Beat**) arm the drums (`drums armed`; `drums on` when something is already playing)
+  and disarm them (`drums off`). Armed, they make no sound until the transport runs:
+  - **LOOP** plays the loop and the drums with it, from its bar 1, in step with its bars; LOOP again stops both.
+  - **With no loop in the slot, LOOP starts and stops the drums alone** (`drums play`, `drums stop`), on the tempo.
+    (With the Metronome preset, or the drums not armed, LOOP with no loop still says `no loop`.)
+  - **REC** starts them too: with the count-in, or REC waiting for your first chord. If the drums are already
+    playing when you press REC (alone, or under a loop), the count-in is the rest of their bar (the rest of that bar
+    and the next when less than a beat of it is left), so the take starts on their bar 1 and they keep going. With no
+    count-in (Free length, or Count-in off) the take starts where you play, and the drums start their bar again there.
+  - Armed or disarmed while something plays, they come in on the next beat, or stop at once.
+  - **They are never part of a loop**: nothing of them is recorded or saved in a slot (they are in the sound that goes
+    out, USB recording included).
+- **The Metronome preset** is as it always was: on, it clicks by itself, loop or no loop.
 - **3/4 and 6/8**: Grids' patterns are bars of 4/4; in 3/4 and 6/8 the drums play the first three quarters of each.
 
 With Drums, **SELECT** turns the menu's pages after the preset page:
@@ -1118,8 +1125,8 @@ With Drums, **SELECT** turns the menu's pages after the preset page:
   sends do (0, the default: the drums dry). FX off closes them. The drums go through the master filter as the parts do.
 - **Accents**: where the map's pattern is strongest, the kick and the snare play louder, and the hats play the **open
   hat**, which the next closed hat cuts short.
-- **The home screen** shows a small chip at the top right while the beat is on: four blocks, the beat lit, and with
-  Drums a drum roundel that thumps on the kick.
+- **The home screen** shows a small chip at the top right while the beat is on (with Drums: armed): four blocks, the
+  beat lit while it plays, and with Drums a drum roundel that thumps on the kick. Armed and stopped, no block is lit.
 - **Saved** with everything else by the global save (SAVE held): the preset, the kit, the level, the Beat page,
   each drum's knobs and its FX send. A new unit, and one coming from an older ChoralRoot, starts on Metronome. The drums are not in a
   settings backup (the same as the FX layer and the Bass Perform: the backup keeps the Options).

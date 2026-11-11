@@ -2911,8 +2911,8 @@ static void cu_row_trace(const cr_screen_t *s, const char *who, char *seen, uint
 /* The SEQ layer's preset (the DRUMS plan, docs/MANUAL.md "The beat"): Metronome (the click, as ever) or Drums (a Grids
  * beat on CoralFlower's morph drum synth, cr_drum.c). GLO + SEQ is the beat on / off whatever the preset (cs.metro, the
  * block's metro_on); the preset, the kit and the drums' knobs are the session's drum block (cr_settings.h css_drum_t),
- * saved by the global save. The beat on, the drums play: free on the tempo, on a loop's grid while one plays or a take
- * records (cr_loop.c), and never part of a loop. With Drums and their region not there (cr_res.h: a cut install), the
+ * saved by the global save. The beat on ARMS the drums: they play with the transport (a loop playing, a take, LOOP with
+ * no loop: the drums alone; cr_loop.c crl_tick1), and are never part of a loop. With Drums and their region not there (cr_res.h: a cut install), the
  * beat is the click (cu_drums_ok 0). In the layer (the owner, after the first drums build): ALGORITHM switches the
  * preset, PRESETS starts / stops the beat, on every page; the keys play */
 #define CU_DR_NPAGE 6u
@@ -3017,8 +3017,10 @@ static void cu_beat_turn(int32_t s);
 static void cu_metro_toggle(void)
 {
     cu_metro_set(!cs.metro);
-    if (cs.beat_preset == 1u && cu_drums_ok)
-        cu_message(cs.metro ? "drums on" : "drums off", CR_COL_MAGENTA);
+    if (cs.beat_preset == 1u && cu_drums_ok)       /* (the beat on arms the drums: they sound with the transport, a loop
+                                                    * playing, a take, or LOOP with no loop; until then "armed") */
+        cu_message(!cs.metro ? "drums off" : crl.state == CRL_PLAYING || crl.cap == CRL_CAP_REC ||
+                   crl.cap == CRL_CAP_COUNTIN || crl.cap == CRL_CAP_ARMED ? "drums on" : "drums armed", CR_COL_MAGENTA);
     else
         cu_message(cs.metro ? "metronome on" : "metronome off", CR_COL_WHITE);
     cu_trace("metro: %s%s\n", cs.metro ? "on" : "off", cs.beat_preset == 1u ? " (drums)" : "");
@@ -3571,7 +3573,8 @@ static void cu_loop_frame(void)
     static uint8_t step_no;
     static const char *const DID[] = {"", "rec: play to start", "count-in", "recording", "cancelled", "loop recorded",
                                       "overdub armed", "overdub done", "play", "stop", "undo", "loop cleared",
-                                      "nothing recorded", "replace armed", "step entry", "steps recorded"};
+                                      "nothing recorded", "replace armed", "step entry", "steps recorded", "drums play",
+                                      "drums stop"};
     uint32_t n = crl_did_n;
     if (n != cu_did_seen) {
         uint32_t d = crl_did;
@@ -3595,7 +3598,8 @@ static void cu_loop_frame(void)
                                           d == CRL_DID_STEP || d == CRL_DID_REC))
             ;                                      /* (the PLAY menu shows these itself: no box over it) */
         else if (d < sizeof DID / sizeof DID[0])
-            cu_message(DID[d], d == CRL_DID_PLAY || d == CRL_DID_STOP ? CR_COL_WHITE : CR_COL_RED);
+            cu_message(DID[d], d == CRL_DID_PLAY || d == CRL_DID_STOP ? CR_COL_WHITE :
+                               d == CRL_DID_DRUMS_ON || d == CRL_DID_DRUMS_OFF ? CR_COL_MAGENTA : CR_COL_RED);
         cu_trace("loop: %s (state %u layers %u events %u len %u)\n", d < sizeof DID / sizeof DID[0] ? DID[d] : "?",
                  (unsigned)crl.state, (unsigned)crl.d.nlayers, (unsigned)crl.d.nev, (unsigned)crl.d.len);
     }

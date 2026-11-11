@@ -946,8 +946,9 @@ differ cr_metro_row_cool cr_metro_row_34 "KNOB 2: 3/4: $OUT/cr_metro_row_34.ppm"
 unset EMU_UI_LOG
 
 # the drums (the DRUMS plan; docs/MANUAL.md "The drums", docs/LOOPER.md "The drums"): the SEQ layer's preset page
-# (ALGORITHM the preset, PRESETS the beat on / off) and its pages to Mix, the keys playing there, the drums free with no
-# loop, on its grid while it plays, running on when it stops, GLO + SEQ off
+# (ALGORITHM the preset, PRESETS arming the beat) and its pages to Mix, the keys playing there, armed and silent with the
+# transport stopped, LOOP with no loop starting / stopping the drums alone, REC laying the take on their bar, the loop
+# and the drums stopping together, GLO + SEQ off
 export EMU_UI_LOG=1
 run cr_drums --wav "$OUT/cr_drums.wav"
 unset EMU_UI_LOG
@@ -970,29 +971,36 @@ hits() { echo "$1" | sed -n 's/.* hits \([0-9]*\) \([0-9]*\) \([0-9]*\) .*/\1 \2
     || bad "the drum pages: $(dr 4) / $(dr 5)"
 grep -a '^  cr: voices' "$L" | sed -n 6p | grep -q ' chord DM sounding 1 ' &&
     ok "a chord played in the SEQ layer sounds (the keys play there)" || bad "keys in the layer: $(grep -a '^  cr: voices' "$L" | sed -n 6p)"
-h7=$(hits "$(dr 7)")
-[ "$(df "$(dr 7)" beat)" = 1 ] && [ "$(df "$(dr 7)" drums)" = 1 ] && [ "$(df "$(dr 7)" click)" = 0 ] && [ "$(df "$(dr 7)" run)" = 1 ] &&
-    [ "$(echo "$h7" | cut -d' ' -f1)" -gt 0 ] && grep -aq "msg 'drums on'" "$L" &&
-    ok "PRESETS: the beat on, 'drums on'; no loop: the drums play at once, free on the tempo (hits $h7): $OUT/cr_drums_free.ppm" \
-    || bad "the drums on, free: $(dr 7)"
+h6=$(hits "$(dr 6)"); h7=$(hits "$(dr 7)")
+[ "$(df "$(dr 7)" beat)" = 1 ] && [ "$(df "$(dr 7)" drums)" = 1 ] && [ "$(df "$(dr 7)" click)" = 0 ] && [ "$(df "$(dr 7)" run)" = 0 ] &&
+    [ "$h7" = "$h6" ] && grep -aq "msg 'drums armed'" "$L" &&
+    ok "PRESETS: the beat armed, 'drums armed'; the transport stopped: no sound (no hit): $OUT/cr_drums_armed.ppm" \
+    || bad "armed: $(dr 7)"
 h8=$(hits "$(dr 8)")
-[ "$(df "$(dr 8)" run)" = 1 ] && [ "$(echo "$h8" | cut -d' ' -f1)" -gt "$(echo "$h7" | cut -d' ' -f1)" ] &&
-    [ "$(echo "$(dr 8)" | sed -n 's/.* bpos \([0-9]*\)$/\1/p')" -gt 0 ] &&
-    ok "REC + a chord + REC: the loop plays and the drums go on with it (hits $h8): $OUT/cr_drums_home.ppm $OUT/cr_drums_beat_playing.ppm" \
-    || bad "playing: $(dr 8)"
-[ "$(df "$(dr 9)" run)" = 1 ] && [ "$(df "$(dr 10)" beat)" = 0 ] && [ "$(df "$(dr 10)" drums)" = 0 ] && [ "$(df "$(dr 10)" run)" = 0 ] &&
-    grep -aq "msg 'drums off'" "$L" && ok "LOOP: the loop stops, the drums (on before it) run on; GLO + SEQ: 'drums off'" || bad "stop / off: $(dr 9) / $(dr 10)"
+[ "$(df "$(dr 8)" run)" = 1 ] && [ "$(echo "$h8" | cut -d' ' -f1)" -gt "$(echo "$h7" | cut -d' ' -f1)" ] && grep -aq "msg 'drums play'" "$L" &&
+    [ "$(df "$(dr 9)" run)" = 0 ] && grep -aq "msg 'drums stop'" "$L" && [ "$(df "$(dr 10)" run)" = 1 ] &&
+    ok "LOOP with no loop: the drums alone ('drums play', hits $h8), LOOP again: they stop ('drums stop'), and again: they run: $OUT/cr_drums_free.ppm" \
+    || bad "the drums alone: $(dr 8) / $(dr 9) / $(dr 10)"
+lp11=$(grep -a '^  loop: state' "$L" | sed -n 11p); lp12=$(grep -a '^  loop: state' "$L" | sed -n 12p)
+st12=$(df "$(dr 12)" now); rg12=$(df "$lp12" ring)
+[ "$(df "$lp11" cap)" = 2 ] && [ "$(df "$(dr 11)" run)" = 1 ] && [ "$(df "$(dr 11)" now)" -gt 1 ] &&
+    [ "$(df "$lp12" state)" = 2 ] && [ "$(df "$lp12" events)" = 1 ] && [ "$(df "$(dr 12)" run)" = 1 ] &&
+    [ $(( rg12 * 32 / 256 + 1 - st12 )) -ge -1 ] && [ $(( rg12 * 32 / 256 + 1 - st12 )) -le 1 ] &&
+    ok "REC with the drums running mid-bar: the count-in is the rest of their bar (their step goes on: $(df "$(dr 11)" now)), the take starts on their bar 1; the loop plays in step with them (the loop at $rg12/256, the drums' step $st12): $OUT/cr_drums_home.ppm" \
+    || bad "the take on the drums' bar: $lp11 / $lp12 / $(dr 11) / $(dr 12)"
+[ "$(df "$(dr 13)" run)" = 0 ] && [ "$(df "$(dr 14)" beat)" = 0 ] && [ "$(df "$(dr 14)" drums)" = 0 ] &&
+    grep -aq "msg 'drums off'" "$L" && ok "LOOP: the loop stops and the drums with it; GLO + SEQ: 'drums off'" || bad "stop / off: $(dr 13) / $(dr 14)"
 r=$(python3 - "$OUT/cr_drums.wav" <<'PY'
 import sys, wave, struct
 w = wave.open(sys.argv[1]); fs = w.getframerate(); ch = w.getnchannels(); n = w.getnframes()
 a = struct.unpack('<%dh' % (n * ch), w.readframes(n))
 def peak(t0, t1):
     return max(abs(x) for x in a[int(t0 * fs) * ch:int(t1 * fs) * ch] or [0])
-print(peak(5.0, 6.9), peak(9.1, 9.6))
+print(peak(9.0, 9.55), peak(10.0, 11.0))
 PY
 )
-[ "$(echo "$r" | cut -d' ' -f1)" -lt 50 ] && [ "$(echo "$r" | cut -d' ' -f2)" -gt 1000 ] &&
-    ok "the WAV: silence before the beat, the drums alone with no loop (peaks $r)" || bad "the WAV: peaks $r"
+[ "$(echo "$r" | cut -d' ' -f1)" -lt 200 ] && [ "$(echo "$r" | cut -d' ' -f2)" -gt 1000 ] &&
+    ok "the WAV: armed and stopped, silent; LOOP: the drums alone (peaks $r)" || bad "the WAV: peaks $r"
 
 echo "EDIT: the sound editor (cr_edit.c): groups, screens, lanes, knobs, memory"
 export EMU_UI_LOG=5

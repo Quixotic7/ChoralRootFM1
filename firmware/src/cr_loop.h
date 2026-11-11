@@ -85,8 +85,9 @@ typedef struct {
     /* settings (the UI's, posted) */
     uint8_t sync, quant, count_in, level;      /* 0..5, 0..6, 0/1, 0..100 (loop velocity %) */
     uint8_t sig, metro, metro_vol;             /* CRL_SIG_*, click on, click level 0..100 */
-    uint8_t drums;                             /* the drums on (cr_drum.c; the DRUMS plan): they play, free on the tempo or on
-                                                * the loop's grid while one plays or a take records (crl_tick1) */
+    uint8_t drums;                             /* the drums armed (cr_drum.c; the DRUMS plan): they play while the transport
+                                                * runs: a loop playing, a take armed, counting in or recording, or the
+                                                * drums alone (dfree; crl_tick1) */
     uint8_t mode;                              /* CRL_MODE_*: what REC does with no capture (Advance: the UI's slot jump,
                                                 * then as Overwrite) */
     /* the loop */
@@ -117,7 +118,11 @@ typedef struct {
      * taken by the audio block (choralroot.c mix_block: cr_drum.c crd_beat_step); bpos, the beat the click or the drums
      * are on + 1 (0: none; the home page's beat chip) */
     uint8_t drum_run, dstep, bpos;
-    uint32_t dr0;                              /* the drums' own grid's start (nothing playing: their free run) */
+    uint32_t dr0;                              /* the drums' grid's start as last used (their own while they run alone) */
+    uint32_t dlast;                            /* .. the grid the last tick used (a new one: bar 1 now) */
+    uint8_t dfree;                             /* the drums run alone (LOOP with no loop in the slot, the drums armed) */
+    uint32_t cin_len;                          /* the count-in's length in ticks: a bar, or what is left of the drums'
+                                                * bar when they already run (two bars when under a beat is left) */
     struct { uint32_t gid, t0; int16_t root; uint8_t used, q, ext, vel, rep; } open[CRL_OPEN];   /* held gestures
                                                 * (rep: opened while replacing; used 2: its key is up and it sounds on,
                                                 * latched, and the editor has written it: CR_G_KEYUP) */
@@ -188,7 +193,8 @@ void cr_loop_gesture(cr_loop_t *lp, uint32_t gid, int16_t root, uint8_t q, uint8
 /* transport (PLAN.md section 3). Each returns what it did (CRL_DID_*) for the UI's message */
 enum { CRL_DID_NOTHING, CRL_DID_ARM, CRL_DID_COUNTIN, CRL_DID_REC, CRL_DID_CANCEL, CRL_DID_COMMIT, CRL_DID_OD_ARM,
        CRL_DID_OD_END, CRL_DID_PLAY, CRL_DID_STOP, CRL_DID_UNDO, CRL_DID_CLEAR, CRL_DID_EMPTY_TAKE, CRL_DID_REP_ARM,
-       CRL_DID_STEP, CRL_DID_STEP_DONE };
+       CRL_DID_STEP, CRL_DID_STEP_DONE, CRL_DID_DRUMS_ON, CRL_DID_DRUMS_OFF };   /* (DRUMS: LOOP with no loop, the
+                                                * drums armed: the drums alone start / stop) */
 int  cr_loop_rec(cr_loop_t *lp, cr_t *c);      /* REC tap */
 int  cr_loop_play(cr_loop_t *lp, cr_t *c);     /* LOOP tap */
 int  cr_loop_undo(cr_loop_t *lp, cr_t *c);     /* REC hold, F#4: the last layer (an overdub in progress first) */
@@ -206,7 +212,7 @@ void cr_loop_queue(cr_loop_t *lp, cr_t *c, const crl_data_t *d);  /* playing: at
                                                 * An overdub armed or an undo before then cancels it (the loop
                                                 * being edited stays), as a stop or a clear does */
 void cr_loop_metro(cr_loop_t *lp, int on);     /* the click on / off (its grid restarts) */
-void cr_loop_drums(cr_loop_t *lp, int on);     /* the drums on / off (at once; a loop playing: on its next beat) */
+void cr_loop_drums(cr_loop_t *lp, int on);     /* the drums armed / not (the transport running: in on its next beat) */
 /* the Rate (0..CRL_NRATE-1: x1/16 x1/12 x1/8 x1/6 x1/4 x1/2 x3/4 x1 x1.5 x2 x4; out of range: x1): how fast the
  * loop's own time runs against the tempo. Taken
  * at once when nothing plays and no take runs, else at the loop's next start (the end of the cycle): the position

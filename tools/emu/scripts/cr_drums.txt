@@ -2,9 +2,11 @@
 # Metronome, one page. ALGORITHM +1: Drums (the pages Beat Kick Snare Hats Mix after it); KNOB 3 +1: kit X Deep, -1: X
 # Club. SELECT: Beat (the map, the lanes); KNOB 1 / 2: Map X / Y, KNOB 3 Density; SELECT: Kick, KNOB 3 its Character;
 # SELECT to the end (Mix), KNOB 1: the kick's FX send; back to the preset page. A root (D4 with A#3: D major) plays in
-# the layer. PRESETS +1: the beat on ("drums on"): with no loop they start at once, free on the tempo. OCT- closes
-# the layer. REC + a chord + REC: a 1-bar loop; the drums go on, on its grid from its bar 1; LOOP: the loop stops and
-# the drums run on (they were on before it). GLO + SEQ: off ("drums off"). The WAV: the drums alone before the take.
+# the layer. PRESETS +1: the beat armed ("drums armed"): no sound with the transport stopped. OCT- closes the layer.
+# LOOP with no loop: the drums alone ("drums play"); LOOP: they stop ("drums stop"); LOOP again: they run. The PLAY
+# menu: Length 1 bar. REC with the drums running mid-bar: the count-in is the rest of their bar (their step goes on),
+# a chord, the take starts on their bar 1 and commits after a bar: the loop plays, the drums with it; LOOP: both stop.
+# GLO + SEQ: off ("drums off"). The WAV: silence while only armed, the drums alone after LOOP.
 keys classic
 wait 300
 btn SEQ down
@@ -68,21 +70,38 @@ btn A#3 up
 wait 300
 knob PRESETS +1
 wait 1500
-dump                              # 7: beat 1, drums 1, run 1, hits (no loop: at once, free)
-shot build/emu/test/cr_drums_free.ppm
+dump                              # 7: beat 1, drums 1 (armed), run 0, no new hit (the transport stopped)
+shot build/emu/test/cr_drums_armed.ppm
 btn OCT-
 wait 300
-btn REC
+btn PLAY
+wait 1500
+dump                              # 8: no loop: the drums alone, run 1, hits
+shot build/emu/test/cr_drums_free.ppm
+btn PLAY
+wait 600
+dump                              # 9: run 0 ("drums stop")
+btn PLAY down
+wait 700
+knob KNOB1 +1
+wait 200
+btn PLAY up
+btn OCT-
 wait 300
+btn PLAY
+wait 1250
+dump                              # 10: the drums alone again, mid-bar
+btn REC
+wait 100
+dump                              # 11: count-in (cap 2), the drums' step goes on (no restart)
+wait 900
 btn A#3 down
 btn D4 down
 wait 300
 btn D4 up
 btn A#3 up
-wait 3500
-btn REC
-wait 2500
-dump                              # 8: the loop plays, run 1, hits
+wait 4000
+dump                              # 12: the take committed, the loop plays, the drums with it
 shot build/emu/test/cr_drums_home.ppm
 btn SEQ down
 wait 500
@@ -95,12 +114,12 @@ btn OCT-
 wait 300
 btn PLAY
 wait 600
-dump                              # 9: the loop stopped, run 1 (on before it: they run on)
+dump                              # 13: the loop stopped, the drums with it (run 0)
 btn GLO down
 wait 50
 btn SEQ
 wait 100
 btn GLO up
 wait 600
-dump                              # 10: beat 0, drums 0, run 0
+dump                              # 14: beat 0, drums 0
 quit

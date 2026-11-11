@@ -645,7 +645,7 @@ static void crl_tick1(cr_loop_t *lp, cr_t *c, int adv)
         crl_offs(lp, c);
         crl_play_upto(lp, c);
     }
-    if (lp->cap == CRL_CAP_COUNTIN && lp->rt - lp->cin0 >= bar) {
+    if (lp->cap == CRL_CAP_COUNTIN && lp->rt - lp->cin0 >= (lp->cin_len ? lp->cin_len : bar)) {
         crl_take_start(lp);
         lp->cap = CRL_CAP_REC;
         lp->rec0 = lp->t;
@@ -666,18 +666,30 @@ static void crl_tick1(cr_loop_t *lp, cr_t *c, int adv)
             lp->bpos = (uint8_t)((rel % bar) / beat + 1u);
         }
     }
-    /* the drums (cr_drum.c): the beat on = the drums play (the owner, after the first drums build: "if there is no
-     * loop the drums don't start"). Their grid: a take recording, its start (rrec0: bar 1 at the take's start); the
-     * count-in, its (cin0: in step with the count's clicks, and so with the take's bar after it); a loop playing (an
-     * overdub too), its cycle's (rcyc0: LOOP's start restarts them at bar 1); nothing of these, their own (dr0: from
-     * the moment they were turned on, or where the loop left them: stopped, they run on in step). A 32nd's step
-     * (CRL_PPQN / 8 ticks) of the bar, step 0 the bar's first; turned on while a loop plays they join on its next beat;
-     * turned on with nothing playing, at once */
-    if (lp->drums) {
-        uint32_t a = lp->cap == CRL_CAP_REC ? lp->rrec0 : lp->cap == CRL_CAP_COUNTIN ? lp->cin0 :
-                     lp->state == CRL_PLAYING ? lp->rcyc0 : lp->dr0;
-        lp->dr0 = a;
+    /* the drums (cr_drum.c). The beat on ARMS them (the owner, after 3y299: "Drums should play when you press play and
+     * be synced, or turn on once you start recording"); they sound while the transport runs: a loop playing (an overdub
+     * too), a take armed (REC waiting for its first chord), counting in or recording, or the drums alone (dfree: LOOP
+     * with no loop in the slot). Their grid: a take recording, its start (rrec0: bar 1 at the take's start); the
+     * count-in, its (cin0, laid on their bar when they already ran: cr_loop_rec); a loop playing, its cycle's (rcyc0:
+     * LOOP's start is their bar 1); else their own (dr0). A 32nd's step (CRL_PPQN / 8 ticks) of the bar, step 0 the
+     * bar's first; armed while the transport runs, they come in on its next beat */
+    if (lp->drums && (lp->dfree || lp->state == CRL_PLAYING || lp->cap == CRL_CAP_REC || lp->cap == CRL_CAP_COUNTIN ||
+                      lp->cap == CRL_CAP_ARMED)) {
+        uint32_t a;
+        if (lp->cap == CRL_CAP_REC || lp->state == CRL_PLAYING)
+            lp->dfree = 0;                           /* (a take or a loop took them over: they stop with it) */
+        a = lp->cap == CRL_CAP_REC ? lp->rrec0 : lp->cap == CRL_CAP_COUNTIN ? lp->cin0 :
+            lp->state == CRL_PLAYING ? lp->rcyc0 : lp->dr0;
         rel = lp->rt - a;
+        if (a != lp->dlast) {                        /* a new grid (LOOP's start, a take's, the drums alone): bar 1 now
+                                                      * (its first tick may have gone by in the block that set it) */
+            lp->dlast = a;
+            if (rel < CRL_PPQN / 8u) {
+                lp->drum_run = 1;
+                if (rel) lp->dstep = 1;
+            }
+        }
+        lp->dr0 = a;
         if (!lp->drum_run && rel % beat == 0u) lp->drum_run = 1;
         if (lp->drum_run && rel % (CRL_PPQN / 8u) == 0u) {
             lp->dstep = (uint8_t)((rel % bar) / (CRL_PPQN / 8u) + 1u);
@@ -818,16 +830,25 @@ int cr_loop_rec(cr_loop_t *lp, cr_t *c)
             lp->full = 0;
             lp->layer_ev0 = 0;
             if (!lp->sync) {
+                if (!(lp->drums && lp->drum_run))
+                    lp->dr0 = lp->rt;                /* (the drums armed, not running: they start now, bar 1) */
                 lp->cap = CRL_CAP_ARMED;
                 return CRL_DID_ARM;
             }
             lp->rec_len = CRL_BARS[lp->sync < CRL_NSYNC ? lp->sync : 1] * cr_loop_bar(lp);
             if (lp->count_in) {
+                uint32_t bar = cr_loop_bar(lp), rel = lp->drums && lp->drum_run ? (lp->rt - lp->dlast) % bar : 0u;
                 lp->cap = CRL_CAP_COUNTIN;
-                lp->cin0 = lp->rt;
-                lp->click = 2;                       /* the count-in's first beat now */
+                /* the drums already running (alone, or a loop's): the count-in is the rest of their bar, so the take
+                 * starts on their next bar 1 and they go on in step; two bars when less than a beat of it is left (a
+                 * count-in to hear). Else a bar from now, as ever */
+                lp->cin0 = lp->rt - rel;
+                lp->cin_len = bar - rel < cr_loop_beat(lp) ? 2u * bar : bar;
+                lp->click = rel ? 0u : 2u;           /* the count-in's first beat now (on the drums' grid: theirs) */
                 return CRL_DID_COUNTIN;
             }
+            if (!(lp->drums && lp->drum_run))
+                lp->dr0 = lp->rt;                    /* (the drums armed, not running: they start with the take) */
             crl_take_start(lp);
             lp->cap = CRL_CAP_REC;
             lp->rec0 = lp->t;
@@ -889,6 +910,14 @@ int cr_loop_play(cr_loop_t *lp, cr_t *c)
         crl_pre_off(lp, c);                          /* (the step preview, if one sounds: the loop's voices now) */
         crl_start(lp, c);
         return CRL_DID_PLAY;
+    }
+    if (lp->state == CRL_EMPTY && lp->drums) {       /* no loop, the drums armed: the drums alone start / stop (the
+                                                      * owner: "I'd like to be able to with no loop hit play to quickly
+                                                      * start/stop the drums"), free on the tempo, bar 1 now */
+        lp->dfree = (uint8_t)!lp->dfree;
+        lp->drum_run = 0;
+        lp->dr0 = lp->rt;
+        return lp->dfree ? CRL_DID_DRUMS_ON : CRL_DID_DRUMS_OFF;
     }
     return CRL_DID_NOTHING;
 }
@@ -1383,7 +1412,8 @@ void cr_loop_drums(cr_loop_t *lp, int on)
     lp->drums = (uint8_t)(on != 0);
     lp->drum_run = 0;
     lp->dstep = 0;
-    lp->dr0 = lp->rt;                                /* (nothing playing: they start at once, from here) */
+    if (!on)
+        lp->dfree = 0;                               /* (disarmed: the drums alone stop too) */
 }
 
 void cr_loop_metro(cr_loop_t *lp, int on)
@@ -1397,7 +1427,7 @@ void cr_loop_metro(cr_loop_t *lp, int on)
 uint16_t cr_loop_ring(const cr_loop_t *lp)
 {
     uint32_t bar = cr_loop_bar(lp), r = 0;
-    if (lp->cap == CRL_CAP_COUNTIN) r = (lp->rt - lp->cin0) * 256u / bar;
+    if (lp->cap == CRL_CAP_COUNTIN) r = (lp->rt - lp->cin0) * 256u / (lp->cin_len ? lp->cin_len : bar);
     else if (lp->cap == CRL_CAP_REC)
         r = lp->rec_len ? (lp->t - lp->rec0) * 256u / lp->rec_len : (lp->t - lp->rec0) % bar * 256u / bar;
     else if (lp->state == CRL_PLAYING && lp->d.len) r = (lp->t - lp->cyc0) % lp->d.len * 256u / lp->d.len;
@@ -1408,9 +1438,10 @@ void cr_loop_where(const cr_loop_t *lp, uint32_t *bar, uint32_t *beat)
 {
     uint32_t bt = cr_loop_bar(lp), be = cr_loop_beat(lp), rel = 0;
     if (lp->cap == CRL_CAP_COUNTIN) {
+        uint32_t len = lp->cin_len ? lp->cin_len : bt;
         rel = lp->rt - lp->cin0;
         *bar = 0;
-        *beat = rel >= bt ? 0u : (bt - rel + be - 1u) / be;
+        *beat = rel >= len ? 0u : (len - rel + be - 1u) / be;
         return;
     }
     if (lp->cap == CRL_CAP_REC) rel = lp->t - lp->rec0;

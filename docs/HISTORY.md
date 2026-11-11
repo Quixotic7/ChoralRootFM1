@@ -8493,3 +8493,20 @@ so the master filter sees them too; FX off closes the sends; 0 by default (dry, 
 (97.9 %), RES 48,880, RES2 14,136; SMK-37 XIP 542,516, RES 40,020. `fm1_alnk0_irq` 13,485 of 13,890 (the click's loop
 out of line now; the drums' anchor and the sends' call in). Host: the busy beat 448 instructions a sample, all five
 ringing 547 .. 683 by kit. `sh tests/run_all.sh`: ALL SUITES PASSED (24; test_cr 1164 ok, test_persist 124 ok).
+
+3y300. **The drums armed, played by the transport.** The owner, on 3y299's build: "Drums should play when you press
+play and be synced, or turn on once you start recording. Currently the end up always on. Playing when the loop is
+empty just results in 'No Loop'. I'd like to be able to with no loop hit play to quickly start/stop the drums."
+3y299's "beat on = playing" is replaced (`cr_loop.c crl_tick1`, LOOPER.md "The drums"): the beat on ARMS the drums
+(`drums armed`); they sound while the transport runs: a loop playing (from its bar 1; stopped, both stop), a take
+armed, counting in or recording, or the drums alone: LOOP with no loop in the slot and the drums armed starts / stops
+them (`crl.dfree`, `drums play` / `drums stop`; the Metronome preset or the drums disarmed: `no loop` as ever). Armed
+or disarmed while the transport runs: in on the next beat, out at once. **REC while they run** (alone or under a loop):
+with a count-in it is the rest of their bar (two bars' worth when under a beat is left: `cin_len`), so the take starts
+on their bar 1 and they go on in step; without one (Free, or Count-in off) the take's start is bar 1 and they restart
+there. A new grid (LOOP's start, a take's, the drums alone) plays step 0 at once (`dlast`: the block that set it may
+have passed its first tick). The Metronome preset is 0.39's (it clicks on its own grid whenever on). The home chip
+shows while armed, its blocks lit only while the drums play. Test: `cr_drums` (armed and silent; LOOP alone on / off;
+REC mid-bar: the loop in step with the drums, the ring against their step); test_persist (armed, silent after a
+relaunch). FM-1 XIP 561,784 (98.0 %), RES 48,880, RES2 14,136; SMK-37 XIP 542,820. `fm1_alnk0_irq` 13,485 of 13,890.
+`sh tests/run_all.sh`: ALL SUITES PASSED (24; test_cr 1165 ok, test_persist 124 ok).
