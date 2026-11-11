@@ -108,6 +108,17 @@
   .dlg-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
   .dlg-btns button { padding: 10px 16px; font-weight: 900; font-size: 15px; }
   #dlg-ok { background: var(--red); color: #fff; }
+  #midi-dlg { border-top-color: var(--green); width: min(520px, calc(100vw - 32px)); box-sizing: border-box; }
+  #midi-dlg label { display: block; font-size: 13px; font-weight: 800; color: var(--dim); margin: 12px 0 4px; }
+  #midi-dlg input { font: 700 18px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; width: 100%; box-sizing: border-box; padding: 9px 10px;
+    background: var(--ground); color: var(--cream); border: 2px solid var(--dark); border-radius: 2px; }
+  #midi-dlg input:focus { outline: none; border-color: var(--green); }
+  #midi-dlg input[aria-invalid=true] { border-color: var(--red); }
+  #midi-dlg .row { display: flex; gap: 12px; } #midi-dlg .row > div:first-child { flex: 1; } #midi-dlg .row > div:last-child { width: 110px; }
+  #midi-preview { font-size: 14px; font-weight: 700; color: var(--green); margin: 12px 0 0; min-height: 1.3em; }
+  #midi-preview.err { color: var(--red); }
+  #midi-ok { background: var(--green); color: #000; }
+  #midi-ok:disabled { opacity: .4; cursor: default; }
   progress { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 5px; border: 0; background: var(--dark); color: var(--cream); margin: 0; }
   progress::-webkit-progress-bar { background: var(--dark); } progress::-webkit-progress-value { background: var(--cream); }
   .kb-wrap { margin-top: 16px; display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
@@ -201,6 +212,19 @@
     <div id="dlg-body"></div>
     <div class="dlg-backup" id="dlg-backup"><button id="dlg-backup-go">Back up everything</button><span id="dlg-backup-note" role="status"></span></div>
     <div class="dlg-btns"><button id="dlg-cancel">Cancel</button><button id="dlg-ok"></button></div>
+  </dialog>
+  <dialog id="midi-dlg" aria-labelledby="midi-title">
+    <form method="dialog" id="midi-form">
+      <h3 id="midi-title">Save loops as MIDI</h3>
+      <p class="small" id="midi-what"></p>
+      <div class="row">
+        <div><label for="midi-order">Order</label><input id="midi-order" autocomplete="off" spellcheck="false" aria-describedby="midi-preview"></div>
+        <div><label for="midi-bpm">Tempo (BPM)</label><input id="midi-bpm" type="number" min="20" max="300" step="any" value="120"></div>
+      </div>
+      <p id="midi-preview" role="status"></p>
+      <p class="small">Chords on channel 1, bass on channel 2, a marker per loop. The voicing, the performance (strum, arp…) and the steps' properties are applied live on the FM-1 and are not in the file: record its MIDI out for those.</p>
+      <div class="dlg-btns"><button type="button" id="midi-cancel">Cancel</button><button type="submit" id="midi-ok">Save .mid</button></div>
+    </form>
   </dialog>
 
   <div class="kb-wrap">
@@ -720,19 +744,41 @@ function midiLoops() {
   return connected() && d.length && d.every((r) => r.used && r.header.valid)
     ? d.map((r) => ({ key: r.slot, name: `Loop ${r.slot}`, bytes: session.objs.get(r.id) })).sort((a, b) => a.key - b.key) : [];
 }
+// the dialog: the order (prefilled with the selection) and the tempo, a live preview or what is wrong, Save .mid
 $("save-midi").addEventListener("click", act(async () => {
-  const loops = midiLoops(), keys = loops.map((x) => x.key);
-  const text = prompt(`The order to play the loops in (${ui.focus === "lib" ? "1.." + keys.length + " in the library's order" : "slot numbers"}); 3x2 plays loop 3 twice`, keys.join(" "));
-  if (text == null) return;
-  const order = parseLoopOrder(text, keys);
-  const t = prompt("Tempo (BPM): the loops keep their beats, the file plays at this tempo", "120");
-  if (t == null) return;
-  const bpm = Number(t.replace(",", "."));
-  const by = new Map(loops.map((x) => [x.key, x]));
+  const loops = midiLoops(), keys = loops.map((x) => x.key), by = new Map(loops.map((x) => [x.key, x]));
+  if (!loops.length) return;
+  const lens = new Map(loops.map((x) => { const h = loopHeader(x.bytes); return [x.key, { len: h.len, sig: h.sig }]; }));
+  const d = $("midi-dlg"), orderEl = $("midi-order"), bpmEl = $("midi-bpm"), pre = $("midi-preview");
+  $("midi-what").textContent = ui.focus === "lib"
+    ? `The library's ${keys.length} selected loop${keys.length === 1 ? "" : "s"}, numbered 1..${keys.length} in the list's order. Write them in the order to play them; 3x2 plays loop 3 twice.`
+    : `Loop slot${keys.length === 1 ? "" : "s"} ${keys.join(", ")}. Write them in the order to play them; 3x2 plays loop 3 twice, and a loop can come more than once.`;
+  orderEl.value = keys.join(" ");
+  const check = () => {
+    let order = null, err = "";
+    const bpm = Number(String(bpmEl.value).replace(",", "."));
+    try { order = parseLoopOrder(orderEl.value, keys); } catch (e) { err = e.message; }
+    const bpmOk = bpm >= 20 && bpm <= 300;
+    orderEl.setAttribute("aria-invalid", String(!order)); bpmEl.setAttribute("aria-invalid", String(!bpmOk));
+    pre.className = order && bpmOk ? "" : "err";
+    pre.textContent = order ? loopOrderSummary(order, lens, bpm) + (bpmOk ? "" : " · tempo: 20..300 BPM") : err;
+    $("midi-ok").disabled = !(order && bpmOk);
+    return order && bpmOk ? { order, bpm } : null;
+  };
+  orderEl.oninput = bpmEl.oninput = check;
+  check();
+  const res = await new Promise((resolve) => {
+    $("midi-form").onsubmit = (e) => { e.preventDefault(); const r = check(); if (r) { d.close(); resolve(r); } };
+    $("midi-cancel").onclick = () => { d.close(); resolve(null); };
+    d.oncancel = () => resolve(null);                            // (Esc)
+    d.showModal(); orderEl.focus(); orderEl.select();
+  });
+  if (!res) return;
+  const { order, bpm } = res;
   const midi = loopsToMidi(order.map((o) => ({ name: by.get(o.key).name, bytes: by.get(o.key).bytes, times: o.times })), { bpm });
   const name = loopMidiFileName(order);
   download(name, midi, "audio/midi");
-  say(`Saved ${name}: ${order.map((o) => o.times > 1 ? `${o.key}×${o.times}` : o.key).join(" → ")} at ${bpm} BPM.`);
+  say(`Saved ${name}: ${loopOrderSummary(order, lens, bpm)}.`);
 }));
 $("save-users").addEventListener("click", act(async () => {
   const pack = userSoundsPack(session.objs, keepOpts());

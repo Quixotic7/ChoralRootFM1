@@ -355,8 +355,11 @@ The owner: P5 is a current engine (engine 16, Melodee's Prophet-5 model: docs/PR
 
 **Save loops as MIDI…** (the bottom bar, on the Loops tab) writes the selected loops as one Standard MIDI File, so a
 loop, or a song made of several, can be taken into a DAW. The FM-1's selected slots (or the library's selected loop
-files) are asked for an order, prefilled with the selection: slot numbers separated by spaces, commas or arrows, `3x2`
-plays loop 3 twice (`1 2x2 3 4`); then a tempo (the record has none: its times are beats at 96 PPQN), 120 by default.
+files) open a dialog (`midi-dlg`, the page's own, not a browser prompt): the **Order**, prefilled with the selection
+(slot numbers separated by spaces, commas or arrows, `3x2` plays loop 3 twice: `1 2x2 3 4`), and the **Tempo** (the record
+has none: its times are beats at 96 PPQN), 120 by default. A live line under them shows the order, the bars and the
+length at that tempo (`loopOrderSummary`), or what is wrong (an unknown loop, a tempo out of 20..300); Save .mid is off
+until both are right. Enter saves, Esc cancels.
 The file is `choralroot-loops-<order>-YYYYMMDD.mid`.
 
 - **The file:** SMF type 1, 96 ticks a quarter note; a tempo track with the tempo, a time signature wherever one starts
@@ -370,6 +373,6 @@ The file is `choralroot-loops-<order>-YYYYMMDD.mid`.
 - **What is not:** what the FM-1 applies live at playback: the voicing, the performance mode (strum, slop, arp, pattern,
   harp), the bass behaviour, Loop Level, the Rate and the steps' properties (ratchet, condition, chance). For those, record
   the FM-1's MIDI out (channels 1 and 2) while the loop plays.
-- Code: `fm1manager.js` `loopChordNotes`, `loopEvents`, `parseLoopOrder`, `loopsToMidi`, `loopMidiFileName`; the page's
+- Code: `fm1manager.js` `loopChordNotes`, `loopEvents`, `parseLoopOrder`, `loopsToMidi`, `loopOrderSummary`, `loopMidiFileName`; the page's
   `midiLoops` and the `save-midi` handler. Tests: `web/test_manager.mjs` "loops as MIDI" (chord tables, the record, the
   order, the file read back by a small SMF reader).

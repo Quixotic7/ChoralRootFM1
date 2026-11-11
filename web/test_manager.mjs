@@ -27,7 +27,7 @@ import {
   libraryItemsFromFile, libraryItemsFromDnsnd, SIM_POOL_IDS, LibraryStore, loadPackIndex, loadPack, auditionMessages, noteMessage, midiText, writeErrorText, UNDO_DEPTH, retiredNote,
   managerPorts, MANAGER_PORT_RE, pickUnit, favUserSlots, favsClearSlots, replacedRows, replacedOf, managerRestorePresets, managerDeleteAll, managerDeleteRows,
   restorePresetsText, deleteAllText, managerEngines, favMarks, favOf, favKeyOf, keepable, P5_NO_PACK, simP5Patch, managerNotesSummary,
-  loopChordNotes, loopEvents, parseLoopOrder, loopsToMidi, loopMidiFileName,
+  loopChordNotes, loopEvents, parseLoopOrder, loopsToMidi, loopMidiFileName, loopOrderSummary,
 } from "./fm1manager.js";
 
 let failed = 0;
@@ -771,10 +771,14 @@ ok(site.includes('"manager.html"') && site.includes("fm1manager.js") && site.inc
   ok(ons(chords).length === offs(chords).length && ons(bass).length === offs(bass).length && chords.at(-1).meta === 0x2F,
      "loops as MIDI: every note on has its note off, each track ends with End of Track");
   { let e = null; try { loopsToMidi([{ name: "x", bytes: A, times: 1 }], { bpm: 0 }); } catch (x) { e = x; } ok(!!e, "loops as MIDI: a tempo out of 20..300 refused"); }
+  const lens = new Map([[1, { len: 384, sig: 0 }], [2, { len: 288, sig: 1 }]]);
+  ok(loopOrderSummary(order, lens, 90) === "1 → 2 ×2 → 1 · 4 bars · 0:09 at 90 BPM" && loopOrderSummary([{ key: 2, times: 1 }], lens, 0) === "2 · 1 bar",
+     "loops as MIDI: the dialog's preview (the order, the bars, the length at the tempo; no length without a valid tempo)");
   ok(loopMidiFileName(order, new Date("2026-11-12T00:00:00Z")) === "choralroot-loops-1-2x2-1-20261112.mid", "loops as MIDI: the file name says the order");
 }
-ok(html.includes('id="save-midi"') && html.includes("loopsToMidi(") && html.includes("parseLoopOrder(text, keys)") && html.includes('"audio/midi"'),
-   "page: Save loops as MIDI… on the Loops tab (the order and the tempo asked, the .mid downloaded)");
+ok(html.includes('id="save-midi"') && html.includes('id="midi-dlg"') && html.includes("loopsToMidi(") && html.includes("parseLoopOrder(orderEl.value, keys)") &&
+   html.includes("loopOrderSummary(order, lens, bpm)") && html.includes('"audio/midi"') && !/prompt\("The order/.test(html),
+   "page: Save loops as MIDI… on the Loops tab (its own dialog: the order, the tempo, a live preview; the .mid downloaded)");
 
 /* ---- the page's new parts (3y79) --- */
 ok(["restore-sel", "restore-engine", "restore-every", "delete-all", "reset-factory", "dlg", "dlg-backup-go", "dlg-ok", "dlg-cancel"].every((id) => html.includes(`id="${id}"`)) &&

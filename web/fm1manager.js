@@ -546,6 +546,15 @@ export function loopsToMidi(sections, { bpm = 120, title = "ChoralRoot loops" } 
   const head = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, 3, LOOP_PPQN >> 8, LOOP_PPQN & 255];
   return Uint8Array.from([...head, ...lmTrack(tempo), ...lmTrack(chords), ...lmTrack(bass)]);
 }
+// the dialog's preview line: order [{key, times}], lens Map key -> {len, sig} (loopHeader's), bpm ->
+// "1 → 2 ×2 → 3 · 16 bars · 0:32 at 120 BPM" (bars as each loop counts them; a part bar to two places)
+export function loopOrderSummary(order, lens, bpm) {
+  let ticks = 0, bars = 0;
+  for (const o of order) { const h = lens.get(o.key); ticks += h.len * o.times; bars += o.times * h.len / ((h.sig === 0 ? 4 : 3) * LOOP_PPQN); }
+  const s = Math.round(ticks / LOOP_PPQN * 60 / bpm);
+  return `${order.map((o) => (o.times > 1 ? `${o.key} ×${o.times}` : `${o.key}`)).join(" → ")} · ${+bars.toFixed(2)} bar${bars === 1 ? "" : "s"}` +
+    (bpm >= 20 && bpm <= 300 ? ` · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} at ${+bpm.toFixed(2)} BPM` : "");
+}
 export const loopMidiFileName = (order, created = new Date()) =>
   `choralroot-loops-${order.map((x) => x.times > 1 ? `${x.key}x${x.times}` : x.key).join("-").slice(0, 60)}-${created.toISOString().slice(0, 10).replace(/-/g, "")}.mid`;
 
