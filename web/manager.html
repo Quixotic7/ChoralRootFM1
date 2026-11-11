@@ -186,6 +186,7 @@
     <button id="delete" disabled>Delete</button>
     <button id="save-file" disabled>Save as a file</button>
     <button id="save-pack" disabled>Save selected as a pack</button>
+    <button id="save-midi" disabled title="The selected loops as one MIDI file, in the order you give (3x2 plays loop 3 twice): the chords as recorded on channel 1, the bass on channel 2. The voicing, the performance (strum, arp…) and the steps' properties are applied live on the FM-1 and are not in the file">Save loops as MIDI…</button>
     <button id="save-users" disabled>Save all user sounds</button>
     <button id="lib-remove" disabled>Remove from library</button>
     <button id="backup" disabled>Back up everything</button>
@@ -406,6 +407,8 @@ function refresh() {
   $("delete").textContent = !loops && d.length === 1 && d[0].overwrites ? "Reset to factory" : d.length > 1 ? `Delete ${d.length}` : "Delete";
   const fileSel = onLib ? l.length : !loops && d.filter((r) => keepable(ui.fpacks, r)).length === d.length ? d.length : loops && d.every((r) => r.used) ? d.length : 0;
   $("save-file").disabled = !fileSel;
+  $("save-midi").hidden = !loops;
+  $("save-midi").disabled = !midiLoops().length;
   $("save-pack").disabled = !(onLib ? l.length && l.every((x) => x.type === "sound") : !loops && d.length && d.every((r) => keepable(ui.fpacks, r)));
   $("save-file").title = $("save-pack").title = !onLib && noFile ? P5_NO_PACK : "";
   $("save-users").disabled = !c || !usedSlots(session.objs);
@@ -705,6 +708,32 @@ $("save-file").addEventListener("click", act(async () => {
   for (const f of files) download(f.format === LOOP_FORMAT ? loopFileName(f.slot || 0) : `${SOUND_FORMAT}-${String(f.name || "sound").replace(/[^A-Za-z0-9-]/g, "_")}.json`, JSON.stringify(f, null, 1));
 }));
 $("save-pack").addEventListener("click", act(async () => savePack(selectedFiles(), "My sounds")));
+// the loops Save loops as MIDI takes: the FM-1's selected slots (keyed by slot number) or the library's selected loop
+// files (keyed 1..n in the list's order) -> [{key, name, bytes}]
+function midiLoops() {
+  if (ui.tab !== "loops") return [];
+  if (ui.focus === "lib") {
+    const l = libSel();
+    return l.length && l.every((x) => x.type === "loop") ? l.map((x, i) => ({ key: i + 1, name: x.name, bytes: readLoopFile(x.file).bytes })) : [];
+  }
+  const d = devSel();
+  return connected() && d.length && d.every((r) => r.used && r.header.valid)
+    ? d.map((r) => ({ key: r.slot, name: `Loop ${r.slot}`, bytes: session.objs.get(r.id) })).sort((a, b) => a.key - b.key) : [];
+}
+$("save-midi").addEventListener("click", act(async () => {
+  const loops = midiLoops(), keys = loops.map((x) => x.key);
+  const text = prompt(`The order to play the loops in (${ui.focus === "lib" ? "1.." + keys.length + " in the library's order" : "slot numbers"}); 3x2 plays loop 3 twice`, keys.join(" "));
+  if (text == null) return;
+  const order = parseLoopOrder(text, keys);
+  const t = prompt("Tempo (BPM): the loops keep their beats, the file plays at this tempo", "120");
+  if (t == null) return;
+  const bpm = Number(t.replace(",", "."));
+  const by = new Map(loops.map((x) => [x.key, x]));
+  const midi = loopsToMidi(order.map((o) => ({ name: by.get(o.key).name, bytes: by.get(o.key).bytes, times: o.times })), { bpm });
+  const name = loopMidiFileName(order);
+  download(name, midi, "audio/midi");
+  say(`Saved ${name}: ${order.map((o) => o.times > 1 ? `${o.key}×${o.times}` : o.key).join(" → ")} at ${bpm} BPM.`);
+}));
 $("save-users").addEventListener("click", act(async () => {
   const pack = userSoundsPack(session.objs, keepOpts());
   download(packFileName("user-sounds"), JSON.stringify(pack, null, 1));
