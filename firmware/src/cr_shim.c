@@ -55,6 +55,20 @@ static void cr_res_boot(void)
                           h->body_crc == fm1_xip_rd32(CR_RES_MARK_OFF + 12u) && st_crc32(_res_start, n) == h->crc);
 }
 #endif
+#if CR_RES2
+/* the second region (cr_res.h CR_RES2, HISTORY 3y296): the same checks under its own magic; its data is this build's
+ * .res2 (firmware/app.ld) */
+extern const uint8_t _res2_start[], _res2_end[];   /* XIP FL_RES2_DATA .. */
+static void cr_res2_boot(void)
+{
+    const cr_res_hdr_t *h = (const cr_res_hdr_t *)fm1_xip_ptr(FL_RES2_LO);
+    uint32_t n = (uint32_t)(_res2_end - _res2_start);
+    cr_res2_ok = (uint8_t)((uint32_t)(uintptr_t)_res2_start == FM1_XIP(FL_RES2_DATA) && n <= FL_RES2_HI - FL_RES2_DATA &&
+                           h->magic == CR_RES2_MAGIC && h->format == CR_RES_FORMAT && h->hcrc == st_crc32(h, 60u) &&
+                           h->len == n && fm1_xip_rd32(CR_RES_MARK_OFF) == CR_RES_MARK_MAGIC &&
+                           h->body_crc == fm1_xip_rd32(CR_RES_MARK_OFF + 12u) && st_crc32(_res2_start, n) == h->crc);
+}
+#endif
 
 static void persist_boot(void)         /* before settings_init / panel_init (project.c's, without the stores) */
 {
@@ -76,6 +90,10 @@ static void persist_boot(void)         /* before settings_init / panel_init (pro
     fl_plain_window_init();                                /* the data region reads as plaintext through XIP */
 #if CR_RES
     cr_res_boot();                                         /* the resource region: this build's? (cr_res.h) */
+#endif
+#if CR_RES2
+    cr_res2_boot();                                        /* the second region: this build's? (before cr_bank_boot:
+                                                            * the pool's names are the presets') */
 #endif
 #if BOARD_SMK37
     if (!cr_safe)
@@ -152,11 +170,12 @@ static void cr_splash(void)
     cr_draw(s, CR_ANIM_SETTLED);
     cu_intro_played = 1;
 #if CR_RES
-    if (!cr_res_ok) {                              /* the region is not this build's: the screens lack their big type
-                                                    * (cr_res.h); say so in S, which is in the image, for 3 s */
+    if (!cr_res_ok || !cr_res2_ok) {               /* a region is not this build's: the screens lack their big type
+                                                    * (cr_res.h), or the factory presets their lists (the second);
+                                                    * say so in S, which is in the image, for 3 s */
         uint32_t w;
         lcd_fill(0, 196, 240, 44, T_BG);
-        draw_text_box(0, 200, 240, &AF_S, "FONTS MISSING", T_THEME, 1);
+        draw_text_box(0, 200, 240, &AF_S, !cr_res_ok ? "FONTS MISSING" : "PRESETS MISSING", T_THEME, 1);
         draw_text_box(0, 218, 240, &AF_S, "INSTALL CHORALROOT AGAIN", T_TEXT, 1);
         for (w = 0; w < 3000u; w += 10u) {
             fm1_wdt_feed();

@@ -160,6 +160,16 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #define CR_USB_HOST 1            /* the USB-C port as a MIDI host, Options > USB Host (usb_host.c, HISTORY 3y260) */
 #endif
 #endif
+/* the second resource region (cr_res.h CR_RES2, HISTORY 3y296): FM-1 only, flash 0xDC040.. (firmware/app.ld .res2,
+ * tools/fm1pkg_make.py --res2): the kerning of M and CRB, the factory presets' lists, FM6's factory voices; RES2_DRUM
+ * is the place kept for the drum kits that do not fit the first region */
+#if !BOARD_SMK37
+#define CR_RES2 1
+#define AF_RES2 __attribute__((section(".res2.kern")))
+#define RES2_PRESET __attribute__((section(".res2.preset")))
+#define RES2_FM6 __attribute__((section(".res2.fm6")))
+#define RES2_DRUM __attribute__((section(".res2.drum")))
+#endif
 
 /* ----------------------------------------------------- base, display --- */
 #include "libc.c"

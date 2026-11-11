@@ -965,7 +965,7 @@ static void p5_factory(uint32_t k,p5_patch_t *p)
  * bank; 111..588 on the Prophet). Dry, as the Prophet: the sends are the part's here (cr_bank.c
  * param_kept), so a program plays with the part's reverb, chorus and delay as every other engine's sound does. */
 #define P5_FACTORY_PRESET(n) {n,{0,0,0,0,0,0,0,0},{0,0,127,0},0,0,FX(0,0,0,0),PAT(1)},
-static const preset_t P5_TEST_PRESETS[] = {
+static const preset_t P5_TEST_PRESETS[] RES2_PRESET = {   /* (FM-1: the second resource region, cr_res.h) */
     {"INIT P5",{0,0,0,0,0,0,0,0},{0,0,127,0},0,0,FX(0,0,0,0),PAT(1)},
 #if FELUCCA_P5_FACTORY
     P5_FACTORY_PRESETS(P5_FACTORY_PRESET)

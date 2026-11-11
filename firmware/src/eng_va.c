@@ -455,7 +455,7 @@ static const uint8_t VAP_SHIMMER[] = {OSC(0, SAW, 50, 12, -9), OSC(1, SAW, 50, 1
     M_(0, VS_LFO1, VD_PIT1 + 2, 2), M_(1, VS_LFO1 + 1, VD_PIT1 + 3, -2), M_(2, VS_LFO1 + 1, VD_CUT, 5), 0xFF};
 
 /* {CUT, RES, FENV, DRIVE, MIX, DTN, ATK, REL}: the macros as the patch has them (cr_va_test checks) */
-static const preset_t VA_PRESETS[] = {
+static const preset_t VA_PRESETS[] RES2_PRESET = {   /* (FM-1: the second resource region, cr_res.h) */
     {"LUSH PAD", {70, 14, 10, 0, 64, 0, 86, 98}, {86, 90, 120, 98}, 0, 0, FX(0, 60, 20, 70), PAT(5)},
     {"WARM PAD", {62, 10, 6, 0, 64, 0, 80, 92}, {80, 90, 115, 92}, 0, 0, FX(0, 50, 20, 65), PAT(5)},
     {"GLASS PAD", {104, 22, 0, 0, 64, 0, 70, 100}, {70, 100, 100, 100}, 0, 0, FX(0, 40, 30, 75), PAT(5)},
@@ -684,7 +684,7 @@ static void va_track_loaded(const track_t *ct)
         va_macros_out(t);
         return;
     }
-    if (!pend && t->preset < VA_NPRESETS) {
+    if (!pend && t->preset < VA_NPRESETS && !CR_RES2_GONE(VA_PRESETS)) {   /* (else the init patch: cr_res.h) */
         for (k = 0; k < 8u && t->p[P_E0 + k] == VA_PRESETS[t->preset].e[k]; k++)
             ;
         if (k == 8u) {

@@ -447,7 +447,8 @@ static uint32_t glyph(const aafont_t *f, uint32_t ch)
 
 static int32_t kern(const aafont_t *f, uint32_t a, uint32_t b)       /* 1/16 px */
 {
-    int32_t ia = f->nk ? glyph_at(f, a) : -1;
+    int32_t ia = f->nk && !CR_RES2_GONE(f->kb) ? glyph_at(f, a) : -1;   /* (M's and CRB's pairs: the FM-1's second
+                                                                       * region, cr_res.h; refused, none) */
     uint32_t lo, hi;
     if (ia < 0)
         return 0;

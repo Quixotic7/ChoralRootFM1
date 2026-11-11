@@ -21,14 +21,48 @@
  *                 the splash says FONTS MISSING in S. Nothing else reads the region.
  * Only CR_RES 1 (choralroot.c: the device builds, the FM-1's and since 3y295 the SMK-37's, which carries the fonts
  * alone) has a region; the emulator and the host tests keep every font in their image (AF_RES empty, cr_res_ok the
- * constant 1). */
+ * constant 1).
+ *
+ * The second region (HISTORY 3y296; docs/BOOT-SAFETY.md "The second resource region"): FM-1 only (CR_RES2 1,
+ * choralroot.c), flash FL_RES2_LO..FL_RES2_HI (0xDC000..0xDFFFF, 16 KB: 0.21's user banks, free since 3y231), XIP
+ * 0x020D8040.. for its data. Read-only tables that only the main loop reads, by section (firmware/app.ld .res2):
+ *   .res2.kern    the kerning pairs of M and CRB (AF_M_KB / KD, AF_CRB_KB / KD: tools/gen_aa_font.py RES2, the
+ *                 attribute AF_RES2); their row tables stay in the image, and S's kerning, the fallback font's
+ *   .res2.preset  the factory presets' lists of FM6, VA, CZ-1 and PROPHET (engine_t.presets: RES2_PRESET)
+ *   .res2.fm6     FM6's factory voices F1..F24 (FM6_FACTORY, FM6_ROM)
+ *   .res2.drum    reserved for the drum kits that do not fit the first region (RES2_DRUM; 514 B a kit)
+ * The package carries it as the entry res2.bin (type CR_RES2_TYPE, tools/fm1pkg_make.py --res2), the whole 16 KB:
+ * this header (cr_res_hdr_t with CR_RES2_MAGIC, its ble fields 0), the data from FL_RES2_DATA, erased bytes after.
+ * The update loader writes its four sectors with the body, after the first region's and before the commit marker
+ * (ldr_core.c), so a cut install is uncommitted and a committed one has it; a package without the entry leaves the
+ * sectors as they were. cr_shim.c cr_res2_boot checks it as cr_res_boot the first; when refused, cr_res2_ok is 0 and
+ * every reader goes without (CR_RES2_GONE): no kerning on M and CRB (gfx.c kern: 0), each factory preset of a list in
+ * the region reads as eng_preset's stand-in (engines.c: "NO PRESET", the engine's defaults) and FM6's factory voices
+ * as the init voice (eng_fm6.c fm6_slot_get); the splash says PRESETS MISSING. Nothing on the audio side or the second
+ * core reads the region. The host, the emulator and the SMK-37 keep these tables in their image (the attributes empty,
+ * cr_res2_ok the constant 1). */
 #pragma once
 #include <stdint.h>
 
 #ifndef CR_RES
 #define CR_RES 0
 #endif
-#if CR_RES
+#ifndef CR_RES2
+#define CR_RES2 0
+#endif
+#ifndef AF_RES2
+#define AF_RES2                             /* (choralroot.c: the second region's sections on the FM-1) */
+#endif
+#ifndef RES2_PRESET
+#define RES2_PRESET
+#endif
+#ifndef RES2_FM6
+#define RES2_FM6
+#endif
+#ifndef RES2_DRUM
+#define RES2_DRUM
+#endif
+#if CR_RES || CR_RES2
 #include "../hal/fm1_flash_map.h"
 #include "../hal/fm1_xip.h"
 #endif
@@ -37,6 +71,8 @@
 #define CR_RES_FORMAT 1u
 #define CR_RES_MARK_OFF 0x91FE0u            /* the stub's commit marker (stub_core.h): magic, format, length, CRC-32 */
 #define CR_RES_MARK_MAGIC 0x4D425243u       /* "CRBM" */
+#define CR_RES2_MAGIC 0x32455243u           /* "CRE2": the second region's header (else as the first's) */
+#define CR_RES2_TYPE 200u                   /* its UFW entry's type in the package (flash.bin 0, ota.bin 100) */
 typedef struct {
     uint32_t magic, format;
     uint32_t len;                           /* data bytes from FL_RES_DATA (this build's .res) */
@@ -57,4 +93,14 @@ static uint8_t cr_res_ok;                   /* 1: the region is this build's (cr
 #define cr_res_ok 1
 #define CR_RES_GONE(p) 0
 #define CR_FONT_M (&AF_M)
+#endif
+#if CR_RES2
+static uint8_t cr_res2_ok;                  /* 1: the second region is this build's (cr_shim.c cr_res2_boot) */
+#ifndef CR_RES2_IN                          /* (tests/cr_res2_test.c: its own, the tables by name, on the host) */
+#define CR_RES2_IN(p) ((uint32_t)(uintptr_t)(p) >= FM1_XIP(FL_RES2_LO) && (uint32_t)(uintptr_t)(p) < FM1_XIP(FL_RES2_HI))
+#endif
+#define CR_RES2_GONE(p) (!cr_res2_ok && CR_RES2_IN(p))   /* a table in a second region that is not there: go without */
+#else
+#define cr_res2_ok 1
+#define CR_RES2_GONE(p) 0
 #endif

@@ -131,7 +131,17 @@ _Static_assert(FL_RES_LO == FL_PLAIN_LO && FL_RES_LO == FL_APP_HI && FL_RES_HI =
 #define FL_RES_DATA     (FL_RES_LO + 0x40u)
 #define FL_DATA_LO      0x0009F000u                /* ChoralRoot's store (0x97000 until 3y234: the region took its
                                                     * first 8 sectors, free since 3y231) */
-#define FL_DATA_HI      0x000E0000u
+#define FL_DATA_HI      0x000DC000u                /* (0xE0000 until 3y296: the second region took its last 4 sectors,
+                                                    * 0.21's user banks, free since 3y231) */
+/* The second resource region (HISTORY 3y296, cr_res.h CR_RES2): 0.21's user banks, free since 3y231, the last 16 KB
+ * below the update's staging. Read-only tables the main loop reads (the kerning of M and CRB, the factory presets'
+ * lists, the FM6 factory voices). The package carries it in an entry of its own (res2.bin, tools/fm1pkg_make.py), the
+ * update loader writes it with the body, before the commit marker; the app reads it through the plain window (XIP
+ * 0x020D8000..) and never writes it: it lies outside FL_RANGE_OK (FL_DATA ends at it). Its first 64 bytes are its
+ * header (cr_res_hdr_t, magic CR_RES2_MAGIC), the data from FL_RES2_DATA */
+#define FL_RES2_LO      0x000DC000u
+#define FL_RES2_HI      0x000E0000u
+#define FL_RES2_DATA    (FL_RES2_LO + 0x40u)
 #define FL_GLOB_LO      0x000FC000u                /* Felucca superblock / globals */
 #define FL_GLOB_HI      0x000FF000u
 #define FL_OTA_LO       0x000E0000u                /* M-UPGRADE loader staging, ota.c */
@@ -146,4 +156,7 @@ _Static_assert(FL_RES_LO == FL_PLAIN_LO && FL_RES_LO == FL_APP_HI && FL_RES_HI =
 #define FL_GUARD(off, n) FL_RANGE_OK(off, n)
 _Static_assert(FL_RES_LO == FL_PLAIN_LO && FL_RES_HI <= FL_DATA_LO && FL_RES_HI <= FL_OTA_LO,
                "FM-1: the resource region lies in the plain window, below the store and the OTA staging");
+_Static_assert(FL_RES2_LO >= FL_PLAIN_LO && FL_RES2_LO == FL_DATA_HI && FL_RES2_HI == FL_OTA_LO &&
+               FL_RES2_LO % 0x1000u == 0u && FL_RES2_HI - FL_RES2_LO == 0x4000u,
+               "FM-1: the second resource region: 16 KB in the plain window, after the store, right below the staging");
 #endif /* BOARD_SMK37 */

@@ -63,6 +63,10 @@ HUFF_CR = ("CRX", "CRB")
 # faces whose glyph data the device keeps in the resource region (HISTORY 3y234, the SMK-37's 3y295; FL_RES_LO): their
 # AF_<N>_DATA carries AF_RES, a section attribute choralroot.c defines for the device and nothing defines elsewhere
 RES = [("M", "CRX", "CRB")]
+# faces whose kerning pairs (AF_<N>_KB / _KD; the row table stays) the FM-1 keeps in its second resource region
+# (HISTORY 3y296; FL_RES2_LO): AF_RES2, as AF_RES. S's stay in the image: it is the fallback font. Refused, gfx.c kern
+# reads none of them (the faces draw unkerned)
+RES2 = ("M", "CRB")
 PROPORTIONAL = ("CRX", "CRB")          # proportional figures (the mock-ups' "13", "120"), not tabular
 
 
@@ -246,8 +250,13 @@ def emit(face, tracking, gamma, kern_min):
     lines.append("};")
     if keys:
         lines.append(ar.c_array(f"AF_{name}_KROW", "uint16_t", krow, 16))
-        lines.append(ar.c_array(f"AF_{name}_KB", "uint8_t", keys, 24))
-        lines.append(ar.c_array(f"AF_{name}_KD", "int8_t", deltas, 24))
+        for arr, typ, vals in ((f"AF_{name}_KB", "uint8_t", keys), (f"AF_{name}_KD", "int8_t", deltas)):
+            text = ar.c_array(arr, typ, vals, 24)
+            if name in RES2:
+                head = f"{arr}[{len(vals)}] ="
+                assert head in text, head
+                text = text.replace(head, f"{arr}[{len(vals)}] AF_RES2 =", 1)
+            lines.append(text)
     ex = ", ".join(str(CODE.get(c, c)) for c in extras) or "0"
     lines.append(f"static const uint8_t AF_{name}_EX[{max(1, len(extras))}] = {{{ex}}};")
     lines.append(f"static const aafont_t AF_{name} = {{{r['h']}, {r['asc']}, {first}, {last}, {len(extras)}, {len(keys)}, "
@@ -286,6 +295,7 @@ def main():
            "Copyright 2022 The Inter Project Authors; see assets/fonts/OFL.txt) */",
            "#pragma once", "#include <stdint.h>",
            "#ifndef AF_RES", "#define AF_RES        /* (choralroot.c: the resource region's section on the device) */",
+           "#endif", "#ifndef AF_RES2", "#define AF_RES2       /* (choralroot.c: the FM-1's second resource region) */",
            "#endif", ""]
     total = 0
     for f in faces:
