@@ -357,7 +357,7 @@ int main(int argc, char **argv)
                 cr_drum_mix(L, R, SD, SR, 0, CTL);
         }
         i0 = instr_now() - i0;
-        printf("cpu: a busy beat (X Club, 8 bars at 120 BPM, hits included): %.0f instructions / sample on average\n",
+        printf("cpu: a busy beat (Club, 8 bars at 120 BPM, hits included): %.0f instructions / sample on average\n",
                (double)i0 / nsmp);
     }
     printf("cr drum tests %s: %d checks, %d failed\n", fails ? "FAILED" : "passed", oks + fails, fails);

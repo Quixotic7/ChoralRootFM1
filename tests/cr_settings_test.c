@@ -1116,7 +1116,7 @@ static void css_fill(cr_session_t *x)              /* a recognisable session: ev
     x->perf_x = CSS_PERF_STORED | CSS_PERF_CHORD_OFF | CSS_PERF_BASS_ON | CSS_BASS_KEYS | CSS_BASS_FOLLOW;   /* the bass follows, the chord sustains; the BASS layer's keys pick */
     x->bperf_sel = 3;                              /* Arpeggiate */
     x->bpar[2][0] = 8; x->bpar[2][1] = 5; x->bpar[0][0] = 333;   /* Arp 1/16 Random; Strum 333 ms */
-    x->drum.ver = CSS_DRUM_VERSION;                /* the drums: Drums, X Live, level 66, the map, a snare at the clap */
+    x->drum.ver = CSS_DRUM_VERSION;                /* the drums: Drums, Live, level 66, the map, a snare at the clap */
     x->drum.preset = 1; x->drum.kit = 3; x->drum.level = 66; x->drum.x = 100; x->drum.y = 20; x->drum.density = 90;
     x->drum.chaos = 33;
     for (k = 0; k < 3u; k++) {

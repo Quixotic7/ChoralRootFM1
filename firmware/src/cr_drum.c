@@ -121,7 +121,7 @@ typedef struct {
 typedef struct { uint8_t tune, decay, chr, fill; } crd_knob_t;   /* Tune 0..24 (12: as voiced; semitones + 12), Decay
                                                   * 0..127 (64: as voiced), Character 0..127, Fill 0..127 (the beat's) */
 
-#include "cr_drum_kits.h"                        /* CRD_KITS: X Club, X Deep (CoralFlower's) */
+#include "cr_drum_kits.h"                        /* CRD_KITS: Club, Deep (CoralFlower's) */
 
 static crd_kit_t crd_kit CRD_BSS;                /* the kit playing: a RAM copy (crd_kit_load) */
 static uint8_t crd_kit_ok CRD_BSS;               /* 1: crd_kit holds a kit; 0: none (the region refused: the click) */

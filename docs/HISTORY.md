@@ -8510,3 +8510,8 @@ shows while armed, its blocks lit only while the drums play. Test: `cr_drums` (a
 REC mid-bar: the loop in step with the drums, the ring against their step); test_persist (armed, silent after a
 relaunch). FM-1 XIP 561,784 (98.0 %), RES 48,880, RES2 14,136; SMK-37 XIP 542,820. `fm1_alnk0_irq` 13,485 of 13,890.
 `sh tests/run_all.sh`: ALL SUITES PASSED (24; test_cr 1165 ok, test_persist 124 ok).
+
+3y301. **The kits' names without the X** (the owner: "Not sure why all the drum kits names start with an 'X', I would
+just rename to 'Club', 'Tech', ..."): Club, Deep, Lo-Fi, Live, Tech, Break (`cr_drum_kits.h CRD_KIT_NAME`; CoralFlower
+calls them X Club .. X Break). The screens, the MANUAL, the tests and gen_cr_screens follow; the kits themselves and
+the stored kit number are unchanged.

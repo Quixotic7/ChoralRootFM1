@@ -958,8 +958,8 @@ df() { echo "$1" | sed -n "s/.* $2 \([0-9]*\) .*/\1/p"; }
 hits() { echo "$1" | sed -n 's/.* hits \([0-9]*\) \([0-9]*\) \([0-9]*\) .*/\1 \2 \3/p'; }
 [ "$(df "$(dr 1)" preset)" = 0 ] && [ "$(df "$(dr 1)" page)" = 1 ] && has '^metro: cells Click Meter - Beat' "$L" &&
     [ "$(df "$(dr 2)" preset)" = 1 ] && [ "$(df "$(dr 2)" kit)" = 1 ] && [ "$(df "$(dr 2)" ok)" = 1 ] &&
-    has '^metro: algorithm preset drums' "$L" && has '^metro: cells Level Meter Kit Beat' "$L" && has '^metro: knob 3 kit X Deep' "$L" &&
-    ok "SEQ held: the preset page (Metronome); ALGORITHM: Drums (Level Meter Kit Beat), KNOB 3: the kit X Deep and back: $OUT/cr_drums_preset.ppm" \
+    has '^metro: algorithm preset drums' "$L" && has '^metro: cells Level Meter Kit Beat' "$L" && has '^metro: knob 3 kit Deep' "$L" &&
+    ok "SEQ held: the preset page (Metronome); ALGORITHM: Drums (Level Meter Kit Beat), KNOB 3: the kit Deep and back: $OUT/cr_drums_preset.ppm" \
     || bad "the preset page: $(dr 1) / $(dr 2)"
 [ "$(df "$(dr 3)" page)" = 2 ] && [ "$(df "$(dr 3)" x)" -gt 64 ] && [ "$(df "$(dr 3)" y)" -lt 64 ] && [ "$(df "$(dr 3)" density)" -gt 64 ] &&
     has '^metro: cells Map X Map Y Density Chaos' "$L" && grep -aq "device): drum .*item 'Beat'" "$L" &&

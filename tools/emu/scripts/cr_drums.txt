@@ -1,5 +1,5 @@
 # ChoralRoot: the drums (the DRUMS plan; docs/MANUAL.md "The drums"). The SEQ layer (SEQ held) opens on its preset page:
-# Metronome, one page. ALGORITHM +1: Drums (the pages Beat Kick Snare Hats Mix after it); KNOB 3 +1: kit X Deep, -1: X
+# Metronome, one page. ALGORITHM +1: Drums (the pages Beat Kick Snare Hats Mix after it); KNOB 3 +1: kit Deep, -1: X
 # Club. SELECT: Beat (the map, the lanes); KNOB 1 / 2: Map X / Y, KNOB 3 Density; SELECT: Kick, KNOB 3 its Character;
 # SELECT to the end (Mix), KNOB 1: the kick's FX send; back to the preset page. A root (D4 with A#3: D major) plays in
 # the layer. PRESETS +1: the beat armed ("drums armed"): no sound with the transport stopped. OCT- closes the layer.

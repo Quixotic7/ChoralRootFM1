@@ -376,7 +376,7 @@ dk() { grep -a '^  drums:' "$1" | tail -1 | sed 's/ page [0-9]*//; s/ now [0-9]*
 d1=$(dk "$OUT/persist_drums_1.log"); d2=$(dk "$OUT/persist_drums_2.log"); d3=$(dk "$OUT/persist_drums_3.log")
 echo "$d1" | grep -q 'preset 1 beat 1 click 0 drums 1 ok 1 run 0 kit 1 x [0-9]* y 64 density 64 chaos 2 level 70 sends 0 8 0 kick 14/64/32/72 snare 12/64/70/64' &&
     grep -q '^save: global rc 0' "$OUT/persist_drums_1.log" &&
-    ok "drums run 1: Drums, the beat armed (silent: nothing plays), kit X Deep, Map X, Chaos, the level, the kick's Tune, the snare's Character, its FX send; the global save" \
+    ok "drums run 1: Drums, the beat armed (silent: nothing plays), kit Deep, Map X, Chaos, the level, the kick's Tune, the snare's Character, its FX send; the global save" \
     || bad "drums run 1: $d1"
 [ "$d2" = "$d1" ] && ok "drums run 2: all of it back after a relaunch (the session's drum block; the drums armed in the looper)" \
     || bad "drums run 2: $d2 (run 1: $d1)"

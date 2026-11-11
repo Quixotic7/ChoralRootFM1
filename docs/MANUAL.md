@@ -1094,7 +1094,7 @@ turns into a clap, and closed and open hats, playing a beat you morph rather tha
   on the map, and the beat there is a blend of the four patterns around it. Each drum hits where its pattern is strong
   enough for its **Fill**.
 - **The sound** is CoralFlower's morph drum synth: each drum has a soft and a hard setting, and **Character** sets
-  where it sits between them. Six kits: X Club, X Deep, X Lo-Fi, X Live, X Tech and X Break.
+  where it sits between them. Six kits: Club, Deep, Lo-Fi, Live, Tech and Break.
 - **Armed, then played.** GLO + SEQ from anywhere, PRESETS or a tap of SEQ in its menu, the menu's Beat cell, or the
   PLAY menu's page 2, KNOB 2 (**Beat**) arm the drums (`drums armed`; `drums on` when something is already playing)
   and disarm them (`drums off`). Armed, they make no sound until the transport runs:

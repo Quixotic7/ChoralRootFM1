@@ -674,7 +674,7 @@ DEVICE_STATES = [
                 "panel": {"kind": "drum", "col": "drums", "sel": 0, "page": 0, "preset": "drums",
                           "items": ["Drums", "Beat", "Kick", "Snare", "Hats", "Mix"],
                           "cells": [{"label": "Level", "value": "80", "glyph": "bar", "pct": 0.8},
-                                    {"label": "Meter", "value": "4/4"}, {"label": "Kit", "value": "X Club"},
+                                    {"label": "Meter", "value": "4/4"}, {"label": "Kit", "value": "Club"},
                                     {"label": "Beat", "value": "On", "glyph": "gate", "pct": 1.0}]}}},
     {"name": "Device · Drums: Beat (the map, the lanes)",
      "screen": {"header": {"batt": False},

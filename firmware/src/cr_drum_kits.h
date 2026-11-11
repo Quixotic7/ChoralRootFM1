@@ -2,7 +2,7 @@
  * Copyright (C) 2026 CoralFlower contributors (FicusFicusov, <https://github.com/FicusFicusov/CoralFlower>)
  * Modifications Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
 /* The drums' kits (cr_drum.c): CoralFlower's drum_kits.c (0.6, 7c44dc1), voiced by ear and named by CoralFlower's
- * owner. All six of its kits, and of each only the five sounds ChoralRoot's drums play (kick,
+ * owner (as X Club .. X Break there; ChoralRoot's names drop the X, its owner 2026-11-11). All six of its kits, and of each only the five sounds ChoralRoot's drums play (kick,
  * snare, clap, closed and open hat: the tom, rim, bell and cymbal rows left out).
  *
  * A row: wave, noise, filter, teeth, route, pitch (p16), metal pitch (p16), ratio (Q12), then BEND BTAU ODEC O2 OLEV
@@ -21,9 +21,9 @@
 #define CRD_RES          /* (choralroot.c: the resource region's section on the FM-1) */
 #endif
 
-static const char *const CRD_KIT_NAME[] = {"X Club", "X Deep", "X Lo-Fi", "X Live", "X Tech", "X Break"};
+static const char *const CRD_KIT_NAME[] = {"Club", "Deep", "Lo-Fi", "Live", "Tech", "Break"};
 static const crd_kit_t CRD_KITS[] CRD_RES = {
-    {   /* X Club: club 909: a punchy kick, a bright snare, metallic cymbals */
+    {   /* Club: club 909: a punchy kick, a bright snare, metallic cymbals */
      {
         DS(DSW_ADD, DSN_WHITE, DSF_LP, 0, 0, 528, 0, 12288, 80, 58, 84, 50, 127, 95, 10, 30, 30, 0, 0, 70, 70, 99),
         DS(DSW_ADD, DSN_WHITE, DSF_BP, 0, 0, 864, 0, 7496, 12, 50, 66, 90, 110, 106, 0, 76, 110, 0, 0, 40, 20, 104),
@@ -39,7 +39,7 @@ static const crd_kit_t CRD_KITS[] CRD_RES = {
         DS(DSW_SINE, DSN_FM, DSF_HP, 0, 0, 0, 1383, 0, 0, 0, 0, 0, 0, 102, 20, 91, 117, 78, 25, 55, 0, 85),
      },
      32, 40, 1, 0, 0, 0},
-    {   /* X Deep: deep 808: a long sub boom, a two-tone snare, square-wave cymbals */
+    {   /* Deep: deep 808: a long sub boom, a two-tone snare, square-wave cymbals */
      {
         DS(DSW_ADD, DSN_NONE, DSF_LP, 0, 0, 485, 0, 12288, 24, 62, 106, 35, 127, 64, 0, 0, 0, 0, 0, 15, 45, 95),
         DS(DSW_ADD, DSN_WHITE, DSF_HP, 0, 0, 934, 0, 8192, 4, 50, 70, 90, 115, 102, 10, 70, 90, 0, 0, 10, 0, 93),
@@ -55,7 +55,7 @@ static const crd_kit_t CRD_KITS[] CRD_RES = {
         DS(DSW_SINE, DSN_METAL, DSF_HP, 0, 0, 0, 894, 0, 0, 0, 0, 0, 0, 108, 30, 95, 117, 0, 8, 30, 0, 94),
      },
      24, 30, 1, 0, 0, 0},
-    {   /* X Lo-Fi: lo-fi: dusty and dull, short, soft cymbals, an old sampler's grit */
+    {   /* Lo-Fi: lo-fi: dusty and dull, short, soft cymbals, an old sampler's grit */
      {
         DS(DSW_ADD, DSN_WHITE, DSF_LP, 0, 0, 552, 0, 12288, 30, 55, 80, 35, 127, 70, 0, 40, 15, 0, 0, 0, 70, 102),
         DS(DSW_ADD, DSN_WHITE, DSF_LP, 0, 0, 912, 0, 6554, 6, 50, 72, 70, 115, 93, 20, 74, 100, 0, 0, 0, 50, 96),
@@ -71,7 +71,7 @@ static const crd_kit_t CRD_KITS[] CRD_RES = {
         DS(DSW_SINE, DSN_RING, DSF_BP, 0, 0, 0, 1270, 0, 0, 0, 0, 0, 0, 102, 20, 83, 117, 0, 16, 0, 30, 94),
      },
      40, 50, 3, 8, 0, 0},
-    {   /* X Live: acoustic-like: a beater kick, wired snare, natural toms, a room */
+    {   /* Live: acoustic-like: a beater kick, wired snare, natural toms, a room */
      {
         DS(DSW_ADD, DSN_WHITE, DSF_LP, 0, 0, 574, 0, 6144, 18, 50, 74, 40, 127, 92, 0, 44, 60, 0, 0, 110, 0, 110),
         DS(DSW_ADD, DSN_WHITE, DSF_BP, 0, 0, 885, 0, 6513, 6, 45, 70, 70, 105, 104, 0, 86, 120, 0, 0, 90, 10, 92),
@@ -87,7 +87,7 @@ static const crd_kit_t CRD_KITS[] CRD_RES = {
         DS(DSW_SINE, DSN_RING, DSF_BP, 0, 0, 0, 1300, 0, 0, 0, 0, 0, 0, 104, 10, 99, 117, 48, 12, 55, 0, 96),
      },
      50, 60, 1, 0, 20, 94},
-    {   /* X Tech: raw techno: a hard distorted kick, a ringing clap, metallic hats */
+    {   /* Tech: raw techno: a hard distorted kick, a ringing clap, metallic hats */
      {
         DS(DSW_ADD, DSN_WHITE, DSF_LP, 0, 0, 502, 0, 12288, 112, 42, 80, 60, 127, 100, 0, 34, 50, 0, 0, 110, 127, 97),
         DS(DSW_ADD, DSN_WHITE, DSF_BP, 0, 0, 960, 0, 7496, 10, 50, 58, 60, 90, 96, 40, 72, 125, 0, 0, 60, 70, 94),
@@ -103,7 +103,7 @@ static const crd_kit_t CRD_KITS[] CRD_RES = {
         DS(DSW_SINE, DSN_FM, DSF_HP, 0, 0, 0, 1550, 0, 0, 0, 0, 0, 0, 110, 60, 93, 117, 48, 15, 0, 50, 69),
      },
      64, 0, 1, 0, 0, 0},
-    {   /* X Break: breaks: a punchy kick, a fat crunchy snare, soft cymbals, a room */
+    {   /* Break: breaks: a punchy kick, a fat crunchy snare, soft cymbals, a room */
      {
         DS(DSW_ADD, DSN_WHITE, DSF_LP, 0, 0, 595, 0, 8192, 40, 50, 78, 60, 127, 94, 0, 40, 50, 0, 0, 90, 90, 98),
         DS(DSW_ADD, DSN_WHITE, DSF_BP, 0, 0, 874, 0, 6554, 8, 50, 74, 100, 120, 98, 10, 82, 125, 0, 0, 90, 90, 88),
