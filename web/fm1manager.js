@@ -7,7 +7,7 @@
 // simulated FM-1 of ?sim=1 (web/test_installer.mjs's backup side, with sounds and loops in it).
 // No DOM: the page (manager.html) draws, this decides. Every name here is unique across fm1backup.js / fm1sounds.js:
 // make_site.py inlines them (and fm1dnsnd.js) into one script.
-import { BACKUP_CMD, bkU32, bkR32, bkPack, bkUnpack, bkCrc, bkManifest, objectName, readBackup, CR_LOOP_IDS, CR_BACKUP_IDS, loopHeader } from "./fm1backup.js";
+import { BACKUP_CMD, bkU32, bkR32, bkPack, bkUnpack, bkCrc, bkManifest, objectName, readBackup, CR_LOOP_IDS, CR_BACKUP_IDS, loopHeader, LOOP_PPQN, LOOP_SIGS } from "./fm1backup.js";
 import { nameValid, SOUND_IDS, POOL_IDS, ENGINE_NAMES, FACTORY_PRESETS, FACTORY_FIRST, FACTORY_IDS, SOUND_TEMPLATES, SOUND_FORMAT, PATCH_SIZE, poolOf, engineRetired, patchKindOf, parseSoundObjects, exportSound, readSoundFile, renameSound, deleteSound, writeSounds, placeSound, bindSound, swapSounds, firstFreeSlot, rawBindings, recordValid, slotLabel, isPool, parseSyx, syxCount, soundFromSyx, soundFromDnsnd, quadV6Of } from "./fm1sounds.js";
 import { parseDnsnd, parseDnSyx, isDnSyx } from "./fm1dnsnd.js";
 
@@ -463,6 +463,100 @@ export function swapLoops(objs, a, b) {
   m.set(39 + a, y); m.set(39 + b, x);
   return mgResult(new Map(objs), m);
 }
+
+// ---- loops as a Standard MIDI File: loops (one or several, each played N times, in the order given) -> one .mid with a
+// Chords track (channel 1) and a Bass track (channel 2), a marker per section, the time signature of each loop, at a
+// tempo the user gives (the record has none: its times are beats). What a loop stores is played as recorded: the chords
+// as the engine resolved them (cr_loop.h crl_ev_t: absolute root, quality, extensions), in close position from the root,
+// at their recorded velocity. Not in the file: the voicing, the performance (strum / arp / pattern / harp), the bass
+// behaviour and the steps' properties (ratchet, condition, chance), all applied live on the FM-1 (docs/LOOPER.md).
+// The chord tables are cr_engine.c's CR_QUALITY (low nibble = count, then semitones) and CR_EXT_IV.
+const LM_QUALITY = [0, 0x6303, 0x7303, 0x7403, 0x7503, 0x8403, 0xC703, 0x5303, 0x85304, 0x95204, 0x96404, 0x85204, 0xA74105];
+const LM_EXT_IV = [9, 10, 11, 14];                 // mask bits CR_EXT_6, _M7, _MAJ7, _9
+const LM_RF_PART = 1, LM_X_BASS = 1;              // cr_loop.h CRL_RF_PART, CRL_X_BASS
+const LM_SIG = [[4, 2], [3, 2], [6, 3]];          // LOOP_SIGS as SMF (numerator, log2 denominator)
+// the notes of a recorded chord, ascending (a single note, quality 0: itself)
+export function loopChordNotes(root, q, ext = 0) {
+  if (!q) return [root];
+  const v = LM_QUALITY[q], iv = [];
+  for (let i = 1; i <= (v & 15); i++) iv.push((v >> (4 * i)) & 15);
+  for (let b = 0; b < 4; b++) if (ext & (1 << b)) iv.push(LM_EXT_IV[b]);
+  return [...new Set(iv)].sort((a, b) => a - b).map((x) => root + x).filter((n) => n <= 127);
+}
+// a slot record's events as cr_loop_unpack reads them: {sig, len, events: [{t, dur, root, vel, q, ext, bass, layer}]}
+export function loopEvents(bytes) {
+  const h = loopHeader(bytes);
+  if (!h || !h.valid) throw new Error("Not a readable loop");
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), events = [];
+  let o = 16 + 2 * h.nlayers;
+  for (let l = 0; l < h.nlayers; l++)
+    for (let k = v.getUint16(16 + 2 * l, true); k; k--, o += 7) {
+      const qx = bytes[o + 6], q = qx >> 4;
+      events.push({ t: v.getUint16(o, true), dur: v.getUint16(o + 2, true), root: bytes[o + 4], vel: bytes[o + 5], q,
+        ext: q ? qx & 15 : 0, bass: !q && !!(bytes[7] & LM_RF_PART) && !!(qx & LM_X_BASS), layer: l });
+    }
+  return { sig: h.sig, len: h.len, events };
+}
+// "1 2x2 3 4" (or "1, 2×2, 3, 4", "1 > 2*2 > 3") -> [{key: 1, times: 1}, {key: 2, times: 2}, ...]; keys must be in `known`
+export function parseLoopOrder(text, known) {
+  const toks = String(text).split(/[\s,;>→-]+/).filter(Boolean);
+  if (!toks.length) throw new Error("No loops in the order");
+  return toks.map((tok) => {
+    const m = /^(\d+)(?:[x×*](\d+))?$/i.exec(tok);
+    if (!m) throw new Error(`"${tok}" is not a loop: write its number, and xN to repeat it (3x2)`);
+    const key = +m[1], times = m[2] ? +m[2] : 1;
+    if (!known.includes(key)) throw new Error(`Loop ${key} is not one of ${known.join(", ")}`);
+    if (times < 1 || times > 64) throw new Error(`Loop ${key}: repeat 1..64 times`);
+    return { key, times };
+  });
+}
+const lmVlq = (n) => { const out = [n & 127]; while ((n >>= 7)) out.unshift(128 | (n & 127)); return out; };
+const lmText = (s) => Array.from(new TextEncoder().encode(s));
+const lmMeta = (type, data) => [0xFF, type, ...lmVlq(data.length), ...data];
+function lmTrack(evs) {                            // evs [{t, o (order at the same tick), m (bytes)}] -> an MTrk chunk
+  evs.sort((a, b) => a.t - b.t || a.o - b.o);
+  const d = [];
+  let now = 0;
+  for (const e of evs) { d.push(...lmVlq(e.t - now), ...e.m); now = e.t; }
+  d.push(0, 0xFF, 0x2F, 0);
+  return [0x4D, 0x54, 0x72, 0x6B, (d.length >>> 24) & 255, (d.length >> 16) & 255, (d.length >> 8) & 255, d.length & 255, ...d];
+}
+// sections [{name, bytes (a slot record), times}] -> Uint8Array (SMF type 1, LOOP_PPQN ticks per quarter note)
+export function loopsToMidi(sections, { bpm = 120, title = "ChoralRoot loops" } = {}) {
+  if (!sections.length) throw new Error("No loops to save");
+  if (!(bpm >= 20 && bpm <= 300)) throw new Error("Tempo: 20..300 BPM");
+  const us = Math.round(60e6 / bpm), tempo = [{ t: 0, o: 0, m: lmMeta(3, lmText(title)) }, { t: 0, o: 1, m: lmMeta(0x51, [us >> 16, (us >> 8) & 255, us & 255]) }];
+  const chords = [{ t: 0, o: 0, m: lmMeta(3, lmText("Chords")) }], bass = [{ t: 0, o: 0, m: lmMeta(3, lmText("Bass")) }];
+  let pos = 0, sig = -1;
+  for (const s of sections) {
+    const lp = loopEvents(s.bytes);
+    for (let k = 0; k < s.times; k++) {
+      if (lp.sig !== sig) { sig = lp.sig; tempo.push({ t: pos, o: 2, m: lmMeta(0x58, [...LM_SIG[sig], 24, 8]) }); }
+      tempo.push({ t: pos, o: 3, m: lmMeta(6, lmText(s.times > 1 ? `${s.name} (${k + 1}/${s.times})` : s.name)) });
+      for (const e of lp.events) {
+        const t0 = pos + e.t, t1 = Math.min(t0 + e.dur, pos + lp.len), ch = e.bass ? 1 : 0, dest = e.bass ? bass : chords;
+        for (const n of loopChordNotes(e.root, e.q, e.ext)) {
+          dest.push({ t: t1, o: 0, m: [0x80 | ch, n, 0] });          // (a note off before a note on at the same tick)
+          dest.push({ t: t0, o: 1, m: [0x90 | ch, n, e.vel] });
+        }
+      }
+      pos += lp.len;
+    }
+  }
+  const head = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, 3, LOOP_PPQN >> 8, LOOP_PPQN & 255];
+  return Uint8Array.from([...head, ...lmTrack(tempo), ...lmTrack(chords), ...lmTrack(bass)]);
+}
+// the dialog's preview line: order [{key, times}], lens Map key -> {len, sig} (loopHeader's), bpm ->
+// "1 → 2 ×2 → 3 · 16 bars · 0:32 at 120 BPM" (bars as each loop counts them; a part bar to two places)
+export function loopOrderSummary(order, lens, bpm) {
+  let ticks = 0, bars = 0;
+  for (const o of order) { const h = lens.get(o.key); ticks += h.len * o.times; bars += o.times * h.len / ((h.sig === 0 ? 4 : 3) * LOOP_PPQN); }
+  const s = Math.round(ticks / LOOP_PPQN * 60 / bpm);
+  return `${order.map((o) => (o.times > 1 ? `${o.key} ×${o.times}` : `${o.key}`)).join(" → ")} · ${+bars.toFixed(2)} bar${bars === 1 ? "" : "s"}` +
+    (bpm >= 20 && bpm <= 300 ? ` · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} at ${+bpm.toFixed(2)} BPM` : "");
+}
+export const loopMidiFileName = (order, created = new Date()) =>
+  `choralroot-loops-${order.map((x) => x.times > 1 ? `${x.key}x${x.times}` : x.key).join("-").slice(0, 60)}-${created.toISOString().slice(0, 10).replace(/-/g, "")}.mid`;
 
 // ---- the FM-1: read the manager's objects (what LIST names of them), write the changed ones
 export async function readManagerObjects(request, onProgress = () => {}) {
