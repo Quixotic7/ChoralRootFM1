@@ -2079,7 +2079,7 @@ with Standard chosen, the default) puts Dual Core back as your settings say.
 | the bass being on, its **behaviour**, register, level, and which sound it plays | the panel calibration | where you were in the editor, the KEY layer's and the PLAY menu's page |
 | the effects in full: on or off, the page picked, every cell of the reverb, the chorus and the delay, both parts' sends | | |
 | which sound each part plays and each engine's last place; **each part's sound as it is, with changes you have not saved as a preset**; the parts' Level and Pan | | |
-| the tempo; the metronome, its time signature and level; the beat's preset and the drums: the kit, their level, the Beat page, each drum's knobs | | |
+| the tempo; the metronome's time signature and level; the beat's preset and the drums: the kit, their level, the Beat page, each drum's knobs and FX sends. **The beat itself (metronome or drums) is off at every power-on** (new after 0.39) | | |
 | the looper's settings (Length, **Rate**, Quantize, Count-in, Level, the record mode, what its keys do), the slot, and **the loop in memory** | | |
 | the **view** and its lock | | |
 

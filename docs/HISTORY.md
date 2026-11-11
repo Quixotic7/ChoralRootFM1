@@ -8500,3 +8500,8 @@ calls them X Club .. X Break). The screens, the MANUAL, the tests and gen_cr_scr
 the stored kit number are unchanged. (A model with the beat only arming the drums and LOOP playing them
 was tried on the branch and dropped at the owner's word: "Once I'm in the drum menu then I can quickly toggle drums
 using seq key and the loop with play so I think this actually works well": 3y299's transport stays.)
+
+3y301. **The beat off at power-on** (the owner: "the metronome and drums should always default to being off when
+powering on"): `cr_settings.c` no longer applies the block's `metro_on` (still written): the click and the drums are
+off at every power-on, restore and revert; the preset, kit, levels, meter, map, drums' knobs and sends stay remembered
+(test_persist: the drums back after a relaunch, the beat off; MANUAL, SETTINGS.md).

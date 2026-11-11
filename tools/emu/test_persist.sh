@@ -378,8 +378,9 @@ echo "$d1" | grep -q 'preset 1 beat 1 click 0 drums 1 ok 1 run 1 kit 1 x [0-9]* 
     grep -q '^save: global rc 0' "$OUT/persist_drums_1.log" &&
     ok "drums run 1: Drums, the beat on (running: no loop needed), kit Deep, Map X, Chaos, the level, the kick's Tune, the snare's Character, its FX send; the global save" \
     || bad "drums run 1: $d1"
-[ "$d2" = "$d1" ] && ok "drums run 2: all of it back after a relaunch (the session's drum block; the drums on in the looper)" \
-    || bad "drums run 2: $d2 (run 1: $d1)"
+d1off=$(echo "$d1" | sed 's/ beat 1 click 0 drums 1 ok 1 run 1 / beat 0 click 0 drums 0 ok 1 run 0 /')
+[ "$d2" = "$d1off" ] && ok "drums run 2: all of it back after a relaunch (the session's drum block), but the beat off: it is off at every power-on (the owner)" \
+    || bad "drums run 2: $d2 (run 1, the beat off: $d1off)"
 echo "$d3" | grep -q 'preset 0 beat 0 click 0 drums 0 ok 0 run 0 kit 0 x 64 y 64 density 64 chaos 0 level 80 sends 0 0 0 kick 12/64/32/72 snare 12/64/32/64 hats 12/64/32/88' &&
     ok "a fresh flash: Metronome, the beat off, the drums' defaults" || bad "drums, fresh: $d3"
 

@@ -1257,7 +1257,10 @@ static void cr_settings_load(void)
     cs.loop_quant = s->loop_quant;
     cs.loop_count_in = s->loop_count_in;
     cs.loop_level = s->loop_level;
-    cs.metro = s->metro_on;
+    cs.metro = 0;                                  /* the beat (the click or the drums) is off at every power-on, restore
+                                                    * and revert (the owner, after the drums: "the metronome and drums should
+                                                    * always default to being off when powering on"); metro_on is still
+                                                    * written, and not read */
     cs.metro_sig = s->metro_sig;
     cs.metro_vol = s->metro_vol;
     cs.loop_slot = s->loop_slot;
