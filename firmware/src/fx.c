@@ -1603,6 +1603,9 @@ static __attribute__((noinline)) void mix_fx_chain(uint32_t n)
 }
 #endif
 
+#if CR_DRUMS
+static void cr_drum_mix(int32_t *l, int32_t *r, uint32_t n);   /* (cr_drum.c: the drums into the master's mix) */
+#endif
 static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;

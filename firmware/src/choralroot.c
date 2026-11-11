@@ -196,9 +196,6 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #endif
 #include "voice.c"
 #include "slicer.c"
-#if CR_DRUMS
-#include "cr_drum.c"             /* the drums: the voices and the beat (mixed by fx.c, clocked by mix_block below) */
-#endif
 #define mix_block fx_mix_block   /* fx.c's mix; audio.c gets ChoralRoot's (below) */
 #include "fx.c"
 #undef mix_block
@@ -212,6 +209,11 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #include "midi_uart.c"
 #endif
 
+#if CR_DRUMS
+#include "cr_drum.c"             /* the drums: the voices and the beat (mixed by fx.c, clocked by mix_block below). After
+                                  * usb.c: its statics laid out after usb.c's, whose offsets the audio ISR's and usb_poll's
+                                  * code reach in one instruction (tests/target_budget.txt) */
+#endif
 /* ------------------------------------------------- the ChoralRoot engine --- */
 /* cr_engine.h's cr_param_t (a perform parameter) and cr_screen.h's (a params column) share a name: the engine's is
  * renamed in this unit (cr_out.c / cr_ui.c call it cr_eparam_t) */

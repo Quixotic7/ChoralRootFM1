@@ -44,6 +44,16 @@
  * into the master's mix before the limiter (fx.c mix_block). All out of line: the audio ISR only calls them. Measured
  * on a unit (HISTORY 3y297): Geek Out 2 peaks 70..80 % with FM TONE and P5 chords and every effect on */
 
+/* the drums' RAM in sections of their own: the compiler merges a unit's small statics into one block reached from one
+ * base register, and the drums' among them pushed usb.c's past the offsets one instruction reaches (usb_poll's loops
+ * +5 %, tests/target_budget.txt). (The host: Mach-O names sections otherwise: none) */
+#if defined(__APPLE__) || !defined(__clang__)
+#define CRD_BSS
+#define CRD_DATA
+#else
+#define CRD_BSS __attribute__((section(".bss.crd")))
+#define CRD_DATA __attribute__((section(".data.crd")))
+#endif
 #ifndef CRD_IRQ_OFF                              /* (the host test: none) */
 #define CRD_IRQ_OFF() fm1_irq_off()
 #define CRD_IRQ_ON() fm1_irq_on()
@@ -113,12 +123,12 @@ typedef struct { uint8_t tune, decay, chr, fill; } crd_knob_t;   /* Tune 0..24 (
 
 #include "cr_drum_kits.h"                        /* CRD_KITS: X Club, X Deep (CoralFlower's) */
 
-static crd_kit_t crd_kit;                        /* the kit playing: a RAM copy (crd_kit_load) */
-static uint8_t crd_kit_ok;                       /* 1: crd_kit holds a kit; 0: none (the region refused: the click) */
-static crd_knob_t crd_knob[CRD_N] = {{12, 64, 32, 72}, {12, 64, 32, 64}, {12, 64, 32, 88}};   /* (cr_ui.c's defaults
+static crd_kit_t crd_kit CRD_BSS;                /* the kit playing: a RAM copy (crd_kit_load) */
+static uint8_t crd_kit_ok CRD_BSS;               /* 1: crd_kit holds a kit; 0: none (the region refused: the click) */
+static crd_knob_t crd_knob[CRD_N] CRD_DATA = {{12, 64, 32, 72}, {12, 64, 32, 64}, {12, 64, 32, 88}}; /* (cr_ui.c's defaults
                                                   * too: CU_DRUM_DEF) */
-static ds_voice_t crd_v[DSS_N];
-static int32_t ds_rng = 0x2F6B1D3;               /* VARY's dice (one for every sound: the hits' order picks) */
+static ds_voice_t crd_v[DSS_N] CRD_BSS;
+static int32_t ds_rng CRD_DATA = 0x2F6B1D3;      /* VARY's dice (one for every sound: the hits' order picks) */
 
 #define CRD_P16(p16) pitch_inc((uint32_t)clamp((p16), 0, 2047))
 #define CRD_NOISE(v) ((int32_t)noise32(&(v)->rng) >> 16)  /* white, Q15 */
@@ -490,16 +500,16 @@ static int crd_kit_load(uint32_t k)
  * 3/4 and 6/8 play the bar's first 24 (cr_loop.c: the step from the loop's grid). The map is blended at X / Y in the
  * main loop (crd_beat_blend: 96 bytes in RAM); the ISR reads that, never the region */
 #include "cr_grids_map.h"
-static uint8_t crd_blend[3][32];                 /* the map at X / Y: each drum's level a step, 0..255 */
-static uint8_t crd_dens[3];                      /* each drum's density 0..255 (Fill and Density: crd_beat_dens) */
-static uint8_t crd_rand;                         /* Chaos: Grids' randomness 0..255 */
-static uint8_t crd_level = 80;                   /* the drums' level 0..100 (the preset page's KNOB 2) */
-static uint8_t crd_map_ok;                       /* 1: crd_blend holds the map (0: its region refused: no drums) */
-static uint8_t crd_pert[3];                      /* this bar's perturbations */
-static int32_t crd_rng = 0x1F3D5B79;             /* Chaos's dice */
-static volatile uint8_t crd_now;                 /* the step last played + 1 (0: none since the beat stopped): the UI */
-static volatile uint8_t crd_hitn[3];             /* hits so far, per drum (the screens' thump: a change is a hit) */
-static volatile uint8_t crd_acc[3];              /* .. the last hit's accent */
+static uint8_t crd_blend[3][32] CRD_BSS;         /* the map at X / Y: each drum's level a step, 0..255 */
+static uint8_t crd_dens[3] CRD_BSS;              /* each drum's density 0..255 (Fill and Density: crd_beat_dens) */
+static uint8_t crd_rand CRD_BSS;                 /* Chaos: Grids' randomness 0..255 */
+static uint8_t crd_level CRD_DATA = 80;          /* the drums' level 0..100 (the preset page's KNOB 2) */
+static uint8_t crd_map_ok CRD_BSS;               /* 1: crd_blend holds the map (0: its region refused: no drums) */
+static uint8_t crd_pert[3] CRD_BSS;              /* this bar's perturbations */
+static int32_t crd_rng CRD_DATA = 0x1F3D5B79;    /* Chaos's dice */
+static volatile uint8_t crd_now CRD_BSS;         /* the step last played + 1 (0: none since the beat stopped): the UI */
+static volatile uint8_t crd_hitn[3] CRD_BSS;     /* hits so far, per drum (the screens' thump: a change is a hit) */
+static volatile uint8_t crd_acc[3] CRD_BSS;      /* .. the last hit's accent */
 
 /* Grids' U8Mix: a .. b by balance 0..255 */
 static uint32_t crd_mix8(uint32_t a, uint32_t b, uint32_t bal) { return (a * (255u - bal) + b * bal) >> 8; }
