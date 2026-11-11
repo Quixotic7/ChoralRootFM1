@@ -15,6 +15,10 @@
  * bass part's (as fm6_store.c: the channel does not choose); a tone received marks that sound edited (SAVE keeps it in
  * a user slot, cz_ustore.c). The frames out go through CZ_SEND (the device: ota_wire_send; the host tests capture
  * them). Included after cr_ui.c. */
+#if CR_RES
+/* a factory CZ-1 tone asked for while the resource region is refused (eng_cz.c cz_factory_gone, cr_res.h) */
+static void cz_gone_message(void) { cu_message("install ChoralRoot again", CR_COL_WHITE); }
+#endif
 #if FELUCCA_CZ
 #ifndef CZ_SEND
 #if FELUCCA_OTA

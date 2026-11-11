@@ -409,7 +409,7 @@ PRCT descriptor still says 0x93000: the app area is unchanged). Those sectors ar
 header at 0x93000 (magic "CRES", format 1, the data's length and CRC-32, the CRC-32 of the app body it belongs to, as
 the package's commit marker holds it, the radio program's slot, its own CRC-32) and the data from 0x93040, plain (no
 SFC: the app reads them through the plain XIP window, XIP 0x0208F040). Today the data is the glyph data of the fonts
-M, CRX and CRB (36 024 B); the radio program's slot is empty until Bluetooth (docs/BLE-LINK.md).
+M, CRX and CRB (36 024 B) and, since 3y293, Casio's 64 CZ-1 tones packed (`CZ_FACTORY_LZ4`, 4660 B); the radio program's slot is empty until Bluetooth (docs/BLE-LINK.md).
 
 - **The loader** (`ldr_core.c`): a package whose `flash.bin` reaches 0x9F000 has its region's sectors written in the
   same pass as the body: after the marker's sector went blank, before the marker. The record sweep at the end never
@@ -431,7 +431,9 @@ M, CRX and CRB (36 024 B); the radio program's slot is empty until Bluetooth (do
   build's own marker (0x91FE0): a region of another build, a cut install the stub missed, or one an older firmware
   erased is refused. Until then and when refused, `cr_res_ok` is 0: no glyph is drawn from the region (`gfx.c`,
   `cr_gfx.c`), the crash screen, UBOOT and the UPDATE screen draw in S (`CR_FONT_M`), and the splash says
-  **FONTS MISSING / INSTALL CHORALROOT AGAIN** in S for 3 s. Nothing else depends on it: the update paths (SysEx,
+  **FONTS MISSING / INSTALL CHORALROOT AGAIN** in S for 3 s; a factory CZ-1 tone is not read (`eng_cz.c
+  cz_factory_bank`): the part keeps the tone it has and the message box says "install ChoralRoot again", and a CZ-1
+  bank A..D never saved stays empty. Nothing else depends on it: the update paths (SysEx,
   the stub, the loader) draw nothing from the region, so the unit can always be installed again.
 - **Downgrade** (`tests/ldr_test.c`'s second run; `tools/emu/test_res.sh`): 0.29.2's and 0.26.1's packages are 0x93000
   long, so their loaders leave the region; their firmware boots beside it with its settings and sounds as saved and

@@ -18,6 +18,7 @@
  * eng_fm6.c fm6_track_loaded). Melodee's CZ TOOLS page (NAME, 1 > 2, 2 > 1, COMPARE) is not ported: ChoralRoot's
  * editor pages hold values, not actions (docs/CZ1.md). */
 #include "cz_patch.h"
+#include "cr_res.h"                 /* the resource region: Casio's tones live there on the FM-1 (cz_factory_bank) */
 static cz_patch_t cz_patch[NTRK] __attribute__((section(".pool")));
 /* +1 after each write of cz_patch[t] (as eng_fm6.c's fm6_pgen; never 0 once cz_init ran): what the renderer built from
  * the tone (cz_native.c: the envelopes' definitions of a part, a voice's key-followed DCA rates) is rebuilt when it
@@ -111,11 +112,15 @@ static void cz_note_on(track_t *t, voice_t *v)        /* Melodee's phase_note_on
 
 #include "cz_native.c"
 #include "melodee_cz1.h"            /* Casio's 64 CZ-1 preset tones (tools/gen_cz1_factory.py), packed a bank an LZ4 block */
-/* factory bank k's 16 tones (k 0..3: A-1 .. B-8, C .. D, E .. F, G .. H), 16 x CZ_BYTES, unpacked into dst */
-static void cz_factory_bank(uint32_t k, uint8_t *dst)
+/* factory bank k's 16 tones (k 0..3: A-1 .. B-8, C .. D, E .. F, G .. H), 16 x CZ_BYTES, unpacked into dst; 0, or 1
+ * when the tones are not there: on the FM-1 they live in the resource region (CZ_RES, choralroot.c; cr_res.h), and a
+ * region that is not this build's (cr_res_ok 0: a cut install, another build's) is never read: dst is left as it was */
+static int cz_factory_bank(uint32_t k, uint8_t *dst)
 {
-    if (k >= CZ_FACTORY_BANKS) { memset(dst, 0, 16u * CZ_BYTES); return; }
+    if (k >= CZ_FACTORY_BANKS) { memset(dst, 0, 16u * CZ_BYTES); return 0; }
+    if (CR_RES_GONE(CZ_FACTORY_LZ4)) return 1;
     cz_lz4_block(CZ_FACTORY_LZ4 + CZ_FACTORY_OFF[k], (uint32_t)(CZ_FACTORY_OFF[k + 1u] - CZ_FACTORY_OFF[k]), dst, 16u * CZ_BYTES);
+    return 0;
 }
 #include "cz_edit.h"                /* the panel values of a tone (Melodee's on-device editing) */
 
@@ -155,16 +160,31 @@ static void cz_tone_put(uint32_t tr, const uint8_t *raw)    /* a whole tone into
     RING_PUBLISH();
 }
 
-/* factory preset k's tone (0 INIT TONE, 1..64 Casio's A-1 .. H-8) */
-static void cz_factory_tone(uint32_t k, uint8_t *raw)
+/* factory preset k's tone (0 INIT TONE, 1..64 Casio's A-1 .. H-8); 1: Casio's tones are not there (cz_factory_bank:
+ * the resource region refused), raw untouched */
+static int cz_factory_tone(uint32_t k, uint8_t *raw)
 {
     if (k && k - 1u < CZ_FACTORY_N) {
         uint8_t bank[16u * CZ_BYTES];                /* (its bank unpacked, 2.3 KB of the main loop's stack) */
-        cz_factory_bank((k - 1u) / 16u, bank);
+        if (cz_factory_bank((k - 1u) / 16u, bank)) return 1;
         memcpy(raw, bank + ((k - 1u) % 16u) * CZ_BYTES, CZ_BYTES);
     } else {
         cz_patch_init(raw);
     }
+    return 0;
+}
+#if CR_RES
+static void cz_gone_message(void);                  /* (cz_store.c, after cr_ui.c's message box) */
+#endif
+/* a factory tone that is not there (the resource region refused, cr_res.h): the part keeps the tone it has, and the
+ * message box says what Bluetooth says then (cr_ui.c) */
+static int cz_factory_gone(uint32_t k, uint8_t *raw)
+{
+    if (!cz_factory_tone(k, raw)) return 0;
+#if CR_RES
+    cz_gone_message();
+#endif
+    return 1;
 }
 
 /* a sound load put CZ-1 into track t (eng_fm6.c fm6_track_loaded calls it on every load path: a factory preset, a
@@ -184,7 +204,7 @@ static void cz_track_loaded(track_t *t)
     } else if (!t->p[P_E1] || t->p[P_E7] != CZ_NATIVE) {
         cz_patch_init(raw);
     } else if (!pend && k - 1u < CZ_FACTORY_N) {
-        cz_factory_tone(k, raw);
+        if (cz_factory_gone(k, raw)) { cz_track_accept(t); return; }
     } else if (!cz_user_bank_read || cz_user_bank_read((uint32_t)t->p[P_E0], (uint32_t)t->p[P_E1] - 1u, raw)) {
         cz_patch_init(raw);                       /* (an empty bank slot) */
     }
@@ -220,8 +240,8 @@ static void cz_blob_preset(track_t *t, uint32_t k)        /* factory preset k: i
     uint32_t tr = (uint32_t)(t - trk);
     if (tr >= NTRK || k >= NELEM(CZ_PRESETS))
         return;
-    cz_factory_tone(k, raw);
-    cz_tone_put(tr, raw);
+    if (!cz_factory_gone(k, raw))
+        cz_tone_put(tr, raw);
     cz_track_accept(t);
 }
 

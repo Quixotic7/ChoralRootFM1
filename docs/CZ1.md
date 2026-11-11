@@ -77,7 +77,7 @@ mask, 16 tones), one RAM cache (the pool) of the bank in use. A bank never saved
 (A-1 .. B-8, C-1 .. D-8, E-1 .. F-8, G-1 .. H-8, named "CZ-1 A1-B8" ..), E..H empty. Casio's 64 are in flash packed, a bank of 16
 an LZ4 block (`build/gen/melodee_cz1.h CZ_FACTORY_LZ4`, 4660 B where the tones were 9216; `tools/gen_cz1_factory.py`
 packs with `tools/lz4blk.py`, `cz_patch.h cz_lz4_block` unpacks a bank into the cache or a tone into a load's buffer,
-HISTORY 3y128); the tests read the tones as they are with `-DCZ_FACTORY_RAW`. As in Melodee a bank comes in and
+HISTORY 3y128; on the FM-1 in the resource region since 3y293, `cr_res.h`: refused, a factory tone is not loaded); the tests read the tones as they are with `-DCZ_FACTORY_RAW`. As in Melodee a bank comes in and
 goes out whole through the **backup** (Melodee's backup ids 9..16, ChoralRoot's 14..21): `cr_backup.c` lists a saved
 bank, restores one (Melodee's check), and the parts on that bank reload its tones. A backup carries only saved banks:
 restoring one without a bank brings the default back. There is no Casio bank dump (the CZ-1 has none); a tone goes in

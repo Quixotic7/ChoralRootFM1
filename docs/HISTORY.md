@@ -8331,3 +8331,15 @@ the groups and the reopening, no MIDI Roots or MIDI Keys): `BOARD=smk37 [MODEL=e
 cd7a7035...12ae, MKE-P37 ed6902a1...983d. `web/releases-smk37.json` first; SMK37.md's status, package names, version
 line and splash. `python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh` both lists match; `CR_VERSION=0.39 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1155 ok; test_persist 121 ok; `fm1_alnk0_irq` 13,518 of 13,890). Not pushed, tagged or
 flashed here (the orchestrator's).
+
+3y293. **Casio's CZ-1 tones into the resource region (the drums' flash, step 1).** The drums (the owner, 2026-11-10: a
+Grids-style beat for the metronome's keys) need about 8.5 KB of the app's flash against 7,428 B free. The first room
+comes from the one big table only the main loop reads: `CZ_FACTORY_LZ4`, Casio's 64 tones packed (4660 B), now carries
+`CZ_RES` (`tools/gen_cz1_factory.py`), the section `.res.cz` on the FM-1 (`choralroot.c`), as the fonts' `AF_RES`.
+The SMK-37, the emulator and the host tests keep it in their image (`CR_RES` 0). Guarded like the fonts (`cr_res.h`
+`CR_RES_GONE`): with the region refused, `eng_cz.c cz_factory_bank` reads nothing and says so; a factory CZ-1 load
+keeps the part's tone and the message box says "install ChoralRoot again" (Bluetooth's words then, `cz_store.c
+cz_gone_message`); a CZ-1 bank A..D never saved stays empty (its slots load nothing, `cz_bank.c`). FM-1: XIP 561,484
+of 573,440 (97.9 %, -4,528), RES 46,480 of 49,088 (94.7 %: 2,608 B left, room for the Grids map's 1,200). SMK-37 XIP
+566,360, unchanged. `run_tests.sh`: 279 goldens, 0 changed; `run_cr_tests.sh` passed (`cr_cz_test` 48: every factory
+tone unpacked as it is). BOOT-SAFETY.md, CZ1.md.

@@ -35,8 +35,9 @@ static void cz_bank_default(cz_bank_t *b,uint32_t k)
     cz_bank_empty(b,k);
     if(k>=CZ_FACTORY_N/CZ_BANK_SLOTS)return;
     memcpy(b->name,"CZ-1 A1-B8",10);b->name[5]=(char)('A'+2u*k);b->name[8]=(char)('B'+2u*k);
-    b->used=0xFFFFu;
-    cz_factory_bank(k,b->tone[0].raw);           /* (the 16 tones are contiguous: cz_patch_t is its raw bytes) */
+    /* (the 16 tones are contiguous: cz_patch_t is its raw bytes); Casio's tones not there (the resource region refused,
+     * eng_cz.c cz_factory_bank): the bank stays empty, its slots load nothing (cz_bank_get 1) */
+    if(!cz_factory_bank(k,b->tone[0].raw))b->used=0xFFFFu;
 }
 static cz_bank_t *cz_bank_load(uint32_t k)
 {

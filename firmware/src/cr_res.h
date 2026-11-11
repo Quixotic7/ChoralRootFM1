@@ -4,7 +4,8 @@
  * read-only data that lives outside the app slot, at flash FL_RES_LO..FL_RES_HI (0x93000..0x9EFFF on the FM-1,
  * hal/fm1_flash_map.h), read through the plain XIP window (XIP 0x0208F000..). Today: the glyph data of the fonts M,
  * CRX and CRB (tools/gen_aa_font.py RES: their AF_<N>_DATA carry AF_RES, the section .res.font, firmware/app.ld
- * .res); later the radio's start-up program (the header's ble_off / ble_len).
+ * .res), Casio's 64 CZ-1 tones packed (tools/gen_cz1_factory.py: CZ_FACTORY_LZ4 carries CZ_RES, the section .res.cz,
+ * HISTORY 3y293); later the radio's start-up program (the header's ble_off / ble_len).
  *
  *   the package   tools/fm1pkg_make.py --res: flash.bin runs on past 0x93000 to FL_RES_HI, the header at FL_RES_LO,
  *                 the data from FL_RES_DATA (plain bytes: never SFC-encrypted, the plain window reads them as they are)
@@ -16,7 +17,9 @@
  *                 in this build's commit marker (0x91FE0): a region of another build is refused. Until then, and when
  *                 refused, cr_res_ok is 0: gfx.c and cr_gfx.c draw no glyph whose data lies in the region (it would be
  *                 another build's bytes or erased flash), the crash screen and the UBOOT lines use S (CR_FONT_M), and
- *                 the splash says FONTS MISSING in S. Nothing else reads the region.
+ *                 the splash says FONTS MISSING in S; a factory CZ-1 tone is not loaded (eng_cz.c cz_factory_bank:
+ *                 the part keeps its tone, the message box says "install ChoralRoot again"; BANK A..D never saved
+ *                 stay empty). Nothing else reads the region.
  * Only CR_RES 1 (choralroot.c, the FM-1 device build) has a region; the SMK-37 build, the emulator and the host
  * tests keep every font in their image (AF_RES empty, cr_res_ok the constant 1). */
 #pragma once
