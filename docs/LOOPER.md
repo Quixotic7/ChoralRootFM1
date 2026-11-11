@@ -93,36 +93,27 @@ chord part. Until 0.17 it was recorded as an ordinary single note and came back 
 ## The drums (after 0.39; `cr_drum.c`, `cr_loop.c crl_tick1`, `cr_ui.c cu_beat_post`)
 
 The SEQ layer's preset Drums (docs/MANUAL.md "The drums"): a Grids beat on CoralFlower's morph drum synth. The beat
-on ARMS them; they sound while the transport runs, and are never part of a loop:
+on, the drums play; they follow a loop while one plays, and are never part of it:
 
 - **Not in a loop.** No event, no layer, nothing in a slot or `crl_data_t`; their state is the session's drum block
   (docs/SETTINGS.md), saved by the global save. Undo, Clear, the record modes and the loop editor never see them.
-- **When they sound** (the owner, after 3y299: "Drums should play when you press play and be synced, or turn on once
-  you start recording"): `crl.drums` (armed: the beat on with Drums, `LP_DRUMS`) and the transport running: a loop
-  playing (an overdub too), a take armed (`CRL_CAP_ARMED`: REC waiting for the first chord), counting in or recording,
-  or the drums alone (`crl.dfree`). Armed with the transport stopped: silent.
-- **The drums alone**: `cr_loop_play` with no loop (`CRL_EMPTY`) and the drums armed toggles `dfree` (`CRL_DID_DRUMS_ON`
-  / `_OFF`: `drums play` / `drums stop`) instead of "no loop" (the owner: "with no loop hit play to quickly start/stop
-  the drums"); not armed, or the Metronome preset: "no loop" as ever. A take recording or a loop playing clears it, so
-  they stop with that loop; disarming clears it.
-- **The grid.** `crl_tick1`, after the click: the step is the tempo tick's place in the bar from an anchor: a take
-  recording, its start (`rrec0`); the count-in, its start (`cin0`); a loop playing, its cycle's (`rcyc0`); else their
-  own (`dr0`: set when they start alone or with REC armed). A new anchor (`dlast` differs) is bar 1 now: step 0 played
-  at once even when the block that set it has passed its first tick. A 32nd (`CRL_PPQN / 8` = 12 ticks), Grids' step,
-  0 .. 31 in 4/4. `crl.dstep` (step + 1) is taken by the audio block (`choralroot.c mix_block`: `crd_beat_step`).
-- **Join, leave.** Armed while the transport runs, they come in on its next beat (`drum_run` waits for `rel % beat ==
-  0`); disarmed, they stop at once (the voices ring out). A cycle that is not whole bars (Free) restarts them at its
-  start, as the click's grid.
-- **REC while they run** (alone, or under a loop with Overwrite): with a count-in, `cr_loop_rec` lays it on their bar:
-  `cin0` = their bar's start (`dlast`), `cin_len` = the rest of that bar, or that and one more bar when under a beat is
-  left; the take starts on their bar 1 and they go on in step (the count-in's clicks on their beats; the ring and the
-  beats to go use `cin_len`). Without a count-in (Free: REC armed until the first chord; Count-in off: at once) the
-  take's start is bar 1 and the drums start their bar again there (the anchor jumps to `rrec0`).
+- **The grid.** `crl_tick1`, after the click, with `crl.drums` on (the beat on with Drums: `LP_DRUMS`): the step is
+  the tempo tick's place in the bar from an anchor: a take recording, its start (`rrec0`); the count-in, its start
+  (`cin0`: in step with the count, and so with the take after it); a loop playing (an overdub too), its cycle's
+  (`rcyc0`); none of these, the drums' own (`dr0`). A 32nd (`CRL_PPQN / 8` = 12 ticks), Grids' step, 0 .. 31 in 4/4.
+  `crl.dstep` (step + 1) is taken by the audio block (`choralroot.c mix_block`: `crd_beat_step`).
+- **Start, stop, join** (after 0.39's first drums build, the owner: "if there is no loop the drums don't start"):
+  the beat on = the drums play. Turned on with nothing playing they start at once, free on the tempo (`dr0` = the
+  tick they were turned on: a beat). Turned on while a loop plays, they join on its next beat (`drum_run` waits for
+  `rel % beat == 0`), in step with its bar. A loop starting while they run takes them over: its start is step 0, bar 1
+  (the anchor jumps to `rcyc0`). LOOP stopping does not stop them: `dr0` keeps the last anchor, so they run on in the
+  same step; only the beat off (GLO + SEQ, PRESETS or SEQ in the layer, the PLAY menu's Beat) stops them. A cycle that
+  is not whole bars (Free) restarts them at its start, as the click's grid. A take armed and waiting for its first
+  chord (Free): they run free; the take's start re-anchors them (its first chord is step 0).
 - **3/4 and 6/8.** The bar is 288 ticks: steps 0 .. 23, the first 24 of Grids' 32 (12 of each 16 sixteenths; the plan's
   open question 1, option a). The click's grid is unchanged.
 - **The Rate** does not change them: they follow the tempo's ticks (`crl.rt`), as the click.
-- **The home chip** shows while the beat is on (armed); its blocks read `crl.bpos` (the beat the click or the drums are
-  on + 1), 0 while the drums are armed but not running.
+- **The home chip** reads `crl.bpos` (the beat the click or the drums are on + 1; 0 with the beat off).
 - **The sound** goes into the mix with the parts' (`fx.c mix_block`, after the parts, before the effects): the master
   filter and the limiter see it as the parts', and each drum's FX send (the layer's Mix page) feeds the delay's and
   the reverb's buses at the same amount (none with FX off).

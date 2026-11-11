@@ -2,7 +2,8 @@
  * Copyright (C) 2026 CoralFlower contributors (FicusFicusov, <https://github.com/FicusFicusov/CoralFlower>)
  * Modifications Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
 /* The drums' kits (cr_drum.c): CoralFlower's drum_kits.c (0.6, 7c44dc1), voiced by ear and named by CoralFlower's
- * owner (as X Club .. X Break there; ChoralRoot's names drop the X, its owner 2026-11-11). All six of its kits, and of each only the five sounds ChoralRoot's drums play (kick,
+ * owner (as X Club .. X Break there; ChoralRoot's names drop the X, its owner 2026-11-11). All six of its kits, and of
+ * each only the five sounds ChoralRoot's drums play (kick,
  * snare, clap, closed and open hat: the tom, rim, bell and cymbal rows left out).
  *
  * A row: wave, noise, filter, teeth, route, pitch (p16), metal pitch (p16), ratio (Q12), then BEND BTAU ODEC O2 OLEV
