@@ -68,6 +68,10 @@ t ./build/host/cr_quad_test
 # GRAIN's source generator (firmware/src/grain_src.c, docs/GRAIN.md step 1): the grid, slices, goldens, the sketch WAVs
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -fsanitize=signed-integer-overflow,shift -fno-sanitize-recover=all -Ibuild/gen -o build/host/cr_grain_test tests/cr_grain_test.c -lm
 t ./build/host/cr_grain_test
+# the drums' voices (firmware/src/cr_drum.c, the DRUMS plan's Phase 3): each sounds, under full scale, rings out and
+# stops; the choke, the snare / clap crossfade, the CPU test's pattern (build/host/cr_drum_test --cpu: the host's cost)
+par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -fsanitize=signed-integer-overflow,shift -fno-sanitize-recover=all -Ibuild/gen -o build/host/cr_drum_test tests/cr_drum_test.c -lm
+t logged_last cr_drum_test
 # FM TONE's pops (docs/QUAD.md "Pops"): every factory sound and INIT through eight scenarios (retriggers, chord changes,
 # steals, arps) at C2 and C4: no jump, no hole, no operator restarted under the voice's level, no wrap (the sanitizer)
 par_build cc -O2 -w -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Ibuild/gen -Ifirmware/src -o build/host/quad_pops tests/quad_pops.c -lm
