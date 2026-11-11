@@ -8358,3 +8358,22 @@ counts): instructions a sample while ringing, kick 88, snare 120, clap 62, a hat
 `cr_drum_metal` 25, `cr_drum_mix` 174; `fm1_alnk0_irq` 13,535 of 13,890 with the test in (13,518 without: the drums
 are out of line, one call). XIP 566,364 with the test, +4,880 over 3y293. The default build is 3y293's byte for byte.
 The unit's Geek Out figure is the gate.
+
+3y295. **The drums' voices are CoralFlower's morph drum synth (the CPU gate, second step).** The lean voices of
+3y294 ran on the unit at Geek Out 80-90 % peaks with FM TONE / P5 chords and every effect on, the same as without
+them; the owner then chose CoralFlower's engine (FicusFicusov's `drum_synth.c`, 0.6, GPL-3.0-only; LICENSING.md) for
+its sound, with two of its kits for now: X Club (909-ish) and X Deep (808-ish). `cr_drum.c` is that engine with five
+sounds (kick, snare, clap, closed and open hat: the tom, rim, bell and cymbal rows and the TRI / FM / SQ2 waves only
+they played left out: 416 B of the region, 320 B of XIP) and each drum's own morph: Character (KICK; SNARE x2 up to
+64, then the snare fading out as the clap fades in, its morph 0..127; HATS both hats), Tune +-12 semitones (pitch,
+metal, filter), Decay +-2 octaves, Level; VARY at the kit's. The open hat is choked by the closed one. The kits
+(`cr_drum_kits.h`, 532 B) are in the resource region (`CRD_RES`, `.res.drum`) on the FM-1: `crd_kit_load` copies one
+into RAM in the main loop and refuses a region that is not there (`CR_RES_GONE`); the CR_DRUM_TEST bar then turns the
+metronome's click on instead. Out of line as before (`ds_strike` at a hit, `cr_drum_mix` a block). CR_DRUM_TEST=1
+(X Club, the snare at 96, the same busy bar): XIP 566,472 (+4,988 over 3y293), RES 47,012 of 49,088 (2,076 free:
+876 after the Grids map's 1,200); `fm1_alnk0_irq` 13,544 of 13,890 (+26). Host instructions a sample while ringing,
+X Club / X Deep: kick 134 / 93, snare 134 / 137, clap 116 / 116, closed hat 115 / 87, open hat 114 / 86; all five
+643 / 537; the bar 362 on average (the lean voices: 336 all five, 213 the bar). pi32v2 loop costs: `ds_osc` 77,
+`ds_noise` 980 (the clap's loop nested in the block's), `ds_filter` 113, `ds_out` 94, `ds_fmetal` 50, `ds_metal` 27,
+`ds_run` 59, `cr_drum_mix` 105. `tests/cr_drum_test.c` rewritten for it (both kits, 34 checks, the sanitizer). The
+default build is 3y293's byte for byte; the SMK-37 has no drums.

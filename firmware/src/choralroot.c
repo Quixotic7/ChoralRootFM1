@@ -158,6 +158,7 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #define CR_RES 1
 #define AF_RES __attribute__((section(".res.font")))
 #define CZ_RES __attribute__((section(".res.cz")))   /* Casio's CZ-1 tones, packed (melodee_cz1.h; eng_cz.c) */
+#define CRD_RES __attribute__((section(".res.drum"))) /* the drums' kits (cr_drum_kits.h; only CR_DRUM_TEST's, today) */
 #ifndef CR_BLE
 #define CR_BLE 1                 /* Bluetooth LE MIDI, the FM-1 as a peripheral (cr_ble.h, HISTORY 3y236); CR_BLE=0: none */
 #endif
@@ -212,7 +213,14 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
     CR_PROF_START();             /* the ISR's stages (cr_cpu1.h): the tick from here to fx.c's parts */
     cr_audio_block(n);
 #if CR_DRUM_TEST
-    cr_drum_test_clock(crl.rt, CRL_PPQN / 4u);      /* the test pattern's hits on this 16th (cr_drum.c) */
+    {                            /* the test pattern's hits on this 16th (cr_drum.c); its kits not there (the resource
+                                  * region refused): the metronome's click instead, turned on once */
+        static uint8_t crd_click;
+        if (!cr_drum_test_clock(crl.rt, CRL_PPQN / 4u) && !crd_click) {
+            crd_click = 1;
+            cr_loop_metro(&crl, 1);
+        }
+    }
 #endif
 #if FELUCCA_UAC
     ua_stage_on = ua.cap_alt && !USB_CDC_ON;     /* the computer records: fx.c stages the block's capture frames */
