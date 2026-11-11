@@ -8,6 +8,26 @@
   },
   "releases": [
     {
+      "version": "0.40",
+      "date": "2026-11-11",
+      "tag": "v0.40",
+      "sha256": "ed860ccac8ab1cc60e3f550a0e207b1e484371ffc96fa120722605c70463466c",
+      "sha256_1core": "29ec09b1d16db8746b30878101af09f6d88f396020b94773efc6a41ad150a5a5",
+      "title": "Drums on the metronome's keys",
+      "bullets": [
+        "Drums: hold SEQ and turn ALGORITHM to Drums, PRESETS starts and stops them. A Grids beat you morph on a map, six kits from CoralFlower's drum synth, in step with your loop.",
+        "The SEQ menu's pages: Beat (the map, Density, Chaos), Kick, Snare (turning into a clap), Hats (Tune, Decay, Character, Fill) and Mix (each drum's FX send).",
+        "The metronome's menu: KNOB 1 Level, KNOB 2 Meter; the keys play there; hold SEQ in the loop editor to open it.",
+        "The click follows MASTER, and the beat is off at every power-on.",
+        "A second resource region frees 12 KB of app space; your settings, sounds, loops and favorites come through the update."
+      ],
+      "notes": [
+        "A settings backup does not hold the drums: they live in the session, as the FX layer does.",
+        "M-Flasher writes the firmware alone: the unit starts with PRESETS MISSING until ChoralRoot's own installer has run once.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.39",
       "date": "2026-11-10",
       "tag": "v0.39",
@@ -25,7 +45,14 @@
         "Emulator or MIDI scripts that count SELECT steps through the Options: the list is now grouped; pick the group, OCT+, then count inside it.",
         "Going back to 0.38: the Options are one long list again; with MIDI Roots on, 0.38 reads MIDI Raw Chord as Off until you set it.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.39 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.39 again. The drums are gone and the SEQ menu is the metronome's again (SELECT the time signature, KNOB 1 the click); the drums' settings stay in the session, unread.",
+          "A metronome left on is on again at power-on, and the click no longer follows MASTER. The second resource region is left in place and not read."
+        ]
+      }
     },
     {
       "version": "0.38",

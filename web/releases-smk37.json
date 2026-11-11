@@ -3,6 +3,38 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.40-smk37",
+      "base": "0.40",
+      "date": "2026-11-11",
+      "tag": "v0.40-smk37",
+      "title": "0.40 on the SMK-37: Drums",
+      "bullets": [
+        "Drums: hold SEQ and turn ALGORITHM to Drums, PRESETS starts and stops them. A Grids beat you morph on a map, six kits from CoralFlower's drum synth, in step with your loop.",
+        "The SEQ menu's pages: Beat, Kick, Snare, Hats and Mix (each drum's FX send); the keys play there.",
+        "The click follows MASTER, and the beat is off at every power-on.",
+        "A resource region of its own (the big fonts, the drums' kits and map) frees 35 KB of app space."
+      ],
+      "notes": [
+        "New and not yet run on an SMK-37: the resource region at 0x9D000..0xA8FFF, written by the installer with the firmware. Please report how the first install, the splash, the fonts and the drums look.",
+        "Going back to 0.39-smk37: the drums are gone; the region is left in place and not read.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "8f3ba23da5d7db743efc9ad20582be55f5da66ede68c0ea66e18735f1a160b56",
+          "sha256_1core": "df322532adb8996a453140de081e562754838311f788e8839605ebe551c5a0f7"
+        },
+        "elite": {
+          "sha256": "100d1f76e62f2010221123125cb0d9e3dc0e2911f40298d0c8bb4862e443a20a",
+          "sha256_1core": "e9f4827a167ed03a7a4275368a71ed8345adce1499dcdb07e1742b53d4ba9c11"
+        },
+        "mke": {
+          "sha256": "b02aaa8d64b41f7a7633d0780f0b0d443dc957979557ac35e1c5a2e7e0de7853",
+          "sha256_1core": "4f1fbba3cf335d3053fe0baba01a1c7113b0ab2c031e0ed67b7653e1a6d1635f"
+        }
+      }
+    },
+    {
       "version": "0.39-smk37",
       "base": "0.39",
       "date": "2026-11-10",

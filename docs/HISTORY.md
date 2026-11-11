@@ -8505,3 +8505,24 @@ using seq key and the loop with play so I think this actually works well": 3y299
 powering on"): `cr_settings.c` no longer applies the block's `metro_on` (still written): the click and the drums are
 off at every power-on, restore and revert; the preset, kit, levels, meter, map, drums' knobs and sends stay remembered
 (test_persist: the drums back after a relaunch, the beat off; MANUAL, SETTINGS.md).
+
+## 2026-11-11 (0.40 and 0.40-smk37)
+
+3y302. **0.40: drums on the metronome's keys, the click following MASTER, the beat off at power-on, two resource
+regions; 0.40-smk37 beside it.** The owner, through the orchestration session, after trying 71b9ed9a: "Push, merge,
+tag and release this please." The release commit on claude/drums over 71b9ed9a (3y293 .. 3y301: the CZ-1 tones and
+the drum kits and Grids' map in the regions, the SMK-37's region 3y295 and the FM-1's second 3y296, CoralFlower's
+morph drum synth, the Grids beat, the SEQ menu's pages and Mix, the owner's notes, the kits' names, the beat off at
+power-on; a fast-forward of main 36867e5c). `./build.sh --release 0.40` and `tools/hub_build.sh 0.40`: the same
+`SHA256SUMS`; XIP 561,448 of 573,440 (97.9 %), RES 48,880, RES2 14,136. `choralroot-0.40.fwsc` ed860cca...466c,
+`-1core` 29ec09b1...a5a5. `web/releases.json` first with the sha256s, 0.39's entry given its going-back note (the
+drums gone, the SEQ menu the metronome's, their settings kept unread; a metronome left on is on at power-on; the
+second region left unread), `docs/releases/0.40.md` (what a backup does not hold: the drums are the session's;
+M-Flasher: PRESETS MISSING until ChoralRoot's installer runs once), MANUAL.md's first line and its "new in 0.40"
+marks, `choralroot.c`'s dev version. **0.40-smk37** (base 0.40; its own resource region, new and not yet run on an
+SMK-37: SMK37.md asks the testers): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.40-smk37` and
+`tools/hub_build.sh 0.40-smk37`, the same `SHA256SUMS` (twelve files). Pro 8f3ba23d...0b56, Elite 100d1f76...a20a,
+MKE-P37 b02aaa8d...7de7853. `web/releases-smk37.json` first; SMK37.md's status, package names, version line.
+`python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh` both lists match; `CR_VERSION=0.40 sh tests/run_all.sh`:
+ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124 ok; `fm1_alnk0_irq` 13,485 of
+13,890). Not pushed, tagged or flashed here (the orchestrator's).

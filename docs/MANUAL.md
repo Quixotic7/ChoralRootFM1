@@ -1,6 +1,6 @@
 # ChoralRoot FM-1: the manual
 
-For ChoralRoot 0.39 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.39 brought, MIDI Roots (a whole keyboard plays the chords, shown on the home screen), pads holding the chord keys and the Options in groups that reopen where you left them: [releases/0.39.md](releases/0.39.md); what 0.38 brought, chords that glide into each other in POLY and a Glide of up to 30 s that shows the time it takes: [releases/0.38.md](releases/0.38.md); what 0.37 brought, Bass Solo in the octave you play, loops locked to MIDI Clock In however the pulses arrive and the PERF knobs in the same places across modes: [releases/0.37.md](releases/0.37.md); what 0.36 brought, 21 more Key Mode scales (the modes, pentatonics, blues, bebop, whole tone, diminished, eastern scales and Barry Harris's 6th-diminished): [releases/0.36.md](releases/0.36.md); what 0.35 brought, the bass Following the chords' performance and PERF held switching between the two PERF layers: [releases/0.35.md](releases/0.35.md); what 0.34 brought, Chord and Bass Perform, each part with its own performance mode: [releases/0.34.md](releases/0.34.md); what 0.33 brought, no pop at power-on, MIDI CC on the sounds' parameters and the filter on the chords or the bass alone: [releases/0.33.md](releases/0.33.md); 0.32 is 0.31 with a flash driver that waits out a slow erase or write, for the newer FM-1s' slower flash chip, [releases/0.32.md](releases/0.32.md); what 0.31 brought, USB Host and two FM-1s on one cable: [releases/0.31.md](releases/0.31.md); what 0.30 brought, Bluetooth MIDI and incoming start and stop with MIDI Clock Out: [releases/0.30.md](releases/0.30.md); 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
+For ChoralRoot 0.40 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.40 brought, drums on the metronome's keys (a Grids beat you morph, six kits, following your loop), the click following MASTER and the beat off at power-on: [releases/0.40.md](releases/0.40.md); what 0.39 brought, MIDI Roots (a whole keyboard plays the chords, shown on the home screen), pads holding the chord keys and the Options in groups that reopen where you left them: [releases/0.39.md](releases/0.39.md); what 0.38 brought, chords that glide into each other in POLY and a Glide of up to 30 s that shows the time it takes: [releases/0.38.md](releases/0.38.md); what 0.37 brought, Bass Solo in the octave you play, loops locked to MIDI Clock In however the pulses arrive and the PERF knobs in the same places across modes: [releases/0.37.md](releases/0.37.md); what 0.36 brought, 21 more Key Mode scales (the modes, pentatonics, blues, bebop, whole tone, diminished, eastern scales and Barry Harris's 6th-diminished): [releases/0.36.md](releases/0.36.md); what 0.35 brought, the bass Following the chords' performance and PERF held switching between the two PERF layers: [releases/0.35.md](releases/0.35.md); what 0.34 brought, Chord and Bass Perform, each part with its own performance mode: [releases/0.34.md](releases/0.34.md); what 0.33 brought, no pop at power-on, MIDI CC on the sounds' parameters and the filter on the chords or the bass alone: [releases/0.33.md](releases/0.33.md); 0.32 is 0.31 with a flash driver that waits out a slow erase or write, for the newer FM-1s' slower flash chip, [releases/0.32.md](releases/0.32.md); what 0.31 brought, USB Host and two FM-1s on one cable: [releases/0.31.md](releases/0.31.md); what 0.30 brought, Bluetooth MIDI and incoming start and stop with MIDI Clock Out: [releases/0.30.md](releases/0.30.md); 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
 FM-1, has installed ChoralRoot with
 the web installer and wants to play it. Nothing here needs the design documents; where one goes deeper, the manual
 links to it.
@@ -1076,18 +1076,18 @@ one to three short gaps in it ([What the FM-1 remembers](#what-the-fm-1-remember
   On or Off.
 - From anywhere outside the sound editor, **hold OPT (GLO) and tap SEQ** for the same thing
   (`metronome on`). SEQ tapped by itself opens the loop editor (until 0.18 it was the click).
-- Hold SEQ for **the SEQ key's hold menu, the beat's** (also from the loop editor, new after 0.39). Its first page is
-  the preset: two tiles, **Metronome** (the click, as ever) and **Drums** (new after 0.39, [below](#the-drums)).
+- Hold SEQ for **the SEQ key's hold menu, the beat's** (also from the loop editor, new in 0.40). Its first page is
+  the preset: two tiles, **Metronome** (the click, as ever) and **Drums** (new in 0.40, [below](#the-drums)).
   On every page of the menu **ALGORITHM** picks the preset (a turn right Drums, left Metronome) and **PRESETS** starts
   and stops the beat (right on, left off; a tap of SEQ does the same). KNOB 1 is the level (the click's, or the
   drums'), KNOB 2 the time signature, 4/4, 3/4 or 6/8, with Drums KNOB 3 the kit, and KNOB 4 shows the beat on or off
   (and turns it too). The keys play as usual in this menu. OPT + SELECT sets the click's level without opening the
   menu. (Until 0.39 SELECT and D4, E4, F4 picked the time signature here and KNOB 1 was the level.)
-- The click follows MASTER (new after 0.39), the count-in's too. It is not part of the USB recording.
+- The click follows MASTER (new in 0.40), the count-in's too. It is not part of the USB recording.
 
 ### The drums
 
-New after 0.39. With the preset on **Drums** the beat is a drum machine instead of the click: a kick, a snare that
+New in 0.40. With the preset on **Drums** the beat is a drum machine instead of the click: a kick, a snare that
 turns into a clap, and closed and open hats, playing a beat you morph rather than program.
 
 - **The beat** comes from Mutable Instruments' **Grids**: a map of 25 drum patterns on a 5 x 5 grid. You pick a place
@@ -1273,7 +1273,7 @@ the main screen again. So from the editor one tap of SEQ is the PLAY menu (the s
 the metronome) and one more is back where you started. In the PLAY menu **EDIT** opens the same editor. (Outside the
 PLAY menu EDIT is the sound editor, as ever.) SEQ does not open the editor from another layer, the Options or the
 sound editor, and not while a take is being recorded (`end the take first`). **Hold SEQ** in the editor for the
-beat's menu (the metronome or the drums; new after 0.39): the editor closes under it.
+beat's menu (the metronome or the drums; new in 0.40): the editor closes under it.
 
 <img src="manual/loop-editor.png" width="240" alt="The loop editor, page Step: a row of sixteen steps, three red, the second outlined, a white bar along its foot and the next three; Am, step 2/16; cells Note len 4, Steps 16, Chance 100%, Velocity 100">
 <img src="manual/loop-editor-trig.png" width="240" alt="The loop editor, page Trig: the same row, the second step with two ticks at its top and a blue strip at its right; Am +2 under the grid; cells Ratchet x2, Condition 1:2, Voicing +2, Transpose A4">
@@ -2079,7 +2079,7 @@ with Standard chosen, the default) puts Dual Core back as your settings say.
 | the bass being on, its **behaviour**, register, level, and which sound it plays | the panel calibration | where you were in the editor, the KEY layer's and the PLAY menu's page |
 | the effects in full: on or off, the page picked, every cell of the reverb, the chorus and the delay, both parts' sends | | |
 | which sound each part plays and each engine's last place; **each part's sound as it is, with changes you have not saved as a preset**; the parts' Level and Pan | | |
-| the tempo; the metronome's time signature and level; the beat's preset and the drums: the kit, their level, the Beat page, each drum's knobs and FX sends. **The beat itself (metronome or drums) is off at every power-on** (new after 0.39) | | |
+| the tempo; the metronome's time signature and level; the beat's preset and the drums: the kit, their level, the Beat page, each drum's knobs and FX sends. **The beat itself (metronome or drums) is off at every power-on** (new in 0.40) | | |
 | the looper's settings (Length, **Rate**, Quantize, Count-in, Level, the record mode, what its keys do), the slot, and **the loop in memory** | | |
 | the **view** and its lock | | |
 
