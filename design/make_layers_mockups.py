@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the knob-row mock-ups for the remaining layers (fm1-panel-design JSON): KEY, LOOP, SEQ (the metronome).
+"""Generate the knob-row mock-ups for the remaining layers (fm1-panel-design JSON): KEY, LOOP, SEQ (the beat's preset page).
 
   python3 design/make_layers_mockups.py     # writes design/choralroot-fm1-layers-mockups.json
 
@@ -131,16 +131,19 @@ S.append(state(
     chord_block=False,
 ))
 
-# 7 ------------------------------------------------------------------ SEQ (the metronome)
+# 7 ------------------------------------------------------------------ SEQ (the beat: Metronome / Drums)
 S.append(state(
-    "7 · SEQ · the metronome: the time signature over the click level",
-    "SEQ held (the SEQ key's hold menu, the metronome): the time signature picker (4/4 · 3/4 · 6/8) in white over one "
-    "cell, CLICK (KNOB 1, a bar); the other three '–'. The screen's title is \"metronome\" and the top line is empty, as "
-    "the firmware draws it. GLO held + SEQ toggles the click, and so does SEQ tapped in this layer (a SEQ tap anywhere else opens the loop editor). (OPT + SELECT sets the same level from anywhere.)",
+    "7 · SEQ · the beat's preset page (Metronome)",
+    "SEQ held (the SEQ key's hold menu): the beat's preset page. Since the drums (the DRUMS plan, after 0.39) the device "
+    "draws it as its own panel (CR_K_DRUM: the Metronome and Drums tiles under the page's name; the v3 sheet "
+    "design/drums-mockups/drums-v3-overview.png, the drum pages Beat, Kick, Snare, Hats after it with Drums); this sheet "
+    "keeps the knob row: Preset (KNOB 1), Click (KNOB 2, a bar), Meter (KNOB 3; D4 E4 F4 pick it too), and with Drums "
+    "Kit (KNOB 4). GLO held + SEQ toggles the beat, and so does SEQ tapped in this layer (a SEQ tap anywhere else opens "
+    "the loop editor). (OPT + SELECT sets the click's level from anywhere.)",
     keys=[OFF] * 27, buttons={"SEQ": BLINK}, button_notes={"SEQ": LAYER_BTN_NOTE},
-    encoders={"KNOB1": ("CLICK", "70"), "KNOB2": "", "KNOB3": "", "KNOB4": ""},
-    screen=scr(knobrow(["4/4", "3/4", "6/8"], 0, "white", [g("Click", "70", "bar", 0.7), None, None, None], label="metronome"),
-               key="", foot="OCT-: back · HOME: home", note="SEQ (metronome): the signature big, the click level on KNOB 1."),
+    encoders={"KNOB1": ("PRESET", "Metro"), "KNOB2": ("CLICK", "70"), "KNOB3": ("METER", "4/4"), "KNOB4": ""},
+    screen=scr(knobrow(["Metronome"], 0, "white", [g("Preset", "Metro"), g("Click", "70", "bar", 0.7), g("Meter", "4/4"), None]),
+               key="", note="SEQ: the preset page; the device draws the Metronome / Drums tiles in the band (CR_K_DRUM)."),
     chord_block=False,
 ))
 

@@ -85,7 +85,28 @@ chord part. Until 0.17 it was recorded as an ordinary single note and came back 
   (`metronome on`; SEQ's tap was the click until 2026-10-11: it is the loop editor's key now, below); it clicks on the
   take's / the loop's / its own grid. SEQ held = 4/4 3/4 6/8 picker (a SEQ tap in that layer is still the
   click on / off: the layer's own button), KNOB 1 there or OPT + SELECT = click level. The click is a 25 ms two-pole sine burst mixed after fx.c (cr_out.c
-  `cr_click_mix`), 2.5 kHz on the bar's first beat.
+  `cr_click_mix`), 2.5 kHz on the bar's first beat. Since the drums the PLAY menu's KNOB 2 is labelled **Beat** and
+  GLO + SEQ is the beat on / off: the click with the SEQ layer's preset on Metronome, the drums with Drums (below).
+
+## The drums (after 0.39; `cr_drum.c`, `cr_loop.c crl_tick1`, `cr_ui.c cu_beat_post`)
+
+The SEQ layer's preset Drums (docs/MANUAL.md "The drums"): a Grids beat on CoralFlower's morph drum synth. The drums
+ride the loop as the arp does, and are never part of it:
+
+- **Not in a loop.** No event, no layer, nothing in a slot or `crl_data_t`; their state is the session's drum block
+  (docs/SETTINGS.md), saved by the global save. Undo, Clear, the record modes and the loop editor never see them.
+- **The grid.** `crl_tick1`, after the click: with `crl.drums` on (the beat on with Drums: `LP_DRUMS`) and a loop
+  playing (an overdub too) or a take recording (`CRL_CAP_REC`; never the count-in), the step is the tempo tick's place
+  in the bar from the take's start (`rrec0`) or the cycle's (`rcyc0`): a 32nd (`CRL_PPQN / 8` = 12 ticks), Grids' step,
+  0 .. 31 in 4/4. `crl.dstep` (step + 1) is taken by the audio block (`choralroot.c mix_block`: `crd_beat_step`).
+- **Start, stop, join.** `drum_run` goes on at the first anchored tick that is a beat (`rel % beat == 0`): LOOP's start
+  is the cycle's (a beat), so they start at bar 1; turned on while a loop plays they join on its next beat, in step
+  with its bar; LOOP stopping clears `drum_run` (the voices ring out). On with nothing playing: they wait. A cycle that
+  is not whole bars (Free) restarts them at its start, as the click's grid.
+- **3/4 and 6/8.** The bar is 288 ticks: steps 0 .. 23, the first 24 of Grids' 32 (12 of each 16 sixteenths; the plan's
+  open question 1, option a). The click's grid is unchanged.
+- **The Rate** does not change them: they follow the tempo's ticks (`crl.rt`), as the click.
+- **The home chip** reads `crl.bpos` (the beat the click or the drums are on + 1; 0 while they wait).
 
 ## The Rate (0.18)
 
