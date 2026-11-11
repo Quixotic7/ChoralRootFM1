@@ -75,13 +75,13 @@ int main(void)
           !LDR_RANGE_OK(0x3000u, 0x2000u) && FL_PROTECTED(0xBF000u, 0x2000u) && FL_PROTECTED(0x3F00u, 0x200u));
     check("wrapping ranges refused (off + n past 4 GiB)",
           !FL_GUARD(0xBB000u, 0xFFFFF000u) && !LDR_RANGE_OK(0x9D000u, 0xFFFFFF00u) && FL_PROTECTED(0xBB000u, 0xFFFFF000u));
-    check("app windows: FL_DATA 0x9D000-0xBAFFF, FL_OTA 0xBB000-0xBFFFF, USRFLASH 0xC2000-0xE9FFF, the stock marker sector, "
+    check("app windows: FL_DATA 0xA9000-0xBAFFF, FL_OTA 0xBB000-0xBFFFF, USRFLASH 0xC2000-0xE9FFF, the stock marker sector, "
           "FL_TAIL 0xEB000-0xF1FFF",
-          FL_GUARD(0x9D000u, 0x1000u) && FL_GUARD(0xBA000u, 0x1000u) && FL_GUARD(0xBF000u, 0x1000u) &&
+          FL_GUARD(0xA9000u, 0x1000u) && FL_GUARD(0xBA000u, 0x1000u) && FL_GUARD(0xBF000u, 0x1000u) &&
           FL_GUARD(0xC2000u, 0x1000u) && FL_GUARD(0xE9000u, 0x1000u) && FL_GUARD(0xEA000u, 0x1000u) &&
           FL_GUARD(0xEB000u, 0x1000u) && FL_GUARD(0xF1000u, 0x1000u) && !FL_GUARD(0xF2000u, 0x1000u) &&
           !FL_GUARD(0xF3000u, 0x1000u) && !FL_GUARD(0x9C000u, 0x1000u) &&
-          allowed == (0xC0000u - 0x9D000u + 0xEA000u - 0xC2000u + 0xF2000u - 0xEB000u) / 0x1000u + 1u &&
+          allowed == (0xC0000u - 0xA9000u + 0xEA000u - 0xC2000u + 0xF2000u - 0xEB000u) / 0x1000u + 1u &&
           FL_TAIL_LO == FL_SMP_HI + 0x1000u && FL_TAIL_HI <= FL_USRRES_LO);
     check("the stock marker sector 0xEA000: the whole sector only (its erase), never a page or a range into it",
           FL_STOCKTAG_OK(0xEA000u, 0x1000u) && !FL_GUARD(0xEA000u, 256u) && !FL_GUARD(0xEAF00u, 256u) &&
@@ -153,6 +153,12 @@ int main(void)
           st_sector(OBJ_X_PROJECT0, 0) == ST_NOWHERE && st_sector(OBJ_CZBANK0, 0) == 0xC2000u &&
           st_sector(OBJ_CZBANK0 + 7u, 1) == 0xD1000u);
     check("FL_PLAIN_LO = the VM start 0x9D000, the boot stub's too", FL_PLAIN_LO == 0x9D000u && STUB_PLAIN_LO == FL_PLAIN_LO);
+    for (s = FL_RES_LO, ok = 1, k = 0; s < FL_RES_HI; s += 0x1000u, k++)   /* the resource region (cr_res.h, 3y295) */
+        ok &= !FL_GUARD(s, 0x1000u) && !FL_GUARD(s + 0xF00u, 256u) && !FL_STORE_OK(s, 0x1000u) && LDR_RANGE_OK(s, 0x1000u) &&
+              !owner[s >> 12] && !in_regions(s) && s >= FL_PLAIN_LO && smk_freed(s);
+    check("the resource region 0x9D000-0xA8FFF: in the plain window, the loader's to write, never the app's, no object's, "
+          "never cleared by an owner change or Flash Data", ok && k == 12u && FL_RES_LO == 0x9D000u && FL_RES_HI == 0xA9000u &&
+          FL_RES_LO == FL_APP_HI && FL_RES_HI == FL_DATA_LO);
     check("the boot stub: the staged loader at FL_OTA, the marker in the app area",
           STUB_LDR_OFF == FL_OTA_LO && STUB_LDR_OFF + STUB_LDR_LEN == FL_OTA_HI && FL_IN(STUB_MARK_SEC, 0x1000u, FL_APP_LO, FL_APP_HI));
     {

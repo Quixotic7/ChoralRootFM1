@@ -456,9 +456,36 @@ M, CRX and CRB (36 024 B); the radio program's slot is empty until Bluetooth (do
   ChoralRoot record: booted on the defaults; the settings backup restored byte for byte); the splash normal and every
   font drawn, no garbled text: the region read through the plain window as the host said.
 - **Not affected**: the backups (objects over SysEx, never the region), SAFE MODE's Flash Data (`cu_flash_erase`: its
-  list starts at 0x9F000, asserted), the SMK-37 (no region: its build keeps every font in the image, its loader's
-  window is unchanged). A package made from V15 and an app.bin alone (`fm1pkg.js buildFeluccaPackage`, not used by
+  list starts at 0x9F000, asserted). A package made from V15 and an app.bin alone (`fm1pkg.js buildFeluccaPackage`, not used by
   ChoralRoot's pages) would carry no region: such a unit shows FONTS MISSING.
+
+### The SMK-37's resource region (HISTORY 3y295)
+
+The SMK-37 build has its own region since 3y295, the same in every part as the FM-1's above, 48 KB at another place:
+**0x9D000..0xA8FFF**, the stock VM's first 12 sectors, right after its app area (PRCT 0x9D000) and at the start of its
+plain XIP window (XIP 0x02099000; the data from flash 0x9D040, XIP 0x02099040). They held 0.21's sound objects until
+3y231 and nothing since. The data is the glyph data of the fonts M, CRX and CRB (36 024 B of 49 088); no radio program
+(the SMK has no Bluetooth).
+
+- **The flash map** (`hal/fm1_flash_map.h`): `FL_RES_LO` / `FL_RES_HI` for the SMK; its `FL_DATA` starts at 0xA9000
+  (was 0x9D000), so the app can neither erase nor write the region. The loader's window (`FL_LDR_RANGE_OK`: the record
+  window 0x9D000..0xBFFFF) already covers it; the boot stub's plain window already starts at 0x9D000, so the stub is
+  unchanged (`stub_smk37.lock`).
+- **The store** (`storage.c`): no object moves. `ST_SMK_REGIONS`, the sectors an owner change and Flash Data erase,
+  started at 0x9D000 (18 sectors, 12 of them 0.21's); it starts at 0xA9000 now (6 sectors: the FM6 bank, the settings,
+  the session), so neither erases the region. Without that the first start after an install over another firmware's
+  store would erase the fonts the install had just written.
+- **The package and the loader**: `fm1pkg_make.py --board smk37 --res` makes `flash.bin` 0xA9000 long (PRCT still
+  0x9D000, the stock region table unchanged); `ldr_core.c` `LDR_RES_HI` is 0xA9000 for the SMK. The record sweep runs
+  from 0xC0000 down to 0xA9000. `tests/ldr_test.c` (SMK build): every cut of an install with the region over each base
+  is a rescue or the finished boot, with the same unprotected windows as before; 1325 requests an install (96 more).
+  A package without the region (0.39-smk37 and before) leaves those sectors as they were (its second run).
+- **The build** (`tools/build.py`): links BOARD=smk37 with `build/app-smk37.ld`, a copy of `firmware/app.ld` whose RES
+  line has the SMK's origin, checks `_res_start` there and hands `build/res.bin` to the package.
+- **Downgrade**: 0.39-smk37 and before neither read nor write 0x9D000..0xA8FFF (their store starts there but their
+  objects start at 0xA9000); only their owner change and Flash Data erase it, and the next install of this firmware
+  writes it again.
+- **Not tried on a unit** (the project has no SMK-37): SMK37.md "What to test" 16.
 
 ### Size and time
 

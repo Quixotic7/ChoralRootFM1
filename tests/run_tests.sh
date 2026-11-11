@@ -210,9 +210,9 @@ par_build $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_trs_test" tests/smk_tr
 run "SMK-37 TRS MIDI out: bytes in order, the clock ahead, bursts never block or cut, releases always in, Off" \
     "$OUT/smk_trs_test"
 PAR_MAKES="$OUT/smk-new.fwsc"
-par_prep quiet python3 tools/fm1pkg_make.py --board smk37 --product "SMK-37 Pro_920" build/choralroot.bin \
-    build/loader/ota.bin "$OUT/smk-new.fwsc"
-run "SMK-37 package layout (fm1pkg_make --board smk37): PRCT 0x9D000, stock region table, the stub's places" \
+par_prep quiet python3 tools/fm1pkg_make.py --board smk37 --product "SMK-37 Pro_920" --res build/res.bin \
+    build/choralroot.bin build/loader/ota.bin "$OUT/smk-new.fwsc"
+run "SMK-37 package layout (fm1pkg_make --board smk37): PRCT 0x9D000, stock region table, the stub's places, the region" \
     python3 tests/smk_pkg_test.py "$OUT/smk-new.fwsc"
 par_build $CC -DBOARD_SMK37=1 -DOWN_PKG=1 -o "$OUT/ota_test_smk" tests/ota_test.c
 run "M-UPGRADE entry, SMK-37 build (staging 0xBB000, parm ota-SMK-37 Pro_016)" "$OUT/ota_test_smk" "$OUT/smk-new.fwsc"
@@ -226,9 +226,11 @@ for m in no-stub other-body no-stub-other old-stub; do
     par_prep quiet python3 tools/make_stub_test_pkg.py "$m" --board smk37 -o "$OUT/smk-stub-test-$m.fwsc"
 done
 par_build $CC -O2 -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/ldr_test_smk" tests/ldr_test.c
-run "update loader, SMK-37: app area 0x4000-0x9CFFF, the interruption model, the protected ranges untouched" \
+run "update loader, SMK-37: app area 0x4000-0x9CFFF, the region 0x9D000-0xA8FFF, the interruption model, the protected ranges untouched" \
     "$OUT/ldr_test_smk" "$OUT/smk-stub-test-no-stub.fwsc" "$OUT/smk-new.fwsc" "$OUT/smk-stub-test-other-body.fwsc" \
     "$OUT/smk-stub-test-no-stub-other.fwsc" "$OUT/smk-stub-test-old-stub.fwsc"
+run "update loader, SMK-37: a package without the region (a downgrade) leaves 0x9D000-0xA8FFF as it was" \
+    "$OUT/ldr_test_smk" "$OUT/smk-new.fwsc" "$OUT/smk-stub-test-no-stub.fwsc"
 for m in pro elite mke; do                           # the packages BOARD=smk37 MODEL=... ./build.sh made, when present
     f=build/choralroot-smk37.fwsc; id="SMK-37 Pro_920"
     [ $m = elite ] && f=build/choralroot-smk37-elite.fwsc && id="SMK-37 Elite_920"

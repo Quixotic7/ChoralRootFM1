@@ -12,8 +12,8 @@ material in it:
              cfg_tool.bin and eq_cfg_hw.bin, the region descriptors, SFC-encrypted
              with the chip key
   ota.bin    Felucca's own update loader (firmware/loader)
-  (FM-1, --res: flash.bin runs on to 0x9F000 with the resource region after the app area, plain: its header at
-  0x93000, the data from 0x93040; firmware/src/cr_res.h, HISTORY 3y234)
+  (--res: flash.bin runs on to 0x9F000 with the resource region after the app area, plain: its header at 0x93000,
+  the data from 0x93040; firmware/src/cr_res.h, HISTORY 3y234. SMK-37, 3y295: to 0xA9000, the header at 0x9D000)
 
 The layout values (offsets, flags, descriptor addresses, header fields) are
 facts of the FM-1 flash layout and the SDK file formats.
@@ -66,11 +66,13 @@ BOARDS = {"fm1": (0x93000, "FM-1"),
 
 def set_board(board):
     """select the flash layout of a board ("fm1" default, "smk37")"""
-    global BOARD, FLASH_SIZE
+    global BOARD, FLASH_SIZE, RES_LO, RES_HI, RES_DATA
     if board not in BOARDS:
         raise SystemExit(f"fm1pkg_make: unknown board {board!r} (fm1, smk37)")
     BOARD = board
     FLASH_SIZE = BOARDS[board][0]
+    RES_LO, RES_HI = RES_AT[board]
+    RES_DATA = RES_LO + 0x40
 
 
 KEY = 0x980F
@@ -81,11 +83,13 @@ BODY_MAX = 0x8C000                  # the body ends below the marker's sector (f
 MARK_OFF = 0x91FE0 - 0x4120         # the marker: the last 32 bytes of flash sector 0x91000
 MARK_MAGIC, MARK_FORMAT = 0x4D425243, 1     # "CRBM"
 COMP_OFF = MARK_OFF + 20            # the four compensation bytes
-# the resource region (firmware/src/cr_res.h, hal/fm1_flash_map.h FL_RES_LO; FM-1 only, HISTORY 3y234): flash.bin runs
+# the resource region (cr_res.h, hal/fm1_flash_map.h FL_RES_LO; HISTORY 3y234, SMK-37 3y295): flash.bin runs
 # on past FLASH_SIZE (PRCT, the app area's end: unchanged) with the region's sectors, plain (no SFC: the app reads them
 # through the plain XIP window), the 64-byte header at RES_LO, the data (build/res.bin, the app's .res) from RES_DATA.
 # The update loader writes them with the body, before the commit marker (firmware/loader/ldr_core.c)
-RES_LO, RES_HI = 0x93000, 0x9F000
+RES_AT = {"fm1": (0x93000, 0x9F000),          # per board: [RES_LO, RES_HI), right after PRCT (set_board)
+          "smk37": (0x9D000, 0xA9000)}
+RES_LO, RES_HI = RES_AT["fm1"]
 RES_DATA = RES_LO + 0x40
 RES_MAGIC, RES_FORMAT = 0x53455243, 1   # "CRES"
 APP_CRC_FIXED = 0x4352              # app.bin's CRC-16 in every stub package ("CR")
@@ -289,8 +293,8 @@ def flash_image(app, key, marker_of=marker, res=None, ble=(0, 0)):
     sfc(region, 0, len(region), 0, key)
     f[0x4000:0x4000 + len(region)] = region
     if res is not None:                                 # the resource region: after the app area, plain
-        if BOARD != "fm1" or not stub or FLASH_SIZE != RES_LO:
-            raise SystemExit("fm1pkg_make: a resource region needs the FM-1 layout and an app with the boot stub")
+        if not stub or FLASH_SIZE != RES_LO:
+            raise SystemExit("fm1pkg_make: a resource region needs an app with the boot stub")
         if not 0 < len(res) <= RES_HI - RES_DATA:
             raise SystemExit(f"fm1pkg_make: the resource data is {len(res)} B (1 .. {RES_HI - RES_DATA})")
         body_crc = struct.unpack_from("<I", app, MARK_OFF + 12)[0]   # (the marker commit() wrote: its CRC-32 field)
@@ -350,7 +354,7 @@ def main():
     ap.add_argument("--board", choices=sorted(BOARDS), default="fm1")
     ap.add_argument("--product", help="package identity (default: FM-1_900; smk37: SMK-37 Pro_900)")
     ap.add_argument("--key", type=lambda s: int(s, 0), default=KEY)
-    ap.add_argument("--res", type=Path, help="the resource region's data (build/res.bin; FM-1, an app with the stub)")
+    ap.add_argument("--res", type=Path, help="the resource region's data (build/res.bin; an app with the stub)")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     a = ap.parse_args()
     global SDK

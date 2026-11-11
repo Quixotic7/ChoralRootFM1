@@ -18,7 +18,8 @@
  *                                                             from its last page on; the window between is the same
  * A cut state is: B the stub boots it, R the stub rescues (the staged loader), O the old firmware still whole (no
  * stub yet, nothing it uses touched), U unprotected (no working stub in sector 0x4000 and not the whole old app).
- * The resource region (HISTORY 3y234, firmware/src/cr_res.h; FM-1): a NEW whose flash.bin runs on to 0x9F000 carries
+ * The resource region (HISTORY 3y234, firmware/src/cr_res.h; the SMK-37's since 3y295): a NEW whose flash.bin runs on
+ * to T_RES_HI (0x9F000; SMK 0xA9000) carries
  * it; every base starts with stale bytes there (0.21's objects, another firmware's data), so every cut leaves some of
  * it written, and B (the stub boots) is allowed only with the whole region in place. A NEW without it (an older
  * package: the downgrade) must leave the region as it was, byte for byte. */
@@ -33,7 +34,7 @@
 /* the board's places (-DBOARD_SMK37=1: the SMK-37's, on SMK-layout packages: PRCT 0x9D000, the staging at 0xBB000) */
 #if BOARD_SMK37
 #define T_APP_HI 0x9D000u                /* the end of the app area the loader writes (ldr_core.c LDR_APP_HI) */
-#define T_RES_HI T_APP_HI                /* (no resource region on the SMK-37) */
+#define T_RES_HI 0xA9000u                /* the resource region's end (LDR_RES_HI): 0x9D000 .. (3y295) */
 #define T_REC_HI 0xC0000u                /* .. and of its record window (LDR_REC_HI) */
 #define T_OTA 0xBB000u                   /* the staging area (ota.c OTA_AREA) */
 #else
@@ -345,10 +346,10 @@ int main(int argc, char **argv)
     bad += check("install completes", rc == 0);
     bad += check("app area == the new package's flash.bin", !memcmp(nor + 0x4000, logical + nfo + 0x4000, T_APP_HI - 0x4000));
     if (t_end > T_APP_HI)
-        bad += check("resource region == the package's (0x93000..0x9EFFF)",
+        bad += check("resource region == the package's (T_APP_HI..T_RES_HI)",
                      !memcmp(nor + T_APP_HI, logical + nfo + T_APP_HI, T_RES_HI - T_APP_HI));
     else if (T_RES_HI > T_APP_HI)
-        bad += check("no resource region in it: 0x93000..0x9EFFF as before (a downgrade)",
+        bad += check("no resource region in it: T_APP_HI..T_RES_HI as before (a downgrade)",
                      !memcmp(nor + T_APP_HI, res_before, T_RES_HI - T_APP_HI));
     }
     bad += check("flash head [0, 0x4000) untouched", !memcmp(nor, head, sizeof head));

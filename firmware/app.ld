@@ -21,7 +21,8 @@ MEMORY
     NOINIT (rw)  : ORIGIN = 0x01C7C020, LENGTH = 0x3D30
     /* the resource region's data (firmware/src/cr_res.h, HISTORY 3y234): flash 0x93040..0x9EFFF, XIP through the
      * plain window; not in app.bin: tools/build.py takes .res alone, tools/fm1pkg_make.py --res puts it after the
-     * slot with its header at 0x93000. The SMK-37 build has none (the section stays empty: build.py checks) */
+     * slot with its header at 0x93000. The SMK-37's (3y295): flash 0x9D040..0xA8FFF, XIP 0x02099040: tools/build.py
+     * links BOARD=smk37 with a copy of this file whose RES line has that origin (the length is the same) */
     RES    (r)   : ORIGIN = 0x0208F040, LENGTH = 0xBFC0
 }
 SECTIONS

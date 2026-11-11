@@ -77,7 +77,8 @@ static void check(const char *what, int ok) { printf("smk owner: %-78s %s\n", wh
 static void fill(void)
 {
     memset(nor, 0xFF, sizeof nor);
-    memset(nor + 0x9D000, 0x11, 0x12000);          /* objects below the tag */
+    memset(nor + 0x9D000, 0xAA, 0xC000);           /* the resource region (3y295): the loader's, never touched */
+    memset(nor + 0xA9000, 0x11, 0x6000);           /* objects below the tag */
     memset(nor + 0xB0000, 0x22, 0xB000);           /* the CZ-1 store's second half, the QUAD store, the favourites,
                                                     * the pool's first run */
     memset(nor + 0xBB000, 0x55, 0x5000);           /* the staging (the loader the stub hands over to): never */
@@ -121,12 +122,12 @@ static int is_stock(void)
 }
 static int store_erased(void)
 {
-    return all(0x9D000, 0xAF000, 0xFF) && all(0xB0000, 0xBB000, 0xFF) && all(0xC2000, 0xEA000, 0xFF) &&
+    return all(0xA9000, 0xAF000, 0xFF) && all(0xB0000, 0xBB000, 0xFF) && all(0xC2000, 0xEA000, 0xFF) &&
            all(0xEB000, 0xF2000, 0xFF);
 }
 static int others_kept(void)
 {
-    return all(0xBB000, 0xC0000, 0x55) && all(0xC1000, 0xC2000, 0x33) && all(0xEA000, 0xEB000, 0x99) &&
+    return all(0x9D000, 0xA9000, 0xAA) && all(0xBB000, 0xC0000, 0x55) && all(0xC1000, 0xC2000, 0x33) && all(0xEA000, 0xEB000, 0x99) &&
            all(0xF2000, 0xF4000, 0x66) &&
            all(0xF4000, 0xFE000, 0x77) && all(0xFF000, 0x100000, 0x88);
 }
@@ -147,7 +148,7 @@ int main(void)
     st_owner_check();
     check("another family's store (FELUCCA): every ChoralRoot data sector cleared, tagged ours",
           store_erased() && st_owner_cleared && tagged());
-    check("... the staging, USRTRIM, 0xEA000, the free tail's rest, USR and key_mac untouched", others_kept());
+    check("... the resource region, the staging, USRTRIM, 0xEA000, the free tail's rest, USR and key_mac untouched", others_kept());
     fill();
     memcpy(nor + 0xAF000, "SMK37DATASLOOP\0", 16);
     st_owner_cleared = 0;
@@ -156,12 +157,12 @@ int main(void)
           others_kept());
     fill();
     st_owner_check();                              /* tag the store ours (an untagged one: cleared first) */
-    memset(nor + 0x9D000, 0x11, 0x12000);
+    memset(nor + 0xA9000, 0x11, 0x6000);
     memset(nor + 0xC2000, 0x44, 0x28000);
     memset(nor + 0xEB000, 0x44, 0x7000);
     st_owner_cleared = 0;
     st_owner_check();
-    check("our own store: kept as it is", all(0x9D000, 0xAF000, 0x11) && all(0xC2000, 0xEA000, 0x44) &&
+    check("our own store: kept as it is", all(0xA9000, 0xAF000, 0x11) && all(0x9D000, 0xA9000, 0xAA) && all(0xC2000, 0xEA000, 0x44) &&
           all(0xEB000, 0xF2000, 0x44) &&
           !st_owner_cleared && tagged());
     fill();
@@ -176,7 +177,7 @@ int main(void)
     st_owner_cleared = 0;
     st_owner_check();
     check("owner change over the intact stock mapping: the store cleared, USRFLASH and its marker kept",
-          all(0x9D000, 0xAF000, 0xFF) && all(0xB0000, 0xB4000, 0xFF) && is_stock() && tag_erases == 0 &&
+          all(0xA9000, 0xAF000, 0xFF) && all(0xB0000, 0xB4000, 0xFF) && is_stock() && all(0x9D000, 0xA9000, 0xAA) && tag_erases == 0 &&
           st_stock_tagged() && st_stock_intact() && tagged());
     st_owner_check();
     check("... and at the next boot (ours now)", is_stock() && tag_erases == 0);

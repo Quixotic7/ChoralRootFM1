@@ -123,8 +123,11 @@ static uint32_t st_crc32(const void *p, uint32_t n) { return st_crc_run(0u, p, n
  * the FM-1. Only inside hal/fm1_flash_map.h's windows FL_DATA, FL_SMP and FL_TAIL (FL_STORE_OK), never in FL_OTA
  * (0xBB000..0xBFFFF, the update's staging), BTIF / USRTRIM (0xC0000..0xC1FFF), the stock resources (0xF4000..0xFDFFF)
  * or key_mac (0xFF000..).
- *   FL_DATA 0x9D000..0xBAFFF (the stock VM, 30 sectors)
- *     0x9D000..0xA8FFF  free (the place of 0.21's sound objects: nothing reads or writes it since HISTORY 3y231)
+ *   the stock VM, 30 sectors, 0x9D000..0xBAFFF
+ *     0x9D000..0xA8FFF  the resource region since HISTORY 3y295 (cr_res.h, FL_RES: the update loader writes it, never
+ *                       the store; 0.21's sound objects until 3y231, free since). Not in ST_SMK_REGIONS: an owner
+ *                       change or Flash Data leaves it
+ *   FL_DATA 0xA9000..0xBAFFF
  *     0xA9000 / 0xAA000 OBJ_FM6BANK          0xAB000 / 0xAC000 OBJ_SETTINGS     0xAD000 / 0xAE000 OBJ_SESSION
  *     0xAF000           the store owner tag (st_owner_check: the same place in every ported firmware)
  *     0xB0000..0xB3FFF  free (the same)
@@ -137,9 +140,11 @@ static uint32_t st_crc32(const void *p, uint32_t n) { return st_crc_run(0u, p, n
  *   FL_TAIL 0xEB000..0xF1FFF (the free tail after it, 7 of its 9 sectors)
  *     0xEB000..0xF1FFF  the sound pool's sectors 9..15 (0xF2000..0xF3FFF stay free)
  * The pool's 16 floating sectors are three runs (sp_addr): 5 in FL_DATA, 4 at FL_SMP's end, 7 in FL_TAIL. */
-#define ST_SMK_BASE 0x9D000u
+#define ST_SMK_BASE 0x9D000u                   /* (the objects' numbering: pairs 0..5 were 0.21's, the region now) */
 #define ST_SMK_PAIRS 9u                        /* the pairs below the owner tag */
 #define ST_SMK_SECTORS (2u * ST_SMK_PAIRS)
+#define ST_SMK_LIVE (ST_SMK_BASE + 12u * ST_SECTOR)   /* pairs 6..8: OBJ_FM6BANK, OBJ_SETTINGS, OBJ_SESSION */
+#define ST_SMK_LIVE_SECTORS (ST_SMK_SECTORS - 12u)
 #define ST_SMK_HIGH 0xB0000u                   /* the pairs above it: CZ-1 store 2, QUAD store, the favourites */
 #define ST_SMK_HIGH_SECTORS 6u
 #define ST_SMK_CZB 0xC2000u                    /* the CZ-1 banks, in USRFLASH */
@@ -153,16 +158,17 @@ static uint32_t st_crc32(const void *p, uint32_t n) { return st_crc_run(0u, p, n
 #define ST_SMK_POOL2 0xEB000u                  /* .. sectors 9..15 in FL_TAIL */
 #define ST_SMK_POOL2_N 7u
 /* every place of ChoralRoot's data on the SMK (base, sectors): the owner check and Options > Flash Data clear these
- * (the owner tag is not one of them) */
-static const uint32_t ST_SMK_REGIONS[][2] = {{ST_SMK_BASE, ST_SMK_SECTORS}, {ST_SMK_HIGH, ST_SMK_HIGH_SECTORS},
+ * (the owner tag is not one of them, nor the resource region below the objects: 3y295) */
+static const uint32_t ST_SMK_REGIONS[][2] = {{ST_SMK_LIVE, ST_SMK_LIVE_SECTORS}, {ST_SMK_HIGH, ST_SMK_HIGH_SECTORS},
                                              {ST_SMK_CZB, ST_SMK_CZB_SECTORS}, {ST_SMK_LOOPS, ST_SMK_LOOP_SECTORS},
                                              {ST_SMK_POOL0, ST_SMK_POOL0_N}, {ST_SMK_POOL1, ST_SMK_POOL1_N},
                                              {ST_SMK_POOL2, ST_SMK_POOL2_N}};
 #if FELUCCA_CZ && FELUCCA_QUAD
 _Static_assert(OBJ_COUNT == 21u && OBJ_BLE + 1u == OBJ_COUNT, "SMK store: a new object needs a place (OBJ_BLE: none)");
 #endif
-_Static_assert(ST_SMK_BASE == FL_DATA_LO && ST_SMK_BASE + ST_SMK_SECTORS * ST_SECTOR == 0xAF000u,
-               "SMK store: the objects end at the owner tag");
+_Static_assert(ST_SMK_BASE == FL_RES_LO && ST_SMK_LIVE == FL_RES_HI && ST_SMK_LIVE == FL_DATA_LO &&
+               ST_SMK_BASE + ST_SMK_SECTORS * ST_SECTOR == 0xAF000u,
+               "SMK store: the resource region, then the live objects from FL_DATA_LO, ending at the owner tag");
 _Static_assert(ST_SMK_HIGH >= 0xAF000u + ST_SECTOR && ST_SMK_HIGH + ST_SMK_HIGH_SECTORS * ST_SECTOR <= ST_SMK_POOL0,
                "SMK store: the pairs above the owner tag run into the pool");
 _Static_assert(ST_SMK_POOL0 + ST_SMK_POOL0_N * ST_SECTOR <= FL_DATA_HI, "SMK store: the pool's first run past FL_DATA");

@@ -235,9 +235,8 @@ the first start.
 | --- | --- | --- |
 | 0x00000-0x03FFF | head (SPL, boot config) | never |
 | 0x04000-0x9CFFF | the app area: the boot stub, the app, the commit marker | the update loader only |
-| 0x9D000-0xA4FFF | free (0.21's VA, FM6 and CZ-1 tone stores' place: not read since HISTORY 3y231) | FL_DATA |
-| 0xA5000-0xA8FFF | free (0.21's user sound banks' place: not read since 3y231) | FL_DATA |
-| 0xA9000-0xAAFFF | the FM6 bank | FL_DATA |
+| 0x9D000-0xA8FFF | the resource region (since HISTORY 3y295): the glyph data of the fonts M, CRX and CRB; 0.21's sound stores' place before (free since 3y231) | the update loader only (FL_RES) |
+| 0xA9000-0xAAFFF | the FM6 bank (FL_DATA starts here since 3y295) | FL_DATA |
 | 0xAB000-0xACFFF | the settings | FL_DATA |
 | 0xAD000-0xAEFFF | the session | FL_DATA |
 | 0xAF000 | the store owner tag (`SMK37DATACHORAL`) | FL_DATA |
@@ -257,9 +256,18 @@ the first start.
 | 0xFF000-0xFFFFF | key_mac | never |
 
 Each object has two copies (A / B); the pool's 16 sectors float (each save goes to a free one). Options > Flash Data (in
-SAFE MODE) and a change of the store's owner erase exactly the data rows above, never the tag, the staging or anything
-else. `tests/smk_flash_test.c` checks every object's copies and every pool sector against the windows and the
+SAFE MODE) and a change of the store's owner erase exactly the data rows above, never the tag, the resource region, the
+staging or anything else. `tests/smk_flash_test.c` checks every object's copies and every pool sector against the windows and the
 protected ranges, and that no two share a sector.
+
+**The resource region (HISTORY 3y295).** As on the FM-1 (docs/BOOT-SAFETY.md "The resource region"), the three big
+fonts' glyph data (M, CRX, CRB: 36 024 B) lives outside the app slot, which frees about 35 KB of it for new features.
+The package's `flash.bin` runs on past the app area (0x9D000) to 0xA9000: a 64-byte header at 0x9D000, the data from
+0x9D040, plain, read through the plain XIP window that starts there. The update loader writes those 12 sectors with the
+app, before the commit marker, so an interrupted install stays rescuable as before; the firmware checks the region at
+power-on (this build's, whole) and otherwise shows **FONTS MISSING / INSTALL CHORALROOT AGAIN** for 3 s and draws its
+screens without the big type until the next install. An older package (0.39-smk37 and before) leaves the sectors as they
+are, and so does that firmware.
 
 ## Safety
 
@@ -352,6 +360,13 @@ What no test here can answer, in the order to try it. Note the model, the packag
     running with Options > MIDI Clock `OUT`: notes stuck, the synth's tempo drifting) are what is missing. Then
     Options > TRS MIDI Out `Off` with a chord held: let go, the synth's notes end and nothing new plays. If your
     adapter is Type B, say so (a Type B synth stays silent on a Type A jack).
+
+16. **The resource region (3y295, the first build with it).** Install it over the build before (from the web
+    installer and from `fm1_install.py`): the splash is normal, never **FONTS MISSING**, and every screen's big type
+    (the chord name, the key, the values) is drawn, no blank or garbled text. Power-cycle twice. Then pull the USB cable
+    in the middle of that install as in 9: after the resume the fonts are there. Install 0.39-smk37 over it and this
+    build again: both start normally. If you use M-Flasher, say whether its install of this package starts with the
+    fonts (it must write flash.bin to 0xA9000). Options > Flash Data (SAFE MODE), then a restart: the fonts stay.
 
 Also worth a line: whether `fm1_install.py --info` shows a unit ID (`unit ID: XXXXXXXX`) and whether two SMK-37s show
 different ones (it is read from the flash chip, whose maker differs from the FM-1's).

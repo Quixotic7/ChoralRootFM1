@@ -26,10 +26,11 @@
  *   c. the body, 0x5000..0x90FFF and 0x92000..0x92FFF;
  *   d. the marker's sector last (its last page holds the marker).
  * A package without the marker is written in address order, as before.
- * The resource region (FM-1, HISTORY 3y234; firmware/src/cr_res.h): a package whose flash.bin runs on to LDR_RES_HI
- * carries the region's sectors 0x93000..0x9EFFF after the app area; they are written in the same pass as the body (c),
+ * The resource region (FM-1, HISTORY 3y234; SMK-37, 3y295; firmware/src/cr_res.h): a package whose flash.bin runs on
+ * to LDR_RES_HI carries the region's sectors (0x93000..0x9EFFF; SMK 0x9D000..0xA8FFF) after the app area; they are
+ * written in the same pass as the body (c),
  * so after the marker's sector went blank and before the marker: a cut install is uncommitted (the stub rescues, the
- * resumed install writes what differs) and a committed one has its region. An older package (flash.bin 0x93000
+ * resumed install writes what differs) and a committed one has its region. An older package (flash.bin LDR_APP_HI
  * long) writes none and leaves whatever is there. The record sweep (4) never looks at the region's sectors.
  * Power loss during 3 (the SPL does not start the loader from the flash copy
  * of the record on a cold boot: BOOT-SAFETY.md): the stub finds no marker and
@@ -56,11 +57,11 @@ _Static_assert(LDR_APP_HI <= LDR_REC_LO && LDR_REC_HI <= 0xC0000u && LDR_APP_LO 
 #define LDR_REC_HI 0xFC000u                     /* ... and below Felucca's globals */
 #endif
 #if BOARD_SMK37
-#define LDR_RES_HI LDR_APP_HI                   /* (no resource region on the SMK-37) */
+#define LDR_RES_HI 0xA9000u                     /* hal/fm1_flash_map.h FL_RES_HI: the region, 0x9D000 .. (3y295) */
 #else
 #define LDR_RES_HI 0x9F000u                     /* hal/fm1_flash_map.h FL_RES_HI: the region, 0x93000 .. */
-_Static_assert(LDR_RES_HI > LDR_APP_HI && LDR_RES_HI <= LDR_REC_HI, "the resource region follows the app area");
 #endif
+_Static_assert(LDR_RES_HI > LDR_APP_HI && LDR_RES_HI <= LDR_REC_HI, "the resource region follows the app area");
 #define LDR_STUB_SEC 0x4000u                    /* the directory and the boot stub */
 #define LDR_MARK_SEC 0x91000u                   /* stub_core.h STUB_MARK_SEC, STUB_MARK_OFF */
 #define LDR_MARK_OFF 0x91FE0u

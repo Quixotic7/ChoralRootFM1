@@ -2,23 +2,26 @@
  * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
 /* The resource region (HISTORY 3y234; docs/BLE-LINK.md step 1; docs/BOOT-SAFETY.md "The resource region"):
  * read-only data that lives outside the app slot, at flash FL_RES_LO..FL_RES_HI (0x93000..0x9EFFF on the FM-1,
- * hal/fm1_flash_map.h), read through the plain XIP window (XIP 0x0208F000..). Today: the glyph data of the fonts M,
+ * 0x9D000..0xA8FFF on the SMK-37 since HISTORY 3y295; hal/fm1_flash_map.h), read through the plain XIP window (XIP
+ * 0x0208F000.. / 0x02099000..). Today: the glyph data of the fonts M,
  * CRX and CRB (tools/gen_aa_font.py RES: their AF_<N>_DATA carry AF_RES, the section .res.font, firmware/app.ld
  * .res); later the radio's start-up program (the header's ble_off / ble_len).
  *
- *   the package   tools/fm1pkg_make.py --res: flash.bin runs on past 0x93000 to FL_RES_HI, the header at FL_RES_LO,
+ *   the package   tools/fm1pkg_make.py --res: flash.bin runs on past the app area (PRCT: 0x93000, SMK 0x9D000) to
+ *                 FL_RES_HI, the header at FL_RES_LO,
  *                 the data from FL_RES_DATA (plain bytes: never SFC-encrypted, the plain window reads them as they are)
  *   the update    firmware/loader/ldr_core.c writes those sectors with the body, after the commit marker's sector went
  *                 blank and before it is written again: a cut install leaves an uncommitted body the stub rescues, and
- *                 a committed one always has its region (an older package, flash.bin 0x93000 long, writes none)
+ *                 a committed one always has its region (an older package, flash.bin PRCT long, writes none)
  *   the app       cr_shim.c cr_res_boot, once at power-on after fl_plain_window_init: the header's magic, format, own
  *                 CRC, the data's length (this build's .res) and CRC-32, and the body's CRC-32, which must be the one
  *                 in this build's commit marker (0x91FE0): a region of another build is refused. Until then, and when
  *                 refused, cr_res_ok is 0: gfx.c and cr_gfx.c draw no glyph whose data lies in the region (it would be
  *                 another build's bytes or erased flash), the crash screen and the UBOOT lines use S (CR_FONT_M), and
  *                 the splash says FONTS MISSING in S. Nothing else reads the region.
- * Only CR_RES 1 (choralroot.c, the FM-1 device build) has a region; the SMK-37 build, the emulator and the host
- * tests keep every font in their image (AF_RES empty, cr_res_ok the constant 1). */
+ * Only CR_RES 1 (choralroot.c: the device builds, the FM-1's and since 3y295 the SMK-37's, which carries the fonts
+ * alone) has a region; the emulator and the host tests keep every font in their image (AF_RES empty, cr_res_ok the
+ * constant 1). */
 #pragma once
 #include <stdint.h>
 

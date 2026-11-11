@@ -7392,7 +7392,8 @@ static void cu_safe_screen(cr_screen_t *s)
 /* Options > Flash Data (SAFE MODE, OCT+ twice): erase every data object ChoralRoot keeps (not the firmware, not the
  * update area) and reboot; the boot after it loads nothing (an erased flash: factory sounds, default settings,
  * calibration from RAM or the default). The FM-1's regions (SMK-37: storage.c ST_SMK_REGIONS, the same as a new owner
- * clears; storage.c's map): FM6 bank copy A 0x9F000, the eight CZ-1 banks 0xA2000..0xB1FFF, the session 0xB4000..0xB5FFF
+ * clears, its resource region left out; storage.c's map): FM6 bank copy A 0x9F000, the eight CZ-1 banks
+ * 0xA2000..0xB1FFF, the session 0xB4000..0xB5FFF
  * (0.18) and the favourites 0xB6000..0xB7FFF (0.22: marks on sounds that are gone would name whatever takes their
  * slots), the sound pool 0xB8000..0xC7FFF (storage.c sp_*, the user sounds since 0.22: until 0.24-beta2 it was left out,
  * so the sounds stayed), the loop slots 0xC8000..0xDBFFF (CRL_FL_BASE), the settings A / B and FM6 bank copy B

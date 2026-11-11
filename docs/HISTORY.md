@@ -8331,3 +8331,26 @@ the groups and the reopening, no MIDI Roots or MIDI Keys): `BOARD=smk37 [MODEL=e
 cd7a7035...12ae, MKE-P37 ed6902a1...983d. `web/releases-smk37.json` first; SMK37.md's status, package names, version
 line and splash. `python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh` both lists match; `CR_VERSION=0.39 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1155 ok; test_persist 121 ok; `fm1_alnk0_irq` 13,518 of 13,890). Not pushed, tagged or
 flashed here (the orchestrator's).
+
+## 2026-11-10 (the SMK-37's resource region)
+
+3y295. **The SMK-37 gets a resource region of its own; its fonts M, CRX and CRB move there (35 KB of its app slot
+free for the drums).** The owner chose option A of the DRUMS plan's Phase 2 (2026-11-10). On claude/smk-res from main
+36867e5c (0.39); 3y293 / 3y294 are claude/drums'. The region is the FM-1's (3y234, docs/BOOT-SAFETY.md) at the SMK's
+place: **0x9D000..0xA8FFF**, the stock VM's first 12 sectors (0.21's sound objects until 3y231, nothing since), right
+after its app area (PRCT 0x9D000) and at the start of its plain XIP window (the data from 0x9D040, XIP 0x02099040).
+`hal/fm1_flash_map.h`: the SMK's `FL_RES_LO` / `FL_RES_HI`, its `FL_DATA` from 0xA9000 (the app cannot write the
+region). `storage.c`: no object moves; `ST_SMK_REGIONS` (an owner change and Flash Data) starts at 0xA9000, not
+0x9D000, else the first start over another firmware's store would erase the fonts just installed. `ldr_core.c`
+`LDR_RES_HI` 0xA9000 on the SMK; the stub unchanged (its plain window already starts there; `stub_smk37.lock` holds).
+`fm1pkg_make.py`: the region per board (`RES_AT`), `--res` for both. `tools/build.py`: BOARD=smk37 links with
+`build/app-smk37.ld` (app.ld's RES line at the SMK's origin) and packs `build/res.bin`. `choralroot.c`: `CR_RES 1` and
+`AF_RES` for the SMK in a block of their own (the FM-1's block untouched, for claude/drums). `web/smk37.html`'s
+progress bar counts the longer package. **Sizes**: SMK XIP 566,360 -> 531,032 of 573,440 B (35,328 B freed, 42,408 of
+margin), RES 36,024 of 49,088 B; the package 651,914 -> 701,061 B (flash.bin 0xA9000). The FM-1 package is byte for
+byte 0.39's (b2e190bf...31e7). **Tests**: `smk_flash_test` (the region: the loader's to write, never the app's, never
+cleared), `smk_owner_test` (an owner change leaves it), `smk_pkg_test.py` (header, CRCs, body CRC = the marker's),
+`ldr_test` SMK build over a package with the region (every cut a rescue or the finished boot, 1325 requests) and a
+downgrade that leaves it. `sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1155 ok;
+test_persist 121 ok); `BOARD=smk37 ./build.sh` builds. **Not tried on a unit** (no SMK-37 here): SMK37.md "What to
+test" 16, before it ships. Not pushed, tagged or flashed.

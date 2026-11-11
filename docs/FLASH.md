@@ -126,8 +126,11 @@ docs/BOOT-SAFETY.md. "Linked" sizes are from `nm -S` on build/choralroot.elf.
 So 28 KB were never used (0x93000..0x96FFF, 0xE5000..0xE7FFF) and 64 KB are free since 3y231 (0.21's sound objects:
 0.22 .. 0.29.2 copied them into the pool once; nothing reads them now). 0x93000..0x9EFFF, one contiguous 48 KB run in
 the plain XIP window, is the resource region since 3y234 (docs/BOOT-SAFETY.md "The resource region"): free now are
-0xB2000..0xB3FFF, 0xDC000..0xDFFFF (24 KB) and 0xE5000..0xE7FFF (12 KB) (0xA0000..0xA1FFF holds Bluetooth since 3y236). On the SMK-37 the same retirement frees 0x9D000..0xA8FFF and
-0xB0000..0xB3FFF (storage.c's SMK map); its stock VM is ChoralRoot's store there.
+0xB2000..0xB3FFF, 0xDC000..0xDFFFF (24 KB) and 0xE5000..0xE7FFF (12 KB) (0xA0000..0xA1FFF holds Bluetooth since 3y236). On the SMK-37 the same retirement freed 0x9D000..0xA8FFF and
+0xB0000..0xB3FFF (storage.c's SMK map); its stock VM is ChoralRoot's store there. Since 3y295 0x9D000..0xA8FFF is the
+SMK's resource region (docs/BOOT-SAFETY.md "The SMK-37's resource region"): the fonts M, CRX and CRB moved out of its
+app slot, XIP 566 360 -> 531 032 B (35 328 B freed: 42 408 B of margin), RES 36 024 of 49 088 B; 0xB0000..0xB3FFF is
+still free.
 
 **Felucca's code that is still in the tree.** Nothing unused is linked: the image is a unity build, so a static
 function or table nothing calls is dropped by the compiler (Felucca's factory patterns, its sequencer, the retired
