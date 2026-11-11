@@ -3,6 +3,37 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.39-smk37",
+      "base": "0.39",
+      "date": "2026-11-10",
+      "tag": "v0.39-smk37",
+      "title": "0.39 on the SMK-37: Settings in groups",
+      "bullets": [
+        "Settings in groups: Play, Chords, Keys, MIDI, Screen, Audio, System, then Reset Settings. SELECT picks a group, OCT+ opens it, OCT- goes back.",
+        "Settings reopen where you left them: close them inside a group and OPT brings you back to the same setting.",
+        "Every setting, sound, loop and favorite is stored as before."
+      ],
+      "notes": [
+        "The FM-1's MIDI Roots, MIDI Keys, USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.38-smk37: the Options are one long list again.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "d6e31b2b6e81cb808e753e4e3c494853b84272ecdb5fe28bb0290da8a3f5a089",
+          "sha256_1core": "78b30a037aaa66bd1f19e1fb6320c7c436ecfbbab1b0597773d56af3ee76696f"
+        },
+        "elite": {
+          "sha256": "cd7a70353fdbde177bbd98bf20587527cea7900e7bc714e11a6bb4d94ebe12ae",
+          "sha256_1core": "b1ec9cee859543c34bb8077215361715a642247a559f0aed178af9ef2ac681fc"
+        },
+        "mke": {
+          "sha256": "ed6902a1723a704eff2c6a3601bfce76ac5d383d5b8c29ed50efd41151a3983d",
+          "sha256_1core": "8312aff1312b980b4f91e75f79de0a06c22dddca7c186d9c880e6740acb2956e"
+        }
+      }
+    },
+    {
       "version": "0.38-smk37",
       "base": "0.38",
       "date": "2026-11-09",

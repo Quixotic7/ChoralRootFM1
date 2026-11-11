@@ -8314,3 +8314,20 @@ Chord Keys went Classic) reopens on the group's first. `cr_ui.c`: GLO's opening 
 closed on the group list. 8 emulator scripts that reopened the Options and went on from the group list now go on from
 inside the group (the same entries reached, timing kept); new `cr_opt_resume` script and test_cr check.
 
+
+## 2026-11-10 (0.39 and 0.39-smk37)
+
+3y292. **0.39: MIDI Roots, pads on the chord keys, the Options in groups that reopen where they were left; 0.39-smk37
+beside it.** The owner, through the orchestration session, after trying de8d2c53 on 5473E6AA: "This is good, push,
+merge, tag, and release please". The release commit on claude/midi-in-home over de8d2c53 (3y289 MIDI Roots and the
+MIDI Keys pads, 3y290 the Options in groups, 3y291 reopening where they were closed; a fast-forward of main 3cb2e8fd).
+`./build.sh --release 0.39` and `tools/hub_build.sh 0.39`: the same `SHA256SUMS`; XIP 566,012 of 573,440 (98.7 %),
+1-core 562,412. `choralroot-0.39.fwsc` b2e190bf...31e7, `-1core` 25e52f77...6fd2. `web/releases.json` first with the
+sha256s, 0.38's entry given its going-back note (one long Options list; with MIDI Roots on, 0.38 reads MIDI Raw Chord
+Off until set; pads 36-44 as notes), `docs/releases/0.39.md` (every setting stored as before; scripts that count
+SELECT steps: the list is grouped), MANUAL.md's first line, `choralroot.c`'s dev version. **0.39-smk37** (base 0.39;
+the groups and the reopening, no MIDI Roots or MIDI Keys): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release
+0.39-smk37` and `tools/hub_build.sh 0.39-smk37`, the same `SHA256SUMS` (twelve files). Pro d6e31b2b...a089, Elite
+cd7a7035...12ae, MKE-P37 ed6902a1...983d. `web/releases-smk37.json` first; SMK37.md's status, package names, version
+line and splash. `python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh` both lists match; `CR_VERSION=0.39 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1155 ok; test_persist 121 ok; `fm1_alnk0_irq` 13,518 of 13,890). Not pushed, tagged or
+flashed here (the orchestrator's).

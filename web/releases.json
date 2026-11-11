@@ -8,6 +8,26 @@
   },
   "releases": [
     {
+      "version": "0.39",
+      "date": "2026-11-10",
+      "tag": "v0.39",
+      "sha256": "b2e190bf4b5e0c218dbda057368d32c29ef602b1aee06fd25264c0d4c73631e7",
+      "sha256_1core": "25e52f775007bbc4f556b1c9f57358018bcc361e1108e21cf042bff66192fad2",
+      "title": "A whole keyboard plays the chords; Settings in groups",
+      "bullets": [
+        "MIDI Roots (Options > MIDI): every note on that channel is a root at its own pitch, so a whole MIDI keyboard plays the chords, and the home screen shows them as if played on the FM-1.",
+        "Pads hold the chord keys: notes 36 to 44 on the MIDI Keys channel press the chord block, so a pad controller picks the chord while a keyboard plays the roots.",
+        "Settings in groups: Play, Chords, Keys, MIDI, Screen, Audio, System, then Reset Settings. SELECT picks a group, OCT+ opens it, OCT- goes back.",
+        "Settings reopen where you left them: close them inside a group and OPT brings you back to the same setting.",
+        "Every setting, sound, loop and favorite is stored as before."
+      ],
+      "notes": [
+        "Emulator or MIDI scripts that count SELECT steps through the Options: the list is now grouped; pick the group, OCT+, then count inside it.",
+        "Going back to 0.38: the Options are one long list again; with MIDI Roots on, 0.38 reads MIDI Raw Chord as Off until you set it.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.38",
       "date": "2026-11-09",
       "tag": "v0.38",
@@ -25,7 +45,14 @@
         "RemoteFM1 and the FM1 plug-in show Glide as a plain number until they are updated.",
         "Going back to 0.37: Glide slides for at most about 1.5 s again and POLY chords do not glide.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.38 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.38 again, and the Options are one long list with no groups.",
+          "MIDI Roots is gone: with it on, 0.38 reads MIDI Raw Chord as Off (its default) until you set it there. Notes 36 to 44 on MIDI Keys play as notes again."
+        ]
+      }
     },
     {
       "version": "0.37",
