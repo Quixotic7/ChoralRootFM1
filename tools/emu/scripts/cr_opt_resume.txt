@@ -1,0 +1,30 @@
+# 3y291: the Options reopen where they were closed. Inside MIDI on MIDI Roots, HOME closes them: OPT reopens inside
+# MIDI on MIDI Roots (dump 2); OPT closes them there too: the same again (3); OCT- to the group list, OPT out and in:
+# the group list on MIDI (5).
+wait 600
+btn GLO 80                    # Options: the group list
+wait 300
+knob SELECT +3                # MIDI
+btn OCT+ 30
+knob SELECT +5                # MIDI Roots
+wait 270
+btn HOME 80                   # closed from inside the group
+wait 300
+dump                          # 1: closed
+btn GLO 80
+wait 300
+dump                          # 2: inside MIDI, on MIDI Roots
+btn GLO 80                    # OPT closes from inside too
+wait 300
+btn GLO 80
+wait 300
+dump                          # 3: the same
+btn OCT- 30                   # back to the group list
+wait 270
+dump                          # 4: the group list on MIDI
+btn GLO 80
+wait 300
+btn GLO 80
+wait 300
+dump                          # 5: the group list on MIDI again
+quit

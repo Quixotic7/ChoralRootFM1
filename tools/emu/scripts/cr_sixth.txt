@@ -82,10 +82,8 @@ btn A#3 up
 wait 600
 btn GLO 80                    # In place again (the menu opens on the entry it was left on)
 wait 300
-btn OCT+ 30
-knob SELECT +2
 knob KNOB1 -1
-wait 270
+wait 300
 dump                          # 12
 btn GLO 80
 wait 500

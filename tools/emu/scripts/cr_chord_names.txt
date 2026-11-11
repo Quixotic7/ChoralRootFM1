@@ -79,10 +79,8 @@ btn C#4 up
 wait 600
 btn GLO 80                    # back to Orchid (the menu opens on the entry it was left on)
 wait 300
-btn OCT+ 30
-knob SELECT +2
 knob KNOB1 -1
-wait 270
+wait 300
 dump                          # 9
 btn GLO 80
 wait 500

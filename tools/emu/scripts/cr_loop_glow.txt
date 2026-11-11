@@ -50,10 +50,11 @@ expect led F#4 on
 dump
 btn GLO 80
 wait 200
+btn OCT- 30
 knob SELECT -1
 btn OCT+ 30
 knob SELECT +6  # (MIDI Clock: past MIDI CC since 3y273, MIDI Roots since 3y289)
-wait 70
+wait 40
 knob KNOB1 -1
 wait 100
 btn GLO 80

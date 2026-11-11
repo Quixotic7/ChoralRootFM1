@@ -3481,13 +3481,16 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
         cu.page = PG_NONE;
         cu.lock = L_NONE;
         cu.opt_open ^= 1u;
-        if (cu.opt_open) {                        /* (3y290) the group list, on the group last used; SAFE MODE's
-                                                   * first opening: inside Safe Mode, on its entry */
+        if (cu.opt_open) {                        /* (3y290) where it was closed (3y291: inside a group, on the
+                                                   * same entry; RAM only), else the group list on the group last
+                                                   * used; SAFE MODE's first opening: inside Safe Mode, on its entry */
             if (cr_safe && cu_g_of(cu.opt_sel) == CU_G_SAFE) {
                 cu.opt_in = 1;
                 cu.opt_g = CU_G_SAFE;
-            } else
+            } else if (!cu.opt_in)
                 cu_opt_root(cu.opt_g);
+            else if (!cu_opt_vis(cu.opt_sel))     /* (an entry hidden since: the group's first) */
+                cu_opt_enter();
         }
         break;
     case BT_EDIT:                                 /* the chord sound's editor (BASS held + EDIT: cu_btn_press) */

@@ -54,10 +54,8 @@ wait 200
 expect led GREEN off         # 8
 btn GLO 80                     # Options: MIDI Clock -> Out
 wait 100
-btn OCT+ 30
-knob SELECT +6
 knob KNOB1 -1
-wait 70
+wait 100
 btn GLO 80
 wait 200
 midi FA                      # Out: plays, as LOOP; no FA sent back
@@ -81,10 +79,8 @@ wait 300
 expect led GREEN off         # 14
 btn GLO 80                     # Options: MIDI Clock -> Off
 wait 100
-btn OCT+ 30
-knob SELECT +6
 knob KNOB1 -1
-wait 70
+wait 100
 btn GLO 80
 wait 200
 midi FA                      # Off: ignored

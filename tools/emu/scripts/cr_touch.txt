@@ -46,9 +46,8 @@ btn D4 up
 wait 300
 btn GLO 80
 wait 300
-btn OCT+ 30
-knob SELECT +3  # Velocity Curve (entry 7)
-wait 170
+knob SELECT +2  # Velocity Curve (entry 7)
+wait 200
 knob KNOB1 +3                 # +3
 wait 200
 btn GLO 80

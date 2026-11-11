@@ -101,10 +101,8 @@ key F3 up
 wait 300
 btn GLO 80
 wait 300
-btn OCT+ 30
-knob SELECT +1
 knob KNOB1 -1                 # Calm
-wait 270
+wait 300
 btn GLO 80
 wait 400
 key F3 down
@@ -117,10 +115,8 @@ key F3 up
 wait 300
 btn GLO 80
 wait 300
-btn OCT+ 30
-knob SELECT +1
 knob KNOB1 -1                 # Full
-wait 270
+wait 300
 btn GLO 80
 wait 400
 btn ARP down

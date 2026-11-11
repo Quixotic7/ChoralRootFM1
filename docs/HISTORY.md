@@ -8305,3 +8305,12 @@ group:` line says the group. 38 scripts that went to an entry by counting SELECT
 (timing kept: an inserted OCT press's 30 ms comes off the next wait), `cr_opt_keys`'s walk now goes group by group,
 `lp_run`'s preamble enters Play. XIP 565,980 (98.7 %, +912). MANUAL.md section 14 (a table per group), SETTINGS.md.
 
+3y291. **The Options reopen where they were closed.** The owner, trying 3y290 on 5473E6AA: "if I leave using Home then
+come back I have to dig back through to find whichever setting I was on, would be nice if that was saved so opening up
+the settings again I can pick up where I was." Closed from inside a group (HOME, OPT, a layer button, a page), OPT
+reopens inside that group on the same setting; closed from the group list, the group list on that group, as before.
+RAM only (until power-off): no stored bit. SAFE MODE still opens on Safe Mode. A setting hidden since (SUS Window after
+Chord Keys went Classic) reopens on the group's first. `cr_ui.c`: GLO's opening calls `cu_opt_root` only when it was
+closed on the group list. 8 emulator scripts that reopened the Options and went on from the group list now go on from
+inside the group (the same entries reached, timing kept); new `cr_opt_resume` script and test_cr check.
+

@@ -3359,6 +3359,17 @@ grep -aq '^loop: loop recorded (state 2 layers 1 events 1 ' "$L" && ok "a take p
     || bad "the looper with the Options open: $(grep -a '^loop:' "$L" | tail -2 | tr '\n' ' ')"
 silent_end cr_opt_keys
 
+echo "Options reopen where they were closed (3y291): inside a group on its entry, or the group list on the group"
+run cr_opt_resume
+L="$OUT/cr_opt_resume.log"
+og() { dl 'options group:' "$1" | sed 's/^  options group: //'; }
+echo "$(oe 1)" | grep -q "^open 0 " &&
+    echo "$(oe 2)" | grep -q "^open 1 entry 5 of 8 'MIDI Roots'" && [ "$(og 2)" = "in 1 group 'MIDI'" ] &&
+    echo "$(oe 3)" | grep -q "^open 1 entry 5 of 8 'MIDI Roots'" && [ "$(og 3)" = "in 1 group 'MIDI'" ] &&
+    [ "$(og 4)" = "in 0 group 'MIDI'" ] && [ "$(oe 5)" = "$(oe 4)" ] && [ "$(og 5)" = "in 0 group 'MIDI'" ] &&
+    ok "closed inside MIDI on MIDI Roots (HOME, then OPT): OPT reopens there; closed on the group list: reopens on MIDI" \
+    || bad "the Options' reopening: '$(oe 1)' / '$(oe 2)' $(og 2) / '$(oe 3)' $(og 3) / $(og 4) / '$(oe 5)' $(og 5)"
+
 echo "Options > USB Rate (0.19): 48 kHz is opt-in; 44.1 kHz, the default, is 0.18's device (the USB side: tests/cr_usbrate_test.c)"
 run cr_usb_rate
 L="$OUT/cr_usb_rate.log"

@@ -192,9 +192,10 @@ btn OCT- 80
 wait 300
 btn GLO 80                    # back to Classic: the latch kept, C#4 is SUS again
 wait 300
+btn OCT- 30
 knob SELECT -1
 btn OCT+ 30
-wait 170
+wait 140
 btn OCT- 30
 knob SELECT +1
 btn OCT+ 30

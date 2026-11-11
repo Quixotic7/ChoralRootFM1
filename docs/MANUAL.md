@@ -1857,8 +1857,10 @@ Options > Motion (Full, Calm, Off) sets how much the screens animate; the hoppin
 ## 14. Options
 
 Tap **OPT** (printed GLO). The settings are in groups (new in 0.39): **Play**, **Chords**, **Keys**, **MIDI**,
-**Screen**, **Audio** and **System**, and the list ends with **Reset Settings**. OPT opens the group list, on the
-group you used last; under the group's name, how many settings it holds.
+**Screen**, **Audio** and **System**, and the list ends with **Reset Settings**. OPT opens the Options where you
+left them: closed inside a group (with HOME, OPT or any other way), they reopen in that group on the same setting;
+closed from the group list, they reopen on the group list at the group you used last. Under a group's name, how many
+settings it holds. (This is remembered until power-off; a fresh start opens the group list on Play.)
 
 - **SELECT** (or **KNOB 1**) picks a group; **OCT+** opens it.
 - In a group one setting fills the screen, the group's name at the top:
