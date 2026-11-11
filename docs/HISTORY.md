@@ -8438,3 +8438,33 @@ X Club / X Deep: kick 134 / 93, snare 134 / 137, clap 116 / 116, closed hat 115 
 `ds_noise` 980 (the clap's loop nested in the block's), `ds_filter` 113, `ds_out` 94, `ds_fmetal` 50, `ds_metal` 27,
 `ds_run` 59, `cr_drum_mix` 105. `tests/cr_drum_test.c` rewritten for it (both kits, 34 checks, the sanitizer). The
 default build is 3y293's byte for byte; the SMK-37 has no drums.
+
+3y298. **The drums (the DRUMS plan, Phases 4 and 5).** The morph engine passed on a unit (3y297: Geek Out 2 peaks 70-80 %
+with FM TONE and P5 chords and every effect on); the owner, 2026-11-10: all six kits, both resource-region branches
+merged (3y295, 3y296), and the rest of the drums. **The kits**: all six of CoralFlower's (X Club, X Deep, X Lo-Fi, X
+Live, X Tech, X Break; their kick, snare, clap and hat rows, 1,596 B) in the FM-1's second region (`.res2.drum`) and the
+SMK-37's own (`.res.drum`), which now builds the drums too. **The beat** (`cr_drum.c crd_beat_*`): Mutable Instruments
+Grids' pattern generator, GPL-3.0-or-later (LICENSING.md): its 25 nodes as resources.cc has them (`cr_grids_map.h`,
+2,400 B unpacked: the FM-1's first region, the SMK-37's), blended at Map X / Y in the main loop into 96 bytes of RAM
+(the ISR never reads a region; a region refused: the beat is the click); each drum's Fill its density, Density shifts
+the three, Chaos Grids' per-bar perturbation, an accent (level > 192) louder for the kick and the snare, the open hat
+for the hats (choked by the next closed one); the snare's Character past 64 crossfades to the clap. 32 steps a bar
+(32nds, as Grids); 3/4 and 6/8 play the first 24 (the plan's open question 1, option a). **The transport**
+(`cr_loop.c crl_tick1`, LOOPER.md "The drums"): the drums play while a loop plays or a take records (not the
+count-in), on its grid from the take's or the cycle's start, joining on a beat: LOOP starts them at bar 1, stops them;
+GLO + SEQ while a loop plays: the next beat, in step; on with nothing playing: they wait. Never in a loop or a slot.
+**The UI** (`cr_ui.c cu_drum_*`, `cr_draw.c cr_p_drum`, `CR_K_DRUM`): the SEQ layer's preset page (the Metronome and
+Drums tiles; KNOB 1 Preset, 2 Level, 3 Meter (D4 E4 F4 too), 4 Kit), with Drums SELECT to Beat (the 5 x 5 map, the
+dot, the tinted tiles, the live BD / SD / HH lanes, the step playing; Map X, Map Y, Density, Chaos), Kick, Snare,
+Hats (the drum's icon in a magenta roundel thumping on its hits, its sound as a shape; Tune +-12, Decay, Character,
+Fill); GLO + SEQ "drums on / off"; the PLAY menu's page 2 KNOB 2 relabelled Beat; the home view's beat chip (the
+beats' blocks, the roundel with Drums). Magenta #E04BD8 is `CR_COL_MAGENTA`. Until now SELECT picked the time
+signature in the SEQ layer and KNOB 1 was the click. **Saved**: the session's drum block (bytes 26..45, its own
+version: an older record loads Metronome; each field checked), by the global save; not in a backup (the session never
+is). **Sizes**: FM-1 XIP 560,040 of 573,440 (97.7 %; the merge's base 549,388, +10,652), RES 48,880 of 49,088 (208 free: the map unpacked), RES2 14,136 of 16,320 (2,184 free); SMK-37 XIP 541,732 (94.5 %), RES 40,020 of 49,088.
+`fm1_alnk0_irq` 13,531 of 13,890 (the drums' RAM in sections of its own: merged with the unit's statics it pushed
+usb.c's past one-instruction offsets, usb_poll +5 %). **Tests**: `cr_drum_test` (the blend against Grids' own
+ReadDrumMap at 257 places, the beat's Fill / Density / accents / clap / Chaos, every kit's sounds), `cr_settings_test`
+and `cr_backup_test` (the drum block, an older record), test_cr `cr_drums` (the layer's pages, the toggle, waiting,
+playing with the loop, stopping, the WAV), test_persist (the drums after a relaunch), gen_cr_screens (the preset page,
+Beat, Kick, Hats, the home chip); `sh tests/run_all.sh`: ALL SUITES PASSED (24; test_cr 1164 ok, test_persist 124 ok, the web emulator's two). Two builds of the FM-1 package: the same bytes. The CR_DRUM_TEST harness is gone.
