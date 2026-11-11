@@ -1677,6 +1677,10 @@ static void mix_block(int32_t *out, uint32_t n)
     }
 #endif
     CR_PROF(CRP_FX);
+#if CR_DRUM_TEST
+    cr_drum_mix(mix_l, mix_r, n);                       /* (cr_drum.c: the drums, dry, into the master before the
+                                                         * limiter; the CPU test, choralroot.c CR_DRUM_TEST) */
+#endif
 #ifdef FX_MIX_HOOK
     FX_MIX_HOOK(mix_l, mix_r, n);                       /* (tests/cr_align_test.c: a sample put into the mix) */
 #endif

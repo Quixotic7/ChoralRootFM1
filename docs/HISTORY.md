@@ -8343,3 +8343,18 @@ cz_gone_message`); a CZ-1 bank A..D never saved stays empty (its slots load noth
 of 573,440 (97.9 %, -4,528), RES 46,480 of 49,088 (94.7 %: 2,608 B left, room for the Grids map's 1,200). SMK-37 XIP
 566,360, unchanged. `run_tests.sh`: 279 goldens, 0 changed; `run_cr_tests.sh` passed (`cr_cz_test` 48: every factory
 tone unpacked as it is). BOOT-SAFETY.md, CZ1.md.
+
+3y294. **The drums' voices and their CPU test (the DRUMS plan, Phase 3's gate).** `cr_drum.c`: three drums from
+Felucca's `drum_voice.c` (removed in e8f4b360; its kick, snare, clap, hat and metal run loops as they were): KICK
+(Character 0 Felucca's ROUND .. 127 PUNCH), SNARE (Character 0..64 dark .. snappy, 64..127 crossfading to the CLAP),
+HATS (closed and open on one six-square metal source, the closed one choking the open one); Tune +-12 semitones, Decay
+over each voice's designed span, Level. Each voice stops computing at -66 dB. No UI, no beat, no settings yet: only
+`CR_DRUM_TEST=1 ./build.sh` puts them in, dry into the master's mix before the limiter (`fx.c mix_block`), with a
+fixed busy bar on the tempo's 16ths (kick on the quarters, snare + clap on 2 and 4, a hat every 16th, the open one on
+the 8ths); default 0, never in the SMK-37 build. Host (`tests/cr_drum_test.c`, in `run_cr_tests.sh`; `--cpu` the
+counts): instructions a sample while ringing, kick 88, snare 120, clap 62, a hat with the metal 66, all five at once
+336, the test bar 213 on average, nothing ringing 3.4 (a VA voice is about 225). pi32v2 loop costs
+(`target_budget.py`'s count): `cr_drum_kick` 149, `cr_drum_snare` 154, `cr_drum_clap` 76, `cr_drum_hat` 62,
+`cr_drum_metal` 25, `cr_drum_mix` 174; `fm1_alnk0_irq` 13,535 of 13,890 with the test in (13,518 without: the drums
+are out of line, one call). XIP 566,364 with the test, +4,880 over 3y293. The default build is 3y293's byte for byte.
+The unit's Geek Out figure is the gate.

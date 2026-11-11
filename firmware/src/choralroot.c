@@ -86,6 +86,14 @@
 #define CR_CPU1 1                /* the bass part's render on the second core (cr_cpu1.h, hal/fm1_cpu1.h, docs/DUALCORE.md):
                                   * started at power-on; if it does not answer, single core with the shared budget */
 #endif
+#if BOARD_SMK37
+#undef CR_DRUM_TEST
+#define CR_DRUM_TEST 0           /* (no drums on the SMK-37 until its resource region: the DRUMS plan, Phase 2) */
+#endif
+#ifndef CR_DRUM_TEST
+#define CR_DRUM_TEST 0           /* 1: the drums' voices (cr_drum.c) in the master, a fixed busy pattern on the tempo's
+                                  * 16ths: the CPU test of the DRUMS plan (CR_DRUM_TEST=1 ./build.sh), never shipped */
+#endif
 #ifndef CV_ROWS
 #define CV_ROWS 120u             /* gfx.c's canvas: cr_draw.c's strip and its two DMA buffers, 3 x 40 rows, are all this
                                   * unit draws on it (Felucca's graph strip took 124: 1920 B of POOL) */
@@ -173,6 +181,9 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #endif
 #include "voice.c"
 #include "slicer.c"
+#if CR_DRUM_TEST
+#include "cr_drum.c"             /* the drums' voices (the CPU test: mixed by fx.c, clocked by mix_block below) */
+#endif
 #define mix_block fx_mix_block   /* fx.c's mix; audio.c gets ChoralRoot's (below) */
 #include "fx.c"
 #undef mix_block
@@ -200,6 +211,9 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 {
     CR_PROF_START();             /* the ISR's stages (cr_cpu1.h): the tick from here to fx.c's parts */
     cr_audio_block(n);
+#if CR_DRUM_TEST
+    cr_drum_test_clock(crl.rt, CRL_PPQN / 4u);      /* the test pattern's hits on this 16th (cr_drum.c) */
+#endif
 #if FELUCCA_UAC
     ua_stage_on = ua.cap_alt && !USB_CDC_ON;     /* the computer records: fx.c stages the block's capture frames */
 #endif
