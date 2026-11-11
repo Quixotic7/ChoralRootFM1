@@ -86,10 +86,6 @@
 #define CR_CPU1 1                /* the bass part's render on the second core (cr_cpu1.h, hal/fm1_cpu1.h, docs/DUALCORE.md):
                                   * started at power-on; if it does not answer, single core with the shared budget */
 #endif
-#if BOARD_SMK37
-#undef CR_DRUM_TEST
-#define CR_DRUM_TEST 0           /* (no drums on the SMK-37 until its resource region: the DRUMS plan, Phase 2) */
-#endif
 #ifndef CR_DRUM_TEST
 #define CR_DRUM_TEST 0           /* 1: the drums' voices (cr_drum.c) in the master, a fixed busy pattern on the tempo's
                                   * 16ths: the CPU test of the DRUMS plan (CR_DRUM_TEST=1 ./build.sh), never shipped */
@@ -158,12 +154,12 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #if BOARD_SMK37
 #define CR_RES 1
 #define AF_RES __attribute__((section(".res.font")))
+#define CRD_RES __attribute__((section(".res.drum")))   /* the drums' six kits (cr_drum_kits.h) */
 #endif
 #if !BOARD_SMK37
 #define CR_RES 1
 #define AF_RES __attribute__((section(".res.font")))
 #define CZ_RES __attribute__((section(".res.cz")))   /* Casio's CZ-1 tones, packed (melodee_cz1.h; eng_cz.c) */
-#define CRD_RES __attribute__((section(".res.drum"))) /* the drums' kits (cr_drum_kits.h; only CR_DRUM_TEST's, today) */
 #ifndef CR_BLE
 #define CR_BLE 1                 /* Bluetooth LE MIDI, the FM-1 as a peripheral (cr_ble.h, HISTORY 3y236); CR_BLE=0: none */
 #endif
@@ -180,6 +176,7 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #define RES2_PRESET __attribute__((section(".res2.preset")))
 #define RES2_FM6 __attribute__((section(".res2.fm6")))
 #define RES2_DRUM __attribute__((section(".res2.drum")))
+#define CRD_RES RES2_DRUM        /* the drums' six kits (cr_drum_kits.h) */
 #endif
 
 /* ----------------------------------------------------- base, display --- */

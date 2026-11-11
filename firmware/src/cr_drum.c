@@ -460,7 +460,7 @@ static __attribute__((noinline)) void ds_run(ds_voice_t *v, int32_t *y, uint32_t
 static int crd_kit_load(uint32_t k)
 {
     const crd_kit_t *K = &CRD_KITS[k < CRD_NKIT ? k : 0u];
-    if (CR_RES_GONE(K)) {
+    if (CR_RES_GONE(K) || CR_RES2_GONE(K)) {
         crd_kit_ok = 0;
         return 0;
     }
