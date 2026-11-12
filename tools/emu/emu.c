@@ -672,7 +672,7 @@ static void print_stats(void)
                "(EMU_UI_GAP; the keys are %s)\n", (unsigned long long)ugap.max, (double)ugap.max / DEV_INSTR_PER_US,
                emu_hal.pump_off ? "read between frames only, EMU_PUMP=0" : "read inside a redraw");
     {
-        char sb[800];
+        char sb[1000];
         emu_fw_stages(sb, sizeof sb);
         if (sb[0])
             printf("cpu: %s\n", sb);

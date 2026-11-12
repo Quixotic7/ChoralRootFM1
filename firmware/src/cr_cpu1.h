@@ -109,6 +109,12 @@ typedef struct {
     /* core 1's busy time (c1_busy_cur: its voices' job and the reverb's) over the window the stages use, and the last
      * full second's average and largest half in us: GEEK OUT 2's CORE 1 (cr_ui.c cu_geek2) */
     uint32_t c1w_sum, c1w_max, c1_avg_us, c1_max_us;
+#ifndef FM1_HAVE_CPU1
+    /* the host (tools/emu/perf.sh, EMU_STAGES=1): each core's busy time a half since power-on, as pk_c0_busy /
+     * pk_c1_busy count it (the emulator runs core 1's jobs inline: these split its block into the two cores' shares) */
+    uint64_t c0_tot_sum, c1_tot_sum;
+    uint32_t c0_tot_max, c1_tot_max;
+#endif
 } cr_dbg_t;
 static cr_dbg_t cr_dbg;
 /* Options > Dual Core Off (settings v12; On is the default of a unit with no record since 0.22, Off was from 0.16;
@@ -520,6 +526,18 @@ static void cr_prof_half(void)
             cr_dbg.pk_c0_busy = c0;
         if (cr_dbg.c1_busy_cur > cr_dbg.pk_c1_busy)
             cr_dbg.pk_c1_busy = cr_dbg.c1_busy_cur;
+#ifndef FM1_HAVE_CPU1
+        {                                               /* (inline, both of core 1's jobs ran inside core 0's stages) */
+            uint32_t h0 = c0 + cr_dbg.c1v_cur;
+            h0 = h0 > cr_dbg.c1_busy_cur ? h0 - cr_dbg.c1_busy_cur : 0u;
+            cr_dbg.c0_tot_sum += h0;
+            if (h0 > cr_dbg.c0_tot_max)
+                cr_dbg.c0_tot_max = h0;
+        }
+        cr_dbg.c1_tot_sum += cr_dbg.c1_busy_cur;
+        if (cr_dbg.c1_busy_cur > cr_dbg.c1_tot_max)
+            cr_dbg.c1_tot_max = cr_dbg.c1_busy_cur;
+#endif
         cr_dbg.c1w_sum += cr_dbg.c1_busy_cur;           /* (GEEK OUT 2's CORE 1: cr_prof_window) */
         if (cr_dbg.c1_busy_cur > cr_dbg.c1w_max)
             cr_dbg.c1w_max = cr_dbg.c1_busy_cur;

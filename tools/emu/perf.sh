@@ -68,7 +68,7 @@ for s in a b c d e f g h i j l p q; do
     grep 'voices: given up\|erases with' "$OUT/$n.log" | tail -2 | sed 's/^ */   /'
     python3 tools/emu/wavclicks.py "$OUT/$n.wav" --from 0.4 | tail -1 | sed 's/^/   /'
     EMU_STAGES=1 "$EMU" --headless --script "tools/emu/scripts/$n.txt" >"$OUT/${n}_stages.log" 2>&1
-    LC_ALL=C grep -a '^cpu: stages\|^cpu: fx parts' "$OUT/${n}_stages.log" | sed 's/^cpu: /   /'
+    LC_ALL=C grep -a '^cpu: stages\|^cpu: fx parts\|^cpu: each core' "$OUT/${n}_stages.log" | sed 's/^cpu: /   /'
     case $s in c|d|e|i|l) python3 tools/emu/keylat.py --emu "$EMU" "tools/emu/scripts/$n.txt" ;; esac
 done
 DCON="$OUT/dualcore_off_flash.bin"            # Options > Dual Core Off, saved: the flash of the runs below (a copy each)

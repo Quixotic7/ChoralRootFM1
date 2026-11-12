@@ -935,6 +935,12 @@ void emu_fw_stages(char *buf, uint32_t n)
     if (o < n)
         o += (uint32_t)snprintf(buf + o, n - o, "; c1 %s, jobs %u, reverb jobs %u", cr_c1_name(), (unsigned)cr_dbg.c1_jobs,
                                 (unsigned)cr_dbg.c1x_jobs);   /* (3y50: the reverb on core 1, fx.c mix_fx_split) */
+    if (o < n && cr_dbg.c1 == C1_OK)                  /* each core's busy time (cr_cpu1.h cr_prof_half: the jobs inline here) */
+        o += (uint32_t)snprintf(buf + o, n - o, "\ncpu: each core (device us per half, avg / max): core 0 %.0f / %.0f, "
+                                "core 1 %.0f / %.0f", (double)cr_dbg.c0_tot_sum / cr_dbg.tot_n / CR_PROF_PER_US,
+                                (double)cr_dbg.c0_tot_max / CR_PROF_PER_US,
+                                (double)cr_dbg.c1_tot_sum / cr_dbg.tot_n / CR_PROF_PER_US,
+                                (double)cr_dbg.c1_tot_max / CR_PROF_PER_US);
     /* the fx stage's parts, over the halves in which the effects ran (the unit's 73 DEBUG has the same four) */
     if (o < n && cr_dbg.x_tot_busy) {
         o += (uint32_t)snprintf(buf + o, n - o, "\ncpu: fx parts (device us per half, avg / max over %u halves with the "
