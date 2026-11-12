@@ -2691,32 +2691,63 @@ static void cr_dr_drum(const cr_screen_t *s)
         }
     }
 }
-/* pages 5..7, Kick Mix, Snare Mix, Hats Mix (3y303): each thing in the colour of the knob that turns it. The drum's
- * icon in its roundel (r 34 at the left: the track dim, the Level green (KNOB 4) clockwise from 12 o'clock, as full as
- * Level / 127, so 64 as voiced is half; 3 px, 3 more at the drum's thump; the icon magenta at the hit), a wire from it
- * through its three sends: rings (r 20), Chorus blue (KNOB 1), Delay orange (KNOB 2), Reverb white (KNOB 3), each as
- * full as its send, its middle a disc on the wire that swells with the send and at the hit by as much as the send
- * carries it; the wire lights magenta at the hit. FX off: the rings grey (nothing is sent) */
+/* pages 5..7, Kick Mix, Snare Mix, Hats Mix (3y303, 3y304): each thing in the colour of what turns it. The drum's icon
+ * in its roundel (r 34 at the left: the track dim, the Level green (KNOB 4) clockwise from 12 o'clock, as full as
+ * Level / 127, so 64 as voiced is half; 3 px, 3 more at the drum's thump; the icon magenta at the hit); round it the
+ * Drive (ALGORITHM) as red spikes, longer and more ragged with more drive, flaring at a hit. A wire from it through a
+ * white box, the Filter (PRESETS: the master filter's white; a low-pass curve, the box filled as much of the drum as
+ * goes through it; dim while the master filter is Off or FX is), and its three sends: rings (r 18), Chorus blue (KNOB 1),
+ * Delay orange (KNOB 2), Reverb white (KNOB 3), each as full as its send, its middle a disc on the wire that swells with
+ * the send and at the hit by as much as the send carries it; the wire lights magenta at the hit. FX off: the rings grey.
+ * Under the roundel the Drive's value, under the box the Filter's (13 px; the encoder just turned: underlined) */
 static void cr_dr_mix(const cr_screen_t *s)
 {
     static const uint8_t COL[3] = {CR_COL_BLUE, CR_COL_ORANGE, CR_COL_WHITE};
-    int32_t k, cy = CR_DR_TOP + 48, pul = s->dr_pulse;
-    int32_t cx = 46 * 16, w = 3 * 16 + pul * 48 / 255;
+    int32_t k, cy = CR_DR_TOP + 42, pul = s->dr_pulse, drv = s->dr_drv, flt = s->dr_flt;
+    int32_t cx = 46 * 16, w = 3 * 16 + pul * 48 / 255, fx0 = 83, fw = 30, fh = 30, fy = cy - fh / 2;
     uint32_t sw = (uint32_t)s->dr_lvl * 65536u / 127u;
+    uint16_t fc = s->dr_fon ? CR_WHITE : T_DIM, dc = drv ? ux_mix(CR_RED, CR_WHITE, pul * 40 / 255) : T_DIM;
+    char t[8];
     cr_fill(80, cy - 1, 132, 3, ux_mix(T_LINE, CR_MAG, pul * 100 / 255));   /* the wire, under the rings */
+    if (drv)                                         /* the Drive: 20 spikes, 2 .. 11 px (+3 at a hit), ragged with it */
+        for (k = 0; k < 20; k++) {
+            int32_t len = 2 * 16 + drv * 9 * 16 / 127 - (k * 7 % 5) * drv * 16 / 254 + pul * 3 * 16 / 255;
+            cr_arc(cx, cy * 16, 38 * 16 + len / 2, len, (uint32_t)k * 3277u + 1024u, 1100u, 0, 0, 0, dc);
+        }
     cr_arc(cx, cy * 16, 34 * 16, 3 * 16, 0, 65536u, 0, 0, 0, T_SURF);
     if (sw) cr_arc(cx, cy * 16, 34 * 16, w, 49152u, sw >= 65536u ? 65535u : sw, 0, 0, 0, CR_NAMED[CR_COL_GREEN]);
     cr_dr_icon((uint32_t)s->dr_page - 3u, cx, cy * 16, pul > 128 ? CR_MAG : s->dr_lvl ? CR_WHITE : T_DIM);
+    cr_fill(fx0, fy, fw, fh, T_BG);                  /* the Filter: its box on the wire */
+    for (k = 0; k < fw - 6; k++) {                   /* a low-pass: flat, then falling past its corner (2/3 across) */
+        int32_t x = fx0 + 3 + k, top = fy + 5 + (k > (fw - 6) * 2 / 3 ? (k - (fw - 6) * 2 / 3) * 2 : 0);
+        int32_t bot = fy + fh - 3;
+        if (top >= bot) continue;
+        cr_fill(x, top, 1, bot - top, ux_mix(T_BG, fc, 15 + flt * 55 / 127));
+        cr_fill(x, top, 1, 2, fc);
+    }
+    cr_box(fx0, fy, fw, fh, fc, 3, 2);
     for (k = 0; k < 3; k++) {
-        int32_t x = (116 + k * 47) * 16, v = s->dr_fx[k], r;
+        int32_t x = (135 + k * 41) * 16, v = s->dr_fx[k], r;
         uint16_t c = s->dr_fxoff ? T_DIM : CR_NAMED[COL[k]];
         uint32_t a = (uint32_t)v * 65536u / 127u;
-        cr_arc(x, cy * 16, 20 * 16, 4 * 16, 0, 65536u, 0, 0, 0, T_SURF);
+        cr_arc(x, cy * 16, 18 * 16, 4 * 16, 0, 65536u, 0, 0, 0, T_SURF);
         if (!v) continue;
-        if (a) cr_arc(x, cy * 16, 20 * 16, 4 * 16 + (s->dr_fxoff ? 0 : pul * v * 32 / (255 * 127)), 49152u,
+        if (a) cr_arc(x, cy * 16, 18 * 16, 4 * 16 + (s->dr_fxoff ? 0 : pul * v * 32 / (255 * 127)), 49152u,
                       a >= 65536u ? 65535u : a, 0, 0, 0, c);
-        r = 3 * 16 + v * 9 * 16 / 127 + (s->dr_fxoff ? 0 : pul * v * 4 * 16 / (255 * 127));
+        r = 3 * 16 + v * 8 * 16 / 127 + (s->dr_fxoff ? 0 : pul * v * 4 * 16 / (255 * 127));
         cr_disc(x, cy * 16, r, c);
+    }
+    for (k = 0; k < 2; k++) {                        /* the values: the Drive under the roundel, the Filter under the box */
+        int32_t v = k ? flt : drv, x = k ? fx0 + fw / 2 : 46, n = 0, p = (v * 100 + 63) / 127;
+        uint16_t c = k ? fc : drv ? CR_RED : T_DIM;
+        if (p >= 100) t[n++] = '1';
+        if (p >= 10) t[n++] = (char)('0' + p / 10 % 10);
+        t[n++] = (char)('0' + p % 10);
+        t[n++] = '%';
+        t[n] = 0;
+        cr_text(P8(x), P8(cy + 58), t, 13, 1, CR_C, 4096, c, T_BG, 0);
+        if (s->dr_enc == (uint8_t)(k ? 1 : 2))
+            cr_fill(x - 14, cy + 61, 28, 2, c);
     }
 }
 static void cr_p_drum(const cr_screen_t *s, const cr_frame_t *fr)

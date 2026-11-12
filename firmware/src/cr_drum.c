@@ -76,6 +76,10 @@
 #define CRD_US_CLAP 120u
 #define CRD_US_HATC 134u
 #define CRD_US_HATO 132u
+#define CRD_US_DRIVE 46u                         /* a driven drum's DIST (dsp.c dsp_dist on its sum; 3y304): all five
+                                                  * ringing, Break, every drum at Drive 90: 683 -> 825 instructions a
+                                                  * sample, 47 a drum, x 128 / 259 x 2. (A drum's share round the
+                                                  * filter: 5 a drum, not weighed) */
 
 enum { DSS_KICK, DSS_SNARE, DSS_CLAP, DSS_HATC, DSS_HATO, DSS_N };   /* the sounds (CoralFlower's first five) */
 enum { DSW_SINE, DSW_TRI, DSW_FM, DSW_ADD, DSW_SQ2 };           /* (CoralFlower's numbers; SINE and ADD played here) */
@@ -655,32 +659,87 @@ static uint8_t crd_fx[CRD_N][CRD_NS] CRD_BSS;
 static int32_t crd_bus[CTL] CRD_POOL, crd_snd[CRD_NS][CTL] CRD_POOL;   /* (the drums' dry sum, their three sends) */
 static uint8_t crd_out;                          /* what crd_render wrote: bit 0 crd_bus, bit 1 + s crd_snd[s] (the
                                                   * others hold an older block's: crd_add skips them) */
-static __attribute__((noinline)) void crd_render(int fxoff, uint32_t n)
+/* EACH DRUM'S DRIVE AND FILTER (3y304; the Mix pages' ALGORITHM and PRESETS). Drive 0..127 (0: clean, as before it):
+ * the parts' DIST (dsp.c dsp_dist: a low cut, a gain of 1x .. 9x into the asymmetric soft clip, the tone's two poles,
+ * the make-up) on the drum's sum (the snare with the clap, both hats), before its sends, as a part's drive is before
+ * its; its states the drum's own (crd_dist), kept while it is 0 (no click switching it on). Filter 0..127 (127, the
+ * default: all of the drum through the master filter, as before it): the rest of the drum's dry sound goes round the
+ * master filter as a part's does with Filter Chord or Bass (cr_fx.c "The part round the filter": B, F(acc - B) + B),
+ * whatever part the filter is on; its sends as they are (the place before the buses filters every send whole, as a
+ * part's). Its share round (Q12, crd_fr) moves by 256 a block, a line across each block, while the filter sounds
+ * (CRD_F_BYP); at once while it does not. The sum the bypass takes is before the bus's soft knee (linear to -6 dBFS:
+ * above it the knee's few per cent go through the filter) */
+static uint8_t crd_drv[CRD_N] CRD_BSS;
+static uint8_t crd_flt[CRD_N] CRD_DATA = {127, 127, 127};
+static int32_t crd_dist[CRD_N][3] CRD_BSS;      /* each drum's DIST states: its low cut, its two poles */
+static int32_t crd_fr[CRD_N] CRD_BSS;           /* each drum's share round the filter in use, Q12 */
+static int32_t crd_byp[CTL] CRD_POOL;           /* the drums' dry round the filter this block (crd_out & CRD_O_BYP) */
+#define CRD_F_FXOFF 1u                           /* crd_render's flags: FX off (no send, the filter off) */
+#define CRD_F_BYP 2u                             /* .. the master filter sounds (cr_fx.c xb.on): the shares round it */
+#define CRD_O_BYP 16u                            /* crd_out: crd_byp written */
+/* one sound's (or one driven drum's) block y into the bus, its drum's sends, and its share round the filter */
+static void crd_emit(const int32_t *y, uint32_t d, uint32_t f, int32_t w0, int32_t w1, uint32_t *mp, uint32_t n)
 {
-    int32_t y[CTL];
-    uint32_t i, k, s, m = 0;
-    for (k = 0; k < DSS_N; k++) {
-        if (!crd_v[k].live)
+    uint32_t i, s, m = *mp;
+    if (!m)
+        for (i = 0; i < n; i++) crd_bus[i] = y[i];
+    else
+        for (i = 0; i < n; i++) crd_bus[i] += y[i];
+    m |= 1u;
+    for (s = 0; s < CRD_NS; s++) {
+        int32_t g = (f & CRD_F_FXOFF) ? 0 : crd_fx[d][s] * 258, *o = crd_snd[s];
+        if (!g)
             continue;
-        ds_run(&crd_v[k], y, n);
-        if (!m)
-            for (i = 0; i < n; i++) crd_bus[i] = y[i];
+        if (m & 2u << s)
+            for (i = 0; i < n; i++) o[i] += (y[i] * g) >> 15;
         else
-            for (i = 0; i < n; i++) crd_bus[i] += y[i];
-        m |= 1u;
-        for (s = 0; s < CRD_NS; s++) {
-            int32_t g = fxoff ? 0 : crd_fx[CRD_DRUM_OF[k]][s] * 258, *d = crd_snd[s];
-            if (!g)
+            for (i = 0; i < n; i++) o[i] = (y[i] * g) >> 15;
+        m |= 2u << s;
+    }
+    if (w0 | w1) {                                       /* (round the filter: x w >> 12 in 32 bits, as cr_fx.c xb_cap) */
+        if (!(m & CRD_O_BYP))
+            for (i = 0; i < n; i++) crd_byp[i] = 0;
+        for (i = 0; i < n; i++) {
+            int32_t w = w0 + (((w1 - w0) * (int32_t)(i + 1u)) >> CTL_LOG2);
+            crd_byp[i] += (y[i] >> 12) * w + (((y[i] & 4095) * w) >> 12);
+        }
+        m |= CRD_O_BYP;
+    }
+    *mp = m;
+}
+static __attribute__((noinline)) void crd_render(uint32_t f, uint32_t n)
+{
+    static const uint8_t V0[CRD_N] = {DSS_KICK, DSS_SNARE, DSS_HATC}, NV[CRD_N] = {1, 2, 2};
+    int32_t y[CTL], yd[CTL];
+    uint32_t i, k, d, m = 0;
+    for (d = 0; d < CRD_N; d++) {
+        int32_t w0 = crd_fr[d], t = (f & CRD_F_BYP) ? (127 - (int32_t)crd_flt[d]) * 4096 / 127 : 0, w1, drv = crd_drv[d];
+        uint32_t any = 0;
+        if (!(f & CRD_F_BYP))
+            w0 = t;                                      /* (the filter silent: the share at once) */
+        w1 = w0 + clamp(t - w0, -256, 256);
+        crd_fr[d] = w1;
+        for (k = V0[d]; k < V0[d] + NV[d]; k++) {
+            if (!crd_v[k].live)
                 continue;
-            if (m & 2u << s)
-                for (i = 0; i < n; i++) d[i] += (y[i] * g) >> 15;
+            ds_run(&crd_v[k], y, n);
+            if (!drv) {                                  /* (clean: each sound on its own, the sums of 3y303) */
+                crd_emit(y, d, f, w0, w1, &m, n);
+                continue;
+            }
+            if (!any)
+                for (i = 0; i < n; i++) yd[i] = y[i];
             else
-                for (i = 0; i < n; i++) d[i] = (y[i] * g) >> 15;
-            m |= 2u << s;
+                for (i = 0; i < n; i++) yd[i] += y[i];
+            any = 1;
+        }
+        if (any) {
+            dsp_dist(&crd_dist[d][0], &crd_dist[d][1], &crd_dist[d][2], drv, yd, n);
+            crd_emit(yd, d, f, w0, w1, &m, n);
         }
     }
     crd_out = (uint8_t)m;
-    if (!m)
+    if (!(m & 1u))
         return;
     for (i = 0; i < n; i++) {                            /* the sum: linear to -6 dBFS, a soft knee above */
         int32_t x = crd_bus[i], a = x < 0 ? -x : x;
@@ -705,11 +764,28 @@ static __attribute__((noinline)) void crd_add(int32_t *l, int32_t *r, int32_t *s
         if (m & 2u << s)
             for (i = 0; i < n; i++) S[s][i] += crd_snd[s][i];
 }
+/* the drums' share round the master filter (crd_byp) into its B (bl, br: cr_fx.c xb; keep: B holds a part's already,
+ * else it is written here): 1 when there was one */
+static __attribute__((noinline)) int crd_byp_add(int32_t *bl, int32_t *br, int keep, uint32_t n)
+{
+    uint32_t i;
+    if (!(crd_out & CRD_O_BYP))
+        return 0;
+    if (keep)
+        for (i = 0; i < n; i++) {
+            bl[i] += crd_byp[i];
+            br[i] += crd_byp[i];
+        }
+    else
+        for (i = 0; i < n; i++)
+            bl[i] = br[i] = crd_byp[i];
+    return 1;
+}
 /* the drums' block on one core (fx.c mix_block, with the parts, before the effects): their dry sum into the mix, their
  * sends into the three buses (none with FX off: fxoff); nothing when none rings */
-static void cr_drum_mix(int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr, int fxoff, uint32_t n)
+static void cr_drum_mix(int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr, uint32_t f, uint32_t n)
 {
-    crd_render(fxoff, n);
+    crd_render(f, n);
     crd_add(l, r, sc, sd, sr, n);
 }
 /* THE DRUMS' WEIGHT on core 1's side of the chord's split (fx.c p5x_assign; 3y303): CRD_US_* (above) summed over the
@@ -717,9 +793,14 @@ static void cr_drum_mix(int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_
 static const uint8_t CRD_US[DSS_N] = {CRD_US_KICK, CRD_US_SNARE, CRD_US_CLAP, CRD_US_HATC, CRD_US_HATO};
 static uint32_t crd_us(void)
 {
-    uint32_t k, us = 0;
+    uint32_t k, us = 0, dr = 0;
     for (k = 0; k < DSS_N; k++)
-        if (crd_v[k].live)
+        if (crd_v[k].live) {
             us += CRD_US[k];
+            dr |= 1u << CRD_DRUM_OF[k];
+        }
+    for (k = 0; k < CRD_N; k++)                          /* (3y304: a drum driven: its DIST once on its sum) */
+        if (dr >> k & 1u && crd_drv[k])
+            us += CRD_US_DRIVE;
     return us;
 }

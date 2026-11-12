@@ -114,6 +114,9 @@ matrix per part ~150 B, `cr_dbg` ~200 B, the job's state); POOL 256 B (the bass 
 drums on core 1, each drum's three sends): POOL 512 B (the drums' bus and three sends, `crd_bus` / `crd_snd`), RAM 20 B,
 XIP 928 B (the FM-1: XIP 561 448 -> 562 376 of 573 440, RAM 91 248 -> 91 268, POOL 334 512 -> 335 024; the 1-core
 package XIP 557 752 -> 558 168, POOL 334 384 -> 334 896; the SMK-37 XIP 542 468 -> 543 508, POOL 331 820 -> 332 332).
+3y304 (each drum's Drive and Filter): POOL 132 B (`crd_byp`, the drums' share round the master filter), RAM 60 B (the
+drive states, the shares, the knobs), XIP 1572 B (the FM-1: XIP 562 376 -> 563 948, RAM 91 268 -> 91 328, POOL
+335 024 -> 335 156); core 1's stack down the drums' path 752 B (`crd_render` 364 with its two blocks).
 
 ## The job protocol (`fx.c mix_parts_split`, `cr_cpu1.h`)
 
@@ -197,7 +200,12 @@ buffers of the drums' own, the bus under its soft knee and each send's sum), and
 both parts (`crd_add`: the mix and the chorus's, delay's and reverb's buses), where one core mixed them. Integer sums
 (`+=`, no saturation between): the mix is one core's, bit for bit (`tests/cr_c1_thread_test.c` "drums": 26 pairs, the
 drums ringing with each drum's three sends up and its Level off 64, FX off for a stretch: inline = thread = the drums
-on core 0 after the parts, `cr_c1_test_dr0`; ThreadSanitizer clean). What core 1 touches: `crd_v` (each voice's own
+on core 0 after the parts, `cr_c1_test_dr0`; ThreadSanitizer clean). **3y304**: each drum's Drive (`dsp_dist` on the
+drum's sum, its states `crd_dist`, before its sends) and its share round the master filter (`crd_byp`, its ramp
+`crd_fr`) are core 1's too, in `crd_render`; core 0 says before the hand-over whether the filter sounds (`c1_dr`:
+0x80 | `crd_flags()`, `cr_fx.c xb.on` from `xb_begin`) and adds the share into the filter's B after the parts
+(`cr_drum_out`: `crd_byp_add`). The proof as above with every drum driven and part of each round the filter, the
+filter on for a sixth of each phrase (13 416 blocks with a share round it). What core 1 touches: `crd_v` (each voice's own
 state), `crd_bus`, `crd_snd`, `crd_out`; it reads `crd_fx` (the main loop's: it never runs while the audio ISR does, so
 a knob's change is the next block's, as before) and `c1_dr` (core 0's, before the hand-over: FX off is read there).
 The hits (`crd_beat_step` -> `crd_hit` -> `ds_strike`: `ds_rng`, `crd_kit`, the voices' coefficients) stay core 0's,
@@ -217,7 +225,8 @@ so it cannot be balanced against voices. With the measured costs the weighted ru
 for 6, 2 + 2 for 4 (an odd one to core 1); it was not changed then. **3y303**: the drums ringing count on core 1's
 side (`p5x_assign`: `bl += crd_us()`), each sound at its heaviest kit's cost (`cr_drum.c CRD_US_*`: kick 140, snare
 138, clap 120, hats 134 / 132 us: the host's instructions x 128 / 259, x 2 for code from the flash, the unit's worst
-voice over the emulator's estimate of it for FM6 and the VA from the flash). An 8-voice VA chord over a VA bass with
+voice over the emulator's estimate of it for FM6 and the VA from the flash); a driven drum ringing adds 46 us
+(`CRD_US_DRIVE`, 3y304: its DIST once on its sum). An 8-voice VA chord over a VA bass with
 all five drums ringing: 3 to core 1, 5 to core 0 (4 + 4 without them). P5 keeps its four a core: an 8-voice P5 chord
 stays 4 + 4 whatever rings.
 

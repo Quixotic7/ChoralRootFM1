@@ -1174,13 +1174,28 @@ int main(void)
             cs.beat_preset = 1;
             cs.dr_fx[0][0] = 10; cs.dr_fx[0][1] = 20; cs.dr_fx[0][2] = 30; cs.dr_fx[1][0] = 127; cs.dr_fx[2][2] = 77;
             cs.dr_lvl[0] = 0; cs.dr_lvl[1] = 100; cs.dr_lvl[2] = 127;
+            cs.dr_flt[0] = 0; cs.dr_flt[2] = 64; cs.dr_drv[1] = 127; cs.dr_drv[2] = 5;   /* (3y304) */
             css_drum_get(&x.drum);
             cu_drum_defaults();
             css_drum_put(&x);
-            CHECK(x.drum.ver == 2u && cs.dr_fx[0][0] == 10 && cs.dr_fx[0][1] == 20 && cs.dr_fx[0][2] == 30 &&
+            CHECK(cs.dr_fx[0][0] == 10 && cs.dr_fx[0][1] == 20 && cs.dr_fx[0][2] == 30 &&
                   cs.dr_fx[1][0] == 127 && !cs.dr_fx[1][1] && cs.dr_fx[2][2] == 77 && !cs.dr_lvl[0] && cs.dr_lvl[1] == 100 &&
-                  cs.dr_lvl[2] == 127 && x.drum.send[0] == 20 && x.drum.cho[0] == 10 && x.drum.rev[0] == 30,
-                  "session: each drum's Chorus, Delay, Reverb and Level round-trip (version 2; the Delay in 0.40's send byte)");
+                  cs.dr_lvl[2] == 127 && x.drum.send[0] == 20 && x.drum.cho[0] == 10 && x.drum.rev[0] == 30 &&
+                  x.drum.ver == 3u && !cs.dr_flt[0] && cs.dr_flt[1] == 127 && cs.dr_flt[2] == 64 && !cs.dr_drv[0] &&
+                  cs.dr_drv[1] == 127 && cs.dr_drv[2] == 5,
+                  "session: each drum's Chorus, Delay, Reverb, Level, Filter and Drive round-trip (version 3; the Delay in "
+                  "0.40's send byte)");
+            x.drum.ver = 2;                            /* a record of 3y303 (version 2): its pad 0 */
+            x.drum.flt[0] = x.drum.flt[1] = x.drum.flt[2] = 0; x.drum.drv[0] = x.drum.drv[1] = x.drum.drv[2] = 0;
+            cs.dr_flt[1] = 3; cs.dr_drv[0] = 9;
+            css_drum_put(&x);
+            CHECK(cs.dr_fx[0][2] == 30 && cs.dr_lvl[1] == 100 && cs.dr_flt[0] == 127 && cs.dr_flt[1] == 127 &&
+                  cs.dr_flt[2] == 127 && !cs.dr_drv[0] && !cs.dr_drv[1] && !cs.dr_drv[2],
+                  "session: a version 2 drum block (3y303): its sends and Levels, Filter 127 and Drive 0 (as it played)");
+            x.drum.ver = 3; x.drum.flt[1] = 128; x.drum.drv[2] = 200; x.drum.flt[2] = 7;
+            css_drum_put(&x);
+            CHECK(cs.dr_flt[1] == 127 && !cs.dr_drv[2] && cs.dr_flt[2] == 7,
+                  "session: a Filter or a Drive out of range takes its default (128, 200), the others kept");
             memset(&x.drum, 0, sizeof x.drum);         /* a 0.40 record */
             x.drum.ver = 1; x.drum.preset = 1; x.drum.kit = 2; x.drum.level = 66; x.drum.x = x.drum.y = 64;
             x.drum.density = 64; x.drum.dr[0][0] = 12; x.drum.dr[1][0] = 12; x.drum.dr[2][0] = 12;
@@ -1196,7 +1211,7 @@ int main(void)
             css_drum_put(&x);
             CHECK(!cs.dr_fx[1][0] && cs.dr_fx[1][1] == 90 && !cs.dr_fx[2][2] && cs.dr_lvl[0] == 64 && cs.dr_lvl[2] == 5,
                   "session: a send or a Level out of range takes its default (Chorus 128, Reverb 200, Level 255), the others kept");
-            x.drum.ver = 3;
+            x.drum.ver = 4;
             css_drum_put(&x);
             CHECK(cs.beat_preset == 0 && cs.dr_kit == 0 && cs.dr_fx[1][1] == 0, "session: a later drum block version: the defaults");
             cu_drum_defaults();

@@ -1118,6 +1118,13 @@ B) + B** of what it has. acc holds B wherever the filter sits, because the effec
 - Chain: at the filter's position, F(C_k - B) + B: an effect before the filter is filtered with everything (the
   bass part's share of its wet included), one after it is not touched.
 
+**The drums' Filter** (3y304; `cr_drum.c crd_render`, `fx.c cr_drum_out`): each drum's Filter 0..127 sends 127 - Filter
+of its dry sound round the filter by the same rule, into the same B (`crd_byp_add`, after the parts' capture), whatever
+part the filter is on: its own share, which moves by 256 a block while the filter sounds (`xb.on`). 127, the default,
+adds nothing: the drums go through the filter whole in every mode and place, as before (they are in the dry mix
+after the parts, in acc; in Chain at the filter's position; first in Parallel their sends with the parts'). The share
+is taken before the drums' bus knee (linear to -6 dBFS). With the filter Off or FX off nothing is taken.
+
 B is taken in `fx.c mix_part_out` (both paths: one core's `mix_part` and `mix_parts_split`, where both parts are
 mixed on core 0 after the join), around the bypassed part's mix loop: the mix before it subtracted, after it added
 (`xb_cap`), exact integers, nothing in the loops themselves. A part with no voice and no tail mixes nothing and

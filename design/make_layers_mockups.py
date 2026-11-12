@@ -139,7 +139,8 @@ S.append(state(
     "design/drums-mockups/drums-v3-overview.png, the drum pages Beat, Kick, Snare, Hats, Kick Mix, Snare Mix, Hats Mix "
     "after it with Drums); this sheet "
     "keeps the knob row: Click (KNOB 1, a bar), Meter (KNOB 2), with Drums Kit (KNOB 3), Beat (KNOB 4: on / off). "
-    "ALGORITHM picks the preset and PRESETS starts / stops the beat on every page; the keys play. GLO held + SEQ toggles "
+    "ALGORITHM picks the preset on this page and PRESETS starts / stops the beat on every page but the Mix pages (their "
+    "drum's Filter and Drive); the keys play. GLO held + SEQ toggles "
     "the beat, and so does SEQ tapped in this layer (a SEQ tap anywhere else opens the loop editor). (OPT + SELECT sets "
     "the click's level from anywhere.)",
     keys=[OFF] * 27, buttons={"SEQ": BLINK}, button_notes={"SEQ": LAYER_BTN_NOTE},

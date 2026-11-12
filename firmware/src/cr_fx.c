@@ -1307,7 +1307,9 @@ static struct {
     int32_t l[CTL], r[CTL];               /* B this block: the bypassed part(s)' dry, each at its share */
     int32_t g[2];                         /* each part's share in use, Q12 (0: through the filter, 4096: round it) */
     int32_t g0[2], g1[2];                 /* .. this block's line, from, to (xb_begin) */
-    uint8_t has;                          /* B holds a part this block (xb_cap) */
+    uint8_t has;                          /* B holds a part this block (xb_cap; 3y304: or a drum's share, fx.c cr_drum_out) */
+    uint8_t on;                           /* 3y304: the filter sounds this block (a cut wanted or a place still fading):
+                                           * the drums' Filter shares round it (cr_drum.c crd_render CRD_F_BYP) */
 } xb __attribute__((section(".pool")));
 static void xq_upd(void);
 /* the block's shares (fx.c mix_block, core 0, before the parts are mixed): the Filter's choice as the knobs are now
@@ -1318,6 +1320,7 @@ static __attribute__((noinline)) void xb_begin(uint32_t n)
     uint32_t p, i;
     xq_upd();                                           /* (after live: power-on's xq_upd puts a cut in at once) */
     xb.has = 0;
+    xb.on = (uint8_t)(live || xq.in[0] || xq.in[1]);
     for (p = 0; p < 2u; p++) {
         int32_t g = xb.g[p], t;
         if (!(xq.in[0] | xq.in[1]))

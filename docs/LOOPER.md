@@ -117,7 +117,8 @@ on, the drums play; they follow a loop while one plays, and are never part of it
 - **The sound** goes into the mix with the parts' (`fx.c mix_block`, after the parts, before the effects): the master
   filter and the limiter see it as the parts', and each drum's three sends (the layer's Kick Mix, Snare Mix and Hats
   Mix pages, 3y303; 0.40 had one send a drum, into the delay and the reverb alike) feed the chorus's, the delay's and
-  the reverb's buses (none with FX off). With core 1 alive it renders them in its job (docs/DUALCORE.md "What each
+  the reverb's buses (none with FX off); each drum's Drive before them and its Filter (its share round the master
+  filter, 3y304). With core 1 alive it renders them in its job (docs/DUALCORE.md "What each
   core runs"); the mix is one core's, bit for bit.
 
 ## The Rate (0.18)

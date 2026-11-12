@@ -1,8 +1,9 @@
 # ChoralRoot: the drums (the DRUMS plan; docs/MANUAL.md "The drums"). The SEQ layer (SEQ held) opens on its preset page:
 # Metronome, one page. ALGORITHM +1: Drums (the pages Beat Kick Snare Hats Kick-Mix Snare-Mix Hats-Mix after it); KNOB 3
 # +1: kit Deep, -1: Club. SELECT: Beat (the map, the lanes); KNOB 1 / 2: Map X / Y, KNOB 3 Density; SELECT: Kick, KNOB 3
-# its Character; SELECT to Kick Mix, KNOB 1: the kick's Chorus; SELECT to the end (Hats Mix), KNOB 3 the hats' Reverb,
-# KNOB 4 -6 their Level (3y303); back to the preset page. A root (D4 with A#3: D major) plays in
+# its Character; SELECT to Kick Mix, KNOB 1: the kick's Chorus, PRESETS its Filter, ALGORITHM its Drive (3y304:
+# ALGORITHM on the Beat page did nothing); SELECT to the end (Hats Mix), KNOB 3 the hats' Reverb, KNOB 4 -6 their
+# Level (3y303); back to the preset page. A root (D4 with A#3: D major) plays in
 # the layer. PRESETS +1: the beat on ("drums on"): with no loop they start at once, free on the tempo. OCT- closes
 # the layer. REC + a chord + REC: a 1-bar loop; the drums go on, on its grid from its bar 1; LOOP: the loop stops and
 # the drums run on (they were on before it). GLO + SEQ: off ("drums off"). The WAV: the drums alone before the take.
@@ -29,7 +30,9 @@ wait 100
 knob KNOB2 -8
 wait 100
 knob KNOB3 +6
-wait 900
+wait 100
+knob ALGORITHM -1                 # (3y304: ALGORITHM does nothing past the preset page: still Drums)
+wait 800
 dump                              # 3: page 2, x 76 y 56 density 70
 shot build/emu/test/cr_drums_beat.ppm
 knob SELECT +1
@@ -45,8 +48,12 @@ wait 200
 knob SELECT +1
 wait 300
 knob KNOB1 +5
-wait 900
-dump                              # 5: page 6 (Kick Mix), the kick's Chorus
+wait 100
+knob PRESETS -6                   # (3y304: on a Mix page PRESETS is the drum's Filter, ALGORITHM its Drive; the beat
+wait 100                          # stays off)
+knob ALGORITHM +6
+wait 700
+dump                              # 5: page 6 (Kick Mix), the kick's Chorus, Filter, Drive
 shot build/emu/test/cr_drums_mix.ppm
 knob SELECT +1
 wait 200

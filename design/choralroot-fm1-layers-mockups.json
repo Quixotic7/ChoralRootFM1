@@ -1072,7 +1072,7 @@
   },
   {
    "name": "7 \u00b7 SEQ \u00b7 the beat's preset page (Metronome)",
-   "notes": "SEQ held (the SEQ key's hold menu): the beat's preset page. Since the drums (the DRUMS plan, after 0.39) the device draws it as its own panel (CR_K_DRUM: the Metronome and Drums tiles under the page's name; the v3 sheet design/drums-mockups/drums-v3-overview.png, the drum pages Beat, Kick, Snare, Hats, Kick Mix, Snare Mix, Hats Mix after it with Drums); this sheet keeps the knob row: Click (KNOB 1, a bar), Meter (KNOB 2), with Drums Kit (KNOB 3), Beat (KNOB 4: on / off). ALGORITHM picks the preset and PRESETS starts / stops the beat on every page; the keys play. GLO held + SEQ toggles the beat, and so does SEQ tapped in this layer (a SEQ tap anywhere else opens the loop editor). (OPT + SELECT sets the click's level from anywhere.)",
+   "notes": "SEQ held (the SEQ key's hold menu): the beat's preset page. Since the drums (the DRUMS plan, after 0.39) the device draws it as its own panel (CR_K_DRUM: the Metronome and Drums tiles under the page's name; the v3 sheet design/drums-mockups/drums-v3-overview.png, the drum pages Beat, Kick, Snare, Hats, Kick Mix, Snare Mix, Hats Mix after it with Drums); this sheet keeps the knob row: Click (KNOB 1, a bar), Meter (KNOB 2), with Drums Kit (KNOB 3), Beat (KNOB 4: on / off). ALGORITHM picks the preset on this page and PRESETS starts / stops the beat on every page but the Mix pages (their drum's Filter and Drive); the keys play. GLO held + SEQ toggles the beat, and so does SEQ tapped in this layer (a SEQ tap anywhere else opens the loop editor). (OPT + SELECT sets the click's level from anywhere.)",
    "export": true,
    "keys": [
     0,

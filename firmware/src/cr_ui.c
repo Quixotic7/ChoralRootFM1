@@ -593,6 +593,8 @@ static struct {
     uint8_t dr_fx[3][3];                  /* .. their sends 0..127 into the chorus, the delay and the reverb (the Kick
                                            * Mix, Snare Mix, Hats Mix pages; 3y303) */
     uint8_t dr_lvl[3];                    /* .. their Level 0..127, 64 as voiced (the same pages' KNOB 4) */
+    uint8_t dr_flt[3], dr_drv[3];         /* .. their Filter 0..127 (127: all through the master filter) and Drive (0:
+                                           * clean) (the same pages' PRESETS and ALGORITHM; 3y304) */
     uint8_t loop_len, loop_quant, loop_count_in, loop_level;   /* SYNC (0 Free, 1..16 bars), QUANT, COUNT-IN, LEVEL */
     uint8_t loop_rate;                    /* the loop's Rate, 0..CRL_NRATE-1 (x1/16 .. x4; CRL_RATE_1; the session's) */
     uint8_t loop_slot;                    /* the slot in RAM (0..9) */
@@ -2942,6 +2944,8 @@ static void cu_drum_defaults(void)                /* the drum block's defaults (
         for (k = 0; k < 3u; k++)
             cs.dr_fx[d][k] = 0;                   /* (no FX: the drums dry, as before the sends) */
         cs.dr_lvl[d] = 64;                        /* (as voiced) */
+        cs.dr_flt[d] = 127;                       /* (3y304: all through the master filter, clean: as before) */
+        cs.dr_drv[d] = 0;
     }
 }
 /* the beat's state -> cr_drum.c and the looper: the kit and the map into RAM, the knobs; the click on when the beat is
@@ -2963,6 +2967,8 @@ static void cu_beat_post(int force)
         crd_fx[i / 3u][i % 3u] = cs.dr_fx[i / 3u][i % 3u];
     for (i = 0; i < 3u; i++)
         crd_lvl[i] = cs.dr_lvl[i];
+        crd_flt[i] = cs.dr_flt[i];
+        crd_drv[i] = cs.dr_drv[i];
     crd_beat_dens(cs.dr_dens);
     if (drums)
         drums = crd_kit_load(cs.dr_kit) && crd_beat_blend(cs.dr_x * 2u, cs.dr_y * 2u);
@@ -3098,9 +3104,11 @@ static void cu_drum_knob(uint32_t knob, int32_t s)
     }
     cu_hot_set(L_METRO, knob);
 }
-/* ALGORITHM in the SEQ layer, any page (the owner: "I would make the ALGO knob change between Metronome and Drums"): a
- * detent right Drums, left Metronome (the encoder turns, it has no press: the PLAY menu's ALGORITHM picks its record
- * mode the same way). The pages after the preset's are Drums' alone: a switch to Metronome shows the preset page */
+/* ALGORITHM in the SEQ layer, the preset page alone (the owner: "I would make the ALGO knob change between Metronome
+ * and Drums", and after 3y303: "Algo knob should only switch the drum machine on the first page"): a detent right
+ * Drums, left Metronome (the encoder turns, it has no press: the PLAY menu's ALGORITHM picks its record mode the same
+ * way). The pages after the preset's are Drums' alone; on Beat, Kick, Snare, Hats ALGORITHM does nothing, on the Mix
+ * pages it is the drum's Drive (cu_drum_enc) */
 static void cu_beat_preset_turn(int32_t s)
 {
     uint32_t v = s > 0 ? 1u : 0u;
@@ -3114,14 +3122,28 @@ static void cu_beat_preset_turn(int32_t s)
     cu_message(v ? "Drums" : "Metronome", v ? CR_COL_MAGENTA : CR_COL_WHITE);
     cu_trace("metro: algorithm preset %s\n", v ? "drums" : "metronome");
 }
-/* PRESETS in the SEQ layer, any page ("with the PRESETS knob it should start/stop the drums or metronome"): a detent
- * right starts the beat, left stops it (as the PLAY menu's Beat cell: a direction, not a toggle, so a turn of several
- * detents lands where it points) */
+/* PRESETS in the SEQ layer, every page but the Mix pages ("with the PRESETS knob it should start/stop the drums or
+ * metronome"; on the Mix pages the drum's Filter, 3y304): a detent right starts the beat, left stops it (as the PLAY
+ * menu's Beat cell: a direction, not a toggle, so a turn of several detents lands where it points) */
 static void cu_beat_turn(int32_t s)
 {
     if ((s > 0) == (cs.metro != 0u))
         return;
     cu_metro_toggle();
+}
+/* PRESETS and ALGORITHM on a Mix page (3y304; the owner: "I would be fine if on the FX Mix pages the PRESETS and ALGO
+ * knobs were used for filter and drive"): the drum's Filter (PRESETS) and Drive (ALGORITHM), 0..127 at the knobs'
+ * step (cu_send_step: the encoders' detents at their speed, OPT held the snap). The screen marks the one turned */
+static struct { uint8_t which; uint32_t until; } cu_dr_enc;   /* 1 Filter, 2 Drive: lit on the Mix page until `until` */
+static void cu_drum_enc(int drive, int32_t s)
+{
+    uint32_t d = (cu.mpage - CU_DRP_KMIX) % 3u;
+    uint8_t *p = drive ? &cs.dr_drv[d] : &cs.dr_flt[d];
+    *p = (uint8_t)cu_send_step(*p, s, kn.snap);
+    cu_beat_post(0);
+    cu_dr_enc.which = (uint8_t)(drive ? 2u : 1u);
+    cu_dr_enc.until = fm1_ms + CU_HOT_MS;
+    cu_trace("metro: mix drum %u filter %u drive %u\n", (unsigned)d, (unsigned)cs.dr_flt[d], (unsigned)cs.dr_drv[d]);
 }
 /* SELECT in the SEQ layer: the page (Drums: the preset, Beat, Kick, Snare, Hats, Kick Mix, Snare Mix, Hats Mix;
  * Metronome: the one page) */
@@ -3200,6 +3222,10 @@ static void cu_drum_screen(cr_screen_t *s)
         cu_dr_cell(&s->cell[0][3], "Level", b, CR_G_BAR, cs.dr_lvl[d] * 255u / 127u);
         s->dr_lvl = cs.dr_lvl[d];
         s->dr_fxoff = (uint8_t)!cs.fx_on;
+        s->dr_flt = cs.dr_flt[d];               /* (3y304: PRESETS, ALGORITHM; the filter dim while it is Off or FX is) */
+        s->dr_drv = cs.dr_drv[d];
+        s->dr_fon = (uint8_t)(cs.fx_on && xfp[XP_FON]);
+        s->dr_enc = (int32_t)(cu_dr_enc.until - fm1_ms) > 0 ? cu_dr_enc.which : 0u;
         s->dr_pulse = (uint8_t)cu_beat_pulse(d, now, 150u);
     } else if (pg == CU_DRP_BEAT) {
         static const char *const L[4] = {"Map X", "Map Y", "Density", "Chaos"};
@@ -6158,11 +6184,16 @@ static void cu_knob(uint32_t role, int32_t s)
         cu_layer_knob(l, role - EN_K1, s);
         return;
     }
-    if (l == L_METRO && (role == EN_PRESET || role == EN_ALGO)) {   /* the SEQ layer: PRESETS starts / stops the beat,
-                                                    * ALGORITHM picks the preset (Metronome / Drums), on every page */
-        if (role == EN_PRESET)
+    if (l == L_METRO && (role == EN_PRESET || role == EN_ALGO)) {   /* the SEQ layer: PRESETS starts / stops the beat
+                                                    * but on the Mix pages, ALGORITHM picks the preset (Metronome /
+                                                    * Drums) on the preset page; the Mix pages: the drum's Filter and
+                                                    * Drive (3y304) */
+        uint32_t pg = cs.beat_preset == 1u ? cu.mpage : 0u;
+        if (pg >= CU_DRP_KMIX)
+            cu_drum_enc(role == EN_ALGO, s);
+        else if (role == EN_PRESET)
             cu_beat_turn(s);
-        else
+        else if (pg == CU_DRP_PRESET)
             cu_beat_preset_turn(s);
         return;
     }

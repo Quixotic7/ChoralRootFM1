@@ -396,7 +396,7 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
 
 /* ------------------------------------------------------ the session record --- */
 typedef char css_size_ok[sizeof(cr_session_t) == CSS_SIZE && sizeof(css_fx_t) == 128 && sizeof(css_part_t) == 384 &&
-                         sizeof(css_drum_t) == 36 ? 1 : -1];
+                         sizeof(css_drum_t) == 40 ? 1 : -1];
 static uint32_t css_fnv(const cr_session_t *x, uint32_t from, uint32_t size)
 {
     const uint8_t *b = (const uint8_t *)x;
@@ -1042,7 +1042,7 @@ static void css_perf_put(const cr_session_t *x)
 
 /* the beat (the SEQ layer) <-> the session's drum block. A record without it (ver 0: before the drums), or a field out
  * of range: the defaults (cr_ui.c cu_drum_defaults: Metronome). Version 1 (0.40): each drum's one send S as Delay S and
- * Reverb S, Chorus 0, Level 64: what 0.40 played, bit for bit (3y303) */
+ * Reverb S, Chorus 0, Level 64: what 0.40 played, bit for bit (3y303); versions 1 and 2: Filter 127, Drive 0 (3y304) */
 static void css_drum_get(css_drum_t *d)
 {
     uint32_t i, k;
@@ -1062,6 +1062,8 @@ static void css_drum_get(css_drum_t *d)
         d->send[i] = cs.dr_fx[i][1];
         d->rev[i] = cs.dr_fx[i][2];
         d->lvl[i] = cs.dr_lvl[i];
+        d->flt[i] = cs.dr_flt[i];
+        d->drv[i] = cs.dr_drv[i];
     }
 }
 static void css_drum_put(const cr_session_t *x)
@@ -1089,6 +1091,8 @@ static void css_drum_put(const cr_session_t *x)
         if (!v1 && d->cho[i] <= 127u) cs.dr_fx[i][0] = d->cho[i];
         if (v1 ? d->send[i] <= 127u : d->rev[i] <= 127u) cs.dr_fx[i][2] = v1 ? d->send[i] : d->rev[i];
         if (!v1 && d->lvl[i] <= 127u) cs.dr_lvl[i] = d->lvl[i];
+        if (d->ver >= 3u && d->flt[i] <= 127u) cs.dr_flt[i] = d->flt[i];   /* (version 2: 127, 0, the defaults) */
+        if (d->ver >= 3u && d->drv[i] <= 127u) cs.dr_drv[i] = d->drv[i];
     }
 }
 

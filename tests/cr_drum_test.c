@@ -239,6 +239,54 @@ int main(int argc, char **argv)
                  20.0 * __builtin_log10((double)pk1 / (pk0 ? pk0 : 1)), other);
         check(pk0 > 4000 && pk1 > pk0 * 45 / 100 && pk1 < pk0 * 55 / 100 && !other && !crd_v[DSS_KICK].live, s);
     }
+    {   /* 3y304: each drum's Drive (the parts' DIST on its sum, before its sends) and Filter (its share round the master
+         * filter, crd_byp, only while the filter sounds: CRD_F_BYP) */
+        int32_t i, pk0 = 0, pk1 = 0, diff = 0, sd = 0, byp = 0, bus = 0, bmax = 0;
+        uint32_t b;
+        uint64_t h0 = 1469598103934665603ull, h1 = h0;
+        crd_kit_load(0);
+        knobs(32);
+        crd_kit.vary = 0;
+        memset(crd_fx, 0, sizeof crd_fx);
+        quiet(); crd_hit(DSS_SNARE, 1); render(400, &pk0, &h0);
+        crd_drv[CRD_SNARE] = 127;
+        memset(crd_dist, 0, sizeof crd_dist);
+        quiet(); crd_hit(DSS_SNARE, 1); render(400, &pk1, &h1);
+        snprintf(s, sizeof s, "the snare's Drive 127: another sound (peak %d, clean %d), under full scale", pk1, pk0);
+        check(h0 != h1 && pk1 > 1000 && pk1 < 32768, s);
+        crd_fx[CRD_SNARE][CRD_SD] = 127;           /* the send takes the driven drum: as its dry */
+        quiet(); crd_hit(DSS_SNARE, 1);
+        memset(SC, 0, sizeof SC); memset(SD, 0, sizeof SD); memset(SR, 0, sizeof SR); memset(L, 0, sizeof L);
+        cr_drum_mix(L, R, SC, SD, SR, 0, CTL);
+        for (i = 0; i < CTL; i++) { sd |= SD[i]; diff |= SD[i] != (int32_t)((crd_bus[i] * (127 * 258)) >> 15) && crd_bus[i] < 16384 && crd_bus[i] > -16384; }
+        check(sd && !diff, "a driven drum's send is its driven sound (the drive before the sends)");
+        crd_drv[CRD_SNARE] = 0;
+        memset(crd_fx, 0, sizeof crd_fx);
+        quiet(); crd_hit(DSS_KICK, 1);
+        for (b = 0; b < 20u; b++) {                /* Filter 127 (the default), the filter sounding: nothing round it */
+            crd_render(CRD_F_BYP, CTL);
+            byp |= (crd_out & CRD_O_BYP) != 0;
+        }
+        check(!byp, "Filter 127: none of the drum round the master filter (as before 3y304)");
+        crd_flt[CRD_KICK] = 0;
+        crd_level = 30;                            /* (under the bus's knee: the bypass is the sum before it) */
+        quiet(); crd_hit(DSS_KICK, 1);
+        crd_render(0, CTL);                         /* (the filter silent: the share at once, nothing written) */
+        byp = crd_out & CRD_O_BYP;
+        for (b = 0; b < 20u; b++)                  /* the filter sounding: the share ramps to all of it (16 blocks) */
+            crd_render(CRD_F_BYP, CTL);
+        for (i = 0; i < CTL; i++) {
+            int32_t e = crd_byp[i] - crd_bus[i];
+            bus |= crd_bus[i];
+            if ((e < 0 ? -e : e) > bmax) bmax = e < 0 ? -e : e;
+        }
+        snprintf(s, sizeof s, "Filter 0: all of the drum's dry round the filter after the ramp (largest difference %d), "
+                 "none while the filter is silent", bmax);
+        check(!byp && bus && bmax <= 1 && (crd_out & CRD_O_BYP), s);
+        crd_flt[CRD_KICK] = 127;
+        crd_fr[CRD_KICK] = 0;
+        crd_level = 100;
+    }
     {   /* the choke */
         uint32_t b;
         crd_kit_load(0);
@@ -378,6 +426,31 @@ int main(int argc, char **argv)
             printf("cpu: %s all five ringing at once (the snare at 96): %.0f instructions / sample (the five alone "
                    "summed: %llu)\n", CRD_KIT_NAME[kit], (double)i0 / (400.0 * 8.0 * CTL), (unsigned long long)tot);
         }
+        crd_kit_load(5);                           /* 3y304: all five ringing, each drum driven, all of each round the
+                                                    * filter: what the Drive and the Filter add */
+        knobs(crd_kit.morph);
+        crd_knob[CRD_SNARE].chr = 96;
+        for (v = 0; v < 3u; v++) {
+            uint32_t d;
+            for (d = 0; d < CRD_N; d++) {
+                crd_drv[d] = (uint8_t)(v == 1u ? 90 : 0);
+                crd_flt[d] = (uint8_t)(v == 2u ? 0 : 127);
+            }
+            quiet();
+            i0 = instr_now();
+            for (k = 0; k < 400u; k++) {
+                for (t = 0; t < DSS_N; t++) crd_hit(t, 1);
+                crd_v[DSS_HATO].choke = 0;
+                for (b = 0; b < 8u; b++) {
+                    crd_render(CRD_F_BYP, CTL);
+                    crd_add(L, R, SC, SD, SR, CTL);
+                }
+            }
+            i0 = instr_now() - i0;
+            printf("cpu: Break all five ringing, %s: %.0f instructions / sample\n",
+                   v == 1u ? "every drum driven (90)" : v == 2u ? "all of each round the filter" : "clean, through the filter", (double)i0 / (400.0 * 8.0 * CTL));
+        }
+        for (v = 0; v < CRD_N; v++) { crd_drv[v] = 0; crd_flt[v] = 127; crd_fr[v] = 0; }
         quiet();
         i0 = instr_now();
         for (k = 0; k < 20000u; k++) cr_drum_mix(L, R, SC, SD, SR, 0, CTL);

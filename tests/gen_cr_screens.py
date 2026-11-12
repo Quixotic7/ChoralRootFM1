@@ -335,6 +335,10 @@ def screen(sc, prev_name):
             f.append(".dr_fx = {" + ", ".join(str(int(v)) for v in p["sends"]) + "}")
             f.append(f".dr_lvl = {int(p.get('level', 64))}")
             f.append(f".dr_fxoff = {1 if p.get('fxOff') else 0}")
+            f.append(f".dr_flt = {int(p.get('filter', 127))}")   # 3y304: the drum's Filter and Drive (PRESETS, ALGORITHM)
+            f.append(f".dr_drv = {int(p.get('drive', 0))}")
+            f.append(f".dr_fon = {1 if p.get('filterOn') else 0}")
+            f.append(f".dr_enc = {int(p.get('enc', 0))}")
     elif kind == "knobrow":
         # a layer screen: the picker's band (horizontal) over one row of the four knobs' cells (cell[0])
         items = [it if isinstance(it, str) else (it or {}).get("t", "") for it in (p.get("items") or [])]
@@ -700,9 +704,10 @@ DEVICE_STATES = [
                                     {"label": "Decay", "value": "18%", "glyph": "bar", "pct": 0.18},
                                     {"label": "Character", "value": "hard", "glyph": "mix", "pct": 0.94},
                                     {"label": "Fill", "value": "85%", "glyph": "bar", "pct": 0.85}]}}},
-    {"name": "Device · Drums: Kick Mix (the kick's sends and Level, a hit's thump)",
+    {"name": "Device · Drums: Kick Mix (the kick's sends, Level, Filter and Drive, a hit's thump)",
      "screen": {"header": {"batt": False},
                 "panel": {"kind": "drum", "col": "drums", "sel": 5, "sends": [40, 90, 127], "level": 80, "pulse": 0.6,
+                          "filter": 70, "drive": 110, "filterOn": True, "enc": 2,
                           "cells": [{"label": "Chorus", "value": "31%", "glyph": "mix", "pct": 0.31},
                                     {"label": "Delay", "value": "71%", "glyph": "mix", "pct": 0.71},
                                     {"label": "Reverb", "value": "100%", "glyph": "mix", "pct": 1.0},

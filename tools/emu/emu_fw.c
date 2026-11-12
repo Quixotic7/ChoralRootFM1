@@ -587,9 +587,9 @@ void emu_fw_dump(void)
                (unsigned)cu.gsave_pend, (unsigned)crl.step_end, (unsigned)crl.step_len, (unsigned)crl.step_no);
         /* the beat (the SEQ layer, cr_drum.c): the preset, the beat on, the drums on in the looper and running, the
          * kit, the layer's page, the step playing + 1, the hits so far (kick snare hats), the Beat page's knobs, the
-         * level, each drum's Chorus/Delay/Reverb sends and Level (kick snare hats, 3y303), the chip's beat */
+         * level, each drum's Chorus/Delay/Reverb sends and Level (kick snare hats, 3y303), Filter and Drive (3y304), the chip's beat */
         printf("  drums: preset %u beat %u click %u drums %u ok %u run %u kit %u page %u now %u hits %u %u %u "
-               "x %u y %u density %u chaos %u level %u sends %u/%u/%u %u/%u/%u %u/%u/%u levels %u %u %u kick %u/%u/%u/%u snare %u/%u/%u/%u hats %u/%u/%u/%u bpos %u\n",
+               "x %u y %u density %u chaos %u level %u sends %u/%u/%u %u/%u/%u %u/%u/%u levels %u %u %u filters %u %u %u drives %u %u %u kick %u/%u/%u/%u snare %u/%u/%u/%u hats %u/%u/%u/%u bpos %u\n",
                (unsigned)cs.beat_preset, (unsigned)cs.metro, (unsigned)crl.metro, (unsigned)crl.drums,
                (unsigned)cu_drums_ok, (unsigned)crl.drum_run, (unsigned)cs.dr_kit, (unsigned)cu.mpage + 1u,
                (unsigned)crd_now, (unsigned)crd_hitn[0], (unsigned)crd_hitn[1], (unsigned)crd_hitn[2],
@@ -598,6 +598,8 @@ void emu_fw_dump(void)
                (unsigned)cs.dr_fx[1][0], (unsigned)cs.dr_fx[1][1], (unsigned)cs.dr_fx[1][2],
                (unsigned)cs.dr_fx[2][0], (unsigned)cs.dr_fx[2][1], (unsigned)cs.dr_fx[2][2],
                (unsigned)cs.dr_lvl[0], (unsigned)cs.dr_lvl[1], (unsigned)cs.dr_lvl[2],
+               (unsigned)cs.dr_flt[0], (unsigned)cs.dr_flt[1], (unsigned)cs.dr_flt[2],
+               (unsigned)cs.dr_drv[0], (unsigned)cs.dr_drv[1], (unsigned)cs.dr_drv[2],
                (unsigned)cs.dr[0][0], (unsigned)cs.dr[0][1], (unsigned)cs.dr[0][2], (unsigned)cs.dr[0][3],
                (unsigned)cs.dr[1][0], (unsigned)cs.dr[1][1], (unsigned)cs.dr[1][2], (unsigned)cs.dr[1][3],
                (unsigned)cs.dr[2][0], (unsigned)cs.dr[2][1], (unsigned)cs.dr[2][2], (unsigned)cs.dr[2][3],

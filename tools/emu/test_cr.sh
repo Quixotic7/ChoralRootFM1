@@ -968,7 +968,10 @@ hits() { echo "$1" | sed -n 's/.* hits \([0-9]*\) \([0-9]*\) \([0-9]*\) .*/\1 \2
     has '^metro: cells Chorus Delay Reverb Level' "$L" && grep -aq '^metro: mix drum 0 chorus [1-9][0-9]* delay 0 reverb 0 level 64$' "$L" &&
     echo "$(dr 5)" | grep -q ' sends [1-9][0-9]*/0/0 0/0/0 0/0/0 levels 64 64 64 ' && grep -aq "device): drum .*item 'Hats Mix'" "$L" &&
     grep -aq '^metro: mix drum 2 chorus 0 delay 0 reverb [1-9][0-9]* level [1-5][0-9]$' "$L" &&
-    ok "SELECT: Kick (KNOB 3: its Character), Snare, Hats, Kick Mix (KNOB 1: the kick's Chorus), Snare Mix, Hats Mix, the last page (KNOB 3 its Reverb, KNOB 4 its Level; 3y303): $OUT/cr_drums_kick.ppm $OUT/cr_drums_mix.ppm $OUT/cr_drums_hatsmix.ppm" \
+    echo "$(dr 5)" | grep -q ' beat 0 .* filters [0-9][0-9]* 127 127 drives [1-9][0-9]* 0 0 ' &&
+    [ "$(echo "$(dr 5)" | sed -n 's/.* filters \([0-9]*\) .*/\1/p')" -lt 127 ] && [ "$(df "$(dr 3)" preset)" = 1 ] &&
+    grep -aq '^metro: mix drum 0 filter [0-9]* drive [1-9][0-9]*$' "$L" && ! grep -aq '^metro: algorithm preset metronome' "$L" &&
+    ok "SELECT: Kick (KNOB 3: its Character), Snare, Hats, Kick Mix (KNOB 1: the kick's Chorus), Snare Mix, Hats Mix, the last page (KNOB 3 its Reverb, KNOB 4 its Level; 3y303); PRESETS / ALGORITHM on Kick Mix: its Filter and Drive, the beat off, ALGORITHM on Beat: nothing (3y304): $OUT/cr_drums_kick.ppm $OUT/cr_drums_mix.ppm $OUT/cr_drums_hatsmix.ppm" \
     || bad "the drum pages: $(dr 4) / $(dr 5)"
 grep -a '^  cr: voices' "$L" | sed -n 6p | grep -q ' chord DM sounding 1 ' &&
     ok "a chord played in the SEQ layer sounds (the keys play there)" || bad "keys in the layer: $(grep -a '^  cr: voices' "$L" | sed -n 6p)"

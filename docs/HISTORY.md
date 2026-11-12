@@ -8590,3 +8590,49 @@ Chorus, Delay, Level after a relaunch), gen_cr_screens (Kick Mix with a thump, H
 `sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124 ok);
 `BOARD=smk37` and `CR_SINGLE_CORE=1` build. The dev package `build/choralroot.fwsc` sha256 eac1e7fd...ebd7. Not tried
 on a unit; not pushed, tagged or flashed.
+
+3y304. **Each drum's Filter and Drive; ALGORITHM and PRESETS in the SEQ layer.** The owner, after 3y303 on a unit
+("This is nice"): "It would be cool to be able to also mix the drums through the filter and drive. Algo knob should
+only switch the drum machine on the first page, I would be fine if on the FX Mix pages the PRESETS and ALGO knobs were
+used for filter and drive." **The encoders** (`cr_ui.c`, the SEQ layer): ALGORITHM picks Metronome / Drums on the
+preset page alone (Beat, Kick, Snare, Hats: nothing); PRESETS starts / stops the beat on every page but the Mix
+pages; on Kick Mix, Snare Mix, Hats Mix PRESETS is the drum's Filter and ALGORITHM its Drive (`cu_drum_enc`, 0..127 at
+the knobs' step, `cu_send_step`; per cent on the screen). KNOB 1..4 stay Chorus, Delay, Reverb, Level. **Drive**
+(`cr_drum.c crd_drv`, 0 the default: clean): the parts' DIST (`dsp.c dsp_dist`: low cut, 1x .. 9x into the
+asymmetric soft clip, the tone's two poles, the make-up) on the drum's sum (the snare with its clap, both hats),
+before its sends, its states the drum's own (`crd_dist`, kept at 0: no click switching it on). At 0 each sound is
+emitted on its own as in 3y303: the same sums, bit for bit. **Filter** (`crd_flt`, 127 the default): 127 - Filter of
+the drum's dry goes round the master filter by `cr_fx.c`'s rule for a part round it (B, F(acc - B) + B; FX.md "The
+drums' Filter"), whatever part the filter is on (All, Chord, Bass: the drums follow their own amount, as the
+coordinator suggested and as the code makes natural: B is a sum, the parts' shares and the drums' add); the sends as
+they are (the place before the buses filters every send whole, a bypassed part's too). Checked in every mode and
+place: at 127 nothing is added to B, so the drums (in the dry mix after the parts) go through the filter whole after
+the buses, first in Parallel (their sends with the parts'), and in Chain at its position, as before. The share
+(`crd_fr`, Q12) moves by 256 a block, a line across it, while the filter sounds (`xb.on`, set in `xb_begin`: a cut
+wanted or a place fading); at once while it does not; nothing is taken with the filter Off or FX off (the knob never
+turns the filter on). The share is taken before the bus's knee (linear to -6 dBFS: above it the knee's few per cent
+are filtered). **On core 1** (DUALCORE.md): both are in `crd_render`, core 1's job; `c1_dr` carries core 0's flags
+(FX off, the filter sounding), `cr_drum_out` adds the share into B after the parts (`crd_byp_add`). **The screen**
+(`cr_dr_mix`): the Drive as 20 red spikes round the roundel, longer and more ragged with drive, flaring at a hit;
+the Filter a white box on the wire with a low-pass curve, filled as much of the drum as goes through (dim while the
+master filter is Off or FX is); their values under them (13 px, red / white; the one just turned underlined). **Saved**:
+the drum block is version 3 (40 bytes at 26..65: `flt[3]` in version 2's pad, `drv[3]` and a pad in 4 bytes of the
+reserve, 36 left); a version 1 or 2 record loads Filter 127, Drive 0. **Cost** (`cr_drum_test --cpu`, Break, all five
+ringing): clean 683 instructions a sample (3y303: 682), every drum driven 825 (+47 a drum: `CRD_US_DRIVE` 46 us of
+the unit's half in the split's weight), all of each round the filter 700 (+5 a drum, not weighed). The emulator's
+scenarios (8-note chord + bass + the drums at Density full, every send 127; device us a half, core 0 / core 1
+averages): drive 0 = 3y303's within 3 us (FM6 548 / 568, VA 733 / 671, P5 971 / 1027, MORPH PAD 881 / 762); every
+drum at Drive 127: FM6 535 / 559, VA 723 / 661, P5 946 / 1012, MORPH PAD 871 / 751 (the drive's weight moves chord
+voices to core 0; the drive's own cost is inside the run's noise there). **Proof**: `tests/cr_c1_thread_test.c` with
+every drum driven, part of each round the filter, the filter on (Bass, both cuts) for a sixth of each phrase: the
+drums on core 0 = inline = on the thread, 26 pairs, 13 416 blocks with a share round the filter; ThreadSanitizer 0
+reports. `cr_cpu1_test` (the pairs and the hung job, every drum driven); `cr_drum_test` (Drive another sound under
+full scale, the send takes the driven sound, Filter 127 nothing round, Filter 0 all of it after the ramp and nothing
+while the filter is silent); `cr_settings_test`, `cr_backup_test` (version 3 round-trip, a version 2 record, out of
+range, a later version); test_cr `cr_drums` (ALGORITHM on Beat: still Drums; PRESETS / ALGORITHM on Kick Mix: its
+Filter and Drive, the beat stays off); test_persist (the snare's Filter and Drive after a relaunch); gen_cr_screens
+(Kick Mix with Drive, Filter and the filter on). **Sizes**: FM-1 XIP 562,376 -> 563,948 of 573,440 (98.3 %), RAM
+91,268 -> 91,328, POOL 335,024 -> 335,156; 1-core XIP 558,168 -> 559,980; SMK-37 XIP 543,508 -> 545,112;
+`fm1_alnk0_irq` 13,544 of 13,890; core 1's stack down the drums' path 752 B. `sh tests/run_all.sh`: ALL SUITES PASSED
+(24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124 ok); `BOARD=smk37` and `CR_SINGLE_CORE=1` build. The dev
+package sha256 a38bfdd9...3432. Not tried on a unit; not pushed, tagged or flashed.

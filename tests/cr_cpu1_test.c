@@ -112,7 +112,9 @@ static void setup(uint32_t p0, uint32_t p1)
         crd_fx[k][1] = (uint8_t)(110 - 20 * k);
         crd_fx[k][2] = 127;
         crd_lvl[k] = (uint8_t)(50 + 25 * k);
+        crd_drv[k] = (uint8_t)(20 + 50 * k);       /* (3y304: each drum driven) */
     }
+    memset(crd_dist, 0, sizeof crd_dist);
     memset(crd_v, 0, sizeof crd_v);
     drn = drb = 0;
     for (k = 0; k < 2u; k++) {                      /* S&H LFO -> cutoff: a draw from the shared generator per cycle */

@@ -376,7 +376,9 @@ typedef struct {
                                      * Snare Mix, Hats Mix (3y303): the drum's icon in a roundel whose arc is its Level
                                      * (dr_lvl), thumping on its hits (dr_pulse), and its three sends as rings in their
                                      * knobs' colours, Chorus blue, Delay orange, Reverb white (dr_fx; grey with FX off:
-                                     * dr_fxoff), each as full as its send, its middle swelling with it */
+                                     * dr_fxoff), each as full as its send, its middle swelling with it; the Drive
+                                     * as red spikes round the roundel, the Filter a white box on the wire (dr_flt,
+                                     * dr_drv), each with its value under it */
     uint8_t dr_preset;              /* 0 Metronome, 1 Drums */
     uint8_t dr_x, dr_y;             /* Beat: the place on the map, 0..255 (Grids' X / Y) */
     uint8_t dr_step, dr_steps;      /* the step playing + 1 (0: none); the steps a bar (32; 24 in 3/4 and 6/8) */
@@ -389,6 +391,9 @@ typedef struct {
     uint8_t beat_on, beat_n, beat_pos, beat_pulse, beat_flash;
     uint8_t dr_fx[3], dr_lvl, dr_fxoff;   /* a Mix page (dr_page 5..7): the drum's sends 0..127 into the chorus, the
                                      * delay, the reverb; its Level 0..127 (64 as voiced); 1: FX off (no send) */
+    uint8_t dr_flt, dr_drv, dr_fon, dr_enc;   /* .. its Filter 0..127 (through the master filter) and Drive 0..127
+                                     * (PRESETS, ALGORITHM; 3y304); 1: the master filter on (FX on, not Off: else the
+                                     * Filter dim); the encoder just turned: 1 Filter, 2 Drive (lit), 0 none */
 } cr_screen_t;
 
 /* the filter's FTYPE position's name (eng_va.c's names): "LP" "BP" "HP" "NOTCH" at 0 32 64 96, "LP>BP" .. "NT>LP"
