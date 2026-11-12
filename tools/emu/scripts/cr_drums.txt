@@ -1,7 +1,7 @@
 # ChoralRoot: the drums (the DRUMS plan; docs/MANUAL.md "The drums"). The SEQ layer (SEQ held) opens on its preset page:
 # Metronome, one page. ALGORITHM +1: Drums (the pages Beat Kick Snare Hats Kick-Mix Snare-Mix Hats-Mix after it); KNOB 3
 # +1: kit Deep, -1: Club. SELECT: Beat (the map, the lanes); KNOB 1 / 2: Map X / Y, KNOB 3 Density; SELECT: Kick, KNOB 3
-# its Character; SELECT to Kick Mix, KNOB 1: the kick's Chorus, PRESETS its Filter, ALGORITHM its Drive (3y304:
+# its Character; SELECT to Kick Mix, KNOB 1: the kick's Chorus, PRESETS its Drive, ALGORITHM its Filter (3y305; 3y304:
 # ALGORITHM on the Beat page did nothing); SELECT to the end (Hats Mix), KNOB 3 the hats' Reverb, KNOB 4 -6 their
 # Level (3y303); back to the preset page. A root (D4 with A#3: D major) plays in
 # the layer. PRESETS +1: the beat on ("drums on"): with no loop they start at once, free on the tempo. OCT- closes
@@ -49,9 +49,9 @@ knob SELECT +1
 wait 300
 knob KNOB1 +5
 wait 100
-knob PRESETS -6                   # (3y304: on a Mix page PRESETS is the drum's Filter, ALGORITHM its Drive; the beat
+knob ALGORITHM -6                 # (3y305: on a Mix page ALGORITHM is the drum's Filter, PRESETS its Drive; the beat
 wait 100                          # stays off)
-knob ALGORITHM +6
+knob PRESETS +6
 wait 700
 dump                              # 5: page 6 (Kick Mix), the kick's Chorus, Filter, Drive
 shot build/emu/test/cr_drums_mix.ppm

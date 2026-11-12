@@ -392,7 +392,7 @@ typedef struct {
     uint8_t dr_fx[3], dr_lvl, dr_fxoff;   /* a Mix page (dr_page 5..7): the drum's sends 0..127 into the chorus, the
                                      * delay, the reverb; its Level 0..127 (64 as voiced); 1: FX off (no send) */
     uint8_t dr_flt, dr_drv, dr_fon, dr_enc;   /* .. its Filter 0..127 (through the master filter) and Drive 0..127
-                                     * (PRESETS, ALGORITHM; 3y304); 1: the master filter on (FX on, not Off: else the
+                                     * (ALGORITHM, PRESETS; 3y304, 3y305); 1: the master filter on (FX on, not Off: else the
                                      * Filter dim); the encoder just turned: 1 Filter, 2 Drive (lit), 0 none */
 } cr_screen_t;
 

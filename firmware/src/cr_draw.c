@@ -2694,8 +2694,8 @@ static void cr_dr_drum(const cr_screen_t *s)
 /* pages 5..7, Kick Mix, Snare Mix, Hats Mix (3y303, 3y304): each thing in the colour of what turns it. The drum's icon
  * in its roundel (r 34 at the left: the track dim, the Level green (KNOB 4) clockwise from 12 o'clock, as full as
  * Level / 127, so 64 as voiced is half; 3 px, 3 more at the drum's thump; the icon magenta at the hit); round it the
- * Drive (ALGORITHM) as red spikes, longer and more ragged with more drive, flaring at a hit. A wire from it through a
- * white box, the Filter (PRESETS: the master filter's white; a low-pass curve, the box filled as much of the drum as
+ * Drive (PRESETS, 3y305) as red spikes, longer and more ragged with more drive, flaring at a hit. A wire from it through a
+ * white box, the Filter (ALGORITHM: the master filter's white; a low-pass curve, the box filled as much of the drum as
  * goes through it; dim while the master filter is Off or FX is), and its three sends: rings (r 18), Chorus blue (KNOB 1),
  * Delay orange (KNOB 2), Reverb white (KNOB 3), each as full as its send, its middle a disc on the wire that swells with
  * the send and at the hit by as much as the send carries it; the wire lights magenta at the hit. FX off: the rings grey.
@@ -2709,10 +2709,19 @@ static void cr_dr_mix(const cr_screen_t *s)
     uint16_t fc = s->dr_fon ? CR_WHITE : T_DIM, dc = drv ? ux_mix(CR_RED, CR_WHITE, pul * 40 / 255) : T_DIM;
     char t[8];
     cr_fill(80, cy - 1, 132, 3, ux_mix(T_LINE, CR_MAG, pul * 100 / 255));   /* the wire, under the rings */
-    if (drv)                                         /* the Drive: 20 spikes, 2 .. 11 px (+3 at a hit), ragged with it */
+    if (drv)                                         /* the Drive: 20 spikes, 2 .. 11 px (+3 at a hit), ragged with it.
+                                                      * Each a short line from r 38 (3y305: was an arc each, and an arc
+                                                      * tests every pixel of its whole box, 76 px square: the page drew
+                                                      * slowly, the owner saw it lag the knobs) */
         for (k = 0; k < 20; k++) {
             int32_t len = 2 * 16 + drv * 9 * 16 / 127 - (k * 7 % 5) * drv * 16 / 254 + pul * 3 * 16 / 255;
-            cr_arc(cx, cy * 16, 38 * 16 + len / 2, len, (uint32_t)k * 3277u + 1024u, 1100u, 0, 0, 0, dc);
+            uint32_t a = (uint32_t)k * 3277u + 1574u;    /* (the arc's middle: 1024 + 1100 / 2) */
+            int32_t co = cr_cos(a), si = cr_sin(a), r0 = 38 * 16 + 16, r1 = 38 * 16 + len - 16;
+            int16_t p[4];
+            if (r1 < r0) r1 = r0;
+            p[0] = (int16_t)(cx + ((r0 * co) >> 14)); p[1] = (int16_t)(cy * 16 + ((r0 * si) >> 14));
+            p[2] = (int16_t)(cx + ((r1 * co) >> 14)); p[3] = (int16_t)(cy * 16 + ((r1 * si) >> 14));
+            cr_poly(p, 2u, 3 * 16, 0, 0, dc);
         }
     cr_arc(cx, cy * 16, 34 * 16, 3 * 16, 0, 65536u, 0, 0, 0, T_SURF);
     if (sw) cr_arc(cx, cy * 16, 34 * 16, w, 49152u, sw >= 65536u ? 65535u : sw, 0, 0, 0, CR_NAMED[CR_COL_GREEN]);

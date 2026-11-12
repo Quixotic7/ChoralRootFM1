@@ -659,7 +659,7 @@ static uint8_t crd_fx[CRD_N][CRD_NS] CRD_BSS;
 static int32_t crd_bus[CTL] CRD_POOL, crd_snd[CRD_NS][CTL] CRD_POOL;   /* (the drums' dry sum, their three sends) */
 static uint8_t crd_out;                          /* what crd_render wrote: bit 0 crd_bus, bit 1 + s crd_snd[s] (the
                                                   * others hold an older block's: crd_add skips them) */
-/* EACH DRUM'S DRIVE AND FILTER (3y304; the Mix pages' ALGORITHM and PRESETS). Drive 0..127 (0: clean, as before it):
+/* EACH DRUM'S DRIVE AND FILTER (3y304; the Mix pages' PRESETS and ALGORITHM since 3y305). Drive 0..127 (0: clean, as before it):
  * the parts' DIST (dsp.c dsp_dist: a low cut, a gain of 1x .. 9x into the asymmetric soft clip, the tone's two poles,
  * the make-up) on the drum's sum (the snare with the clap, both hats), before its sends, as a part's drive is before
  * its; its states the drum's own (crd_dist), kept while it is 0 (no click switching it on). Filter 0..127 (127, the

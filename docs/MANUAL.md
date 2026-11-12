@@ -727,7 +727,7 @@ Three more things open the same way and are described in their own chapters: **E
 ([Sounds](#11-sounds)), **HOME** held for 0.6 s is the view menu ([Views](#13-views)), and **SAVE** held is not a layer: it is the global save ([What the FM-1 remembers](#what-the-fm-1-remembers)). (Until 0.17 SAVE held showed the
 loop slots for as long as it was held.)
 
-PRESETS and ALGORITHM keep their jobs in a layer (except in the PLAY menu and in SEQ's hold menu, where they are the beat's, and on its Mix pages a drum's Filter and Drive: [The drums](#the-drums)). The hold time is set in Options > Hold
+PRESETS and ALGORITHM keep their jobs in a layer (except in the PLAY menu and in SEQ's hold menu, where they are the beat's, and on its Mix pages a drum's Drive and Filter: [The drums](#the-drums)). The hold time is set in Options > Hold
 Time (300, 400, 500 or 600 ms).
 
 ## 6. Bass
@@ -1079,8 +1079,8 @@ one to three short gaps in it ([What the FM-1 remembers](#what-the-fm-1-remember
 - Hold SEQ for **the SEQ key's hold menu, the beat's** (also from the loop editor, new in 0.40). Its first page is
   the preset: two tiles, **Metronome** (the click, as ever) and **Drums** (new in 0.40, [below](#the-drums)).
   On the first page **ALGORITHM** picks the preset (a turn right Drums, left Metronome; new after 0.40: on the other
-  pages it does nothing, and on the Mix pages it is the drum's Drive), and **PRESETS** starts and stops the beat on
-  every page but the Mix pages, where it is the drum's Filter (right on, left off; a tap of SEQ does the same). KNOB 1 is the level (the click's, or the
+  pages it does nothing, and on the Mix pages it is the drum's Filter), and **PRESETS** starts and stops the beat on
+  every page but the Mix pages, where it is the drum's Drive (right on, left off; a tap of SEQ does the same). KNOB 1 is the level (the click's, or the
   drums'), KNOB 2 the time signature, 4/4, 3/4 or 6/8, with Drums KNOB 3 the kit, and KNOB 4 shows the beat on or off
   (and turns it too). The keys play as usual in this menu. OPT + SELECT sets the click's level without opening the
   menu. (Until 0.39 SELECT and D4, E4, F4 picked the time signature here and KNOB 1 was the level.)
@@ -1112,7 +1112,7 @@ With Drums, **SELECT** turns the menu's pages after the preset page:
 | the preset (both presets; ALGORITHM picks it) | Level (the click's, or the drums') | Meter: 4/4, 3/4, 6/8 | Kit (Drums) | Beat: on or off (as PRESETS) |
 | **Beat**: the map, the dot where you are and the four patterns it blends, beside it the bar the three drums play (kick, snare, hats, top to bottom; white: an accent), the step playing framed | Map X | Map Y | Density: more or fewer hits on all three | Chaos: a few hits added at random, new each bar |
 | **Kick**, **Snare**, **Hats**: the drum's sound drawn (as tall as its tune, as long as its decay, smooth when soft, striped when hard) | Tune, -12 to +12 semitones | Decay | Character: soft to hard (the snare: past the middle it becomes a clap) | Fill: how many of the map's hits this drum plays |
-| **Kick Mix**, **Snare Mix**, **Hats Mix** (new after 0.40; 0.40 had one Mix page, a send a drum): the drum in a ring as full as its Level, red spikes round it as hot as its Drive (its value under it), a wire from it through a white filter box (filled with as much of the drum as goes through the master filter, its value under it; dim while the master filter is Off) and its three sends, each a ring as full as the send in its knob's colour, swelling as the drum hits. **PRESETS**: the drum's Filter; **ALGORITHM**: its Drive | Chorus | Delay | Reverb | Level (100%: the kit as voiced; up to 198%, down to off) |
+| **Kick Mix**, **Snare Mix**, **Hats Mix** (new after 0.40; 0.40 had one Mix page, a send a drum): the drum in a ring as full as its Level, red spikes round it as hot as its Drive (its value under it), a wire from it through a white filter box (filled with as much of the drum as goes through the master filter, its value under it; dim while the master filter is Off) and its three sends, each a ring as full as the send in its knob's colour, swelling as the drum hits. **PRESETS**: the drum's Drive; **ALGORITHM**: its Filter (the knobs' order, left to right) | Chorus | Delay | Reverb | Level (100%: the kit as voiced; up to 198%, down to off) |
 
 - **The map**: turning Map X right moves the dot right, turning Map Y right moves it up.
 - **FX**: each drum has its own three sends, into the chorus, the delay and the reverb, read in per cent as the FX
@@ -1120,7 +1120,7 @@ With Drums, **SELECT** turns the menu's pages after the preset page:
   both hats'. FX off closes them (the pages read `off`). The drums go through the master filter as the parts do. A
   setting saved on 0.40, whose one send a drum went into the delay and the reverb alike, comes back as that send on
   Delay and Reverb, Chorus 0 and Level 100%: the same sound.
-- **Filter and Drive** (new after 0.40), on each Mix page's PRESETS and ALGORITHM. **Filter** is how much of the
+- **Filter and Drive** (new after 0.40), on each Mix page: PRESETS the Drive, ALGORITHM the Filter. **Filter** is how much of the
   drum's dry sound goes through the master filter (FX layer, the Filter page): 100%, the default, all of it, as
   before; less sends the rest round it, the way Filter Chord or Bass sends the other part round. It follows its own
   amount whichever part the master filter is on (All, Chord or Bass); its sends go to the effects as they are. With
@@ -2700,7 +2700,7 @@ is the exception: held again it switches between the chords' and the bass's PERF
 | HOME | HOME | back; on the view: next view | 0.6 s: the view menu (SELECT view · KNOB 1 lock) |
 | SAVE | SAVE | the save menu: SELECT Overwrite / Save as new / Favorite / Favorites filter / Favorite type · KNOB 1 value · KNOB 2 filter · 3 type · 4 favorite · OCT+ saves · held 1 s: delete / reset | **the global save**: everything as it is now, and the loop (`saved`). With GLO, both held 1 s: revert (`reverted`) |
 | ARP | PERF | performance on / off, both parts (in its layers too) | PERF layer (the chords): SELECT mode (Off first) · KNOB 1-4 its parameters. With BASS (ENV) held: the Bass PERF layer, the same for the bass (Off, Follow, the modes). Held again in a PERF layer: the other part's |
-| SEQ | SEQ | the loop editor; in it: the PLAY menu; in the PLAY menu: leave. With GLO held: the beat on / off | its hold menu (the beat; from the loop editor too): ALGORITHM Preset (Metronome / Drums; the first page only) · PRESETS the beat on / off (not on the Mix pages) · KNOB 1 Level · 2 Meter · 3 Kit · 4 Beat · SELECT: Beat (Map X, Map Y, Density, Chaos), Kick, Snare, Hats (Tune, Decay, Character, Fill), Kick Mix, Snare Mix, Hats Mix (Chorus, Delay, Reverb, Level; PRESETS Filter, ALGORITHM Drive) · the keys play · a tap there: the beat on / off |
+| SEQ | SEQ | the loop editor; in it: the PLAY menu; in the PLAY menu: leave. With GLO held: the beat on / off | its hold menu (the beat; from the loop editor too): ALGORITHM Preset (Metronome / Drums; the first page only) · PRESETS the beat on / off (not on the Mix pages) · KNOB 1 Level · 2 Meter · 3 Kit · 4 Beat · SELECT: Beat (Map X, Map Y, Density, Chaos), Kick, Snare, Hats (Tune, Decay, Character, Fill), Kick Mix, Snare Mix, Hats Mix (Chorus, Delay, Reverb, Level; PRESETS Drive, ALGORITHM Filter) · the keys play · a tap there: the beat on / off |
 | PLAY | LOOP | play / stop the loop; ends a take | PLAY menu: PRESETS slot · ALGORITHM record mode · SELECT page · page 1: KNOB 1 Length · 2 Rate · 3 Quantize · 4 Count-in · page 2: KNOB 1 Level · 2 Beat · GLO: its keys play / loops · SEQ: leave · EDIT: the loop editor (PRESETS step, heard while the loop is stopped, with GLO 8 steps · SELECT page · ALGORITHM the step's voicing · the keys replace it · REC clears it · OCT the octave · page 1: KNOB 1 Note len · 2 Steps, with GLO to 8 16 32 48 64 · 3 Chance · 4 Velocity · page 2: KNOB 1 Ratchet · 2 Condition · 3 Voicing · SEQ, EDIT or LOOP held: the PLAY menu · HOME: the view) |
 | REC | REC | record by the record mode; ends a take; cancels when armed. With GLO held: the next record mode | undo the last layer |
 | OCT- | octave down | roots down an octave (to -2). In layers, menus, dialogs: back / cancel (closes). In step entry: back a step | in the editor, + a knob: clear that parameter's modulation |

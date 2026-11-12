@@ -3108,7 +3108,7 @@ static void cu_drum_knob(uint32_t knob, int32_t s)
  * and Drums", and after 3y303: "Algo knob should only switch the drum machine on the first page"): a detent right
  * Drums, left Metronome (the encoder turns, it has no press: the PLAY menu's ALGORITHM picks its record mode the same
  * way). The pages after the preset's are Drums' alone; on Beat, Kick, Snare, Hats ALGORITHM does nothing, on the Mix
- * pages it is the drum's Drive (cu_drum_enc) */
+ * pages it is the drum's Filter (cu_drum_enc, 3y305) */
 static void cu_beat_preset_turn(int32_t s)
 {
     uint32_t v = s > 0 ? 1u : 0u;
@@ -3123,7 +3123,7 @@ static void cu_beat_preset_turn(int32_t s)
     cu_trace("metro: algorithm preset %s\n", v ? "drums" : "metronome");
 }
 /* PRESETS in the SEQ layer, every page but the Mix pages ("with the PRESETS knob it should start/stop the drums or
- * metronome"; on the Mix pages the drum's Filter, 3y304): a detent right starts the beat, left stops it (as the PLAY
+ * metronome"; on the Mix pages the drum's Drive, 3y305): a detent right starts the beat, left stops it (as the PLAY
  * menu's Beat cell: a direction, not a toggle, so a turn of several detents lands where it points) */
 static void cu_beat_turn(int32_t s)
 {
@@ -3132,7 +3132,8 @@ static void cu_beat_turn(int32_t s)
     cu_metro_toggle();
 }
 /* PRESETS and ALGORITHM on a Mix page (3y304; the owner: "I would be fine if on the FX Mix pages the PRESETS and ALGO
- * knobs were used for filter and drive"): the drum's Filter (PRESETS) and Drive (ALGORITHM), 0..127 at the knobs'
+ * knobs were used for filter and drive"; 3y305: "make PRESETS be the Drive and ALGO be the filter to match physical order of
+ * the knobs"): the drum's Drive (PRESETS) and Filter (ALGORITHM), 0..127 at the knobs'
  * step (cu_send_step: the encoders' detents at their speed, OPT held the snap). The screen marks the one turned */
 static struct { uint8_t which; uint32_t until; } cu_dr_enc;   /* 1 Filter, 2 Drive: lit on the Mix page until `until` */
 static void cu_drum_enc(int drive, int32_t s)
@@ -3222,7 +3223,7 @@ static void cu_drum_screen(cr_screen_t *s)
         cu_dr_cell(&s->cell[0][3], "Level", b, CR_G_BAR, cs.dr_lvl[d] * 255u / 127u);
         s->dr_lvl = cs.dr_lvl[d];
         s->dr_fxoff = (uint8_t)!cs.fx_on;
-        s->dr_flt = cs.dr_flt[d];               /* (3y304: PRESETS, ALGORITHM; the filter dim while it is Off or FX is) */
+        s->dr_flt = cs.dr_flt[d];               /* (3y305: ALGORITHM, PRESETS; the filter dim while it is Off or FX is) */
         s->dr_drv = cs.dr_drv[d];
         s->dr_fon = (uint8_t)(cs.fx_on && xfp[XP_FON]);
         s->dr_enc = (int32_t)(cu_dr_enc.until - fm1_ms) > 0 ? cu_dr_enc.which : 0u;
@@ -6190,7 +6191,7 @@ static void cu_knob(uint32_t role, int32_t s)
                                                     * Drive (3y304) */
         uint32_t pg = cs.beat_preset == 1u ? cu.mpage : 0u;
         if (pg >= CU_DRP_KMIX)
-            cu_drum_enc(role == EN_ALGO, s);
+            cu_drum_enc(role == EN_PRESET, s);   /* (3y305: PRESETS the Drive, ALGORITHM the Filter: the knobs' order) */
         else if (role == EN_PRESET)
             cu_beat_turn(s);
         else if (pg == CU_DRP_PRESET)

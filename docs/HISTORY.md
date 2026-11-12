@@ -8636,3 +8636,15 @@ Filter and Drive, the beat stays off); test_persist (the snare's Filter and Driv
 `fm1_alnk0_irq` 13,544 of 13,890; core 1's stack down the drums' path 752 B. `sh tests/run_all.sh`: ALL SUITES PASSED
 (24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124 ok); `BOARD=smk37` and `CR_SINGLE_CORE=1` build. The dev
 package sha256 a38bfdd9...3432. Not tried on a unit; not pushed, tagged or flashed.
+
+3y305. **The Mix pages: PRESETS the Drive, ALGORITHM the Filter; the Drive's spikes drawn as lines.** The owner, after
+3y304 on a unit: "I would make PRESETS be the Drive and ALGO be the filter to match physical order of the knobs. For
+some reason on the drum send pages the UI is very slow to update after changing the send levels. UI updates are fine on
+other pages." **The encoders** (`cr_ui.c` the SEQ layer's PRESETS / ALGORITHM, `cu_drum_enc`): on Kick Mix, Snare Mix
+and Hats Mix PRESETS is the drum's Drive, ALGORITHM its Filter; nothing else moves (ALGORITHM the preset on the first
+page alone, PRESETS the beat on the other pages). **The slow page** (`cr_draw.c cr_dr_mix`): 3y304 drew the Drive as 20
+spikes, each a `cr_arc` of a short sweep; an arc tests every pixel of its whole box (2 x its outer radius square, here
+about 76 x 76 px, an atan2 and a square root for each pixel near its band), so the 20 spikes cost about twenty times the
+rest of the page and the frame came late after a knob. Each spike is now a two-point `cr_poly` (3 px, round caps) at the
+same angle and length, which visits its own pixels only. MANUAL ("The drums", the SEQ rows), the layers sheet, the
+emulator script (`cr_drums.txt`: ALGORITHM -6 the Filter, PRESETS +6 the Drive) follow.
