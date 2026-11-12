@@ -8,6 +8,26 @@
   },
   "releases": [
     {
+      "version": "0.41",
+      "date": "2026-11-12",
+      "tag": "v0.41",
+      "sha256": "8da570760712796eef54aa840f7acdaaf5fc5939bb8d46e8432efd1cd1ce0652",
+      "sha256_1core": "adb2d09445a3ccefd0d9d7f9a4ee9853efbbe5273451f0505e3a309e0372a0f4",
+      "title": "Each drum's own mix, and the drums on the second core",
+      "bullets": [
+        "Kick Mix, Snare Mix and Hats Mix: each drum's own Chorus, Delay and Reverb sends and its Level on KNOB 1 to 4.",
+        "Each drum's Drive (PRESETS) and Filter (ALGORITHM: how much of it goes through the master filter) on its Mix page.",
+        "With Dual Core On the second core plays the drums, so a chord over the beat keeps its voices.",
+        "In the SEQ menu ALGORITHM picks Metronome or Drums on the first page only.",
+        "Your settings, sounds, loops and favorites come through the update; 0.40's drum sends come back as the same sound."
+      ],
+      "notes": [
+        "A settings backup does not hold the drums: they live in the session.",
+        "M-Flasher writes the firmware alone: the unit starts with PRESETS MISSING until ChoralRoot's own installer has run once.",
+        "The Single core package is the same firmware on one core; it plays the drums on that core."
+      ]
+    },
+    {
       "version": "0.40",
       "date": "2026-11-11",
       "tag": "v0.40",
@@ -25,7 +45,14 @@
         "A settings backup does not hold the drums: they live in the session, as the FX layer does.",
         "M-Flasher writes the firmware alone: the unit starts with PRESETS MISSING until ChoralRoot's own installer has run once.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.40 stores everything else the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "0.40 does not read 0.41's drum settings: the beat comes up on Metronome with the drums' defaults, and the Mix page is one page again.",
+          "Options > Version reads ChoralRoot 0.40 again; the drums play on the first core, and ALGORITHM picks Metronome or Drums on every page of the SEQ menu."
+        ]
+      }
     },
     {
       "version": "0.39",

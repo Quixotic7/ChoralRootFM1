@@ -8648,3 +8648,14 @@ about 76 x 76 px, an atan2 and a square root for each pixel near its band), so t
 rest of the page and the frame came late after a knob. Each spike is now a two-point `cr_poly` (3 px, round caps) at the
 same angle and length, which visits its own pixels only. MANUAL ("The drums", the SEQ rows), the layers sheet, the
 emulator script (`cr_drums.txt`: ALGORITHM -6 the Filter, PRESETS +6 the Drive) follow.
+
+3y306. **0.41: each drum's own mix (Kick Mix, Snare Mix, Hats Mix: Chorus, Delay, Reverb, Level; Drive on PRESETS,
+Filter on ALGORITHM) and the drums on the second core (3y303 .. 3y305); 0.41-smk37.** The owner, after trying 3y305 on a
+unit: "This is good, push, merge and release". docs/releases/0.41.md (each drum's mix, the second core, what is
+stored: 0.40's one send comes back as Delay = Reverb = it; going back to 0.40 loses the drums' settings: 0.40 reads a
+version-3 drum block as none), 0.40's going-back note, MANUAL.md's first line and "new in 0.41" marks, the dev version,
+SMK37.md for 0.41-smk37 (0.40-smk37's resource region still not reported on from a unit: issues 38, 42 and 43 are
+about other things). Both boards built twice (`build.sh --release` and `tools/hub_build.sh`) to the same SHA256SUMS:
+FM-1 `choralroot-0.41.fwsc` 8da57076...0652, `-1core` adb2d094...f0a4; SMK-37 pro 283076c7...e3af, elite
+6e3873b2...34fd, mke 0f5488c3...e0c2 (and their -1core twins), as web/releases.json and web/releases-smk37.json list
+them.

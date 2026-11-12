@@ -3,6 +3,37 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.41-smk37",
+      "base": "0.41",
+      "date": "2026-11-12",
+      "tag": "v0.41-smk37",
+      "title": "0.41 on the SMK-37: each drum's own mix",
+      "bullets": [
+        "Kick Mix, Snare Mix and Hats Mix: each drum's own Chorus, Delay and Reverb sends, Level, Drive (PRESETS) and Filter (ALGORITHM).",
+        "With Dual Core On the second core plays the drums, so a chord over the beat keeps its voices.",
+        "In the SEQ menu ALGORITHM picks Metronome or Drums on the first page only."
+      ],
+      "notes": [
+        "The resource region new in 0.40-smk37 has still not been reported on from an SMK-37: please tell how the install, the splash, the fonts and the drums look.",
+        "Going back to 0.40-smk37: the drums come up on Metronome with their defaults.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "283076c74f3f147c754fa57a06b38a295e12de6e7c19d05ead070e36b0b7e3af",
+          "sha256_1core": "5a5e254ad314df2a6dde5a30d7896d0bc2e54953477ed1d23489858c513c5312"
+        },
+        "elite": {
+          "sha256": "6e3873b2a00801f43fba17da0833b665bdba354f406f41ed3bfc3644613534fd",
+          "sha256_1core": "db8732424464beda60296a6587500311536314452f063dbc73dad3b8ec6d93b4"
+        },
+        "mke": {
+          "sha256": "0f5488c3427cd469be0b174d3d7d95bb2a638a484e1504cbd5d477b02fedc0e2",
+          "sha256_1core": "2b073101ee559bcb7093748f392f03ac61ad6cebbec4bc3d6a1af07abed7612c"
+        }
+      }
+    },
+    {
       "version": "0.40-smk37",
       "base": "0.40",
       "date": "2026-11-11",
