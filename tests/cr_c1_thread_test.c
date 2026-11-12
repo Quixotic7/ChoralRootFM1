@@ -23,6 +23,10 @@
  * 3y187, FM6's TOO: the same for every pair with an FM6 chord (an FM6, VA, P5, CZ-1 bass; TINE EP over DEEP SUB, the
  * power-on sounds; a patch whose operators take the LFO's amplitude modulation, AMS: the part's shares, which
  * fm6_block now figures before the hand-over so that the voices only read them; core 1's scratch is its own).
+ * 3y303, THE DRUMS ON CORE 1 (fx.c c1_part1_job, crd_render / crd_add): every phrase has the drums ringing (a kit by
+ * the pair, a hit every five blocks, every drum's three sends up and its Level off 64, FX off for a stretch); (g) the
+ * drums on core 0 after the parts, one core's place (cr_c1_test_dr0), must give the samples of the drums in core 1's
+ * job, inline and on the thread.
  * What it cannot show: the unit's timing, its caches and its flash (a core that reads a word wrong: cr_cpu1.h's
  * validation), an interrupt on core 0 during the job, the main loop writing a parameter under both. */
 #include <os/lock.h>
@@ -58,6 +62,8 @@ typedef struct { uint8_t ce, be, usp; uint16_t cpos, bpos; const char *what; } p
 static uint32_t rs, vmax[2], pmax;                  /* pmax: P5's pool at its fullest (voice.c p5_pool_used) */
 static uint32_t sx[2], sxs, sxa;                    /* sxs: blocks in which core 1's VA voices added a side; sxa:
                                                      * blocks in which the FM6 chord's AMS shares were in use */
+static uint32_t drb, drs;                           /* 3y303: blocks in which core 1's job rendered the drums; the
+                                                     * drums' dice */
 static void usp_on(const pair_t *p)                 /* (after a sound load: the VA chord's UNISON and USPREAD; the
                                                      * FM6 chord's AMS 1..3 on its operators, the LFO's AMD) */
 {
@@ -111,7 +117,8 @@ static uint32_t rnd(uint32_t n)
  * reference for the reverb on core 1, fx.c mix_fx_split); 6 / 7 as 1 / 5 in THE ROUTING's Chain (cr_fx.c: the serial path,
  * the chord part's sends the amounts; each pair its share of the 24 orders, every order run by some pair: each
  * effect's wet is written by the core that ran it, the assembly and the snapshots are core 0's after the join, so the
- * split is the one core's, bit for bit). Every phrase sends to the three effects from both parts
+ * split is the one core's, bit for bit); 10 inline with the drums on core 0 after the parts (3y303: the reference for
+ * the drums in core 1's job). Every phrase sends to the three effects from both parts
  * (3y50: the reverb's job runs on the thread in every block that has something for it) */
 #define NKEYS 8u
 static int c1_ord;                                  /* modes 6, 7: Chain's order (cr_fx.c XF_ORD) */
@@ -125,6 +132,22 @@ static void sends_up(void)                          /* the three effects, both p
         trk[k].p[P_REV] = 110;
     }
 }
+static void drums_up(const pair_t *p)               /* 3y303: a kit, every drum's three sends and its Level */
+{
+    uint32_t d;
+    crd_kit_load((p->cpos + p->be) % CRD_NKIT);
+    crd_level = 100;
+    for (d = 0; d < CRD_N; d++) {
+        crd_knob[d].tune = (uint8_t)(10 + d);
+        crd_knob[d].decay = (uint8_t)(70 + 20 * d);
+        crd_knob[d].chr = (uint8_t)(d == CRD_SNARE ? 96 : 40);   /* (the snare and the clap) */
+        crd_fx[d][CRD_SC] = (uint8_t)(50 + 30 * d);
+        crd_fx[d][CRD_SD] = (uint8_t)(127 - 25 * d);
+        crd_fx[d][CRD_SR] = (uint8_t)(90 + d);
+        crd_lvl[d] = (uint8_t)(48 + 30 * d);
+    }
+    memset(crd_v, 0, sizeof crd_v);
+}
 static uint64_t phrase(const pair_t *p, uint32_t nb, int mode)
 {
     int32_t out[2u * CTL];
@@ -135,26 +158,37 @@ static uint64_t phrase(const pair_t *p, uint32_t nb, int mode)
     vmax[0] = vmax[1] = pmax = sx[0] = sx[1] = sxs = sxa = 0;
     cr_dbg.c1 = C1_OK;
     cr_dbg.p5_c0 = cr_dbg.p5_c1 = cr_dbg.p5_bass = cr_dbg.c1x_jobs = 0;
-    cr_c1_test_thread = (uint8_t)(mode == 1 || (mode >= 3 && mode != 5 && mode != 7 && mode != 9));
+    int filt = mode == 8 || mode == 9;              /* (modes 8, 9: Parallel with the Filter first) */
+    cr_c1_test_thread = (uint8_t)(mode == 1 || (mode >= 3 && mode != 5 && mode != 7 && mode != 9 && mode != 10));
     cr_c1_test_nosplit = (uint8_t)(mode == 2);
     cr_c1_test_share = (uint8_t)(mode == 3 ? P5_POLY + 1u : mode == 4 ? 1u : 0u);
     cr_c1_test_fx0 = (uint8_t)(mode == 5 || mode == 7 || mode == 9);
+    cr_c1_test_dr0 = (uint8_t)(mode == 10);
+    c1_dr_jobs = 0;
     xfp[XP_RMODE] = (int16_t)(mode == 6 || mode == 7);  /* (THE ROUTING: Chain, at the order given) */
-    xfp[XP_ORDER] = (int16_t)(mode == 6 || mode == 7 ? c1_ord : mode >= 8 ? 18 : 0);   /* (18: Parallel, the Filter
+    xfp[XP_ORDER] = (int16_t)(mode == 6 || mode == 7 ? c1_ord : filt ? 18 : 0);   /* (18: Parallel, the Filter
                                                      * first: cr_fx.c xq_pre on core 0 before the effects' job) */
     if (!c1_fon && !c1_flo && !c1_fhi) {
         c1_fon = (int16_t)(xfp[XP_FON] + 1);
         c1_flo = xfp[XP_FLOW];
         c1_fhi = xfp[XP_FHIGH];
     }
-    xfp[XP_FON] = (int16_t)(mode >= 8 ? 1 : c1_fon - 1);
-    xfp[XP_FLOW] = (int16_t)(mode >= 8 ? 50 : c1_flo);
-    xfp[XP_FHIGH] = (int16_t)(mode >= 8 ? 40 : c1_fhi);
+    xfp[XP_FON] = (int16_t)(filt ? 1 : c1_fon - 1);
+    xfp[XP_FLOW] = (int16_t)(filt ? 50 : c1_flo);
+    xfp[XP_FHIGH] = (int16_t)(filt ? 40 : c1_fhi);
     cu_pool_load(0, p->ce, p->cpos);
     cu_pool_load(1, p->be, p->bpos);
     usp_on(p);
     sends_up();
+    drums_up(p);
+    drs = 0x7EA1u + p->ce * 7u + p->be;
     for (b = 0; b < nb; b++) {
+        if (!(b % 5u)) {                                /* the drums: a sound, an accent or not (their own dice: the
+                                                         * phrase's notes as before 3y303) */
+            drs = drs * 1664525u + 1013904223u;
+            crd_hit((drs >> 8) % DSS_N, (int)(drs >> 20 & 1u));
+        }
+        fx_off = (uint8_t)(b >= nb * 3u / 4u && b < nb * 3u / 4u + 60u);   /* (FX off: no send, the drums' neither) */
         if (!(b % 37u)) {                               /* a new chord over the old one's notes */
             for (i = 0; i < NKEYS; i++)
                 if (held[i] && rnd(3)) {
@@ -199,6 +233,7 @@ static uint64_t phrase(const pair_t *p, uint32_t nb, int mode)
             sxs += p5x_side_on;
             sxa += ENGINES[trk[0].engine] == &ENG_FM6 && FM6P(&trk[0]) && FM6P(&trk[0])->pt.pok;
         }
+        drb = c1_dr_jobs;
         if ((P5_IS(&trk[0]) || P5_IS(&trk[1])) && p5_pool_used() > pmax)
             pmax = p5_pool_used();
         for (k = 0; k < 2u; k++) {
@@ -218,7 +253,7 @@ static uint64_t fork_phrase(const pair_t *p, uint32_t nb, int thread)
 {
     int fd[2];
     uint64_t h = 0;
-    uint32_t c[8];
+    uint32_t c[9];
     pid_t pid;
     if (pipe(fd))
         return 0;
@@ -234,6 +269,7 @@ static uint64_t fork_phrase(const pair_t *p, uint32_t nb, int thread)
         c[5] = vmax[0];
         c[6] = sxs;
         c[7] = sxa;
+        c[8] = drb;
         (void)!write(fd[1], &h, sizeof h);
         (void)!write(fd[1], c, sizeof c);
         _exit(0);
@@ -250,6 +286,7 @@ static uint64_t fork_phrase(const pair_t *p, uint32_t nb, int thread)
         vmax[0] = c[5];
         sxs = c[6];
         sxa = c[7];
+        drb = c[8];
     }
     close(fd[0]);
     waitpid(pid, 0, 0);
@@ -259,7 +296,7 @@ static uint64_t fork_phrase(const pair_t *p, uint32_t nb, int thread)
 int main(int argc, char **argv)
 {
     int tsan = argc >= 2 && !strcmp(argv[1], "--tsan");
-    uint32_t i, uni = 0, k, nb = tsan ? 900u : 3000u, nsplit = 0, nvsplit = 0, nfsplit = 0, nqsplit = 0, nfx = 0, nrt = 0, nro = 0, npf = 0, jobs0 = 0, mpad = 0, pbass = 0;
+    uint32_t i, uni = 0, k, nb = tsan ? 900u : 3000u, nsplit = 0, nvsplit = 0, nfsplit = 0, nqsplit = 0, nfx = 0, ndr = 0, ndrb = 0, nrt = 0, nro = 0, npf = 0, jobs0 = 0, mpad = 0, pbass = 0;
     uint32_t tine = 0, dsub = 0, fams = 0;
     pair_t P[32];                                       /* (3y212: 24 held 25 since 3y208) */
     uint32_t np = 0;
@@ -331,7 +368,7 @@ int main(int argc, char **argv)
             uint64_t h = phrase(&P[i], nb, 1);
             uint32_t fxj = cr_dbg.c1x_jobs;
             int p5c = P[i].ce == ENGI_PROPHET, vac = P[i].ce == ENGI_VA || P[i].ce == ENGI_FM6 || P[i].ce == ENGI_QUAD;
-            int ok = (!vac || (sx[0] >= 1u && sx[1] >= 1u)) && vmax[0] >= 3u && vmax[1] >= 1u && (i || !uni || vmax[1] == P5_STACK) && cr_c1_th_done == cr_c1_th_posted &&
+            int ok = drb > nb / 4u && (!vac || (sx[0] >= 1u && sx[1] >= 1u)) && vmax[0] >= 3u && vmax[1] >= 1u && (i || !uni || vmax[1] == P5_STACK) && cr_c1_th_done == cr_c1_th_posted &&
                      cr_c1_th_done - jobs0 == nb + fxj && fxj > nb / 2u &&
                      pmax <= P5_POLY && (!p5c || (vmax[0] > P5_CORE && cr_dbg.p5_c0 >= 2u && cr_dbg.p5_c0 <= P5_CORE && cr_dbg.p5_c1 >= 2u &&
                                cr_dbg.p5_c1 <= P5_CORE));
@@ -343,13 +380,21 @@ int main(int argc, char **argv)
                 printf("  %s chord voices in a block at most: core 0 %u, core 1 %u\n", P[i].ce == ENGI_FM6 ? "FM6" :
                        P[i].ce == ENGI_QUAD ? "FM TONE" : "VA",
                        (unsigned)sx[0], (unsigned)sx[1]);
-            printf("  fx: %u of %u blocks ran the reverb on the thread\n", (unsigned)fxj, (unsigned)nb);
+            printf("  fx: %u of %u blocks ran the reverb on the thread; %u the drums in core 1's job\n", (unsigned)fxj,
+                   (unsigned)nb, (unsigned)drb);
             jobs0 = cr_c1_th_done;
         } else {
             uint64_t a = fork_phrase(&P[i], nb, 0), b = fork_phrase(&P[i], nb, 1), c = fork_phrase(&P[i], nb, 1);
-            uint32_t c0 = cr_dbg.p5_c0, c1 = cr_dbg.p5_c1, s0 = sx[0], s1 = sx[1], ss = sxs;
-            uint64_t z = fork_phrase(&P[i], nb, 5), r6, r7;
+            uint32_t c0 = cr_dbg.p5_c0, c1 = cr_dbg.p5_c1, s0 = sx[0], s1 = sx[1], ss = sxs, db = drb;
+            uint64_t z = fork_phrase(&P[i], nb, 5), r6, r7, g = fork_phrase(&P[i], nb, 10);
             int ok = a && a == b && a == c && a == z && pmax <= P5_POLY, rok = 1;
+            if (!(g == a && db > nb / 4u && !drb)) {      /* (3y303: the drums on core 0 = in core 1's job) */
+                printf("  FAIL %s: the drums on core 0 %016llx, in core 1's job %016llx (%u blocks of it; on core 0: %u)\n",
+                       P[i].what, (unsigned long long)g, (unsigned long long)a, (unsigned)db, (unsigned)drb);
+                ok = 0;
+            }
+            ndr += g == a;
+            ndrb += db;
             uint32_t o;
             for (o = i; o < 24u || o == i; o += np) {   /* (this pair's orders: i, i + np, ..; all 24 over the pairs) */
                 c1_ord = (int)(o % 24u);
@@ -429,6 +474,9 @@ int main(int argc, char **argv)
                "render's samples\n", (unsigned)nvsplit);
     if (!tsan)
         printf("effects: %u pairs, three sends up: the reverb on core 1 gives the samples of the effects all on core 0\n", (unsigned)nfx);
+    if (!tsan)
+        printf("drums: %u pairs, the drums ringing with their three sends up (%u blocks in core 1's job): the drums on core 1 "
+               "give the samples of the drums on core 0\n", (unsigned)ndr, (unsigned)ndrb);
     if (!tsan)
         printf("routing: %u pairs in Chain, %u orders run (all 24 among them): the reverb on core 1 gives the samples of the effects "
                "all on core 0\n", (unsigned)nrt, (unsigned)nro);

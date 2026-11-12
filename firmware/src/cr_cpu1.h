@@ -176,6 +176,7 @@ static int cr_rails_stock(void)                    /* a radio boot (cr_ble.c): s
 #define CR_C1_TEST_NOSPLIT 0
 #define CR_C1_TEST_SHARE 0
 #define CR_C1_TEST_FX0 0
+#define CR_C1_TEST_DR0 0
 static uint32_t cr_c1_stack_used(void)              /* the C1MK fill: the deepest word core 1's usp reached */
 {
     uint32_t i = 0;
@@ -203,6 +204,9 @@ static uint8_t cr_c1_test_share;     /* tests: k + 1: core 1 takes k of the chor
 static uint8_t cr_c1_test_fx0;       /* tests (3y50): the effects all on core 0, in xf_block's order (the reference the
                                       * reverb on core 1 must equal) */
 #define CR_C1_TEST_FX0 cr_c1_test_fx0
+static uint8_t cr_c1_test_dr0;       /* tests (3y303): the drums on core 0 after the parts, one core's place (the
+                                      * reference the drums on core 1 must equal) */
+#define CR_C1_TEST_DR0 cr_c1_test_dr0
 static uint32_t cr_c1_test_faults;   /* tests: faults about core 1 (the device's fm1_c1_fault.count) */
 static void (*cr_c1_fn)(uint32_t);
 static uint32_t cr_c1_arg;

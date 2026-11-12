@@ -10,6 +10,8 @@
  *    core 8 in all (the shared 16), the rest given up;
  * 3. the fail-safes: a job that never answers -> core 0 renders part 1 itself in that block (the same samples as
  *    one core), c1 "gave up", the shared budget back; core 1 not answering at start -> "failed", one core;
+ *    (3y303) every render has the drums ringing, their three sends up: core 1's job renders them, and core 0 when it
+ *    reruns the job;
  * 4. reliability (after Melodee PR 21, docs/DUALCORE.md): core 1's mailbox validation (hal/fm1_cpu1.h fm1_c1_poll: a
  *    wrong sequence or check word, a null fn: refused, counted, never run), the escalation (cr_cpu1.h: a first
  *    misread is counted and keeps core 1, a second, a fault or a stall gives up), the rails' steps on a mock P33
@@ -31,6 +33,9 @@
 #ifndef FM6_POLY
 #define FM6_POLY 8
 #endif
+#define CR_DRUMS 1                      /* as choralroot.c (3y303): the drums, on core 1 with it (fx.c c1_part1_job) */
+#define CRD_IRQ_OFF() ((void)0)
+#define CRD_IRQ_ON() ((void)0)
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -76,13 +81,18 @@ static const struct { uint32_t e, pi; const char *name; } PRESETS[3] = {
     {ENGI_VA, 19u, "VA"}, {ENGI_FM6, 0u, "FM6"}, {ENGI_CZ, 0u, "CZ-1"}};
 
 static uint64_t hash, given_up;
+static uint32_t drn, drb;                           /* (3y303: the drums' hits, one every 7 blocks; the blocks they
+                                                     * rang in) */
 static void blocks(uint32_t nb)
 {
     int32_t out[2 * CTL];
     uint32_t b, i;
     for (b = 0; b < nb; b++) {
+        if (!(++drn % 7u))
+            crd_hit(drn / 7u % DSS_N, (int)(drn & 1u));
         ua_stage_on = 1;                            /* the computer records: master, CHORD, BASS staged */
         mix_block(out, CTL);
+        drb += crd_out != 0;
         for (i = 0; i < 2u * CTL; i++)
             hash = (hash ^ (uint32_t)out[i]) * 0x100000001B3ull;
         for (i = 0; i < CTL * UA_CAP_CHANNELS; i++)  /* (the CHORD / BASS dry taps; the master pair is choralroot.c's) */
@@ -96,6 +106,15 @@ static void setup(uint32_t p0, uint32_t p1)
     voice_fade_steal = 1;                           /* as ChoralRoot (cr_out.c) */
     host_preset(&trk[0], PRESETS[p0].e, PRESETS[p0].pi);
     host_preset(&trk[1], PRESETS[p1].e, PRESETS[p1].pi);
+    crd_kit_load(1);                                /* the drums (3y303): every drum's three sends up, Levels off 64 */
+    for (k = 0; k < 3u; k++) {
+        crd_fx[k][0] = (uint8_t)(40 + 30 * k);
+        crd_fx[k][1] = (uint8_t)(110 - 20 * k);
+        crd_fx[k][2] = 127;
+        crd_lvl[k] = (uint8_t)(50 + 25 * k);
+    }
+    memset(crd_v, 0, sizeof crd_v);
+    drn = drb = 0;
     for (k = 0; k < 2u; k++) {                      /* S&H LFO -> cutoff: a draw from the shared generator per cycle */
         trk[k].p[P_VOICE] = V_POLY;
         trk[k].p[P_LWAVE] = 4;
@@ -145,6 +164,8 @@ static uint64_t fork_render(uint32_t p0, uint32_t p1, uint8_t c1, uint8_t hang)
     if (!pid) {
         cr_c1_test_hang = hang;
         h = render_pair(p0, p1, c1);
+        if (drb < 500u)
+            h = 0;                                  /* (the drums must ring: most of the 1004 blocks) */
         if (hang)
             h ^= (uint64_t)cr_dbg.c1 << 60;       /* (must read "gave up": C1_GAVE_UP = 3) */
         if (write(fd[1], &h, sizeof h) != sizeof h)
@@ -479,7 +500,7 @@ int main(void)
                   (unsigned long long)one);
         }
     printf("  bit for bit: 3 x 3 preset pairs on parts 0 / 1, the job before and after part 0 (S&H LFOs on the matrix and\n"
-           "  straight to filter and pitch, a chord change, releases)\n");
+           "  straight to filter and pitch, a chord change, releases; the drums ringing, every send up: 3y303)\n");
 
     budget(C1_OK, &n0, &n1);
     CHECK(n0 == 8u && n1 == 8u && voice_kills == 0u, "core 1 alive: part 0 %u, part 1 %u voices, %u given up (want 8, 8, 0)",

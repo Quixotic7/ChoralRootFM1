@@ -41,8 +41,8 @@
  * Use: crd_kit_load and crd_beat_blend / crd_beat_dens (the main loop: cr_ui.c cu_beat_post), crd_beat_step on each
  * step of the loop's grid (the ISR: cr_loop.c sets crl.dstep, choralroot.c mix_block plays it), crd_hit a hit (the
  * coefficients are set there, once), cr_drum_mix per block (the ISR): every voice ringing, summed under a soft knee
- * into the master's mix before the limiter (fx.c mix_block), each drum's three sends into the effects' buses (3y303:
- * a block is crd_render, then crd_add). All out of
+ * into the master's mix before the limiter (fx.c mix_block), each drum's three sends into the effects' buses. Since
+ * 3y303 a block is crd_render (with core 1 alive: core 1's, in fx.c c1_part1_job) and crd_add (core 0's). All out of
  * line: the audio ISR only calls them. Measured on a unit (HISTORY 3y297): Geek Out 2 peaks 70..80 % with FM TONE and
  * P5 chords and every effect on */
 
@@ -64,6 +64,18 @@
 #ifndef CF_DRUM_VARY
 #define CF_DRUM_VARY 1
 #endif
+/* each sound's cost while it rings, us of the unit's half (crd_us: the chord's split weighs core 1's drums against
+ * the engines' engine_t.split, the unit's worst voices; 3y303): the heaviest kit's host instructions a sample
+ * (tests/cr_drum_test.c --cpu at -O2: Break's kick 141, snare 139, clap 122, Tech's hats 136 / 134) x 128 samples /
+ * 259 (tools/emu/emu.c DEV_INSTR_PER_US: 70, 69, 60, 67, 66), x 2 for code that runs from the flash, as the drums do:
+ * the unit's worst voice over the emulator's estimate of it is 2.4 for FM6's TINE EP (200 us, ENG_FM6.split; the
+ * emulator, one core, eight voices: 83) and 1.9 for the VA's MORPH PAD from the flash (298 us, docs/VA.md "Two
+ * cores"; the emulator, one core: about 160). All five ringing: 664 us */
+#define CRD_US_KICK 140u
+#define CRD_US_SNARE 138u
+#define CRD_US_CLAP 120u
+#define CRD_US_HATC 134u
+#define CRD_US_HATO 132u
 
 enum { DSS_KICK, DSS_SNARE, DSS_CLAP, DSS_HATC, DSS_HATO, DSS_N };   /* the sounds (CoralFlower's first five) */
 enum { DSW_SINE, DSW_TRI, DSW_FM, DSW_ADD, DSW_SQ2 };           /* (CoralFlower's numbers; SINE and ADD played here) */
@@ -626,9 +638,15 @@ static __attribute__((noinline)) void crd_beat_step(uint32_t st)
 enum { CRD_SC, CRD_SD, CRD_SR, CRD_NS };
 static uint8_t crd_fx[CRD_N][CRD_NS] CRD_BSS;
 
-/* THE DRUMS' BLOCK, IN TWO STEPS (3y303): crd_render runs every voice that rings into buffers of the drums' own (the
- * bus under its soft knee, each send's sum), crd_add adds them into the mix and the three send buses (cr_drum_mix: both
- * in a row, where 0.40 ran the drums). The sums are of integers (+=, no saturation between): 0.40's mix, bit for bit */
+/* THE DRUMS' BLOCK, IN TWO STEPS (3y303, docs/DUALCORE.md "What each core runs"): crd_render runs every voice that
+ * rings into buffers of the drums' own (the bus under its soft knee, each send's sum), crd_add adds them into the mix
+ * and the three send buses. With core 1 alive crd_render is core 1's (fx.c c1_part1_job, after the bass part) and
+ * crd_add core 0's after the join; one core: both in a row (cr_drum_mix), where 0.40 ran the drums. The sums are of
+ * integers (+=, no saturation between), so the mix is one core's bit for bit wherever crd_render ran
+ * (tests/cr_c1_thread_test.c "drums"). What crd_render touches: crd_v (each voice's own state), the buffers and crd_out
+ * below; it reads crd_fx (the main loop's, which never runs while the audio ISR does: a knob's change is the next
+ * block's). The hits (crd_beat_step -> crd_hit -> ds_strike: ds_rng, crd_kit, the voices' coefficients) are core 0's,
+ * before the hand-over (choralroot.c mix_block) */
 #if defined(__APPLE__) || !defined(__clang__)
 #define CRD_POOL
 #else
@@ -693,4 +711,15 @@ static void cr_drum_mix(int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_
 {
     crd_render(fxoff, n);
     crd_add(l, r, sc, sd, sr, n);
+}
+/* THE DRUMS' WEIGHT on core 1's side of the chord's split (fx.c p5x_assign; 3y303): CRD_US_* (above) summed over the
+ * voices ringing now. Core 0 reads crd_v before the hand-over */
+static const uint8_t CRD_US[DSS_N] = {CRD_US_KICK, CRD_US_SNARE, CRD_US_CLAP, CRD_US_HATC, CRD_US_HATO};
+static uint32_t crd_us(void)
+{
+    uint32_t k, us = 0;
+    for (k = 0; k < DSS_N; k++)
+        if (crd_v[k].live)
+            us += CRD_US[k];
+    return us;
 }

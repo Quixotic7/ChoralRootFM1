@@ -8526,3 +8526,67 @@ MKE-P37 b02aaa8d...7de7853. `web/releases-smk37.json` first; SMK37.md's status, 
 `python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh` both lists match; `CR_VERSION=0.40 sh tests/run_all.sh`:
 ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124 ok; `fm1_alnk0_irq` 13,485 of
 13,890). Not pushed, tagged or flashed here (the orchestrator's).
+
+## 2026-11-11 (the drums: a send a bus, on the second core)
+
+3y303. **Each drum's three sends and its Level; the drums on core 1.** Users of 0.40, through the owner: "Being able to
+individually send each drum voice to each FX send", and "The drum voices are consuming the same voices used for the
+chord and bass engines, meaning it can be difficult to play chords over them. There's definitely room on the second
+CPU to handle the drums." The drums took no voice slots: they rendered on core 0 after join 1 (`cr_drum_mix` in
+`fx.c mix_block`), in the audio ISR's serial stretch, and the overload shed then faded chord voices. On
+claude/drums-sends-c1 from main bebd69d1 (0.40).
+**The sends** (`cr_drum.c crd_fx[3][3]`): each drum into the chorus's, the delay's and the reverb's buses, Q15 as
+the parts' sends; the clap takes the snare's, both hats the hats'; FX off none. Until now one send a drum fed the
+delay and the reverb alike and never the chorus. **The Level** (`crd_lvl[3]`, 0..127, 64 as voiced): x lv / 64 on a
+hit's output gain (`crd_hit`, after `ds_strike`; 0 silent, no hit, no choke); no per-drum level existed (the kit's
+per-sound LEVEL and the drums' Level 0..100 of the preset page are the others). **The pages** (the owner's layout):
+the one Mix page is three, **Kick Mix, Snare Mix, Hats Mix** after Hats (SELECT: Drums > Beat > Kick > Snare > Hats >
+Kick Mix > Snare Mix > Hats Mix; `CU_DR_NPAGE` 8): KNOB 1 Chorus, 2 Delay, 3 Reverb (`cu_send_step` / `cu_send_text`,
+the FX layer's per cent; `off` with FX off), 4 Level (per cent of the kit's: 64 is 100%, 127 198%). The screen
+(`cr_draw.c cr_dr_mix`, pages 5..7): the drum's icon in its roundel at the left, its Level the arc (green, KNOB 4's),
+3 px wider at the drum's thump, the icon magenta at the hit; a wire from it through three rings (r 20) in their knobs'
+colours, Chorus blue, Delay orange, Reverb white, each as full as its send, its middle a disc that swells with the send
+and at a hit by as much as the send carries it; the wire lights magenta at a hit; grey with FX off. **Saved**: the
+session's drum block is version 2 (`CSS_DRUM_VERSION`, 36 bytes at 26..61: `cho[3]`, `rev[3]`, `lvl[3]` and a pad in
+12 bytes of the reserve, 40 left); `send[3]` is the Delay. A version 1 record (0.40) loads its send S as Delay S,
+Reverb S, Chorus 0, Level 64: 0.40's mix, bit for bit (`crd_render` sums each voice's `(y * g) >> 15` per bus as
+`cr_drum_mix` did). A later version: the defaults. Going back to 0.40 reads a version 2 block as none (Metronome and
+the drums' defaults). **The drums on core 1** (docs/DUALCORE.md "What each core runs"): a block is
+`crd_render` (every ringing voice into buffers of the drums' own: the bus under its soft knee and each send's sum,
+`crd_bus` / `crd_snd`, 512 B of POOL; `crd_out` says which were written) and `crd_add` (into the mix and the three
+send buses). With core 1 alive `mix_parts_split` sets `c1_dr` before the hand-over and `c1_part1_job` runs
+`crd_render` after the bass part and core 1's chord voices; core 0 adds them after the parts (`cr_drum_out`, out of
+line: the ISR's code as it was laid; the first build had the add inline in `mix_block` and the IRQ's loop figure went
+13,485 -> 80,329 on backward branches alone). One core (Dual Core Off, the 1-core package): `cr_drum_mix` = the two
+in a row, where 0.40 ran them. Job 1 refused, stalled or faulted: core 0 reruns `c1_part1_job`, the drums in it.
+The hits stay core 0's before the hand-over; core 1 reads `crd_fx` (the main loop's, which never runs during the
+ISR) and `c1_dr` (FX off read on core 0). Core 1's stack: 568 B down the drums' path, after `track_render_x` returns.
+**The split of the chord's voices** weighs the drums ringing on core 1's side (`p5x_assign`: `bl += crd_us()`;
+`CRD_US_*` kick 140, snare 138, clap 120, hats 134 / 132 us: the heaviest kit's host instructions a sample x 128 /
+259, x 2 for code from the flash, the unit's worst voice over the emulator's for FM6's TINE EP (2.4) and the VA's MORPH
+PAD from the flash (1.9)). An 8-voice VA chord over a VA bass with all five ringing: 3 to core 1, 5 to core 0. P5
+keeps its four a core. **Measured** (the emulator, `EMU_STAGES=1`, an 8-note chord over MIDI + PUNCH BASS + the drums
+at Density full with every send 127 + both parts' three sends 127; device us a half avg / max; the emulator's new
+`cpu: each core` line, `cr_dbg.c0_tot_*` / `c1_tot_*`, host-only): FM6 TINE EP core 0 677 / 1006 -> 555 / 1397 (a
+sound load's tick), core 1 505 / 744 -> 576 / 956; VA ENSEMBLE STR 829 / 1142 -> 742 / 1025, 657 / 892 -> 681 / 985;
+VA MORPH PAD 959 / 1625 -> 897 / 1228, 787 / 1044 -> 774 / 1109; P5 ITS PROPHET5 1165 / 1556 -> 984 / 1537, 958 / 1286
+-> 1044 / 1682. The half (tick + the longer render + fx + master, averages): FM6 987 -> 906, VA 1127 -> 1003, MORPH PAD
+1256 -> 1146, P5 1437 -> 1371 (DUALCORE.md has the table). The emulator's FM6 and P5 voices cost less than the unit's
+weights, so there core 1 ends the longer side; with P5 the four a core leave nothing to move. **Proof**:
+`tests/cr_c1_thread_test.c` "drums": every phrase has the drums ringing (a kit by the pair, a hit every five blocks on
+their own dice, so the phrases' notes are as before, every drum's three sends up and its Level off 64, FX off for 60
+blocks): the drums on core 0 after the parts (`cr_c1_test_dr0`) = inline = on the thread, 26 pairs, 78,000 blocks of
+drums in core 1's job; ThreadSanitizer 0 reports. (Drawing the hits from the phrase's own generator first showed
+that the FM TONE COMB+ / COMB- pair's UNSPLIT render differs from its split render on some phrases, with or without
+the drums: a difference of the test's reference path or of the lent comb lines, older than this change, not
+followed here.) `tests/cr_cpu1_test.c`: the 3 x 3 pairs, the job after part 0 and the hung job with the drums
+ringing, every send up. `tests/cr_drum_test.c`: each drum's bus its own, 0.40's send as Delay = Reverb with the dry
+mix unchanged, FX off, the Level (32: -6 dB, 0 nothing); the host's cost per sound unchanged (Club kick 135 -> 131
+instructions a sample). `cr_settings_test`, `cr_backup_test` (version 2 round-trip, a 0.40 record, out of range, a
+later version); test_cr `cr_drums` (Kick Mix KNOB 1, Hats Mix KNOB 3 and 4, the screens), test_persist (the snare's
+Chorus, Delay, Level after a relaunch), gen_cr_screens (Kick Mix with a thump, Hats Mix with FX off). **Sizes**
+(FM-1): XIP 561,448 -> 562,376 of 573,440, RAM 91,248 -> 91,268, POOL 334,512 -> 335,024, RAMTEXT 22,092 (same);
+1-core XIP 557,752 -> 558,168; SMK-37 XIP 542,468 -> 543,508. `fm1_alnk0_irq` 13,485 -> 13,517 of 13,890.
+`sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124 ok);
+`BOARD=smk37` and `CR_SINGLE_CORE=1` build. The dev package `build/choralroot.fwsc` sha256 eac1e7fd...ebd7. Not tried
+on a unit; not pushed, tagged or flashed.

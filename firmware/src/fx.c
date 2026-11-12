@@ -1155,8 +1155,22 @@ static int32_t p5x_side[CTL] __attribute__((section(".pool")));  /* .. their ste
                                                                   * USPREAD, 3y177) */
 static uint8_t p5x_side_on;                                      /* .. one of them added to it */
 #endif
+#if CR_DRUMS
+static void crd_render(int fxoff, uint32_t n);   /* (cr_drum.c: the drums' block into their own buffers, then into */
+static void crd_add(int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr, uint32_t n);   /* the mix) */
+static uint32_t crd_us(void);
+/* 3y303, THE DRUMS ON CORE 1 (docs/DUALCORE.md "What each core runs"): 0 core 0 mixes the drums after the parts
+ * (cr_drum_out: cr_drum_mix, one core's place), else core 1 renders them in its job after the bass part (crd_render)
+ * and core 0 adds them after the join, in the same place (cr_drum_out: crd_add); 2: FX off, no sends. Set by core 0
+ * before the hand-over (mix_parts_split), cleared by cr_drum_out */
+static uint8_t c1_dr;
+#ifndef FM1_HAVE_CPU1
+static uint32_t c1_dr_jobs;
+#endif
+#endif
 /* core 1's job of a block: the bass part, then (3y46, 3y177) the chord part's voices that p5x_run gave it (p5x.it[]
- * with c1: each its own state, into p5x_buf and, with render2, p5x_side). CRP_PART1 is the whole job's time */
+ * with c1: each its own state, into p5x_buf and, with render2, p5x_side), then (3y303) the drums. CRP_PART1 is the
+ * whole job's time */
 CR_HOT_CORE static void c1_part1_job(uint32_t n)
 {
     uint32_t t0 = cr_dbg.prof_on ? cr_prof_now() : 0u;
@@ -1178,6 +1192,14 @@ CR_HOT_CORE static void c1_part1_job(uint32_t n)
                 else
                     e->render(&trk[0], p5x.it[i].v, p5x_buf, n, &p5x.it[i].m);
             }
+    }
+#endif
+#if CR_DRUMS
+    if (c1_dr) {
+        crd_render(c1_dr == 2u, n);
+#ifndef FM1_HAVE_CPU1
+        c1_dr_jobs += crd_out != 0;                     /* (the host's tests: blocks whose drums core 1 rendered) */
+#endif
     }
 #endif
     if (cr_dbg.prof_on) {
@@ -1335,6 +1357,10 @@ static uint32_t p5x_assign(const track_t *t0, uint32_t nc, uint32_t *nbp)
         k = nb * voice_units(bt) / P5_BASS_UNITS;
         *nbp = 0;
     }
+#if CR_DRUMS
+    if (c1_dr)
+        bl += crd_us();                                 /* (3y303: the drums ringing, core 1's after the bass part) */
+#endif
     if (CR_C1_TEST_SHARE)                               /* (the host's tests: a share of their own) */
         return CR_C1_TEST_SHARE - 1u < nc ? CR_C1_TEST_SHARE - 1u : nc;
     cap1 = !p5 ? nc : k < P5_CORE ? P5_CORE - k : 0u;  /* (the four a core are P5's) */
@@ -1464,6 +1490,10 @@ static void mix_parts_split(uint32_t n)
     c1_lfo[1] = mulq15(t1->lfo_val, t1->lfo_fade);
     track_lfo_tick(t1);
     cr_c1_split = 1;
+#if CR_DRUMS
+    c1_dr = (uint8_t)(CR_C1_TEST_DR0 ? 0u : CR_FX && fx_off ? 2u : 1u);   /* (the drums to core 1: crd_render in
+                                                         * the job) */
+#endif
 #if P5_SPLIT
     p5x.n = p5x.n1 = 0;
     if (ENGINES[t0->engine]->split && !CR_C1_TEST_NOSPLIT) {   /* P5 or the VA on the chord part: its voices on
@@ -1605,6 +1635,19 @@ static __attribute__((noinline)) void mix_fx_chain(uint32_t n)
 
 #if CR_DRUMS
 static void cr_drum_mix(int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr, int fxoff, uint32_t n);
+/* the drums into the mix and the three sends, after the parts: core 1's block (3y303: c1_dr, crd_render in its job) or
+ * here on one core (cr_drum_mix). Out of line: the audio ISR's code as it was laid (tests/target_budget.txt) */
+static __attribute__((noinline)) void cr_drum_out(int fxoff, uint32_t n)
+{
+#if CR_CPU1
+    if (c1_dr) {
+        c1_dr = 0;
+        crd_add(mix_l, mix_r, send_c, send_d, send_r, n);   /* (with the parts, as one core's sums) */
+        return;
+    }
+#endif
+    cr_drum_mix(mix_l, mix_r, send_c, send_d, send_r, fxoff, n);
+}
 #endif
 static void mix_block(int32_t *out, uint32_t n)
 {
@@ -1642,9 +1685,9 @@ static void mix_block(int32_t *out, uint32_t n)
     for (; i < NPART; i++)
         mix_part_idle(&trk[i], n);
 #if CR_DRUMS
-    cr_drum_mix(mix_l, mix_r, send_c, send_d, send_r, CR_FX ? fx_off : 0, n);   /* (cr_drum.c: the drums with the
-                                                         * parts: dry into the mix, their sends into the chorus, the
-                                                         * delay and the reverb; nothing while none rings) */
+    cr_drum_out(CR_FX ? fx_off : 0, n);                 /* (the drums with the parts: dry into the mix, their sends into
+                                                         * the chorus, the delay and the reverb; nothing while none
+                                                         * rings; 3y303: rendered by core 1 when it is alive) */
 #endif
 #if CR_FX
     if (xfp[XP_RMODE] == 1)

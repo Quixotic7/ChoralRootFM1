@@ -115,8 +115,10 @@ on, the drums play; they follow a loop while one plays, and are never part of it
 - **The Rate** does not change them: they follow the tempo's ticks (`crl.rt`), as the click.
 - **The home chip** reads `crl.bpos` (the beat the click or the drums are on + 1; 0 with the beat off).
 - **The sound** goes into the mix with the parts' (`fx.c mix_block`, after the parts, before the effects): the master
-  filter and the limiter see it as the parts', and each drum's FX send (the layer's Mix page) feeds the delay's and
-  the reverb's buses at the same amount (none with FX off).
+  filter and the limiter see it as the parts', and each drum's three sends (the layer's Kick Mix, Snare Mix and Hats
+  Mix pages, 3y303; 0.40 had one send a drum, into the delay and the reverb alike) feed the chorus's, the delay's and
+  the reverb's buses (none with FX off). With core 1 alive it renders them in its job (docs/DUALCORE.md "What each
+  core runs"); the mix is one core's, bit for bit.
 
 ## The Rate (0.18)
 
