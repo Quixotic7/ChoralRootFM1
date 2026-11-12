@@ -1604,7 +1604,7 @@ static __attribute__((noinline)) void mix_fx_chain(uint32_t n)
 #endif
 
 #if CR_DRUMS
-static void cr_drum_mix(int32_t *l, int32_t *r, int32_t *sd, int32_t *sr, int fxoff, uint32_t n);   /* (cr_drum.c) */
+static void cr_drum_mix(int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr, int fxoff, uint32_t n);
 #endif
 static void mix_block(int32_t *out, uint32_t n)
 {
@@ -1642,9 +1642,9 @@ static void mix_block(int32_t *out, uint32_t n)
     for (; i < NPART; i++)
         mix_part_idle(&trk[i], n);
 #if CR_DRUMS
-    cr_drum_mix(mix_l, mix_r, send_d, send_r, CR_FX ? fx_off : 0, n);   /* (cr_drum.c: the drums with the parts: dry
-                                                         * into the mix, their sends into the delay and the reverb;
-                                                         * nothing while none rings) */
+    cr_drum_mix(mix_l, mix_r, send_c, send_d, send_r, CR_FX ? fx_off : 0, n);   /* (cr_drum.c: the drums with the
+                                                         * parts: dry into the mix, their sends into the chorus, the
+                                                         * delay and the reverb; nothing while none rings) */
 #endif
 #if CR_FX
     if (xfp[XP_RMODE] == 1)

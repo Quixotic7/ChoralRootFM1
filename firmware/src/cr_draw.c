@@ -2577,7 +2577,9 @@ static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
  *           playing framed white across the three
  *   page 2..4  Kick, Snare, Hats: the drum's icon in a magenta roundel (r 34; the ring 3 px, 3 more at a hit's
  *           thump), its sound as a filled shape right of it: an attack edge as tall as Tune (the lowest half of it at -12,
- *           the whole at +12), falling over a length set by Decay; Character from smooth (soft) to striped (hard) */
+ *           the whole at +12), falling over a length set by Decay; Character from smooth (soft) to striped (hard)
+ *   page 5..7  Kick Mix, Snare Mix, Hats Mix (3y303): the drum's roundel, its Level the arc; its three sends as rings
+ *           in the effects' colours on a wire from it (cr_dr_mix) */
 #define CR_DR_TOP 64                     /* the middle's top row */
 #define CR_MAG CR_RGB(224, 75, 216)
 static void cr_dr_band(const cr_screen_t *s, const cr_frame_t *fr)
@@ -2689,17 +2691,32 @@ static void cr_dr_drum(const cr_screen_t *s)
         }
     }
 }
-/* page 5, Mix: the three drums' icons in a row, each in a ring (r 30, 4 px: the track dim, the send magenta clockwise
- * from 12 o'clock, as full as the send), the ring 3 px wider at the drum's thump */
+/* pages 5..7, Kick Mix, Snare Mix, Hats Mix (3y303): each thing in the colour of the knob that turns it. The drum's
+ * icon in its roundel (r 34 at the left: the track dim, the Level green (KNOB 4) clockwise from 12 o'clock, as full as
+ * Level / 127, so 64 as voiced is half; 3 px, 3 more at the drum's thump; the icon magenta at the hit), a wire from it
+ * through its three sends: rings (r 20), Chorus blue (KNOB 1), Delay orange (KNOB 2), Reverb white (KNOB 3), each as
+ * full as its send, its middle a disc on the wire that swells with the send and at the hit by as much as the send
+ * carries it; the wire lights magenta at the hit. FX off: the rings grey (nothing is sent) */
 static void cr_dr_mix(const cr_screen_t *s)
 {
-    int32_t k;
+    static const uint8_t COL[3] = {CR_COL_BLUE, CR_COL_ORANGE, CR_COL_WHITE};
+    int32_t k, cy = CR_DR_TOP + 48, pul = s->dr_pulse;
+    int32_t cx = 46 * 16, w = 3 * 16 + pul * 48 / 255;
+    uint32_t sw = (uint32_t)s->dr_lvl * 65536u / 127u;
+    cr_fill(80, cy - 1, 132, 3, ux_mix(T_LINE, CR_MAG, pul * 100 / 255));   /* the wire, under the rings */
+    cr_arc(cx, cy * 16, 34 * 16, 3 * 16, 0, 65536u, 0, 0, 0, T_SURF);
+    if (sw) cr_arc(cx, cy * 16, 34 * 16, w, 49152u, sw >= 65536u ? 65535u : sw, 0, 0, 0, CR_NAMED[CR_COL_GREEN]);
+    cr_dr_icon((uint32_t)s->dr_page - 3u, cx, cy * 16, pul > 128 ? CR_MAG : s->dr_lvl ? CR_WHITE : T_DIM);
     for (k = 0; k < 3; k++) {
-        int32_t cx = (40 + k * 80) * 16, cy = (CR_DR_TOP + 50) * 16, w = 4 * 16 + s->dr_pul[k] * 48 / 255;
-        uint32_t sw = (uint32_t)s->dr_send[k] * 65536u / 127u;
-        cr_arc(cx, cy, 30 * 16, 4 * 16, 0, 65536u, 0, 0, 0, T_SURF);
-        if (sw) cr_arc(cx, cy, 30 * 16, w, 49152u, sw >= 65536u ? 65535u : sw, 0, 0, 0, CR_MAG);
-        cr_dr_icon((uint32_t)k + 2u, cx, cy, s->dr_send[k] ? CR_WHITE : T_DIM);
+        int32_t x = (116 + k * 47) * 16, v = s->dr_fx[k], r;
+        uint16_t c = s->dr_fxoff ? T_DIM : CR_NAMED[COL[k]];
+        uint32_t a = (uint32_t)v * 65536u / 127u;
+        cr_arc(x, cy * 16, 20 * 16, 4 * 16, 0, 65536u, 0, 0, 0, T_SURF);
+        if (!v) continue;
+        if (a) cr_arc(x, cy * 16, 20 * 16, 4 * 16 + (s->dr_fxoff ? 0 : pul * v * 32 / (255 * 127)), 49152u,
+                      a >= 65536u ? 65535u : a, 0, 0, 0, c);
+        r = 3 * 16 + v * 9 * 16 / 127 + (s->dr_fxoff ? 0 : pul * v * 4 * 16 / (255 * 127));
+        cr_disc(x, cy * 16, r, c);
     }
 }
 static void cr_p_drum(const cr_screen_t *s, const cr_frame_t *fr)
@@ -2709,7 +2726,7 @@ static void cr_p_drum(const cr_screen_t *s, const cr_frame_t *fr)
     if (cr_in_strip(CR_DR_TOP, ry)) {
         if (s->dr_page == 0u) cr_dr_tiles(s);
         else if (s->dr_page == 1u) cr_dr_beat(s);
-        else if (s->dr_page == 5u) cr_dr_mix(s);
+        else if (s->dr_page >= 5u) cr_dr_mix(s);
         else cr_dr_drum(s);
     }
     cr_kr_cells(s, ry, CR_KR_ROW);

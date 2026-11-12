@@ -365,7 +365,7 @@ grep -q 'lock: on 0 latched 00 type-key keeps ext-keys pushed' "$OUT/persist_loc
     ok "LOCK styles run 2: Keeps and Pushed after a relaunch (LOCK itself off at power-on, as ever)" || bad "LOCK styles run 2: $(grep '  lock: on' "$OUT/persist_lock_2.log")"
 
 # the drums (the session's drum block, the DRUMS plan): run 1 sets Drums, the level, a kit, Map X, Chaos, the kick's
-# Tune, the snare's Character, the beat on, and saves (SAVE held); run 2 (the same file): all of it back at power-on,
+# Tune, the snare's Character, its Chorus, Delay and Level (3y303), the beat on, and saves (SAVE held); run 2 (the same file): all of it back at power-on,
 # the drums in the looper (the beat on with Drums); a fresh flash: Metronome, the beat off, the defaults
 DFLASH=$OUT/persist_drums_flash.bin
 rm -f "$DFLASH" "$OUT"/persist_drums_1.log "$OUT"/persist_drums_2.log "$OUT"/persist_drums_3.log
@@ -374,14 +374,14 @@ rm -f "$DFLASH" "$OUT"/persist_drums_1.log "$OUT"/persist_drums_2.log "$OUT"/per
 "$EMU" --headless --script "$S/persist_drums_check.txt" >"$OUT/persist_drums_3.log" 2>&1 || bad "drums run 3: exit status"
 dk() { grep -a '^  drums:' "$1" | tail -1 | sed 's/ page [0-9]*//; s/ now [0-9]* hits [0-9 ]* x/ x/; s/ bpos [0-9]*//'; }
 d1=$(dk "$OUT/persist_drums_1.log"); d2=$(dk "$OUT/persist_drums_2.log"); d3=$(dk "$OUT/persist_drums_3.log")
-echo "$d1" | grep -q 'preset 1 beat 1 click 0 drums 1 ok 1 run 1 kit 1 x [0-9]* y 64 density 64 chaos 2 level 70 sends 0 8 0 kick 14/64/32/72 snare 12/64/70/64' &&
+echo "$d1" | grep -q 'preset 1 beat 1 click 0 drums 1 ok 1 run 1 kit 1 x [0-9]* y 64 density 64 chaos 2 level 70 sends 0/0/0 2/8/0 0/0/0 levels 64 50 64 kick 14/64/32/72 snare 12/64/70/64' &&
     grep -q '^save: global rc 0' "$OUT/persist_drums_1.log" &&
-    ok "drums run 1: Drums, the beat on (running: no loop needed), kit Deep, Map X, Chaos, the level, the kick's Tune, the snare's Character, its FX send; the global save" \
+    ok "drums run 1: Drums, the beat on (running: no loop needed), kit Deep, Map X, Chaos, the level, the kick's Tune, the snare's Character, its Chorus, Delay and Level (Snare Mix, 3y303); the global save" \
     || bad "drums run 1: $d1"
 d1off=$(echo "$d1" | sed 's/ beat 1 click 0 drums 1 ok 1 run 1 / beat 0 click 0 drums 0 ok 1 run 0 /')
 [ "$d2" = "$d1off" ] && ok "drums run 2: all of it back after a relaunch (the session's drum block), but the beat off: it is off at every power-on (the owner)" \
     || bad "drums run 2: $d2 (run 1, the beat off: $d1off)"
-echo "$d3" | grep -q 'preset 0 beat 0 click 0 drums 0 ok 0 run 0 kit 0 x 64 y 64 density 64 chaos 0 level 80 sends 0 0 0 kick 12/64/32/72 snare 12/64/32/64 hats 12/64/32/88' &&
+echo "$d3" | grep -q 'preset 0 beat 0 click 0 drums 0 ok 0 run 0 kit 0 x 64 y 64 density 64 chaos 0 level 80 sends 0/0/0 0/0/0 0/0/0 levels 64 64 64 kick 12/64/32/72 snare 12/64/32/64 hats 12/64/32/88' &&
     ok "a fresh flash: Metronome, the beat off, the drums' defaults" || bad "drums, fresh: $d3"
 
 # the KEY layer's page 2 and Split Bass (Settings v14: bits 1 / 2 of key_on, single = 2): run 1 sets Key plays Notes,

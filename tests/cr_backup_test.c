@@ -1167,6 +1167,38 @@ int main(void)
             css_drum_put(&x);
             CHECK(cs.beat_preset == 1 && cs.dr_kit == 0 && cs.dr[1][0] == 12 && cs.dr_level == 80 && cs.dr_chaos == 99,
                   "session: a drum field out of range takes its default (kit 9, Tune 30, level 101), the others kept");
+            /* 3y303: each drum's three sends and its Level (version 2) round-trip; a 0.40 record (version 1: one send
+             * S a drum, the bytes after it the reserve's 0) loads as Chorus 0, Delay S, Reverb S, Level 64; a sends or
+             * Level byte out of range takes its default; a later version: the defaults */
+            cu_drum_defaults();
+            cs.beat_preset = 1;
+            cs.dr_fx[0][0] = 10; cs.dr_fx[0][1] = 20; cs.dr_fx[0][2] = 30; cs.dr_fx[1][0] = 127; cs.dr_fx[2][2] = 77;
+            cs.dr_lvl[0] = 0; cs.dr_lvl[1] = 100; cs.dr_lvl[2] = 127;
+            css_drum_get(&x.drum);
+            cu_drum_defaults();
+            css_drum_put(&x);
+            CHECK(x.drum.ver == 2u && cs.dr_fx[0][0] == 10 && cs.dr_fx[0][1] == 20 && cs.dr_fx[0][2] == 30 &&
+                  cs.dr_fx[1][0] == 127 && !cs.dr_fx[1][1] && cs.dr_fx[2][2] == 77 && !cs.dr_lvl[0] && cs.dr_lvl[1] == 100 &&
+                  cs.dr_lvl[2] == 127 && x.drum.send[0] == 20 && x.drum.cho[0] == 10 && x.drum.rev[0] == 30,
+                  "session: each drum's Chorus, Delay, Reverb and Level round-trip (version 2; the Delay in 0.40's send byte)");
+            memset(&x.drum, 0, sizeof x.drum);         /* a 0.40 record */
+            x.drum.ver = 1; x.drum.preset = 1; x.drum.kit = 2; x.drum.level = 66; x.drum.x = x.drum.y = 64;
+            x.drum.density = 64; x.drum.dr[0][0] = 12; x.drum.dr[1][0] = 12; x.drum.dr[2][0] = 12;
+            x.drum.send[0] = 0; x.drum.send[1] = 90; x.drum.send[2] = 127;
+            cs.dr_fx[0][0] = cs.dr_fx[1][0] = 55; cs.dr_lvl[1] = 9;
+            css_drum_put(&x);
+            CHECK(cs.beat_preset == 1 && cs.dr_kit == 2 && cs.dr_level == 66 && !cs.dr_fx[0][0] && !cs.dr_fx[0][1] &&
+                  !cs.dr_fx[0][2] && !cs.dr_fx[1][0] && cs.dr_fx[1][1] == 90 && cs.dr_fx[1][2] == 90 &&
+                  !cs.dr_fx[2][0] && cs.dr_fx[2][1] == 127 && cs.dr_fx[2][2] == 127 && cs.dr_lvl[0] == 64 &&
+                  cs.dr_lvl[1] == 64 && cs.dr_lvl[2] == 64,
+                  "session: a 0.40 drum block (version 1, sends 0 90 127): Chorus 0, Delay = Reverb = the send, Level 64");
+            x.drum.ver = 2; x.drum.cho[1] = 128; x.drum.rev[2] = 200; x.drum.lvl[0] = 255; x.drum.lvl[2] = 5;
+            css_drum_put(&x);
+            CHECK(!cs.dr_fx[1][0] && cs.dr_fx[1][1] == 90 && !cs.dr_fx[2][2] && cs.dr_lvl[0] == 64 && cs.dr_lvl[2] == 5,
+                  "session: a send or a Level out of range takes its default (Chorus 128, Reverb 200, Level 255), the others kept");
+            x.drum.ver = 3;
+            css_drum_put(&x);
+            CHECK(cs.beat_preset == 0 && cs.dr_kit == 0 && cs.dr_fx[1][1] == 0, "session: a later drum block version: the defaults");
             cu_drum_defaults();
         }
 #undef NRET

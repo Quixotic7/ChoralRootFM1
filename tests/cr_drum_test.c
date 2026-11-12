@@ -56,7 +56,7 @@ static uint64_t instr_now(void)
     return 0;
 }
 
-static int32_t L[CTL], R[CTL], SD[CTL], SR[CTL];   /* (the delay's and the reverb's buses: the sends) */
+static int32_t L[CTL], R[CTL], SC[CTL], SD[CTL], SR[CTL];   /* (the chorus's, the delay's and the reverb's buses) */
 static int lr_differ;
 static uint32_t render(uint32_t blocks, int32_t *peak, uint64_t *hash)   /* blocks rendered while anything rang */
 {
@@ -67,7 +67,7 @@ static uint32_t render(uint32_t blocks, int32_t *peak, uint64_t *hash)   /* bloc
         if (!any) break;
         memset(L, 0, sizeof L);
         memset(R, 0, sizeof R);
-        cr_drum_mix(L, R, SD, SR, 0, CTL);
+        cr_drum_mix(L, R, SC, SD, SR, 0, CTL);
         live++;
         for (i = 0; i < CTL; i++) {
             int32_t a = L[i] < 0 ? -L[i] : L[i];
@@ -118,7 +118,7 @@ static void beat_bar(int32_t *peak)
         if ((bar_hits[1] >> st) & 1u && crd_v[DSS_CLAP].live) bar_clap |= 1u << st;
         for (b = 0; b < 6u; b++) {                   /* (a 32nd at 120 BPM: 172 samples) */
             memset(L, 0, sizeof L);
-            cr_drum_mix(L, R, SD, SR, 0, CTL);
+            cr_drum_mix(L, R, SC, SD, SR, 0, CTL);
             for (d = 0; d < CTL; d++) if (peak && (L[d] < 0 ? -L[d] : L[d]) > *peak) *peak = L[d] < 0 ? -L[d] : L[d];
         }
     }
@@ -168,37 +168,76 @@ int main(int argc, char **argv)
         int32_t i, same = 1;
         quiet();
         for (i = 0; i < CTL; i++) L[i] = R[i] = i * 7 - 50;
-        cr_drum_mix(L, R, SD, SR, 0, CTL);
+        cr_drum_mix(L, R, SC, SD, SR, 0, CTL);
         for (i = 0; i < CTL; i++) same &= L[i] == i * 7 - 50 && R[i] == i * 7 - 50;
         check(same, "nothing ringing: the mix as it was");
     }
-    {   /* the FX sends (the Mix page): none by default; the snare's into the delay and the reverb alike, the dry mix the
-         * same; FX off: none */
-        int32_t i, sd = 0, dry0[CTL], same = 1, eq = 1;
+    {   /* the sends (3y303: the Kick Mix, Snare Mix, Hats Mix pages): none by default; each drum's three buses its own,
+         * the dry mix the same; the clap the snare's, the open hat the hats'; FX off: none. The Level: x lv / 64 */
+        int32_t i, sd = 0, dry0[CTL], same = 1, eq = 1, other = 0, pk0 = 0, pk1 = 0;
+        uint32_t d, k;
         crd_kit_load(0);
         knobs(32);
-        crd_send[0] = crd_send[1] = crd_send[2] = 0;
+        memset(crd_fx, 0, sizeof crd_fx);
         crd_kit.vary = 0;                          /* (each hit the same) */
         quiet();
         crd_hit(DSS_SNARE, 1);
-        memset(SD, 0, sizeof SD); memset(SR, 0, sizeof SR); memset(L, 0, sizeof L);
-        cr_drum_mix(L, R, SD, SR, 0, CTL);
-        for (i = 0; i < CTL; i++) { sd |= SD[i] | SR[i]; dry0[i] = L[i]; }
+        memset(SC, 0, sizeof SC); memset(SD, 0, sizeof SD); memset(SR, 0, sizeof SR); memset(L, 0, sizeof L);
+        cr_drum_mix(L, R, SC, SD, SR, 0, CTL);
+        for (i = 0; i < CTL; i++) { sd |= SC[i] | SD[i] | SR[i]; dry0[i] = L[i]; }
         check(!sd, "sends 0 (the default): nothing into the effects");
-        crd_send[1] = 100;
+        crd_fx[CRD_SNARE][CRD_SD] = 100;           /* 0.40's one send 100: the delay and the reverb alike */
+        crd_fx[CRD_SNARE][CRD_SR] = 100;
         quiet();
         crd_hit(DSS_SNARE, 1);
-        memset(SD, 0, sizeof SD); memset(SR, 0, sizeof SR); memset(L, 0, sizeof L);
-        cr_drum_mix(L, R, SD, SR, 0, CTL);
-        for (i = 0, sd = 0; i < CTL; i++) { sd |= SD[i]; eq &= SD[i] == SR[i]; same &= L[i] == dry0[i]; }
-        check(sd && eq && same, "the snare's send 100: into the delay and the reverb alike, the dry mix as it was");
+        memset(SC, 0, sizeof SC); memset(SD, 0, sizeof SD); memset(SR, 0, sizeof SR); memset(L, 0, sizeof L);
+        cr_drum_mix(L, R, SC, SD, SR, 0, CTL);
+        for (i = 0, sd = 0; i < CTL; i++) { sd |= SD[i]; eq &= SD[i] == SR[i] && !SC[i]; same &= L[i] == dry0[i]; }
+        check(sd && eq && same, "the snare's Delay and Reverb 100 (0.40's send 100): the two buses alike, the chorus's "
+              "none, the dry mix as it was");
+        for (d = 0; d < CRD_N; d++)                /* each drum, each bus: only that bus gets the drum */
+            for (k = 0; k < CRD_NS; k++) {
+                static const uint8_t SND[CRD_N] = {DSS_KICK, DSS_CLAP, DSS_HATO};
+                int32_t *B[CRD_NS] = {SC, SD, SR}, got = 0, rest = 0;
+                memset(crd_fx, 0, sizeof crd_fx);
+                crd_fx[d][k] = 127;
+                crd_knob[CRD_SNARE].chr = 127;     /* (the clap: the snare's sends) */
+                quiet();
+                crd_hit(SND[d], 1);
+                memset(SC, 0, sizeof SC); memset(SD, 0, sizeof SD); memset(SR, 0, sizeof SR);
+                cr_drum_mix(L, R, SC, SD, SR, 0, CTL);
+                for (i = 0; i < CTL; i++) {
+                    uint32_t j;
+                    got |= B[k][i];
+                    for (j = 0; j < CRD_NS; j++) if (j != k) rest |= B[j][i];
+                }
+                other += !got || rest;
+                crd_knob[CRD_SNARE].chr = 32;
+            }
+        check(!other, "each drum's Chorus, Delay and Reverb sends go into their own bus alone (the kick; the clap on the "
+              "snare's; the open hat on the hats')");
+        memset(crd_fx, 0, sizeof crd_fx);
+        crd_fx[CRD_SNARE][CRD_SC] = crd_fx[CRD_SNARE][CRD_SD] = crd_fx[CRD_SNARE][CRD_SR] = 127;
         quiet();
         crd_hit(DSS_SNARE, 1);
-        memset(SD, 0, sizeof SD); memset(SR, 0, sizeof SR);
-        cr_drum_mix(L, R, SD, SR, 1, CTL);
-        for (i = 0, sd = 0; i < CTL; i++) sd |= SD[i] | SR[i];
+        memset(SC, 0, sizeof SC); memset(SD, 0, sizeof SD); memset(SR, 0, sizeof SR);
+        cr_drum_mix(L, R, SC, SD, SR, 1, CTL);
+        for (i = 0, sd = 0; i < CTL; i++) sd |= SC[i] | SD[i] | SR[i];
         check(!sd, "FX off: no send");
-        crd_send[1] = 0;
+        memset(crd_fx, 0, sizeof crd_fx);
+        for (k = 0; k < 3u; k++) {                 /* the Level: 64 as voiced, 32 half, 0 nothing */
+            static const uint8_t LV[3] = {64, 32, 0};
+            int32_t pk = 0;
+            crd_lvl[CRD_KICK] = LV[k];
+            quiet();
+            crd_hit(DSS_KICK, 1);
+            render(40, &pk, 0);
+            if (k == 0u) pk0 = pk; else if (k == 1u) pk1 = pk; else other = pk;
+        }
+        crd_lvl[CRD_KICK] = 64;
+        snprintf(s, sizeof s, "the kick's Level: 64 peak %d, 32 peak %d (%.1f dB), 0 nothing (%d)", pk0, pk1,
+                 20.0 * __builtin_log10((double)pk1 / (pk0 ? pk0 : 1)), other);
+        check(pk0 > 4000 && pk1 > pk0 * 45 / 100 && pk1 < pk0 * 55 / 100 && !other && !crd_v[DSS_KICK].live, s);
     }
     {   /* the choke */
         uint32_t b;
@@ -316,7 +355,7 @@ int main(int argc, char **argv)
                 for (k = 0; k < 40u; k++) {
                     crd_hit(v, 1);
                     do {
-                        cr_drum_mix(L, R, SD, SR, 0, CTL);
+                        cr_drum_mix(L, R, SC, SD, SR, 0, CTL);
                         smp += CTL;
                     } while (crd_v[v].live);
                 }
@@ -333,7 +372,7 @@ int main(int argc, char **argv)
                 for (v = 0; v < DSS_N; v++) crd_hit(v, 1);
                 crd_v[DSS_HATO].choke = 0;
                 for (b = 0; b < 8u; b++)                 /* 5.8 ms: all five ring */
-                    cr_drum_mix(L, R, SD, SR, 0, CTL);
+                    cr_drum_mix(L, R, SC, SD, SR, 0, CTL);
             }
             i0 = instr_now() - i0;
             printf("cpu: %s all five ringing at once (the snare at 96): %.0f instructions / sample (the five alone "
@@ -341,7 +380,7 @@ int main(int argc, char **argv)
         }
         quiet();
         i0 = instr_now();
-        for (k = 0; k < 20000u; k++) cr_drum_mix(L, R, SD, SR, 0, CTL);
+        for (k = 0; k < 20000u; k++) cr_drum_mix(L, R, SC, SD, SR, 0, CTL);
         i0 = instr_now() - i0;
         printf("cpu: nothing ringing: %.1f instructions / sample\n", (double)i0 / (20000.0 * CTL));
         crd_kit_load(0);                           /* a busy beat: the map's middle, Fill and Density high */
@@ -354,7 +393,7 @@ int main(int argc, char **argv)
         for (t = 0, nsmp = 0; t < 8u * 32u; t++) {   /* 8 bars at 120 BPM: a 32nd 172 samples */
             crd_beat_step(t & 31u);
             for (b = 0; b < 6u; b++, nsmp += CTL)
-                cr_drum_mix(L, R, SD, SR, 0, CTL);
+                cr_drum_mix(L, R, SC, SD, SR, 0, CTL);
         }
         i0 = instr_now() - i0;
         printf("cpu: a busy beat (Club, 8 bars at 120 BPM, hits included): %.0f instructions / sample on average\n",

@@ -946,7 +946,7 @@ differ cr_metro_row_cool cr_metro_row_34 "KNOB 2: 3/4: $OUT/cr_metro_row_34.ppm"
 unset EMU_UI_LOG
 
 # the drums (the DRUMS plan; docs/MANUAL.md "The drums", docs/LOOPER.md "The drums"): the SEQ layer's preset page
-# (ALGORITHM the preset, PRESETS the beat on / off) and its pages to Mix, the keys playing there, the drums free with no
+# (ALGORITHM the preset, PRESETS the beat on / off) and its pages to Hats Mix, the keys playing there, the drums free with no
 # loop, on its grid while it plays, running on when it stops, GLO + SEQ off
 export EMU_UI_LOG=1
 run cr_drums --wav "$OUT/cr_drums.wav"
@@ -964,9 +964,11 @@ hits() { echo "$1" | sed -n 's/.* hits \([0-9]*\) \([0-9]*\) \([0-9]*\) .*/\1 \2
     has '^metro: cells Map X Map Y Density Chaos' "$L" && grep -aq "device): drum .*item 'Beat'" "$L" &&
     ok "SELECT: Beat (the map, the lanes): KNOB 1..3 Map X, Map Y, Density: $OUT/cr_drums_beat.ppm" || bad "the Beat page: $(dr 3)"
 [ "$(df "$(dr 4)" page)" = 3 ] && echo "$(dr 4)" | grep -q ' kick 12/64/[0-9]*/72 ' && ! echo "$(dr 4)" | grep -q ' kick 12/64/32/72 ' &&
-    has '^metro: cells Tune Decay Character Fill' "$L" && [ "$(df "$(dr 5)" page)" = 6 ] && grep -aq "device): drum .*item 'Mix'" "$L" &&
-    has '^metro: cells Kick FX Snare FX Hats FX -' "$L" && grep -aq '^metro: mix sends [1-9][0-9]* 0 0' "$L" &&
-    ok "SELECT: Kick (KNOB 3: its Character), Snare, Hats, Mix (KNOB 1: the kick's FX send), the last page: $OUT/cr_drums_kick.ppm $OUT/cr_drums_mix.ppm" \
+    has '^metro: cells Tune Decay Character Fill' "$L" && [ "$(df "$(dr 5)" page)" = 6 ] && grep -aq "device): drum .*item 'Kick Mix'" "$L" &&
+    has '^metro: cells Chorus Delay Reverb Level' "$L" && grep -aq '^metro: mix drum 0 chorus [1-9][0-9]* delay 0 reverb 0 level 64$' "$L" &&
+    echo "$(dr 5)" | grep -q ' sends [1-9][0-9]*/0/0 0/0/0 0/0/0 levels 64 64 64 ' && grep -aq "device): drum .*item 'Hats Mix'" "$L" &&
+    grep -aq '^metro: mix drum 2 chorus 0 delay 0 reverb [1-9][0-9]* level [1-5][0-9]$' "$L" &&
+    ok "SELECT: Kick (KNOB 3: its Character), Snare, Hats, Kick Mix (KNOB 1: the kick's Chorus), Snare Mix, Hats Mix, the last page (KNOB 3 its Reverb, KNOB 4 its Level; 3y303): $OUT/cr_drums_kick.ppm $OUT/cr_drums_mix.ppm $OUT/cr_drums_hatsmix.ppm" \
     || bad "the drum pages: $(dr 4) / $(dr 5)"
 grep -a '^  cr: voices' "$L" | sed -n 6p | grep -q ' chord DM sounding 1 ' &&
     ok "a chord played in the SEQ layer sounds (the keys play there)" || bad "keys in the layer: $(grep -a '^  cr: voices' "$L" | sed -n 6p)"

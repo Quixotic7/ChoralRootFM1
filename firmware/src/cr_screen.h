@@ -372,8 +372,11 @@ typedef struct {
                                      * map (the dot at dr_x / dr_y, the four tiles round it tinted by their weight) and
                                      * the bar's lanes (dr_lane / dr_acc, dr_steps rows, dr_step framed); 2..4 Kick, Snare,
                                      * Hats: the drum's icon in a roundel (dr_pulse: its thump) and its sound as a shape
-                                     * (height dr_tune, length dr_decay, smooth .. striped by dr_chr); 5 Mix: the
-                                     * three drums' icons, each in a ring as full as its FX send (dr_send) */
+                                     * (height dr_tune, length dr_decay, smooth .. striped by dr_chr); 5..7 Kick Mix,
+                                     * Snare Mix, Hats Mix (3y303): the drum's icon in a roundel whose arc is its Level
+                                     * (dr_lvl), thumping on its hits (dr_pulse), and its three sends as rings in their
+                                     * knobs' colours, Chorus blue, Delay orange, Reverb white (dr_fx; grey with FX off:
+                                     * dr_fxoff), each as full as its send, its middle swelling with it */
     uint8_t dr_preset;              /* 0 Metronome, 1 Drums */
     uint8_t dr_x, dr_y;             /* Beat: the place on the map, 0..255 (Grids' X / Y) */
     uint8_t dr_step, dr_steps;      /* the step playing + 1 (0: none); the steps a bar (32; 24 in 3/4 and 6/8) */
@@ -384,7 +387,8 @@ typedef struct {
      * 2 the blocks and the drum roundel (Drums); beat_n the blocks (beats a bar), beat_pos the beat lit + 1 (0: none,
      * waiting); beat_pulse the roundel's thump (the kick, 0..255), beat_flash its centre white (the snare) */
     uint8_t beat_on, beat_n, beat_pos, beat_pulse, beat_flash;
-    uint8_t dr_send[3], dr_pul[3];  /* the Mix page (dr_page 5): each drum's FX send 0..127 (its ring), its thump 0..255 */
+    uint8_t dr_fx[3], dr_lvl, dr_fxoff;   /* a Mix page (dr_page 5..7): the drum's sends 0..127 into the chorus, the
+                                     * delay, the reverb; its Level 0..127 (64 as voiced); 1: FX off (no send) */
 } cr_screen_t;
 
 /* the filter's FTYPE position's name (eng_va.c's names): "LP" "BP" "HP" "NOTCH" at 0 32 64 96, "LP>BP" .. "NT>LP"

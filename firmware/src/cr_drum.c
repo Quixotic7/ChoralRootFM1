@@ -34,15 +34,17 @@
  * (CoralFlower: one MORPH a kit; the kit's is the Character at rest): KICK's for the kick, HATS' for both hats, SNARE's
  * for the snare up to 64 (x2), past it the snare fading out as the CLAP fades in, the clap's morph going 0..127 with it.
  * Tune moves the pitches, the metal and the filter +-12 semitones, Decay the oscillator's and the noise's times +-2
- * octaves, Level the drum's level; 64 is the kit as voiced. The kits (cr_drum_kits.h) live in the resource region on
- * the FM-1: crd_kit_load copies one into RAM in the main loop (the ISR never reads the region), or says it is not
- * there (cr_res.h CR_RES_GONE): then the beat is the metronome's click.
+ * octaves, Level (3y303, the drum's Mix page) the drum's level; 64 is the kit as voiced. The kits (cr_drum_kits.h)
+ * live in the resource region on the FM-1: crd_kit_load copies one into RAM in the main loop (the ISR never reads the
+ * region), or says it is not there (cr_res.h CR_RES_GONE): then the beat is the metronome's click.
  *
  * Use: crd_kit_load and crd_beat_blend / crd_beat_dens (the main loop: cr_ui.c cu_beat_post), crd_beat_step on each
  * step of the loop's grid (the ISR: cr_loop.c sets crl.dstep, choralroot.c mix_block plays it), crd_hit a hit (the
  * coefficients are set there, once), cr_drum_mix per block (the ISR): every voice ringing, summed under a soft knee
- * into the master's mix before the limiter (fx.c mix_block). All out of line: the audio ISR only calls them. Measured
- * on a unit (HISTORY 3y297): Geek Out 2 peaks 70..80 % with FM TONE and P5 chords and every effect on */
+ * into the master's mix before the limiter (fx.c mix_block), each drum's three sends into the effects' buses (3y303:
+ * a block is crd_render, then crd_add). All out of
+ * line: the audio ISR only calls them. Measured on a unit (HISTORY 3y297): Geek Out 2 peaks 70..80 % with FM TONE and
+ * P5 chords and every effect on */
 
 /* the drums' RAM in sections of their own: the compiler merges a unit's small statics into one block reached from one
  * base register, and the drums' among them pushed usb.c's past the offsets one instruction reaches (usb_poll's loops
@@ -504,6 +506,10 @@ static uint8_t crd_blend[3][32] CRD_BSS;         /* the map at X / Y: each drum'
 static uint8_t crd_dens[3] CRD_BSS;              /* each drum's density 0..255 (Fill and Density: crd_beat_dens) */
 static uint8_t crd_rand CRD_BSS;                 /* Chaos: Grids' randomness 0..255 */
 static uint8_t crd_level CRD_DATA = 80;          /* the drums' level 0..100 (the preset page's KNOB 2) */
+static uint8_t crd_lvl[CRD_N] CRD_DATA = {64, 64, 64};   /* each drum's Level 0..127 (its Mix page's KNOB 4,
+                                                  * 3y303): 64 as voiced, x lv / 64 (127 +6 dB, 32 -6 dB, 0 silent); the
+                                                  * clap's the snare's, both hats' the hats' */
+static const uint8_t CRD_DRUM_OF[DSS_N] = {CRD_KICK, CRD_SNARE, CRD_SNARE, CRD_HAT, CRD_HAT};   /* each sound's drum */
 static uint8_t crd_map_ok CRD_BSS;               /* 1: crd_blend holds the map (0: its region refused: no drums) */
 static uint8_t crd_pert[3] CRD_BSS;              /* this bar's perturbations */
 static int32_t crd_rng CRD_DATA = 0x1F3D5B79;    /* Chaos's dice */
@@ -555,7 +561,7 @@ static uint32_t crd_beat_at(uint32_t d, uint32_t st)
 static __attribute__((noinline)) void crd_hit(uint32_t sn, int acc)
 {
     const crd_knob_t *kn;
-    uint32_t c, lvl, m, xf;
+    uint32_t c, lvl, m, xf, lv;
     if (sn >= DSS_N || !crd_kit_ok)
         return;
     kn = &crd_knob[sn == DSS_KICK ? CRD_KICK : sn <= DSS_CLAP ? CRD_SNARE : CRD_HAT];
@@ -572,11 +578,14 @@ static __attribute__((noinline)) void crd_hit(uint32_t sn, int acc)
             lvl = lvl * xf / 127u;
         }
     }
-    if (!lvl)
+    lv = crd_lvl[CRD_DRUM_OF[sn]];
+    if (!lvl || !lv)
         return;
     if (sn == DSS_HATC)
         crd_v[DSS_HATO].choke = 1;
     ds_strike(&crd_v[sn], &crd_kit, sn, (int32_t)m, kn->tune, kn->decay, lvl);
+    if (lv != 64u)                                       /* the drum's Level (3y303): x lv / 64 on the hit's gain */
+        crd_v[sn].out = (crd_v[sn].out * (int32_t)lv) >> 6;
 }
 
 /* the beat's step st (0..31) now (the ISR, cr_loop.c's grid: choralroot.c mix_block) */
@@ -610,44 +619,78 @@ static __attribute__((noinline)) void crd_beat_step(uint32_t st)
     crd_now = (uint8_t)(st + 1u);
 }
 
-/* each drum's FX send (the SEQ layer's Mix page): Q15 (0..127 x 258), the same amount into the delay's bus and the
- * reverb's (the parts' sends, fx.c mix_part_out); 0: none, the drums dry as before the sends */
-static uint8_t crd_send[3] CRD_BSS;
-static const uint8_t CRD_DRUM_OF[DSS_N] = {CRD_KICK, CRD_SNARE, CRD_SNARE, CRD_HAT, CRD_HAT};
+/* EACH DRUM'S SENDS (the SEQ layer's Kick Mix, Snare Mix and Hats Mix pages; HISTORY 3y303): into the chorus's, the
+ * delay's and the reverb's buses (CRD_SC, CRD_SD, CRD_SR), Q15 (0..127 x 258) as the parts' sends (fx.c mix_part_out);
+ * 0: none. The clap takes the snare's, both hats the hats'. Until 3y303 one send a drum fed the delay and the reverb
+ * alike (a 0.40 record's S loads as Delay S, Reverb S, Chorus 0: the same mix, bit for bit) */
+enum { CRD_SC, CRD_SD, CRD_SR, CRD_NS };
+static uint8_t crd_fx[CRD_N][CRD_NS] CRD_BSS;
 
-/* the drums' block into the mix (l, r: Q15 units; fx.c mix_block, with the parts, before the effects) and their sends
- * into the delay's and the reverb's buses (sd, sr; none with FX off: fxoff); nothing when none rings */
-static __attribute__((noinline)) void cr_drum_mix(int32_t *l, int32_t *r, int32_t *sd, int32_t *sr, int fxoff, uint32_t n)
+/* THE DRUMS' BLOCK, IN TWO STEPS (3y303): crd_render runs every voice that rings into buffers of the drums' own (the
+ * bus under its soft knee, each send's sum), crd_add adds them into the mix and the three send buses (cr_drum_mix: both
+ * in a row, where 0.40 ran the drums). The sums are of integers (+=, no saturation between): 0.40's mix, bit for bit */
+#if defined(__APPLE__) || !defined(__clang__)
+#define CRD_POOL
+#else
+#define CRD_POOL __attribute__((section(".pool")))
+#endif
+static int32_t crd_bus[CTL] CRD_POOL, crd_snd[CRD_NS][CTL] CRD_POOL;   /* (the drums' dry sum, their three sends) */
+static uint8_t crd_out;                          /* what crd_render wrote: bit 0 crd_bus, bit 1 + s crd_snd[s] (the
+                                                  * others hold an older block's: crd_add skips them) */
+static __attribute__((noinline)) void crd_render(int fxoff, uint32_t n)
 {
-    int32_t bus[CTL], y[CTL];
-    uint32_t i, k, any = 0;
+    int32_t y[CTL];
+    uint32_t i, k, s, m = 0;
     for (k = 0; k < DSS_N; k++) {
-        int32_t g;
         if (!crd_v[k].live)
             continue;
         ds_run(&crd_v[k], y, n);
-        if (!any)
-            for (i = 0; i < n; i++) bus[i] = y[i];
+        if (!m)
+            for (i = 0; i < n; i++) crd_bus[i] = y[i];
         else
-            for (i = 0; i < n; i++) bus[i] += y[i];
-        any = 1;
-        g = fxoff ? 0 : crd_send[CRD_DRUM_OF[k]] * 258;
-        if (g)
-            for (i = 0; i < n; i++) {
-                int32_t x = (y[i] * g) >> 15;
-                sd[i] += x;
-                sr[i] += x;
-            }
+            for (i = 0; i < n; i++) crd_bus[i] += y[i];
+        m |= 1u;
+        for (s = 0; s < CRD_NS; s++) {
+            int32_t g = fxoff ? 0 : crd_fx[CRD_DRUM_OF[k]][s] * 258, *d = crd_snd[s];
+            if (!g)
+                continue;
+            if (m & 2u << s)
+                for (i = 0; i < n; i++) d[i] += (y[i] * g) >> 15;
+            else
+                for (i = 0; i < n; i++) d[i] = (y[i] * g) >> 15;
+            m |= 2u << s;
+        }
     }
-    if (!any)
+    crd_out = (uint8_t)m;
+    if (!m)
         return;
     for (i = 0; i < n; i++) {                            /* the sum: linear to -6 dBFS, a soft knee above */
-        int32_t s = bus[i], a = s < 0 ? -s : s;
+        int32_t x = crd_bus[i], a = x < 0 ? -x : x;
         if (a > 16384) {
             a = 16384 + (softclip((a - 16384) * 2) >> 1);
-            s = s < 0 ? -a : a;
+            crd_bus[i] = x < 0 ? -a : a;
         }
-        l[i] += s;
-        r[i] += s;
     }
+}
+/* crd_render's buffers into the mix (l, r: Q15 units) and the chorus's, delay's and reverb's buses (sc, sd, sr) */
+static __attribute__((noinline)) void crd_add(int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr, uint32_t n)
+{
+    int32_t *S[CRD_NS] = {sc, sd, sr};
+    uint32_t i, s, m = crd_out;
+    if (!m)
+        return;
+    for (i = 0; i < n; i++) {
+        l[i] += crd_bus[i];
+        r[i] += crd_bus[i];
+    }
+    for (s = 0; s < CRD_NS; s++)
+        if (m & 2u << s)
+            for (i = 0; i < n; i++) S[s][i] += crd_snd[s][i];
+}
+/* the drums' block on one core (fx.c mix_block, with the parts, before the effects): their dry sum into the mix, their
+ * sends into the three buses (none with FX off: fxoff); nothing when none rings */
+static void cr_drum_mix(int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr, int fxoff, uint32_t n)
+{
+    crd_render(fxoff, n);
+    crd_add(l, r, sc, sd, sr, n);
 }

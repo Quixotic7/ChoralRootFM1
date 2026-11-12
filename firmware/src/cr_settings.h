@@ -391,17 +391,24 @@ typedef struct {
                                          * entries before them where they were) */
 /* the beat (the SEQ layer: cr_ui.c cu_drum_*, cr_drum.c): its own version byte, so a record of a firmware before it
  * (0 here) loads the defaults, and a later layout can tell itself apart; every field checked on import (cr_settings.c
- * css_drum_put: out of range, the default) */
-#define CSS_DRUM_VERSION 1u
+ * css_drum_put: out of range, the default). Version 2 (3y303): each drum's three sends and its Level, in 12 bytes of
+ * the reserve after it; a version 1 record (0.40: one send S a drum, into the delay and the reverb alike) loads as
+ * Chorus 0, Delay S, Reverb S, Level 64 (the same mix); a firmware of version 1 reads a version 2 block as none (the
+ * drums' defaults, Metronome) */
+#define CSS_DRUM_VERSION 2u
 typedef struct {
     uint8_t ver;                        /* CSS_DRUM_VERSION; 0: none stored */
     uint8_t preset, kit, level;         /* 0 Metronome / 1 Drums; the kit 0..5; the drums' level 0..100 */
     uint8_t x, y, density, chaos;       /* the Beat page: Map X, Map Y, Density, Chaos 0..127 */
     uint8_t dr[3][4];                   /* kick, snare, hats: Tune 0..24 (12: as voiced), Decay, Character, Fill 0..127 */
-    uint8_t send[3];                    /* .. their FX sends 0..127 (the Mix page; 0 in a record of the first drums
-                                         * builds: these were the reserve's, so no new version) */
+    uint8_t send[3];                    /* .. their Delay sends 0..127 (the Kick Mix, Snare Mix, Hats Mix pages; version
+                                         * 1: the one send a drum, into the delay and the reverb; 0 in a record of the
+                                         * first drums builds: these were the reserve's) */
     uint8_t pad;                        /* 0 */
-} css_drum_t;                           /* 24 bytes */
+    uint8_t cho[3], rev[3];             /* version 2: .. their Chorus and Reverb sends 0..127 */
+    uint8_t lvl[3];                     /* version 2: .. their Level 0..127 (64: as voiced) */
+    uint8_t pad2[3];                    /* 0 */
+} css_drum_t;                           /* 36 bytes (24 in version 1) */
 typedef struct {
     uint8_t valid;                      /* 1: a sound is stored */
     uint8_t eng, preset, user;          /* core.h track_t eng_req, preset, user (the slot it is as stored, + 1) */
@@ -438,10 +445,11 @@ typedef struct {
                                          * smk_ut_off): 0 On (the default: an older record, a record of the FM-1
                                          * build), 1 Off. The FM-1 build neither writes nor reads it. Byte 25 (the old
                                          * reserve's fourth) */
-    css_drum_t drum;                    /* the beat's preset and the drums (the DRUMS plan; bytes 26..49, the old
-                                         * reserve's): ver CSS_DRUM_VERSION when stored, 0 in every older record (the
-                                         * defaults: Metronome, as before the drums) */
-    uint8_t rsv[18];
+    css_drum_t drum;                    /* the beat's preset and the drums (the DRUMS plan; bytes 26..61, the old
+                                         * reserve's: 26..49 in version 1, 50..61 since 3y303's version 2): ver
+                                         * CSS_DRUM_VERSION when stored, 0 in every older record (the defaults:
+                                         * Metronome, as before the drums) */
+    uint8_t rsv[6];
     css_fx_t fx;                        /* (rsv_fx[4] after it until the routing (issue 21): its entry took it) */
     css_part_t part[2];                 /* chord, bass */
     /* Chord and Bass Perform (0.34, GitHub issue 41), bytes 964 .. 1005 of the old end reserve (0 in every older

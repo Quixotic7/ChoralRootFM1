@@ -590,7 +590,9 @@ static struct {
     uint8_t dr_kit, dr_level;             /* Drums: the kit 0..5 (cr_drum_kits.h), the level 0..100 */
     uint8_t dr_x, dr_y, dr_dens, dr_chaos;   /* the Beat page: Map X, Map Y, Density, Chaos 0..127 */
     uint8_t dr[3][4];                     /* kick, snare, hats: Tune 0..24 (12: as voiced), Decay, Character, Fill 0..127 */
-    uint8_t dr_send[3];                   /* .. their FX sends 0..127 (the Mix page; into the delay and the reverb) */
+    uint8_t dr_fx[3][3];                  /* .. their sends 0..127 into the chorus, the delay and the reverb (the Kick
+                                           * Mix, Snare Mix, Hats Mix pages; 3y303) */
+    uint8_t dr_lvl[3];                    /* .. their Level 0..127, 64 as voiced (the same pages' KNOB 4) */
     uint8_t loop_len, loop_quant, loop_count_in, loop_level;   /* SYNC (0 Free, 1..16 bars), QUANT, COUNT-IN, LEVEL */
     uint8_t loop_rate;                    /* the loop's Rate, 0..CRL_NRATE-1 (x1/16 .. x4; CRL_RATE_1; the session's) */
     uint8_t loop_slot;                    /* the slot in RAM (0..9) */
@@ -2915,8 +2917,10 @@ static void cu_row_trace(const cr_screen_t *s, const char *who, char *seen, uint
  * records (cr_loop.c), and never part of a loop. With Drums and their region not there (cr_res.h: a cut install), the
  * beat is the click (cu_drums_ok 0). In the layer (the owner, after the first drums build): ALGORITHM switches the
  * preset, PRESETS starts / stops the beat, on every page; the keys play */
-#define CU_DR_NPAGE 6u
-enum { CU_DRP_PRESET, CU_DRP_BEAT, CU_DRP_KICK, CU_DRP_SNARE, CU_DRP_HATS, CU_DRP_MIX };
+#define CU_DR_NPAGE 8u
+enum { CU_DRP_PRESET, CU_DRP_BEAT, CU_DRP_KICK, CU_DRP_SNARE, CU_DRP_HATS, CU_DRP_KMIX, CU_DRP_SMIX, CU_DRP_HMIX };
+                                                  /* (3y303: a Mix page a drum, after the three drums' pages; the one
+                                                   * Mix page of 0.40 had a send a drum) */
 static const uint8_t CU_DRUM_DEF[3][4] = {{12, 64, 32, 72}, {12, 64, 32, 64}, {12, 64, 32, 88}};   /* Tune Decay
                                                                  * Character Fill: kick, snare, hats */
 static uint8_t cu_drums_ok;                       /* Drums is what plays (the kit and the map in RAM) */
@@ -2935,7 +2939,9 @@ static void cu_drum_defaults(void)                /* the drum block's defaults (
     for (d = 0; d < 3u; d++) {
         for (k = 0; k < 4u; k++)
             cs.dr[d][k] = CU_DRUM_DEF[d][k];
-        cs.dr_send[d] = 0;                        /* (no FX: the drums dry, as before the sends) */
+        for (k = 0; k < 3u; k++)
+            cs.dr_fx[d][k] = 0;                   /* (no FX: the drums dry, as before the sends) */
+        cs.dr_lvl[d] = 64;                        /* (as voiced) */
     }
 }
 /* the beat's state -> cr_drum.c and the looper: the kit and the map into RAM, the knobs; the click on when the beat is
@@ -2953,8 +2959,10 @@ static void cu_beat_post(int force)
     }
     crd_level = cs.dr_level;
     crd_rand = (uint8_t)(cs.dr_chaos * 2u);
+    for (i = 0; i < 9u; i++)
+        crd_fx[i / 3u][i % 3u] = cs.dr_fx[i / 3u][i % 3u];
     for (i = 0; i < 3u; i++)
-        crd_send[i] = cs.dr_send[i];
+        crd_lvl[i] = cs.dr_lvl[i];
     crd_beat_dens(cs.dr_dens);
     if (drums)
         drums = crd_kit_load(cs.dr_kit) && crd_beat_blend(cs.dr_x * 2u, cs.dr_y * 2u);
@@ -3026,7 +3034,8 @@ static void cu_metro_toggle(void)
 
 /* the SEQ layer's knobs (cu.mpage: the page; Metronome has the preset page alone). Page 0: Level (the click's or the
  * drums'), Meter (4/4 3/4 6/8), Kit (Drums), Beat (on / off). Beat: Map X, Map Y, Density, Chaos. Kick, Snare, Hats:
- * Tune (-12 .. +12 semitones), Decay, Character, Fill. Mix: each drum's FX send (KNOB 4 nothing) */
+ * Tune (-12 .. +12 semitones), Decay, Character, Fill. Kick Mix, Snare Mix, Hats Mix (3y303): the drum's sends into
+ * the Chorus, the Delay, the Reverb (the FX layer's step, cu_send_step), its Level (64 as voiced) */
 static void cu_drum_knob(uint32_t knob, int32_t s)
 {
     uint32_t pg = cs.beat_preset == 1u ? cu.mpage : 0u, d;
@@ -3070,12 +3079,15 @@ static void cu_drum_knob(uint32_t knob, int32_t s)
         cu_beat_post(0);
         cu_trace("metro: beat x %u y %u density %u chaos %u\n", (unsigned)cs.dr_x, (unsigned)cs.dr_y,
                  (unsigned)cs.dr_dens, (unsigned)cs.dr_chaos);
-    } else if (pg == CU_DRP_MIX) {
-        if (knob > 2u)
-            return;
-        cs.dr_send[knob] = (uint8_t)cu_send_step(cs.dr_send[knob], s, kn.snap);
+    } else if (pg >= CU_DRP_KMIX) {
+        d = (pg - CU_DRP_KMIX) % 3u;
+        if (knob < 3u)
+            cs.dr_fx[d][knob] = (uint8_t)cu_send_step(cs.dr_fx[d][knob], s, kn.snap);
+        else
+            cs.dr_lvl[d] = (uint8_t)cu_kval(cs.dr_lvl[d], s, 0, 127, kn.snap);
         cu_beat_post(0);
-        cu_trace("metro: mix sends %u %u %u\n", (unsigned)cs.dr_send[0], (unsigned)cs.dr_send[1], (unsigned)cs.dr_send[2]);
+        cu_trace("metro: mix drum %u chorus %u delay %u reverb %u level %u\n", (unsigned)d, (unsigned)cs.dr_fx[d][0],
+                 (unsigned)cs.dr_fx[d][1], (unsigned)cs.dr_fx[d][2], (unsigned)cs.dr_lvl[d]);
     } else {
         d = pg - CU_DRP_KICK;
         p = &cs.dr[d % 3u][knob & 3u];
@@ -3111,7 +3123,8 @@ static void cu_beat_turn(int32_t s)
         return;
     cu_metro_toggle();
 }
-/* SELECT in the SEQ layer: the page (Drums: the preset, Beat, Kick, Snare, Hats; Metronome: the one page) */
+/* SELECT in the SEQ layer: the page (Drums: the preset, Beat, Kick, Snare, Hats, Kick Mix, Snare Mix, Hats Mix;
+ * Metronome: the one page) */
 static void cu_drum_page(int32_t s)
 {
     int32_t pg = (int32_t)cu.mpage + (s > 0 ? 1 : -1);
@@ -3141,7 +3154,8 @@ static void cu_dr_pct(char *b, uint32_t v, uint32_t n)       /* 0..127 as "62%" 
 /* the SEQ layer's screen (cr_screen.h CR_K_DRUM) */
 static void cu_drum_screen(cr_screen_t *s)
 {
-    static const char *const PG[CU_DR_NPAGE] = {"Drums", "Beat", "Kick", "Snare", "Hats", "Mix"};
+    static const char *const PG[CU_DR_NPAGE] = {"Drums", "Beat", "Kick", "Snare", "Hats", "Kick Mix", "Snare Mix",
+                                                "Hats Mix"};
     static char seen[48];
     const char *it[CU_DR_NPAGE];
     uint32_t drums = cs.beat_preset == 1u, pg = drums ? cu.mpage % CU_DR_NPAGE : 0u, now = cu_now(), k, d;
@@ -3169,14 +3183,24 @@ static void cu_drum_screen(cr_screen_t *s)
             cu_dr_cell(&s->cell[0][2], "Kit", CRD_KIT_NAME[cs.dr_kit % CRD_NKIT], CR_G_NONE, 0);
 #endif
         cu_dr_cell(&s->cell[0][3], "Beat", cs.metro ? "On" : "Off", CR_G_GATE, cs.metro ? 255u : 26u);
-    } else if (pg == CU_DRP_MIX) {
-        static const char *const L[3] = {"Kick FX", "Snare FX", "Hats FX"};
+    } else if (pg >= CU_DRP_KMIX) {               /* (3y303) the drum's three sends, read as the FX layer's, and
+                                                   * its Level in per cent of the kit's (64: 100%) */
+        static const char *const L[3] = {"Chorus", "Delay", "Reverb"};
+        d = (pg - CU_DRP_KMIX) % 3u;
         for (k = 0; k < 3u; k++) {
-            cu_send_text(cs.dr_send[k], b, sizeof b);
-            cu_dr_cell(&s->cell[0][k], L[k], b, CR_G_MIX, cs.dr_send[k] * 255u / 127u);
-            s->dr_send[k] = cs.dr_send[k];
-            s->dr_pul[k] = (uint8_t)cu_beat_pulse(k, now, 150u);
+            if (cs.fx_on)
+                cu_send_text(cs.dr_fx[d][k], b, sizeof b);
+            else
+                cu_cpy(b, "off", sizeof b);       /* (FX off: no send, as the FX layer's Sends page reads) */
+            cu_dr_cell(&s->cell[0][k], L[k], b, CR_G_MIX, cs.dr_fx[d][k] * 255u / 127u);
+            s->dr_fx[k] = cs.dr_fx[d][k];
         }
+        cu_int(b, (int32_t)((cs.dr_lvl[d] * 100u + 32u) / 64u), 0, sizeof b);
+        cu_cat(b, "%", sizeof b);
+        cu_dr_cell(&s->cell[0][3], "Level", b, CR_G_BAR, cs.dr_lvl[d] * 255u / 127u);
+        s->dr_lvl = cs.dr_lvl[d];
+        s->dr_fxoff = (uint8_t)!cs.fx_on;
+        s->dr_pulse = (uint8_t)cu_beat_pulse(d, now, 150u);
     } else if (pg == CU_DRP_BEAT) {
         static const char *const L[4] = {"Map X", "Map Y", "Density", "Chaos"};
         const uint8_t *v[4] = {&cs.dr_x, &cs.dr_y, &cs.dr_dens, &cs.dr_chaos};

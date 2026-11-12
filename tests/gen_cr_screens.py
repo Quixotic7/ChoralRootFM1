@@ -305,7 +305,7 @@ def screen(sc, prev_name):
         if p.get("size"):
             f.append(f".size = {p['size']}")
     elif kind == "drum":                               # the SEQ layer (cr_screen.h CR_K_DRUM, dr_*): the knobrow's band
-        items = p.get("items") or ["Drums", "Beat", "Kick", "Snare", "Hats", "Mix"]   # and cells, the middle
+        items = p.get("items") or ["Drums", "Beat", "Kick", "Snare", "Hats", "Kick Mix", "Snare Mix", "Hats Mix"]   # and cells, the middle
         sel = max(0, min(len(items) - 1, p.get("sel") or 0))
         f.append(".item = {" + ", ".join(cstr(t, 24) for t in items[:8]) + "}")
         f.append(f".n_items = {len(items)}")
@@ -331,9 +331,10 @@ def screen(sc, prev_name):
         f.append(f".dr_decay = {int(p.get('decay', 64))}")
         f.append(f".dr_chr = {int(p.get('chr', 32))}")
         f.append(f".dr_pulse = {q8c(p.get('pulse', 0))}")
-        if p.get("sends"):
-            f.append(".dr_send = {" + ", ".join(str(int(v)) for v in p["sends"]) + "}")
-            f.append(".dr_pul = {" + ", ".join(str(q8c(v)) for v in p.get("pulses") or [0, 0, 0]) + "}")
+        if p.get("sends"):                              # a Mix page (3y303): the drum's Chorus, Delay, Reverb, its Level
+            f.append(".dr_fx = {" + ", ".join(str(int(v)) for v in p["sends"]) + "}")
+            f.append(f".dr_lvl = {int(p.get('level', 64))}")
+            f.append(f".dr_fxoff = {1 if p.get('fxOff') else 0}")
     elif kind == "knobrow":
         # a layer screen: the picker's band (horizontal) over one row of the four knobs' cells (cell[0])
         items = [it if isinstance(it, str) else (it or {}).get("t", "") for it in (p.get("items") or [])]
@@ -672,7 +673,7 @@ DEVICE_STATES = [
     {"name": "Device · Drums: the SEQ layer's preset page (Drums)",
      "screen": {"header": {"batt": False},
                 "panel": {"kind": "drum", "col": "drums", "sel": 0, "page": 0, "preset": "drums",
-                          "items": ["Drums", "Beat", "Kick", "Snare", "Hats", "Mix"],
+                          "items": ["Drums", "Beat", "Kick", "Snare", "Hats", "Kick Mix", "Snare Mix", "Hats Mix"],
                           "cells": [{"label": "Level", "value": "80", "glyph": "bar", "pct": 0.8},
                                     {"label": "Meter", "value": "4/4"}, {"label": "Kit", "value": "Club"},
                                     {"label": "Beat", "value": "On", "glyph": "gate", "pct": 1.0}]}}},
@@ -699,13 +700,20 @@ DEVICE_STATES = [
                                     {"label": "Decay", "value": "18%", "glyph": "bar", "pct": 0.18},
                                     {"label": "Character", "value": "hard", "glyph": "mix", "pct": 0.94},
                                     {"label": "Fill", "value": "85%", "glyph": "bar", "pct": 0.85}]}}},
-    {"name": "Device · Drums: Mix (each drum's FX send)",
+    {"name": "Device · Drums: Kick Mix (the kick's sends and Level, a hit's thump)",
      "screen": {"header": {"batt": False},
-                "panel": {"kind": "drum", "col": "drums", "sel": 5, "sends": [40, 90, 0], "pulses": [0.5, 0, 0],
-                          "items": ["Drums", "Beat", "Kick", "Snare", "Hats", "Mix"],
-                          "cells": [{"label": "Kick FX", "value": "31%", "glyph": "mix", "pct": 0.31},
-                                    {"label": "Snare FX", "value": "71%", "glyph": "mix", "pct": 0.71},
-                                    {"label": "Hats FX", "value": "0%", "glyph": "mix", "pct": 0}]}}},
+                "panel": {"kind": "drum", "col": "drums", "sel": 5, "sends": [40, 90, 127], "level": 80, "pulse": 0.6,
+                          "cells": [{"label": "Chorus", "value": "31%", "glyph": "mix", "pct": 0.31},
+                                    {"label": "Delay", "value": "71%", "glyph": "mix", "pct": 0.71},
+                                    {"label": "Reverb", "value": "100%", "glyph": "mix", "pct": 1.0},
+                                    {"label": "Level", "value": "125%", "glyph": "bar", "pct": 0.63}]}}},
+    {"name": "Device · Drums: Hats Mix (FX off: no send)",
+     "screen": {"header": {"batt": False},
+                "panel": {"kind": "drum", "col": "drums", "sel": 7, "sends": [0, 64, 30], "level": 48, "fxOff": True,
+                          "cells": [{"label": "Chorus", "value": "off", "glyph": "mix", "pct": 0},
+                                    {"label": "Delay", "value": "off", "glyph": "mix", "pct": 0.5},
+                                    {"label": "Reverb", "value": "off", "glyph": "mix", "pct": 0.24},
+                                    {"label": "Level", "value": "75%", "glyph": "bar", "pct": 0.38}]}}},
     {"name": "Device · HOME with the drums playing (the beat chip)",
      "screen": {"header": {"mid": "Key: D minor", "midCol": "yellow", "batt": False},
                 "beat": {"drums": True, "n": 4, "pos": 2, "pulse": 0.7},
