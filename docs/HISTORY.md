@@ -8684,3 +8684,11 @@ build does not change. Console `smk` prints it. The SMK-37 browser emulator's te
 pitch 700 (up = lower) and mod 380 (down), checks the wheels played wrong before and right after (full bend at each end,
 half way about half, mod 0 / 62 / 127), that they play nothing while it runs, and that it survives a power cycle with no
 SAVE (`web_smk_wheels`). SMK37.md "The wheels" and "What to test" 17, MANUAL.md's System table.
+
+3y308. **0.41-smk37.1: 3y307's Calibrate Wheels released on the SMK-37.** The owner: "Can you get this tagged
+released?" A respin of the SMK build on the FM-1's 0.41 (the `-smk37.N` convention of 3y162; the FM-1's 0.41 is
+unchanged, so no FM-1 release). `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.41-smk37.1` and
+`tools/hub_build.sh 0.41-smk37.1`: the same sums. Pro `choralroot-0.41-smk37.1.fwsc` a5b2cedd...82f4, `-1core`
+ef8be9fd...2a4b; Elite 25bde08b...ad96 / 2338d58f...d247; MKE-P37 de6907d1...d96 / d4e5d6d1...0c9f, as
+web/releases-smk37.json lists them (its first entry, base 0.41). SMK37.md names 0.41-smk37.1 (the status, the packages,
+the version a player sees, the install and release commands).

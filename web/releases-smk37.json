@@ -3,6 +3,37 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.41-smk37.1",
+      "base": "0.41",
+      "date": "2026-11-14",
+      "tag": "v0.41-smk37.1",
+      "title": "0.41-smk37.1: calibrate the pitch and mod wheels",
+      "bullets": [
+        "Options > System > Calibrate Wheels: OCT+ teaches the pitch and mod wheels their rest, their ends and which way is up.",
+        "Five steps on the screen: let go (mod wheel down), pitch up, pitch down, mod up and back; OCT+ keeps it, OCT- discards.",
+        "For wheels that act oddly: the mod wheel full at rest, a bend going the wrong way or topping out early. Kept at once, no SAVE needed."
+      ],
+      "notes": [
+        "Everything else is 0.41-smk37: updating keeps your sounds, loops, favourites and settings.",
+        "Without a calibration the wheels still learn their ranges as you play, as before.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "a5b2ceddcc9f21d6aded36d4c66b64ec490d73f88edf93344399cd44816382f4",
+          "sha256_1core": "ef8be9fd666024ea34d1c61fef9fef2ae942140dac274d03d8763c6a1c402a4b"
+        },
+        "elite": {
+          "sha256": "25bde08b2e9212d809da410253a571941ed18c9081acce7fbcd2c16896dc296b",
+          "sha256_1core": "2338d58fc1e323233ff5bdf5af6c850e283b34d28f72f56e9e154ea7acefd237"
+        },
+        "mke": {
+          "sha256": "de6907d129ce4872e1631c679f72a2e09e9e9eed82e323694388685d42f5ad96",
+          "sha256_1core": "d4e5d6d1be9462ff895635872ff5488f76a569a11f16afcfb029fdaa3deb0c9f"
+        }
+      }
+    },
+    {
       "version": "0.41-smk37",
       "base": "0.41",
       "date": "2026-11-12",
