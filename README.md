@@ -238,3 +238,5 @@ SAMPLE engine and its CC0 instruments by Versilian Studios stay in the tree for 
 ported DSP and SDK files keep their own licences ([LICENSES/](LICENSES/)); [LICENSING.md](LICENSING.md) has
 the whole list. Orchid, M-VAVE and FM-1 are trademarks of their owners.
 Some additional ideas and features that are implemented like a full keyboard mode were suggested by Rosen u/Creative_One919
+
+You can also try ChoralRoot in the browser, no flashing needed, in the free community [FM-1 Emulator](https://fm1-emulator.atst.tools/).
