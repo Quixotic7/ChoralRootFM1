@@ -2009,6 +2009,7 @@ settings it holds. (This is remembered until power-off; a fresh start opens the 
 | **Dual Core** | Off, On | On (a new unit; an updated unit keeps what it had) | On: the chip's second core shares the work, so more voices sound (below). Takes effect after a restart |
 | **Version** | | | the firmware's version; the line under it is this FM-1's unit ID (`unit ID A1B2C3D4`, its flash chip's: the same after any install), which tells several FM-1s on one computer apart (`fm1_install.py --unit`, the device manager) |
 | **Calibrate** | | | OCT+ starts the panel calibration ([Calibration](#calibration)) |
+| **Calibrate Wheels** | | | the SMK-37 only: OCT+ teaches the pitch and mod wheels (SMK37.md "The wheels") |
 
 **Reset Settings** (the group list's last item, not a group): OCT+ twice puts every setting back to its default (below)
 

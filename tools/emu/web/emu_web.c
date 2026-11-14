@@ -170,6 +170,12 @@ WEB_EXPORT uint32_t web_smk_part(uint32_t p)
     return g | (uint32_t)trk[p].ex_off << 8;
 }
 WEB_EXPORT void web_smk_pedal_mode(uint32_t v) { opt_set(O_PEDAL, (int32_t)v); }   /* Options > Pedal: 0 Sustain, 1 Expression */
+/* the wheels as played (cr_ui.c cr_smk_wheels): the bend + 8192 (0..16383) | the mod wheel 0..127 << 16 | 1 << 24
+ * with a wheel calibration (Options > Calibrate Wheels) */
+WEB_EXPORT uint32_t web_smk_wheels(void)
+{
+    return (uint32_t)(cr_smk_bend + 8192) | (uint32_t)cr_smk_modw << 16 | (uint32_t)(smk_wcal.magic == SMK_WCAL_MAGIC) << 24;
+}
 /* the lights: the 19 button LEDs (0 / 1, hal/smk_input.h's ids: SEQ PLAY's red half is 18), the 16 pads' colours
  * (0xRRGGBB as the firmware set them: dim, as the LEDs are), K1's volume (0..1023), the screen's state (a line) */
 WEB_EXPORT uint8_t *web_smk_leds(void) { return fm1_led; }

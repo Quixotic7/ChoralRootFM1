@@ -407,6 +407,13 @@ static void con_smk(void)                               /* the SMK-37 inputs (sm
     con_kv("wheel1", fm1_in.wheel[1]);
     con_kv("bend", cr_smk_bend);
     con_kv("modw", cr_smk_modw);
+    con_kv("wcal", smk_wcal.magic == SMK_WCAL_MAGIC);       /* Options > Calibrate Wheels: taught (1) or learning */
+    con_kv("wcal_pitch", smk_wcal.p_mid);
+    con_kv("wcal_up", smk_wcal.p_up);
+    con_kv("wcal_down", smk_wcal.p_dn);
+    con_kv("wcal_dead", smk_wcal.p_dead);
+    con_kv("wcal_mod_off", smk_wcal.m_off);
+    con_kv("wcal_mod_full", smk_wcal.m_full);
     con_kv("pedal", fm1_in.pedal);
     con_kv("batt", fm1_in.batt);
     con_kx("buttons", fm1_in.buttons);

@@ -263,6 +263,86 @@ console.log("Options > TRS MIDI Out (GitHub issue 42): after MIDI Clock, On by d
   ok(o[4] === "TRS MIDI Out" && o[5] === "Off", `after SAVE held and a power cycle: Off again (${o[5]})`);
 }
 
+console.log("Options > Calibrate Wheels: a unit whose wheels read the other way round and off centre, taught, kept over a power cycle");
+{
+  const d = await load(), ex = d.ex;
+  const W = (x = d) => { const v = x.ex.web_smk_wheels() >>> 0; return { bend: (v & 0xffff) - 8192, mod: (v >>> 16) & 255, cal: v >>> 24 }; };
+  const sr = (x = d) => (x.dump().match(/screen reads:.*/) || ["?"])[0];
+  const val = (x = d) => (sr(x).match(/value '([^']*)'/) || [])[1];
+  const opt = (x) => (x.dump().match(/options: open (\d) entry (\d+) of (\d+) '([^']*)' value '([^']*)'/) || []);
+  const btn = (x, b) => { x.ex.web_smk_button(b, 1); x.render(ms(60)); x.ex.web_smk_button(b, 0); x.render(ms(200)); };
+  const turn = (x, e, n) => { x.ex.web_smk_enc(e, n); x.render(ms(150)); };
+  const move = (i, from, to, step) => {       // a wheel moved by hand: 10 readings every 40 ms; returns the most it played
+    let most = 0;
+    for (let r = from; step < 0 ? r >= to : r <= to; r += step) {
+      ex.web_smk_wheel(i, r); d.render(ms(40));
+      const w = W(); most = Math.max(most, Math.abs(w.bend), w.mod);
+    }
+    return most;
+  };
+  // this unit: the pitch wheel rests at 700, up = LOWER readings (600 at the top, 790 at the bottom); the mod wheel
+  // rests down at 380, 520 at the top (the guide's unit: pitch 535, up higher; mod 629 down, up lower)
+  ex.web_boot();                              // (the model's wheels set at boot: this unit's after it)
+  ex.web_smk_wheel(0, 700); ex.web_smk_wheel(1, 380);
+  d.render(ms(3000));
+  const b0 = W();
+  ok(b0.cal === 0 && b0.mod > 100, `before: no calibration, and the mod wheel resting down plays as up (${b0.mod})`);
+  ex.web_smk_wheel(0, 610); d.render(ms(300));
+  const up0 = W().bend;
+  ex.web_smk_wheel(0, 700); d.render(ms(300));
+  ok(up0 < 0, `before: the pitch wheel up bends down (${up0})`);
+  btn(d, 10);                                 // GLOBE = OPT: the Options; SELECT to System, OCT+ into it
+  let o = opt(d);
+  for (let i = 0; i < 12 && o[4] !== "System"; i++) { turn(d, 1, 1); o = opt(d); }
+  btn(d, 5);
+  o = opt(d);
+  for (let i = 0; i < 12 && o[4] !== "Calibrate Wheels"; i++) { turn(d, 1, 1); o = opt(d); }
+  ok(o[4] === "Calibrate Wheels" && o[5] === "OCT+ starts", `System > Calibrate Wheels: ${o[5]}`);
+  ok(/label 'pitch and mod: self-learning'/.test(sr()), `its line: ${(sr().match(/label '[^']*'/) || ["?"])[0]}`);
+  btn(d, 5);                                  // OCTAVE+ = OCT+: start
+  ok(val() === "let go" && /sub 'mod wheel down'/.test(sr()), `step 1: ${sr().trim()}`);
+  btn(d, 5);                                  // the rest taken
+  ok(val() === "PITCH UP", `step 2: ${val()}`);
+  let most = move(0, 700, 600, -10);          // up to the end and let go (the spring brings it back 3 off)
+  d.render(ms(200));
+  most = Math.max(most, move(0, 640, 703, 21));
+  d.render(ms(300));
+  ok(val() === "PITCH DOWN", `step 3: ${val()}`);
+  move(0, 700, 650, -10); move(0, 660, 700, 20); d.render(ms(300));   // up again: not the down
+  ok(val() === "PITCH DOWN", `the pitch wheel up again does not count as down (${val()})`);
+  most = Math.max(most, move(0, 700, 790, 10));
+  d.render(ms(200));
+  most = Math.max(most, move(0, 750, 698, -13));
+  d.render(ms(300));
+  ok(val() === "MOD UP", `step 4: ${val()}`);
+  most = Math.max(most, move(1, 380, 520, 10));
+  d.render(ms(200));
+  most = Math.max(most, move(1, 500, 380, -20));
+  d.render(ms(300));
+  ok(val() === "done" && /sub 'OCT\+ keeps'/.test(sr()), `step 5: ${sr().trim()}`);
+  ok(most === 0, `while it runs the wheels play nothing (${most})`);
+  btn(d, 5);                                  // OCT+ keeps
+  d.render(ms(500));
+  const k = W();
+  ok(k.cal === 1 && k.bend === 0 && k.mod === 0, `kept: at rest no bend, no mod (${k.bend}, ${k.mod})`);
+  const at = (x, i, raw) => { x.ex.web_smk_wheel(i, raw); x.render(ms(300)); return W(x); };
+  const pu = at(d, 0, 600).bend, ph = at(d, 0, 650).bend, pd = at(d, 0, 790).bend, pr = at(d, 0, 702).bend;
+  ok(pu === 8191 && ph > 2000 && ph < 6500 && pd === -8192 && pr === 0,
+     `the pitch wheel: up ${pu}, half up ${ph}, down ${pd}, back at rest ${pr}`);
+  const mf = at(d, 1, 520).mod, mh = at(d, 1, 450).mod, mo = at(d, 1, 381).mod;
+  ok(mf === 127 && mh > 40 && mh < 80 && mo === 0, `the mod wheel: up ${mf}, half ${mh}, down ${mo}`);
+  const img = new Uint8Array(d.mem.buffer, ex.web_flash(), ex.web_flash_size()).slice();   // no SAVE: kept at once
+  const e = await load();
+  new Uint8Array(e.mem.buffer, e.ex.web_flash_stage(), img.length).set(img);
+  e.ex.web_flash_stage_len(img.length);
+  e.ex.web_boot();
+  e.ex.web_smk_wheel(0, 700); e.ex.web_smk_wheel(1, 380);
+  e.render(ms(3000));
+  const r = W(e), ru = at(e, 0, 600).bend, rm = at(e, 1, 520).mod;
+  ok(r.cal === 1 && r.mod === 0 && r.bend === 0 && ru === 8191 && rm === 127,
+     `after a power cycle: still calibrated (rest ${r.bend} / ${r.mod}, up ${ru}, mod up ${rm})`);
+}
+
 if (!args.has("--no-page")) {
   console.log("the page (headless Chromium screenshot)");
   const chrome = "/Applications/Chromium.app/Contents/MacOS/Chromium";

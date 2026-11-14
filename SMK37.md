@@ -74,8 +74,9 @@ so the whole keybed plays roots. The SMK-37's buttons and knobs map onto the FM-
 | < / > | where SELECT picks or pages (a layer, a menu, the Options, the sound editor, the save dialog): its step back / forward, never the tempo; on the view: the view before / after. Lit where they page |
 | FADER BANK | what the faders set: A the chord part's sends, B the bass part's (lit on B) |
 | Faders 1..4 | the sends into Drive, Chorus, Delay and Reverb (the order of the FX layer's Sends page), shown as they move; a fader takes over only once it moves, also after FADER BANK |
-| Pitch wheel | bends the chord and the bass part (their channels' bend range: 2 semitones unless set over MIDI); also sent on the CHORD and BASS MIDI channels |
+| Pitch wheel | bends the chord and the bass part (their channels' bend range: 2 semitones unless set over MIDI); also sent on the CHORD and BASS MIDI channels ([The wheels](#the-wheels)) |
 | Mod wheel | vibrato on both parts (5.5 Hz, up to half a semitone at the top) and the sounds' mod wheel source; also sent as CC 1 |
+| Options > System > Calibrate Wheels | OCT+ teaches the pitch and mod wheels their rest, their ends and which way is up ([The wheels](#the-wheels)) |
 | Pedal jack | Options > Pedal: `Sustain` (the default), a switch pedal holds the notes of both parts, sent as CC 64; `Expression`, an expression pedal sets both parts' expression, sent as CC 11 ([The pedal jack](#the-pedal-jack)) |
 | TRS jack | MIDI out: everything USB MIDI sends, with or without a computer. Options > TRS MIDI Out: `On` (the default) or `Off` ([The TRS jack](#the-trs-jack)) |
 | Options > Key Touch | `Dynamic` (the SMK-37's default): every key as played, its two contacts through the unit's factory curve; `Fixed`: every key at Options > Velocity (1..127). Velocity Sens shapes how much the velocity changes the level, as on the FM-1 |
@@ -101,6 +102,28 @@ assuming it.
   BASS channels. Toe down (a lower reading, as the stock firmware reads the jack) is more. The range is learnt as you
   move the pedal: after plugging it in, sweep it once heel to toe. Nothing is sent until the pedal moves, so an empty
   jack leaves the parts at full expression; pulling the pedal out puts them back at full.
+
+### The wheels
+
+Without a calibration the wheels learn as you play: the pitch wheel's rest is where it sits at power-on, and each
+wheel's range grows to the farthest it has been moved since. A unit whose wheels read differently from the one this
+was written on (another range, the mod wheel resting high, a wheel that reads the other way round) can play oddly
+until then: the mod wheel full at rest, a bend that goes the wrong way or tops out early.
+
+**Options > System > Calibrate Wheels**, OCT+, teaches them instead (no SAVE needed: it is kept at once, beside the
+button calibration, and survives Reset Settings):
+
+1. `let go`: take your hand off the pitch wheel, put the mod wheel all the way down, press OCT+.
+2. `PITCH UP`: push the pitch wheel up to its end and let it spring back.
+3. `PITCH DOWN`: the same, down.
+4. `MOD UP`: the mod wheel up to its end, then back down.
+5. `done`: OCT+ keeps it, OCT- throws it away. OCT- at any step cancels, and so do thirty seconds without input.
+
+The wheels play nothing while it runs. Afterwards the bend is full a few steps short of each end, there is a dead band
+round the rest as wide as the wheel's spring needed to come back (at least 12 readings), and the mod wheel is 0 at its
+bottom and 127 at its top. A move too short to use (under 40 readings either way) shows `let go` again in orange: start
+from step 1. Calibrate Wheels' line reads `pitch and mod: calibrated` once it has one. To go back to self-learning,
+there is no button: a calibration is only replaced by the next one.
 
 ### The TRS jack
 
@@ -367,6 +390,11 @@ What no test here can answer, in the order to try it. Note the model, the packag
     in the middle of that install as in 9: after the resume the fonts are there. Install 0.39-smk37 over it and this
     build again: both start normally. If you use M-Flasher, say whether its install of this package starts with the
     fonts (it must write flash.bin to 0xA9000). Options > Flash Data (SAFE MODE), then a restart: the fonts stay.
+
+17. **Calibrate Wheels.** Before it, note how the wheels feel after a fresh power-on (the mod wheel at rest, the bend's
+    direction, where each tops out). Run Options > System > Calibrate Wheels, then check: no bend and no vibrato with
+    both wheels at rest, the pitch wheel up raises the pitch, full bend just before each end, the mod wheel from none
+    at the bottom to full at the top. Power-cycle: the same without calibrating again.
 
 Also worth a line: whether `fm1_install.py --info` shows a unit ID (`unit ID: XXXXXXXX`) and whether two SMK-37s show
 different ones (it is read from the flash chip, whose maker differs from the FM-1's).

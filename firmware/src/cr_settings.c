@@ -713,6 +713,14 @@ static void cr_settings_boot(void)                 /* persist_boot (flash_ok kno
     settings.lowcut = 0;
     fx_lowcut = 0;
     crs_last_rc = cr_settings_import(&crs_rec.cr, &crs_rec.cr, sizeof crs_rec.cr);
+#if BOARD_SMK37
+    _Static_assert(sizeof smk_wcal <= sizeof crs_rec.favorites.factory[15], "smk_wcal_t: its place in the record");
+    memcpy(&smk_wcal, crs_rec.favorites.factory[15], sizeof smk_wcal);   /* the wheels' calibration (cr_ui.c smk_wcal_t):
+                                                    * none stored, or not sane, is none (the wheels learn as they move) */
+    if (!smk_wcal_ok(&smk_wcal))
+        memset(&smk_wcal, 0, sizeof smk_wcal);
+    smk_wcal_gen++;
+#endif
     crs_usb_apply(&crs_rec.cr);                    /* (before usb_start: the configuration the host first reads) */
     cr_c1_off = (uint8_t)!CRS_DUALCORE(&crs_rec.cr);   /* Options > Dual Core Off: core 1 not started (On: the default
                                                         * of a unit with no record since 0.22) */
@@ -1360,6 +1368,9 @@ static int crs_write(int full)
         return 0;                                  /* SAFE MODE (core.h): kept in RAM only, the flash untouched */
 #endif
     settings_export(&p);                           /* Felucca's fields (panel table, HOLD, LEDs, palette) */
+#if BOARD_SMK37
+    memcpy(p.favorites.factory[15], &smk_wcal, sizeof smk_wcal);   /* the wheels' calibration (cr_ui.c smk_wcal_t) */
+#endif
     if (full)
         p.cr = crs_seen;
     else

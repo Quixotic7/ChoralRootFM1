@@ -1286,6 +1286,9 @@ enum { O_STYLE, O_EXTADD, O_SECRET,
        O_VIEW, O_MOTION, O_NAMES, O_LEDS, O_HOLD, O_USB_IN, O_USB_LEVEL, O_USB_RATE, O_DUALCORE, O_OUTPUT,
        O_VERSION,
        O_CALIB,
+#if BOARD_SMK37
+       O_WCALIB,                          /* the SMK-37's wheels (cu_wcal_*): not in the FM-1's list */
+#endif
        O_RESET,                           /* Reset Settings: the last entry of a normal session */
        O_SAFE, O_ERASE,
        O_N };
@@ -1309,7 +1312,11 @@ static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Sec
 #endif
     "View", "Motion", "Chord Names", "LEDs", "Hold Time", "USB Record", "USB Level", "USB Rate", "Dual Core", "Output",
     "Version",
-    "Calibrate", "Reset Settings", "Safe Mode", "Flash Data"};
+    "Calibrate",
+#if BOARD_SMK37
+    "Calibrate Wheels",
+#endif
+    "Reset Settings", "Safe Mode", "Flash Data"};
 static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 2, CU_VCURVE_MAX, CU_ATSENS_MAX,
 #if BOARD_SMK37
                                    1,
@@ -1325,7 +1332,11 @@ static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 
 #if BOARD_SMK37
                                    1,
 #endif
-                                   V_N - 1, CR_MOTION_N - 1, 1, 1, 3, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0};
+                                   V_N - 1, CR_MOTION_N - 1, 1, 1, 3, 1, 1, 1, 1, 1, 0, 0,
+#if BOARD_SMK37
+                                   0,
+#endif
+                                   0, 0, 0};
 static uint32_t cu_opt_n(void) { return cr_safe ? O_N : O_N_NORMAL; }
 /* an entry listed (docs/CHORD-LAYOUT.md): the chord layouts' four not on the SMK-37 (its chord keys are pads), the
  * SUS Window only while Chord Keys is FM-1. SELECT skips the others (cu_opt_next); their values are kept */
@@ -1620,6 +1631,9 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
     case O_OUTPUT: cu_cpy(d, v ? "Clean" : "Classic", n); break;
     case O_VERSION: cu_version_text(d, CR_VERSION, n); break;
     case O_CALIB: cu_cpy(d, "OCT+ starts", n); break;
+#if BOARD_SMK37
+    case O_WCALIB: cu_cpy(d, "OCT+ starts", n); break;
+#endif
     case O_RESET: cu_cpy(d, cu_reset_ask ? "OCT+ again: reset" : "all options to default", n); break;
     case O_SAFE: cu_cpy(d, "flash data skipped", n); break;
     case O_ERASE: cu_cpy(d, cu_erase_ask ? "OCT+ again: erase" : "erase and reboot", n); break;
@@ -1766,7 +1780,11 @@ static const uint8_t O_ORD[] = {
     CU_G_END,
     O_VIEW, O_MOTION, O_NAMES, O_LEDS, CU_G_END,
     O_OUTPUT, O_USB_IN, O_USB_LEVEL, O_USB_RATE, CU_G_END,
-    O_DUALCORE, O_VERSION, O_CALIB, CU_G_END,
+    O_DUALCORE, O_VERSION, O_CALIB,
+#if BOARD_SMK37
+    O_WCALIB,
+#endif
+    CU_G_END,
     O_SAFE, O_ERASE, CU_G_END};
 static __attribute__((noinline)) uint32_t cu_g_at(uint32_t g)               /* group g's first place in O_ORD */
 {
@@ -3993,6 +4011,9 @@ static void cu_view_menu(void)
 }
 
 static void cu_calib_start(void);
+#if BOARD_SMK37
+static void cu_wcal_start(void);
+#endif
 static void cu_lock_tap(void);
 /* Options > Reset Settings, confirmed (cr_settings.c cr_settings_reset: what is reset and what is kept). The session
  * ends as a PANIC ends it, without its screen: every note off, a playing loop stopped (kept; a take being recorded
@@ -4082,6 +4103,13 @@ static void cu_oct_tap(uint32_t b)
         cu_calib_start();                         /* Options > Calibrate, OCT+: Felucca's HARDWARE CALIBRATION */
         return;
     }
+#if BOARD_SMK37
+    if (b == B_OCTUP && cu.opt_open && cu.opt_sel == O_WCALIB && !cu.lock && !cu.page) {
+        cu_close_all();
+        cu_wcal_start();                          /* Options > Calibrate Wheels, OCT+: the pitch and mod wheels */
+        return;
+    }
+#endif
     if (cu.ledit && cu_layer() == L_LOOP) {       /* the loop editor: the octave, as on the view (the owner,
                                                    * 2026-10-13; they closed it until then: HOME and EDIT do): the
                                                    * notes entered next are entered there */
@@ -6390,8 +6418,54 @@ static void cu_knob(uint32_t role, int32_t s)
  * Entry: OCT- + OCT+ held at power-on (main.c, as Felucca) or Options > Calibrate, OCT+. */
 #define CU_CAL_IDLE_MS 30000u
 #define CU_CAL_DONE (NB + NE)                     /* the step asking OCT+ keep / OCT- discard */
+#if BOARD_SMK37
+/* SMK-37: the wheels' calibration (Options > System > Calibrate Wheels, cu_wcal_*; cr_smk_wheels reads it). Raw
+ * readings (0..1023, hal/smk_input.h fm1_in.wheel): the pitch wheel's rest, its two ends (which end is up is taught,
+ * not assumed), the dead band round its rest (how far it came back from the ends, at least 12), the mod wheel's off
+ * end and its full end. Kept in the settings object (cr_settings.c crs_write) in the last row of Felucca's
+ * favourites bitmap (persist_t favorites.factory[15]), which ChoralRoot never reads and the SMK-37 never had: no
+ * new field, so the settings block keeps its size. magic 0: none (the wheels learn their ranges as they move) */
+typedef struct {
+    uint32_t magic;                               /* SMK_WCAL_MAGIC when stored */
+    uint16_t p_mid, p_up, p_dn, p_dead, m_off, m_full;
+    uint32_t check;                               /* FNV-1a over the six readings */
+} smk_wcal_t;
+#define SMK_WCAL_MAGIC 0x314C4357u                /* "WCL1" */
+static smk_wcal_t smk_wcal;
+static uint8_t smk_wcal_gen;                      /* changed with smk_wcal: cr_smk_wheels starts again from it */
+static uint32_t smk_wcal_sum(const smk_wcal_t *w)
+{
+    const uint8_t *b = (const uint8_t *)&w->p_mid;
+    uint32_t h = 2166136261u, i;
+    for (i = 0; i < 12u; i++)
+        h = (h ^ b[i]) * 16777619u;
+    return h;
+}
+static int32_t cu_iabs(int32_t v) { return v < 0 ? -v : v; }
+static int smk_wcal_ok(const smk_wcal_t *w)       /* a sane calibration: the ends on either side, far enough apart */
+{
+    int32_t up = (int32_t)w->p_up - w->p_mid, dn = (int32_t)w->p_dn - w->p_mid, m = (int32_t)w->m_full - w->m_off;
+    return w->magic == SMK_WCAL_MAGIC && w->check == smk_wcal_sum(w) && w->p_mid < 1024u && w->p_up < 1024u &&
+           w->p_dn < 1024u && w->m_off < 1024u && w->m_full < 1024u && (up > 0) != (dn > 0) && cu_iabs(up) >= 40 &&
+           cu_iabs(dn) >= 40 && cu_iabs(m) >= 40 && w->p_dead >= 12u && w->p_dead + 20 < cu_iabs(up) &&
+           w->p_dead + 20 < cu_iabs(dn);
+}
+/* the steps: the rest (pitch wheel let go, mod wheel down, OCT+), the pitch wheel up to its end and let go, down to
+ * its end and let go, the mod wheel up to its end and back down; then OCT+ keeps, OCT- discards (OCT- at any step
+ * too). A wheel's move counts from 40 readings away from its rest, and ends once it has come back to within a
+ * quarter of the way and stayed there 150 ms; the pitch wheel's down must go the other way from its up */
+enum { CW_REST, CW_UP, CW_DOWN, CW_MOD, CW_DONE };
 static struct {
-    uint8_t on, step, wait_up, req;               /* wait_up: every button let go first; req: asked at power-on */
+    smk_wcal_t w;
+    int32_t ext, last;                            /* the move's farthest reading from the rest (signed); the reading
+                                                   * the stillness is measured from */
+    uint32_t t_still;
+    uint8_t again;                                /* the last try was not usable: from the rest again */
+} cw;
+#endif
+static struct {
+    uint8_t on, step, wait_up, req;               /* on: 1 the buttons and knobs, 2 (SMK-37) the wheels; wait_up: every
+                                                   * button let go first; req: asked at power-on */
     uint32_t used, t0, settle;                    /* matrix ids taught; the step's start; an encoder's 300 ms */
     panel_t old;
 } cc;
@@ -6411,8 +6485,42 @@ static void cu_calib_start(void)
     cu_trace("calib: start\n");
 }
 
+#if BOARD_SMK37
+static void cu_wcal_start(void)                   /* Options > Calibrate Wheels, OCT+ */
+{
+    uint32_t e;
+    cc.on = 2;
+    cc.step = CW_REST;
+    cc.wait_up = 1;
+    cc.t0 = cu_now();
+    memset(&cw, 0, sizeof cw);
+    for (e = CU_ENC0; e < CU_NENC; e++)
+        fm1_enc_take(e);
+    cu_trace("wcal: start\n");
+}
+#endif
+
 static void cu_calib_end(int keep)
 {
+#if BOARD_SMK37
+    if (cc.on == 2) {                             /* the wheels: the table untouched */
+        if (keep) {
+            cw.w.magic = SMK_WCAL_MAGIC;
+            cw.w.check = smk_wcal_sum(&cw.w);
+            smk_wcal = cw.w;
+            smk_wcal_gen++;
+#if CR_HAVE_SETTINGS
+            cr_settings_save();                   /* (crs_write puts it in the settings object) */
+#endif
+            cu_message("wheels calibrated", CR_COL_GREEN);
+        } else {
+            cu_message("calibration cancelled", CR_COL_WHITE);
+        }
+        cu_trace("wcal: %s pitch %u up %u down %u dead %u mod %u..%u\n", keep ? "saved" : "cancelled",
+                 (unsigned)cw.w.p_mid, (unsigned)cw.w.p_up, (unsigned)cw.w.p_dn, (unsigned)cw.w.p_dead,
+                 (unsigned)cw.w.m_off, (unsigned)cw.w.m_full);
+    } else
+#endif
     if (keep) {
         panel.magic = PANEL_MAGIC;
         panel_init();                             /* (validated: a broken table falls back to the default) */
@@ -6439,6 +6547,81 @@ static void cu_calib_end(int keep)
     cu_activity();
 }
 
+#if BOARD_SMK37
+static void cu_wcal_input(uint32_t pe, uint32_t now)
+{
+    enum { MOVE = 40, STILL = 2, STILL_MS = 150, DEAD_MIN = 12, DEAD_PAD = 6 };
+    int32_t p = fm1_in.wheel[0], m = fm1_in.wheel[1], v, x;
+    uint32_t e;
+    for (e = CU_ENC0; e < CU_NENC; e++)           /* (the knobs do nothing) */
+        fm1_enc_take(e);
+    if ((pe >> panel.btn[B_OCTDN]) & 1u) {        /* OCT-: discard, at any step */
+        cu_calib_end(0);
+        return;
+    }
+    if (cc.step == CW_DONE) {
+        if ((pe >> panel.btn[B_OCTUP]) & 1u)
+            cu_calib_end(1);
+        return;
+    }
+    if (cc.step == CW_REST) {                     /* the pitch wheel let go, the mod wheel down: OCT+ takes them */
+        if ((pe >> panel.btn[B_OCTUP]) & 1u) {
+            cw.w.p_mid = (uint16_t)p;
+            cw.w.m_off = (uint16_t)m;
+            cw.w.p_dead = DEAD_MIN;
+            cw.ext = 0;
+            cw.again = 0;
+            cw.last = p;
+            cw.t_still = now;
+            cc.step = CW_UP;
+            cc.t0 = now;
+            cu_trace("wcal: rest pitch %d mod %d\n", (int)p, (int)m);
+        }
+        return;
+    }
+    v = cc.step == CW_MOD ? m : p;                /* the wheel this step moves, from its rest */
+    x = v - (cc.step == CW_MOD ? (int32_t)cw.w.m_off : (int32_t)cw.w.p_mid);
+    if (cu_iabs(v - cw.last) > STILL) {
+        cw.last = v;
+        cw.t_still = now;
+        cc.t0 = now;                              /* (a wheel moving is input: no time-out) */
+    }
+    if (cc.step == CW_DOWN && x && (x > 0) == ((int32_t)cw.w.p_up > (int32_t)cw.w.p_mid))
+        return;                                   /* (the down step's move goes the other way from the up's) */
+    if (cu_iabs(x) > cu_iabs(cw.ext))
+        cw.ext = x;
+    if (cu_iabs(cw.ext) < MOVE || cu_iabs(x) * 4 > cu_iabs(cw.ext) || now - cw.t_still < STILL_MS)
+        return;                                   /* (not moved far enough yet, or not back and still) */
+    if (cc.step == CW_MOD) {
+        cw.w.m_full = (uint16_t)(cw.w.m_off + cw.ext);
+    } else {
+        int32_t dead = cu_iabs(x) + DEAD_PAD;     /* how far from the rest the spring brought it back */
+        if (dead > (int32_t)cw.w.p_dead)
+            cw.w.p_dead = (uint16_t)(dead > 40 ? 40 : dead);
+        if (cc.step == CW_UP)
+            cw.w.p_up = (uint16_t)(cw.w.p_mid + cw.ext);
+        else
+            cw.w.p_dn = (uint16_t)(cw.w.p_mid + cw.ext);
+    }
+    cu_trace("wcal: step %u end %d back %d\n", (unsigned)cc.step, (int)cw.ext, (int)x);
+    cc.step++;
+    cw.ext = 0;
+    cw.last = cc.step == CW_MOD ? m : p;
+    cw.t_still = now;
+    cc.t0 = now;
+    if (cc.step == CW_DONE) {                     /* a calibration that would not work: start again from the rest */
+        cw.w.magic = SMK_WCAL_MAGIC;
+        cw.w.check = smk_wcal_sum(&cw.w);
+        if (!smk_wcal_ok(&cw.w)) {
+            cu_trace("wcal: not usable, again\n");
+            memset(&cw, 0, sizeof cw);
+            cw.again = 1;                         /* (the rest screen says so) */
+            cc.step = CW_REST;
+        }
+    }
+}
+#endif
+
 static void cu_calib_input(uint32_t pe, uint32_t bm)
 {
     uint32_t now = cu_now(), e, id;
@@ -6451,6 +6634,12 @@ static void cu_calib_input(uint32_t pe, uint32_t bm)
             cc.wait_up = 0;
         return;
     }
+#if BOARD_SMK37
+    if (cc.on == 2) {
+        cu_wcal_input(pe, now);
+        return;
+    }
+#endif
     if (cc.step < NB) {                           /* PRESS <label>: a matrix button not taught yet */
         pe &= ~cc.used & CU_BTN_MASK;
         if (!pe)
@@ -6514,6 +6703,28 @@ static void cu_calib_screen(cr_screen_t *s)
     s->ring_on = 1;
     s->ring_col = CR_COL_YELLOW;
     s->ring = (uint16_t)(cc.step * 256u / CU_CAL_DONE);
+#if BOARD_SMK37
+    if (cc.on == 2 && !cc.wait_up) {              /* the wheels: what to do, huge; the ring: the step */
+        static const char *const V[CW_DONE] = {"let go", "PITCH UP", "PITCH DOWN", "MOD UP"};
+        static const char *const S[CW_DONE] = {"mod wheel down", "to the end", "to the end", "to the end"};
+        static const char *const L[CW_DONE] = {"then OCT+", "then let go", "then let go", "then back down"};
+        s->ring = (uint16_t)(cc.step * 256u / CW_DONE);
+        s->size = 34;
+        if (cc.step < CW_DONE) {
+            cu_cpy(s->value, V[cc.step], sizeof s->value);
+            cu_cpy(s->sub, cc.step == CW_REST && cw.again ? "again: mod wheel down" : S[cc.step], sizeof s->sub);
+            cu_cpy(s->label, L[cc.step], sizeof s->label);
+            if (cw.again && cc.step == CW_REST)
+                s->col = CR_COL_ORANGE;
+        } else {
+            cu_cpy(s->value, "done", sizeof s->value);
+            s->col = CR_COL_GREEN;
+            cu_cpy(s->sub, "OCT+ keeps", sizeof s->sub);
+            cu_cpy(s->label, "OCT- discards", sizeof s->label);
+        }
+        return;
+    }
+#endif
     if (cc.wait_up) {
         cu_cpy(s->value, "let go", sizeof s->value);
         cu_cpy(s->label, "of every button", sizeof s->label);
@@ -6865,47 +7076,79 @@ static void cu_smk_faders(void)
     }
 }
 
-/* the wheels (mux C addresses 4 = pitch, 5 = mod), self-calibrating: the pitch wheel's rest is its centre (taken at
- * power-on, followed slowly while it rests), each wheel's range grows to what it has reached (the travel is short:
- * raw ~445..640 pitch, ~474..629 mod on a unit). Pitch: a 14-bit bend with a dead band around the centre; mod:
- * 0..127, up (lower raw) = more. The audio ISR plays them (cr_out.c cr_smk_wheel_block) */
+/* the wheels (mux C addresses 4 = pitch, 5 = mod). Without a calibration (smk_wcal) they calibrate themselves: the
+ * pitch wheel's rest is its centre (taken at power-on), each wheel's range grows to what it has reached (the travel is
+ * short: raw ~445..640 pitch, ~474..629 mod on a unit), up = higher raw for the pitch wheel, lower for the mod wheel.
+ * With one (Options > Calibrate Wheels): the rest, the ends, which way is up and the dead band are the taught ones,
+ * fixed (a reading past an end is the end). Either way the centre follows a slow drift while the wheel rests. Pitch:
+ * a 14-bit bend with a dead band round the centre, full a few readings short of each end; mod: 0..127, the same at
+ * its ends. While a calibration runs they play nothing. The audio ISR plays them (cr_out.c cr_smk_wheel_block) */
 static void cr_smk_wheels(void)
 {
-    enum { DEAD = 12, SPAN0 = 80, MOD_LO = 485, MOD_HI = 615 };
+    enum { DEAD = 12, SPAN0 = 80, MOD_LO = 485, MOD_HI = 615, END = 4 };
     static int32_t pc, plo, phi, mlo, mhi, rest;
-    int32_t p = fm1_in.wheel[0], m = fm1_in.wheel[1], d, b, mw;
+    static uint8_t gen;
+    const smk_wcal_t *w = smk_wcal.magic == SMK_WCAL_MAGIC ? &smk_wcal : 0;
+    int32_t p = fm1_in.wheel[0], m = fm1_in.wheel[1], d, b = 0, mw = 0, dead = DEAD;
     if (fm1_in.frames < 300u)                     /* (the readings settle) */
         return;
-    if (!pc) {
-        pc = p;
-        plo = p - SPAN0;
-        phi = p + SPAN0;
-        mlo = m < MOD_LO ? m : MOD_LO;
-        mhi = m > MOD_HI ? m : MOD_HI;
-    }
-    if (p < plo)
-        plo = p;
-    if (p > phi)
-        phi = p;
-    if (m < mlo)
-        mlo = m;
-    if (m > mhi)
-        mhi = m;
-    d = p - pc;
-    if (d > -DEAD && d < DEAD) {
-        b = 0;
-        if (++rest > 200) {                        /* resting: the centre follows a slow drift */
-            pc += d > 0 ? 1 : d < 0 ? -1 : 0;
+    if (cc.on) {                                  /* a calibration: silent, and from its result after */
+        pc = 0;
+    } else {
+        if (!pc || gen != smk_wcal_gen) {
+            gen = smk_wcal_gen;
+            pc = w ? w->p_mid : p;
+            plo = p - SPAN0;
+            phi = p + SPAN0;
+            mlo = m < MOD_LO ? m : MOD_LO;
+            mhi = m > MOD_HI ? m : MOD_HI;
             rest = 0;
         }
-    } else {
-        rest = 0;
-        b = d > 0 ? (d - DEAD) * 8191 / (phi - pc - DEAD > 1 ? phi - pc - DEAD : 1)
-                  : (d + DEAD) * 8192 / (pc - plo - DEAD > 1 ? pc - plo - DEAD : 1);
+        if (w) {                                  /* taught: up is +, the spans from the centre to the ends */
+            int32_t su = w->p_up > w->p_mid ? 1 : -1, sm = w->m_full > w->m_off ? 1 : -1;
+            int32_t up = su * ((int32_t)w->p_up - pc) - END, dn = su * (pc - (int32_t)w->p_dn) - END;
+            int32_t x = sm * (m - (int32_t)w->m_off), span = sm * ((int32_t)w->m_full - (int32_t)w->m_off) - END;
+            dead = w->p_dead;
+            d = su * (p - pc);
+            if (d >= dead)
+                b = (d - dead) * 8191 / (up - dead > 1 ? up - dead : 1);
+            else if (d <= -dead)
+                b = (d + dead) * 8192 / (dn - dead > 1 ? dn - dead : 1);
+            mw = x <= DEAD ? 0 : (x - DEAD) * 127 / (span - DEAD > 1 ? span - DEAD : 1);
+            if (d > -dead && d < dead && ++rest > 200) {   /* resting: the centre follows a slow drift, within the
+                                                           * dead band of the taught rest */
+                int32_t s = p > pc ? 1 : p < pc ? -1 : 0;
+                if (cu_iabs(pc + s - (int32_t)w->p_mid) < dead)
+                    pc += s;
+                rest = 0;
+            } else if (d <= -dead || d >= dead) {
+                rest = 0;
+            }
+        } else {
+            if (p < plo)
+                plo = p;
+            if (p > phi)
+                phi = p;
+            if (m < mlo)
+                mlo = m;
+            if (m > mhi)
+                mhi = m;
+            d = p - pc;
+            if (d > -DEAD && d < DEAD) {
+                if (++rest > 200) {               /* resting: the centre follows a slow drift */
+                    pc += d > 0 ? 1 : d < 0 ? -1 : 0;
+                    rest = 0;
+                }
+            } else {
+                rest = 0;
+                b = d > 0 ? (d - DEAD) * 8191 / (phi - pc - DEAD > 1 ? phi - pc - DEAD : 1)
+                          : (d + DEAD) * 8192 / (pc - plo - DEAD > 1 ? pc - plo - DEAD : 1);
+            }
+            mw = mhi - m <= DEAD ? 0 : (mhi - m - DEAD) * 127 / (mhi - mlo - DEAD > 1 ? mhi - mlo - DEAD : 1);
+        }
         b = b < -8192 ? -8192 : b > 8191 ? 8191 : b;
+        mw = mw < 0 ? 0 : mw > 127 ? 127 : mw;
     }
-    mw = mhi - m <= DEAD ? 0 : (mhi - m - DEAD) * 127 / (mhi - mlo - DEAD > 1 ? mhi - mlo - DEAD : 1);
-    mw = mw < 0 ? 0 : mw > 127 ? 127 : mw;
     if (b != cr_smk_bend || (uint32_t)mw != cr_smk_modw)
         cu.last_input = cu.last_local = cu_now();  /* (a wheel is a touch: the screensaver) */
     cr_smk_bend = (int16_t)b;
@@ -8622,6 +8865,8 @@ static void cu_options_screen(cr_screen_t *s)
         cu_cpy(s->label, cs.smk_pedal ? "the jack: CC 11, both parts" : "the jack: CC 64, both parts", sizeof s->label);
     else if (cu.opt_sel == O_TRS)                  /* (SMK37.md "The TRS jack") */
         cu_cpy(s->label, smk_ut_off ? "the jack sends nothing new" : "the jack: what USB MIDI sends", sizeof s->label);
+    else if (cu.opt_sel == O_WCALIB)               /* (SMK37.md "The wheels") */
+        cu_cpy(s->label, smk_wcal.magic ? "pitch and mod: calibrated" : "pitch and mod: self-learning", sizeof s->label);
 #endif
 #if CR_BLE
     else if (cu.opt_sel == O_BLE)                  /* (cr_ble.c: the name to pick on the computer, the link's state) */

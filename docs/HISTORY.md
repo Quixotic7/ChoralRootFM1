@@ -8659,3 +8659,28 @@ about other things). Both boards built twice (`build.sh --release` and `tools/hu
 FM-1 `choralroot-0.41.fwsc` 8da57076...0652, `-1core` adb2d094...f0a4; SMK-37 pro 283076c7...e3af, elite
 6e3873b2...34fd, mke 0f5488c3...e0c2 (and their -1core twins), as web/releases.json and web/releases-smk37.json list
 them.
+
+## 2026-11-14
+
+3y307. **SMK-37: Options > System > Calibrate Wheels.** The owner: "A user with the SMK-37 said his pitchbend and mod
+wheels are acting funky. In the menu we have calibration for the buttons, would it be possible to add a second
+calibration process for the SMK-37 version to calibrate the pitch and mod wheels?" Until now the wheels calibrated
+themselves (`cr_ui.c cr_smk_wheels`): the pitch wheel's centre its reading at power-on, each range grown to what the
+wheel had reached, starting from one unit's numbers (pitch +-80 round the rest, up = higher raw; mod 485..615, up = lower
+raw). A unit that reads otherwise plays oddly until both wheels have gone end to end, and one wired the other way round
+never right: the mod wheel resting at a low raw reads as full, the pitch wheel bends backwards. **The calibration**
+(`cu_wcal_*`, `cc.on = 2` so everything the button calibration holds still holds for it): the rest (pitch let go, mod
+down, OCT+), the pitch wheel up to its end and back, down and back (a move the same way as up is not taken as down),
+the mod wheel up and back down; a move counts from 40 readings off the rest and ends back within a quarter of the way,
+still for 150 ms. Taught: the pitch rest, both ends (so which way is up), a dead band as wide as the spring's return
+error + 6 (12..40), the mod wheel's off and full ends. `done`: OCT+ keeps, OCT- discards (and at any step), 30 s idle
+cancels; a calibration that fails `smk_wcal_ok` starts again from the rest. With it the wheels use the taught numbers,
+fixed (the centre still follows a slow drift, inside the dead band); without it, as before. **Where it is kept**: the
+settings block's reserve is used up, and the session is the global save's, but the settings object (persist_t) carries
+Felucca's 520-byte favourites bitmap, which ChoralRoot never reads and no SMK-37 ever wrote: `smk_wcal_t` (20 bytes,
+magic `WCL1` and an FNV-1a check) goes in its last row, `favorites.factory[15]`, written by `crs_write` and read by
+`cr_settings_boot`; kept at once (`cr_settings_save`), as the panel table is, and untouched by Reset Settings. The FM-1
+build does not change. Console `smk` prints it. The SMK-37 browser emulator's test teaches a unit whose wheels rest at
+pitch 700 (up = lower) and mod 380 (down), checks the wheels played wrong before and right after (full bend at each end,
+half way about half, mod 0 / 62 / 127), that they play nothing while it runs, and that it survives a power cycle with no
+SAVE (`web_smk_wheels`). SMK37.md "The wheels" and "What to test" 17, MANUAL.md's System table.
