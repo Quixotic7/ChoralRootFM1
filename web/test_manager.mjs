@@ -27,6 +27,7 @@ import {
   libraryItemsFromFile, libraryItemsFromDnsnd, SIM_POOL_IDS, LibraryStore, loadPackIndex, loadPack, auditionMessages, noteMessage, midiText, writeErrorText, UNDO_DEPTH, retiredNote,
   managerPorts, MANAGER_PORT_RE, pickUnit, favUserSlots, favsClearSlots, replacedRows, replacedOf, managerRestorePresets, managerDeleteAll, managerDeleteRows,
   restorePresetsText, deleteAllText, managerEngines, favMarks, favOf, favKeyOf, keepable, P5_NO_PACK, simP5Patch, managerNotesSummary,
+  loopChordNotes, loopEvents, parseLoopOrder, loopsToMidi, loopMidiFileName, loopOrderSummary,
 } from "./fm1manager.js";
 
 let failed = 0;
@@ -705,6 +706,79 @@ ok(site.includes('"manager.html"') && site.includes("fm1manager.js") && site.inc
     const sim = makeSimFM1(simObjects(6)), rc = (await selectOnUnit(sim.request, { engine: 16, pos: 1 })).rc;
     ok(e && /0\.22/.test(e.message) && rc === 1, "P5 on a 0.21 FM-1: a P5 sound refused (0.21 would lose it), SELECT of P5 rc 1"); }
 }
+
+/* ---- loops as MIDI: chords as cr_engine.c resolves them, sections in order, one Standard MIDI File --- */
+{
+  // a record as cr_loop_pack writes it: events [[t, dur, root, vel, qx]] in one layer (flags: CRL_RF_PART when a bass note)
+  const rec = (sig, len, evs, flags = 0) => {
+    const b = new Uint8Array(18 + 7 * evs.length), v = new DataView(b.buffer);
+    v.setUint32(0, 0x314C5243, true); b[4] = 1; b[5] = sig; b[6] = 1; b[7] = flags; v.setUint32(8, len, true);
+    v.setUint16(12, evs.length, true); v.setUint16(14, 96, true); v.setUint16(16, evs.length, true);
+    evs.forEach(([t, dur, root, vel, qx], i) => { const o = 18 + 7 * i; v.setUint16(o, t, true); v.setUint16(o + 2, dur, true); b[o + 4] = root; b[o + 5] = vel; b[o + 6] = qx; });
+    return b;
+  };
+  // a minimal SMF reader: {format, ntracks, ppqn, tracks: [[{t, type, ...}]]}
+  const readMid = (m) => {
+    const v = new DataView(m.buffer, m.byteOffset, m.byteLength), out = { format: v.getUint16(8), ntracks: v.getUint16(10), ppqn: v.getUint16(12), tracks: [] };
+    let o = 14;
+    for (let k = 0; k < out.ntracks; k++) {
+      if (String.fromCharCode(...m.slice(o, o + 4)) !== "MTrk") throw new Error("no MTrk");
+      const end = o + 8 + v.getUint32(o + 4), evs = [];
+      let p = o + 8, t = 0;
+      const vlq = () => { let n = 0, b; do { b = m[p++]; n = (n << 7) | (b & 127); } while (b & 128); return n; };
+      while (p < end) {
+        t += vlq();
+        const s = m[p++];
+        if (s === 0xFF) { const type = m[p++], n = vlq(), data = m.slice(p, p + n); p += n; evs.push({ t, type: "meta", meta: type, data, text: new TextDecoder().decode(data) }); }
+        else { const d1 = m[p++], d2 = m[p++]; evs.push({ t, type: (s & 0xF0) === 0x90 && d2 ? "on" : "off", ch: s & 15, note: d1, vel: d2 }); }
+      }
+      out.tracks.push(evs); o = end;
+    }
+    return out;
+  };
+  const Q = (q, ext = 0) => (q << 4) | ext;
+  ok(loopChordNotes(60, 3).join() === "60,64,67" && loopChordNotes(60, 2, 2).join() === "60,63,67,70" && loopChordNotes(60, 3, 4 | 8).join() === "60,64,67,71,74" &&
+     loopChordNotes(57, 0).join() === "57" && loopChordNotes(60, 6).join() === "60,67,72" && loopChordNotes(60, 12).join() === "60,61,64,67,70" && loopChordNotes(60, 1, 1).join() === "60,63,66,69" &&
+     loopChordNotes(125, 3).join() === "125", "loops as MIDI: chord notes from cr_engine.c's tables (maj, m7, maj7+9, a note, power, 7b9, dim6; none above 127)");
+  const A = rec(0, 384, [[0, 96, 60, 100, Q(3, 2)], [192, 300, 57, 90, Q(2)]]);                     // 1 bar of 4/4: C7, then Am held past the end
+  const B = rec(1, 288, [[0, 48, 40, 110, 0x01], [96, 48, 64, 80, 0x00]], 1);                    // 1 bar of 3/4: a bass-side note, a chord-side note
+  const ev = loopEvents(B);
+  ok(ev.sig === 1 && ev.len === 288 && ev.events.length === 2 && ev.events[0].bass && !ev.events[1].bass && ev.events[0].root === 40,
+     "loops as MIDI: loopEvents reads the record (sig, length, a bass-side note by CRL_RF_PART)");
+  ok(!loopEvents(rec(0, 384, [[0, 48, 40, 100, 0x01]], 0)).events[0].bass, "loops as MIDI: without CRL_RF_PART a single note's nibble is not its part (an older record)");
+  { let e = null; try { loopEvents(new Uint8Array(20)); } catch (x) { e = x; } ok(!!e, "loops as MIDI: an unreadable record refused"); }
+  const order = parseLoopOrder("1, 2x2 → 1", [1, 2]);
+  ok(JSON.stringify(order) === '[{"key":1,"times":1},{"key":2,"times":2},{"key":1,"times":1}]' && parseLoopOrder("2*3 1", [1, 2])[0].times === 3,
+     "loops as MIDI: the order parsed (commas, arrows, x / * repeats, a loop more than once)");
+  const bad = (s) => { try { parseLoopOrder(s, [1, 2]); return false; } catch (_) { return true; } };
+  ok(bad("") && bad("3") && bad("1 two") && bad("1x0") && bad("1x99"), "loops as MIDI: an empty order, an unknown loop, a word, x0 and x99 refused");
+  const mid = readMid(loopsToMidi(order.map((o) => ({ name: `Loop ${o.key}`, bytes: o.key === 1 ? A : B, times: o.times })), { bpm: 90 }));
+  const [tempo, chords, bass] = mid.tracks, ons = (tr) => tr.filter((e) => e.type === "on"), offs = (tr) => tr.filter((e) => e.type === "off");
+  const marks = tempo.filter((e) => e.meta === 6).map((e) => `${e.t}:${e.text}`).join("|");
+  const sigs = tempo.filter((e) => e.meta === 0x58).map((e) => `${e.t}:${e.data[0]}/${1 << e.data[1]}`).join("|");
+  const us = tempo.find((e) => e.meta === 0x51).data;
+  ok(mid.format === 1 && mid.ntracks === 3 && mid.ppqn === 96 && ((us[0] << 16) | (us[1] << 8) | us[2]) === 666667,
+     "loops as MIDI: SMF type 1, three tracks, 96 ticks a quarter note, 90 BPM");
+  ok(marks === "0:Loop 1|384:Loop 2 (1/2)|672:Loop 2 (2/2)|960:Loop 1" && sigs === "0:4/4|384:3/4|960:4/4",
+     "loops as MIDI: a marker per section in order, the time signature where it changes");
+  const c1 = ons(chords).filter((e) => e.t === 0).map((e) => e.note).join(), am = ons(chords).filter((e) => e.t === 192).map((e) => e.note).join();
+  ok(c1 === "60,64,67,70" && am === "57,60,64" && ons(chords).every((e) => e.ch === 0) && ons(chords).find((e) => e.t === 0).vel === 100,
+     "loops as MIDI: chords on channel 1 at their recorded velocity (C7, Am)");
+  ok(offs(chords).filter((e) => e.note === 57).every((e) => e.t === 384 || e.t === 1344),
+     "loops as MIDI: a chord held past the loop's end stops at the end of its section");
+  ok(ons(bass).map((e) => `${e.t}:${e.note}:${e.ch}`).join() === "384:40:1,672:40:1" && ons(chords).some((e) => e.t === 480 && e.note === 64),
+     "loops as MIDI: the bass-side notes on the Bass track, channel 2, each repeat; the others with the chords");
+  ok(ons(chords).length === offs(chords).length && ons(bass).length === offs(bass).length && chords.at(-1).meta === 0x2F,
+     "loops as MIDI: every note on has its note off, each track ends with End of Track");
+  { let e = null; try { loopsToMidi([{ name: "x", bytes: A, times: 1 }], { bpm: 0 }); } catch (x) { e = x; } ok(!!e, "loops as MIDI: a tempo out of 20..300 refused"); }
+  const lens = new Map([[1, { len: 384, sig: 0 }], [2, { len: 288, sig: 1 }]]);
+  ok(loopOrderSummary(order, lens, 90) === "1 → 2 ×2 → 1 · 4 bars · 0:09 at 90 BPM" && loopOrderSummary([{ key: 2, times: 1 }], lens, 0) === "2 · 1 bar",
+     "loops as MIDI: the dialog's preview (the order, the bars, the length at the tempo; no length without a valid tempo)");
+  ok(loopMidiFileName(order, new Date("2026-11-12T00:00:00Z")) === "choralroot-loops-1-2x2-1-20261112.mid", "loops as MIDI: the file name says the order");
+}
+ok(html.includes('id="save-midi"') && html.includes('id="midi-dlg"') && html.includes("loopsToMidi(") && html.includes("parseLoopOrder(orderEl.value, keys)") &&
+   html.includes("loopOrderSummary(order, lens, bpm)") && html.includes('"audio/midi"') && !/prompt\("The order/.test(html),
+   "page: Save loops as MIDI… on the Loops tab (its own dialog: the order, the tempo, a live preview; the .mid downloaded)");
 
 /* ---- the page's new parts (3y79) --- */
 ok(["restore-sel", "restore-engine", "restore-every", "delete-all", "reset-factory", "dlg", "dlg-backup-go", "dlg-ok", "dlg-cancel"].every((id) => html.includes(`id="${id}"`)) &&
