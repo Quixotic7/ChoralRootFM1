@@ -489,7 +489,7 @@ plain XIP window (XIP 0x02099000; the data from flash 0x9D040, XIP 0x02099040). 
   writes it again.
 - **Not tried on a unit** (the project has no SMK-37): SMK37.md "What to test" 16.
 
-### The second resource region (HISTORY 3y296, FM-1 only)
+### The second resource region (HISTORY 3y296; the SMK-37's 3y309)
 
 Since 3y296 the FM-1 has a second region, 16 KB at **0xDC000..0xDFFFF**: the store's last four sectors, which held
 0.21's user banks (and before them Felucca's user presets) and nothing since 3y231, right below the update's staging
@@ -504,7 +504,8 @@ Since 3y296 the FM-1 has a second region, 16 KB at **0xDC000..0xDFFFF**: the sto
 | `.res2.fm6` | FM6's factory voices F1..F24 (`FM6_FACTORY` 1 024, `FM6_ROM` 2 496) | 3 520 |
 | `.res2.drum` | kept for the drum kits that do not fit the first region (514 B a kit: four of them are 2 056) | 0 |
 
-XIP 566 012 -> 553 916 B (12 096 freed). The host, the emulator and the SMK-37 keep these tables in their image.
+XIP 566 012 -> 553 916 B (12 096 freed). The host and the emulator keep these tables in their image; the SMK-37's own
+second region is below.
 
 - **The flash map** (`hal/fm1_flash_map.h`): `FL_RES2_LO` / `FL_RES2_HI`; `FL_DATA` ends at 0xDC000 (was 0xE0000), so
   the app can neither erase nor write the region. Flash Data and an owner change never listed those sectors (0.21's
@@ -561,6 +562,35 @@ XIP 566 012 -> 553 916 B (12 096 freed). The host, the emulator and the SMK-37 k
   differently.
 - **Not tried on a unit**: an install over 0.39 (no PRESETS MISSING, kerned M), a cut install resumed, a downgrade to
   0.39 and back.
+
+### The SMK-37's second region and Bluetooth (HISTORY 3y309)
+
+Bluetooth on the SMK-37 needs about 30 KB of app slot and 5.8 KB of region (the radio's program); the SMK was 4.4 KB
+short. As on the FM-1, a second region takes the same tables (kerning, the factory presets' lists, FM6's voices:
+12 540 B; the drum kits stay in the SMK's first region): 16 KB at **0xB0000..0xB3FFF**, the four sectors above the
+store's owner tag that held 0.21's CZ-1 and QUAD stores (nothing since 3y231), inside the SMK's plain window (XIP
+0x020AC000, the data from 0x020AC040) and inside the loader's record window (0x9D000..0xBFFFF), so the loader's
+allow-list is unchanged.
+
+- **The flash map**: the SMK's `FL_RES2_LO` / `FL_RES2_HI`; `FL_STORE_OK` leaves them out of `FL_DATA` (the app can
+  neither erase nor write them). `storage.c`'s `ST_SMK_REGIONS` (owner change, Flash Data) no longer lists them (it
+  listed the whole pair run 0xB0000..0xB5FFF; the favourites at 0xB4000 stay listed).
+- **Bluetooth's record** (`OBJ_BLE`, A / B) moves nowhere on the FM-1; on the SMK it is at **0xF2000 / 0xF3000**, the
+  free tail's last two sectors (not in the stock region table, never written by the stock firmware): `FL_TAIL` now
+  runs to 0xF3FFF and `ST_SMK_REGIONS` lists the pair (Flash Data clears it, as on the FM-1).
+- **The radio's trims**: the SMK's stock VM, where they were, is ChoralRoot's region and store, and the FM-1's
+  candidate places are the SMK's loop slots, so `cr_ble.c` does not scan for them on the SMK: our copy if one is made,
+  else the SDK's constants, and the radio measures its own calibration at every start (3y250) as on the FM-1.
+- **The package and the loader**: `fm1pkg_make.py --board smk37 --res2` (its `RES2_AT`), `ldr_core.c`
+  `LDR_RES2_LO` / `HI` per board. `tests/ldr_test.c` (SMK build) with both regions: every cut a rescue or the finished
+  boot, the unprotected windows as before (2568 / 2585 cut points, 0 / 16 / 17 / 16 unprotected), 1357 requests; the
+  downgrade leaves both regions as they were.
+- **Sizes** (SMK, against main fc6afc42 without Bluetooth): XIP 546 728 -> 566 104 of 573 440 B (Bluetooth +31 916,
+  the tables -12 540; 7 336 spare), RES 40 020 -> 45 816 of 49 088 (the radio program), RES2 12 540 of 16 320, RAM
+  88 136 -> 92 248 of 98 304; the package 701 045 -> 717 588 B.
+- **Downgrade**: 0.41-smk37.1 and before neither read nor write 0xB0000..0xB3FFF or 0xF2000..0xF3FFF, except that
+  their owner change and Flash Data erase 0xB0000..0xB3FFF; the next install of this firmware writes it again.
+- **Not tried on an SMK-37** here: SMK37.md "What to test" 18.
 
 ### Size and time
 

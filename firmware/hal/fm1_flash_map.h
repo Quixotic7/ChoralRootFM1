@@ -33,6 +33,8 @@
  *                    (0.21's sound objects until HISTORY 3y231, free since)
  *   0xA9000-0xBAFFF  VM: ChoralRoot's store (settings, the FM6 bank, the session, the owner tag, the favourites,
  *                    the sound pool's sectors 0..4; storage.c)                                     FL_DATA
+ *                    but 0xB0000-0xB3FFF: the second resource region (cr_res.h CR_RES2, HISTORY 3y309; 0.21's CZ-1
+ *                    and QUAD stores until 3y231, free since): the loader's, never the app's      FL_RES2
  *   0xBB000-0xBFFFF  VM: M-UPGRADE loader staging + update record (ota.c)          FL_OTA
  *   0xC0000-0xC0FFF  BTIF (BT pairing)              NEVER
  *   0xC1000-0xC1FFF  USRTRIM (key/pad/wheel calibration, "trimdat")   NEVER
@@ -41,7 +43,7 @@
  *   0xEA000-0xEAFFF  USRFLASH's last sector: the stock end marker "usrdata" at 0xEAFF8; erased once before the
  *                    first write into FL_SMP, no data of ChoralRoot's                    FL_STOCKTAG (erase only)
  *   0xEB000-0xF1FFF  the free tail (unlisted): the sound pool's sectors 9..15 (0.24)       FL_TAIL
- *   0xF2000-0xF3FFF  free (unlisted), unused
+ *   0xF2000-0xF3FFF  the free tail (unlisted): Bluetooth's record, A / B (HISTORY 3y309)   FL_TAIL
  *   0xF4000-0xFDFFF  USR (stock resources; kept for a rollback)   NEVER
  *   0xFE000-0xFEFFF  free, unused
  *   0xFF000-0xFFFFF  key_mac                        NEVER
@@ -67,12 +69,18 @@
 #define FL_DATA_LO      0x000A9000u                /* ChoralRoot's store (0x9D000 until 3y295: the region took its
                                                     * first 12 sectors, free since 3y231) */
 #define FL_DATA_HI      0x000BB000u
+/* The second resource region (HISTORY 3y309; the FM-1's 3y296 below): 16 KB inside FL_DATA, which the app's window
+ * leaves out (FL_STORE_OK). The package's res2.bin entry (tools/fm1pkg_make.py), the update loader writes it with the
+ * body, before the commit marker; the first 64 bytes the header (cr_res.h cr_res_hdr_t, CR_RES2_MAGIC) */
+#define FL_RES2_LO      0x000B0000u
+#define FL_RES2_HI      0x000B4000u
+#define FL_RES2_DATA    (FL_RES2_LO + 0x40u)
 #define FL_OTA_LO       0x000BB000u                /* M-UPGRADE loader staging, ota.c */
 #define FL_OTA_HI       0x000C0000u
 #define FL_SMP_LO       0x000C2000u                /* USRFLASH: the CZ-1 banks, the loop slots */
 #define FL_SMP_HI       0x000EA000u
-#define FL_TAIL_LO      0x000EB000u                /* the free tail after USRFLASH: the sound pool's last 7 sectors */
-#define FL_TAIL_HI      0x000F2000u
+#define FL_TAIL_LO      0x000EB000u                /* the free tail after USRFLASH: the sound pool's last 7 sectors, */
+#define FL_TAIL_HI      0x000F4000u                /* Bluetooth's record (0xF2000 / 0xF3000, 3y309) */
 /* USRFLASH is the stock firmware's mapping (global settings 0xC2000, 8 presets from 0xC3000) with its end marker
  * "usrdata\0" at 0xEAFF8: while the marker is there the stock firmware trusts the area and never rebuilds it.
  * Before ChoralRoot's first write into USRFLASH the marker sector is erased (storage.c st_stock_release), so a
@@ -103,11 +111,14 @@ _Static_assert(FL_RES_LO == FL_PLAIN_LO && FL_RES_LO == FL_APP_HI && FL_RES_HI =
                FL_WIN_SAFE(FL_RES_LO, FL_RES_HI) && FL_RES_HI - FL_RES_LO == 0xC000u && FL_RES_LO >= FL_REC_LO &&
                FL_RES_HI <= FL_OTA_LO,
                "SMK: the resource region: 48 KB in the plain window after the app area, below the store, the staging");
+_Static_assert(FL_RES2_LO > FL_DATA_LO && FL_RES2_HI < FL_DATA_HI && FL_WIN_SAFE(FL_RES2_LO, FL_RES2_HI) &&
+               FL_RES2_HI - FL_RES2_LO == 0x4000u && FL_RES2_LO >= FL_RES_HI && FL_RES2_HI <= FL_REC_HI,
+               "SMK: the second resource region: 16 KB inside FL_DATA, in the loader's record window");
 /* the update loader (loader.c): the app area, and records only in the VM below BTIF */
 #define FL_LDR_RANGE_OK(off, n) (FL_IN(off, n, FL_APP_LO, FL_APP_HI) || FL_IN(off, n, FL_REC_LO, FL_REC_HI))
-/* ChoralRoot's own store: FL_DATA, USRFLASH and the tail after its last sector */
-#define FL_STORE_OK(off, n) (FL_IN(off, n, FL_DATA_LO, FL_DATA_HI) || FL_IN(off, n, FL_SMP_LO, FL_SMP_HI) || \
-                             FL_IN(off, n, FL_TAIL_LO, FL_TAIL_HI))
+/* ChoralRoot's own store: FL_DATA but the second resource region, USRFLASH and the tail after its last sector */
+#define FL_STORE_OK(off, n) (FL_IN(off, n, FL_DATA_LO, FL_RES2_LO) || FL_IN(off, n, FL_RES2_HI, FL_DATA_HI) || \
+                             FL_IN(off, n, FL_SMP_LO, FL_SMP_HI) || FL_IN(off, n, FL_TAIL_LO, FL_TAIL_HI))
 #ifndef FL_RANGE_OK
 #define FL_RANGE_OK(off, n) (FL_STORE_OK(off, n) || FL_IN(off, n, FL_OTA_LO, FL_OTA_HI) || FL_STOCKTAG_OK(off, n))
 #endif

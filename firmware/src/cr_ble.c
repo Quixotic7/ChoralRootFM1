@@ -274,7 +274,15 @@ static void cr_ble_boot(void)                     /* power-on: before the audio 
     if (st_load(OBJ_BLE, &crbl_rec, sizeof crbl_rec) != (int)sizeof crbl_rec || crbl_rec.magic != CRBL_MAGIC)
         memset(&crbl_rec, 0, sizeof crbl_rec);
     memset(&info, 0, sizeof info);
+#if BOARD_SMK37
+    /* (3y309) the SMK's stock VM (0x9D000..0xBFFFF, where its trims were) is ChoralRoot's region and store, and the
+     * FM-1's candidate places are its loop slots: no scan. Our copy if one was made, else the SDK's constants; the
+     * radio measures its own calibration at every start anyway (below) */
+    memset(&vm, 0, sizeof vm);
+    complete = 0;
+#else
     complete = ble_vm_scan(crbl_flash_read, 0, &info, &vm, 0, 0);
+#endif
     crbl.cal_from = (uint8_t)ble_rf_choose(complete, &vm, info.area, crbl_rec.rf, &crbl.trims, &save);
     crbl.cal = (uint8_t)(crbl.cal_from != BLE_RF_NONE);
     if (save)

@@ -8692,3 +8692,27 @@ unchanged, so no FM-1 release). `BOARD=smk37 [MODEL=elite|mke] ./build.sh --rele
 ef8be9fd...2a4b; Elite 25bde08b...ad96 / 2338d58f...d247; MKE-P37 de6907d1...d96 / d4e5d6d1...0c9f, as
 web/releases-smk37.json lists them (its first entry, base 0.41). SMK37.md names 0.41-smk37.1 (the status, the packages,
 the version a player sees, the install and release commands).
+
+## 2026-11-16 (Bluetooth MIDI on the SMK-37)
+
+3y309. **Bluetooth MIDI on the SMK-37, with a second resource region of its own to make room.** The owner: "Yes the
+Antenna works. ELITE has BLE. Go ahead" (RemoteFM1's SMK build runs the radio and its calibration on SMK-37 units,
+confirmed by a tester). On claude/smk-ble from main fc6afc42 (0.41-smk37.1). `CR_BLE 1` for `BOARD=smk37`
+(choralroot.c's SMK block; the FM-1's untouched). Bluetooth's code (+31,916 B) did not fit the SMK's app slot (4,380 B
+over), so, as the FM-1's 3y296: **the SMK's second region at 0xB0000..0xB3FFF** (16 KB above the owner tag, 0.21's
+CZ-1 and QUAD stores until 3y231, inside its plain window and the loader's record window) takes the same tables
+(kerning of M and CRB, the factory presets' lists, FM6's voices: 12,540 B; the drum kits stay in the first region).
+`hal/fm1_flash_map.h` `FL_RES2_*` for the SMK, `FL_STORE_OK` leaves it out of `FL_DATA`; `ldr_core.c` `LDR_RES2_*` per
+board; `fm1pkg_make.py` `RES2_AT`, `--res2` for both; `build.py` moves app.ld's RES2 line in the SMK copy too.
+**Bluetooth's record** (`OBJ_BLE`) on the SMK at **0xF2000 / 0xF3000**, the free tail's last two sectors (`FL_TAIL` to
+0xF3FFF); `ST_SMK_REGIONS` lists them and no longer the second region. `cr_ble.c`: no scan for the stock trims on the
+SMK (its stock VM is ChoralRoot's region and store; the FM-1's candidate places are its loop slots): the SDK's constants
+and the self-calibration at every start (3y250). Off by default, Options > MIDI > Bluetooth as on the FM-1.
+**Sizes (SMK)**: XIP 546,728 -> 566,104 of 573,440 B (7,336 spare), RAM 88,136 -> 92,248, RES 40,020 -> 45,816 (the
+radio program), RES2 12,540 of 16,320; the package 701,045 -> 717,588 B. The FM-1 package is byte for byte 0.41's
+(8da57076...). **Tests**: `smk_flash_test` (the second region and the record's places), `smk_owner_test` (an owner
+change leaves both regions, clears the record), `smk_pkg_test.py` (`res2.bin`, the radio program's slot), `ldr_test`
+SMK build with both regions (2568 / 2585 cut points, the unprotected windows as before, 1357 requests) and its
+downgrade. `sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124
+ok). Docs: SMK37.md (Bluetooth MIDI, Storage, What to test 18), BOOT-SAFETY "The SMK-37's second region and
+Bluetooth", FLASH.md, BLE-LINK.md 3.2, MANUAL.md. **Not tried on an SMK-37 here**; not pushed, tagged or released.

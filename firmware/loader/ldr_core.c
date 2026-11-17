@@ -32,10 +32,11 @@
  * so after the marker's sector went blank and before the marker: a cut install is uncommitted (the stub rescues, the
  * resumed install writes what differs) and a committed one has its region. An older package (flash.bin LDR_APP_HI
  * long) writes none and leaves whatever is there. The record sweep (4) never looks at the region's sectors.
- * The second resource region (FM-1, HISTORY 3y296; cr_res.h CR_RES2): the package's entry res2.bin (type
- * LDR_RES2_TYPE, exactly LDR_RES2_HI - LDR_RES2_LO bytes) holds flash 0xDC000..0xDFFFF; its sectors are written in the
- * same pass, after the first region's and before the marker, plain as they come. A package without the entry (any
- * before 3y296, the SMK-37's) writes none and leaves them; the record sweep skips them.
+ * The second resource region (FM-1, HISTORY 3y296; the SMK-37's 3y309; cr_res.h CR_RES2): the package's entry
+ * res2.bin (type LDR_RES2_TYPE, exactly LDR_RES2_HI - LDR_RES2_LO bytes) holds flash 0xDC000..0xDFFFF (SMK
+ * 0xB0000..0xB3FFF); its sectors are written in the same pass, after the first region's and before the marker, plain
+ * as they come. A package without the entry (the FM-1's before 3y296, the SMK-37's before 3y309) writes none and
+ * leaves them; the record sweep skips them.
  * Power loss during 3 (the SPL does not start the loader from the flash copy
  * of the record on a cold boot: BOOT-SAFETY.md): the stub finds no marker and
  * hands over to the staged loader, or to the ROM's USB boot.
@@ -66,12 +67,15 @@ _Static_assert(LDR_APP_HI <= LDR_REC_LO && LDR_REC_HI <= 0xC0000u && LDR_APP_LO 
 #define LDR_RES_HI 0x9F000u                     /* hal/fm1_flash_map.h FL_RES_HI: the region, 0x93000 .. */
 #endif
 _Static_assert(LDR_RES_HI > LDR_APP_HI && LDR_RES_HI <= LDR_REC_HI, "the resource region follows the app area");
-#if !BOARD_SMK37
+#if BOARD_SMK37
+#define LDR_RES2_LO 0xB0000u                    /* hal/fm1_flash_map.h FL_RES2_LO .. FL_RES2_HI (3y309) */
+#define LDR_RES2_HI 0xB4000u
+#else
 #define LDR_RES2_LO 0xDC000u                    /* hal/fm1_flash_map.h FL_RES2_LO .. FL_RES2_HI (3y296) */
 #define LDR_RES2_HI 0xE0000u
+#endif
 #define LDR_RES2_TYPE 200u                      /* cr_res.h CR_RES2_TYPE, tools/fm1pkg_make.py RES2_TYPE */
 _Static_assert(LDR_RES2_LO >= LDR_RES_HI && LDR_RES2_HI <= LDR_REC_HI, "the second region: in the record window, above");
-#endif
 #define LDR_STUB_SEC 0x4000u                    /* the directory and the boot stub */
 #define LDR_MARK_SEC 0x91000u                   /* stub_core.h STUB_MARK_SEC, STUB_MARK_OFF */
 #define LDR_MARK_OFF 0x91FE0u

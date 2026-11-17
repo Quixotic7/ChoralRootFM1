@@ -152,6 +152,15 @@ The bass with Behaviour Solo now plays the chord's root in the octave you play i
 so the three octaves of keys play three octaves of bass (issue 43, new in 0.37; until 0.36 Solo played the bass register's octave
 from every key, two octaves under the keys at Register 0).
 
+### Bluetooth MIDI
+
+Since HISTORY 3y309 the SMK-37 has the FM-1's Bluetooth MIDI ([the manual](docs/MANUAL.md#bluetooth-midi)): Options >
+MIDI > Bluetooth `On`, then switch the keyboard off and on (the radio starts only at power-on); it shows up as
+`ChoralRoot XXXX`. Off by default. It carries the same MIDI as USB. The radio measures its own calibration at every
+start, so it does not need the stock firmware's trims, which ChoralRoot's store replaced. Its record (the address, the
+pairing) is at 0xF2000 / 0xF3000 ([Storage](#storage)); Forget Bluetooth clears the pairing, Flash Data the whole record.
+The SMK-37 Pro and Elite have the radio; RemoteFM1's SMK build has run Bluetooth on them.
+
 ### What the FM-1 has and the SMK-37 does not
 
 These came to ChoralRoot after the port was made and have no SMK-37 counterpart; they are left out rather than given
@@ -263,7 +272,7 @@ the first start.
 | 0xAB000-0xACFFF | the settings | FL_DATA |
 | 0xAD000-0xAEFFF | the session | FL_DATA |
 | 0xAF000 | the store owner tag (`SMK37DATACHORAL`) | FL_DATA |
-| 0xB0000-0xB3FFF | free (0.21's CZ-1 tones 17..32 and FM TONE store's place: not read since 3y231) | FL_DATA |
+| 0xB0000-0xB3FFF | the second resource region (since HISTORY 3y309): the kerning of M and CRB, the factory presets' lists, FM6's factory voices; 0.21's CZ-1 and FM TONE stores' place before (free since 3y231) | the update loader only (FL_RES2) |
 | 0xB4000-0xB5FFF | the favourites | FL_DATA |
 | 0xB6000-0xBAFFF | the sound pool, sectors 0..4 | FL_DATA |
 | 0xBB000-0xBFFFF | the update's staging (M-UPGRADE's loader and its record) | FL_OTA |
@@ -273,13 +282,13 @@ the first start.
 | 0xE6000-0xE9FFF | the sound pool, sectors 5..8 | FL_SMP |
 | 0xEA000-0xEAFFF | the stock firmware's end marker | erased only (FL_STOCKTAG) |
 | 0xEB000-0xF1FFF | the sound pool, sectors 9..15 | FL_TAIL |
-| 0xF2000-0xF3FFF | free | not written |
+| 0xF2000-0xF3FFF | Bluetooth: the address, the pairing, the radio's trims (since 3y309) | FL_TAIL |
 | 0xF4000-0xFDFFF | USR (the stock resources) | never |
 | 0xFE000-0xFEFFF | free | not written |
 | 0xFF000-0xFFFFF | key_mac | never |
 
 Each object has two copies (A / B); the pool's 16 sectors float (each save goes to a free one). Options > Flash Data (in
-SAFE MODE) and a change of the store's owner erase exactly the data rows above, never the tag, the resource region, the
+SAFE MODE) and a change of the store's owner erase exactly the data rows above, never the tag, the resource regions, the
 staging or anything else. `tests/smk_flash_test.c` checks every object's copies and every pool sector against the windows and the
 protected ranges, and that no two share a sector.
 
@@ -291,6 +300,13 @@ app, before the commit marker, so an interrupted install stays rescuable as befo
 power-on (this build's, whole) and otherwise shows **FONTS MISSING / INSTALL CHORALROOT AGAIN** for 3 s and draws its
 screens without the big type until the next install. An older package (0.39-smk37 and before) leaves the sectors as they
 are, and so does that firmware.
+
+**The second resource region (HISTORY 3y309).** As the FM-1's (3y296), at 0xB0000..0xB3FFF: the kerning of the fonts M
+and CRB, the factory presets' lists and FM6's factory voices (12 540 B), to make room for Bluetooth. The package
+carries it as its own entry (`res2.bin`), the loader writes it with the app and the first region, before the commit
+marker. When it is not this build's the splash says **PRESETS MISSING** and the factory presets read as the engines'
+defaults until the next install. 0.41-smk37.1 and before do not write it; their owner change and Flash Data can erase it
+(they knew those sectors as free), and the next install of this firmware writes it again.
 
 ## Safety
 
@@ -395,6 +411,14 @@ What no test here can answer, in the order to try it. Note the model, the packag
     direction, where each tops out). Run Options > System > Calibrate Wheels, then check: no bend and no vibrato with
     both wheels at rest, the pitch wheel up raises the pitch, full bend just before each end, the mod wheel from none
     at the bottom to full at the top. Power-cycle: the same without calibrating again.
+
+18. **Bluetooth (3y309, the first build with it).** Options > MIDI > Bluetooth `On`, switch off and on: the splash
+    is normal and `ChoralRoot XXXX` shows up on a computer or phone (macOS: Audio MIDI Setup > Bluetooth; iOS: an app
+    with Bluetooth MIDI). Pair, play: the notes, the knobs' CCs and MIDI Clock Out arrive as over USB; notes and clock
+    from the computer play the keyboard. Say how far away it holds and whether notes stutter or drop over a few minutes
+    of dense playing with Dual Core On, then with the `-1core` package. Bluetooth `Off` with a chord held: the peer's
+    notes end. Forget Bluetooth, pair again. Also: the factory presets (FM6's F1..F24, VA's, CZ-1's, PROPHET's) load
+    and the type is kerned, never **PRESETS MISSING** (the second region, new in the same build).
 
 Also worth a line: whether `fm1_install.py --info` shows a unit ID (`unit ID: XXXXXXXX`) and whether two SMK-37s show
 different ones (it is read from the flash chip, whose maker differs from the FM-1's).

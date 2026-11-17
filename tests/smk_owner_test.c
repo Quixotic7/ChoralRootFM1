@@ -5,8 +5,9 @@
  * simulated flash with another firmware's store, an untagged one and ChoralRoot's own; only ChoralRoot's data sectors
  * (ST_SMK_REGIONS) and the tag sector are ever erased, ours is kept, the staging area, the calibration and the rest
  * are never touched. The family is FELUCCA_DATA_FAMILY (build.py: CHORAL). 0.24: the regions take in the favourites
- * and the sound pool's runs (0xB4000..0xBAFFF, 0xE6000..0xE9FFF, 0xEB000..0xF1FFF); USRFLASH's last sector 0xEA000,
- * the free tail's rest (0xF2000..0xF3FFF), the stock resources and key_mac stay as they are. The stock firmware's
+ * and the sound pool's runs (0xB4000..0xBAFFF, 0xE6000..0xE9FFF, 0xEB000..0xF1FFF), 3y309 Bluetooth's record
+ * (0xF2000..0xF3FFF); USRFLASH's last sector 0xEA000, the resource regions (0x9D000..0xA8FFF, 0xB0000..0xB3FFF), the
+ * stock resources and key_mac stay as they are. The stock firmware's
  * mapping in USRFLASH: kept while intact, its marker sector 0xEA000 erased (only ever erased) before ChoralRoot's
  * first write there and at boot over other data; 0.24-beta2/beta3-smk37's pool sector at 0xEA000 moved to 0xF1000. */
 #include <stdint.h>
@@ -79,14 +80,14 @@ static void fill(void)
     memset(nor, 0xFF, sizeof nor);
     memset(nor + 0x9D000, 0xAA, 0xC000);           /* the resource region (3y295): the loader's, never touched */
     memset(nor + 0xA9000, 0x11, 0x6000);           /* objects below the tag */
-    memset(nor + 0xB0000, 0x22, 0xB000);           /* the CZ-1 store's second half, the QUAD store, the favourites,
-                                                    * the pool's first run */
+    memset(nor + 0xB0000, 0xBB, 0x4000);           /* the second resource region (3y309): the loader's, never touched */
+    memset(nor + 0xB4000, 0x22, 0x7000);           /* the favourites, the pool's first run */
     memset(nor + 0xBB000, 0x55, 0x5000);           /* the staging (the loader the stub hands over to): never */
     memset(nor + 0xC1000, 0x33, 0x1000);           /* USRTRIM: never touched */
     memset(nor + 0xC2000, 0x44, 0x28000);          /* the CZ-1 banks, the loop slots, the pool's second run */
     memset(nor + 0xEA000, 0x99, 0x1000);           /* USRFLASH's last sector (the stock marker's): not ChoralRoot's */
     memset(nor + 0xEB000, 0x44, 0x7000);           /* the pool's third run, in FL_TAIL */
-    memset(nor + 0xF2000, 0x66, 0x2000);           /* the rest of the free tail: not ChoralRoot's, never touched */
+    memset(nor + 0xF2000, 0x66, 0x2000);           /* the free tail's last two: Bluetooth's record (3y309) */
     memset(nor + 0xF4000, 0x77, 0xA000);           /* USR, the stock resources: never touched */
     memset(nor + 0xFF000, 0x88, 0x1000);           /* key_mac: never touched */
 }
@@ -122,13 +123,12 @@ static int is_stock(void)
 }
 static int store_erased(void)
 {
-    return all(0xA9000, 0xAF000, 0xFF) && all(0xB0000, 0xBB000, 0xFF) && all(0xC2000, 0xEA000, 0xFF) &&
-           all(0xEB000, 0xF2000, 0xFF);
+    return all(0xA9000, 0xAF000, 0xFF) && all(0xB4000, 0xBB000, 0xFF) && all(0xC2000, 0xEA000, 0xFF) &&
+           all(0xEB000, 0xF4000, 0xFF);
 }
 static int others_kept(void)
 {
-    return all(0x9D000, 0xA9000, 0xAA) && all(0xBB000, 0xC0000, 0x55) && all(0xC1000, 0xC2000, 0x33) && all(0xEA000, 0xEB000, 0x99) &&
-           all(0xF2000, 0xF4000, 0x66) &&
+    return all(0x9D000, 0xA9000, 0xAA) && all(0xB0000, 0xB4000, 0xBB) && all(0xBB000, 0xC0000, 0x55) && all(0xC1000, 0xC2000, 0x33) && all(0xEA000, 0xEB000, 0x99) &&
            all(0xF4000, 0xFE000, 0x77) && all(0xFF000, 0x100000, 0x88);
 }
 static int tagged(void)
@@ -148,7 +148,7 @@ int main(void)
     st_owner_check();
     check("another family's store (FELUCCA): every ChoralRoot data sector cleared, tagged ours",
           store_erased() && st_owner_cleared && tagged());
-    check("... the resource region, the staging, USRTRIM, 0xEA000, the free tail's rest, USR and key_mac untouched", others_kept());
+    check("... the resource regions, the staging, USRTRIM, 0xEA000, USR and key_mac untouched", others_kept());
     fill();
     memcpy(nor + 0xAF000, "SMK37DATASLOOP\0", 16);
     st_owner_cleared = 0;
@@ -160,10 +160,11 @@ int main(void)
     memset(nor + 0xA9000, 0x11, 0x6000);
     memset(nor + 0xC2000, 0x44, 0x28000);
     memset(nor + 0xEB000, 0x44, 0x7000);
+    memset(nor + 0xF2000, 0x66, 0x2000);
     st_owner_cleared = 0;
     st_owner_check();
     check("our own store: kept as it is", all(0xA9000, 0xAF000, 0x11) && all(0x9D000, 0xA9000, 0xAA) && all(0xC2000, 0xEA000, 0x44) &&
-          all(0xEB000, 0xF2000, 0x44) &&
+          all(0xEB000, 0xF2000, 0x44) && all(0xF2000, 0xF4000, 0x66) && all(0xB0000, 0xB4000, 0xBB) &&
           !st_owner_cleared && tagged());
     fill();
     st_owner_check();
@@ -177,7 +178,8 @@ int main(void)
     st_owner_cleared = 0;
     st_owner_check();
     check("owner change over the intact stock mapping: the store cleared, USRFLASH and its marker kept",
-          all(0xA9000, 0xAF000, 0xFF) && all(0xB0000, 0xB4000, 0xFF) && is_stock() && all(0x9D000, 0xA9000, 0xAA) && tag_erases == 0 &&
+          all(0xA9000, 0xAF000, 0xFF) && all(0xB4000, 0xB6000, 0xFF) && is_stock() && all(0x9D000, 0xA9000, 0xAA) &&
+          all(0xB0000, 0xB4000, 0xBB) && all(0xF2000, 0xF4000, 0xFF) && tag_erases == 0 &&
           st_stock_tagged() && st_stock_intact() && tagged());
     st_owner_check();
     check("... and at the next boot (ours now)", is_stock() && tag_erases == 0);
