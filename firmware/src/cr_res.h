@@ -26,9 +26,9 @@
  * alone) has a region; the emulator and the host tests keep every font in their image (AF_RES empty, cr_res_ok the
  * constant 1).
  *
- * The second region (HISTORY 3y296; docs/BOOT-SAFETY.md "The second resource region"): FM-1 only (CR_RES2 1,
- * choralroot.c), flash FL_RES2_LO..FL_RES2_HI (0xDC000..0xDFFFF, 16 KB: 0.21's user banks, free since 3y231), XIP
- * 0x020D8040.. for its data. Read-only tables that only the main loop reads, by section (firmware/app.ld .res2):
+ * The second region (HISTORY 3y296; docs/BOOT-SAFETY.md "The second resource region"): CR_RES2 1 (choralroot.c),
+ * flash FL_RES2_LO..FL_RES2_HI (FM-1 0xDC000..0xDFFFF, 16 KB: 0.21's user banks, free since 3y231; SMK-37 since 3y309
+ * 0xB0000..0xB3FFF, 0.21's CZ-1 and QUAD stores), XIP 0x020D8040.. / 0x020AC040.. for its data. Read-only tables that only the main loop reads, by section (firmware/app.ld .res2):
  *   .res2.kern    the kerning pairs of M and CRB (AF_M_KB / KD, AF_CRB_KB / KD: tools/gen_aa_font.py RES2, the
  *                 attribute AF_RES2); their row tables stay in the image, and S's kerning, the fallback font's
  *   .res2.preset  the factory presets' lists of FM6, VA, CZ-1 and PROPHET (engine_t.presets: RES2_PRESET)
@@ -42,8 +42,8 @@
  * every reader goes without (CR_RES2_GONE): no kerning on M and CRB (gfx.c kern: 0), each factory preset of a list in
  * the region reads as eng_preset's stand-in (engines.c: "NO PRESET", the engine's defaults) and FM6's factory voices
  * as the init voice (eng_fm6.c fm6_slot_get); the splash says PRESETS MISSING. Nothing on the audio side or the second
- * core reads the region. The host, the emulator and the SMK-37 keep these tables in their image (the attributes empty,
- * cr_res2_ok the constant 1). */
+ * core reads the region. The host and the emulator keep these tables in their image (the attributes empty,
+ * cr_res2_ok the constant 1); the SMK-37 keeps its drum kits in its first region. */
 #pragma once
 #include <stdint.h>
 

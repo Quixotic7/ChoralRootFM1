@@ -43,7 +43,8 @@ for i in range(nfiles):
     e = dec(image[0x40 + i * 0x50:0x90 + i * 0x50])
     typ, _, crc, _, off, size = struct.unpack_from("<HHHHII", e, 0)
     files[e[0x40:0x50].rstrip(b"\0").decode()] = (off, size, crc)
-ok(set(files) == {"flash.bin", "ota.bin"}, "flash.bin and ota.bin")
+ok(set(files) in ({"flash.bin", "ota.bin"}, {"flash.bin", "ota.bin", "res2.bin"}),
+   "flash.bin and ota.bin (and res2.bin, the second region: 3y309)")
 off, size, crc = files["flash.bin"]
 flash = image[off:off + size]
 ok(size in (0x9D000, 0xA9000) and M.crc16(flash) == crc,
@@ -82,8 +83,18 @@ if size > 0x9D000:                                  # the resource region (firmw
        h[28:60] == bytes(32), "the region's header at 0x9D000: magic, format, own CRC-32")
     ok(0 < n <= 0xA9000 - 0x9D040 and zlib.crc32(flash[0x9D040:0x9D040 + n]) == dcrc and
        flash[0x9D040 + n:] == b"\xff" * (0xA9000 - 0x9D040 - n), f"its data from 0x9D040 ({n} B), CRC-32, blank after")
-    ok(body_crc == struct.unpack_from("<I", mark, 12)[0] and (bo, bl) == (0, 0),
-       "its body CRC-32 = the commit marker's (this build's region), no radio program")
+    ok(body_crc == struct.unpack_from("<I", mark, 12)[0] and ((bo, bl) == (0, 0) or (bl > 0 and bo + bl <= n)),
+       f"its body CRC-32 = the commit marker's (this build's region); the radio program {bl} B inside the data")
+if "res2.bin" in files:                             # the second resource region (cr_res.h CR_RES2, HISTORY 3y309)
+    o2, n2, c2 = files["res2.bin"]
+    r2 = image[o2:o2 + n2]
+    h = r2[:0x40]
+    magic, fmt, n, dcrc, body_crc, bo, bl = struct.unpack_from("<7I", h)
+    ok(n2 == 0x4000 and M.crc16(r2) == c2 and magic == M.RES2_MAGIC and fmt == M.RES_FORMAT and
+       struct.unpack_from("<I", h, 60)[0] == zlib.crc32(h[:60]) and (bo, bl) == (0, 0),
+       "res2.bin: 16 KB (flash 0xB0000..0xB3FFF), its header: magic, format, own CRC-32")
+    ok(0 < n <= 0x4000 - 0x40 and zlib.crc32(r2[0x40:0x40 + n]) == dcrc and r2[0x40 + n:] == b"\xff" * (0x4000 - 0x40 - n)
+       and body_crc == struct.unpack_from("<I", mark, 12)[0], f"its data ({n} B), CRC-32, blank after, this build's body")
 ok(flash[:0x4000] != b"\xff" * 0x4000, "head present (never written by the loader, checked against the device)")
 print("SMK PACKAGE TEST FAILED" if failed else "smk package test passed")
 sys.exit(1 if failed else 0)

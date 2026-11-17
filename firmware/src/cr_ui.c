@@ -1275,7 +1275,7 @@ enum { O_STYLE, O_EXTADD, O_SECRET,
        O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
        O_CLOCK, O_MIDI_CC, O_MIDI_ROOTS,  /* (MIDI Roots, 3y289: after the MIDI Options, so no entry before it moves) */
 #if CR_BLE
-       O_BLE, O_BLE_FORGET,               /* Bluetooth MIDI (cr_ble.c, 3y236; FM-1 only) */
+       O_BLE, O_BLE_FORGET,               /* Bluetooth MIDI (cr_ble.c, 3y236; the SMK-37 too since 3y309) */
 #endif
 #if CR_USB_HOST
        O_USB_HOST,                        /* the USB-C port as a MIDI host (usb_host.c, 3y260; FM-1 only; never saved) */

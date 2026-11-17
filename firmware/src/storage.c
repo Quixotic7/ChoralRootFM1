@@ -43,17 +43,14 @@
  * its object (st_hdr_t.type), so the live objects keep their numbers. */
 enum { OBJ_SETTINGS, OBJ_X_PROJECT0, OBJ_X_UPRESET0 = OBJ_X_PROJECT0 + 4, OBJ_FM6BANK = OBJ_X_UPRESET0 + 2,
        OBJ_X_CZSTORE1, OBJ_CZBANK0, OBJ_X_QUADSTORE = OBJ_CZBANK0 + 8, OBJ_SESSION, OBJ_FAVS,
-       OBJ_BLE,                          /* 20, FM-1: Bluetooth's address, bond, trims (cr_ble.c, 3y236): 0xA0000 / 0xA1000,
+       OBJ_BLE,                          /* 20: Bluetooth's address, bond, trims (cr_ble.c, 3y236): 0xA0000 / 0xA1000 (SMK-37
+                                          * 0xF2000 / 0xF3000, 3y309),
                                           * 0.21's CZ-1 tones 17..32 until 3y231 (their records name 8: never this one) */
        OBJ_COUNT };
 static inline int st_live(uint32_t obj)  /* the objects stored today */
 {
     return obj < OBJ_COUNT && !(obj >= OBJ_X_PROJECT0 && obj < OBJ_FM6BANK) && obj != OBJ_X_CZSTORE1 &&
-           obj != OBJ_X_QUADSTORE
-#if BOARD_SMK37
-           && obj != OBJ_BLE              /* (no Bluetooth on the SMK-37) */
-#endif
-           ;
+           obj != OBJ_X_QUADSTORE;
 }
 #define ST_NOWHERE 0xFFFFF000u         /* st_sector of an object not stored: in no FL_RANGE_OK window, at or past FL_KEYMAC_LO
                                         * (fm1_flash.h's FL_GUARD refuses an erase or a program there), no live object's */
@@ -130,22 +127,25 @@ static uint32_t st_crc32(const void *p, uint32_t n) { return st_crc_run(0u, p, n
  *   FL_DATA 0xA9000..0xBAFFF
  *     0xA9000 / 0xAA000 OBJ_FM6BANK          0xAB000 / 0xAC000 OBJ_SETTINGS     0xAD000 / 0xAE000 OBJ_SESSION
  *     0xAF000           the store owner tag (st_owner_check: the same place in every ported firmware)
- *     0xB0000..0xB3FFF  free (the same)
+ *     0xB0000..0xB3FFF  the second resource region since HISTORY 3y309 (cr_res.h CR_RES2, FL_RES2: the update loader
+ *                       writes it, never the store; 0.21's CZ-1 store 2 and QUAD store until 3y231, free since). Not
+ *                       in ST_SMK_REGIONS
  *     0xB4000 / 0xB5000 OBJ_FAVS (0.24 on the SMK)
  *     0xB6000..0xBAFFF  the sound pool's sectors 0..4 (sp_*, below)
  *   FL_SMP 0xC2000..0xE9FFF (USRFLASH, the stock's user area, 40 sectors: ChoralRoot has no samples)
  *     0xC2000..0xD1FFF  OBJ_CZBANK0..+7      0xD2000..0xE5FFF the loop slots (cr_ui.c CRL_FL_BASE, 2 x CRL_SLOTS)
  *     0xE6000..0xE9FFF  the sound pool's sectors 5..8
  *   0xEA000 (USRFLASH's last sector: the stock firmware's end marker, no data of ChoralRoot's)
- *   FL_TAIL 0xEB000..0xF1FFF (the free tail after it, 7 of its 9 sectors)
- *     0xEB000..0xF1FFF  the sound pool's sectors 9..15 (0xF2000..0xF3FFF stay free)
+ *   FL_TAIL 0xEB000..0xF3FFF (the free tail after it, all 9 sectors since 3y309)
+ *     0xEB000..0xF1FFF  the sound pool's sectors 9..15
+ *     0xF2000 / 0xF3000 OBJ_BLE (Bluetooth on the SMK since HISTORY 3y309)
  * The pool's 16 floating sectors are three runs (sp_addr): 5 in FL_DATA, 4 at FL_SMP's end, 7 in FL_TAIL. */
 #define ST_SMK_BASE 0x9D000u                   /* (the objects' numbering: pairs 0..5 were 0.21's, the region now) */
 #define ST_SMK_PAIRS 9u                        /* the pairs below the owner tag */
 #define ST_SMK_SECTORS (2u * ST_SMK_PAIRS)
 #define ST_SMK_LIVE (ST_SMK_BASE + 12u * ST_SECTOR)   /* pairs 6..8: OBJ_FM6BANK, OBJ_SETTINGS, OBJ_SESSION */
 #define ST_SMK_LIVE_SECTORS (ST_SMK_SECTORS - 12u)
-#define ST_SMK_HIGH 0xB0000u                   /* the pairs above it: CZ-1 store 2, QUAD store, the favourites */
+#define ST_SMK_HIGH 0xB0000u                   /* the pairs above it: two the second region's (3y309), the favourites */
 #define ST_SMK_HIGH_SECTORS 6u
 #define ST_SMK_CZB 0xC2000u                    /* the CZ-1 banks, in USRFLASH */
 #define ST_SMK_CZB_SECTORS 16u
@@ -157,14 +157,21 @@ static uint32_t st_crc32(const void *p, uint32_t n) { return st_crc_run(0u, p, n
 #define ST_SMK_POOL1_N 4u
 #define ST_SMK_POOL2 0xEB000u                  /* .. sectors 9..15 in FL_TAIL */
 #define ST_SMK_POOL2_N 7u
+#define ST_SMK_BLE 0xF2000u                    /* OBJ_BLE, A / B: the tail's last two sectors (3y309) */
 /* every place of ChoralRoot's data on the SMK (base, sectors): the owner check and Options > Flash Data clear these
- * (the owner tag is not one of them, nor the resource region below the objects: 3y295) */
-static const uint32_t ST_SMK_REGIONS[][2] = {{ST_SMK_LIVE, ST_SMK_LIVE_SECTORS}, {ST_SMK_HIGH, ST_SMK_HIGH_SECTORS},
+ * (the owner tag is not one of them, nor the resource regions: the first below the objects, 3y295; the second the
+ * first four sectors above the tag, 3y309) */
+static const uint32_t ST_SMK_REGIONS[][2] = {{ST_SMK_LIVE, ST_SMK_LIVE_SECTORS}, {ST_SMK_HIGH + 4u * ST_SECTOR, 2u},
                                              {ST_SMK_CZB, ST_SMK_CZB_SECTORS}, {ST_SMK_LOOPS, ST_SMK_LOOP_SECTORS},
                                              {ST_SMK_POOL0, ST_SMK_POOL0_N}, {ST_SMK_POOL1, ST_SMK_POOL1_N},
-                                             {ST_SMK_POOL2, ST_SMK_POOL2_N}};
+                                             {ST_SMK_POOL2, ST_SMK_POOL2_N}, {ST_SMK_BLE, 2u}};
+_Static_assert(ST_SMK_HIGH == FL_RES2_LO && ST_SMK_HIGH + 4u * ST_SECTOR == FL_RES2_HI &&
+               ST_SMK_HIGH + ST_SMK_HIGH_SECTORS * ST_SECTOR == ST_SMK_POOL0,
+               "SMK store: the second resource region, then the favourites, then the pool");
+_Static_assert(ST_SMK_BLE == ST_SMK_POOL2 + ST_SMK_POOL2_N * ST_SECTOR && ST_SMK_BLE + 2u * ST_SECTOR == FL_TAIL_HI,
+               "SMK store: Bluetooth's record, the tail's last two sectors");
 #if FELUCCA_CZ && FELUCCA_QUAD
-_Static_assert(OBJ_COUNT == 21u && OBJ_BLE + 1u == OBJ_COUNT, "SMK store: a new object needs a place (OBJ_BLE: none)");
+_Static_assert(OBJ_COUNT == 21u && OBJ_BLE + 1u == OBJ_COUNT, "SMK store: a new object needs a place");
 #endif
 _Static_assert(ST_SMK_BASE == FL_RES_LO && ST_SMK_LIVE == FL_RES_HI && ST_SMK_LIVE == FL_DATA_LO &&
                ST_SMK_BASE + ST_SMK_SECTORS * ST_SECTOR == 0xAF000u,
@@ -186,6 +193,8 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return ST_SMK_BASE + (8u * 2u + copy) * ST_SECTOR;
     if (obj == OBJ_FAVS)
         return ST_SMK_HIGH + (4u + copy) * ST_SECTOR;
+    if (obj == OBJ_BLE)                                  /* (3y309: after the pool's third run) */
+        return ST_SMK_BLE + copy * ST_SECTOR;
     if (obj >= OBJ_CZBANK0 && obj < OBJ_CZBANK0 + 8u)
         return ST_SMK_CZB + ((obj - OBJ_CZBANK0) * 2u + copy) * ST_SECTOR;
     if (obj == OBJ_FM6BANK)

@@ -144,8 +144,9 @@ audio ISR or the second core reads (`QUAD_HARM`, `CZ_RECIP`, `CZ_CARRIER`, `FM6_
 `SINE`, `UAC_FIR`, ...), and S's glyphs (`AF_S_DATA`, the fallback font). On the SMK-37 the same retirement freed 0x9D000..0xA8FFF and
 0xB0000..0xB3FFF (storage.c's SMK map); its stock VM is ChoralRoot's store there. Since 3y295 0x9D000..0xA8FFF is the
 SMK's resource region (docs/BOOT-SAFETY.md "The SMK-37's resource region"): the fonts M, CRX and CRB moved out of its
-app slot, XIP 566 360 -> 531 032 B (35 328 B freed: 42 408 B of margin), RES 36 024 of 49 088 B; 0xB0000..0xB3FFF is
-still free.
+app slot, XIP 566 360 -> 531 032 B (35 328 B freed: 42 408 B of margin), RES 36 024 of 49 088 B. Since 3y309 0xB0000..0xB3FFF is the
+SMK's second resource region and 0xF2000..0xF3FFF its Bluetooth record (docs/BOOT-SAFETY.md "The SMK-37's second region
+and Bluetooth"): with Bluetooth in, the SMK's XIP is 566 104 of 573 440 B (7 336 spare).
 
 **Felucca's code that is still in the tree.** Nothing unused is linked: the image is a unity build, so a static
 function or table nothing calls is dropped by the compiler (Felucca's factory patterns, its sequencer, the retired

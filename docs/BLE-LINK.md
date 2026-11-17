@@ -297,7 +297,10 @@ motion: the list scrolls like the sound picker; a found device slides in; connec
 The same AC791N / WL82 (genkigenki's fm1-to-smk37 `docs/01-hardware.md`), the same SPL and loader; the stock SMK
 labels its SAVE key "BT", so stock very likely does Bluetooth MIDI. Unknowns: the antenna and the trims (2.6). Its
 XIP has 14.6 KB free, the same problem as the FM-1's; the resource region would need the SMK's own place (its map
-differs). **Not in version 1.**
+differs). **Not in version 1.** **Done in HISTORY 3y309**: the SMK's second resource region at 0xB0000 made the room,
+its record is at 0xF2000 / 0xF3000, no trim scan (its stock VM is ChoralRoot's), the self-calibration at every start as
+on the FM-1; RemoteFM1's SMK build had run the radio on SMK-37 Pro and Elite units (docs/BOOT-SAFETY.md "The SMK-37's
+second region and Bluetooth").
 
 ### 3.3 The web installer and the Sound Manager over Bluetooth
 

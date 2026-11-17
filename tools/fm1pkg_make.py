@@ -70,13 +70,15 @@ BOARDS = {"fm1": (0x93000, "FM-1"),
 
 def set_board(board):
     """select the flash layout of a board ("fm1" default, "smk37")"""
-    global BOARD, FLASH_SIZE, RES_LO, RES_HI, RES_DATA
+    global BOARD, FLASH_SIZE, RES_LO, RES_HI, RES_DATA, RES2_LO, RES2_HI, RES2_DATA
     if board not in BOARDS:
         raise SystemExit(f"fm1pkg_make: unknown board {board!r} (fm1, smk37)")
     BOARD = board
     FLASH_SIZE = BOARDS[board][0]
     RES_LO, RES_HI = RES_AT[board]
     RES_DATA = RES_LO + 0x40
+    RES2_LO, RES2_HI = RES2_AT[board]
+    RES2_DATA = RES2_LO + 0x40
 
 
 KEY = 0x980F
@@ -99,7 +101,9 @@ RES_MAGIC, RES_FORMAT = 0x53455243, 1   # "CRES"
 # the second resource region (cr_res.h CR_RES2, hal/fm1_flash_map.h FL_RES2_LO; HISTORY 3y296): FM-1 only, the
 # package's entry res2.bin (RES2_TYPE) holds its 16 KB whole; the update loader writes it after the first region's
 # sectors, before the commit marker (firmware/loader/ldr_core.c)
-RES2_LO, RES2_HI = 0xDC000, 0xE0000
+RES2_AT = {"fm1": (0xDC000, 0xE0000),        # per board (set_board); the SMK-37's since 3y309, inside its VM
+           "smk37": (0xB0000, 0xB4000)}
+RES2_LO, RES2_HI = RES2_AT["fm1"]
 RES2_DATA = RES2_LO + 0x40
 RES2_MAGIC, RES2_TYPE = 0x32455243, 200     # "CRE2"
 ST_MAGIC = b"FELU"                          # storage.c's record header: 0.22 .. 0.29.2 read 0.21's banks here
@@ -257,8 +261,6 @@ def res_header(data, body_crc, ble=(0, 0), magic=RES_MAGIC):
 def res2_image(app, data):
     """the second resource region as the package's res2.bin carries it: flash RES2_LO..RES2_HI whole, the header (bound
     to the body of app, a stub app, as commit() marks it), the data, erased bytes after"""
-    if BOARD != "fm1":
-        raise SystemExit("fm1pkg_make: the second resource region is the FM-1's (0xDC000: the SMK-37's USRFLASH)")
     if not has_stub(app):
         raise SystemExit("fm1pkg_make: a resource region needs an app with the boot stub")
     if not 0 < len(data) <= RES2_HI - RES2_DATA:
@@ -390,7 +392,7 @@ def main():
     ap.add_argument("--product", help="package identity (default: FM-1_900; smk37: SMK-37 Pro_900)")
     ap.add_argument("--key", type=lambda s: int(s, 0), default=KEY)
     ap.add_argument("--res", type=Path, help="the resource region's data (build/res.bin; an app with the stub)")
-    ap.add_argument("--res2", type=Path, help="the FM-1's second region's data (build/res2.bin; an app with the stub)")
+    ap.add_argument("--res2", type=Path, help="the second region's data (build/res2.bin; an app with the stub)")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     a = ap.parse_args()
     global SDK
