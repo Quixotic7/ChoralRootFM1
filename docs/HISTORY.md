@@ -8753,3 +8753,14 @@ before. **The page**: the KEY layer reopens on the page last shown (runtime). te
 MIN + D4 = Dm, D4 alone key 3, LOCK's MIN, page 3 +2 with page 1 +2, the page kept, MIDI 60 / 80 / 107), the scripts
 that assumed page 1 given SELECT; test_persist (Transpose -5); `cr_progplay_test`, `cr_midi_test`, `cr_settings_test`.
 FM-1: XIP 2164 B spare (99.6 %), RAM unchanged. MANUAL.md "Keyboard: Prog".
+
+3y314. **0.42 and 0.42-smk37: progressions (3y310 .. 3y313).** The owner: "Lets get this all merged and tagged. Please
+update the documentation and manual." docs/releases/0.42.md; web/releases.json's 0.42 first (sha256 0391fac9...8a3d,
+1-core 7d925f93...7d88) and 0.41's going-back note (no progressions there; a loop slot holding a progression chord reads
+empty); web/releases-smk37.json's 0.42-smk37 (Pro 2e57092e...c032 / df4dd572...028b, Elite 9ee49523...1949 /
+409f44e0...b2fd, MKE-P37 8890220d...ecbb5 / 24422754...c85b); MANUAL.md's first line; the dev version 0.42;
+SMK37.md for 0.42-smk37. Both boards built twice (`build.sh --release` and `tools/hub_build.sh`) to the same
+SHA256SUMS. `tests/releases_test.py` skips an SMK tag with `-beta` that is not listed (v0.41-beta.ble1-smk37, a test
+build installed by hand from claude/smk-ble: the SMK page has no beta switch, so listing it would offer it to every
+owner; the owner's choice). FM-1: XIP 2164 B spare. `CR_VERSION=0.42 sh tests/run_all.sh`.
+

@@ -8,6 +8,27 @@
   },
   "releases": [
     {
+      "version": "0.42",
+      "date": "2026-11-19",
+      "tag": "v0.42",
+      "sha256": "0391fac999db698a2d9cf8bca301860a19f668e11bffba16731458f63fe58a3d",
+      "sha256_1core": "7d925f935462a6afc2495578ba4e210fc3f77da167bf2216313c1bceccdf7d88",
+      "title": "Progressions: a key plays a whole stored chord",
+      "bullets": [
+        "KEY layer page 2, Keyboard: Prog: the root keys from C4 play a progression, one stored chord a key, up to 8 notes each.",
+        "The chord keys keep their jobs: a root with a chord key held plays your own chord, a root alone the progression's.",
+        "Tap KEY to put the progression aside and bring it back; OCT- / OCT+ slide a longer one 12 chords along.",
+        "Page 3: pick one of 16 progressions, its Velocity, Humanize and Transpose. Six come with it.",
+        "The device manager's Progressions view imports Ripchord presets, edits and makes progressions, and exports them as .rpc.",
+        "Your settings, sounds, loops and favorites come through the update."
+      ],
+      "notes": [
+        "Loops keep which progression and key a chord came from: edit the progression and the loop plays the new chord.",
+        "M-Flasher writes the firmware alone: the unit starts with PRESETS MISSING until ChoralRoot's own installer has run once.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.41",
       "date": "2026-11-12",
       "tag": "v0.41",
@@ -25,7 +46,14 @@
         "A settings backup does not hold the drums: they live in the session.",
         "M-Flasher writes the firmware alone: the unit starts with PRESETS MISSING until ChoralRoot's own installer has run once.",
         "The Single core package is the same firmware on one core; it plays the drums on that core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.41 stores everything else the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "0.41 has no progressions: it leaves them stored for 0.42, and a loop slot holding a progression chord reads as empty there.",
+          "Options > Version reads ChoralRoot 0.41 again; Keyboard has Chords and Full only, and the KEY layer two pages."
+        ]
+      }
     },
     {
       "version": "0.40",
