@@ -3,7 +3,7 @@
 /* ChoralRoot FM-1: the progressions' store (GitHub issue 64, Ripchord style; cr_prog.h is the contract and the format,
  * docs/PROGRESSIONS.md the prose).
  *
- * One storage.c object, OBJ_PROG (an A/B pair: FM-1 0xB2000 / 0xB3000, SMK-37 0xB0000 / 0xB1000), and its RAM copy,
+ * One storage.c object, OBJ_PROG (an A/B pair: FM-1 0xB2000 / 0xB3000, SMK-37 0xB3000 / 0xFE000), and its RAM copy,
  * crp_x: the whole object (CRPG_SIZE bytes), so that no lookup touches the flash (a loop may resolve a progression's
  * chord from the audio side, and the flash cannot be read during an erase). The copy is the stored object when
  * crp_valid takes it, else the factory set (crp_factory); the power-on never writes flash (the factory set is written

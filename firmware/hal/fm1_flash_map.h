@@ -43,7 +43,7 @@
  *   0xEB000-0xF1FFF  the free tail (unlisted): the sound pool's sectors 9..15 (0.24)       FL_TAIL
  *   0xF2000-0xF3FFF  free (unlisted), unused
  *   0xF4000-0xFDFFF  USR (stock resources; kept for a rollback)   NEVER
- *   0xFE000-0xFEFFF  free, unused
+ *   0xFE000-0xFEFFF  the progressions' copy B (OBJ_PROG, GitHub issue 64; free, never written before)   FL_SPARE
  *   0xFF000-0xFFFFF  key_mac                        NEVER
  * Everything below is an explicit allow-list; the asserts keep each allowed window out of the
  * protected ranges at compile time. */
@@ -73,6 +73,9 @@
 #define FL_SMP_HI       0x000EA000u
 #define FL_TAIL_LO      0x000EB000u                /* the free tail after USRFLASH: the sound pool's last 7 sectors */
 #define FL_TAIL_HI      0x000F2000u
+#define FL_SPARE_LO     0x000FE000u                /* the sector between the stock resources and key_mac: the
+                                                    * progressions' copy B (storage.c OBJ_PROG; issue 64) */
+#define FL_SPARE_HI     0x000FF000u
 /* USRFLASH is the stock firmware's mapping (global settings 0xC2000, 8 presets from 0xC3000) with its end marker
  * "usrdata\0" at 0xEAFF8: while the marker is there the stock firmware trusts the area and never rebuilds it.
  * Before ChoralRoot's first write into USRFLASH the marker sector is erased (storage.c st_stock_release), so a
@@ -94,6 +97,8 @@ _Static_assert(FL_WIN_SAFE(FL_TAIL_LO, FL_TAIL_HI) && FL_TAIL_HI <= FL_USRRES_LO
 _Static_assert(FL_WIN_SAFE(FL_STOCKTAG_LO, FL_STOCKTAG_HI) && FL_STOCKTAG_LO == FL_SMP_HI &&
                FL_STOCKTAG_OFF + 8u == FL_STOCKTAG_HI, "SMK: the stock marker sector");
 _Static_assert(FL_TAIL_LO == FL_STOCKTAG_HI, "SMK: FL_TAIL starts after the stock marker's sector (0xEA000)");
+_Static_assert(FL_WIN_SAFE(FL_SPARE_LO, FL_SPARE_HI) && FL_SPARE_LO == FL_USRRES_HI && FL_SPARE_HI == FL_KEYMAC_LO,
+               "SMK: FL_SPARE is the one sector between the stock resources and key_mac");
 _Static_assert(FL_WIN_SAFE(FL_APP_LO, FL_APP_HI), "SMK: FL_APP overlaps a protected range");
 _Static_assert(FL_WIN_SAFE(FL_REC_LO, FL_REC_HI), "SMK: FL_REC overlaps a protected range");
 _Static_assert(FL_REC_HI == FL_CAL_LO && FL_OTA_HI <= FL_REC_HI && FL_OTA_LO >= FL_REC_LO,
@@ -107,7 +112,7 @@ _Static_assert(FL_RES_LO == FL_PLAIN_LO && FL_RES_LO == FL_APP_HI && FL_RES_HI =
 #define FL_LDR_RANGE_OK(off, n) (FL_IN(off, n, FL_APP_LO, FL_APP_HI) || FL_IN(off, n, FL_REC_LO, FL_REC_HI))
 /* ChoralRoot's own store: FL_DATA, USRFLASH and the tail after its last sector */
 #define FL_STORE_OK(off, n) (FL_IN(off, n, FL_DATA_LO, FL_DATA_HI) || FL_IN(off, n, FL_SMP_LO, FL_SMP_HI) || \
-                             FL_IN(off, n, FL_TAIL_LO, FL_TAIL_HI))
+                             FL_IN(off, n, FL_TAIL_LO, FL_TAIL_HI) || FL_IN(off, n, FL_SPARE_LO, FL_SPARE_HI))
 #ifndef FL_RANGE_OK
 #define FL_RANGE_OK(off, n) (FL_STORE_OK(off, n) || FL_IN(off, n, FL_OTA_LO, FL_OTA_HI) || FL_STOCKTAG_OK(off, n))
 #endif

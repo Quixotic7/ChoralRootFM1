@@ -51,7 +51,9 @@ enum { OBJ_SETTINGS, OBJ_X_PROJECT0, OBJ_X_UPRESET0 = OBJ_X_PROJECT0 + 4, OBJ_FM
                                           * 0.21's CZ-1 tones 17..32 until 3y231 (their records name 8: never this one) */
        OBJ_PROG,                         /* 21: the progressions (cr_prog.c, cr_prog.h; GitHub issue 64): FM-1 0xB2000 /
                                           * 0xB3000 (0.21's FM TONE store until 3y231: its records name 17), SMK-37
-                                          * 0xB0000 / 0xB1000 (0.21's CZ-1 store 2: its records name 8) */
+                                          * 0xB3000 / 0xFE000 (0.21's QUAD store's second sector, its records name 17;
+                                          * and the free sector before key_mac, never written: claude/smk-ble's second
+                                          * resource region takes 0xB0000..0xB2FFF) */
        OBJ_COUNT };
 static inline int st_live(uint32_t obj)  /* the objects stored today */
 {
@@ -137,8 +139,9 @@ static uint32_t st_crc32(const void *p, uint32_t n) { return st_crc_run(0u, p, n
  *   FL_DATA 0xA9000..0xBAFFF
  *     0xA9000 / 0xAA000 OBJ_FM6BANK          0xAB000 / 0xAC000 OBJ_SETTINGS     0xAD000 / 0xAE000 OBJ_SESSION
  *     0xAF000           the store owner tag (st_owner_check: the same place in every ported firmware)
- *     0xB0000 / 0xB1000 OBJ_PROG (the progressions; 0.21's CZ-1 store 2 until 3y231, its records name 8: refused)
- *     0xB2000..0xB3FFF  free (0.21's QUAD store until 3y231)
+ *     0xB0000..0xB2FFF  free (0.21's CZ-1 store 2 and the QUAD store's first sector until 3y231; the second resource
+ *                       region's on claude/smk-ble, 3y309, which must end at 0xB2FFF)
+ *     0xB3000           OBJ_PROG copy A (the progressions; 0.21's QUAD store until 3y231, its records name 17: refused)
  *     0xB4000 / 0xB5000 OBJ_FAVS (0.24 on the SMK)
  *     0xB6000..0xBAFFF  the sound pool's sectors 0..4 (sp_*, below)
  *   FL_SMP 0xC2000..0xE9FFF (USRFLASH, the stock's user area, 40 sectors: ChoralRoot has no samples)
@@ -153,8 +156,8 @@ static uint32_t st_crc32(const void *p, uint32_t n) { return st_crc_run(0u, p, n
 #define ST_SMK_SECTORS (2u * ST_SMK_PAIRS)
 #define ST_SMK_LIVE (ST_SMK_BASE + 12u * ST_SECTOR)   /* pairs 6..8: OBJ_FM6BANK, OBJ_SETTINGS, OBJ_SESSION */
 #define ST_SMK_LIVE_SECTORS (ST_SMK_SECTORS - 12u)
-#define ST_SMK_HIGH 0xB0000u                   /* the pairs above it: the progressions (0.21's CZ-1 store 2), free
-                                        * (0.21's QUAD store), the favourites */
+#define ST_SMK_HIGH 0xB0000u                   /* the sectors above it: free (0.21's CZ-1 and QUAD stores), the
+                                        * progressions' copy A (0xB3000), the favourites */
 #define ST_SMK_HIGH_SECTORS 6u
 #define ST_SMK_CZB 0xC2000u                    /* the CZ-1 banks, in USRFLASH */
 #define ST_SMK_CZB_SECTORS 16u
@@ -171,10 +174,11 @@ static uint32_t st_crc32(const void *p, uint32_t n) { return st_crc_run(0u, p, n
 static const uint32_t ST_SMK_REGIONS[][2] = {{ST_SMK_LIVE, ST_SMK_LIVE_SECTORS}, {ST_SMK_HIGH, ST_SMK_HIGH_SECTORS},
                                              {ST_SMK_CZB, ST_SMK_CZB_SECTORS}, {ST_SMK_LOOPS, ST_SMK_LOOP_SECTORS},
                                              {ST_SMK_POOL0, ST_SMK_POOL0_N}, {ST_SMK_POOL1, ST_SMK_POOL1_N},
-                                             {ST_SMK_POOL2, ST_SMK_POOL2_N}};
+                                             {ST_SMK_POOL2, ST_SMK_POOL2_N},
+                                             {FL_SPARE_LO, 1u}};   /* (the progressions' copy B, issue 64) */
 #if FELUCCA_CZ && FELUCCA_QUAD
 _Static_assert(OBJ_COUNT == 22u && OBJ_BLE + 1u == OBJ_PROG && OBJ_PROG + 1u == OBJ_COUNT,
-               "SMK store: a new object needs a place (OBJ_BLE: none; OBJ_PROG: ST_SMK_HIGH's first pair)");
+               "SMK store: a new object needs a place (OBJ_BLE: none; OBJ_PROG: 0xB3000 / FL_SPARE)");
 #endif
 _Static_assert(ST_SMK_BASE == FL_RES_LO && ST_SMK_LIVE == FL_RES_HI && ST_SMK_LIVE == FL_DATA_LO &&
                ST_SMK_BASE + ST_SMK_SECTORS * ST_SECTOR == 0xAF000u,
@@ -196,8 +200,8 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return ST_SMK_BASE + (8u * 2u + copy) * ST_SECTOR;
     if (obj == OBJ_FAVS)
         return ST_SMK_HIGH + (4u + copy) * ST_SECTOR;
-    if (obj == OBJ_PROG)
-        return ST_SMK_HIGH + copy * ST_SECTOR;
+    if (obj == OBJ_PROG)                              /* (A in FL_DATA, B the sector before key_mac: issue 64) */
+        return copy ? FL_SPARE_LO : ST_SMK_HIGH + 3u * ST_SECTOR;
     if (obj >= OBJ_CZBANK0 && obj < OBJ_CZBANK0 + 8u)
         return ST_SMK_CZB + ((obj - OBJ_CZBANK0) * 2u + copy) * ST_SECTOR;
     if (obj == OBJ_FM6BANK)

@@ -9,7 +9,7 @@ manual (docs/MANUAL.md). This page is the store: the format, where it lives, the
 | --- | --- |
 | Contract | `firmware/src/cr_prog.h` (between the store, the engine / UI and the web editor `web/fm1prog.js`) |
 | Store | `firmware/src/cr_prog.c` (the RAM copy, the check, the factory set) |
-| Flash | `storage.c` object `OBJ_PROG` (21): FM-1 0xB2000 / 0xB3000, SMK-37 0xB0000 / 0xB1000 |
+| Flash | `storage.c` object `OBJ_PROG` (21): FM-1 0xB2000 / 0xB3000, SMK-37 0xB3000 / 0xFE000 |
 | Backup | id 24 (`CRPG_BACKUP_ID`; web/EDITOR_PROTOCOL.md "ChoralRoot: backup and restore") |
 | Tests | `tests/cr_prog_test.c` (the format, the lookups, the power-on), `tests/cr_backup_test.c` (id 24) |
 
@@ -58,9 +58,13 @@ that is not current, the commit record last; a torn write leaves the previous co
 | Board | Copies | Before |
 | --- | --- | --- |
 | FM-1 | 0xB2000 / 0xB3000 | 0.21's FM TONE store, free since HISTORY 3y231 |
-| SMK-37 | 0xB0000 / 0xB1000 (the first pair of `ST_SMK_HIGH`) | 0.21's CZ-1 tone store 2, free since 3y231 |
+| SMK-37 | 0xB3000 / 0xFE000 (`ST_SMK_HIGH`'s fourth sector; `FL_SPARE`, the one sector between the stock resources and key_mac, a store window of its own) | 0.21's FM TONE store's second sector, free since 3y231; never written |
 
-A record 0.21 left in those sectors names its own object in its header (17 or 8), so storage.c refuses it: such a unit
+The SMK-37's copies are apart because nothing else was free: 0xB0000..0xB2FFF is left to the second resource region
+of claude/smk-ble (HISTORY 3y309), which must shrink to those three sectors (12 224 data bytes; it held 12 540, and its
+first region has room for a table moved across) before it is merged.
+
+A record 0.21 left in those sectors names its own object in its header (17), so storage.c refuses it: such a unit
 plays the factory set until progressions are sent. Options > Flash Data (SAFE MODE) erases the pair on both boards (the
 FM-1's list in `cr_ui.c cu_flash_erase`, the SMK-37's `ST_SMK_REGIONS`, which a change of the store's owner clears too).
 

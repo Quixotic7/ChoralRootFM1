@@ -4,7 +4,7 @@
  * the chord stored for it in the selected progression. This header is the contract between the store (cr_prog.c),
  * the engine / UI (cr_engine.c, cr_ui.c) and the web editor (web/fm1prog.js); docs/PROGRESSIONS.md has the prose.
  *
- * The object (storage.c OBJ_PROG, one A/B pair: FM-1 0xB2000 / 0xB3000, SMK-37 0xB0000 / 0xB1000; backup id
+ * The object (storage.c OBJ_PROG, one A/B pair: FM-1 0xB2000 / 0xB3000, SMK-37 0xB3000 / 0xFE000; backup id
  * CRPG_BACKUP_ID), all little-endian, at most CRPG_SIZE bytes:
  *   header     16 bytes   magic u32 CRPG_MAGIC, version u8 CRPG_VERSION, n u8 (= CRPG_N), used u16 (the object's length
  *                         in bytes, header included), rsv[8] 0

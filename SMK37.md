@@ -270,8 +270,8 @@ the first start.
 | 0xAB000-0xACFFF | the settings | FL_DATA |
 | 0xAD000-0xAEFFF | the session | FL_DATA |
 | 0xAF000 | the store owner tag (`SMK37DATACHORAL`) | FL_DATA |
-| 0xB0000-0xB1FFF | the progressions (`cr_prog.c`, docs/PROGRESSIONS.md; 0.21's CZ-1 tones 17..32 before 3y231, whose records name another object and are refused: the factory progressions until the first one is sent) | FL_DATA |
-| 0xB2000-0xB3FFF | free (0.21's FM TONE store's place: not read since 3y231) | FL_DATA |
+| 0xB0000-0xB2FFF | free (0.21's CZ-1 tones 17..32 and FM TONE store's place: not read since 3y231) | FL_DATA |
+| 0xB3000-0xB3FFF | the progressions, copy A (`cr_prog.c`, docs/PROGRESSIONS.md; a 0.21 record left there names another object and is refused: the factory progressions until the first one is sent) | FL_DATA |
 | 0xB4000-0xB5FFF | the favourites | FL_DATA |
 | 0xB6000-0xBAFFF | the sound pool, sectors 0..4 | FL_DATA |
 | 0xBB000-0xBFFFF | the update's staging (M-UPGRADE's loader and its record) | FL_OTA |
@@ -283,7 +283,7 @@ the first start.
 | 0xEB000-0xF1FFF | the sound pool, sectors 9..15 | FL_TAIL |
 | 0xF2000-0xF3FFF | free | not written |
 | 0xF4000-0xFDFFF | USR (the stock resources) | never |
-| 0xFE000-0xFEFFF | free | not written |
+| 0xFE000-0xFEFFF | the progressions, copy B (free and never written before them) | FL_SPARE |
 | 0xFF000-0xFFFFF | key_mac | never |
 
 Each object has two copies (A / B); the pool's 16 sectors float (each save goes to a free one). Options > Flash Data (in

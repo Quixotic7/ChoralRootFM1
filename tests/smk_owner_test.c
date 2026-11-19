@@ -88,6 +88,7 @@ static void fill(void)
     memset(nor + 0xEB000, 0x44, 0x7000);           /* the pool's third run, in FL_TAIL */
     memset(nor + 0xF2000, 0x66, 0x2000);           /* the rest of the free tail: not ChoralRoot's, never touched */
     memset(nor + 0xF4000, 0x77, 0xA000);           /* USR, the stock resources: never touched */
+    memset(nor + 0xFE000, 0x22, 0x1000);           /* FL_SPARE: the progressions' copy B (issue 64): cleared */
     memset(nor + 0xFF000, 0x88, 0x1000);           /* key_mac: never touched */
 }
 static int all(uint32_t lo, uint32_t hi, uint8_t v)
@@ -123,7 +124,7 @@ static int is_stock(void)
 static int store_erased(void)
 {
     return all(0xA9000, 0xAF000, 0xFF) && all(0xB0000, 0xBB000, 0xFF) && all(0xC2000, 0xEA000, 0xFF) &&
-           all(0xEB000, 0xF2000, 0xFF);
+           all(0xEB000, 0xF2000, 0xFF) && all(0xFE000, 0xFF000, 0xFF);
 }
 static int others_kept(void)
 {

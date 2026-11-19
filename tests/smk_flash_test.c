@@ -35,18 +35,19 @@ static void check(const char *what, int ok) { printf("smk flash: %-80s %s\n", wh
 
 static int protected_sector(uint32_t s)
 {
-    return s < 0x4000u || (s >= 0xC0000u && s < 0xC2000u) || (s >= 0xF4000u && s < 0xFE000u) || s >= 0xFF000u;
+    return s < 0x4000u || (s >= 0xC0000u && s < 0xC2000u) || (s >= 0xF4000u && s < 0xFE000u) || s >= 0xFF000u;   /* (0xFE000:
+                                                                 * FL_SPARE, the progressions' copy B, issue 64) */
 }
 
 static uint8_t owner[0x100];                                /* by sector: who holds it (0 none) */
 
 /* the sectors 0.21's objects held (Felucca's projects and user preset banks from ST_SMK_BASE, the CZ-1 and QUAD stores
- * from ST_SMK_HIGH; storage.c before 3y231): no object's now but the CZ-1 store 2's pair, the progressions' since
- * (OBJ_PROG), cleared with their regions on an owner change */
+ * from ST_SMK_HIGH; storage.c before 3y231): no object's now (0xB3000, the QUAD store's second, is the progressions'
+ * copy A since issue 64), cleared with their regions on an owner change */
 static int smk_freed(uint32_t s)
 {
     return (s >= ST_SMK_BASE && s < ST_SMK_BASE + 12u * ST_SECTOR) ||
-           (s >= ST_SMK_HIGH + 2u * ST_SECTOR && s < ST_SMK_HIGH + 4u * ST_SECTOR);
+           (s >= ST_SMK_HIGH && s < ST_SMK_HIGH + 3u * ST_SECTOR);
 }
 static int in_regions(uint32_t s)                           /* the sector is one ST_SMK_REGIONS clears */
 {
@@ -79,12 +80,13 @@ int main(void)
     check("wrapping ranges refused (off + n past 4 GiB)",
           !FL_GUARD(0xBB000u, 0xFFFFF000u) && !LDR_RANGE_OK(0x9D000u, 0xFFFFFF00u) && FL_PROTECTED(0xBB000u, 0xFFFFF000u));
     check("app windows: FL_DATA 0xA9000-0xBAFFF, FL_OTA 0xBB000-0xBFFFF, USRFLASH 0xC2000-0xE9FFF, the stock marker sector, "
-          "FL_TAIL 0xEB000-0xF1FFF",
+          "FL_TAIL 0xEB000-0xF1FFF, FL_SPARE 0xFE000 (that sector alone)",
           FL_GUARD(0xA9000u, 0x1000u) && FL_GUARD(0xBA000u, 0x1000u) && FL_GUARD(0xBF000u, 0x1000u) &&
           FL_GUARD(0xC2000u, 0x1000u) && FL_GUARD(0xE9000u, 0x1000u) && FL_GUARD(0xEA000u, 0x1000u) &&
           FL_GUARD(0xEB000u, 0x1000u) && FL_GUARD(0xF1000u, 0x1000u) && !FL_GUARD(0xF2000u, 0x1000u) &&
-          !FL_GUARD(0xF3000u, 0x1000u) && !FL_GUARD(0x9C000u, 0x1000u) &&
-          allowed == (0xC0000u - 0xA9000u + 0xEA000u - 0xC2000u + 0xF2000u - 0xEB000u) / 0x1000u + 1u &&
+          !FL_GUARD(0xF3000u, 0x1000u) && !FL_GUARD(0x9C000u, 0x1000u) && FL_GUARD(0xFE000u, 0x1000u) &&
+          !FL_GUARD(0xFD000u, 0x1000u) && !FL_GUARD(0xFE000u, 0x2000u) && !FL_GUARD(0xFD000u, 0x2000u) &&
+          allowed == (0xC0000u - 0xA9000u + 0xEA000u - 0xC2000u + 0xF2000u - 0xEB000u) / 0x1000u + 2u &&
           FL_TAIL_LO == FL_SMP_HI + 0x1000u && FL_TAIL_HI <= FL_USRRES_LO);
     check("the stock marker sector 0xEA000: the whole sector only (its erase), never a page or a range into it",
           FL_STOCKTAG_OK(0xEA000u, 0x1000u) && !FL_GUARD(0xEA000u, 256u) && !FL_GUARD(0xEAF00u, 256u) &&
@@ -115,8 +117,9 @@ int main(void)
     check("storage.c: the 13 objects stored (A/B, OBJ_FAVS and OBJ_PROG too) in FL_STORE_OK, none protected, no two share "
           "a sector; 0.21's 8 and Bluetooth's (FM-1 only) nowhere", ok && OBJ_COUNT == 22u && OBJ_FAVS == 19u &&
           OBJ_PROG == 21u && k == 18u);
-    check("the progressions 0xB0000 / 0xB1000, the favourites 0xB4000 / 0xB5000, the session 0xAD000 / 0xAE000",
-          st_sector(OBJ_PROG, 0) == 0xB0000u && st_sector(OBJ_PROG, 1) == 0xB1000u &&
+    check("the progressions 0xB3000 / 0xFE000 (0xB0000..0xB2FFF left to smk-ble's second region), the favourites "
+          "0xB4000 / 0xB5000, the session 0xAD000 / 0xAE000",
+          st_sector(OBJ_PROG, 0) == 0xB3000u && st_sector(OBJ_PROG, 1) == 0xFE000u &&
           st_sector(OBJ_FAVS, 0) == 0xB4000u && st_sector(OBJ_FAVS, 1) == 0xB5000u &&
           st_sector(OBJ_SESSION, 0) == 0xAD000u && st_sector(OBJ_SESSION, 1) == 0xAE000u);
     for (k = 0, ok = 1; k < SP_NSEC; k++) {
@@ -146,8 +149,9 @@ int main(void)
         ok &= !owner[s >> 12] && !in_regions(s);
     ok &= !owner[0xEA] && !in_regions(0xEA000u);
     for (s = 0xF2000u; s < 0x100000u; s += 0x1000u)
-        ok &= !owner[s >> 12] && !in_regions(s);
-    check("the OTA staging 0xBB000-0xBFFFF, USRFLASH's last sector 0xEA000 and everything from 0xF2000: no data", ok);
+        ok &= s == FL_SPARE_LO ? owner[s >> 12] == 1u + OBJ_PROG && in_regions(s) : !owner[s >> 12] && !in_regions(s);
+    check("the OTA staging 0xBB000-0xBFFFF, USRFLASH's last sector 0xEA000 and everything from 0xF2000 but FL_SPARE "
+          "0xFE000 (the progressions' copy B): no data", ok);
     for (k = 0, ok = 1; k < sizeof ST_SMK_REGIONS / sizeof ST_SMK_REGIONS[0]; k++)
         for (s = ST_SMK_REGIONS[k][0]; s < ST_SMK_REGIONS[k][0] + ST_SMK_REGIONS[k][1] * ST_SECTOR; s += 0x1000u)
             ok &= FL_STORE_OK(s, 0x1000u) && (owner[s >> 12] != 0) != smk_freed(s);

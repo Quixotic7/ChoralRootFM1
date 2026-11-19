@@ -8702,8 +8702,10 @@ progressions." Designed with the owner first (a Claude Design mock-up; their ans
 the keys, chords over 8 notes are trimmed, MIDI In on the MIDI Keys channel only, six factory progressions of our own,
 `Prog` in purple, Velocity and Humanize on page 3, the Keyboard view untouched). **The store** (`cr_prog.h` / `.c`,
 docs/PROGRESSIONS.md): 16 progressions of up to 48 keys, a chord up to 8 absolute notes, packed into one object of at
-most 3840 bytes (`OBJ_PROG` 21: FM-1 0xB2000 / 0xB3000, SMK-37 0xB0000 / 0xB1000, both free since 3y231; a 0.21 record
-there names another object and is refused); a RAM copy (+3840 B) so the audio side resolves a loop's chord without
+most 3840 bytes (`OBJ_PROG` 21: FM-1 0xB2000 / 0xB3000, both free since 3y231; SMK-37 0xB3000 / 0xFE000, the
+first free since 3y231, the second the sector before key_mac, never written, a store window of its own `FL_SPARE`:
+claude/smk-ble's second region keeps 0xB0000..0xB2FFF and must shrink to it; a 0.21 record there names another object
+and is refused); a RAM copy (+3840 B) so the audio side resolves a loop's chord without
 flash; the factory set when nothing valid is stored, never written at power-on; backup object 24 (LIST gives the RAM
 copy, a PUT of 0 bytes returns to the factory set); Options > Flash Data erases it. **The keyboard**
 (`cr_engine.c` `CR_Z_PROG` / `CR_Q_PROG`, `cr_prog_key`; `cr_ui.c`): KEY page 2 Keyboard Chords / Full / Prog, a new
