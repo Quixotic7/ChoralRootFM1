@@ -23,7 +23,7 @@ All little-endian, at most `CRPG_SIZE` = 3840 bytes (one sector's payload, `ST_P
 | 4 | version | `CRPG_VERSION` 1 |
 | 5 | n | `CRPG_N` 16: the progressions |
 | 6..7 | used | the object's length in bytes, header included; equal to the stored length |
-| 8..15 | rsv | 0 |
+| 8..15 | home | each progression's home key, a pitch class 0..11 (C..B): progression p in byte 8 + p / 2, the low nibble for an even p, the high one for an odd p; 0 for an empty slot. A reserve of 0s until 2026-11-19, so an older object reads every home key as C. With Key Mode on, a progression plays moved from its home key to the tonic, the nearest way (-5 .. +6 semitones) |
 | 16..271 | directory | 16 entries of 16 bytes, one per progression (slot 1 first) |
 | 272.. | data | the chords of the used slots |
 
@@ -40,8 +40,8 @@ The data of a used slot, at `off`: `nkeys` records, one per key from key 0, each
 notes (MIDI 0..127, ascending, distinct). n = 0 is a key without a chord: it is silent. The slots' data do not overlap
 and lie in [272, used); gaps are allowed (a writer packs them in slot order, so there are none).
 
-**Valid** (`crp_valid`) is exactly that: the magic, version 1, n = 16, used = the stored length, 272 <= used <= 3840, the
-reserved bytes 0, every name printable and 0-padded, base <= 127, nkeys <= 48, an empty slot with no off and no name,
+**Valid** (`crp_valid`) is exactly that: the magic, version 1, n = 16, used = the stored length, 272 <= used <= 3840, every
+home key 0..11 and 0 on an empty slot, every name printable and 0-padded, base <= 127, nkeys <= 48, an empty slot with no off and no name,
 every used slot's off in [272, used) and every record (its count and its notes) before used, at most 8 notes, notes
 strictly ascending and <= 127, no two slots' data overlapping. Anything else makes the whole object invalid and the unit
 plays the factory set instead; there is no partial reading.

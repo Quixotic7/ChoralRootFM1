@@ -2332,8 +2332,8 @@ has '^key: root tonic C ' "$L" && has '^key: root tonic C# ' "$L" &&
     || bad "C4 / C#4 in the KEY layer: $(grep -a '^key: root tonic' "$L" | tr '\n' ';')"
 [ "$(pr_pf 2 on)" = 1 ] && has '^key: tap chords (prog aside)' "$L" && [ "$(grep -a '^  prog: on' "$L" | sed -n 3p | sed -n 's/.*prog: on \([01]\) .*/\1/p')" = 0 ] &&
     [ "$(grep -a '^  kbd:' "$L" | sed -n 3p | sed -n 's/.*full \([01]\) .*/\1/p')" = 0 ] &&
-    has '^key: tap prog' "$L" && grep -a '^  prog: on' "$L" | sed -n 5p | grep -q '^  prog: on 1 .*\[t0 key 1 vel [0-9]*: 36 52 55 60 64\]' &&
-    ok "KEY tapped with Keyboard: Prog: the Chords keyboard (Full under it ignored), tapped again: Prog (F3 Pop Four's key 1)" \
+    has '^key: tap prog' "$L" && grep -a '^  prog: on' "$L" | sed -n 5p | grep -q '^  prog: on 1 .*\[t0 key 1 vel [0-9]*: 37 53 56 61 65\]' &&
+    ok "KEY tapped with Keyboard: Prog: the Chords keyboard (Full under it ignored), tapped again: Prog (F3 Pop Four's key 1, moved from C to the tonic C#: 37 53 56 61 65)" \
     || bad "KEY's tap in Prog: $(grep -a '^key: tap' "$L" | tr '\n' ';') / $(grep -a '^  prog: on' "$L" | sed -n 5p)"
 [ "$(grep -a '^key: tap' "$L" | wc -l | tr -d ' ')" = 2 ] && [ "$(grep -a '^  prog: on' "$L" | sed -n 6p | sed -n 's/.*prog: on \([01]\) .*/\1/p')" = 0 ] &&
     ok "Keyboard turned back to Full: KEY's tap is Key Mode's again" || bad "KEY's tap after leaving Prog"

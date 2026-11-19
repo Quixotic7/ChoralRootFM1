@@ -3,11 +3,13 @@
 //
 // Node checks of the progressions' web side (web/fm1prog.js; GitHub issue 64; the contract firmware/src/cr_prog.h), no
 // browser, no hardware. Run from the repo root: node web/test_prog.mjs
-// - the object: encode -> decode round trip (the bytes as cr_prog.h lays them out), and every rule of crp_valid, each
-//   broken once on a valid object; the encoder's refusals (a bad name, too many notes / keys, too big: which to shorten)
+// - the object: encode -> decode round trip (the bytes as cr_prog.h lays them out, the home keys' nibbles), and every
+//   rule of crp_valid, each broken once on a valid object (each home nibble 12..15; an empty slot's home); an old object
+//   (home bytes 0) reads C; the encoder's refusals (a bad name, too many notes / keys, too big: which to shorten)
 // - Ripchord .rpc: the synthetic files of tests/fixtures/rpc (gaps kept as silent keys, more than 48 keys cut, chords of
 //   more than 8 notes trimmed by the rule, junk after the root element, empty / reversed / single-quoted attributes, a
-//   self-closing input), the name from the file name (12 printable ASCII), export -> import gives the same progression
+//   self-closing input), the name from the file name (12 printable ASCII), the home key guessed from the first chord's
+//   lowest note, export -> import gives the same progression
 // - the trimming rule (doubled pitch classes from the middle out, then the middle; the lowest and highest kept)
 // - the chord names, the editing helpers, a backup file's progressions as library items
 // - the owner's example folder (tmp/ChoralRoot/ChordProgressions, third-party, never in the repo): every file parses,
@@ -18,7 +20,7 @@ import {
   PROG_ID, PROG_N, PROG_KEYS, PROG_NOTES, PROG_DATA, PROG_SIZE, PROG_KEYBEDS, progEncode, progDecode, progValid, progInvalidReason,
   progEmpty, progIsEmpty, progCount, progBytes, progUsedBytes, progFitText, progSame, progCopySet, progParseRpc, progToRpc, progRpcFileName,
   progTrimChord, progNotesSummary, progChordName, progNoteName, progCleanName, progSetChord, progToggleNote, progTidy, progNew, progPlace,
-  progItemsFromFile, progSimFactory,
+  progItemsFromFile, progSimFactory, progSetHome, progGuessHome, progHome, PROG_KEY_NAMES,
 } from "./fm1prog.js";
 import { bkCrc } from "./fm1backup.js";
 
@@ -30,12 +32,12 @@ const fix = (n) => readFileSync(join(FIX, n), "utf8");
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 /* ------------------------------------------------------------- the object --- */
-const A = { name: "POP FOUR", base: 48, keys: [[36, 48, 52, 55], [43, 55, 59, 62], [], [45, 57, 60, 64]] };
-const B = { name: "", base: 60, keys: [[60], [], []] };                                // an all-zero name, trailing silent keys
+const A = { name: "POP FOUR", base: 48, home: 7, keys: [[36, 48, 52, 55], [43, 55, 59, 62], [], [45, 57, 60, 64]] };   // home G
+const B = { name: "", base: 60, home: 11, keys: [[60], [], []] };                      // an all-zero name, trailing silent keys; home B
 const set = progCopySet([]); set[0] = A; set[5] = B;
 const bytes = progEncode(set), v = new DataView(bytes.buffer);
 ok(bytes.length === PROG_DATA + progBytes(A) + progBytes(B) && v.getUint32(0, true) === 0x31505243 && bytes[4] === 1 && bytes[5] === 16 &&
-   v.getUint16(6, true) === bytes.length && bytes.subarray(8, 16).every((x) => !x), "encode: header (CRP1, version 1, 16, used = the length, rsv 0)");
+   v.getUint16(6, true) === bytes.length && eq([...bytes.subarray(8, 16)], [7, 0, 0xB0, 0, 0, 0, 0, 0]), "encode: header (CRP1, version 1, 16, used = the length, home nibbles)");
 ok(String.fromCharCode(...bytes.subarray(16, 24)) === "POP FOUR" && bytes[24] === 0 && bytes[28] === 48 && bytes[29] === 4 && v.getUint16(30, true) === PROG_DATA &&
    bytes[16 + 5 * 16 + 12] === 60 && bytes[16 + 5 * 16 + 13] === 3 && v.getUint16(16 + 5 * 16 + 14, true) === PROG_DATA + progBytes(A) &&
    bytes.subarray(32, 32 + 16).every((x) => !x), "encode: directory (name, base, nkeys, off; an empty slot all 0), data in slot order");
@@ -58,7 +60,23 @@ bad("another version", (b) => { b[4] = 2; });
 bad("n != 16", (b) => { b[5] = 15; });
 bad("used != the length", (_, d) => d.setUint16(6, bytes.length - 1, true));
 { const b = new Uint8Array(bytes.length + 1); b.set(bytes); ok(!progValid(b), "invalid: a byte past used (length != used)"); }
-bad("a reserved header byte set", (b) => { b[11] = 1; });
+for (let k = 0; k < 16; k++) for (const h of [12, 13, 14, 15]) {          // (every slot's nibble, used or empty, each value 12..15)
+  const b = bytes.slice(), i = 8 + (k >> 1), sh = (k & 1) * 4; b[i] = (b[i] & ~(15 << sh)) | (h << sh);
+  if (progValid(b)) ok(false, `invalid: progression ${k + 1}'s home nibble ${h}`);
+}
+ok(true, "invalid: a home nibble 12..15 in any of the 16 slots (64 cases)");
+bad("slot 1's home nibble 12 (low nibble of byte 8)", (b) => { b[8] = 12; });
+bad("slot 6's home nibble 15 (high nibble of byte 10)", (b) => { b[10] = 0xF0; });
+bad("an empty slot with a home key (slot 3, low nibble of byte 9)", (b) => { b[9] = 1; });
+bad("an empty slot with a home key (slot 16, high nibble of byte 15)", (b) => { b[15] = 0x10; });
+okay("a used slot's home 11 (B)", (b) => { b[8] = 11; });
+{ const b = bytes.slice(); b.fill(0, 8, 16);
+  ok(progValid(b) && progDecode(b).every((p) => p.home === 0) && progDecode(b)[0].keys.length === 4, "an old object (home bytes all 0): valid, every home key C"); }
+ok(eq(progDecode(bytes).map((p) => p.home), [7, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), "decode: the home keys (G in slot 1, B in slot 6, the rest C)");
+ok(throws(() => progEncode(Object.assign(progCopySet([]), { 2: { ...A, home: 12 } })), /home key/) && throws(() => progEncode(Object.assign(progCopySet([]), { 2: { ...A, home: -1 } })), /home key/) &&
+   throws(() => progEncode(Object.assign(progCopySet([]), { 2: { ...A, home: 1.5 } })), /home key/), "encode: a home key 12, -1, 1.5 refused");
+{ const s = progCopySet([]); s[4] = { ...progEmpty(), home: 5 };
+  ok(progEncode(s)[10] === 0, "encode: an empty slot's home key written as 0"); }
 bad("an empty slot with a name byte", (b) => { b[16 + 2 * 16] = 65; });
 bad("an empty slot with an offset", (_, d) => d.setUint16(16 + 2 * 16 + 14, PROG_DATA, true));
 okay("an empty slot's base set (<= 127)", (b) => { b[16 + 2 * 16 + 12] = 99; });
@@ -141,9 +159,14 @@ ok(progFitText(set) === "" && progUsedBytes(set) === bytes.length, "capacity: a 
   // export -> import: the same progression
   for (const p of [g.prog, w.prog, bc.prog, j.prog, q.prog, A, { name: "Lead Gap", base: 50, keys: [[], [60, 64], [], [62], []] }]) {
     const text = progToRpc(p), r = progParseRpc(text, progRpcFileName(p));
-    ok(progSame(r.prog, p) && !r.notes.length, `export -> import: ${p.name} (${p.keys.length} keys) the same`);
+    ok(progSame(r.prog, { ...p, home: progGuessHome(p.keys) }) && !r.notes.length,
+       `export -> import: ${p.name} (${p.keys.length} keys) the same (the home key guessed again)`);
   }
   const t = progToRpc(A);
+  ok(progToRpc({ ...A, home: 3 }) === t, "export: the home key not written (.rpc has no key)");
+  ok(g.prog.home === 0 && w.prog.home === progGuessHome(w.prog.keys) && bc.prog.home === 0 && j.prog.home === 4 && q.prog.home === 0 &&
+     progParseRpc('<ripchord><input note="60"><chord notes=""/></input><input note="61"><chord notes="62;57;69"/></input></ripchord>', "x.rpc").prog.home === 9,
+     "rpc: the home key: the lowest note of the first chord with notes (Gaps Test C, junk after E, a silent first key skipped: A)");
   ok(t.startsWith('<?xml version="1.0" encoding="UTF-8"?>') && t.includes('<input note="48">') && t.includes('<chord name="C2 C3 E3 G3" notes="36;48;52;55"/>') &&
      !t.includes('note="50"') && t.includes('<input note="51">'), "export: Ripchord's layout, names as Ripchord writes them (sharps, 60 = C4); a silent key inside left out");
   ok(progRpcFileName({ name: "A/B: C?" }) === "A_B_ C_.rpc" && progRpcFileName(progEmpty()) === "progression.rpc" && throws(() => progToRpc(progEmpty())),
@@ -166,9 +189,16 @@ ok(PROG_KEYBEDS.fm1.keys === 27 && PROG_KEYBEDS.fm1.low === 53 && PROG_KEYBEDS.s
   ok(q.keys[4].length === 8 && throws(() => progToggleNote(q, 4, 83), /at most 8/), "edit: a ninth note refused");
   ok(progIsEmpty(progSetChord(p, 4, [])) && eq(progSetChord(p, 1, [72, 60, 60]).keys[1], [60, 72]) && throws(() => progSetChord(p, 48, [60])),
      "edit: Clear of the last chord drops the trailing silent keys; Paste sorts and dedupes; key 49 refused");
-  ok(eq(progTidy({ name: "x", base: 1, keys: [[1], [], []] }).keys, [[1]]) && progNew().base === 48 && progCount(p) === 1, "edit: tidy, a new progression");
+  ok(eq(progTidy({ name: "x", base: 1, keys: [[1], [], []] }).keys, [[1]]) && progNew().base === 48 && progNew().home === 0 && progCount(p) === 1 && p.home === 0,
+     "edit: tidy, a new progression (home C); an empty slot's first chord: home C");
+  const h = progSetHome(p, 10);
+  ok(h.home === 10 && p.home === 0 && progSame(progToggleNote(h, 4, 72), { ...progToggleNote(p, 4, 72), home: 10 }) && !progSame(h, p) &&
+     throws(() => progSetHome(p, 12), /0\.\.11/) && throws(() => progSetHome(progEmpty(), 3), /empty/) && PROG_KEY_NAMES[10] === "A#" && PROG_KEY_NAMES.length === 12,
+     "edit: the home key set (A#), kept by later edits, part of progSame; 12 and an empty slot refused");
+  ok(progHome({ name: "old", base: 48, keys: [[60]] }) === 0 && progCopySet([{ name: "old", base: 48, keys: [[60]] }])[0].home === 0,
+     "edit: a progression without the field (an old library item): home C");
   const s2 = progPlace(set, 9, A);
-  ok(progSame(s2[9], A) && s2[9] !== A && progIsEmpty(set[9]) && throws(() => progPlace(set, 16, A)), "place: into slot 10 (a copy; the set before untouched); slot 17 refused");
+  ok(progSame(s2[9], A) && s2[9].home === 7 && s2[9] !== A && progIsEmpty(set[9]) && throws(() => progPlace(set, 16, A)), "place: into slot 10 (a copy; the set before untouched); slot 17 refused");
 }
 
 /* ------------------------------------------------- library items, the factory stand-in --- */
@@ -184,6 +214,8 @@ ok(PROG_KEYBEDS.fm1.keys === 27 && PROG_KEYBEDS.fm1.low === 53 && PROG_KEYBEDS.s
   const f = progDecode(fac);
   ok(fac.length === 560 && f.slice(0, 6).every((p) => p.keys.length === 8 && p.base === 48 && p.keys.every((c) => c.length === 5)) && f.slice(6).every(progIsEmpty),
      "simulator's factory stand-in: the firmware's shape (slots 1..6, 8 keys of 5 notes, base 48, 560 bytes)");
+  ok(eq(f.map((p) => p.home), [0, 0, 3, 0, 9, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) && eq([...fac.subarray(8, 16)], [0, 0x03, 0x29, 0, 0, 0, 0, 0]) &&
+     items[2].prog.home === 3, "factory home keys: Pop Four C, Jazz ii-V-I C, Neo Soul Eb, Gospel Walk C, Minor Epic A, Dorian Days D");
 }
 
 /* ------------------------------------------------- the owner's example folder (if present) --- */

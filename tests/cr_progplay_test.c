@@ -269,6 +269,39 @@ static void t_play(void)
     cr_prog_key(&C, 8, 0, 0, 0, 0);
     cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
     ok(!cr_voices(&C) && !sounding(CR_STREAM_MAIN) && !C.phys_n, "play: all let go: no voice, no note, nothing held");
+    /* the home key (crp_home) moved to Key Mode's tonic, the nearest way (the owner, 2026-11-19) */
+    cr_prog_home_source(crp_home);
+    cr_set_key(&C, 1, 2, CR_SCALE_MAJOR);          /* D: Pop Four (home C) up 2 */
+    from = nev;
+    cr_prog_key(&C, 8, 0, 0, 100, 1);
+    m = ons(from, n, NULL);
+    memcpy(want, (const uint8_t[]){38, 54, 57, 62, 66}, 5);
+    ok(same(n, m, want, 5), "home key: Pop Four (C) in D: every note up 2");
+    cr_prog_key(&C, 8, 0, 0, 0, 0);
+    cr_set_key(&C, 1, 9, CR_SCALE_MINOR);          /* A: the nearest way is down 3 */
+    from = nev;
+    cr_prog_key(&C, 8, 0, 0, 100, 1);
+    m = ons(from, n, NULL);
+    memcpy(want, (const uint8_t[]){33, 49, 52, 57, 61}, 5);
+    ok(same(n, m, want, 5), "home key: Pop Four in A: down 3 (not up 9)");
+    cr_prog_key(&C, 8, 0, 0, 0, 0);
+    cr_set_key(&C, 1, 3, CR_SCALE_MAJOR);          /* Neo Soul (home Eb) in Eb: as stored */
+    from = nev;
+    cr_prog_key(&C, 8, 2, 0, 100, 1);
+    m = ons(from, n, NULL);
+    memcpy(want, (const uint8_t[]){39, 55, 58, 62, 65}, 5);
+    ok(same(n, m, want, 5), "home key: Neo Soul (Eb) in Eb: as stored");
+    cr_prog_key(&C, 8, 2, 0, 0, 0);
+    cr_set_key(&C, 0, 3, CR_SCALE_MAJOR);          /* Key Mode off: no move */
+    from = nev;
+    cr_prog_key(&C, 8, 0, 0, 100, 1);
+    m = ons(from, n, NULL);
+    memcpy(want, (const uint8_t[]){36, 52, 55, 60, 64}, 5);
+    ok(same(n, m, want, 5), "home key: Key Mode off: as stored");
+    cr_prog_key(&C, 8, 0, 0, 0, 0);
+    cr_prog_home_source(0);
+    cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
+    step(300);
     /* a root (MIDI Roots) on the same number: its own */
     cr_key(&C, 3, 100, 1);
     cr_prog_key(&C, 3, 0, 0, 100, 1);

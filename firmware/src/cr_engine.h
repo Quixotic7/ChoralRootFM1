@@ -432,6 +432,11 @@ void cr_prog_key(cr_t *c, uint8_t trig, uint8_t p, uint8_t i, uint8_t vel, int d
  * (cr_prog.h crp_chord) */
 typedef unsigned (*cr_prog_fn)(unsigned p, unsigned i, uint8_t notes[CR_CHORD_MAX]);
 void cr_prog_source(cr_prog_fn fn);
+/* each progression's home key (0..11; cr_prog.c crp_home): with Key Mode on a trigger plays its chord moved from the
+ * home key to the tonic, the nearest way (-5 .. +6), on top of the Transpose (the owner, 2026-11-19). No source, or Key
+ * Mode off: no move. A loop or pad keeps the move it was played with (in its reference's transpose) */
+typedef unsigned (*cr_prog_home_fn)(unsigned p);
+void cr_prog_home_source(cr_prog_home_fn fn);
 /* Humanize 0..100 %: every note a progression's chord starts (a performance's steps too) gets its velocity + a random
  * offset in +-(pct x 40 / 100), from the engine's RNG (cr_seed), clamped 1..127. 0: as played */
 void cr_set_prog_humanize(cr_t *c, int pct);

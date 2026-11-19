@@ -652,8 +652,12 @@ KNOB 2 ends it: Prog, or Chords / Full as you choose.
   to 51 ..: four places at most); they do not change the octave here. A pop-up shows the keys you are on, the top
   right of the Chord view keeps them (`keys 13-39`) and OCT+ is lit while you are past the start. HOME goes back to
   the start.
+- **The key.** Every progression has a home key (set in the device manager; an imported Ripchord preset gets the bass
+  of its first chord, the factory six C, C, Eb, C, A and D). With Key Mode on, the progression plays moved from its
+  home key to the tonic you pick in the KEY layer, the nearest way (at most 6 semitones up or down): Pop Four in D is
+  up a tone, in A down a minor third. With Key Mode off it plays as written. Only the tonic counts, not the scale.
 - The chord is the stored notes moved by Transpose (page 1) and turned by the **voicing** (KNOB 1 on the view), as
-  any chord. Key Mode, the chord keys, LOCK and Single leave it alone: LOCK latches nothing here, and what it had
+  any chord. The chord keys, LOCK and Single leave it alone: LOCK latches nothing here, and what it had
   latched is back when Keyboard leaves Prog. Changing to or from Prog lets go of the keys held.
 - The Chord view names the chord from its notes (`Em9`, `C7/E`, `Gdim7/B`; a set it has no name for shows its bass
   note) and lists every note, the bass's in orange; the top line says which progression and key in purple (`Neo

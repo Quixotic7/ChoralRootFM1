@@ -7,15 +7,19 @@
  * The object (storage.c OBJ_PROG, one A/B pair: FM-1 0xB2000 / 0xB3000, SMK-37 0xB3000 / 0xFE000; backup id
  * CRPG_BACKUP_ID), all little-endian, at most CRPG_SIZE bytes:
  *   header     16 bytes   magic u32 CRPG_MAGIC, version u8 CRPG_VERSION, n u8 (= CRPG_N), used u16 (the object's length
- *                         in bytes, header included), rsv[8] 0
+ *                         in bytes, header included), home[8]: each progression's home key, a pitch class 0..11 (C..B),
+ *                         progression p in byte 8 + p / 2, the low nibble for an even p, the high for an odd one; an
+ *                         empty slot's 0 (these bytes were a reserve of 0s: an older object reads every home key as C).
+ *                         With Key Mode on a progression plays moved from its home key to the tonic, the nearest way
+ *                         (-5 .. +6 semitones; the owner, 2026-11-19)
  *   directory  CRPG_N x 16 name[CRPG_NAME] (ASCII 0x20..0x7E, 0-padded, need not end in 0), base u8 (the Ripchord
  *                         trigger note of key 0, kept for the .rpc round trip; 0..127), nkeys u8 (0..CRPG_KEYS; 0 = an
  *                         empty slot, then off is 0 and the name is all 0), off u16 (its data's offset from the start)
  *   data       per used slot, at off: nkeys records [n u8 0..CRPG_NOTES][n notes, ascending, distinct, 0..127]; n = 0
  *                         is a key with no chord (silent). The slots' data do not overlap and lie inside [16 + 16 CRPG_N,
  *                         used).
- * Anything else (another magic or version, n != CRPG_N, used > CRPG_SIZE or < the header and directory, a record out of
- * range, notes not ascending) makes the whole object invalid: the unit then uses the factory set (crp_factory).
+ * Anything else (another magic or version, n != CRPG_N, used > CRPG_SIZE or < the header and directory, a home key past
+ * 11 or set on an empty slot, a record out of range, notes not ascending) makes the whole object invalid: the unit then uses the factory set (crp_factory).
  *
  * Key -> chord: keybed key k (0 = the lowest: F3 on the FM-1, C3 on the SMK-37) plays progression key
  * i = k + 12 * window (window 0..3: OCT- / OCT+ in Prog). i >= nkeys or n = 0: the key is silent. */
@@ -49,6 +53,7 @@ void crp_reload(void);              /* after a backup commit of CRPG_BACKUP_ID: 
 unsigned crp_nkeys(unsigned p);     /* p 0..CRPG_N-1: the keys it spans (0: empty) */
 unsigned crp_count(unsigned p);     /* .. the keys that hold a chord */
 void crp_name(unsigned p, char out[CRPG_NAME + 1]);   /* its name, 0-terminated ("" when empty) */
+unsigned crp_home(unsigned p);      /* its home key 0..11 (C..B; 0 when empty) */
 /* the chord on key i of progression p: its notes (ascending) into notes[], their count; 0 = none (silent) */
 unsigned crp_chord(unsigned p, unsigned i, uint8_t notes[CRPG_NOTES]);
 

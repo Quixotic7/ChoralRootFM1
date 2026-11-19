@@ -15,7 +15,7 @@
 //   not at all, a bank of 0.21's FM TONE slots (16 / 80) kept as read, the favourites without the deleted user slots,
 //   the confirms' words, one Undo step (also after a write stopped part-way)
 // - the progressions (object 24, issue 64): read from a firmware that lists them, a Ripchord preset placed into a slot,
-//   a chord edited, sent (one PUT of 24), read back, Undo; the factory set (a PUT of 0 bytes); an invalid object refused
+//   a chord edited, sent (one PUT of 24), read back, Undo; a home key edited, sent, read back, Undo; the factory set (a PUT of 0 bytes); an invalid object refused
 //   (rc 2), busy refused; a firmware without 24: not read, never written, the page's view hidden
 
 import { readFileSync } from "node:fs";
@@ -24,7 +24,7 @@ import vm from "node:vm";
 import { captureBackup, loopHeader, deviceInfo, readBackup, restoreBackup, backupFileName } from "./fm1backup.js";
 import { FACTORY_PRESETS, FACTORY_FIRST, FACTORY_IDS, readSoundFile, exportSound, exportSyx, parseSoundObjects, recordValid, withBinding, rawBindings, placeSound, writeSounds, POOL_IDS } from "./fm1sounds.js";
 import { quadToV3 } from "./fm1dnsnd.js";
-import { PROG_ID, progDecode, progEncode, progParseRpc, progPlace, progToggleNote, progSame, progIsEmpty, progSimFactory, progFitText, progCopySet } from "./fm1prog.js";
+import { PROG_ID, progDecode, progEncode, progParseRpc, progPlace, progToggleNote, progSame, progIsEmpty, progSimFactory, progFitText, progCopySet, progSetHome } from "./fm1prog.js";
 import { CR_BACKUP_IDS } from "./fm1backup.js";
 import {
   selectOnUnit, selectRequest, playingText, managerDrop, factorySoundFile, factoryFiles, usedSlots, makePack, packFileName, userSoundsPack, renameSoundFile, MANAGER_ENGINES, managerPools, managerLoops, loopSummary, managerPlace, managerPlaceAll, managerSwap, managerRename, managerDelete, managerReplacePlan, managerReplaceFactory, managerRestoreFactory, replaceFactoryText,
@@ -743,6 +743,16 @@ ok(html.includes("managerEngines(connected() ? session.objs : null)") && html.in
   await s.undo();
   ok(progDecode(s.objs.get(PROG_ID)).every((p, k) => progSame(p, unit[k])) && progDecode(sim.objs.get(PROG_ID)).every((p, k) => progSame(p, unit[k])),
      "prog: Undo: the set before written back (the factory set again)");
+  // the home key: Neo Soul (Eb) to F#, sent (one PUT of 24, the header's nibble), read back, Undo: Eb again
+  ok(unit.map((p) => p.home).slice(0, 6).join() === "0,0,3,0,9,2", "prog: the factory set's home keys (C C Eb C A D)");
+  const keyed = progCopySet(unit); keyed[2] = progSetHome(keyed[2], 6);
+  const kp = sim.puts.length, kw = managerProgWrite(s.objs, progEncode(keyed));
+  await s.apply(kw);
+  const kb = progDecode(s.objs.get(PROG_ID)), ku = sim.objs.get(PROG_ID);
+  ok(kw.changed.map((x) => x.id).join() === "24" && sim.puts.slice(kp).map((x) => x.id).join() === "24" && kb[2].home === 6 && ku[9] === 0x06 && ku[10] === 0x29 &&
+     progSame(kb[2], keyed[2]) && kb.every((p, j) => j === 2 || progSame(p, unit[j])) && s.canUndo, "prog: a home key edited (Neo Soul to F#): one PUT of 24, read back, an undo step");
+  await s.undo();
+  ok(progDecode(sim.objs.get(PROG_ID))[2].home === 3 && progDecode(s.objs.get(PROG_ID)).every((p, j) => progSame(p, unit[j])), "prog: Undo of the home key: Eb again on the unit");
   // sending what the unit holds: nothing to write
   ok(!managerProgWrite(s.objs, progEncode(unit)).changed.length, "prog: an unchanged set: nothing to write");
   // the factory set: a PUT of 0 bytes; the unit lists its factory set again
@@ -776,11 +786,12 @@ ok(html.includes("managerEngines(connected() ? session.objs : null)") && html.in
      "prog: a firmware without 24: nothing read, nothing written, progressionsListed false");
 }
 ok(["view-tabs", "view-prog", "prog-view", "pg-slots", "pg-meter", "pg-bytes", "pg-read", "pg-send", "pg-factory", "pg-empty", "pg-drop", "pg-file", "pg-lib-rows", "pg-new", "pg-keep",
-    "pg-name", "pg-bed-fm1", "pg-bed-smk", "pg-export", "pg-chord-kb", "pg-listen", "pg-copy", "pg-paste", "pg-clear", "pg-bed", "pg-wins", "pg-chips"].every((id) => html.includes(`id="${id}"`)) &&
+    "pg-name", "pg-key", "pg-bed-fm1", "pg-bed-smk", "pg-export", "pg-chord-kb", "pg-listen", "pg-copy", "pg-paste", "pg-clear", "pg-bed", "pg-wins", "pg-chips"].every((id) => html.includes(`id="${id}"`)) &&
    html.includes('$("view-prog").hidden = !pgAvailable()') && html.includes("progressionsListed(session)") && html.includes("progFitText(pg.set)") &&
    html.includes("managerProgWrite(session.objs, bytes)") && html.includes("managerProgWrite(session.objs, new Uint8Array(0))") && html.includes("session.apply(res, writeOpts(label))") &&
-   html.includes('new LibraryStore(undefined, "choralroot-progressions")') && html.includes('maxlength="12"'),
-   "page (issue 64): the Progressions view, hidden where the FM-1 does not list 24; Send through the session (undo), refused when too big; the library");
+   html.includes('new LibraryStore(undefined, "choralroot-progressions")') && html.includes('maxlength="12"') &&
+   html.includes('pgEdit((p) => progSetHome(p, +$("pg-key").value))') && html.includes("PROG_KEY_NAMES[progHome(p)]") && /moves it to the tonic you pick when Key Mode is on/.test(html),
+   "page (issue 64): the Progressions view, hidden where the FM-1 does not list 24; Send through the session (undo), refused when too big; the library; the Key select (an edit like the others)");
 
 if (failed) { console.log(`${failed} manager test(s) FAILED`); process.exit(1); }
 console.log("manager tests passed");

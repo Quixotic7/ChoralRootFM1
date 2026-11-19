@@ -39,12 +39,12 @@ int crp_valid(const uint8_t *b, uint32_t n)
     used = crp_rd16(b + 6);
     if (used != n)
         return 0;
-    for (i = 8; i < CRPG_HDR; i++)
-        if (b[i])
-            return 0;
     for (p = 0; p < CRPG_N; p++) {
         const uint8_t *d = b + CRPG_HDR + p * CRPG_DIRENT;
-        uint32_t nk = d[CRPG_NAME + 1u], off = crp_rd16(d + CRPG_NAME + 2u), at, z = 0;
+        uint32_t nk = d[CRPG_NAME + 1u], off = crp_rd16(d + CRPG_NAME + 2u), at, z = 0,
+                 home = (uint32_t)(b[8u + p / 2u] >> (p & 1u ? 4 : 0)) & 15u;
+        if (home > 11u || (!nk && home))             /* the home key: a pitch class, none on an empty slot */
+            return 0;
         for (i = 0; i < CRPG_NAME; i++) {            /* printable ASCII, 0-padded */
             if (!d[i])
                 z = 1;
@@ -88,6 +88,7 @@ int crp_valid(const uint8_t *b, uint32_t n)
 #define CRPG_FAC_BASE 48u
 static const char CRPG_FAC_NAME[CRPG_FAC_N][CRPG_NAME + 1u] = {
     "Pop Four", "Jazz ii-V-I", "Neo Soul", "Gospel Walk", "Minor Epic", "Dorian Days"};
+static const uint8_t CRPG_FAC_HOME[CRPG_FAC_N] = {0, 0, 3, 0, 9, 2};   /* C, C, Eb, C, A (minor), D (dorian) */
 /* per progression, per key: n, then n notes ascending (the bass 36..47, the upper voices 52..72) */
 static const uint8_t CRPG_FAC[] = {
     /* 1 Pop Four: C, G/B, Am, F, C/E, G, Fmaj7, Gsus4 */
@@ -124,6 +125,7 @@ uint32_t crp_factory(uint8_t *b)
         uint8_t *d = b + CRPG_HDR + p * CRPG_DIRENT;
         for (i = 0; i < CRPG_NAME && CRPG_FAC_NAME[p][i]; i++)
             d[i] = (uint8_t)CRPG_FAC_NAME[p][i];
+        b[8u + p / 2u] |= (uint8_t)(CRPG_FAC_HOME[p] << (p & 1u ? 4 : 0));
         d[CRPG_NAME] = CRPG_FAC_BASE;
         d[CRPG_NAME + 1u] = CRPG_FAC_KEYS;
         d[CRPG_NAME + 2u] = (uint8_t)at;
@@ -203,6 +205,14 @@ void crp_name(unsigned p, char out[CRPG_NAME + 1])
     for (i = 0; e && crp_nkeys(p) && i < CRPG_NAME && e[i]; i++)
         out[i] = (char)e[i];
     out[i] = 0;
+}
+unsigned crp_home(unsigned p)
+{
+    unsigned h;
+    if (p >= CRPG_N || !crp_nkeys(p))
+        return 0;
+    h = (unsigned)(crp_x.blk[8u + p / 2u] >> (p & 1u ? 4 : 0)) & 15u;
+    return h < 12u ? h : 0u;
 }
 unsigned crp_chord(unsigned p, unsigned i, uint8_t notes[CRPG_NOTES])
 {
