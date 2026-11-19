@@ -25,6 +25,7 @@
  * the corner dial (the count-in's and undo's ring) and the transport's top line.
  * Included after cr_out.c, cr_anim.c, gfx.c, cr_gfx.c, cr_draw.c, panel.c, cr_bank.c, cr_pages.c and cr_name.c. */
 #include "cr_ui.h"
+#include "rfm1_ext.h"   /* a host's readouts (FM1VST's rd1: the popups' words; nothing in the FM-1's build) */
 
 /* ---------------------------------------------------------------- roles --- */
 /* the printed buttons in ChoralRoot's roles (PLAN.md section 3) */
@@ -2118,6 +2119,7 @@ static void cu_message(const char *t, uint32_t col)
     cu.msg.big = 0;
     cu.msg.col = (uint8_t)col;
     cu_cpy(cu.msg.text, t, sizeof cu.msg.text);
+    RFM1_MESSAGE(t);
 }
 
 /* a knob's meter for CR_POPUP_MS: value huge (the CRX charset: digits, + - . and A-G), sub / label under it */
@@ -2138,6 +2140,7 @@ static void cu_popup(const char *value, const char *sub, const char *label, uint
     cu.pop.col = (uint8_t)col;
     cu.pop.segs = (uint8_t)segs;
     cu.pop.pct = (uint16_t)(hi > lo ? (uint32_t)((v - lo) * 256 / (hi - lo)) : 0u);
+    RFM1_READOUT_SUB(-1, label, value, sub, v, lo, hi);
 }
 /* a send's popup (KNOB 4 of the main view, CC 91 / 93 / 94): the per cent of every send read-out (cu_send_pct), big
  * over "%" (as the click level's), the meter 0 .. 100 */
@@ -2468,6 +2471,7 @@ static void cu_pool_popup(uint32_t part, uint32_t pos)
     cu.pop.mark = en.kind == PK_USER && en.fk != PF_NONE;
     cu.pop.star = (uint8_t)cu_fav_ent(e, en);     /* a favourite: the star before its name */
     cu.pop.pool = (uint8_t)CU_POOL_ID(part, e);
+    RFM1_PRESET(ENGINES[e]->name, nm);
     cu_trace("popup: part %u %s / %s%s%s / ", (unsigned)part, b, nm, cu.pop.mark ? " (mark)" : "",
              cu.pop.star ? " (star)" : "");       /* (the place) */
     cu_trace_txt(lb);
