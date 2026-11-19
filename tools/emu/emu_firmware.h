@@ -140,6 +140,7 @@ static uint32_t emu_shed_model(uint32_t all)
 #include "../../firmware/src/cr_anim.c"
 #define ST_AHEAD 1                                    /* (choralroot.c's: the erase ahead) */
 #include "../../firmware/src/storage.c"               /* (before the sounds: upreset.c's banks, the loop slots) */
+#include "../../firmware/src/cr_prog.c"               /* the progressions' store (cr_prog.h): their RAM copy */
 #define CR_TRACE 1                                    /* cr_ui.c: "param: / page: / save: .." lines in the logs */
 #include "../../firmware/src/cr_favs.c"               /* the favourites (before the sounds) */
 #include "../../firmware/src/cr_bank.c"               /* upreset.c (the flash file) and the factory bank */

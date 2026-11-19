@@ -27,7 +27,10 @@
  *   too, converted at the next boot as at power-on), 14..21 the CZ-1 banks A..H (cz_bank.c: one object a bank, as
  *   Melodee's backup ids 9..16; a bank never saved has no object: its default, Casio's tones or empty), 23 the
  *   favourites (cr_favs.c, 0.22: the marks on sounds; an older firmware has no id 23: it does not list it and answers a
- *   PUT begin of it rc 1, which the clients report as skipped), 40..49 loop slots 1..10 (cr_ui.c's flash records,
+ *   PUT begin of it rc 1, which the clients report as skipped), 24 the progressions (cr_prog.c, GitHub issue 64: listed
+ *   and read from their RAM copy, the stored object or the factory set, so a client sees what the unit plays; a PUT of a
+ *   valid object (crp_valid) stores it, of 0 bytes goes back to the factory set; an older firmware does not list 24),
+ *   40..49 loop slots 1..10 (cr_ui.c's flash records,
  *   docs/LOOPER.md), 50..62 the sound pool's banks (below). 0.21's sound objects 6, 7, 9..13 and 22 are refused (below).
  *   No sample objects: ChoralRoot has no SAMPLE engine; Felucca's 32..34 and SMP_BEGIN .. SMP_ERASE (11..14) are not
  *   answered, so the installer page reports a Felucca archive's samples (and a ChoralRoot 0.1 archive's 32 / 33)
@@ -58,13 +61,15 @@ enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72, CRB_DEBU
 #define CRB_LOOP0 40u                                /* loop slot k: id 40 + k */
 #define CRB_CZB 14u                                  /* 14..21: the CZ-1 banks A..H */
 #define CRB_FAVS 23u                                 /* 23: the favourites (after the sounds they mark) */
+#define CRB_PROG CRPG_BACKUP_ID                      /* 24: the progressions (cr_prog.c; served from their RAM copy) */
 /* ids 50..62: the sound pool's 13 banks (0.22, upool.c; storage.c sp_*: a bank's ST_PAYLOAD_MAX bytes, ten slots of
  * SP_SLOT: the record and its patch). 0.21's sound objects (6, 7 the user banks, 9 the VA store, 10 / 11 FM6's, 12 / 13
  * the CZ-1 tones', 22 FM TONE's) are refused like any id this firmware does not list: 0.22 .. 0.29 took them from an
  * older backup into slots 1..32; since HISTORY 3y231 such a backup restores without its sounds (through 0.29.2 first) */
 #define CRB_POOL 50u                                 /* (not 24..36: Felucca's sample ids 32..34 are refused) */
 static const uint8_t CRB_IDS[] = {1, 8, 14, 15, 16, 17, 18, 19, 20, 21, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62,
-                                  CRB_FAVS, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+                                  CRB_FAVS, CRB_PROG, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+_Static_assert(CRB_PROG == 24u && CRPG_SIZE <= sizeof cu_loop_buf, "backup: the progressions are id 24, staged in cu_loop_buf");
 _Static_assert(SP_NBANK == 13u && CRB_POOL >= CRB_LOOP0 + CRL_SLOTS && CRB_POOL + SP_NBANK <= 64u &&
                ST_PAYLOAD_MAX <= sizeof cu_loop_buf, "backup ids: the pool's banks 50..62 stage in cu_loop_buf");
 static int crb_is_pool(uint32_t id) { return id >= CRB_POOL && id < CRB_POOL + SP_NBANK; }
@@ -96,8 +101,8 @@ static struct {
                                                       * when the host was seen to have it */
     uint32_t stub;                                   /* 77 STUB: the request the restart leaves for the stub */
 } crb;
-#define CRB_COPY_RAM 64                              /* crb.copy: served from RAM (the favourites not yet written; not a
-                                                      * copy 0 / 1 nor a pool sector 0..15) */
+#define CRB_COPY_RAM 64                              /* crb.copy: served from RAM (the favourites not yet written, the
+                                                      * progressions always; not a copy 0 / 1 nor a pool sector 0..15) */
 #if defined(CR_FAVS) && CRF_FLASH
 static uint8_t crb_favram[CRF_PACK_MAX];             /* .. their packed bytes at LIST */
 #endif
@@ -175,10 +180,12 @@ static int crb_index(uint32_t id)
     return -1;
 }
 static int crb_is_loop(uint32_t id) { return id >= CRB_LOOP0 && id < CRB_LOOP0 + CRL_SLOTS; }
-static uint32_t crb_obj(uint32_t id)                 /* storage.c's object of ids 1, 8, 14..21, 23 */
+static uint32_t crb_obj(uint32_t id)                 /* storage.c's object of ids 1, 8, 14..21, 23, 24 */
 {
     if (id == CRB_FAVS)
         return OBJ_FAVS;
+    if (id == CRB_PROG)
+        return OBJ_PROG;
     if (crb_is_czbank(id))
         return OBJ_CZBANK0 + id - CRB_CZB;
     return id == 1u ? (uint32_t)OBJ_SETTINGS : (uint32_t)OBJ_FM6BANK;
@@ -256,6 +263,13 @@ static void crb_list(void)
         uint32_t id = CRB_IDS[i];
         crb.copy[i] = -1;
         crb.size[i] = crc[i] = 0;
+        if (id == CRB_PROG) {                        /* the progressions: their RAM copy (stored or factory: what the
+                                                      * unit plays), in SAFE MODE too */
+            crb.copy[i] = CRB_COPY_RAM;
+            crb.size[i] = crp_x.len;
+            crc[i] = st_crc32(crp_x.blk, crp_x.len);
+            continue;
+        }
 #if defined(CR_FAVS) && CRF_FLASH
         if (id == CRB_FAVS && crf_dirty && !ST_BLOCKED()) {
             crb.copy[i] = CRB_COPY_RAM;
@@ -290,6 +304,13 @@ static void crb_get(const uint8_t *a, uint32_t n)
         rc = 5;
     else if (n != 8u || a[5] > 15u || i < 0 || !count || count > 256u || off > crb.size[i] || count > crb.size[i] - off)
         rc = 1;
+    else if (a[0] == CRB_PROG) {                     /* the RAM copy LIST listed (only a PUT changes it, and a PUT begin
+                                                      * ends the snapshot: rc 5) */
+        uint32_t j;
+        for (j = 0; j < count; j++)
+            CRB_DATA[j] = crp_x.blk[off + j];
+        rc = 0;
+    }
 #if defined(CR_FAVS) && CRF_FLASH
     else if (crb.copy[i] == CRB_COPY_RAM) {          /* the marks as LIST packed them (RAM) */
         uint32_t j;
@@ -338,6 +359,9 @@ static int crb_size_ok(uint32_t id, uint32_t len)   /* a begin's size for this i
         return !len || len == sizeof(cz_bank_t);
     if (id == CRB_FAVS)                              /* (0: none; else the version and the count at least; 264 at most) */
         return !len || (len >= 2u && len <= CRF_PACK_MAX);
+    if (id == CRB_PROG)                              /* (0: back to the factory set; else the header and directory at
+                                                      * least, CRPG_SIZE at most: crp_valid at the commit) */
+        return !len || (len >= CRPG_DATA && len <= CRPG_SIZE);
     if (crb_is_pool(id))                             /* (0: an empty bank) */
         return !len || len == ST_PAYLOAD_MAX;
     if (crb_is_loop(id))
@@ -475,6 +499,22 @@ static uint32_t crb_commit(void)
         if (st_save(OBJ_FAVS, raw, len))
             return 4;
         crf_boot();
+        ui.force = 1;
+        return 0;
+    } else if (id == CRB_PROG) {                     /* the progressions: a valid object, or 0 bytes (the factory set) */
+        st_hdr_t h;
+        uint32_t fl;
+        if (len && !crp_valid(raw, len))
+            return 2;
+        if (st_current(OBJ_PROG, &h) < 0 &&          /* none stored and this firmware's factory set (or none) sent:
+                                                      * nothing to write, the unit plays it already */
+            (!len || ((fl = crp_factory(st_buf)) == len && !memcmp(st_buf, raw, len)))) {
+            crp_reload();
+            return 0;
+        }
+        if (st_save(OBJ_PROG, raw, len))             /* (0 bytes: an empty object, which crp_valid refuses: factory) */
+            return 4;
+        crp_reload();
         ui.force = 1;
         return 0;
     } else if (crb_is_pool(id)) {
@@ -1141,9 +1181,10 @@ static int crb_handle(const uint8_t *f, uint32_t n)
         crb_b(3);                                    /* backup read + restore */
         crb_b(0x43);
         crb_b(1);
-        crb_b(3);                                    /* ChoralRoot backup v3 (0.22): the pool's ids 50..62 (v2: ids 9,
-                                                      * 40..49, RESTART; no samples). (0.22 .. 0.29 also had 80 IMPORT and
-                                                      * took 0.21's sound objects; no host reads this number) */
+        crb_b(4);                                    /* ChoralRoot backup v4: id 24, the progressions (v3, 0.22: the
+                                                      * pool's ids 50..62; v2: ids 9, 40..49, RESTART; no samples).
+                                                      * (0.22 .. 0.29 also had 80 IMPORT and took 0.21's sound objects;
+                                                      * no host reads this number: the clients go by LIST) */
         if (cr_unit_id[0]) {                         /* 49 08: the unit's ID, 8 hex digits in ASCII (3y66, cr_ui.c
                                                       * cr_unit_id; none known: no tag, the reply as before). Appended:
                                                       * the hosts read the version to its NUL, and no host reads a tag

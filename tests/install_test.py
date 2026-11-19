@@ -626,14 +626,17 @@ def official():
 def backups():
     import json
     I.DELAY.update(bk_busy=0.01)
-    cr_objs = {1: per(764, I.PER5, 1), 6: fill(3080, 2), 8: fill(3472, 3), 9: fill(3536, 4), 40: fill(46, 5), 49: fill(3602, 6)}
+    prog = bytearray(272)                         # the progressions (24, issue 64, cr_prog.h): 16 empty slots
+    prog[0:8] = b"CRP1" + bytes([1, 16]) + (272).to_bytes(2, "little")
+    cr_objs = {1: per(764, I.PER5, 1), 6: fill(3080, 2), 8: fill(3472, 3), 9: fill(3536, 4), 24: bytes(prog), 40: fill(46, 5), 49: fill(3602, 6)}
     cr = BackupSide("ChoralRoot 0.1", I.CR_IDS, cr_objs.items())
     dev = FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr)
     path = TMP / "cr.json"
     rc, out, err = cli(["--backup", str(path)], dev)
     f = json.loads(path.read_text()) if path.exists() else {}
     ok(rc == 0 and f.get("firmware") == "ChoralRoot 0.1" and [o["id"] for o in f["objects"]] == I.CR_IDS and
-       "VA patches" in out and "loop slot 10" in out, "--backup: ChoralRoot's 17 objects to a file")
+       "VA patches" in out and "loop slot 10" in out and "progressions" in out and I.object_name(24) == "progressions" and 24 in I.CR_IDS,
+       "--backup: ChoralRoot's objects to a file (the progressions, 24, among them)")
     rc, out, err = cli(["--backup", str(TMP)], dev)
     ok(rc == 0 and list(TMP.glob("choralroot-backup-*.json")), "--backup DIR: a dated choralroot-backup-YYYYMMDD.json")
     blank = BackupSide("ChoralRoot 0.1", I.CR_IDS, busy=1)
@@ -641,6 +644,11 @@ def backups():
     rc, out, err = cli(["--restore", str(path), "--yes"], dev)
     ok(rc == 0 and all(blank.objs.get(i) == v for i, v in cr_objs.items()) and blank.log[-1] == 1 and blank.log[0] == "busy 6" and
        blank.restarts == 1, "--restore: every object back (busy retried, the settings last), then RESTART")
+    noprog = BackupSide("ChoralRoot 0.41", [i for i in I.CR_IDS if i != 24])
+    rc, out, err = cli(["--restore", str(path), "--yes"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: noprog))
+    ok(rc == 0 and 24 not in noprog.objs and 24 not in noprog.log and noprog.objs.get(6) == cr_objs[6] and
+       "not used by" in out and "progressions" in out.split("not used by")[-1],
+       "--restore onto a firmware without progressions: 24 never sent, reported as kept in the file; the rest restored")
     rc, out, err = cli(["--restore", str(path)], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: BackupSide("ChoralRoot 0.1", I.CR_IDS)), answer=False)
     ok(rc == 1 and "cancelled" in out, "--restore: answer no -> nothing written")
 

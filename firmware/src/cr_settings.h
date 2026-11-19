@@ -306,9 +306,9 @@ static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uin
  * CR_BLOCK), so the block keeps its size and its layout and an older firmware reads a v15 block as it read v14's.
  * The record has its own header (magic, version, size, check: FNV-1a over [12, size)), the block's import rules (a
  * shorter, older record over the defaults; a longer, newer one by its prefix; anything else: the defaults = the unit as
- * 0.17 powered on) and real reserve: CSS_SIZE is 1024 of the object's 3840 bytes, 118 of them unused today (42 in the
+ * 0.17 powered on) and real reserve: CSS_SIZE is 1024 of the object's 3840 bytes, 118 of them unused then (42 in the
  * state, 8 in each part, 60 at the end; the SMK-37's MASTER took two of the state's, its Pedal one, its TRS MIDI Out
- * one).
+ * one; the progressions five of the end's).
  * `bind`: the CRC of the settings object in flash when the session was written (0: none). The session is used at
  * power-on if the settings block was read as current (written by a v15 firmware: an older one in between would have
  * left its own version there) or, with any other block, if the settings object is still the one the session was
@@ -466,7 +466,13 @@ typedef struct {
      * entry, mode and parameters stay the block's, so an older firmware reads the chord's Perform as before (and has no bass's) */
     uint8_t perf_x, bperf_sel;
     int16_t bpar[CRS_NPM][4];
-    uint8_t rsv_end[18];
+    /* the progressions (GitHub issue 64; KEY page 2 Keyboard: Prog, page 3), bytes 1006 .. 1010 of the old end reserve
+     * (0 in every older record: the defaults). prog_on 1: Keyboard is Prog (the block's kbd_full stays as it was: an
+     * older firmware, and Keyboard leaving Prog, find Chords / Full there); prog_sel the progression 0..15; prog_win the
+     * OCT window 0..3 (keys 0 / 12 / 24 / 36 along); prog_vel Velocity 50..150 % (0: 100); prog_hum Humanize 0..100 %.
+     * Out of range: 0 */
+    uint8_t prog_on, prog_sel, prog_win, prog_vel, prog_hum;
+    uint8_t rsv_end[13];
 } cr_session_t;
 
 void cr_session_defaults(cr_session_t *x);         /* nothing stored: the unit as it powers on without a session */

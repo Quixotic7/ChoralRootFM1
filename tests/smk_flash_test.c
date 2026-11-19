@@ -4,7 +4,8 @@
 /* ChoralRoot on the M-Vave SMK-37, the flash map (build with -DBOARD_SMK37=1): every 4 KiB sector of the 1 MiB part
  * through the app's allow-list (FL_RANGE_OK / FL_GUARD, fm1_flash.h), the update loader's (loader.c) and ldr_core.c's
  * record window: none of them may ever reach the head 0x0-0x3FFF, BTIF / USRTRIM 0xC0000-0xC1FFF, USR 0xF4000-0xFDFFF
- * or key_mac 0xFF000-; every stored object (storage.c: each OBJ_* id's A and B copy, the favourites too), the CZ-1
+ * or key_mac 0xFF000-; every stored object (storage.c: each OBJ_* id's A and B copy, the favourites and the
+ * progressions too), the CZ-1
  * banks, the loop slots, every one of the sound pool's 16 floating sectors (sp_addr), the owner tag and the OTA staging
  * (ota.c, the boot stub's view of it) lie inside the allowed windows (FL_STORE_OK) and outside every protected range
  * (FL_PROTECTED), apart from each other; ranges that wrap or straddle a boundary are refused. */
@@ -40,10 +41,12 @@ static int protected_sector(uint32_t s)
 static uint8_t owner[0x100];                                /* by sector: who holds it (0 none) */
 
 /* the sectors 0.21's objects held (Felucca's projects and user preset banks from ST_SMK_BASE, the CZ-1 and QUAD stores
- * from ST_SMK_HIGH; storage.c before 3y231): no object's now, cleared with their regions on an owner change */
+ * from ST_SMK_HIGH; storage.c before 3y231): no object's now but the CZ-1 store 2's pair, the progressions' since
+ * (OBJ_PROG), cleared with their regions on an owner change */
 static int smk_freed(uint32_t s)
 {
-    return (s >= ST_SMK_BASE && s < ST_SMK_BASE + 12u * ST_SECTOR) || (s >= ST_SMK_HIGH && s < ST_SMK_HIGH + 4u * ST_SECTOR);
+    return (s >= ST_SMK_BASE && s < ST_SMK_BASE + 12u * ST_SECTOR) ||
+           (s >= ST_SMK_HIGH + 2u * ST_SECTOR && s < ST_SMK_HIGH + 4u * ST_SECTOR);
 }
 static int in_regions(uint32_t s)                           /* the sector is one ST_SMK_REGIONS clears */
 {
@@ -109,9 +112,11 @@ int main(void)
             }
             owner[s >> 12] = (uint8_t)(1u + o);
         }
-    check("storage.c: the 12 objects stored (A/B, OBJ_FAVS too) in FL_STORE_OK, none protected, no two share a sector; "
-          "0.21's 8 and Bluetooth's (FM-1 only) nowhere", ok && OBJ_COUNT == 21u && OBJ_FAVS == 19u && k == 18u);
-    check("the favourites 0xB4000 / 0xB5000, the session 0xAD000 / 0xAE000",
+    check("storage.c: the 13 objects stored (A/B, OBJ_FAVS and OBJ_PROG too) in FL_STORE_OK, none protected, no two share "
+          "a sector; 0.21's 8 and Bluetooth's (FM-1 only) nowhere", ok && OBJ_COUNT == 22u && OBJ_FAVS == 19u &&
+          OBJ_PROG == 21u && k == 18u);
+    check("the progressions 0xB0000 / 0xB1000, the favourites 0xB4000 / 0xB5000, the session 0xAD000 / 0xAE000",
+          st_sector(OBJ_PROG, 0) == 0xB0000u && st_sector(OBJ_PROG, 1) == 0xB1000u &&
           st_sector(OBJ_FAVS, 0) == 0xB4000u && st_sector(OBJ_FAVS, 1) == 0xB5000u &&
           st_sector(OBJ_SESSION, 0) == 0xAD000u && st_sector(OBJ_SESSION, 1) == 0xAE000u);
     for (k = 0, ok = 1; k < SP_NSEC; k++) {
@@ -134,7 +139,7 @@ int main(void)
     check("the ten loop slots (A/B) in USRFLASH, apart from every object and the pool", ok && ST_SMK_LOOPS == 0xD2000u);
     for (s = 0, k = 0; s < 0x100000u; s += 0x1000u)
         k += owner[s >> 12] != 0;
-    check("60 data sectors in all (12 objects x 2, 16 pool, 20 loop)", k == 60u);
+    check("62 data sectors in all (13 objects x 2, 16 pool, 20 loop)", k == 62u);
     check("the owner tag 0xAF000: in FL_DATA, nobody else's, never cleared as data",
           ST_OWNER_OFF == 0xAF000u && FL_STORE_OK(ST_OWNER_OFF, 0x1000u) && !owner[0xAF] && !in_regions(ST_OWNER_OFF));
     for (s = FL_OTA_LO, ok = 1; s < FL_OTA_HI; s += 0x1000u)

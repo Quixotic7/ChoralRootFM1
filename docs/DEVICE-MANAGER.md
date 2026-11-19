@@ -350,3 +350,26 @@ The owner: P5 is a current engine (engine 16, Melodee's Prophet-5 model: docs/PR
   `?sim=pool&fw=0.29` makes it say 0.29.
 - Tests: `web/test_manager.mjs` (Place onto 0.28 / 0.29 / no version, Place all onto 0.22, Replace factory onto 0.27
   1-core, the 0.22 simulator written and read back as version 5, the page passing the version), `web/test_dn2.mjs`.
+
+## Progressions (GitHub issue 64, 2026-11-19)
+
+The PROGRESSIONS view (beside SOUNDS & LOOPS; `?view=prog` opens it) edits the unit's 16 progressions, the backup
+object 24 (`firmware/src/cr_prog.h`, docs/PROGRESSIONS.md). It shows only where the firmware lists object 24.
+
+- **On the unit:** the 16 slots with their chord counts and the capacity (bytes used of 3840). Read takes object 24
+  again; Send to FM-1 writes it through the usual session with undo, and refuses a set that does not fit, naming the
+  progression to shorten. Factory set... sends 0 bytes: the unit goes back to its six factory progressions.
+- **Library:** the drop zone takes many Ripchord `.rpc` files at once (and backups holding object 24); each item keeps
+  its import notes ("88 keys: the first 48 kept", chords cut to 8 notes). Place puts it in a slot; Keep in library and
+  Empty slot as for sounds.
+- **The editor:** the name (12 characters), the chord keyboard (click notes to add or remove them, at most 8, the
+  lowest drawn as the bass), the trigger keybed below (FM-1: 27 keys F3..G5; SMK-37: 37 keys C3..C6: only the drawing
+  changes), the chords by name, Listen, Copy / Paste / Clear key, Export .rpc.
+- **Ripchord import** (`web/fm1prog.js`): base = the lowest trigger note, key i = trigger - base, gaps kept as silent
+  keys, keys past 48 dropped; a chord over 8 notes loses doubled pitch classes first, then notes from the middle (the
+  lowest and highest stay). Only the first `<ripchord>` element is read. Export writes triggers base + i and Ripchord's
+  note-name `name`; a silent first or last key is written as an empty chord so the round trip keeps the base.
+- The simulator (`?sim=1`) lists the factory set; `?sim=1&prog=0` is a firmware without object 24.
+- Tests: `web/test_prog.mjs` (the object and its validity rules against the firmware's, the .rpc parser on
+  `tests/fixtures/rpc/`, trimming, export / import identity; the owner's example packs when present),
+  `web/test_manager.mjs` (read, place, edit, send, undo, a firmware without 24).

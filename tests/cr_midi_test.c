@@ -149,6 +149,27 @@ static void t_keys(void)
     ok(crm_key(0x94, 35, 1, 5, &ev) == 0 && crm_key(0x94, 45, 1, 5, &ev) == 0, "keys: 35 and 45: nothing");
 }
 
+/* GitHub issue 64: MIDI Keys in Keyboard: Prog (crm_pkey): from the keybed's lowest note the 48 triggers, the pads'
+ * notes nothing */
+static void t_pkeys(void)
+{
+    uint32_t ev = 0, j, bad = 0;
+#define PJ(e) (((e) & 31u) | (((e) >> 13) & 1u) << 5)
+    for (j = 0; j < 48u; j++)
+        bad += crm_pkey(0x94, 53u + j, 90, 5, 53, &ev) != 1 || !(ev & CRM_PKEY) || PJ(ev) != j || ((ev >> 5) & 127u) != 90u ||
+               !((ev >> 12) & 1u) || (ev & CRM_ROOT);
+    ok(!bad, "pkeys: FM-1, notes 53 .. 100 are the triggers 0 .. 47 (79 G5 = 26, 80 .. 100 the keys beyond), down, the velocity");
+    ok(crm_pkey(0x84, 80, 0, 5, 53, &ev) == 1 && PJ(ev) == 27u && !((ev >> 12) & 1u) && crm_pkey(0x94, 100, 0, 5, 53, &ev) == 1 &&
+       PJ(ev) == 47u && !((ev >> 12) & 1u), "pkeys: a note-off, a note-on at 0: up (the down bit where a key's is)");
+    ok(crm_pkey(0x94, 52, 1, 5, 53, &ev) == 0 && crm_pkey(0x94, 101, 1, 5, 53, &ev) == 0 && crm_pkey(0x94, 36, 1, 5, 53, &ev) == 0 &&
+       crm_pkey(0x94, 44, 1, 5, 53, &ev) == 0, "pkeys: 52, 101 and the pads' 36 .. 44: nothing");
+    ok(crm_pkey(0x94, 48, 1, 5, 48, &ev) == 1 && PJ(ev) == 0u && crm_pkey(0x94, 95, 1, 5, 48, &ev) == 1 && PJ(ev) == 47u &&
+       crm_pkey(0x94, 96, 1, 5, 48, &ev) == 0, "pkeys: SMK-37, from C3 (48): 48 .. 95");
+    ok(crm_pkey(0xB4, 123, 0, 5, 53, &ev) == 1 && ev == CRM_KEY_ALLUP && crm_pkey(0x90, 60, 1, 5, 53, &ev) == -1 &&
+       crm_pkey(0x94, 60, 1, 0, 53, &ev) == -1, "pkeys: CC 123 every key up; another channel, MIDI Keys Off: not the keys'");
+#undef PJ
+}
+
 /* 3y289: MIDI Roots (crm_root): every note on its channel is a root at its own pitch */
 static void t_roots(void)
 {
@@ -276,6 +297,7 @@ int main(void)
 {
     t_transport();
     t_keys();
+    t_pkeys();
     t_roots();
     t_clock();
     t_map();

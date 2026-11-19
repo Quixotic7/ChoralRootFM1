@@ -20,6 +20,7 @@ enum {
     CR_COL_WHITE, CR_COL_RED, CR_COL_BLUE, CR_COL_YELLOW, CR_COL_ORANGE, CR_COL_GREEN, CR_COL_GREY, CR_COL_BLACK,
     CR_COL_BG, CR_COL_SURF, CR_COL_TEXT, CR_COL_THEME, CR_COL_ACCENT, CR_COL_MID, CR_COL_DIM, CR_COL_LINE, CR_COL_REC,
     CR_COL_MAGENTA,                 /* the drums' (#E04BD8, the DRUMS v3 mock-ups; fixed RGB, as the seven) */
+    CR_COL_PURPLE,                  /* the progressions' (#B48CFF, GitHub issue 64's mock-ups; fixed RGB) */
     CR_COL_N
 };
 
@@ -268,7 +269,10 @@ typedef struct {
      * kr_band 1: the band is the keyboard instead of the picker (KEY: lit / lit_col / key_label, `label` top left);
      * kr_band 2: the arp (PERF while notes are stepped: name, note[] / n_notes, pos, hop_col as the arp screen's,
      * fitted to the band; `label` top left) */
-    uint8_t kr_band;                /* knobrow: 0 the picker, 1 the keyboard, 2 the arp */
+    uint8_t kr_band;                /* knobrow: 0 the picker, 1 the keyboard, 2 the arp, 3 a vertical picker (the KEY
+                                     * layer's page 3, the progressions): the item big (27 px) in the band's middle, its
+                                     * neighbours 12 px dim above and below, each with its place in the list first
+                                     * ("2  Late Night"); `label` top left; the slide vertical */
     char page[16];                  /* edit8 / stack: the title line's right text ("OSC 2 \267 A") */
     cr_cell_t cell[CR_ED_ROWS][4];  /* rows of four cells (edit8: 1..2 rows) */
     char head[4][10];               /* stack: the column headings */

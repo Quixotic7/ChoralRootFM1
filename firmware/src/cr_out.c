@@ -523,7 +523,10 @@ enum {
     CRE_AT,           /* v: the keys' aftertouch 0..127 (cr_ui.c cu_touch_poll): both parts, channel pressure out */
     CRE_CCOUT,        /* a: channel 0..15, b: CC, v: value (Options > MIDI CC Out: a knob turned on a mapped cell) */
     CRE_PERFORM_PART, /* a: the part (CR_PF_*), v: it performs while Perform is on (the PERF layers' Off entry) */
-    CRE_PERFORM_FOLLOW /* v: the bass Follows the chord's mode and parameters (the Bass PERF layer's Follow entry) */
+    CRE_PERFORM_FOLLOW, /* v: the bass Follows the chord's mode and parameters (the Bass PERF layer's Follow entry) */
+    CRE_PKEY,         /* a progression trigger (cr_prog_key): a: the trigger 0..47, b: vel, v: down | key i << 1 (0..47)
+                       * | the progression << 7 (0..15) */
+    CRE_PROGHUM       /* v: Humanize 0..100 % (cr_set_prog_humanize) */
 };
 /* CRE_LOOP's operations */
 enum { LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR, LP_SET, LP_QUEUE, LP_CONF, LP_METRO,
@@ -643,6 +646,8 @@ static void cr_apply(const cr_ev_in_t *e)
 {
     switch (e->op) {
     case CRE_KEY: cr_key(&cr, e->a, e->b, e->v); break;
+    case CRE_PKEY: cr_prog_key(&cr, e->a, (uint8_t)((e->v >> 7) & 15), (uint8_t)((e->v >> 1) & 63), e->b, e->v & 1); break;
+    case CRE_PROGHUM: cr_set_prog_humanize(&cr, e->v); break;
     case CRE_MOD: cr_mod_ex(&cr, (cr_mod_t)e->a, e->v, e->b); break;
     case CRE_MODLOCK: cr_mod_lock(&cr, e->v); break;
     case CRE_MODTOUCH: cr_mod_touch(&cr, (uint8_t)e->v); break;
@@ -774,6 +779,8 @@ static int cr_min_take(crm_act_t *a)             /* the UI */
 #define CR_MKQ_EVERY 30u                         /* every MIDI key and root up (not a key: 0 .. 26) */
 static volatile uint8_t cr_mkeys_ch;             /* the keys' channel 1 .. 16, 0 Off (the UI's cu_route) */
 static volatile uint8_t cr_mroots_ch;            /* MIDI Roots' channel 1 .. 16, 0 Off (the same) */
+static volatile uint8_t cr_mkeys_prog;           /* KEY page 2 Keyboard: Prog: the keybed's lowest note (MIDI Keys'
+                                                  * notes from it press the triggers: crm_pkey), 0 not (the UI's) */
 static uint16_t cr_mkq[CR_MKQ];
 static volatile uint32_t cr_mkq_w, cr_mkq_r;
 static volatile uint8_t cr_mkq_allup;
@@ -810,7 +817,7 @@ static int cr_mkq_take(uint32_t *ev)             /* the UI */
 static __attribute__((noinline)) int cr_in_keys(uint32_t status, uint32_t d1, uint32_t d2)
 {
     uint32_t ev;
-    int r = crm_key(status, d1, d2, cr_mkeys_ch, &ev);
+    int r = cr_mkeys_prog ? crm_pkey(status, d1, d2, cr_mkeys_ch, cr_mkeys_prog, &ev) : crm_key(status, d1, d2, cr_mkeys_ch, &ev);
     if (r < 0)
         r = crm_root(status, d1, d2, cr_mroots_ch, &ev);
     if (r > 0)

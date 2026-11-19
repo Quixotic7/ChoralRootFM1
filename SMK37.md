@@ -152,6 +152,13 @@ The bass with Behaviour Solo now plays the chord's root in the octave you play i
 so the three octaves of keys play three octaves of bass (issue 43, new in 0.37; until 0.36 Solo played the bass register's octave
 from every key, two octaves under the keys at Register 0).
 
+### Progressions
+
+KEY layer page 2, Keyboard: Prog (new in 0.42, GitHub issue 64; MANUAL.md "Key Mode") works on all 37 keys: C3 plays
+the progression's first key, C6 its 37th, and OCT- / OCT+ slide 12 keys along a longer one (a progression holds 48 keys
+at most). The progressions are kept in their own flash object (Storage, below) and edited in the device manager. MIDI
+Keys is not on the SMK-37, so only the keys play them here.
+
 ### What the FM-1 has and the SMK-37 does not
 
 These came to ChoralRoot after the port was made and have no SMK-37 counterpart; they are left out rather than given
@@ -263,7 +270,8 @@ the first start.
 | 0xAB000-0xACFFF | the settings | FL_DATA |
 | 0xAD000-0xAEFFF | the session | FL_DATA |
 | 0xAF000 | the store owner tag (`SMK37DATACHORAL`) | FL_DATA |
-| 0xB0000-0xB3FFF | free (0.21's CZ-1 tones 17..32 and FM TONE store's place: not read since 3y231) | FL_DATA |
+| 0xB0000-0xB1FFF | the progressions (`cr_prog.c`, docs/PROGRESSIONS.md; 0.21's CZ-1 tones 17..32 before 3y231, whose records name another object and are refused: the factory progressions until the first one is sent) | FL_DATA |
+| 0xB2000-0xB3FFF | free (0.21's FM TONE store's place: not read since 3y231) | FL_DATA |
 | 0xB4000-0xB5FFF | the favourites | FL_DATA |
 | 0xB6000-0xBAFFF | the sound pool, sectors 0..4 | FL_DATA |
 | 0xBB000-0xBFFFF | the update's staging (M-UPGRADE's loader and its record) | FL_OTA |
@@ -395,6 +403,9 @@ What no test here can answer, in the order to try it. Note the model, the packag
     direction, where each tops out). Run Options > System > Calibrate Wheels, then check: no bend and no vibrato with
     both wheels at rest, the pitch wheel up raises the pitch, full bend just before each end, the mod wheel from none
     at the bottom to full at the top. Power-cycle: the same without calibrating again.
+18. **Progressions.** KEY layer page 2, KNOB 2 to `Prog`; page 3 picks Pop Four. C3 to G3 play its eight chords,
+    the keys after them are silent and dark, the eight glow. Send a longer progression from the device manager's
+    Progressions page: all 37 keys play, OCT+ moves on 12 keys. Power-cycle: Prog and the progression are still set.
 
 Also worth a line: whether `fm1_install.py --info` shows a unit ID (`unit ID: XXXXXXXX`) and whether two SMK-37s show
 different ones (it is read from the flash chip, whose maker differs from the FM-1's).

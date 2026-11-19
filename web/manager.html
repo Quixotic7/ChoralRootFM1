@@ -2,7 +2,8 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only
      Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca)
      The device manager (docs/DEVICE-MANAGER.md). Built by web/make_site.py: the LIB mark = fm1backup.js + fm1sounds.js +
-     fm1manager.js inlined, the packs (web/packs) inlined at the PACKS mark. ?sim=1: a simulated FM-1, no device. -->
+     fm1prog.js + fm1manager.js inlined, the packs (web/packs) inlined at the PACKS mark. ?sim=1: a simulated FM-1, no
+     device; ?view=prog (or ?tab=prog): open on the progressions (issue 64, fm1prog.js; shown where the FM-1 lists them). -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -128,6 +129,74 @@
   footer { margin-top: 36px; padding-top: 14px; border-top: 3px solid var(--dark); }
   footer p { color: var(--dim); font-size: 12px; margin: 4px 0; }
   .nolink { pointer-events: none; opacity: .35; }
+  /* the progressions (issue 64): a view of their own beside the sounds and loops */
+  .view-tabs { padding: 0; margin-top: 14px; }
+  .view-tabs button { padding: 7px 14px; font-size: 14px; }
+  .view-tabs button[hidden] { display: none; }
+  body.pv .grid, body.pv #sound-help, body.pv .kb-wrap, body.pv .bar button:not(#backup):not(#restore):not(#undo) { display: none; }
+  #prog-view[hidden] { display: none; }
+  .pg-grid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 14px; align-items: start; margin-top: 14px; }
+  @media (max-width: 900px) { .pg-grid { grid-template-columns: minmax(0, 1fr); } }
+  .pg-side, .pg-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .pg-meter { height: 8px; background: var(--dark); margin: 6px 14px 0; }
+  .pg-meter i { display: block; height: 100%; background: var(--green); }
+  .pg-meter.full i { background: var(--red); }
+  #pg-bytes { padding: 0 14px; }
+  #pg-bytes.full { color: var(--red); font-weight: 700; }
+  ol.pg-slots { height: auto; }
+  ol.pg-slots li, ol.pg-libr li { grid-template-columns: 26px minmax(0, 1fr) auto auto; padding: 6px 14px; }
+  ol.pg-libr { height: 320px; }
+  ol.pg-libr li { cursor: default; }
+  .pg-btns { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px 12px; }
+  .pg-btns button { flex: 1; padding: 9px 10px; font-weight: 800; font-size: 14px; }
+  .pg-btns button:not(:disabled):hover, .pg-tools button:not(:disabled):hover { background: var(--cream); color: #000; }
+  #pg-send { background: var(--red); color: #fff; }
+  .pg-btns button.warn { color: var(--red); }
+  .pg-drop { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 4px 14px 10px; padding: 14px 10px;
+             border: 2px dashed var(--grey); text-align: center; cursor: pointer; font-size: 13px; color: var(--dim); }
+  .pg-drop b { color: var(--cream); font-size: 15px; }
+  .pg-drop.drop { border-color: var(--yellow); }
+  .pg-libr .place { padding: 5px 9px; font-size: 12px; font-weight: 800; background: var(--red); color: #fff; }
+  .pg-libr .rm { background: transparent; color: var(--dim); padding: 4px 6px; font-weight: 800; }
+  .notes.warn { color: var(--orange); }
+  .pg-head { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: end; }
+  .pg-head label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 240px; font-size: 13px; color: var(--dim); font-weight: 700; }
+  #pg-name { font: inherit; font-size: 26px; font-weight: 900; letter-spacing: -0.03em; background: var(--deep); color: var(--cream);
+             border: 0; border-bottom: 3px solid var(--dark); border-radius: 2px; padding: 6px 10px; }
+  #pg-name:focus-visible { outline: 3px solid var(--cream); outline-offset: 2px; }
+  .pg-seg { display: flex; gap: 4px; }
+  .pg-seg button, .pg-head > button { padding: 9px 12px; font-weight: 800; font-size: 14px; }
+  .pg-seg button[aria-pressed=true] { background: var(--cream); color: #000; }
+  .pg-sec { background: var(--deep); border-top: 6px solid var(--c, var(--orange)); padding: 12px 14px 14px; min-width: 0; }
+  .pg-sec h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--dim); }
+  .pg-chord-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 10px; }
+  #pg-chord-name { font-size: 40px; font-weight: 900; letter-spacing: -0.04em; line-height: 1; }
+  #pg-chord-notes { color: var(--dim); font-weight: 700; }
+  #pg-chord-count { margin-left: auto; font-size: 13px; font-weight: 800; color: var(--dim); }
+  #pg-chord-count.full { color: var(--orange); }
+  .pg-kb { overflow-x: auto; user-select: none; touch-action: manipulation; }
+  .pg-kb-in { position: relative; height: 120px; min-width: 760px; }
+  .pg-bed .pg-kb-in { height: 150px; min-width: 560px; }
+  .pg-kb .w, .pg-kb .b { position: absolute; top: 0; border-radius: 0 0 3px 3px; display: flex; align-items: flex-end; justify-content: center;
+                         font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; padding-bottom: 6px; }
+  .pg-kb .w { height: 100%; background: var(--cream); color: var(--grey); border-right: 2px solid var(--deep); }
+  .pg-kb .b { height: 60%; background: #111; color: var(--dim); border: 1px solid var(--ground); border-top: 0; z-index: 1; }
+  .pg-kb .on { background: var(--orange); color: #000; }
+  .pg-kb .bass { background: var(--red); color: #fff; }
+  .pg-bed .w, .pg-bed .b { font-size: 14px; font-weight: 800; padding-bottom: 10px; }
+  .pg-bed .w.has { background: #F6D9A8; color: #000; } .pg-bed .b.has { background: #6E4A16; color: var(--cream); }
+  .pg-bed .sel { background: var(--orange); color: #000; box-shadow: inset 0 0 0 3px var(--cream); }
+  .pg-bed .off { opacity: .2; cursor: default; }
+  .pg-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+  .pg-tools button { padding: 7px 12px; font-weight: 800; font-size: 14px; }
+  #pg-listen { background: var(--cream); color: #000; }
+  .pg-bed-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 10px; }
+  .pg-bed-head .tabs { padding: 0; margin-left: auto; }
+  .pg-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
+  .pg-chips button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; background: var(--deep);
+                     text-align: left; border-left: 4px solid transparent; }
+  .pg-chips button.sel { border-left-color: var(--orange); background: #242324; }
+  .pg-chips b { font-size: 17px; font-weight: 900; letter-spacing: -0.02em; }
 </style>
 </head>
 <body>
@@ -145,6 +214,10 @@
   </div>
   <p id="status" role="status"></p>
   <progress id="bar" max="100" value="0"></progress>
+  <div class="tabs view-tabs" id="view-tabs" role="tablist" aria-label="View">
+    <button role="tab" data-v="sounds" aria-selected="true">SOUNDS &amp; LOOPS</button>
+    <button role="tab" data-v="prog" id="view-prog" aria-selected="false" hidden title="The 16 chord progressions of KEY layer > Keyboard: Prog">PROGRESSIONS</button>
+  </div>
 
   <div class="grid" style="margin-top:14px">
     <section class="pane" id="lib" aria-label="Library" style="--c: var(--blue)">
@@ -177,7 +250,70 @@
       <ol class="rows" id="dev-rows"></ol>
     </section>
   </div>
-  <p class="small">Click selects; shift-click a range, cmd / ctrl-click adds one. Drag rows within a pool to reorder (onto another sound: they swap places; onto a factory preset: it takes that place), from the library onto the FM-1 to Place (several onto a factory preset: they replace it and the factory presets after it, as Replace factory does), from the FM-1 onto the library to Keep. ★ marks a favourite as the FM-1 does (C / B: typed Chord or Bass; marks are set on the FM-1, SAVE > Favorite): a factory preset's mark stays with its place, so a sound placed over it shows it.</p>
+  <p class="small" id="sound-help">Click selects; shift-click a range, cmd / ctrl-click adds one. Drag rows within a pool to reorder (onto another sound: they swap places; onto a factory preset: it takes that place), from the library onto the FM-1 to Place (several onto a factory preset: they replace it and the factory presets after it, as Replace factory does), from the FM-1 onto the library to Keep. ★ marks a favourite as the FM-1 does (C / B: typed Chord or Bass; marks are set on the FM-1, SAVE > Favorite): a factory preset's mark stays with its place, so a sound placed over it shows it.</p>
+
+  <section id="prog-view" aria-label="Progressions" hidden>
+    <div class="pg-grid">
+      <div class="pg-side">
+        <section class="pane" id="pg-unit" aria-label="Progressions on your FM-1" style="--c: var(--orange)">
+          <div class="dev-head"><h2>On your FM-1</h2><span id="pg-count" class="cap"></span></div>
+          <div class="pg-meter" id="pg-meter"><i id="pg-meter-fill"></i></div>
+          <p class="small" id="pg-bytes"></p>
+          <ol class="rows pg-slots" id="pg-slots"></ol>
+          <div class="pg-btns">
+            <button id="pg-read" title="Read the progressions from the FM-1 again (edits not sent are dropped)">Read</button>
+            <button id="pg-send" title="Write these 16 progressions to the FM-1 (Undo puts the ones before back)">Send to FM-1</button>
+          </div>
+          <div class="pg-btns">
+            <button id="pg-empty" title="This slot empty (here; Send writes it)">Empty slot</button>
+            <button id="pg-factory" class="warn" title="The FM-1's own factory progressions back on the unit; asks first">Factory set…</button>
+          </div>
+        </section>
+        <section class="pane" id="pg-lib" aria-label="Progressions library" style="--c: var(--blue)">
+          <h2>Library</h2>
+          <label class="pg-drop" id="pg-drop"><b>Import Ripchord presets</b><span>Drop .rpc files or a folder here, or click to choose (many at once)</span>
+            <input id="pg-file" type="file" multiple accept=".rpc,.json" hidden></label>
+          <ol class="rows pg-libr" id="pg-lib-rows"></ol>
+          <div class="pg-btns">
+            <button id="pg-new" title="A new, empty progression in this slot (or the first empty one)">New progression</button>
+            <button id="pg-keep" title="Copy this progression into the library (This browser)">Keep in library</button>
+          </div>
+        </section>
+      </div>
+      <div class="pg-main">
+        <div class="pg-head">
+          <label>Name (12 characters, shown on the unit)<input id="pg-name" maxlength="12" spellcheck="false" autocomplete="off"></label>
+          <div class="pg-seg" role="group" aria-label="Keybed">
+            <button id="pg-bed-fm1" aria-pressed="true">FM-1 · 27 keys</button>
+            <button id="pg-bed-smk" aria-pressed="false">SMK-37 · 37 keys</button>
+          </div>
+          <button id="pg-export" title="This progression as a Ripchord preset">Export .rpc</button>
+        </div>
+        <section class="pg-sec" aria-labelledby="pg-chord-h">
+          <div class="pg-chord-head">
+            <h3 id="pg-chord-h">Chord on key 1</h3><span id="pg-chord-name"></span><span id="pg-chord-notes"></span><span id="pg-chord-count"></span>
+          </div>
+          <div class="pg-kb" id="pg-chord-kb" aria-label="The chord's notes"></div>
+          <div class="pg-tools">
+            <button id="pg-listen">Listen</button>
+            <button id="pg-copy">Copy</button>
+            <button id="pg-paste">Paste</button>
+            <button id="pg-clear">Clear key</button>
+            <span class="small">Click notes to add or take them out (at most 8; the lowest is the bass, red).</span>
+          </div>
+        </section>
+        <section class="pg-sec" aria-labelledby="pg-bed-h" style="--c: var(--yellow)">
+          <div class="pg-bed-head"><h3 id="pg-bed-h">The keybed</h3><span class="small" id="pg-bed-info"></span>
+            <div class="tabs" id="pg-wins" role="tablist" aria-label="OCT window"></div></div>
+          <div class="pg-kb pg-bed" id="pg-bed" aria-label="The keybed: a key holding a chord shows its number"></div>
+        </section>
+        <section aria-labelledby="pg-list-h">
+          <h3 id="pg-list-h" style="margin:0 0 8px;font-size:17px;font-weight:800"></h3>
+          <div class="pg-chips" id="pg-chips"></div>
+        </section>
+      </div>
+    </div>
+  </section>
 
   <div class="bar">
     <button id="sel-all" disabled>Select all</button>
@@ -415,12 +551,17 @@ function refresh() {
   $("undo").disabled = !c || !session.canUndo;
   $("undo").textContent = connected() && session.history.length ? `Undo (${session.history.length})` : "Undo";
 }
-const renderAll = () => { renderDev(); renderLib(); refresh(); };
+const renderAll = () => { renderDev(); renderLib(); refresh(); renderProg(); };
 
 /* ---- connecting */
 async function readDevice(msg = "Reading the FM-1…") {
   ui.busy = true; refresh(); say(msg);
-  try { await session.read(progress); say(`${firmware || "FM-1"} read: ${usedSlots(session.objs)} user sounds, ${managerLoops(session.objs).filter((l) => l.used).length} loops.`); }
+  try {
+    await session.read(progress);
+    let np = "";                                  // (the progressions, where the firmware lists them)
+    if (progressionsListed(session)) { try { np = `, ${progDecode(session.objs.get(PROG_ID)).filter((p) => !progIsEmpty(p)).length} progressions`; } catch (_) { np = ""; } }
+    say(`${firmware || "FM-1"} read: ${usedSlots(session.objs)} user sounds, ${managerLoops(session.objs).filter((l) => l.used).length} loops${np}.`);
+  }
   catch (e) { say(e.message, "err"); }
   finally { ui.busy = false; progress(0, 0); renderAll(); }
 }
@@ -474,7 +615,9 @@ async function attach() {
 async function startSim() {
   const pool = SIM_ARG === "pool";
   const ver = SIM_FW || (pool ? "0.22" : "0.15");
-  sim = pool ? makeSimFM1(simObjects(30, true), { version: `ChoralRoot ${ver}`, ids: SIM_POOL_IDS }) : makeSimFM1(simObjects(30), { version: `ChoralRoot ${ver}` });
+  // (?sim=1&prog=0: a firmware without progressions, object 24 not listed)
+  const noProg = (ids) => (new URLSearchParams(location.search).get("prog") === "0" ? ids.filter((id) => id !== PROG_ID) : ids);
+  sim = pool ? makeSimFM1(simObjects(30, true), { version: `ChoralRoot ${ver}`, ids: noProg(SIM_POOL_IDS) }) : makeSimFM1(simObjects(30), { version: `ChoralRoot ${ver}`, ids: noProg(CR_BACKUP_IDS) });
   firmware = `ChoralRoot ${ver} (simulated)`; $("fw").textContent = firmware; $("connect").hidden = true;
   setConn("sim", "simulated FM-1"); $("needs").textContent = "Simulator: a pretend FM-1 in this page. Writes change it only until the page reloads.";
   session = new ManagerSession(sim.request);
@@ -549,7 +692,7 @@ function askDialog({ title, paras, ok }, { backup = true } = {}) {
     $("dlg-cancel").focus();
   });
 }
-const act = (f) => async () => { try { await f(); } catch (e) { say(e.message, "err"); } };
+const act = (f) => async (...a) => { try { await f(...a); } catch (e) { say(e.message, "err"); } };   // (the event passed on: the drops read it)
 // what the FM-1's firmware will not have of a placed patch (fm1sounds.js importSound: converted down for it): before the
 // pool (0.21) any; 0.22 .. 0.28 FM TONE's version 6 (keepOpts' firmware: managerPlace's version gate, 3y211)
 // (managerNotesSummary: one line; the whole list in the browser console)
@@ -854,7 +997,7 @@ let mouseKey = null;
 $("kb").addEventListener("pointerdown", (e) => { const el = e.target.closest("[data-k]"); if (!el) return; mouseKey = +el.dataset.k; noteOn(mouseKey); });
 addEventListener("pointerup", () => { if (mouseKey != null) { noteOff(mouseKey); mouseKey = null; } });
 addEventListener("keydown", (e) => {
-  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) || document.body.classList.contains("pv")) return;
   const k = KEYS.indexOf(e.key.toLowerCase());
   if (k >= 0) { noteOn(k); e.preventDefault(); }
   else if (e.key === "z" || e.key === "x") { for (const key of [...held.keys()]) noteOff(key); octave = Math.max(1, Math.min(8, octave + (e.key === "x" ? 1 : -1))); buildKb(); }
@@ -862,9 +1005,264 @@ addEventListener("keydown", (e) => {
 addEventListener("keyup", (e) => { const k = KEYS.indexOf(e.key.toLowerCase()); if (k >= 0) noteOff(k); });
 $("bass").addEventListener("change", () => { for (const key of [...held.keys()]) noteOff(key); buildKb(); });
 
+/* ---- the progressions (GitHub issue 64, fm1prog.js; object 24): a working copy of the 16 edited here, Send writes it
+   through the session (Undo keeps the set before, read back), Read takes the unit's again. Shown only where the FM-1's
+   firmware lists object 24 (progressionsListed) */
+const VIEW_ARG = (new URLSearchParams(location.search).get("view") || "").toLowerCase();
+const pg = { view: VIEW_ARG === "prog" || TAB0 === "PROG" || TAB0 === "PROGRESSIONS" ? "prog" : "sounds", set: null, unit: null, unitBytes: null,
+  error: "", slot: 0, key: 0, win: 0, bed: null, clip: null, items: [] };
+const progStore = new LibraryStore(undefined, "choralroot-progressions");   // the library (IndexedDB; in memory without it)
+const pgAvailable = () => connected() && progressionsListed(session);
+const pgDirty = () => !!pg.set && (!pg.unit || pg.set.some((p, k) => !progSame(p, pg.unit[k])));
+const pgCur = () => (pg.set ? pg.set[pg.slot] : progEmpty());
+// the unit's object decoded when it changed (a read); the working copy follows it unless it holds edits not sent
+function pgSync() {
+  if (!pgAvailable()) { pg.unit = null; pg.unitBytes = null; pg.set = null; return; }
+  const b = session.objs.get(PROG_ID);
+  if (b === pg.unitBytes && pg.set) return;
+  const clean = !pg.set || !pgDirty();
+  pg.unitBytes = b;
+  try { pg.unit = progDecode(b); pg.error = ""; } catch (e) { pg.unit = null; pg.error = e.message; }
+  if (clean) pg.set = progCopySet(pg.unit || []);
+  if (!pg.bed) pg.bed = /smk/i.test(firmware) ? "smk" : "fm1";
+}
+function renderProg() {
+  pgSync();
+  const on = pg.view === "prog" && pgAvailable();
+  $("view-prog").hidden = !pgAvailable();
+  for (const b of $("view-tabs").querySelectorAll("button")) b.setAttribute("aria-selected", String((b.dataset.v === "prog") === on));
+  document.body.classList.toggle("pv", on);
+  $("prog-view").hidden = !on;
+  if (!on) return;
+  const busy = ui.busy, set = pg.set, used = progUsedBytes(set), over = used > PROG_SIZE, dirty = pgDirty();
+  $("pg-count").textContent = `${set.filter((p) => !progIsEmpty(p)).length} of ${PROG_N}`;
+  $("pg-meter-fill").style.width = `${Math.min(100, (used / PROG_SIZE) * 100)}%`;
+  $("pg-meter").className = `pg-meter${over ? " full" : ""}`;
+  $("pg-bytes").textContent = `${used} of ${PROG_SIZE} bytes used${over ? `: ${used - PROG_SIZE} too many` : ""}${dirty ? " · edited here, not sent yet" : ""}${pg.error ? ` · the FM-1's object: ${pg.error}` : ""}`;
+  $("pg-bytes").className = `small${over ? " full" : ""}`;
+  $("pg-slots").innerHTML = set.map((p, k) => {
+    const empty = progIsEmpty(p), edited = pg.unit && !progSame(p, pg.unit[k]), n = progCount(p);
+    return `<li data-k="${k}" class="${empty ? "init" : "user"}${k === pg.slot ? " sel" : ""}"><span class="pos">${String(k + 1).padStart(2, "0")}</span>` +
+      `<span class="nm">${empty ? "empty" : esc(p.name || "(no name)")}${edited ? `<span class="over">edited</span>` : ""}</span>` +
+      `<span class="meta">${empty ? "" : `${n} chord${n === 1 ? "" : "s"}`}</span><span class="meta">${empty ? "" : `${progBytes(p)} B`}</span></li>`;
+  }).join("");
+  $("pg-read").disabled = busy;
+  $("pg-send").disabled = busy || !dirty;
+  $("pg-send").textContent = over ? "Too big to send" : "Send to FM-1";
+  $("pg-send").title = over ? progFitText(set) : "Write these 16 progressions to the FM-1 (Undo puts the ones before back)";
+  $("pg-empty").disabled = busy || progIsEmpty(pgCur());
+  $("pg-factory").disabled = busy;
+  $("pg-keep").disabled = $("pg-export").disabled = progIsEmpty(pgCur());
+  $("pg-new").disabled = busy;
+  renderProgLib(); renderProgEditor();
+}
+function renderProgLib() {
+  $("pg-lib-rows").innerHTML = pg.items.length ? pg.items.map((it, n) => {
+    const warn = it.notes && it.notes.length;
+    return `<li data-key="${esc(it.key)}" class="user"><span class="pos">${String(n + 1).padStart(2, "0")}</span>` +
+      `<span class="nm">${esc(it.name || "(no name)")}<span class="notes${warn ? " warn" : ""}" title="${esc((it.notes || []).join("\n") || it.source || "")}">${esc(progNotesSummary(it))}</span></span>` +
+      `<button class="place" data-act="place" ${ui.busy ? "disabled" : ""} title="Into slot ${pg.slot + 1} (here; Send writes it)">Place</button>` +
+      `<button class="rm" data-act="rm" title="Remove from the library" aria-label="Remove ${esc(it.name)} from the library">×</button></li>`;
+  }).join("") : `<li class="empty-note" style="display:block">Import Ripchord presets (.rpc), or keep a progression of the FM-1 here.</li>`;
+}
+// a keyboard of n keys from MIDI note low as absolute keys (white ones side by side, black ones over them);
+// paint(m, i, black) -> {cls, text, label}
+function pgKeys(low, n, paint) {
+  const whites = []; for (let m = low; m < low + n; m++) if (!progIsBlack(m)) whites.push(m);
+  const ww = 100 / whites.length, bw = ww * 0.6, out = [];
+  for (let m = low, w = -1; m < low + n; m++) {
+    const black = progIsBlack(m); if (!black) w++;
+    const p = paint(m, m - low, black), pos = black ? `left:${(w + 1) * ww - bw / 2}%;width:${bw}%` : `left:${w * ww}%;width:${ww}%`;
+    out.push(`<div class="${black ? "b" : "w"} ${p.cls || ""}" data-m="${m}" data-i="${m - low}" role="button" tabindex="-1" aria-label="${esc(p.label)}" style="${pos}">${esc(p.text || "")}</div>`);
+  }
+  return `<div class="pg-kb-in">${out.join("")}</div>`;
+}
+const pgBed = () => PROG_KEYBEDS[pg.bed || "fm1"];
+function renderProgEditor() {
+  const p = pgCur(), chord = p.keys[pg.key] || [], bass = chord.length ? chord[0] : -1, kb = pgBed();
+  if (document.activeElement !== $("pg-name")) $("pg-name").value = p.name;
+  $("pg-name").placeholder = progIsEmpty(p) ? "an empty slot" : "";
+  $("pg-bed-fm1").setAttribute("aria-pressed", String(pg.bed !== "smk")); $("pg-bed-smk").setAttribute("aria-pressed", String(pg.bed === "smk"));
+  $("pg-chord-h").textContent = `Slot ${pg.slot + 1} · chord on key ${pg.key + 1}`;
+  $("pg-chord-name").textContent = progChordName(chord);
+  $("pg-chord-notes").textContent = chord.length ? chord.map(progNoteName).join(" ") : progIsEmpty(p) ? "an empty slot: click notes to give it a chord" : "a silent key";
+  $("pg-chord-count").textContent = `${chord.length} of ${PROG_NOTES} notes`;
+  $("pg-chord-count").className = chord.length >= PROG_NOTES ? "full" : "";
+  const lo = Math.min(24, chord.length ? Math.floor(chord[0] / 12) * 12 : 24), hi = Math.max(96, chord.length ? (Math.floor(chord.at(-1) / 12) + 1) * 12 : 96);
+  $("pg-chord-kb").innerHTML = pgKeys(lo, hi - lo, (m) => {
+    const inC = chord.includes(m);
+    return { cls: inC ? (m === bass ? "bass" : "on") : "", text: m % 12 === 0 ? progNoteName(m) : "", label: progNoteName(m) + (inC ? ", in the chord" : "") };
+  });
+  for (const id of ["pg-listen", "pg-copy"]) $(id).disabled = !chord.length;
+  $("pg-paste").disabled = !pg.clip; $("pg-clear").disabled = !chord.length;
+  pg.win = Math.min(pg.win, PROG_WINDOWS - 1);     // (the unit's four OCT windows; keys past 48 are silent there)
+  $("pg-wins").innerHTML = Array.from({ length: PROG_WINDOWS }, (_, w) =>
+    `<button role="tab" data-w="${w}" aria-selected="${w === pg.win}" style="--tc:var(--yellow)">${w * 12 + 1}–${Math.min(PROG_KEYS, w * 12 + kb.keys)}</button>`).join("");
+  $("pg-bed-info").textContent = `${kb.label}, ${kb.range} · key ${pg.win * 12 + 1} on the lowest key${pg.win ? ` (OCT+ ${pg.win}×)` : ""}; OCT- / OCT+ in Prog slide 12 keys · Ripchord's trigger of key 1: ${progNoteName(progIsEmpty(p) ? PROG_NEW_BASE : p.base)}`;
+  $("pg-bed").innerHTML = pgKeys(kb.low, kb.keys, (m, k) => {
+    const i = k + 12 * pg.win, c = p.keys[i], has = !!(c && c.length);
+    return { cls: i >= PROG_KEYS ? "off" : i === pg.key ? "sel" : has ? "has" : "", text: has ? String(i + 1) : "",
+      label: i >= PROG_KEYS ? "past key 48: silent" : `Key ${i + 1}: ${has ? progChordName(c) : "no chord"}` };
+  });
+  const keys = p.keys.map((c, i) => ({ c, i })).filter(({ c }) => c.length);
+  $("pg-list-h").textContent = progIsEmpty(p) ? "No chords" : `${keys.length} chord${keys.length === 1 ? "" : "s"} · ${p.keys.length} key${p.keys.length === 1 ? "" : "s"}`;
+  $("pg-chips").innerHTML = keys.map(({ c, i }) => `<button data-i="${i}" class="${i === pg.key ? "sel" : ""}" title="${esc(c.map(progNoteName).join(" "))}"><span class="pos">${i + 1}</span><b>${esc(progChordName(c))}</b></button>`).join("");
+}
+// a key chosen: shown on the keybed (the OCT window that holds it)
+function pgPickKey(i) {
+  pg.key = i;
+  const n = pgBed().keys;
+  if (i < 12 * pg.win || i >= 12 * pg.win + n) pg.win = Math.max(0, Math.min(PROG_WINDOWS - 1, Math.ceil((i - n + 1) / 12)));
+}
+// a short chord in the browser (WebAudio): what the key's notes are, not the FM-1's sound
+let pgAudio = null;
+function pgListen(notes, len = 1.4) {
+  if (!notes || !notes.length) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    pgAudio = pgAudio || new AC();
+    const t = pgAudio.currentTime, peak = 0.3 / Math.max(2, notes.length);
+    notes.forEach((m, k) => {
+      const o = pgAudio.createOscillator(), g = pgAudio.createGain(), t0 = t + k * 0.015;
+      o.type = "triangle"; o.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
+      g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(peak, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+      o.connect(g); g.connect(pgAudio.destination); o.start(t0); o.stop(t0 + len + 0.05);
+    });
+  } catch (_) { /* no audio here */ }
+}
+// an edit of the slot shown (here only: Send writes it)
+function pgEdit(f) {
+  try {
+    const was = pgCur(), p = f(was);
+    pg.set[pg.slot] = progIsEmpty(was) && !progIsEmpty(p) && !p.name ? { ...p, name: `NEW ${pg.slot + 1}` } : p;   // (an empty slot's first chord)
+  } catch (e) { say(e.message, "err"); }
+  renderProg();
+}
+async function pgLoadLibrary() {
+  try { pg.items = (await progStore.all()).filter((it) => it && it.type === "prog" && it.prog); } catch (e) { pg.items = []; say(`Library: ${e.message}`, "err"); }
+  renderProg();
+}
+// a write of the progressions through the session (undo kept, read back); the working copy is the unit's after it
+async function runProg(label, res, done) {
+  if (!res.changed.length) { pg.set = progCopySet(pg.unit || []); say(`${label}: the FM-1 holds these already.`); renderProg(); return; }
+  ui.busy = true; refresh(); renderProg(); say(`${label}…`);
+  try { await session.apply(res, writeOpts(label)); pgSync(); pg.set = progCopySet(pg.unit || []); say(done); }
+  catch (e) {
+    const part = e.written && e.written.length ? " (Undo puts back what was written)" : "";
+    say(`${label}: ${writeErrorText(e)}${part}`, e.rc === 3 ? "busy" : "err");
+  }
+  finally { ui.busy = false; progress(0, 0); renderAll(); }
+}
+$("view-tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-v]"); if (!b) return;
+  pg.view = b.dataset.v; renderAll();
+});
+$("pg-slots").addEventListener("click", (e) => {
+  const li = e.target.closest("li[data-k]"); if (!li) return;
+  pg.slot = +li.dataset.k; const p = pgCur(), first = p.keys.findIndex((c) => c.length);
+  pg.key = Math.max(0, first); pg.win = 0; pgPickKey(pg.key); renderProg();
+});
+$("pg-name").addEventListener("input", () => {
+  const el = $("pg-name"), v = el.value.replace(/[^\x20-\x7E]/g, "").slice(0, PROG_NAME);
+  if (v !== el.value) el.value = v;
+  pg.set[pg.slot] = { ...pgCur(), name: v }; renderProg();
+});
+$("pg-name").addEventListener("change", () => { pgEdit((p) => progRename(p, $("pg-name").value)); $("pg-name").value = pgCur().name; });
+$("pg-bed-fm1").addEventListener("click", () => { pg.bed = "fm1"; pgPickKey(pg.key); renderProg(); });
+$("pg-bed-smk").addEventListener("click", () => { pg.bed = "smk"; pgPickKey(pg.key); renderProg(); });
+$("pg-wins").addEventListener("click", (e) => { const b = e.target.closest("button[data-w]"); if (!b) return; pg.win = +b.dataset.w; renderProg(); });
+$("pg-chord-kb").addEventListener("click", (e) => {
+  const k = e.target.closest("[data-m]"); if (!k) return;
+  const m = +k.dataset.m, adding = !(pgCur().keys[pg.key] || []).includes(m);
+  pgEdit((p) => progToggleNote(p, pg.key, m));
+  if (adding && (pgCur().keys[pg.key] || []).includes(m)) pgListen([m], 0.6);
+});
+$("pg-bed").addEventListener("click", (e) => {
+  const k = e.target.closest("[data-i]"); if (!k) return;
+  const i = +k.dataset.i + 12 * pg.win; if (i >= PROG_KEYS) return;
+  pg.key = i; renderProg(); pgListen(pgCur().keys[i]);
+});
+$("pg-chips").addEventListener("click", (e) => { const b = e.target.closest("button[data-i]"); if (!b) return; pgPickKey(+b.dataset.i); renderProg(); pgListen(pgCur().keys[pg.key]); });
+$("pg-listen").addEventListener("click", () => pgListen(pgCur().keys[pg.key]));
+$("pg-copy").addEventListener("click", () => { pg.clip = (pgCur().keys[pg.key] || []).slice(); say(`Copied ${progChordName(pg.clip)} (${pg.clip.map(progNoteName).join(" ")}).`); renderProg(); });
+$("pg-paste").addEventListener("click", () => pgEdit((p) => progSetChord(p, pg.key, pg.clip)));
+$("pg-clear").addEventListener("click", () => pgEdit((p) => progSetChord(p, pg.key, [])));
+$("pg-empty").addEventListener("click", () => {
+  if (!confirm(`Empty slot ${pg.slot + 1} (${pgCur().name || "no name"})? Here only: Send writes it, Read brings it back before that.`)) return;
+  pgEdit(() => progEmpty());
+});
+$("pg-new").addEventListener("click", () => {
+  let k = progIsEmpty(pgCur()) ? pg.slot : pg.set.findIndex(progIsEmpty);
+  if (k < 0) { if (!confirm(`Every slot holds a progression. Replace slot ${pg.slot + 1} (${pgCur().name}) with a new one?`)) return; k = pg.slot; }
+  pg.set = progPlace(pg.set, k, progNew(`NEW ${k + 1}`)); pg.slot = k; pg.key = 0; pg.win = 0;
+  say(`Slot ${k + 1}: a new progression. Click notes to give key 1 a chord, pick other keys on the keybed; Send writes it.`); renderProg();
+});
+$("pg-keep").addEventListener("click", act(async () => {
+  const p = pgCur();
+  await progStore.add({ type: "prog", name: p.name, prog: progCopySet([p])[0], notes: [], source: `slot ${pg.slot + 1}` });
+  say(`Kept ${p.name || "the progression"} in the library (This browser).`); await pgLoadLibrary();
+}));
+$("pg-export").addEventListener("click", act(async () => {
+  const p = pgCur(); download(progRpcFileName(p), progToRpc(p), "application/xml");
+  say(`Saved ${progRpcFileName(p)} (Ripchord preset: key 1 on note ${progNoteName(p.base)}).`);
+}));
+$("pg-read").addEventListener("click", act(async () => {
+  if (pgDirty() && !confirm("Read the FM-1's progressions again? Your edits not sent yet are dropped.")) return;
+  await readDevice();
+  pg.set = progCopySet(pg.unit || []); renderProg();
+}));
+$("pg-send").addEventListener("click", act(async () => {
+  const why = progFitText(pg.set);
+  if (why) { say(why, "err"); return; }
+  const bytes = progEncode(pg.set), n = pg.set.filter((p) => !progIsEmpty(p)).length;
+  await runProg("Send progressions", managerProgWrite(session.objs, bytes), `${n} progression${n === 1 ? "" : "s"} on the FM-1 (${bytes.length} of ${PROG_SIZE} bytes). Undo puts the ones before back.`);
+}));
+$("pg-factory").addEventListener("click", act(async () => {
+  if (!confirm("Put the FM-1's factory progressions back? All 16 slots are replaced on the unit (edits here not sent are dropped). Undo puts the ones before back while this page is open.")) return;
+  await runProg("Factory progressions", managerProgWrite(session.objs, new Uint8Array(0)), "The FM-1 has its factory progressions again. Undo puts the ones before back.");
+}));
+$("pg-lib-rows").addEventListener("click", act(async (e) => {
+  const b = e.target.closest("button[data-act]"), li = e.target.closest("li[data-key]"); if (!b || !li) return;
+  const it = pg.items.find((x) => String(x.key) === li.dataset.key); if (!it) return;
+  if (b.dataset.act === "rm") { await progStore.remove(it.key); say(`Removed ${it.name} from the library.`); return pgLoadLibrary(); }
+  const cur = pgCur();
+  if (!progIsEmpty(cur) && !progSame(cur, it.prog) && !confirm(`Replace slot ${pg.slot + 1} (${cur.name || "no name"}) with ${it.name}?`)) return;
+  pg.set = progPlace(pg.set, pg.slot, it.prog); pg.key = Math.max(0, it.prog.keys.findIndex((c) => c.length)); pg.win = 0; pgPickKey(pg.key);
+  const why = progFitText(pg.set);
+  say(`${it.name} is in slot ${pg.slot + 1} here: ${why || `Send to FM-1 writes it (${progUsedBytes(pg.set)} of ${PROG_SIZE} bytes).`}`, why ? "err" : "");
+  renderProg();
+}));
+// Ripchord presets (and backups holding progressions) into the library: many files, or a folder, at once
+async function pgImport(files) {
+  let added = 0, flagged = 0; const errs = [];
+  for (const f of files) {
+    try {
+      for (const it of progItemsFromFile(f.name, await f.text())) { await progStore.add(it); added++; if (it.notes.length) flagged++; }
+    } catch (e) { errs.push(e.message); }
+  }
+  await pgLoadLibrary();
+  say(`${added} progression${added === 1 ? "" : "s"} in the library${flagged ? ` (${flagged} changed to fit: each row says how)` : ""}${errs.length ? `; ${errs.length} not read: ${shortList(errs, 3)}` : ""}.`, errs.length && !added ? "err" : "");
+}
+// a dropped folder's files (webkitGetAsEntry), its subfolders too
+async function pgDropped(dt) {
+  const out = [], entries = [...(dt.items || [])].map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (!entries.length) return [...dt.files];
+  const walk = async (en) => {
+    if (en.isFile) { out.push(await new Promise((res, rej) => en.file(res, rej))); return; }
+    const r = en.createReader();
+    for (let batch; (batch = await new Promise((res, rej) => r.readEntries(res, rej))).length; ) for (const x of batch) await walk(x);
+  };
+  for (const en of entries) await walk(en);
+  return out.filter((f) => /\.(rpc|json)$/i.test(f.name));
+}
+$("pg-file").addEventListener("change", act(async () => { const files = [...$("pg-file").files]; $("pg-file").value = ""; await pgImport(files); }));
+$("pg-drop").addEventListener("dragover", (e) => { if (!ui.drag) { e.preventDefault(); $("pg-drop").classList.add("drop"); } });
+$("pg-drop").addEventListener("dragleave", () => $("pg-drop").classList.remove("drop"));
+$("pg-drop").addEventListener("drop", act(async (e) => { e.preventDefault(); $("pg-drop").classList.remove("drop"); await pgImport(await pgDropped(e.dataTransfer)); }));
+
 /* ---- start */
 (async () => {
-  buildKb(); renderAll();
+  buildKb(); renderAll(); pgLoadLibrary();
   try { ui.packs = EMBED_PACKS ? EMBED_PACKS.index : await loadPackIndex(fetchJson); } catch (_) { ui.packs = []; }
   try {     // the factory sounds by engine and position (Keep / Save of a factory row)
     ui.fpacks = factoryFiles(EMBED_PACKS ? Object.values(EMBED_PACKS.packs) : await Promise.all(ui.packs.map((p) => fetchJson(p.url))));

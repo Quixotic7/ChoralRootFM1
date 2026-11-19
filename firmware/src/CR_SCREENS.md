@@ -172,6 +172,12 @@ last; saved palette ids unchanged).
   every phase, so the slide only shows with `skew` or the sweep (as in the designer).
 - **The picker's change** is a slide (a reel inside the item's box), not a split-flap flip.
 - The chord squeeze is the designer's horizontal scale, applied to the glyph rasters (no hinting at any width).
+- **The chord's notes line** (`cr_p_chord`): 16 px (13 px past 5 notes), 14 px apart; wider than 228 px (a progression's
+  chord has up to 8 notes, GitHub issue 64) 6 px apart, then 11 px type. Every chord that fitted before draws as before.
+  A progression's chord (`cr_ui.c cu_notes`, quality `CR_Q_PROG`): every note white, the bass's (the lowest of the
+  lowest stored note's pitch class) orange with its block; the top line `mid` is the progression's name and the key of
+  the chord shown ("Neo Soul · 5") in `CR_COL_PURPLE`, the window at the right ("keys 13-39") where the octave
+  shows; no numeral. The Keyboard view is unchanged (`cu_lit` folds the notes into the strip as for any chord).
 - **`CR_K_SCOPE`** (device-only, no mock-up yet): `wave[240]` (int8, ±127 = the panel's half height less 6 px), one
   sample a column. Drawn as a 3 px line, a column at a time: the span the polyline covers within a pixel either side
   (the neighbours' samples) ± 1.5 px as one fractional rectangle (`cr_frect`), only the columns crossing the strip's
@@ -246,7 +252,13 @@ last; saved palette ids unchanged).
   sheet design/choralroot-fm1-fx-screens.png; `cr_ui.c` fills it for every layer: `cu_fx_cells`, `cu_perf_cells`, `cu_bass_cells`, `cu_key_cells`,
   `cu_loop_cells`, METRO's Click inline, the hot cell `cu_hot_row`; design/choralroot-fm1-layers-mockups.json states
   1, 3, 6, 7 for KEY, LOOP and METRO). `kr_band` 1 (KEY): the band is `cr_keyboard`'s strip (224 px, <= 56 px tall,
-  centred under `label`; `lit` / `lit_col` / `key_label` as `CR_K_KEYBOARD`) instead of the picker. `CR_CF_DIM`: the
+  centred under `label`; `lit` / `lit_col` / `key_label` as `CR_K_KEYBOARD`) instead of the picker (KEY page 2 in
+  Prog: the keys that hold a chord in the window, `CR_COL_PURPLE`). `kr_band` 3 (KEY page 3, the progressions, GitHub
+  issue 64): a **vertical** picker in the band: the item 27 px bold in `col` centred in the band (squeezed to 200 px),
+  the previous and next items 12 px bold dim above and below with their place first ("2  Jazz ii-V-I",
+  `cr_kr_numbered`), the slide vertical (`cr_pick_item` with `horiz` 0 inside the item's rows); no marks, no `value`;
+  the title ("Prog 3 of 16") is the top line's `mid` in `CR_COL_PURPLE` (#B48CFF, the progressions' role colour,
+  fixed RGB as the magenta). `CR_CF_DIM`: the
   cell all in the grey (LOOP's Sync while playing: it cannot change), never hot. The panel's lowest 72 px are one
   row of four knob cells (`cell[0][0..3]`; y 126–198 with a footer, 168–240 without), the rest a horizontal picker
   band drawn by the picker's own pieces (`cr_pick_item` with its slide, `cr_pick_sides`, `cr_pick_marks`): the item

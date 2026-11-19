@@ -5,11 +5,13 @@
 // them (cr_bank.c pool_entry); Place / Keep / Swap / Rename / Delete as new object bytes; undo (the object set before
 // every write); the library (IndexedDB in a browser, a Map in node); files and packs read into library items; the
 // simulated FM-1 of ?sim=1 (web/test_installer.mjs's backup side, with sounds and loops in it).
-// No DOM: the page (manager.html) draws, this decides. Every name here is unique across fm1backup.js / fm1sounds.js:
-// make_site.py inlines them (and fm1dnsnd.js) into one script.
+// No DOM: the page (manager.html) draws, this decides. Every name here is unique across fm1backup.js / fm1sounds.js /
+// fm1prog.js: make_site.py inlines them (and fm1dnsnd.js) into one script. The progressions (object 24, issue 64) are
+// read and written here like the other objects; fm1prog.js encodes, decodes and edits them.
 import { BACKUP_CMD, bkU32, bkR32, bkPack, bkUnpack, bkCrc, bkManifest, objectName, readBackup, CR_LOOP_IDS, CR_BACKUP_IDS, loopHeader } from "./fm1backup.js";
 import { nameValid, SOUND_IDS, POOL_IDS, ENGINE_NAMES, FACTORY_PRESETS, FACTORY_FIRST, FACTORY_IDS, SOUND_TEMPLATES, SOUND_FORMAT, PATCH_SIZE, poolOf, engineRetired, patchKindOf, parseSoundObjects, exportSound, readSoundFile, renameSound, deleteSound, writeSounds, placeSound, bindSound, swapSounds, firstFreeSlot, rawBindings, recordValid, slotLabel, isPool, parseSyx, syxCount, soundFromSyx, soundFromDnsnd, quadV6Of } from "./fm1sounds.js";
 import { parseDnsnd, parseDnSyx, isDnSyx } from "./fm1dnsnd.js";
+import { PROG_ID, PROG_SIZE, progValid, progSimFactory } from "./fm1prog.js";
 
 // the engine picker's order (docs/PRESETS.md; the EDIT picker since 0.14; five engines since 0.18: PHASE, LOFI, VOICE,
 // TRIO, NOISE and PHYS retired, their records rows of the VA's pool with recEngine = the engine they were saved on;
@@ -20,13 +22,22 @@ export const MANAGER_ENGINES = [12, 15, 13, 14, P5_ENGINE, 7];
 // nothing read yet: all of them
 export const managerEngines = (objs) => (objs && !isPool(objs) ? MANAGER_ENGINES.filter((e) => e !== P5_ENGINE) : MANAGER_ENGINES);
 export const FAVS_ID = 23;                       // the favourites (0.22, cr_favs.c; a firmware before it does not list 23)
-export const MANAGER_IDS = [...SOUND_IDS, ...POOL_IDS, FAVS_ID, ...CR_LOOP_IDS];   // (0.22: the pool's banks, 50..62)
+export const MANAGER_IDS = [...SOUND_IDS, ...POOL_IDS, FAVS_ID, PROG_ID, ...CR_LOOP_IDS];   // (0.22: the pool's banks, 50..62;
+// 24: the progressions, where the firmware lists them: progressionsListed)
 export const UNDO_DEPTH = 20;
 export const LOOP_FORMAT = "choralroot-loop";
 export const PACK_FORMAT = "choralroot-pack";
 // the stores before the banks, the pool's banks (0.22: record and patch in one), the favourites after the sounds they
 // mark (the backup's order), loops last
-const MG_WRITE_ORDER = [9, 10, 11, 12, 13, 22, 6, 7, ...POOL_IDS, FAVS_ID, ...CR_LOOP_IDS];
+const MG_WRITE_ORDER = [9, 10, 11, 12, 13, 22, 6, 7, ...POOL_IDS, FAVS_ID, PROG_ID, ...CR_LOOP_IDS];
+// the FM-1 has progressions (its firmware lists object 24, with what it plays); a session read from one that does not:
+// the page hides them
+export const progressionsListed = (session) => !!(session && session.listed && session.listed.includes(PROG_ID));
+// the progressions' bytes -> an edit's result (one object; the page's Send). An empty object: back to the factory set
+export const managerProgWrite = (objs, bytes) => {
+  const m = new Map(objs); m.set(PROG_ID, bytes);
+  return mgResult(new Map(objs), m);
+};
 const mgEmpty = () => new Uint8Array(0);
 const mgSame = (a, b) => (a || mgEmpty()).length === (b || mgEmpty()).length && (a || mgEmpty()).every((x, i) => x === b[i]);
 const mgB64 = (bytes) => { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s); };
@@ -607,13 +618,14 @@ export async function loadPack(fetchJson, entry) {
 
 // the library store "This browser": IndexedDB in a browser (db "choralroot-manager", store "items"), a Map elsewhere
 export class LibraryStore {
-  constructor(idb = (typeof indexedDB !== "undefined" ? indexedDB : null)) { this.idb = idb; this.mem = new Map(); this.next = 1; this.db = null; }
+  // (dbName: another library in its own database, e.g. the progressions' "choralroot-progressions")
+  constructor(idb = (typeof indexedDB !== "undefined" ? indexedDB : null), dbName = "choralroot-manager") { this.idb = idb; this.dbName = dbName; this.mem = new Map(); this.next = 1; this.db = null; }
   async open() {
     if (!this.idb || this.db) return;
     this.db = await new Promise((resolve) => {        // (no IndexedDB, blocked, or no answer in 2 s: kept in memory)
       const timer = setTimeout(() => resolve(null), 2000);
       try {
-        const r = this.idb.open("choralroot-manager", 1);
+        const r = this.idb.open(this.dbName, 1);
         r.onupgradeneeded = () => r.result.createObjectStore("items", { keyPath: "key", autoIncrement: true });
         r.onsuccess = () => { clearTimeout(timer); resolve(r.result); };
         r.onerror = r.onblocked = () => { clearTimeout(timer); resolve(null); };
@@ -712,6 +724,7 @@ export function simObjects(count = 6, pool = false) {   // (pool: the 0.22 sound
     const e = fillEngines[k % fillEngines.length];
     put(firstFreeSlot(m), mgSimSound(e === 14 ? "cz" : "fm6", e, `USER ${String(k + 1).padStart(2, "0")}`), -1);
   }
+  m.set(PROG_ID, progSimFactory());                      // (what a firmware with progressions lists: its factory set)
   m.set(40, makeLoopRecord({ bars: 4, layers: 3, events: 24 }));
   m.set(43, makeLoopRecord({ sig: 1, bars: 2, layers: 1, events: 6 }));
   if (pool) {                                           // (0.22: a few favourites, cr_favs.c's version 2: U003 WARM VA, FM6 02 (the
@@ -787,6 +800,7 @@ export function makeSimFM1(objs = simObjects(), { version = "ChoralRoot 0.15", i
   // log: the ids each commit wrote; puts: every PUT begin taken ({id, size}), written or not
   const sim = { objs: new Map(objs), log: [], puts: [], staged: null, playing: false, sent: [], requests: 0 };
   sim.objs.set(1, sim.objs.get(1) || new Uint8Array(764));
+  if (ids.includes(PROG_ID) && !(sim.objs.get(PROG_ID) || mgEmpty()).length) sim.objs.set(PROG_ID, progSimFactory());   // (never listed empty)
   sim.handle = (cmd, a) => {
     if (cmd === 1) return [...new TextEncoder().encode(version), 0, 0, 0, 0, 0, 0, 0, 0, 0x42, 1, 3, 0x43, 1, 2,
       ...(unitId ? [0x49, 8, ...new TextEncoder().encode(unitId)] : [])];   // (3y66: the unit's ID)
@@ -805,7 +819,7 @@ export function makeSimFM1(objs = simObjects(), { version = "ChoralRoot 0.15", i
       if (op === 0) {
         const size = bkR32(a, 2), pool = POOL_IDS.includes(id);
         sim.staged = { id, size, crc: bkR32(a, 7), bytes: [] };
-        const rc = ids.includes(id) && id !== 8 && (!pool || !size || size === POOL_PER_BANK * POOL_SLOT_BYTES) ? 0 : 1;
+        const rc = ids.includes(id) && id !== 8 && (!pool || !size || size === POOL_PER_BANK * POOL_SLOT_BYTES) && (id !== PROG_ID || size <= PROG_SIZE) ? 0 : 1;
         if (!rc) sim.puts.push({ id, size });
         return [op, id, rc];
       }
@@ -820,6 +834,10 @@ export function makeSimFM1(objs = simObjects(), { version = "ChoralRoot 0.15", i
           if (v.length && !simBankOk(v)) return [op, id, 2];
           if (!v.length && !(sim.objs.get(id) || mgEmpty()).length) return [op, id, 0];   // (an empty bank onto none: nothing to write)
           sim.objs.set(id, simBankFill(v)); sim.log.push(id); return [op, id, 0];
+        }
+        if (id === PROG_ID) {                          // (cr_prog.c: a valid object stored; 0 bytes: the factory set again)
+          if (v.length && !progValid(v)) return [op, id, 2];
+          sim.objs.set(id, v.length ? v : progSimFactory()); sim.log.push(id); return [op, id, 0];
         }
         sim.objs.set(id, v); sim.log.push(id); return [op, id, 0];
       }

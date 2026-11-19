@@ -94,6 +94,8 @@ void emu_fw_idle(void);                     /* between frames: ui_input (main.c'
 void emu_fw_audio(int16_t *stereo, uint32_t frames);   /* frames: a multiple of EMU_BLOCK; s16 interleaved */
 int emu_fw_midi_in(uint32_t pkt);           /* one USB-MIDI event packet in; 0: no room (retry later) */
 void emu_fw_usb_lost(void);                 /* the USB peer went (usb.c usb_midi_lost, 3y261) */
+void emu_fw_prog_empty(unsigned p, unsigned k);   /* key k of progression p (0-based) emptied in the RAM copy (as an
+                                                   * edit sent from the web editor would: a script's `progempty P K`) */
 int emu_fw_midi_out_take(uint32_t *pkt);    /* one USB-MIDI event packet out, 0: none */
 void emu_fw_dump(void);                     /* print the firmware's input state (F12) */
 void emu_fw_stats(uint32_t *shed, uint32_t *cpu_pct);  /* voices shed on overload, the CPU meter */

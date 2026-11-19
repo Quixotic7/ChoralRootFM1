@@ -20,7 +20,7 @@
   webapp/installer/index.html index_pkg.html, self-contained (fm1pkg.js, fm1ota.js, fm1backup.js, fm1sounds.js
                               and the metadata inlined: the versions offered, their notes and checksums)
   webapp/installer/manager.html  the device manager (docs/DEVICE-MANAGER.md): manager.html, self-contained
-                              (fm1backup.js, fm1sounds.js, fm1manager.js and the packs of web/packs inlined; ?sim=1
+                              (fm1backup.js, fm1sounds.js, fm1prog.js, fm1manager.js and the packs of web/packs inlined; ?sim=1
                               runs it against a simulated FM-1)
   webapp/installer/packs/     web/packs/*.json (the packs as files, to download)
   emu/                        "Try it in the browser": build/emu-web/* (made by sh tools/emu/web/build_web.sh;
@@ -120,9 +120,9 @@ def landing(out, index):
 
 
 def manager_page():
-    """web/manager.html with /*LIB*/ (fm1backup.js, fm1dnsnd.js, fm1sounds.js, fm1manager.js) and the packs (web/packs) inlined"""
+    """web/manager.html with /*LIB*/ (fm1backup.js, fm1dnsnd.js, fm1sounds.js, fm1prog.js, fm1manager.js) and the packs (web/packs) inlined"""
     html = (HERE / "manager.html").read_text(encoding="utf-8")
-    lib = "\n".join(strip_module((HERE / n).read_text(encoding="utf-8")) for n in ("fm1backup.js", "fm1dnsnd.js", "fm1sounds.js", "fm1manager.js"))
+    lib = "\n".join(strip_module((HERE / n).read_text(encoding="utf-8")) for n in MANAGER_LIB)
     packs = HERE / "packs"
     index = json.loads((packs / "index.json").read_text(encoding="utf-8")) if (packs / "index.json").is_file() else {"packs": []}
     embed = {"index": [{**p, "url": "packs/" + p["file"]} for p in index["packs"]],
@@ -144,6 +144,8 @@ def layout_page():
 
 
 LAYOUT_LIB = ("fm1sketch.js", "fm1layout.js")
+MANAGER_LIB = ("fm1backup.js", "fm1dnsnd.js", "fm1sounds.js", "fm1prog.js", "fm1manager.js")   # (fm1prog.js: the
+# progressions, issue 64; before fm1manager.js, which uses it; web/test_manager.mjs compiles the page with this list)
 LAYOUT_FILES = ("crlayout.js", "crlayout.wasm")
 LAYOUT_LINK = ('<p class="note">Every page of the sound editor, drawn by the firmware in your browser:</p>'
                '<p class="note note-try"><a href="webapp/layout/">Layout viewer</a></p>')

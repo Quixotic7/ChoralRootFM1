@@ -110,7 +110,7 @@ docs/BOOT-SAFETY.md. "Linked" sizes are from `nm -S` on build/choralroot.elf.
 | 0x9F000 | FM6 bank copy A | live |
 | 0xA0000..0xA1FFF | **Bluetooth since 3y236** (storage.c OBJ_BLE, copies A / B): On / Off, the address, the bond, a copy of the radio's trims. Before: 0.21's CZ-1 tones 17..32 | live (FM-1; never in a backup; Flash Data clears it) |
 | 0xA2000..0xB1FFF | the CZ-1 banks A..H | live |
-| 0xB2000..0xB3FFF | 0.21's FM TONE store | **free since 3y231** |
+| 0xB2000..0xB3FFF | **the progressions** (storage.c OBJ_PROG, copies A / B; docs/PROGRESSIONS.md). Before: 0.21's FM TONE store (free 3y231 until the progressions) | live (Flash Data clears it) |
 | 0xB4000..0xB7FFF | the session, the favourites | live |
 | 0xB8000..0xC7FFF | the sound pool (13 banks over 16 sectors) | live |
 | 0xC8000..0xDBFFF | the ten loop slots | live |
@@ -130,7 +130,8 @@ the plain XIP window, is the resource region since 3y234 (docs/BOOT-SAFETY.md "T
 Since 3y296 0xDC000..0xDFFFF is the FM-1's second resource region (docs/BOOT-SAFETY.md "The second resource region"):
 read-only tables only the main loop reads moved out of the app slot, XIP 566 012 -> 553 916 B (12 096 B freed), RES2
 12 540 of 16 320 B; free now are 0xB2000..0xB3FFF (8 KB, in the plain window, between the CZ-1 banks and the
-session) and 0xE5000..0xE7FFF (12 KB, after the staging).
+session) and 0xE5000..0xE7FFF (12 KB, after the staging). Since the progressions (GitHub issue 64,
+docs/PROGRESSIONS.md) 0xB2000..0xB3FFF holds their object (OBJ_PROG): free now is 0xE5000..0xE7FFF alone.
 
 **What else only the main loop reads, and is big** (3y296's audit, `nm` sizes of the 0.39-based FM-1 build), for a
 third move or the second region's room (3 780 B free there, 2 056 of them meant for four drum kits):

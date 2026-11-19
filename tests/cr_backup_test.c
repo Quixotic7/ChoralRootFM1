@@ -6,7 +6,7 @@
  * the replies taken at CRB_SEND.
  *   sh tests/run_cr_tests.sh
  * Checks: INFO; LIST of every object (settings, the FM6 bank, the CZ-1 banks, the sound pool's 13 banks (50..62), the
- * favourites, 10 loops; no sample slots) with sizes and CRCs; GET of all of them in 256-byte pieces; a restore of
+ * favourites, the progressions (24, from their RAM copy), 10 loops; no sample slots) with sizes and CRCs; GET of all of them in 256-byte pieces; a restore of
  * everything onto an erased flash (PUT) gives a LIST and bytes identical to the backup and reloads the mirrors; a CRC
  * error, a short object, a malformed record are refused with nothing written; a playing loop answers busy (3) and the
  * commit goes through once it stops; stale sessions (the UI's buffer, a USB reset, 15 s); Felucca's objects: a PER4
@@ -19,7 +19,8 @@
  * CRCs; a pool bank as the device manager sends one (3y78: a used FM TONE slot's 80-byte patch taken and loaded, a
  * deleted slot's stale bytes written as zeros, a wrong patch length refused); SCREEN (74: off / on); SELECT (76: ok,
  * a bad part / engine / position, busy) and the reload of a playing part after a PUT of its bank (its patch CRC);
- * RESTART. */
+ * RESTART; the progressions (24: LIST / GET of the factory set and of a stored object, PUT valid / invalid / empty / the
+ * factory set onto none, the RAM copy reloaded, busy, stale; 0.21's record in their sectors refused). */
 #include <os/lock.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -213,6 +214,7 @@ static int t_smp(uint32_t cmd, uint32_t slot)        /* SMP_BEGIN / SMP_ERASE: a
 static void power_on(void)                           /* persist_boot + the UI, on the flash as it is */
 {
     up_boot();
+    crp_init();
     cr_settings_boot();
     cu_loop_scan();
 }
@@ -266,20 +268,21 @@ static void t_patch(uint8_t *bank, uint32_t j, uint32_t e, const uint8_t *p, uin
     s[UPP_HDR + 1u] = (uint8_t)n;
     memcpy(s + UPP_DATA, p, n);
 }
-/* 0.21's sound objects' sectors (storage.c "FREE", HISTORY 3y231): the user banks, the VA / FM6 / CZ-1 / FM TONE
- * stores. -> their CRC (in that order), or 1 when every byte is erased (blank: 1) */
-static const uint32_t T_OLD[4][2] = {{0x97000u, 0x9F000u}, {0xA0000u, 0xA2000u}, {0xB2000u, 0xB4000u}, {0xDC000u, 0xE0000u}};
+/* 0.21's sound objects' sectors (storage.c "FREE", HISTORY 3y231): the user banks, the VA / FM6 / CZ-1 stores (FM TONE's,
+ * 0xB2000..0xB3FFF, holds the progressions now: OBJ_PROG). -> their CRC (in that order), or 1 when every byte is erased
+ * (blank: 1) */
+static const uint32_t T_OLD[3][2] = {{0x97000u, 0x9F000u}, {0xA0000u, 0xA2000u}, {0xDC000u, 0xE0000u}};
 static uint32_t t_old_crc(void)
 {
     uint32_t c = 0, i;
-    for (i = 0; i < 4u; i++)
+    for (i = 0; i < 3u; i++)
         c = st_crc_run(c, emu_flash + T_OLD[i][0], T_OLD[i][1] - T_OLD[i][0]);
     return c;
 }
 static int t_old_blank(void)
 {
     uint32_t i, a;
-    for (i = 0; i < 4u; i++)
+    for (i = 0; i < 3u; i++)
         for (a = T_OLD[i][0]; a < T_OLD[i][1]; a++)
             if (emu_flash[a] != 0xFFu) return 0;
     return 1;
@@ -312,8 +315,8 @@ int main(void)
     /* ---- INFO ---- */
     t_begin(1);
     a = t_send(&n);
-    CHECK(a && n > 12 && !memcmp(a, "EMU", 4) && a[n - 6] == 0x42 && a[n - 4] == 3 && a[n - 3] == 0x43 && a[n - 1] == 3,
-          "INFO: version, no engines, tags 42 01 03 and 43 01 03 (0.22: the sound pool's ids)");
+    CHECK(a && n > 12 && !memcmp(a, "EMU", 4) && a[n - 6] == 0x42 && a[n - 4] == 3 && a[n - 3] == 0x43 && a[n - 1] == 4,
+          "INFO: version, no engines, tags 42 01 03 and 43 01 04 (v4: id 24, the progressions)");
     {   /* 3y66: the unit's ID. None known (the emulator reads no flash ID): no tag, the reply as before. Known: INFO
          * ends with 49 08 and its 8 hex digits, after the same bytes as before; the hosts of before read the version
          * to its NUL (fm1_install.py device_info, fm1backup.js deviceInfo) and editor.html Felucca's fields from the
@@ -380,10 +383,16 @@ int main(void)
     CHECK(!t_send(&n), "an editor command (GET 2) gets no reply");
 
     /* ---- an empty device: every object listed, sizes 0 but the settings ---- */
-    CHECK(t_list() == 0 && nman == 34, "LIST on a fresh flash: 34 objects (since 0.22 the pool's 13 banks; 0.21's 8 sound "
-                                       "objects retired, HISTORY 3y231)");
-    for (i = 0, k = 0; i < nman; i++) k += man[i].size != 0;
+    CHECK(t_list() == 0 && nman == 35, "LIST on a fresh flash: 35 objects (since 0.22 the pool's 13 banks; 0.21's 8 sound "
+                                       "objects retired, HISTORY 3y231; the progressions, 24)");
+    for (i = 0, k = 0; i < nman; i++) k += man[i].size != 0 && man[i].id != 24;
     CHECK(k <= 1, "fresh flash: nothing stored (the settings at most)");
+    {
+        static uint8_t fac[CRPG_SIZE];
+        uint32_t fl = crp_factory(fac);
+        CHECK(find(man, nman, 24) && find(man, nman, 24)->size == fl && find(man, nman, 24)->crc == st_crc32(fac, fl),
+              "fresh flash: LIST 24 is the factory set (%u bytes) from the RAM copy, nothing stored", (unsigned)fl);
+    }
 
     /* ---- 0.21's sectors (HISTORY 3y231): a unit that left 0.21's user banks in flash (two banks of records, as 0.21's
      * st_save wrote them at 0xDC000 / 0xDE000) and bytes in the stores' sectors. 0.22 .. 0.29 copied them into the pool
@@ -398,10 +407,21 @@ int main(void)
         ob.r[3] = ob.r[0];
         t_old_obj(0xDC000u, OBJ_X_UPRESET0, &ob, sizeof ob);
         t_old_obj(0xDE000u, OBJ_X_UPRESET0 + 1u, &ob, sizeof ob);
-        memset(emu_flash + 0x97000u, 0x5A, 0x200u);  /* (the VA store's place, the FM TONE store's: any bytes) */
-        memset(emu_flash + 0xB2000u, 0xA5, 0x200u);
+        memset(emu_flash + 0x97000u, 0x5A, 0x200u);  /* (the VA store's place: any bytes) */
+        {   /* FM TONE's store as 0.21 left it at 0xB2000 (type 17, OBJ_X_QUADSTORE): the progressions' copy A now */
+            static uint8_t qs[64];
+            memset(qs, 0x33, sizeof qs);
+            t_old_obj(0xB2000u, OBJ_X_QUADSTORE, qs, sizeof qs);
+        }
         c0 = t_old_crc();
         power_on();
+        {
+            static uint8_t fac[CRPG_SIZE];
+            uint32_t fl = crp_factory(fac);
+            CHECK(!crp_x.stored && crp_x.len == fl && !memcmp(crp_x.blk, fac, fl) && st_load(OBJ_PROG, cu_loop_buf, sizeof cu_loop_buf) < 0,
+                  "0.21's FM TONE store at 0xB2000: refused by its header (type 17), the factory progressions");
+            memset(emu_flash + 0xB2000u, 0xFF, 0x1000u);   /* (cleared again: the restore below compares a fresh unit's) */
+        }
         for (b = 0; b < SP_NBANK; b++) used += sp_used(b);
         for (k = 0; k < UP_SLOTS; k++) used += up_used(k);
         CHECK(!used && st_load(OBJ_X_UPRESET0, cu_loop_buf, sizeof cu_loop_buf) < 0 &&
@@ -467,11 +487,12 @@ int main(void)
     /* ---- backup: LIST, GET everything, CRCs ---- */
     CHECK(t_capture() == 0, "backup: LIST + GET of every object, each CRC as listed");
     {
-        static const uint8_t ids[34] = {1, 8, 14, 15, 16, 17, 18, 19, 20, 21, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
-                                        62, 23, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
-        int same = nman == 34;
-        for (i = 0; same && i < 34; i++) same = man[i].id == ids[i];
-        CHECK(same, "LIST: ids 1 8 14..21 (the CZ-1 banks) 50..62 (the pool's banks, 0.22) 23 (the favourites, after the sounds) 40..49 in order");
+        static const uint8_t ids[35] = {1, 8, 14, 15, 16, 17, 18, 19, 20, 21, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
+                                        62, 23, 24, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+        int same = nman == 35;
+        for (i = 0; same && i < 35; i++) same = man[i].id == ids[i];
+        CHECK(same, "LIST: ids 1 8 14..21 (the CZ-1 banks) 50..62 (the pool's banks, 0.22) 23 (the favourites, after the sounds) "
+                    "24 (the progressions) 40..49 in order");
     }
     {
         static const uint8_t old[8] = {6, 7, 9, 10, 11, 12, 13, 22};
@@ -904,8 +925,82 @@ int main(void)
         CHECK(t_list() == 0 && find(man, nman, 50)->size == ST_PAYLOAD_MAX && find(man, nman, 51)->size == ST_PAYLOAD_MAX &&
               find(man, nman, 52)->size == 0 && !find(man, nman, 6) && !find(man, nman, 9) && !find(man, nman, 13),
               "sounds: LIST: the pool's banks 50 and 51, 52 empty; none of 0.21's objects");
-        CHECK(t_old_blank(), "sounds: 0.21's sectors (0x97000..0x9EFFF, 0xA0000..0xA1FFF, 0xB2000..0xB3FFF, 0xDC000..0xDFFFF) "
+        CHECK(t_old_blank(), "sounds: 0.21's sectors (0x97000..0x9EFFF, 0xA0000..0xA1FFF, 0xDC000..0xDFFFF) "
                              "still erased after every PUT");
+    }
+
+    /* ---- 24: the progressions (cr_prog.c, GitHub issue 64; docs/PROGRESSIONS.md) ---- */
+    {
+        static uint8_t fac[CRPG_SIZE], pg[CRPG_SIZE], got[CRPG_SIZE];
+        uint32_t fl = crp_factory(fac), off, c0, e0, ok;
+        st_hdr_t h;
+        obj_t *o;
+        char nm[CRPG_NAME + 1];
+        CHECK(st_current(OBJ_PROG, &h) < 0 && !crp_x.stored && crp_x.len == fl,
+              "progressions: the restore of a backup holding the factory set onto a unit storing none wrote nothing");
+        CHECK(t_list() == 0 && (o = find(man, nman, 24)) != 0 && o->size == fl && o->crc == st_crc32(fac, fl),
+              "progressions: LIST 24: the factory set's length and CRC");
+        for (off = 0, ok = 1; off < fl; off += 256)
+            ok &= t_get(24, off, fl - off < 256 ? fl - off : 256, got + off) == 0;
+        CHECK(ok && !memcmp(got, fac, fl), "progressions: GET 24: the factory set's bytes");
+        memcpy(pg, fac, fl);                         /* a user's set: slot 1 renamed, its first chord a C major triad */
+        memcpy(pg + CRPG_HDR, "My Song", 7);
+        pg[CRPG_HDR + 7] = 0;
+        pg[CRPG_DATA] = 5, pg[CRPG_DATA + 1] = 36, pg[CRPG_DATA + 2] = 48, pg[CRPG_DATA + 3] = 52, pg[CRPG_DATA + 4] = 55,
+        pg[CRPG_DATA + 5] = 60;
+        CHECK(crp_valid(pg, fl), "(a valid user set)");
+        e0 = st_erases;
+        CHECK(t_put(24, pg, fl) == 0 && crp_x.stored && crp_x.len == fl && !memcmp(crp_x.blk, pg, fl) && st_erases == e0 + 1u,
+              "progressions: PUT 24 of a valid object: stored (one erase), the RAM copy reloaded at once");
+        crp_name(0, nm);
+        CHECK(!strcmp(nm, "My Song") && crp_chord(0, 0, got) == 5 && got[1] == 48, "progressions: the engine's lookups see it");
+        CHECK(t_list() == 0 && find(man, nman, 24)->size == fl && find(man, nman, 24)->crc == st_crc32(pg, fl) &&
+              t_get(24, 0, 256, got) == 0 && !memcmp(got, pg, 256), "progressions: LIST / GET 24: the stored object");
+        memset(crp_x.blk, 0, sizeof crp_x.blk);
+        power_on();
+        CHECK(crp_x.stored && !memcmp(crp_x.blk, pg, fl), "progressions: .. and after a power cycle");
+        c0 = st_crc32(emu_flash + 0xB2000u, 0x2000u);
+        e0 = st_erases;
+        memcpy(got, pg, fl);
+        got[CRPG_DATA + 3] = 36;                     /* notes not ascending */
+        CHECK(t_put(24, got, fl) == 2 && st_erases == e0 && st_crc32(emu_flash + 0xB2000u, 0x2000u) == c0 &&
+              !memcmp(crp_x.blk, pg, fl), "progressions: PUT of an invalid object (notes not ascending): rc 2, nothing "
+                                          "written, the RAM copy as it was");
+        got[CRPG_DATA + 3] = 52;
+        got[4] = 2;                                  /* another version */
+        CHECK(t_put(24, got, fl) == 2 && st_erases == e0, "progressions: PUT of another version: rc 2");
+        CHECK(t_put_begin(24, CRPG_DATA - 1u, 0) == 1 && t_put_begin(24, CRPG_SIZE + 1u, 0) == 1,
+              "progressions: a begin of 271 or 3841 bytes: rc 1");
+        ok = t_put_begin(24, fl, st_crc32(pg, fl) ^ 1u) == 0;
+        for (off = 0; ok && off < fl; off += 256)
+            ok = t_put_data(24, off, pg + off, fl - off < 256 ? fl - off : 256) == 0;
+        CHECK(ok && t_put_op(2, 24) == 2 && st_erases == e0,
+              "progressions: a CRC error: rc 2, nothing written");
+        cr_snap.lstate = CRL_PLAYING;
+        CHECK(t_put_begin(24, fl, st_crc32(fac, fl)) == 3, "progressions: a begin while a loop plays: rc 3 (busy)");
+        cr_snap.lstate = CRL_STOPPED;
+        CHECK(t_put_begin(24, fl, st_crc32(fac, fl)) == 0, "progressions: the begin once it stopped");
+        usb.resets++;
+        CHECK(t_put_data(24, 0, fac, 256) == 5, "progressions: a USB reset: rc 5 (stale)");
+        CHECK(t_list() == 0 && t_put_begin(24, 0, 0) == 0 && t_get(24, 0, 16, got) == 5,
+              "progressions: a begin ends LIST's snapshot: GET 24 rc 5");
+        CHECK(t_put_op(2, 24) == 0 && !crp_x.stored && crp_x.len == fl && !memcmp(crp_x.blk, fac, fl) &&
+              st_load(OBJ_PROG, got, sizeof got) == 0, "progressions: PUT of 0 bytes: back to the factory set (an empty object)");
+        CHECK(t_list() == 0 && find(man, nman, 24)->size == fl && find(man, nman, 24)->crc == st_crc32(fac, fl),
+              "progressions: LIST 24: the factory set again");
+        power_on();
+        CHECK(!crp_x.stored && !memcmp(crp_x.blk, fac, fl), "progressions: .. and after a power cycle");
+        e0 = st_erases;
+        CHECK(t_put(24, fac, fl) == 0 && crp_x.stored && st_erases == e0 + 1u,
+              "progressions: the factory set PUT over a stored (empty) object: written");
+        memset(emu_flash + 0xB2000u, 0xFF, 0x2000u);
+        power_on();
+        e0 = st_erases;
+        CHECK(t_put(24, fac, fl) == 0 && !crp_x.stored && st_erases == e0,
+              "progressions: the factory set PUT onto a unit storing none: nothing written");
+        for (off = 0xB2000u, ok = 1; off < 0xB4000u; off++)
+            ok &= emu_flash[off] == 0xFFu;
+        CHECK(ok, "progressions: .. its sectors still erased");
     }
 
     /* ---- 74 SCREEN: off (one black frame, the backlight on: PA2 is never raised, it also keeps the key matrix alive,

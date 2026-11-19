@@ -1,0 +1,32 @@
+# test_persist.sh, the progressions (GitHub issue 64) run 1, with EMU_PROG_LONG=1 (slot 16: 48 keys): KEY page 2
+# Keyboard Prog, page 3: progression 16, Velocity down, Humanize up; OCT+ twice: window 2; SAVE held (the global save:
+# the session record's prog_* bytes); dump; quit
+wait 500
+btn SEL down
+wait 500
+btn SEL up
+wait 300
+knob SELECT +1
+wait 200
+knob KNOB2 +1
+wait 100
+knob KNOB2 +1                 # Prog
+wait 200
+knob SELECT +1                # page 3
+wait 200
+knob KNOB1 +15                # progression 16
+wait 200
+knob KNOB2 -10                # Velocity below 100 %
+wait 200
+knob KNOB3 +10                # Humanize above 0
+wait 300
+btn OCT-
+wait 300
+btn OCT+
+wait 200
+btn OCT+                      # window 2
+wait 300
+btn SAVE 900                  # the global save
+wait 2500
+dump
+quit

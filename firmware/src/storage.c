@@ -29,7 +29,8 @@
 #define ST_PAYLOAD_MAX (ST_SECTOR - ST_PAYLOAD_OFF)
 
 /* flash map (FL_DATA 0x97000..0xDFFFF, FL_GLOB 0xFC000..): the FM6 patch bank (fm6_bank.c) copy A 0x9F000, the eight
- * CZ-1 banks A..H 0xA2000..0xB1FFF (cz_bank.c, OBJ_CZBANK0 + k: an A/B pair each), the session 0xB4000 / 0xB5000
+ * CZ-1 banks A..H 0xA2000..0xB1FFF (cz_bank.c, OBJ_CZBANK0 + k: an A/B pair each), the progressions 0xB2000 / 0xB3000
+ * (cr_prog.c, OBJ_PROG: GitHub issue 64, docs/PROGRESSIONS.md), the session 0xB4000 / 0xB5000
  * (cr_settings.c, OBJ_SESSION: where the unit was left, 0.18), the favourites 0xB6000 / 0xB7000 (cr_favs.c, OBJ_FAVS:
  * the marked sounds, 0.22), the sound pool 0xB8000..0xC7FFF (0.22: the sp_* section at the end, upool.c: 13 banks of 10
  * user slots floating over these 16 sectors), the loop slots 0xC8000..0xDBFFF (cr_ui.c CRL_FL_BASE), the settings A / B
@@ -40,11 +41,17 @@
  * objects (the user banks, the VA / FM6 / CZ-1 tone / FM TONE stores; before them Felucca's projects and user presets).
  * 0.22 .. 0.29 copied them into the pool once at their first power-on; this firmware neither reads nor writes them (a
  * unit still on 0.21 goes through 0.29.2 first). Their object numbers stay reserved below: every record's header names
- * its object (st_hdr_t.type), so the live objects keep their numbers. */
+ * its object (st_hdr_t.type), so the live objects keep their numbers. Since taken again: 0x93000..0x9EFFF the resource
+ * region (3y234), 0xA0000..0xA1FFF Bluetooth (OBJ_BLE, 3y236), 0xDC000..0xDFFFF the second resource region (3y296),
+ * 0xB2000..0xB3FFF the progressions (OBJ_PROG): a 0.21 record still there (FM TONE's store, type OBJ_X_QUADSTORE)
+ * names another object, so st_head refuses it and the unit plays the factory progressions until the first PUT. */
 enum { OBJ_SETTINGS, OBJ_X_PROJECT0, OBJ_X_UPRESET0 = OBJ_X_PROJECT0 + 4, OBJ_FM6BANK = OBJ_X_UPRESET0 + 2,
        OBJ_X_CZSTORE1, OBJ_CZBANK0, OBJ_X_QUADSTORE = OBJ_CZBANK0 + 8, OBJ_SESSION, OBJ_FAVS,
        OBJ_BLE,                          /* 20, FM-1: Bluetooth's address, bond, trims (cr_ble.c, 3y236): 0xA0000 / 0xA1000,
                                           * 0.21's CZ-1 tones 17..32 until 3y231 (their records name 8: never this one) */
+       OBJ_PROG,                         /* 21: the progressions (cr_prog.c, cr_prog.h; GitHub issue 64): FM-1 0xB2000 /
+                                          * 0xB3000 (0.21's FM TONE store until 3y231: its records name 17), SMK-37
+                                          * 0xB0000 / 0xB1000 (0.21's CZ-1 store 2: its records name 8) */
        OBJ_COUNT };
 static inline int st_live(uint32_t obj)  /* the objects stored today */
 {
@@ -130,7 +137,8 @@ static uint32_t st_crc32(const void *p, uint32_t n) { return st_crc_run(0u, p, n
  *   FL_DATA 0xA9000..0xBAFFF
  *     0xA9000 / 0xAA000 OBJ_FM6BANK          0xAB000 / 0xAC000 OBJ_SETTINGS     0xAD000 / 0xAE000 OBJ_SESSION
  *     0xAF000           the store owner tag (st_owner_check: the same place in every ported firmware)
- *     0xB0000..0xB3FFF  free (the same)
+ *     0xB0000 / 0xB1000 OBJ_PROG (the progressions; 0.21's CZ-1 store 2 until 3y231, its records name 8: refused)
+ *     0xB2000..0xB3FFF  free (0.21's QUAD store until 3y231)
  *     0xB4000 / 0xB5000 OBJ_FAVS (0.24 on the SMK)
  *     0xB6000..0xBAFFF  the sound pool's sectors 0..4 (sp_*, below)
  *   FL_SMP 0xC2000..0xE9FFF (USRFLASH, the stock's user area, 40 sectors: ChoralRoot has no samples)
@@ -145,7 +153,8 @@ static uint32_t st_crc32(const void *p, uint32_t n) { return st_crc_run(0u, p, n
 #define ST_SMK_SECTORS (2u * ST_SMK_PAIRS)
 #define ST_SMK_LIVE (ST_SMK_BASE + 12u * ST_SECTOR)   /* pairs 6..8: OBJ_FM6BANK, OBJ_SETTINGS, OBJ_SESSION */
 #define ST_SMK_LIVE_SECTORS (ST_SMK_SECTORS - 12u)
-#define ST_SMK_HIGH 0xB0000u                   /* the pairs above it: CZ-1 store 2, QUAD store, the favourites */
+#define ST_SMK_HIGH 0xB0000u                   /* the pairs above it: the progressions (0.21's CZ-1 store 2), free
+                                        * (0.21's QUAD store), the favourites */
 #define ST_SMK_HIGH_SECTORS 6u
 #define ST_SMK_CZB 0xC2000u                    /* the CZ-1 banks, in USRFLASH */
 #define ST_SMK_CZB_SECTORS 16u
@@ -164,7 +173,8 @@ static const uint32_t ST_SMK_REGIONS[][2] = {{ST_SMK_LIVE, ST_SMK_LIVE_SECTORS},
                                              {ST_SMK_POOL0, ST_SMK_POOL0_N}, {ST_SMK_POOL1, ST_SMK_POOL1_N},
                                              {ST_SMK_POOL2, ST_SMK_POOL2_N}};
 #if FELUCCA_CZ && FELUCCA_QUAD
-_Static_assert(OBJ_COUNT == 21u && OBJ_BLE + 1u == OBJ_COUNT, "SMK store: a new object needs a place (OBJ_BLE: none)");
+_Static_assert(OBJ_COUNT == 22u && OBJ_BLE + 1u == OBJ_PROG && OBJ_PROG + 1u == OBJ_COUNT,
+               "SMK store: a new object needs a place (OBJ_BLE: none; OBJ_PROG: ST_SMK_HIGH's first pair)");
 #endif
 _Static_assert(ST_SMK_BASE == FL_RES_LO && ST_SMK_LIVE == FL_RES_HI && ST_SMK_LIVE == FL_DATA_LO &&
                ST_SMK_BASE + ST_SMK_SECTORS * ST_SECTOR == 0xAF000u,
@@ -186,6 +196,8 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return ST_SMK_BASE + (8u * 2u + copy) * ST_SECTOR;
     if (obj == OBJ_FAVS)
         return ST_SMK_HIGH + (4u + copy) * ST_SECTOR;
+    if (obj == OBJ_PROG)
+        return ST_SMK_HIGH + copy * ST_SECTOR;
     if (obj >= OBJ_CZBANK0 && obj < OBJ_CZBANK0 + 8u)
         return ST_SMK_CZB + ((obj - OBJ_CZBANK0) * 2u + copy) * ST_SECTOR;
     if (obj == OBJ_FM6BANK)
@@ -309,6 +321,8 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return 0xB6000u + copy * ST_SECTOR;
     if (obj == OBJ_BLE)
         return 0xA0000u + copy * ST_SECTOR;
+    if (obj == OBJ_PROG)
+        return 0xB2000u + copy * ST_SECTOR;
     if (obj >= OBJ_CZBANK0 && obj < OBJ_CZBANK0 + 8u)
         return 0xA2000u + (obj - OBJ_CZBANK0) * 2u * ST_SECTOR + copy * ST_SECTOR;
     return 0xFC000u + copy * ST_SECTOR;                  /* OBJ_SETTINGS */

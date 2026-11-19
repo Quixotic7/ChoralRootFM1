@@ -507,11 +507,14 @@ Hold KEY to open the **KEY layer**:
 | KNOB 2 | Scale: all 23, in the order of the table in [Scales](#scales) |
 | KNOB 3 | Transpose, -24 to +24 semitones. It moves everything you play from then on, in or out of Key Mode |
 | KNOB 4 | Single: Full, Split Oct or Split Bass (below) |
-| SELECT | turns the layer's page: page 1 is the four settings above, page 2 has Key plays, Keyboard, Snap and Numerals (below). The top line says `1/2` or `2/2`. SELECT does not change the tempo in this layer |
+| SELECT | turns the layer's page: page 1 is the four settings above, page 2 has Key plays, Keyboard, Snap and Numerals, page 3 the progressions (below). The top line says `1/3`, `2/3` or `3/3`. SELECT does not change the tempo in this layer |
 | KNOB 1, page 2 | **Key plays**: Chords or Notes |
-| KNOB 2, page 2 | **Keyboard**: Chords or Full |
+| KNOB 2, page 2 | **Keyboard**: Chords, Full or Prog (new in 0.42) |
 | KNOB 3, page 2 | **Snap**: Off, Scale or Chord |
 | KNOB 4, page 2 | **Numerals**: Off, On or Solfège |
+| KNOB 1, page 3 | **Prog**: which of the 16 progressions the Prog keyboard plays (new in 0.42) |
+| KNOB 2, page 3 | **Velocity**: 50 to 150 %, how hard the progression's chords play against your touch |
+| KNOB 3, page 3 | **Humanize**: 0 to 100 %, a random spread on each note's velocity |
 | OPT (printed GLO) tap | switches the keys between **pick** and **play** (below). It does not open the Options from here |
 | OCT-, OCT+, HOME, KEY held again | close the layer |
 
@@ -627,6 +630,44 @@ makes those roots play instead.
 - In the KEY layer with its keys on pick, the keys still pick: a root sets the tonic, MAJ and MIN the scale (the
   other low keys do nothing there). With the keys on play they are the Full keyboard.
 
+**Keyboard: Prog, progressions** (page 2, KNOB 2; new in 0.42, GitHub issue 64). Like the Ripchord plug-in, every key
+of the keybed plays a whole chord stored for it: one of 16 **progressions**, each up to 48 keys of chords of up to 8
+notes, written exactly as they sound. Turn KNOB 2 past Full to `Prog` (back: Full, then Chords). On the KEY layer's
+page 2 the strip marks the keys that hold a chord, and Key plays, Snap and Numerals go grey: they do nothing here.
+
+- **Page 3** picks what plays: KNOB 1 the progression (its name big, the ones before and after above and below; an
+  empty slot reads `empty`), KNOB 2 **Velocity** (50 to 150 %: your touch times this) and KNOB 3 **Humanize** (0 to
+  100 %: each note of the chord gets a random velocity up to 40 either side of it at 100 %). The top line says `Prog 3
+  of 16`.
+- The lowest key (F3; C3 on the SMK-37) plays the progression's first key, and so on up. A key with no chord is
+  silent: no sound, no MIDI, nothing in a loop. The key lights: dark without a chord, glowing with one, lit while held.
+- **OCT- and OCT+** slide the keybed along a progression longer than it, 12 keys at a time (the keys of 13 to 39, 25
+  to 51 ..: four places at most); they do not change the octave here. A pop-up shows the keys you are on, the top
+  right of the Chord view keeps them (`keys 13-39`) and OCT+ is lit while you are past the start. HOME goes back to
+  the start.
+- The chord is the stored notes moved by Transpose (page 1) and turned by the **voicing** (KNOB 1 on the view), as
+  any chord. Key Mode, the chord keys, LOCK and Single leave it alone: LOCK latches nothing here, and what it had
+  latched is back when Keyboard leaves Prog. Changing to or from Prog lets go of the keys held.
+- The Chord view names the chord from its notes (`Em9`, `C7/E`, `Gdim7/B`; a set it has no name for shows its bass
+  note) and lists every note, the bass's in orange; the top line says which progression and key in purple (`Neo
+  Soul · 5`). The Keyboard view is as ever.
+- The bass part takes the chord's lowest note; the performance modes, glide, both parts and MIDI out play the
+  chord's notes as for any chord.
+- **Loops** keep which progression, key and Transpose a chord came from, not its notes: edit the progression later
+  and the loop plays the new chord (an emptied key is silent in it). A loop keeps a Transpose of -7 to +7 as it is;
+  beyond, it keeps the notes' names and loses the octave (+12 plays as 0). A firmware older than 0.42 reads a loop
+  holding a progression's chord as an empty slot.
+- **MIDI Keys** (Options): in Prog its notes 53 to 79 play the progression's chords on the keys F3 to G5, and notes 80
+  and up reach the progression's keys 28 to 48 directly, so a bigger keyboard plays a whole progression without OCT;
+  its notes 36 to 44 (the chord-key pads) do nothing. MIDI Roots and the other channels are as ever.
+- A new FM-1 has six progressions of ChoralRoot's own in slots 1 to 6 (Pop Four, Jazz ii-V-I, Neo Soul, Gospel Walk,
+  Minor Epic, Dorian Days, eight chords each); slots 7 to 16 are empty. The **device manager's Progressions** page
+  (web) reads, edits, makes and sends them, imports Ripchord's `.rpc` presets (a chord of more than 8 notes loses its
+  doubled notes, then middle ones; keys past 48 are left out) and exports them as `.rpc`; Factory set puts the six
+  back. A backup keeps them, and Options > Flash Data erases them (the six come back).
+- Keyboard: Prog, the progression, Velocity and Humanize are kept as the unit is left (no SAVE needed), with the
+  session.
+
 **Snap: Off, Scale or Chord** (page 2, KNOB 3; off unless you turn it on). With Key plays `Notes`, on either
 keyboard, a key outside the scale is a dead key: Snap gives it a right note to play, the way the Scaler app remaps
 its keyboard, so every key under your fingers plays and none leaves the key.
@@ -672,7 +713,7 @@ diminished chord (`ti°`), `+` after an augmented one, a `b` or `#` before a roo
 names used in Italy, France, Spain and elsewhere), is a different thing: this setting does not rename the notes or
 the chord.
 
-Key plays, Keyboard, Numerals and Single are kept by a global save (SAVE held), like the rest of the KEY layer.
+Key plays, Keyboard, Numerals and Single are kept by a global save (SAVE held), like the rest of the KEY layer (Keyboard's `Prog` and page 3 are kept with the session instead: above).
 
 The Geek Out view shows the transposition (`Trans +2`).
 

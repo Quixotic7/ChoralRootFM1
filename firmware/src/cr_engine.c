@@ -404,6 +404,15 @@ static int crx_order_notes(cr_t *c, const uint8_t *sorted, int n, int dir, int c
 }
 
 static void crx_own_append(cr_own_t *o, int note) { if (o->n < CR_OWN_MAX) o->note[o->n++] = (uint8_t)note; }
+/* a note's velocity: a progression's chord with Humanize on (cr_set_prog_humanize): vel + a random offset in +-r, r =
+ * Humanize x 40 / 100, clamped 1..127; every other voice: vel */
+static int crx_hv(cr_t *c, const cr_voice_t *v, int vel)
+{
+    int r;
+    if (!(v->zone & CR_Z_PROG) || !c->prog_hum) return vel;
+    r = c->prog_hum * 40 / 100;
+    return crx_clamp(vel + crx_randn(c, 2 * r + 1) - r, 1, 127);
+}
 
 /* Chord and Bass Perform (0.34, GitHub issue 41): part CR_PF_CHORD performs the voice's voiced notes on the MAIN
  * stream in perform_mode / par, part CR_PF_BASS the same chord moved into the bass (crx_pf_notes) on the BASS stream in
@@ -458,7 +467,7 @@ static void crx_strum_fire(cr_t *c, int vi, int part, int note)
     cr_pf_t *f = &v->pf[part];
     if (!v->used || !f->own.live) return;
     if (f->own.n >= CR_OWN_MAX || (f->gate_t && !crx_room(c, 1))) return;   /* never strand a note */
-    if (crx_note_start(c, crx_pf_stream(part), note, v->vel)) {
+    if (crx_note_start(c, crx_pf_stream(part), note, crx_hv(c, v, v->vel))) {
         crx_own_append(&f->own, note);
         f->last_note = (uint8_t)note; f->has_last = 1;
         if (f->gate_t) crx_sched(c, f->gate_t, CR_EV_NOTE_OFF, CR_OWN_V(vi, part), vi, note);
@@ -514,7 +523,7 @@ static void crx_fire_clocked_once(cr_t *c, int vi, int part)
         }
     }
     if (n >= 0 && f->own.live && f->own.n < CR_OWN_MAX && crx_room(c, 1)) {
-        if (crx_note_start(c, crx_pf_stream(part), n, vel)) {
+        if (crx_note_start(c, crx_pf_stream(part), n, crx_hv(c, v, vel))) {
             uint32_t bpm = c->bpm, dur = (2u * 25u * du * (uint32_t)p[CR_P_GATE] + bpm) / (2u * bpm);
             crx_own_append(&f->own, n);
             f->last_note = (uint8_t)n; f->has_last = 1;
@@ -687,7 +696,7 @@ static void crx_bass_start(cr_t *c, int vi)
     v->bass.live = 1; v->bass.n = 0;
     if (crx_pf_on(c, CR_PF_BASS)) { crx_start_performance(c, vi, CR_PF_BASS); return; }
     p = crx_bass_pitch(c, v);
-    if (crx_note_start(c, CR_STREAM_BASS, p, v->vel)) { v->bass.n = 1; v->bass.note = (uint8_t)p; }
+    if (crx_note_start(c, CR_STREAM_BASS, p, crx_hv(c, v, v->vel))) { v->bass.n = 1; v->bass.note = (uint8_t)p; }
 }
 static void crx_bass_release(cr_t *c, int vi)
 {
@@ -715,7 +724,7 @@ static void crx_main_voice(cr_t *c, int vi, int on)
             int i;
             o->live = 1; o->n = 0;
             for (i = 0; i < v->nnotes; i++)
-                if (crx_note_start(c, CR_STREAM_MAIN, v->notes[i], v->vel)) crx_own_append(o, v->notes[i]);
+                if (crx_note_start(c, CR_STREAM_MAIN, v->notes[i], crx_hv(c, v, v->vel))) crx_own_append(o, v->notes[i]);
         }
     }
 }
@@ -727,7 +736,7 @@ static void crx_raw_voice(cr_t *c, int vi, int on)
         int i;
         v->raw.live = 1; v->raw.n = 0;
         for (i = 0; i < v->nnotes; i++)
-            if (crx_note_start(c, CR_STREAM_RAW, v->notes[i], v->vel) && v->raw.n < CR_CHORD_MAX)
+            if (crx_note_start(c, CR_STREAM_RAW, v->notes[i], crx_hv(c, v, v->vel)) && v->raw.n < CR_CHORD_MAX)
                 v->raw.note[v->raw.n++] = v->notes[i];
     }
 }
@@ -769,6 +778,8 @@ static void crx_disp_snapshot(cr_t *c, const cr_voice_t *v)
     c->disp_pc = (uint8_t)crx_mod(v->root + v->transpose, 12);
     c->disp_n = v->nnotes;
     for (i = 0; i < v->nnotes; i++) c->disp_notes[i] = v->notes[i];
+    c->disp_pi = v->pc_pressed;      /* (a progression's chord: its key; its transpose below) */
+    c->disp_pt = v->transpose;
 }
 
 static void crx_lp_detach(cr_t *c, int vi)
@@ -787,6 +798,10 @@ static void crx_gesture(cr_t *c, int vi, int on)
 {
     const cr_voice_t *v = &c->v[vi];
     if (!c->out.gesture || !v->used || v->loop) return;
+    if (v->zone & CR_Z_PROG) {       /* a progression's chord: its reference (cr_engine.h CR_Q_PROG) */
+        c->out.gesture(c->out.ud, v->gid, CR_PROG_REF(v->pc_pressed, v->transpose), CR_Q_PROG, v->sx, v->vel, on);
+        return;
+    }
     c->out.gesture(c->out.ud, v->gid, (int16_t)(v->root + v->transpose), v->rq,
                    (uint8_t)(v->zone & CR_Z_BASS ? CR_GX_BASS : v->sx), v->vel, on);   /* (a bass-side key: q, sx 0) */
 }
@@ -813,7 +828,8 @@ static void crx_note_last_chord(cr_t *c, int vi)
 {
     const cr_voice_t *v = &c->v[vi];
     c->last_chord.used = 1;
-    c->last_chord.root = v->root;
+    c->last_chord.root = v->zone & CR_Z_PROG ? CR_PROG_REF(v->pc_pressed, v->transpose) : v->root;   /* (a progression's:
+                                                    * its reference, as out.gesture's) */
     c->last_chord.q = v->rq;
     c->last_chord.x = v->sx;
     c->last_chord.vel = v->vel;
@@ -827,7 +843,7 @@ static int crx_find_voice(const cr_t *c, int key)
 {
     int i, f = -1;
     for (i = 0; i < CR_MAX_VOICES; i++)
-        if (c->v[i].used && c->v[i].key == key) {
+        if (c->v[i].used && c->v[i].key == key && !(c->v[i].zone & CR_Z_PROG)) {   /* (a progression trigger's: its own) */
             if (!c->v[i].is_free) return i;
             if (f < 0) f = i;
         }
@@ -836,9 +852,13 @@ static int crx_find_voice(const cr_t *c, int key)
 
 /* the voicing a voice takes: a chord's (the Full keyboard's Key chords too); none for a single note of the Full
  * keyboard or a bass-side note (nothing to rotate; KNOB 1 is the octave on the Full keyboard) */
+static int crx_voiced(const cr_voice_t *v)        /* a chord KNOB 1 rotates (a progression's too) */
+{
+    return !v->zone || (v->zone & CR_Z_PROG) || ((v->zone & CR_Z_FULL) && v->rq);
+}
 static int crx_voic(const cr_t *c, const cr_voice_t *v)
 {
-    return v->zone && !((v->zone & CR_Z_FULL) && v->rq) ? 0 : c->voicing;
+    return crx_voiced(v) ? c->voicing : 0;
 }
 /* build, register and sound a voice; bass follows it */
 static int crx_start_voice(cr_t *c, int key, int id, int vel, int pc_pressed, int note_pressed, int sq, int sx, int is_free,
@@ -865,6 +885,43 @@ static int crx_start_voice(cr_t *c, int key, int id, int vel, int pc_pressed, in
     c->disp_vi = (uint8_t)vi;
     crx_gesture(c, vi, 1);
     return vi;
+}
+
+/* a progression's chord into voice v (zeroed, not used yet): key i of progression p (cr_prog_source), each note + t moved by
+ * octaves into 0..127, sorted, a note twice once; the voice's fields as cr_engine.h CR_Z_PROG says. 0: no chord there
+ * (the voice untouched) */
+static cr_prog_fn crx_prog_fn;                      /* cr_prog_source */
+void cr_prog_source(cr_prog_fn fn) { crx_prog_fn = fn; }
+static int crx_prog_build(const cr_t *c, cr_voice_t *v, unsigned p, unsigned i, int t)
+{
+    uint8_t s[CR_CHORD_MAX];
+    int n, k, m = 0, lo = 127;
+    (void)c;
+    if (!crx_prog_fn || p > 15u || i > 63u) return 0;
+    n = (int)crx_prog_fn(p, i, s);
+    if (n <= 0) return 0;
+    if (n > CR_CHORD_MAX) n = CR_CHORD_MAX;
+    t = crx_clamp(t, -24, 24);
+    for (k = 0; k < n; k++) {
+        int x = s[k] & 127, j, dup = 0;
+        if (x < lo) lo = x;
+        x += t;
+        while (x < 0) x += 12;
+        while (x > 127) x -= 12;
+        for (j = 0; j < m; j++) dup |= v->base[j] == x;
+        if (!dup) v->base[m++] = (uint8_t)x;
+    }
+    crx_sort(v->base, m);
+    v->nbase = (uint8_t)m;
+    v->zone = CR_Z_PROG;
+    v->sq = v->rq = CR_Q_PROG;
+    v->sx = (uint8_t)p;
+    v->pc_pressed = (uint8_t)i;
+    v->transpose = (int8_t)t;
+    v->root = (int16_t)lo;
+    v->note_pressed = (uint8_t)lo;
+    v->pc = (uint8_t)(lo % 12);
+    return 1;
 }
 
 static void crx_clear_manual_voices(cr_t *c)
@@ -904,7 +961,7 @@ static void crx_latch_sync(cr_t *c)
     if (cr_latching(c)) return;
     for (i = 0; i < CR_MAX_VOICES; i++) {
         const cr_voice_t *v = &c->v[i];
-        if (v->used && !crx_held_as_itself(c, v->key, v->id) && !crx_snapped_to(c, v->key))
+        if (v->used && !crx_held_as_itself(c, v->key, v->id) && ((v->zone & CR_Z_PROG) || !crx_snapped_to(c, v->key)))
             crx_kill_voice(c, i);   /* latched, not held */
     }
 }
@@ -1203,6 +1260,56 @@ void cr_key_ex(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int down)
 
 void cr_key(cr_t *c, uint8_t midi_note, uint8_t vel, int down) { cr_key_ex(c, midi_note, 0, vel, down); }
 
+/* the voice a progression trigger sounds (-1 none) */
+static int crx_find_prog(const cr_t *c, int trig)
+{
+    int i;
+    for (i = 0; i < CR_MAX_VOICES; i++)
+        if (c->v[i].used && (c->v[i].zone & CR_Z_PROG) && c->v[i].key == trig) return i;
+    return -1;
+}
+void cr_prog_key(cr_t *c, uint8_t trig, uint8_t p, uint8_t i, uint8_t vel, int down)
+{
+    const uint8_t bit = (uint8_t)(1u << CR_PROG_ID);
+    int vi;
+    cr_voice_t *v;
+    if (trig > 127) return;
+    if (down) {
+        cr_voice_t nv;
+        crx_zero(&nv, sizeof nv);
+        if (!crx_prog_build(c, &nv, p, i, c->transpose)) return;   /* no chord there: nothing at all */
+        if (cr_latching(c) && c->phys_n == 0) crx_clear_manual_voices(c);   /* (a latched gesture: replaced, as a root's) */
+        if (!(c->phys[trig] & bit)) { c->phys[trig] |= bit; c->phys_n++; }
+        vi = crx_find_prog(c, trig);
+        if (vi >= 0) crx_kill_voice(c, vi);         /* (a second press: the chord anew) */
+        for (vi = 0; vi < CR_MAX_VOICES; vi++) if (!c->v[vi].used) break;
+        if (vi >= CR_MAX_VOICES) return;
+        v = &c->v[vi];
+        *v = nv;
+        v->used = 1;
+        v->key = trig; v->id = CR_PROG_ID;
+        v->vel = (uint8_t)crx_clamp(vel, 1, 127);
+        v->serial = ++c->serial;
+        v->gid = ++c->gid;
+        v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, c->voicing, v->notes);
+        crx_sound_voice(c, vi);
+        if (crx_bass_ok(c, v)) crx_bass_start(c, vi);
+        c->disp_vi = (uint8_t)vi;
+        crx_gesture(c, vi, 1);
+        crx_note_last_chord(c, vi);
+        return;
+    }
+    if (c->phys[trig] & bit) { c->phys[trig] &= (uint8_t)~bit; c->phys_n--; }
+    crx_rec_commit(c);
+    vi = crx_find_prog(c, trig);
+    if (cr_latching(c)) {                           /* it sounds on: a looper is told the key is up */
+        if (vi >= 0) crx_gesture(c, vi, CR_G_KEYUP);
+        return;
+    }
+    if (vi >= 0) crx_kill_voice(c, vi);
+}
+void cr_set_prog_humanize(cr_t *c, int pct) { c->prog_hum = (uint8_t)crx_clamp(pct, 0, 100); }
+
 void cr_mod_ex(cr_t *c, cr_mod_t m, int down, int quiet)
 {
     int mi = (int)m, i;
@@ -1274,7 +1381,7 @@ void cr_voicing_step(cr_t *c, int d)
     c->voicing = (int8_t)nv;
     for (i = 0; i < CR_NVOICE; i++) {
         cr_voice_t *v = &c->v[i];
-        if (!v->used || (v->zone && !((v->zone & CR_Z_FULL) && v->rq)) || (v->loop & CR_LOOP_FIXV))
+        if (!v->used || !crx_voiced(v) || (v->loop & CR_LOOP_FIXV))
             continue;                              /* (a loop step with its own voicing; a note with nothing to rotate) */
         crx_hush_voice(c, i);
         v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, nv, v->notes);
@@ -1534,6 +1641,19 @@ void cr_pad_down(cr_t *c, int slot)
     d = &c->pads[slot];
     v = &c->v[vi];
     crx_zero(v, sizeof *v);
+    if (d->q == CR_Q_PROG) {                       /* a progression's chord: its reference, resolved now */
+        if (!crx_prog_build(c, v, d->x, CR_PROG_KEY(d->root), CR_PROG_TR(d->root))) return;   /* (empty now: silent) */
+        v->used = 1; v->pad = (uint8_t)(slot + 1);
+        v->vel = d->vel;
+        v->serial = ++c->serial;
+        v->gid = ++c->gid;
+        v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, c->voicing, v->notes);
+        crx_sound_voice(c, vi);
+        if (crx_bass_ok(c, v)) crx_bass_start(c, vi);
+        c->disp_vi = (uint8_t)vi;
+        crx_gesture(c, vi, 1);
+        return;
+    }
     v->used = 1; v->pad = (uint8_t)(slot + 1);
     v->vel = d->vel;
     v->note_pressed = (uint8_t)crx_clamp(d->root, 0, 127);
@@ -1576,7 +1696,7 @@ void cr_pad_set(cr_t *c, int slot, int used, int16_t root, uint8_t q, uint8_t ex
     d = &c->pads[slot];
     d->used = (uint8_t)(used != 0);
     d->root = root;
-    d->q = q < CR_Q_COUNT ? q : 0;
+    d->q = q <= CR_Q_PROG ? q : 0;                 /* (CR_Q_PROG: a progression's reference) */
     d->x = (uint8_t)(ext & 15u);
     d->vel = (uint8_t)crx_clamp(vel, 1, 127);
 }
@@ -1599,6 +1719,25 @@ int cr_loop_event_v(cr_t *c, int lv, int16_t root, uint8_t q, uint8_t ext, uint8
     if (lv < 0 || lv >= CR_MAX_LOOPV) return 0;
     if (c->v[vi].used) crx_kill_voice(c, vi);
     if (!on) return 0;
+    if (q == CR_Q_PROG && !(ext & CR_GX_BASS)) {   /* a progression's chord: its reference, resolved now */
+        v = &c->v[vi];
+        crx_zero(v, sizeof *v);
+        if (!crx_prog_build(c, v, ext & 15u, CR_PROG_KEY(root), CR_PROG_TR(root))) return 0;   /* (empty now: silent) */
+        v->used = 1; v->loop = (uint8_t)(lv + 1);
+        v->vel = (uint8_t)crx_clamp(vel, 1, 127);
+        v->serial = ++c->serial;
+        if (voic != CR_VOIC_FOLLOW) {
+            v->loop |= CR_LOOP_FIXV;
+            voic = crx_clamp(voic, CR_VOICE_MIN, CR_VOICE_MAX);
+        } else {
+            voic = c->voicing;
+        }
+        v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, voic, v->notes);
+        crx_sound_voice(c, vi);
+        if (crx_bass_ok(c, v)) crx_bass_start(c, vi);
+        c->disp_vi = (uint8_t)vi;
+        return 1;
+    }
     if (q >= CR_Q_COUNT || (ext & CR_GX_BASS)) q = CR_Q_NONE;
     root = (int16_t)crx_clamp(root, 0, 127);
     v = &c->v[vi];
@@ -1837,6 +1976,92 @@ void cr_note_name(uint8_t note, char buf[5])
     buf[i] = 0;
 }
 
+/* the chord recogniser (progressions; ported from the owner's approved editor mock-up, Editor.dc.html name()): the
+ * pitch-class sets above a root, as Options > Chord Names' Standard writes the names (crx_name_std: "M" alone for the
+ * major triad, M7, m7b5, sus4 in the quality). A set with the fifth (7) and 4 notes or more also matches without it */
+#define CRX_B(a) (1u << (a))
+static const struct { uint16_t m; char q[5]; char s[7]; } CRX_RECOG[] = {
+    {CRX_B(0) | CRX_B(4) | CRX_B(7), "M", ""}, {CRX_B(0) | CRX_B(3) | CRX_B(7), "m", ""},
+    {CRX_B(0) | CRX_B(3) | CRX_B(6), "dim", ""}, {CRX_B(0) | CRX_B(4) | CRX_B(8), "+", ""},
+    {CRX_B(0) | CRX_B(5) | CRX_B(7), "sus4", ""}, {CRX_B(0) | CRX_B(2) | CRX_B(7), "sus2", ""},
+    {CRX_B(0) | CRX_B(7), "", "5"},
+    {CRX_B(0) | CRX_B(4) | CRX_B(7) | CRX_B(9), "", "6"}, {CRX_B(0) | CRX_B(3) | CRX_B(7) | CRX_B(9), "m", "6"},
+    {CRX_B(0) | CRX_B(4) | CRX_B(7) | CRX_B(10), "", "7"}, {CRX_B(0) | CRX_B(4) | CRX_B(7) | CRX_B(11), "", "M7"},
+    {CRX_B(0) | CRX_B(3) | CRX_B(7) | CRX_B(10), "m", "7"}, {CRX_B(0) | CRX_B(3) | CRX_B(6) | CRX_B(10), "m", "7b5"},
+    {CRX_B(0) | CRX_B(3) | CRX_B(6) | CRX_B(9), "dim", "7"}, {CRX_B(0) | CRX_B(3) | CRX_B(7) | CRX_B(11), "m", "M7"},
+    {CRX_B(0) | CRX_B(5) | CRX_B(7) | CRX_B(10), "", "7sus4"}, {CRX_B(0) | CRX_B(2) | CRX_B(4) | CRX_B(7), "", "add9"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(3) | CRX_B(7), "m", "add9"}, {CRX_B(0) | CRX_B(4) | CRX_B(8) | CRX_B(10), "+", "7"},
+    {CRX_B(0) | CRX_B(4) | CRX_B(6) | CRX_B(10), "", "7b5"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(4) | CRX_B(7) | CRX_B(9), "", "6/9"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(3) | CRX_B(7) | CRX_B(9), "m", "6/9"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(4) | CRX_B(7) | CRX_B(10), "", "9"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(4) | CRX_B(7) | CRX_B(11), "", "M9"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(3) | CRX_B(7) | CRX_B(10), "m", "9"},
+    {CRX_B(0) | CRX_B(1) | CRX_B(4) | CRX_B(7) | CRX_B(10), "", "7b9"},
+    {CRX_B(0) | CRX_B(3) | CRX_B(4) | CRX_B(7) | CRX_B(10), "", "7#9"},
+    {CRX_B(0) | CRX_B(3) | CRX_B(5) | CRX_B(7) | CRX_B(10), "m", "11"},
+    {CRX_B(0) | CRX_B(4) | CRX_B(6) | CRX_B(7) | CRX_B(11), "", "M7#11"},
+    {CRX_B(0) | CRX_B(4) | CRX_B(7) | CRX_B(9) | CRX_B(10), "", "13"},
+    {CRX_B(0) | CRX_B(3) | CRX_B(4) | CRX_B(8) | CRX_B(10), "", "7#5#9"},
+    {CRX_B(0) | CRX_B(1) | CRX_B(4) | CRX_B(6) | CRX_B(10), "", "7b5b9"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(5) | CRX_B(7) | CRX_B(10), "", "9sus4"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(4) | CRX_B(5) | CRX_B(7) | CRX_B(10), "", "11"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(3) | CRX_B(5) | CRX_B(7) | CRX_B(10), "m", "11"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(4) | CRX_B(7) | CRX_B(9) | CRX_B(10), "", "13"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(4) | CRX_B(7) | CRX_B(9) | CRX_B(11), "", "M13"},
+    {CRX_B(0) | CRX_B(2) | CRX_B(3) | CRX_B(7) | CRX_B(9) | CRX_B(10), "m", "13"},
+};
+#define CRX_NRECOG ((int)(sizeof CRX_RECOG / sizeof CRX_RECOG[0]))
+/* set (bit pc) above root r: the table's entry, -1 none (no5: a chord of the table without its fifth) */
+static int crx_recog_at(uint32_t set, int r, int no5)
+{
+    uint32_t rel = ((set >> r) | (set << (12 - r))) & 0xFFFu;
+    int k;
+    if (!(rel & 1u)) return -1;
+    for (k = 0; k < CRX_NRECOG; k++)
+        if (no5 ? (CRX_RECOG[k].m & CRX_B(7)) && crx_bits(CRX_RECOG[k].m) >= 4 && (CRX_RECOG[k].m & ~CRX_B(7)) == rel
+                : CRX_RECOG[k].m == rel)
+            return k;
+    return -1;
+}
+/* .. the bass as the root first, then the other notes upwards from C (Am/E before C6/E); a whole chord before one
+ * without its fifth; the root through *r */
+static int crx_recog(uint32_t set, int bass, int *r)
+{
+    int k, x, no5;
+    for (no5 = 0; no5 < 2; no5++) {
+        if (bass >= 0 && (k = crx_recog_at(set, bass, no5)) >= 0) { *r = bass; return k; }
+        for (x = 0; x < 12; x++)
+            if (x != bass && ((set >> x) & 1u) && (k = crx_recog_at(set, x, no5)) >= 0) { *r = x; return k; }
+    }
+    return -1;
+}
+void cr_chord_recognise(const uint8_t *notes, int n, char root[3], char qual[5], char sup[CR_SUP_MAX])
+{
+    uint32_t set = 0;
+    int i, lo = 127, bass, r = 0, k;
+    root[0] = qual[0] = sup[0] = 0;
+    if (n <= 0) return;
+    if (n > CR_CHORD_MAX) n = CR_CHORD_MAX;
+    for (i = 0; i < n; i++) {
+        set |= 1u << (notes[i] % 12u);
+        if (notes[i] < lo) lo = notes[i];
+    }
+    bass = lo % 12;
+    k = crx_bits(set) >= 2 ? crx_recog(set, bass, &r) : -1;
+    if (k < 0 && crx_bits(set) >= 3)               /* the chord without the bass, over it */
+        k = crx_recog(set & ~(1u << bass), bass, &r);   /* (the bass is not in it: every note tried upwards) */
+    crx_str(root, CR_NOTE_NAMES[k < 0 ? bass : r], 3);
+    if (k < 0) return;
+    crx_str(qual, CRX_RECOG[k].q, 5);
+    crx_str(sup, CRX_RECOG[k].s, CR_SUP_MAX);
+    if (r != bass) {                               /* a slash bass: "C/E" (the major triad then without its "M") */
+        if (qual[0] == 'M' && !qual[1]) qual[0] = 0;
+        crx_app(sup, "/", CR_SUP_MAX);
+        crx_app(sup, CR_NOTE_NAMES[bass], CR_SUP_MAX);
+    }
+}
+
 void cr_chord_info(const cr_t *c, cr_chord_info_t *ci)
 {
     int i;
@@ -1850,11 +2075,27 @@ void cr_chord_info(const cr_t *c, cr_chord_info_t *ci)
         ci->ext = v->rq ? v->sx : 0;
         ci->nnotes = v->nnotes;
         for (i = 0; i < v->nnotes; i++) ci->notes[i] = v->notes[i];
+        if (v->rq == CR_Q_PROG) {                  /* a progression's chord: named from its notes as stored (+ the
+                                                    * transpose), not as voiced */
+            ci->prog_key = v->pc_pressed;
+            cr_chord_recognise(v->base, v->nbase, ci->root, ci->qual, ci->sup);
+            return;
+        }
     } else if (c->disp_valid) {
         ci->valid = 1;
         ci->root_pc = c->disp_pc; ci->quality = c->disp_q; ci->ext = c->disp_x;
         ci->nnotes = c->disp_n;
         for (i = 0; i < c->disp_n; i++) ci->notes[i] = c->disp_notes[i];
+        if (c->disp_q == CR_Q_PROG) {              /* (let go: the notes looked up again; an emptied key: the voiced
+                                                    * notes it sounded) */
+            cr_voice_t t;
+            ci->prog_key = c->disp_pi;
+            if (crx_prog_build(c, &t, c->disp_x, c->disp_pi, c->disp_pt))
+                cr_chord_recognise(t.base, t.nbase, ci->root, ci->qual, ci->sup);
+            else
+                cr_chord_recognise(ci->notes, ci->nnotes, ci->root, ci->qual, ci->sup);
+            return;
+        }
     } else {
         ci->root[0] = ci->qual[0] = ci->sup[0] = 0;
         return;

@@ -8692,3 +8692,30 @@ unchanged, so no FM-1 release). `BOARD=smk37 [MODEL=elite|mke] ./build.sh --rele
 ef8be9fd...2a4b; Elite 25bde08b...ad96 / 2338d58f...d247; MKE-P37 de6907d1...d96 / d4e5d6d1...0c9f, as
 web/releases-smk37.json lists them (its first entry, base 0.41). SMK37.md names 0.41-smk37.1 (the status, the packages,
 the version a player sees, the install and release commands).
+
+## 2026-11-19
+
+3y310. **Progressions, Ripchord style (GitHub issue 64).** The owner: "Add a new option to the key options for
+'Progression' on second page of the Key settings for the 'Keyboard' layout parameter on Knob 2. With this on each note
+on the keyboard will play a chord stored in the progression. ... We should also be able to import RipChord
+progressions." Designed with the owner first (a Claude Design mock-up; their answers: loops keep a reference, OCT slides
+the keys, chords over 8 notes are trimmed, MIDI In on the MIDI Keys channel only, six factory progressions of our own,
+`Prog` in purple, Velocity and Humanize on page 3, the Keyboard view untouched). **The store** (`cr_prog.h` / `.c`,
+docs/PROGRESSIONS.md): 16 progressions of up to 48 keys, a chord up to 8 absolute notes, packed into one object of at
+most 3840 bytes (`OBJ_PROG` 21: FM-1 0xB2000 / 0xB3000, SMK-37 0xB0000 / 0xB1000, both free since 3y231; a 0.21 record
+there names another object and is refused); a RAM copy (+3840 B) so the audio side resolves a loop's chord without
+flash; the factory set when nothing valid is stored, never written at power-on; backup object 24 (LIST gives the RAM
+copy, a PUT of 0 bytes returns to the factory set); Options > Flash Data erases it. **The keyboard**
+(`cr_engine.c` `CR_Z_PROG` / `CR_Q_PROG`, `cr_prog_key`; `cr_ui.c`): KEY page 2 Keyboard Chords / Full / Prog, a new
+page 3 (Prog picker, Velocity 50..150 %, Humanize 0..100 %), every keybed key a trigger (key + 12 x the OCT window),
+Transpose and the voicing applied, the bass from the lowest note, `cr_chord_recognise` naming the chord from its notes,
+the notes line fitting 8 notes, the key lights dark / glow / held, MIDI Keys 53..100 reaching keys 1..48; the state in
+the session record's reserve. Loops and pads keep a reference (progression, key, Transpose: a loop only -7..+7, the
+octave folded beyond; docs/LOOPER.md); 0.41 and older read such a loop slot as empty. **The web** (`web/fm1prog.js`,
+the device manager's Progressions view): the object, `.rpc` import (gaps kept, past 48 keys dropped, over 8 notes
+trimmed: doubled pitch classes, then the middle) and export, the editor with two keyboards, Send with undo, the
+capacity check; all 197 of the owner's example presets round-trip. Tests: `tests/cr_prog_test.c`,
+`tests/cr_progplay_test.c`, `cr_backup_test`, `cr_midi_test`, `cr_settings_test`, `smk_flash_test`, test_cr's
+`cr_prog` script, test_persist, `web/test_prog.mjs` (suite `web_prog`), `test_manager.mjs`, `test_backup.mjs`,
+install_test. FM-1: RAM 3072 B left, flash code 99.5 % used. MANUAL.md "Key Mode", SMK37.md, docs/DEVICE-MANAGER.md,
+web/EDITOR_PROTOCOL.md.

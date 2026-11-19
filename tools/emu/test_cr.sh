@@ -2132,8 +2132,9 @@ kb() { grep -a '^  kbd:' "$L" | sed -n "$1p" | sed -n 's/.*kbd: plays \([a-z]*\)
 cv() { grep -a '^  cr: voices' "$L" | sed -n "$1p" | sed -n 's/.*cr: voices \([0-9]*\) .* notes-out \([0-9]*\) chord \(.*\) sounding \([01]\) notes\(.*\)$/\1|\2|\3|\4|\5/p'; }
 bp() { grep -a '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.* bpm \([0-9]*\) .*/\1/p'; }
 [ "$(kb 1)" = "chords chords 0 1 000" ] && [ "$(kb 2)" = "chords chords 0 2 000" ] && [ "$(bp 2)" = 120 ] && [ "$(kb 4)" = "notes chords 0 1 100" ] &&
-    has '^key: cells Key plays Keyboard Snap Numerals' "$L" && [ "$(grep -ac '^key: page' "$L")" = 3 ] &&
-    ok "KEY held: page 1; SELECT: page 2 (Key plays, Keyboard; the tempo untouched), past the last page: stays; back: page 1: $OUT/cr_key_page2.ppm" \
+    has '^key: cells Key plays Keyboard Snap Numerals' "$L" && [ "$(grep -ac '^key: page' "$L")" = 5 ] &&
+    has '^key: cells Prog Velocity Humanize -' "$L" &&
+    ok "KEY held: page 1; SELECT: page 2 (Key plays, Keyboard; the tempo untouched), page 3 (the progressions), past the last page: stays; back: page 1: $OUT/cr_key_page2.ppm" \
     || bad "the page turn: $(kb 1) / $(kb 2) bpm $(bp 2) / $(kb 4)"
 differ cr_key_page1 cr_key_page2 "the two pages differ on screen"
 differ cr_key_page2 cr_key_page2_notes "KNOB 1 on page 2: Key plays Notes: $OUT/cr_key_page2_notes.ppm"
@@ -2258,6 +2259,71 @@ done
     [ "$(grep -c '^expect .*: ok' "$L")" = 18 ] && ! has 'expect.*FAILED' "$L" &&
     ok "Keyboard = Chords again: the latch as it was (LOCK on, MAJ + M7 lit), D4 is DM7" || bad "leaving the Full keyboard: $(kb 42) lock $(lt 42) $(cv 43)"
 silent_end cr_fullkbd
+# The progressions' playing side (GitHub issue 64; docs/PROGRESSIONS.md): KEY page 2 Keyboard: Prog, page 3 (Prog,
+# Velocity, Humanize), the factory chords, a silent key, Transpose and the voicing, OCT's windows on a 48-key progression
+# (EMU_PROG_LONG: built in the RAM copy), MIDI Keys (notes above 79 too), a loop by reference (silent once its key is
+# emptied: the script's progempty), leaving Prog (Full, Chords with LOCK's latch). The MIDI log: Humanize's velocities
+export EMU_PROG_LONG=1
+run cr_prog --midi-log
+unset EMU_PROG_LONG
+L="$OUT/cr_prog.log"
+pr_cv() { grep -a '^  cr: voices' "$L" | sed -n "$1p" | sed -n 's/.*cr: voices \([0-9]*\) .* notes-out \([0-9]*\) chord \(.*\) sounding \([01]\) notes\(.*\)$/\1|\2|\3|\4|\5/p'; }
+pr_pg() { grep -a '^  prog: on' "$L" | sed -n "$1p"; }
+pr_pf() { pr_pg "$1" | sed -n "s/.* $2 \([0-9A-F]*\) .*/\1/p"; }
+pr_kb() { grep -a '^  kbd:' "$L" | sed -n "$1p" | sed -n 's/.*kbd: plays [a-z]* keyboard \([a-z]*\) .*(engine: notes [01] full \([01]\) .*/\1 \2/p'; }
+pr_lt() { grep -a '^  lock: on' "$L" | sed -n "$1p" | sed -n 's/.*lock: on \([01]\) latched \(..\) .*/\1 \2/p'; }
+pr_lf() { grep -a '^  loop: state' "$L" | sed -n "$1p" | sed -n 's/.*loop: state \([0-9]*\) cap [0-9]* layers [0-9]* events \([0-9]*\) .* played \([0-9]*\) .*/\1 \2 \3/p'; }
+[ "$(pr_pf 1 on)" = 1 ] && [ "$(pr_kb 1)" = "full 1" ] && has '^key: knob 2 keyboard prog' "$L" && [ "$(pr_pf 2 sel)" = 2 ] &&
+    has '^key: cells Prog Velocity Humanize -' "$L" && has '^key: knob 1 prog 2 (8 keys, 8 chords)' "$L" &&
+    ok "KEY page 2, KNOB 2: Chords -> Full -> Prog (the block's Full kept under it); page 3: Prog Velocity Humanize, KNOB 1: progression 2: $OUT/cr_prog_page2.ppm $OUT/cr_prog_page3_2.ppm" \
+    || bad "Prog chosen: $(pr_pg 1) / $(pr_kb 1) / $(pr_pg 2)"
+[ "$(pr_cv 3)" = "1|5|Dm9|1| 38 53 57 60 64" ] && pr_pg 3 | grep -q '\[t0 key 1 vel 100: 38 53 57 60 64\]' &&
+    [ "$(pr_cv 4 | cut -d'|' -f1,2)" = "0|5" ] && pr_pf 4 held | grep -q '200$' && has 'prog: trigger 9 key 10 of prog 2 vel 100 (no chord)' "$L" &&
+    ok "F3 plays Jazz ii-V-I's key 1 (Dm9: its five stored notes on the output); D4 (key 10, none): no voice, no note out: $OUT/cr_prog_chord.ppm" \
+    || bad "a factory chord / a silent key: $(pr_cv 3) / $(pr_cv 4)"
+[ "$(pr_cv 5 | cut -d'|' -f3,5)" = "Em9| 52 55 59 62 66" ] && pr_pg 5 | grep -q '\[t0 key 1 vel 100: 40 55 59 62 66\]' &&
+    ok "Transpose +2 and voicing +1: the stored notes + 2 (40 55 59 62 66), voiced (the 40 an octave up), named Em9: $OUT/cr_prog_chord_tr.ppm" \
+    || bad "Transpose / voicing: $(pr_cv 5) / $(pr_pg 5)"
+pr_pg 6 | grep -q 'vel 50 .*\[t0 key 1 vel 50:' && pr_pg 7 | grep -q 'vel 150 .*\[t0 key 1 vel 127:' && [ "$(pr_pf 8 engine-hum)" = 100 ] &&
+    ok "Velocity 50 %: the key's 100 plays 50; 150 %: 127 (clamped); Humanize 100 % reaches the engine" \
+    || bad "Velocity / Humanize: $(pr_pg 6) / $(pr_pg 7) / $(pr_pg 8)"
+hv=$(python3 -c "
+import sys, re
+on = 0; v = []
+for ln in open(sys.argv[1], errors='replace'):
+    if ln.startswith('key: knob 3 humanize 100%'): on = 1
+    elif ln.startswith('key: knob 3 humanize 0%'): on = 0
+    m = re.match(r'midi out \d+: 90 [0-9A-F]{2} ([0-9A-F]{2})', ln)
+    if on and m: v.append(int(m.group(1), 16))
+print(len(v), min(v or [0]), max(v or [0]), len(set(v)))" "$L")
+set -- $hv
+[ "${1:-0}" -ge 15 ] && [ "${2:-0}" -ge 10 ] && [ "${3:-0}" -le 90 ] && [ "${4:-0}" -ge 5 ] &&
+    ok "Humanize 100 % at velocity 50: $1 note-ons out, their velocities $2 .. $3 (50 +- 40), $4 different" \
+    || bad "Humanize's velocities: '$hv'"
+[ "$(pr_pf 9 sel)" = 16 ] && pr_pg 9 | grep -q '\[t0 key 1 vel 50: 48 52 55\]' && [ "$(pr_pf 10 win)" = 1 ] &&
+    has '^prog: window 1 (keys 13-39)' "$L" && pr_pg 11 | grep -q '\[t0 key 13 vel 50: 60 64 67\]' && [ "$(pr_pf 12 win)" = 3 ] &&
+    [ "$(grep -ac '^prog: window 3 (keys 37-48)' "$L")" = 2 ] && pr_pg 13 | grep -q '\[t11 key 48 vel 50: 95 99 102\]' &&
+    [ "$(pr_cv 14 | cut -d'|' -f1)" = 0 ] && [ "$(pr_pf 15 win)" = 0 ] &&
+    ok "a 48-key progression: OCT+ slides the keys 12 along (F3: key 1, then key 13: \"keys 13-39\"), to window 3 and no further; E4 there is key 48, F4 (49) silent; panic: window 0: $OUT/cr_prog_window1.ppm" \
+    || bad "the windows: $(pr_pg 10) / $(pr_pg 11) / $(pr_pg 12) / $(pr_pg 13) / $(pr_cv 14) / $(pr_pg 15)"
+[ "$(grep -a '^expect .*: ok' "$L" | wc -l | tr -d ' ')" = 9 ] && ! has 'expect.*FAILED' "$L" &&
+    ok "the keys' LEDs: held lit, a chord at the glow, none dark (window 0 and window 3), and the sound" || bad "cr_prog expectations"
+grep -a '^  chord keys:' "$L" | sed -n 16p | grep -q 'midi-keys 5 ' && [ "$(pr_pf 16 mkeys-low)" = 53 ] &&
+    [ "$(pr_cv 17 | cut -d'|' -f1)" = 3 ] && [ "$(pr_pf 17 midi)" = 800008000001 ] &&
+    pr_pg 17 | grep -q '\[t0 key 1 vel 50: 48 52 55\] \[t27 key 28 vel 50: 75 79 82\] \[t47 key 48 vel 50: 95 99 102\]' &&
+    [ "$(pr_cv 18 | cut -d'|' -f1)" = 0 ] && [ "$(pr_pf 18 midi)" = 000000000000 ] &&
+    ok "MIDI Keys (ch 5) in Prog: 53 key 1, 80 key 28, 100 key 48 (a big controller reaches all 48); 36 and 101 nothing; CC 123 lets them go" \
+    || bad "MIDI Keys in Prog: $(pr_cv 17) / $(pr_pg 17) / $(pr_pg 18)"
+[ "$(pr_lf 19 | cut -d' ' -f1,2)" = "2 1" ] && pr_pg 19 | grep -q '\[loop24 key 1 vel 50: 48 52 55\]' &&
+    has '^prog: key 1 of prog 16 emptied (valid)' "$L" && [ "$(pr_pf 20 chords)" = 38 ] && [ "$(pr_cv 20 | cut -d'|' -f1)" = 0 ] &&
+    [ "$(pr_lf 20 | cut -d' ' -f3)" -gt "$(pr_lf 19 | cut -d' ' -f3)" ] &&
+    ok "a loop of a Prog chord plays it by reference (a loop voice of key 1); key 1 emptied: the loop goes on, its step silent" \
+    || bad "the loop: $(pr_lf 19) $(pr_pg 19) / $(pr_lf 20) $(pr_cv 20)"
+[ "$(pr_lt 16)" = "1 02" ] && [ "$(pr_lt 20)" = "1 02" ] && [ "$(pr_pf 21 on)" = 0 ] && [ "$(pr_kb 21)" = "full 1" ] &&
+    [ "$(pr_cv 21 | cut -d'|' -f1,3,5)" = "1|F| 53" ] && [ "$(pr_cv 23 | cut -d'|' -f3,5)" = "Dm| 62 65 69" ] && [ "$(pr_lt 23)" = "1 02" ] &&
+    ok "leaving Prog: Full plays its single notes (F3 = 53), Chords plays D4 as D minor: LOCK's MIN, latched before Prog, kept through it (F#3 G#3 there were triggers)" \
+    || bad "leaving Prog: $(pr_pg 21) $(pr_kb 21) $(pr_cv 21) / $(pr_cv 23) lock $(pr_lt 16) $(pr_lt 20) $(pr_lt 23)"
+silent_end cr_prog
 
 echo "user presets: Overwrite, delete, the naming keys"
 run cr_save_del
@@ -3010,12 +3076,12 @@ differ cr_safe_options cr_safe_erase_entry "Options opens on Safe Mode; SELECT +
 differ cr_safe_erase_entry cr_safe_erase_ask "OCT+ once: the confirmation (OCT+ again): $OUT/cr_safe_erase_ask.ppm"
 "$EMU" --headless --flash "$SF" --script "$S/cr_safe_erase.txt" --boot-fail 1 --reset-reason wdt >"$OUT/cr_safe_erase.log" 2>&1
 st=$?
-[ $st = 0 ] && has '^safe: flash data erased, 62 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
+[ $st = 0 ] && has '^safe: flash data erased, 64 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
     has '^reboot: guard failed 0 pending 0' "$OUT/cr_safe_erase.log" &&
-    ok "OCT+ twice: 62 data sectors erased (the FM6 bank's 1 + Bluetooth's 2 (3y236) + the CZ-1 banks' 16 + the session's 2 + the favourites' 2 + the sound pool's 16 + the loops' 20 + the settings' and FM6 copy B's 3; 0.21's sectors no longer ChoralRoot's, 3y231), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
+    ok "OCT+ twice: 64 data sectors erased (the FM6 bank's 1 + Bluetooth's 2 (3y236) + the CZ-1 banks' 16 + the progressions' 2 + the session's 2 + the favourites' 2 + the sound pool's 16 + the loops' 20 + the settings' and FM6 copy B's 3; 0.21's sectors no longer ChoralRoot's, 3y231), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
 ff=$(python3 -c "
 import sys; d = open(sys.argv[1], 'rb').read()
-r = [(0x9F000, 1), (0xA2000, 16), (0xB4000, 4), (0xB8000, 16), (0xC8000, 20), (0xFC000, 3)]   # (the FM6 bank A, the CZ-1 banks, the session and the favourites, the pool, the loops, the settings and FM6 B)
+r = [(0x9F000, 1), (0xA2000, 16), (0xB2000, 2), (0xB4000, 4), (0xB8000, 16), (0xC8000, 20), (0xFC000, 3)]   # (the FM6 bank A, the CZ-1 banks, the progressions, the session and the favourites, the pool, the loops, the settings and FM6 B)
 print(int(all(d[a:a + n * 4096] == b'\xff' * (n * 4096) for a, n in r) and d[:0x93000] == open(sys.argv[2], 'rb').read()[:0x93000]))" "$SF" "$OUT/cr_safe_flash_before.bin")
 [ "$ff" = 1 ] && ok "the data regions read erased, the firmware area as before" || bad "flash after the erase"
 [ -z "$(python3 tools/emu/pool_image.py pool "$SF")" ] && ok "the sound pool holds no sound after it (0.24: the pool was left out until 0.24-beta2)" ||

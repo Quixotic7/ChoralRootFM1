@@ -286,6 +286,7 @@ if command -v node >/dev/null 2>&1; then
     run "web SMK-37 test installer: the page against simulated SMK-37s (node, no browser)" node web/test_smk_installer.mjs
     run "web sounds: slots as files, bindings, .syx" node web/test_sounds.mjs
     run "web device manager: pools, place / keep / swap / undo, loops, packs (simulated FM-1)" node web/test_manager.mjs
+    run "web progressions: the id 24 object, Ripchord .rpc import / export (issue 64)" node web/test_prog.mjs
 else
     skip "web tests: editor, backup, installer, SMK-37 installer, sounds, device manager (no node)"
 fi

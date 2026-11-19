@@ -1358,10 +1358,11 @@ def debug_event(ms, what):
     return f"{ms & 0x7FFFFFFF:9d} ms  {'STALLED ' if ms >> 31 else ''}{name} wValue {wv} wIndex {wi}"
 BK_CHUNK = 256
 FELUCCA_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34]
-CR_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13] + list(range(14, 22)) + [22, 23] + list(range(40, 50))   # fm1backup.js CR_BACKUP_IDS
+CR_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13] + list(range(14, 22)) + [22, 23, 24] + list(range(40, 50))   # fm1backup.js CR_BACKUP_IDS
 # (9 the VA patches, 10 11 the FM6 patches, 12 13 the CZ-1 tones, 14..21 the CZ-1 banks, 22 the FM TONE patches, 23 the
-# favourites (0.22 on; a firmware before it does not list 23, and a restore skips what the FM-1 does not list), 40..49
-# loops; no samples)
+# favourites (0.22 on; a firmware before it does not list 23, and a restore skips what the FM-1 does not list), 24 the
+# progressions (issue 64, firmware/src/cr_prog.h: listed with what the unit plays, stored or its factory set; a firmware
+# without them does not list 24, so a restore reports it skipped), 40..49 loops; no samples)
 KNOWN_IDS = set(FELUCCA_IDS) | set(CR_IDS)
 BK_RC = {1: "invalid object, size or request", 2: "the data failed validation", 3: "busy: stop the loop on the FM-1",
          4: "flash write failed", 5: "stale session: start again"}
@@ -1449,6 +1450,8 @@ def object_name(i):
         return "FM TONE patches"
     if i == 23:
         return "favorites"
+    if i == 24:
+        return "progressions"
     if is_sample(i):
         return f"sample slot {i - 31}"
     if 40 <= i <= 49:
