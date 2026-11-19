@@ -8721,3 +8721,14 @@ capacity check; all 197 of the owner's example presets round-trip. Tests: `tests
 `cr_prog` script, test_persist, `web/test_prog.mjs` (suite `web_prog`), `test_manager.mjs`, `test_backup.mjs`,
 install_test. FM-1: RAM 3072 B left, flash code 99.5 % used. MANUAL.md "Key Mode", SMK37.md, docs/DEVICE-MANAGER.md,
 web/EDITOR_PROTOCOL.md.
+
+3y311. **Progressions: KEY's tap toggles Prog; C4 / C#4 pick the tonic.** The owner, trying 3y310 on 5BD75BE3: "the in
+key SEL quick click to turn the scale mode on/off should turn the progression keyboard on and off, so when progression
+is selected I quick click SEL and it goes back to the base chord mod keys and root notes", and "pressing the first C or
+C# don't work to select the root note when the chord mod keys are in their 3 black key config". **The tap**
+(`cr_ui.c cu_tap`): with Keyboard on Prog it switches Prog and the Chords keyboard (`cs.prog_off`: Prog chosen but put
+aside; `cu_full` reads Chords then whatever `kbd_full` says), a message `Prog` / `Chords`, the keys held let go as at
+any keyboard change; Key Mode untouched; the KEY LED shows Prog on / aside. KNOB 2 clears it. The session keeps it
+(`prog_on` 2). **The tonic**: `cu_layer_key` returned for every key below D4 (the pick maps' start) before the KEY
+layer's tonic: on the FM-1 layout C4 and C#4 are roots, so they now set C and C# like the others; the loop slots and
+naming keep D4..G5. test_cr's `cr_prog_tap`. MANUAL.md "The FM-1 layout", "Keyboard: Prog".

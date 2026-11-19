@@ -2324,6 +2324,20 @@ grep -a '^  chord keys:' "$L" | sed -n 16p | grep -q 'midi-keys 5 ' && [ "$(pr_p
     ok "leaving Prog: Full plays its single notes (F3 = 53), Chords plays D4 as D minor: LOCK's MIN, latched before Prog, kept through it (F#3 G#3 there were triggers)" \
     || bad "leaving Prog: $(pr_pg 21) $(pr_kb 21) $(pr_cv 21) / $(pr_cv 23) lock $(pr_lt 16) $(pr_lt 20) $(pr_lt 23)"
 silent_end cr_prog
+# KEY's tap with Keyboard: Prog (Prog / the Chords keyboard), the FM-1 layout's C4 / C#4 picking the tonic (2026-11-19)
+run cr_prog_tap
+L="$OUT/cr_prog_tap.log"
+has '^key: root tonic C ' "$L" && has '^key: root tonic C# ' "$L" &&
+    ok "the KEY layer on pick, FM-1 layout: C4 and C#4 set the tonic (C, C#) as the other roots do" \
+    || bad "C4 / C#4 in the KEY layer: $(grep -a '^key: root tonic' "$L" | tr '\n' ';')"
+[ "$(pr_pf 2 on)" = 1 ] && has '^key: tap chords (prog aside)' "$L" && [ "$(grep -a '^  prog: on' "$L" | sed -n 3p | sed -n 's/.*prog: on \([01]\) .*/\1/p')" = 0 ] &&
+    [ "$(grep -a '^  kbd:' "$L" | sed -n 3p | sed -n 's/.*full \([01]\) .*/\1/p')" = 0 ] &&
+    has '^key: tap prog' "$L" && grep -a '^  prog: on' "$L" | sed -n 5p | grep -q '^  prog: on 1 .*\[t0 key 1 vel [0-9]*: 36 52 55 60 64\]' &&
+    ok "KEY tapped with Keyboard: Prog: the Chords keyboard (Full under it ignored), tapped again: Prog (F3 Pop Four's key 1)" \
+    || bad "KEY's tap in Prog: $(grep -a '^key: tap' "$L" | tr '\n' ';') / $(grep -a '^  prog: on' "$L" | sed -n 5p)"
+[ "$(grep -a '^key: tap' "$L" | wc -l | tr -d ' ')" = 2 ] && [ "$(grep -a '^  prog: on' "$L" | sed -n 6p | sed -n 's/.*prog: on \([01]\) .*/\1/p')" = 0 ] &&
+    ok "Keyboard turned back to Full: KEY's tap is Key Mode's again" || bad "KEY's tap after leaving Prog"
+silent_end cr_prog_tap
 
 echo "user presets: Overwrite, delete, the naming keys"
 run cr_save_del

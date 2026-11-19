@@ -1,0 +1,67 @@
+# ChoralRoot: KEY's tap with Keyboard: Prog, and the FM-1 layout's C4 / C#4 in the KEY layer (the owner, 2026-11-19).
+# tools/emu/test_cr.sh reads the dumps by number:
+#   1 the KEY layer on pick: C4, then C#4 set the tonic (C, then C#)
+#   2 page 2, KNOB 2 +2: Keyboard Prog, the layer closed
+#   3 KEY tapped: Prog aside, the Chords keyboard (engine full 0), Key Mode as it was
+#   4 F3 there: a chord key (6), no trigger; D4 a root
+#   5 KEY tapped again: Prog; F3 plays Pop Four's key 1 (36 52 55 60 64)
+#   6 KNOB 2 -1 in the layer: Full (Prog no longer chosen); KEY tapped: Key Mode toggles again
+wait 300
+btn SEL down                  # KEY held: the layer, page 1, keys on pick
+wait 500
+btn SEL up
+wait 300
+btn C4 down                   # the tonic C (until now nothing: below D4)
+wait 100
+btn C4 up
+wait 100
+btn C#4 down                  # .. C#
+wait 100
+btn C#4 up
+wait 200
+dump                          # 1
+knob SELECT +1                # page 2
+wait 200
+knob KNOB2 +1                 # Keyboard: Full
+wait 100
+knob KNOB2 +1                 # .. Prog
+wait 200
+btn OCT-                      # the layer closed
+wait 300
+dump                          # 2
+btn SEL down                  # KEY tapped
+wait 100
+btn SEL up
+wait 300
+dump                          # 3
+btn D4 down
+wait 300
+dump                          # 4
+btn D4 up
+wait 300
+btn SEL down                  # KEY tapped again: Prog
+wait 100
+btn SEL up
+wait 300
+btn F3 down
+wait 300
+dump                          # 5
+btn F3 up
+wait 300
+btn SEL down                  # the layer again (it opens on page 1): page 2, Keyboard back to Full
+wait 500
+btn SEL up
+wait 300
+knob SELECT +1
+wait 200
+knob KNOB2 -1
+wait 200
+btn OCT-
+wait 300
+btn SEL down                  # KEY tapped: Key Mode off / on again (not Prog)
+wait 100
+btn SEL up
+wait 300
+dump                          # 6
+wait 2500
+dump

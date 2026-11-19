@@ -472,7 +472,7 @@ static void css_sanitize(cr_session_t *x)
     if (x->bass_on > 1u) x->bass_on = 0;
     if (x->lock > 1u) x->lock = 0;
     if (!x->lock) x->latched = 0;                  /* (the latch belongs to LOCK) */
-    if (x->prog_on > 1u) x->prog_on = 0;          /* (the progressions: out of range, the default) */
+    if (x->prog_on > 2u) x->prog_on = 0;          /* (the progressions: out of range, the default) */
     if (x->prog_sel > 15u) x->prog_sel = 0;
     if (x->prog_win > 3u) x->prog_win = 0;
     if (x->prog_vel && (x->prog_vel < 50u || x->prog_vel > 150u)) x->prog_vel = 0;
@@ -1134,7 +1134,8 @@ static void css_capture(cr_session_t *x)
                           (cu_pf_off(CU_PF_BASS) ? 0u : CSS_PERF_BASS_ON) | (cs.bass_keys ? CSS_BASS_KEYS : 0u) |
                           (cs.bfollow ? CSS_BASS_FOLLOW : 0u));
     x->bperf_sel = cs.bperf_sel;
-    x->prog_on = cs.prog_on;                       /* the progressions (Velocity: 0 = 100 %, as cs keeps it) */
+    x->prog_on = (uint8_t)(cs.prog_on ? 1u : cs.prog_off ? 2u : 0u);   /* the progressions (2: Prog tapped aside;
+                                                    * Velocity: 0 = 100 %, as cs keeps it) */
     x->prog_sel = cs.prog_sel;
     x->prog_win = cs.prog_win;
     x->prog_vel = cs.prog_vel;

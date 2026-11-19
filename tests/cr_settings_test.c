@@ -1173,7 +1173,7 @@ static void t_session(void)
         cr_session_seal(&P);
         ok(cr_session_import(&P, &P, CSS_SIZE) == 1 && P.prog_on == 1 && P.prog_sel == 15 && P.prog_win == 3 &&
            P.prog_vel == 150 && P.prog_hum == 100, "session: the progressions' fields at their ends kept");
-        P.prog_on = 2; P.prog_sel = 16; P.prog_win = 4; P.prog_vel = 49; P.prog_hum = 101;
+        P.prog_on = 3; P.prog_sel = 16; P.prog_win = 4; P.prog_vel = 49; P.prog_hum = 101;
         cr_session_seal(&P);
         ok(cr_session_import(&P, &P, CSS_SIZE) == 1 && !P.prog_on && !P.prog_sel && !P.prog_win && !P.prog_vel &&
            !P.prog_hum, "session: the progressions' fields out of range: the defaults");

@@ -454,8 +454,9 @@ white    6     m7    M7    9     C4    D4    E4    F4    G4    A4    B4    C5   
   pulses; with LOCK on as well it pulses between lit and the middle level. Holding GLO on its own never opens the
   Options: only a quick click does. The screen's `Latch` and `lock` are as before.
 - **The KEY layer** (keys on pick): G#3 and A#3 are its scale keys and nothing else; a one-finger pair picks once.
-- **Picking keys** are on D4 to G5 in both layouts: the loop slots, the naming letters and the KEY layer's tonic;
-  C4 and C#4 do nothing in those maps.
+- **Picking keys** are on D4 to G5 in both layouts: the loop slots and the naming letters; C4 and C#4 do nothing in
+  those maps. The KEY layer's tonic takes every root, C4 and C#4 too (C and C#; new in 0.42: until then they did
+  nothing there).
 - Changing the layout lets go of every key held (a chord you are holding stops); what LOCK latched stays, and shows
   on the new layout's keys.
 - Loops store chords, not keys, so they play the same in either layout.
@@ -634,6 +635,12 @@ makes those roots play instead.
 of the keybed plays a whole chord stored for it: one of 16 **progressions**, each up to 48 keys of chords of up to 8
 notes, written exactly as they sound. Turn KNOB 2 past Full to `Prog` (back: Full, then Chords). On the KEY layer's
 page 2 the strip marks the keys that hold a chord, and Key plays, Snap and Numerals go grey: they do nothing here.
+
+**Tap KEY** with Keyboard on `Prog` and the keybed goes back to the chord keys and the roots (the Chords keyboard,
+`Chords` shows a moment); tap again for the progression (`Prog`). So one tap switches between your progression and
+playing chords by hand. The KEY light is lit while the progression plays. Key Mode stays as it was meanwhile (the KEY
+layer still turns it on with a root); with Keyboard on Chords or Full, the tap is Key Mode's on / off as ever. Turning
+KNOB 2 ends it: Prog, or Chords / Full as you choose.
 
 - **Page 3** picks what plays: KNOB 1 the progression (its name big, the ones before and after above and below; an
   empty slot reads `empty`), KNOB 2 **Velocity** (50 to 150 %: your touch times this) and KNOB 3 **Humanize** (0 to

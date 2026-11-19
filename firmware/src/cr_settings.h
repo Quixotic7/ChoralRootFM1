@@ -467,7 +467,8 @@ typedef struct {
     uint8_t perf_x, bperf_sel;
     int16_t bpar[CRS_NPM][4];
     /* the progressions (GitHub issue 64; KEY page 2 Keyboard: Prog, page 3), bytes 1006 .. 1010 of the old end reserve
-     * (0 in every older record: the defaults). prog_on 1: Keyboard is Prog (the block's kbd_full stays as it was: an
+     * (0 in every older record: the defaults). prog_on 1: Keyboard is Prog, 2: Prog tapped aside by KEY (the Chords
+     * keyboard until tapped again) (the block's kbd_full stays as it was: an
      * older firmware, and Keyboard leaving Prog, find Chords / Full there); prog_sel the progression 0..15; prog_win the
      * OCT window 0..3 (keys 0 / 12 / 24 / 36 along); prog_vel Velocity 50..150 % (0: 100); prog_hum Humanize 0..100 %.
      * Out of range: 0 */

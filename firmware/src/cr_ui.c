@@ -640,8 +640,10 @@ static struct {
     /* the progressions (GitHub issue 64; cr_prog.h, docs/PROGRESSIONS.md; the session's: cr_settings.h cr_session_t
      * prog_*): KEY page 2 Keyboard: Prog (kbd_full kept: Prog overrides it while on, Chords / Full as it was when Prog
      * is left), page 3's progression 0..15, OCT's window 0..3 (in Prog OCT- / OCT+ slide the keys 12 along, the octave
-     * stays), page 3's Velocity (50..150 %; 0 = 100 %, as the session stores it) and Humanize (0..100 %) */
-    uint8_t prog_on, prog_sel, prog_win, prog_vel, prog_hum;
+     * stays), page 3's Velocity (50..150 %; 0 = 100 %, as the session stores it) and Humanize (0..100 %).
+     * prog_off: Keyboard is Prog but KEY's tap has put it aside (the owner, 2026-11-19: the tap toggles Prog and the
+     * chord keys with their roots, the Chords keyboard whatever kbd_full says; prog_on 0 then) */
+    uint8_t prog_on, prog_sel, prog_win, prog_vel, prog_hum, prog_off;
 #if BOARD_SMK37
     uint8_t smk_pedal;                    /* Options > Pedal: the pedal jack 0 Sustain, 1 Expression (the session's:
                                            * cr_settings.h smk_pedal; cr_smk_pedal) */
@@ -1862,8 +1864,9 @@ static __attribute__((noinline)) void cu_opt_enter(void)   /* OCT+ on a group: i
 }
 /* the Full keyboard (KEY layer, Keyboard: Full) with Full K Shorts: F#5 and G5 are its switches, F#5 brings the
  * layout's chord keys back on the low keys (cu.full_chk: the Chords keyboard then, its roots to F5) */
-static int cu_fshort(void) { return CU_FN_KEYS && cs.kbd_full && cs.full_short && !cs.prog_on; }
-static int cu_full(void) { return cs.kbd_full && !(cu_fshort() && cu.full_chk); }
+static int cu_fshort(void) { return CU_FN_KEYS && cs.kbd_full && cs.full_short && !cs.prog_on && !cs.prog_off; }
+static int cu_full(void) { return cs.kbd_full && !cs.prog_off && !(cu_fshort() && cu.full_chk); }   /* (Prog tapped
+                                                    * aside: the Chords keyboard) */
 static uint32_t cu_root0(void) { return cu_full() ? 0u : cu_fm1() ? CU_ROOT0_FM1 : CU_ROOT0; }   /* the first key
                                                     * that plays: a root (the Full keyboard: every key a note) */
 static uint32_t cu_kend(void) { return cu_fshort() ? 25u : CU_NKEY; }   /* .. the key after the last (F#5 G5: the
@@ -1949,6 +1952,7 @@ static uint32_t cu_now(void) { return fm1_ms; }
 #endif
 #define CU_KN_PROG 0xFEu                           /* cu.key_note: the key pressed as a trigger */
 static int cu_prog(void) { return cs.prog_on; }
+static int cu_prog_kbd(void) { return cs.prog_on || cs.prog_off; }   /* Keyboard is Prog (on, or tapped aside) */
 static uint32_t cu_pvel(void) { return cs.prog_vel ? cs.prog_vel : 100u; }
 static struct { uint64_t pan, mid; } cu_pk;          /* bit j: trigger j held by the keybed / by MIDI Keys */
 static uint32_t cu_ptrig_held(uint32_t j) { return j < CRPG_KEYS && (((cu_pk.pan | cu_pk.mid) >> j) & 1u); }
@@ -2014,7 +2018,8 @@ static void cu_prog_set(uint32_t on)
 /* the session's (cr_settings.c css_apply; crs_reinit: all 0) */
 static void cu_prog_apply(uint32_t on, uint32_t sel, uint32_t win, uint32_t vel, uint32_t hum)
 {
-    cu_prog_set(on);
+    cu_prog_set(on == 1u);                         /* (2: Prog tapped aside, the Chords keyboard) */
+    cs.prog_off = (uint8_t)(on == 2u);
     cs.prog_sel = (uint8_t)(sel & 15u);
     cs.prog_win = (uint8_t)(win & 3u);             /* (as saved, even past a shorter progression's end: OCT- brings it
                                                     * back; a restore may still bring the progression) */
@@ -3964,6 +3969,16 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
 #endif
     switch (b) {                                  /* (a layer's own button: still its on/off action) */
     case BT_KEY:
+        if (cu_prog_kbd()) {                      /* Keyboard: Prog: the tap toggles Prog and the Chords keyboard (the
+                                                   * owner, 2026-11-19); Key Mode stays as it is */
+            uint32_t on = !cs.prog_on;
+            cu_prog_set(on);                      /* (the keys held let go under the old map) */
+            cs.prog_off = (uint8_t)!on;
+            cu_post_kbd();
+            cu_message(on ? "Prog" : "Chords", on ? CR_COL_PURPLE : CR_COL_WHITE);
+            cu_trace("key: tap %s\n", on ? "prog" : "chords (prog aside)");
+            break;
+        }
         cs.key_on ^= 1u;
         cu_post_key();
         break;
@@ -4919,7 +4934,8 @@ static void cu_layer_key(uint32_t l, uint32_t k)   /* a root key while layer l i
         }
         return;
     }
-    if (k < CU_PICK0)                              /* (FM-1's C4, C#4: no job in the pick maps, the owner 2026-10-16) */
+    if (k < CU_PICK0 && l != L_KEY)                /* (FM-1's C4, C#4: no job in the pick maps, the owner 2026-10-16;
+                                                    * but every root picks the tonic: they are C and C#, 2026-11-19) */
         return;
     if (l == L_KEY) {                              /* the tonic, Key Mode on; MIN / MAJ held with it: that scale too
                                                     * (held from before the layer as well); neither: the scale stays
@@ -4987,12 +5003,15 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
                 cu_trace("key: knob 1 key plays %s\n", cs.key_notes ? "notes" : "chords");
             } else if (knob == 1) {                /* KEYBOARD: Chords / Full / Prog (Prog leaves kbd_full as it was:
                                                     * turned back, Full, then Chords) */
-                v = (cu_prog() ? 2 : (int32_t)cs.kbd_full) + (s > 0 ? 1 : -1);
+                uint32_t was_full = (uint32_t)cu_full();
+                v = (cu_prog_kbd() ? 2 : (int32_t)cs.kbd_full) + (s > 0 ? 1 : -1);
                 v = v < 0 ? 0 : v > 2 ? 2 : v;
                 cu_prog_set(v == 2);
-                if (v < 2 && cs.kbd_full != (uint8_t)v) {
+                cs.prog_off = 0;                   /* (turned: Prog on, or Chords / Full as chosen) */
+                if (v < 2) {
                     cs.kbd_full = (uint8_t)v;
-                    cu_fsc_enter();                /* (Full K Shorts: F#5 / G5 as they start) */
+                    if ((uint32_t)cu_full() != was_full)
+                        cu_fsc_enter();            /* (Full K Shorts: F#5 / G5 as they start) */
                 }
                 cu_post_kbd();
                 cu_trace("key: knob 2 keyboard %s\n", v == 2 ? "prog" : cs.kbd_full ? "full" : "chords");
@@ -7744,7 +7763,7 @@ static void cr_leds(void)
         return;
     }
     /* buttons: on = active */
-    cu_led(nl, panel.btn[BT_KEY], cs.key_on);
+    cu_led(nl, panel.btn[BT_KEY], cu_prog_kbd() ? cs.prog_on : cs.key_on);   /* (Keyboard: Prog: Prog on / aside) */
     cu_led(nl, panel.btn[BT_PERF], cs.perform_on);
     cu_led(nl, panel.btn[BT_FX], cs.fx_on);
     cu_led(nl, panel.btn[BT_BASS], cs.bass_on);
@@ -8569,7 +8588,7 @@ static void cu_key_cells(cr_screen_t *s)
         cu_cpy(s->cell[0][0].label, "Key plays", sizeof s->cell[0][0].label);
         cu_cpy(s->cell[0][0].value, cs.key_notes ? "Notes" : "Chords", sizeof s->cell[0][0].value);
         cu_cpy(s->cell[0][1].label, "Keyboard", sizeof s->cell[0][1].label);
-        cu_cpy(s->cell[0][1].value, cu_prog() ? "Prog" : cs.kbd_full ? "Full" : "Chords", sizeof s->cell[0][1].value);
+        cu_cpy(s->cell[0][1].value, cu_prog_kbd() ? "Prog" : cs.kbd_full ? "Full" : "Chords", sizeof s->cell[0][1].value);
         cu_hot_row(s, L_KEY);
         return;
     }
