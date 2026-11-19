@@ -26,7 +26,8 @@ seventh").
 
 **Progressions' chords (KEY page 2 Keyboard: Prog, GitHub issue 64; docs/PROGRESSIONS.md).** A chord played from a
 progression is recorded as a REFERENCE, not as notes (the owner's choice): the progression p (0..15), its key i
-(0..47) and the KEY layer's Transpose t it was played with. The engine's gesture carries it as `q = CR_Q_PROG` (13),
+(0..47) and the transpose t it was played with (the KEY layer's Transpose + the progression's own, KEY page 3's
+KNOB 4). The engine's gesture carries it as `q = CR_Q_PROG` (13),
 `ext = p`, `root = CR_PROG_REF(i, t)` (cr_engine.h); `crl_ev_chord` packs it into the event's three bytes:
 
 | byte | value |

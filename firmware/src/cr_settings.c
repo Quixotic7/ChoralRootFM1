@@ -477,6 +477,7 @@ static void css_sanitize(cr_session_t *x)
     if (x->prog_win > 3u) x->prog_win = 0;
     if (x->prog_vel && (x->prog_vel < 50u || x->prog_vel > 150u)) x->prog_vel = 0;
     if (x->prog_hum > 100u) x->prog_hum = 0;
+    if (x->prog_tr < -24 || x->prog_tr > 24) x->prog_tr = 0;
     if (x->loop_rate < -7 || x->loop_rate > 3)
         x->loop_rate = 0;                          /* (cr_loop.h CRL_NRATE: x1/16 .. x4 around x1 (css_fit_ok); until
                                                     * 2026-10-11 -3 .. 3: a 0.18 dev build of before reads the four
@@ -1140,6 +1141,7 @@ static void css_capture(cr_session_t *x)
     x->prog_win = cs.prog_win;
     x->prog_vel = cs.prog_vel;
     x->prog_hum = cs.prog_hum;
+    x->prog_tr = cs.prog_tr;
     css_drum_get(&x->drum);
     for (i = 0; i < (uint32_t)CR_PM_COUNT * 4u; i++)
         x->bpar[i / 4u][i % 4u] = CU_BPAR_SLOT[i / 4u][i % 4u] >= 0 ? cs.bpar[i / 4u][CU_BPAR_SLOT[i / 4u][i % 4u]] : 0;
@@ -1195,7 +1197,7 @@ static void css_apply(const cr_session_t *x)
     css_perf_put(x);                               /* the Bass Perform, the chord's Off */
     css_drum_put(x);                               /* the beat's preset and the drums (cu_loop_conf posts them) */
     cu.octave = x->octave;                         /* (cu_post_kbd follows: the split key's note moves with it) */
-    cu_prog_apply(x->prog_on, x->prog_sel, x->prog_win, x->prog_vel, x->prog_hum);   /* the progressions (sanitized) */
+    cu_prog_apply(x->prog_on, x->prog_sel, x->prog_win, x->prog_vel, x->prog_hum, x->prog_tr);   /* the progressions (sanitized) */
     cs.loop_rate = (uint8_t)((int)x->loop_rate + (int)CRL_RATE_1);   /* (cu_loop_conf posts it with the looper's) */
     if (x->bass_on) {                              /* v15: the bass comes back on, on its sound (ALGORITHM's place:
                                                     * cu_pos_sync) */
@@ -1695,7 +1697,7 @@ static void crs_reinit(void)
     cs.loop_rate = CRL_RATE_1;                     /* the loop's Rate: x1 */
     css_perf_put(NULL);                            /* the bass's Perform Off, its defaults; the chord's on */
     css_drum_put(NULL);                            /* the beat: Metronome, the drums' defaults */
-    cu_prog_apply(0, 0, 0, 0, 0);                  /* the progressions: Keyboard as the block says, the defaults */
+    cu_prog_apply(0, 0, 0, 0, 0, 0);                  /* the progressions: Keyboard as the block says, the defaults */
 #if BOARD_SMK37
     cs.smk_pedal = 0;                              /* Options > Pedal: Sustain */
     smk_ut_off = 0;                                /* Options > TRS MIDI Out: On */

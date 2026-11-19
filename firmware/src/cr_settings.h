@@ -470,10 +470,11 @@ typedef struct {
      * (0 in every older record: the defaults). prog_on 1: Keyboard is Prog, 2: Prog tapped aside by KEY (the Chords
      * keyboard until tapped again) (the block's kbd_full stays as it was: an
      * older firmware, and Keyboard leaving Prog, find Chords / Full there); prog_sel the progression 0..15; prog_win the
-     * OCT window 0..3 (keys 0 / 12 / 24 / 36 along); prog_vel Velocity 50..150 % (0: 100); prog_hum Humanize 0..100 %.
-     * Out of range: 0 */
+     * OCT window 0..3 (keys 0 / 12 / 24 / 36 along); prog_vel Velocity 50..150 % (0: 100); prog_hum Humanize 0..100 %;
+     * byte 1011, prog_tr: page 3's Transpose -24..24, the progression's own (0 in every older record). Out of range: 0 */
     uint8_t prog_on, prog_sel, prog_win, prog_vel, prog_hum;
-    uint8_t rsv_end[13];
+    int8_t prog_tr;
+    uint8_t rsv_end[12];
 } cr_session_t;
 
 void cr_session_defaults(cr_session_t *x);         /* nothing stored: the unit as it powers on without a session */

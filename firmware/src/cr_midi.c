@@ -233,23 +233,22 @@ static int crm_key(uint32_t status, uint32_t d1, uint32_t d2, uint32_t keys_ch, 
     return 1;
 }
 
-/* .. in KEY page 2 Keyboard: Prog (GitHub issue 64; the UI's cu_prog): prog_low (the keybed's lowest note: 53 F3 on
- * the FM-1, 48 C3 on the SMK-37) and the 47 notes above it press the progression's triggers 0 .. 47 (on the FM-1 notes
- * 53 .. 79 the keys F3 .. G5 as ever, 80 .. 100 the keys a bigger controller has beyond them), the window added by the
- * UI; the chord-key pads' notes 36 .. 44 do nothing there. *ev = CRM_PKEY | (j & 31) | vel << 5 | down << 12 | (j >> 5)
- * << 13: the down bit where a key's is. The same returns as crm_key */
+/* .. in KEY page 2 Keyboard: Prog (GitHub issue 64; the UI's cu_prog): the notes the keybed has are its keys as ever
+ * (crm_key: 53 .. 79 F3 .. G5, the pads' 36 .. 44 the chord block), so a root key's press decides there (a chord key in
+ * use: the Chords keyboard's chord, else the progression's); the notes from prog_ext up, below prog_low + 48, press the
+ * progression's triggers beyond the keybed directly, j = note - prog_low (prog_low: the note of trigger 0, C4 = 60 on
+ * the FM-1, C3 = 48 on the SMK-37; prog_ext 80 there: the keys a bigger controller has beyond G5), the window added by
+ * the UI. *ev = CRM_PKEY | (j & 31) | vel << 5 | down << 12 | (j >> 5) << 13: the down bit where a key's is. The same
+ * returns as crm_key */
 #define CRM_PKEY 0x4000u
-static int crm_pkey(uint32_t status, uint32_t d1, uint32_t d2, uint32_t keys_ch, uint32_t prog_low, uint32_t *ev)
+static int crm_pkey(uint32_t status, uint32_t d1, uint32_t d2, uint32_t keys_ch, uint32_t prog_low, uint32_t prog_ext,
+                    uint32_t *ev)
 {
     uint32_t st = status & 0xF0u, j;
     if (!keys_ch || (status & 0x0Fu) != keys_ch - 1u)
         return -1;
-    if (st == 0xB0u && (d1 == 120u || d1 == 123u)) {
-        *ev = CRM_KEY_ALLUP;
-        return 1;
-    }
-    if ((st != 0x90u && st != 0x80u) || d1 < prog_low || d1 - prog_low >= 48u)
-        return 0;
+    if ((st != 0x90u && st != 0x80u) || d1 < prog_ext || d1 < prog_low || d1 - prog_low >= 48u)
+        return crm_key(status, d1, d2, keys_ch, ev);
     j = d1 - prog_low;
     *ev = CRM_PKEY | (j & 31u) | (d2 & 0x7Fu) << 5 | (st == 0x90u && d2 ? 1u : 0u) << 12 | (j >> 5) << 13;
     return 1;

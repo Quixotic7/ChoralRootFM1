@@ -1163,16 +1163,23 @@ static void t_session(void)
        "session: Chord and Bass Perform at bytes 964 .. 1005 (0.34), 0 in the defaults and every older record: the chord "
        "performs, the bass not, its parameters the defaults");
     ok(!SD.prog_on && !SD.prog_sel && !SD.prog_win && !SD.prog_vel && !SD.prog_hum &&
-       &SD.prog_hum - (const uint8_t *)&SD == 1010 && (const uint8_t *)SD.rsv_end - (const uint8_t *)&SD == 1011,
+       &SD.prog_hum - (const uint8_t *)&SD == 1010 && !SD.prog_tr && (const uint8_t *)&SD.prog_tr - (const uint8_t *)&SD == 1011 &&
+       (const uint8_t *)SD.rsv_end - (const uint8_t *)&SD == 1012,
        "session: the progressions at bytes 1006 .. 1010 (GitHub issue 64), 0 in the defaults and every older record: "
        "Keyboard as the block says, progression 1, window 0, Velocity 100 %, Humanize 0");
     {                                              /* out of range: the defaults; in range: kept */
         static cr_session_t P;
         cr_session_defaults(&P);
-        P.prog_on = 1; P.prog_sel = 15; P.prog_win = 3; P.prog_vel = 150; P.prog_hum = 100;
+        P.prog_on = 1; P.prog_sel = 15; P.prog_win = 3; P.prog_vel = 150; P.prog_hum = 100; P.prog_tr = -24;
         cr_session_seal(&P);
         ok(cr_session_import(&P, &P, CSS_SIZE) == 1 && P.prog_on == 1 && P.prog_sel == 15 && P.prog_win == 3 &&
-           P.prog_vel == 150 && P.prog_hum == 100, "session: the progressions' fields at their ends kept");
+           P.prog_vel == 150 && P.prog_hum == 100 && P.prog_tr == -24, "session: the progressions' fields at their ends kept");
+        P.prog_tr = 24;
+        cr_session_seal(&P);
+        ok(cr_session_import(&P, &P, CSS_SIZE) == 1 && P.prog_tr == 24, "session: the progression's Transpose +24 kept");
+        P.prog_tr = 25;
+        cr_session_seal(&P);
+        ok(cr_session_import(&P, &P, CSS_SIZE) == 1 && !P.prog_tr, "session: the progression's Transpose +25: 0");
         P.prog_on = 3; P.prog_sel = 16; P.prog_win = 4; P.prog_vel = 49; P.prog_hum = 101;
         cr_session_seal(&P);
         ok(cr_session_import(&P, &P, CSS_SIZE) == 1 && !P.prog_on && !P.prog_sel && !P.prog_win && !P.prog_vel &&
@@ -1181,13 +1188,13 @@ static void t_session(void)
         cr_session_seal(&P);
         ok(cr_session_import(&P, &P, CSS_SIZE) == 1 && !P.prog_vel, "session: Velocity 151 %: 100 %");
     }
-    ok(sizeof SD.rsv + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 31u && sizeof SD.smk_master == 2u &&
+    ok(sizeof SD.rsv + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 30u && sizeof SD.smk_master == 2u &&
        (const uint8_t *)SD.smk_master - (const uint8_t *)&SD == 22 && !SD.smk_master[0] && !SD.smk_master[1] &&
        &SD.smk_pedal - (const uint8_t *)&SD == 24 && !SD.smk_pedal &&
        &SD.smk_trs_off - (const uint8_t *)&SD == 25 && !SD.smk_trs_off &&
        (const uint8_t *)&SD.fx - (const uint8_t *)&SD == 68 &&
        CSS_NFXP - 29 == 0 && CSS_NP - 91 == 5,
-       "session: 31 bytes of reserve (36 until the progressions took 5 of the end's, GitHub issue 64; 40 until the drums' block grew to 40 bytes, 3y304; 52 until it grew to 36, 3y303; 76 until it took 24 at byte 26; 118 until 0.34's Bass Perform took 42 of the end's; the SMK-37's MASTER at bytes 22, 23, 0 = not stored; its Pedal at byte 24, 0 = Sustain; its TRS MIDI Out at byte 25, 0 = On; 119 until the TRS jack, 120 until the pedal, 122 until issue 30, 126 until the routing took rsv_fx's last 4, 142 until 0.22's master filter took 16 of it), no free FX parameter entry of 29, 5 free part parameters");
+       "session: 30 bytes of reserve (31 until the progression's Transpose took byte 1011; 36 until the progressions took 5 of the end's, GitHub issue 64; 40 until the drums' block grew to 40 bytes, 3y304; 52 until it grew to 36, 3y303; 76 until it took 24 at byte 26; 118 until 0.34's Bass Perform took 42 of the end's; the SMK-37's MASTER at bytes 22, 23, 0 = not stored; its Pedal at byte 24, 0 = Sustain; its TRS MIDI Out at byte 25, 0 = On; 119 until the TRS jack, 120 until the pedal, 122 until issue 30, 126 until the routing took rsv_fx's last 4, 142 until 0.22's master filter took 16 of it), no free FX parameter entry of 29, 5 free part parameters");
     ok(sizeof(css_drum_t) == 40u && (const uint8_t *)&SD.drum - (const uint8_t *)&SD == 26 && !SD.drum.ver &&
        !SD.drum.preset && CSS_DRUM_VERSION == 3u && (const uint8_t *)SD.drum.cho - (const uint8_t *)&SD == 50 &&
        (const uint8_t *)SD.drum.flt - (const uint8_t *)&SD == 59,

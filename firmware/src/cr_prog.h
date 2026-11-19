@@ -17,7 +17,8 @@
  * Anything else (another magic or version, n != CRPG_N, used > CRPG_SIZE or < the header and directory, a record out of
  * range, notes not ascending) makes the whole object invalid: the unit then uses the factory set (crp_factory).
  *
- * Key -> chord: keybed key k (0 = the lowest: F3 on the FM-1, C3 on the SMK-37) plays progression key
+ * Key -> chord: trigger k (0 = the first root key with no chord key in use: C4 on the FM-1, its chord keys F3..B3 keeping their
+ * jobs; C3 on the SMK-37) plays progression key
  * i = k + 12 * window (window 0..3: OCT- / OCT+ in Prog). i >= nkeys or n = 0: the key is silent. */
 #ifndef CR_PROG_H
 #define CR_PROG_H

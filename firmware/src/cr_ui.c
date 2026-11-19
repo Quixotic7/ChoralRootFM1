@@ -644,6 +644,8 @@ static struct {
      * prog_off: Keyboard is Prog but KEY's tap has put it aside (the owner, 2026-11-19: the tap toggles Prog and the
      * chord keys with their roots, the Chords keyboard whatever kbd_full says; prog_on 0 then) */
     uint8_t prog_on, prog_sel, prog_win, prog_vel, prog_hum, prog_off;
+    int8_t prog_tr;                       /* .. page 3's Transpose -24..24: the progression's own, added to page 1's for
+                                           * its chords only (the owner, 2026-11-19) */
 #if BOARD_SMK37
     uint8_t smk_pedal;                    /* Options > Pedal: the pedal jack 0 Sustain, 1 Expression (the session's:
                                            * cr_settings.h smk_pedal; cr_smk_pedal) */
@@ -1865,7 +1867,7 @@ static __attribute__((noinline)) void cu_opt_enter(void)   /* OCT+ on a group: i
 /* the Full keyboard (KEY layer, Keyboard: Full) with Full K Shorts: F#5 and G5 are its switches, F#5 brings the
  * layout's chord keys back on the low keys (cu.full_chk: the Chords keyboard then, its roots to F5) */
 static int cu_fshort(void) { return CU_FN_KEYS && cs.kbd_full && cs.full_short && !cs.prog_on && !cs.prog_off; }
-static int cu_full(void) { return cs.kbd_full && !cs.prog_off && !(cu_fshort() && cu.full_chk); }   /* (Prog tapped
+static int cu_full(void) { return cs.kbd_full && !cs.prog_off && !cs.prog_on && !(cu_fshort() && cu.full_chk); }   /* (Prog tapped
                                                     * aside: the Chords keyboard) */
 static uint32_t cu_root0(void) { return cu_full() ? 0u : cu_fm1() ? CU_ROOT0_FM1 : CU_ROOT0; }   /* the first key
                                                     * that plays: a root (the Full keyboard: every key a note) */
@@ -1935,20 +1937,25 @@ static void cu_pick_end(int keep);
 static void cu_epk_commit(void);
 static uint32_t cu_layer(void);
 static uint32_t cu_now(void) { return fm1_ms; }
-/* ---- the progressions (GitHub issue 64; cr_prog.h, docs/PROGRESSIONS.md). Keyboard: Prog: every key of the keybed is
- * a TRIGGER j (0 = the lowest key: F3 on the FM-1, C3 on the SMK-37, whose 37 keys are 0 .. 36), playing key
- * i = j + 12 x window of the progression selected (cr_prog_key: the engine looks the chord up). MIDI Keys' notes from the
- * same lowest note press the triggers 0 .. 47 (cr_midi.c crm_pkey). A trigger is down while the keybed or MIDI holds it
- * (one press); its release ends whatever it started, whatever was selected since. No chord keys, no LOCK (what LOCK
- * latched waits for Chords): the chord block's keys are triggers too, B3 included */
+/* ---- the progressions (GitHub issue 64; cr_prog.h, docs/PROGRESSIONS.md). Keyboard: Prog is an overlay on the Chords
+ * keyboard (the owner, 2026-11-19: "start them on the keys from the first C"): the chord block keeps its jobs (and LOCK
+ * as on Chords); a ROOT key pressed while a chord key is in use (held, or latched by LOCK: cu_ckeys_used) plays the
+ * Chords keyboard's chord, pressed with none it is a TRIGGER j of the progression selected, playing its key
+ * i = j + 12 x window (cr_prog_key: the engine looks the chord up). Decided per press: the release ends what the press
+ * started (cu.key_note CU_KN_PROG). j: the FM-1's root keys from C4 (C4 = 0 .. G5 = 19; Classic's from D4 = 2), the
+ * SMK-37's keybed from C3 (its chord keys are the pads). MIDI Keys' notes past the keybed press the triggers beyond
+ * it (cr_midi.c crm_pkey); the keybed's notes are its keys. A trigger is down while the keybed or MIDI holds it (one
+ * press); its release ends whatever it started, whatever was selected since */
 #if BOARD_SMK37
-#define CU_PROG_LOW 48u                            /* C3: the SMK-37's lowest key */
-#define CU_PJ0 5u                                  /* .. trigger of the FM-1 key 0 (F3) */
-#define CU_PNKB 37u                                /* .. its keybed's keys */
+#define CU_PROG_LOW 48u                            /* the note of trigger 0: C3, the SMK-37's lowest key */
+#define CU_PEXT 85u                                /* .. the first note past its keybed (C6 + 1) */
+#define CU_PNKB 37u                                /* .. the triggers its keybed has */
+static uint32_t cu_pj(uint32_t k) { return k + 5u; }   /* a middle key's trigger (F3 = key 0 is the keybed's 5th) */
 #else
-#define CU_PROG_LOW 53u                            /* F3 */
-#define CU_PJ0 0u
-#define CU_PNKB 27u
+#define CU_PROG_LOW 60u                            /* C4 */
+#define CU_PEXT 80u                                /* (G#5) */
+#define CU_PNKB 20u                                /* C4 .. G5 */
+static uint32_t cu_pj(uint32_t k) { return k - CU_ROOT0_FM1; }   /* a root key's trigger (k >= C4) */
 #endif
 #define CU_KN_PROG 0xFEu                           /* cu.key_note: the key pressed as a trigger */
 static int cu_prog(void) { return cs.prog_on; }
@@ -2012,11 +2019,12 @@ static void cu_prog_set(uint32_t on)
     cu.kheld = 0;
     cu.b3_pend = 0;
     cs.prog_on = (uint8_t)on;
+    cr_mkeys_pext = CU_PEXT;
     cr_mkeys_prog = (uint8_t)(on ? CU_PROG_LOW : 0u);
     cu_trace("key: keyboard %s\n", on ? "prog" : cs.kbd_full ? "full" : "chords");
 }
 /* the session's (cr_settings.c css_apply; crs_reinit: all 0) */
-static void cu_prog_apply(uint32_t on, uint32_t sel, uint32_t win, uint32_t vel, uint32_t hum)
+static void cu_prog_apply(uint32_t on, uint32_t sel, uint32_t win, uint32_t vel, uint32_t hum, int32_t tr)
 {
     cu_prog_set(on == 1u);                         /* (2: Prog tapped aside, the Chords keyboard) */
     cs.prog_off = (uint8_t)(on == 2u);
@@ -2026,6 +2034,8 @@ static void cu_prog_apply(uint32_t on, uint32_t sel, uint32_t win, uint32_t vel,
     cs.prog_vel = (uint8_t)(vel >= 50u && vel <= 150u && vel != 100u ? vel : 0u);
     cs.prog_hum = (uint8_t)(hum > 100u ? 0u : hum);
     cr_post(CRE_PROGHUM, 0, 0, cs.prog_hum);
+    cs.prog_tr = (int8_t)(tr < -24 || tr > 24 ? 0 : tr);
+    cr_post(CRE_PROGTR, 0, 0, cs.prog_tr);
 }
 /* "keys 13-39": the progression keys the keybed reaches now (the last: the progression's) */
 static void cu_prog_keys(char *b, uint32_t n)
@@ -4111,8 +4121,7 @@ static void cu_opened(uint32_t b)                 /* a button held past HOLD (or
         cu_pick_end(1);
     cu.lock = (uint8_t)l;                         /* the layer stays open after release */
     cu_hot.knob = 0;                              /* (a layer opens with no hot cell) */
-    if (l == L_KEY && was != L_KEY)               /* the KEY layer opens on its first page */
-        cu.kpage = 0;
+    /* (the KEY layer opens on the page it last showed: the owner, 2026-11-19; page 1 after a power-on) */
     if (l == L_LOOP && was != L_LOOP)             /* .. the PLAY menu too */
         cu.lpage = 0;
     if (l == L_METRO && was != L_METRO)           /* .. the SEQ layer: its preset page */
@@ -4991,8 +5000,12 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
                 cs.prog_hum = (uint8_t)v;
                 cr_post(CRE_PROGHUM, 0, 0, cs.prog_hum);
                 cu_trace("key: knob 3 humanize %u%%\n", (unsigned)cs.prog_hum);
-            } else
-                break;
+            } else {                               /* TRANSPOSE -24..24 (OPT held: octaves), the progression's own */
+                v = kn.snap ? kn_snap_rng(cs.prog_tr, s, -24, 24, 12, 0) : cs.prog_tr + s;
+                cs.prog_tr = (int8_t)(v < -24 ? -24 : v > 24 ? 24 : v);
+                cr_post(CRE_PROGTR, 0, 0, cs.prog_tr);
+                cu_trace("key: knob 4 prog transpose %d\n", (int)cs.prog_tr);
+            }
             cu_hot_set(L_KEY, knob);
             break;
         }
@@ -5296,6 +5309,10 @@ static uint32_t cu_mods_phys(void)                 /* bit cr_mod_t: the chord ke
     return m | (cu_fm1() ? cu.tposted : 0u);
 #endif
 }
+/* Prog: a chord key is in use (held, latched by LOCK, the FM-1's type-key gesture still open): a root key pressed now
+ * plays the Chords keyboard's chord, not the progression's (the owner, 2026-11-19: "If you use them you play chords like
+ * normal, if you don't use them it plays the progressions") */
+static int cu_ckeys_used(void) { return cu.g_open || cu.tk_held || cu.mlatch || cu_mods_phys() != 0u; }
 static void cu_mods_trace(void)
 {
     static const char *const NM[CR_NMOD] = {"DIM", "MIN", "MAJ", "SUS", "6", "m7", "M7", "9"};
@@ -5827,7 +5844,7 @@ static void cu_key_press(uint32_t k)
         cu.key_note[k] = 0xFFu;
         return;
     }
-    if (CU_FN_KEYS && k == CU_KEY_LOCK && !cu_fm1() && !cu_full() && !cu_prog()) {   /* B3: a tap (its release) toggles LOCK, a hold
+    if (CU_FN_KEYS && k == CU_KEY_LOCK && !cu_fm1() && !cu_full()) {   /* B3: a tap (its release) toggles LOCK, a hold
                                                     * is its layer (Classic; FM-1: B3 is the 9, LOCK is on LFO) */
         cu.b3_pend = 1;
         cu.b3_t0 = cu_now();
@@ -5837,8 +5854,7 @@ static void cu_key_press(uint32_t k)
      * chord key, no LOCK, no LOCK layer; the latch behind it (cu.mlatch, down in the engine, which ignores it in this
      * mode) is what it was when the mode is left. One place keeps them: the KEY layer with its keys on pick, which
      * owns the keys (MAJ / MIN the scale, a root the tonic; B3 nothing there) */
-    if (CU_FN_KEYS && k < cu_cb_end() && (!(cu_full() || cu_prog()) || cu_key_pick())) {   /* the chord block keeps its job in every layer but KEY's, where
-                                                    * (Prog: they are triggers, as the Full keyboard's notes) */
+    if (CU_FN_KEYS && k < cu_cb_end() && (!cu_full() || cu_key_pick())) {   /* the chord block keeps its job in every layer but KEY's, where */
         if (cu_key_pick()) {                       /* MAJ / MIN pick the scale (cu_key_scale); B3 is LOCK everywhere */
             uint32_t other = (k == CU_KEY_MIN ? 1u << CU_KEY_MAJ : k == CU_KEY_MAJ ? 1u << CU_KEY_MIN : 0u);
             cu.kpick |= (uint16_t)(1u << k);
@@ -5885,9 +5901,9 @@ static void cu_key_press(uint32_t k)
     /* (Options: the keys play as on the view it was opened from. Until 2026-10-12 the white roots jumped to the
      * first eleven settings and no key sounded: the owner, "it isn't really helpful, and also makes it difficult to
      * compare clean and classic". The menu is SELECT, KNOB 1 and the buttons only) */
-    if (cu_prog()) {                               /* Prog: the key's trigger (cu_ptrig) */
+    if (cu_prog() && !cu_ckeys_used()) {           /* Prog, no chord key in use: the key's trigger (cu_ptrig) */
         cr_klat_post(CU_KEY_T0(k));
-        cu_ptrig(CU_PJ0 + k, 0, cu_key_vel(k), 1);
+        cu_ptrig(cu_pj(k), 0, cu_key_vel(k), 1);
         cu.key_note[k] = CU_KN_PROG;
         return;
     }
@@ -5946,7 +5962,7 @@ static void cu_key_release(uint32_t k)
         return;
     }
     if (cu.key_note[k] == CU_KN_PROG)              /* a trigger (Prog) */
-        cu_ptrig(CU_PJ0 + k, 0, 0, 0);
+        cu_ptrig(cu_pj(k), 0, 0, 0);
     else if (cu.key_note[k] && cu.key_note[k] != 0xFFu)
         cr_post(CRE_KEY, cu.key_note[k] - 1u, 0, 0);
     cu.key_note[k] = 0;
@@ -7133,7 +7149,7 @@ static void cu_smk_xkey(uint32_t kb, uint32_t vel)
     }
     if (cu_layer_keys(cu_layer()) || (cu.page == PG_SAVE && ce.save_step))
         return;
-    if (cu_prog()) {                               /* Prog: the key's trigger (C3 = 0) */
+    if (cu_prog() && !cu_ckeys_used()) {           /* Prog, no pad of the chord keys in use: the key's trigger (C3 = 0) */
         cu_ptrig(kb, 0, cs.touch ? vel : cs.vel, 1);
         return;
     }
@@ -7189,8 +7205,6 @@ static void cu_smk_pad(uint32_t pad, uint32_t vel)
         return;
     }
     if (cu_pheld & bit)
-        return;
-    if (cu_prog() && !cu_key_pick())               /* Prog: no chord keys, no LOCK (the KEY layer's scale pick stays) */
         return;
     cu_pheld |= (uint16_t)bit;
     cu_activity();
@@ -7734,8 +7748,7 @@ static void cr_leds(void)
     uint8_t nl[FM1_NCOL] = {0}, nd[FM1_NCOL] = {0}, own[FM1_NCOL] = {0}, ld[FM1_NCOL] = {0}, nm[FM1_NCOL] = {0};
     uint8_t nf[FM1_NCOL] = {0};
     uint32_t k, b, now = cu_now(), blink = (uint32_t)cu_blink(now), l = cu_layer();
-    uint32_t full = (cu_full() || cu_prog()) && !cu_key_pick();   /* the Full keyboard: the chord block's keys are
-                                                    * notes (Prog: triggers) */
+    uint32_t full = cu_full() && !cu_key_pick();   /* the Full keyboard: the chord block's keys are notes */
     uint32_t key0 = full ? 0u : cu_cb_end();       /* the first key that plays */
     uint32_t kend = cu_kend();                     /* .. the key after the last (Full K Shorts: F#5 G5 are switches) */
     uint32_t scale = cs.key_on ? cu_scale_bits() : 0u;
@@ -7913,11 +7926,12 @@ static void cr_leds(void)
                 cu_led(own, CU_LK(k), 1);
     } else if (cu_prog()) {                              /* Prog: the keys' own state (the owner's rule): a key with no
                                                           * chord in the window dark, one with a chord at the glow, a key
-                                                          * held lit (the Full keyboard's and Key Mode's levels) */
-        for (k = 0; k < CU_NKEY; k++) {
+                                                          * held lit (the Full keyboard's and Key Mode's levels); the
+                                                          * root keys only: the chord block's are the Chords keyboard's */
+        for (k = key0; k < CU_NKEY; k++) {
             uint8_t t[CRPG_NOTES];
-            uint32_t i = CU_PJ0 + k + 12u * cs.prog_win;
-            if (cu_ptrig_held(CU_PJ0 + k))
+            uint32_t i = cu_pj(k) + 12u * cs.prog_win;
+            if (cu_ptrig_held(cu_pj(k)) || ((cu.kheld >> k) & 1u))
                 cu_led(nl, CU_LK(k), 1);
             else if (i < CRPG_KEYS && crp_chord(cs.prog_sel, i, t))
                 cu_led(nd, CU_LK(k), 1);
@@ -8075,7 +8089,7 @@ static void cu_numeral(char b[CR_NUMERAL_MAX])
 {
     const cr_chord_info_t *ci = &cr_snap.ci;
     b[0] = 0;
-    if (cs.numerals && cs.key_on && ci->valid && ci->sounding && !cu_prog() && ci->quality != CR_Q_PROG)
+    if (cs.numerals && cs.key_on && ci->valid && ci->sounding && ci->quality != CR_Q_PROG)
         (cs.numerals == 2u ? cr_chord_solfege : cr_chord_numeral)((uint8_t)(((int)ci->root_pc - ci->transpose) % 12 + 12),
                                                                  ci->quality, cs.tonic, cs.scale, b);
 }
@@ -8085,7 +8099,7 @@ static void cu_numeral(char b[CR_NUMERAL_MAX])
 _Static_assert(sizeof ((cr_screen_t *)0)->numeral >= CR_NUMERAL_MAX, "the screen's numeral holds the engine's");
 static void cu_numeral_put(cr_screen_t *s)
 {
-    if (!cs.numerals || !cs.key_on || cu_prog()) return;   /* (Prog: off) */
+    if (!cs.numerals || !cs.key_on) return;        /* (a progression's chord: none, cu_numeral) */
     s->numeral_on = 1;
     cu_numeral(s->numeral);
 }
@@ -8553,9 +8567,13 @@ static void cu_key_cells(cr_screen_t *s)
     static const char *const LB[4] = {"Tonic", "Scale", "Transpose", "Single"};
     uint32_t k;
     if (cu.kpage == 2u) {                          /* page 3 (the progressions): Prog 1..16 (text), Velocity, Humanize
-                                                    * (bars), KNOB 4 none */
+                                                    * (bars), Transpose (shift: -24..24, centre 0, as page 1's) */
         char b[8];
-        s->cell[0][0].flags = s->cell[0][1].flags = s->cell[0][2].flags = CR_CF_ON;
+        s->cell[0][0].flags = s->cell[0][1].flags = s->cell[0][2].flags = s->cell[0][3].flags = CR_CF_ON;
+        cu_cpy(s->cell[0][3].label, "Transpose", sizeof s->cell[0][3].label);
+        cu_int(s->cell[0][3].value, cs.prog_tr, 1, sizeof s->cell[0][3].value);
+        s->cell[0][3].glyph = CR_G_SHIFT;
+        s->cell[0][3].pct = (uint8_t)((uint32_t)(cs.prog_tr + 24) * 255u / 48u);
         cu_cpy(s->cell[0][0].label, "Prog", sizeof s->cell[0][0].label);
         cu_int(s->cell[0][0].value, (int32_t)cs.prog_sel + 1, 0, sizeof s->cell[0][0].value);
         cu_cpy(s->cell[0][1].label, "Velocity", sizeof s->cell[0][1].label);
@@ -8576,7 +8594,7 @@ static void cu_key_cells(cr_screen_t *s)
         return;
     }
     if (cu.kpage) {                                /* page 2 (SELECT): Key plays, Keyboard, Snap, Numerals */
-        uint32_t pd = cu_prog() ? CR_CF_DIM : 0u;  /* (Prog: Key plays, Snap and Numerals do nothing: grey) */
+        uint32_t pd = 0u;                          /* (Prog: Key plays, Snap and Numerals for the Chords keyboard's chords) */
         s->cell[0][0].flags = s->cell[0][3].flags = (uint16_t)(CR_CF_ON | pd);
         s->cell[0][1].flags = CR_CF_ON;
         s->cell[0][2].flags = (uint16_t)(CR_CF_ON | (cs.key_notes ? pd : CR_CF_DIM));   /* (Snap changes nothing
@@ -8989,9 +9007,9 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
             s->mid_col = CR_COL_PURPLE;
         } else if (cu.kpage == 1u && cu_prog()) {  /* page 2 in Prog: the strip's keys that hold a chord now (the
                                                     * window's), purple */
-            for (k = 0; k < CU_NKEY && k < CR_KEYS; k++) {
+            for (k = cu_cb_end(); k < CU_NKEY && k < CR_KEYS; k++) {   /* (the root keys: from C4 on the FM-1) */
                 uint8_t t[CRPG_NOTES];
-                uint32_t i = CU_PJ0 + k + 12u * cs.prog_win;
+                uint32_t i = cu_pj(k) + 12u * cs.prog_win;
                 if (i < CRPG_KEYS && crp_chord(cs.prog_sel, i, t)) {
                     s->lit |= 1u << k;
                     s->lit_col[k] = CR_COL_PURPLE;

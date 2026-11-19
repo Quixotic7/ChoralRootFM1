@@ -596,11 +596,12 @@ void emu_fw_dump(void)
                                                      * held (keybed / MIDI), the engine's Humanize and its progression
                                                      * voices (trigger, key, velocity, base notes) */
         unsigned v, i;
-        printf("  prog: on %u sel %u win %u vel %u hum %u nkeys %u chords %u held %012llX midi %012llX mkeys-low %u "
-               "engine-hum %u voices",
+        printf("  prog: on %u sel %u win %u vel %u hum %u tr %d nkeys %u chords %u held %012llX midi %012llX mkeys-low %u "
+               "engine-hum %u engine-tr %d voices",
                (unsigned)cs.prog_on, (unsigned)cs.prog_sel + 1u, (unsigned)cs.prog_win, (unsigned)cu_pvel(),
-               (unsigned)cs.prog_hum, (unsigned)crp_nkeys(cs.prog_sel), (unsigned)crp_count(cs.prog_sel),
-               (unsigned long long)cu_pk.pan, (unsigned long long)cu_pk.mid, (unsigned)cr_mkeys_prog, (unsigned)cr.prog_hum);
+               (unsigned)cs.prog_hum, (int)cs.prog_tr, (unsigned)crp_nkeys(cs.prog_sel), (unsigned)crp_count(cs.prog_sel),
+               (unsigned long long)cu_pk.pan, (unsigned long long)cu_pk.mid, (unsigned)cr_mkeys_prog, (unsigned)cr.prog_hum,
+               (int)cr.prog_tr);
         for (v = 0; v < CR_NVOICE; v++)
             if (cr.v[v].used && (cr.v[v].zone & CR_Z_PROG)) {
                 printf(" [%s%u key %u vel %u:", v >= CR_MAX_VOICES + CR_MAX_PADS ? "loop" : v >= CR_MAX_VOICES ? "pad" : "t",

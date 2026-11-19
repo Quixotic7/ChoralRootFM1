@@ -25,10 +25,12 @@ export const PROG_HDR = 16, PROG_DIRENT = 16, PROG_DATA = PROG_HDR + PROG_N * PR
 export const PROG_WINDOWS = 4;             // OCT windows on the unit: 0, 12, 24, 36 keys along
 export const PROG_NEW_BASE = 48;           // a new progression's trigger note of key 0 (C3, as the SMK-37's lowest key)
 // the keybeds (only the drawing of the trigger keyboard and the keys per OCT window differ; the data is the same):
-// key 0 is the lowest key; low: its MIDI note (60 = C4)
+// key 0 is the lowest key; low: its MIDI note (60 = C4); first: the key that plays the window's first progression key
+// (the FM-1's chord keys F3..B3 keep their jobs in Prog: the progression starts on C4, the owner 2026-11-19); triggers:
+// the progression keys one OCT window shows
 export const PROG_KEYBEDS = {
-  fm1: { label: "FM-1", keys: 27, low: 53, range: "F3 to G5" },
-  smk: { label: "SMK-37", keys: 37, low: 48, range: "C3 to C6" },
+  fm1: { label: "FM-1", keys: 27, low: 53, first: 7, triggers: 20, range: "C4 to G5 (F3 to B3: the chord keys)" },
+  smk: { label: "SMK-37", keys: 37, low: 48, first: 0, triggers: 37, range: "C3 to C6" },
 };
 
 const PROG_PC = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];

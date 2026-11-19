@@ -40,11 +40,10 @@ wait 400
 dump                          # 5: chord D, notes 62
 btn D4 up
 wait 300
-btn SEL down                  # Snap: Chord (the layer opens on page 1; SELECT: page 2; KNOB 3 again)
+btn SEL down                  # Snap: Chord (the layer reopens on page 2, where it was left; KNOB 3 again)
 wait 500
 btn SEL up
 wait 300
-knob SELECT +1
 wait 300
 knob KNOB3 +1
 wait 300
@@ -63,7 +62,6 @@ btn SEL down                  # Snap: Off again (KNOB 3 -2)
 wait 500
 btn SEL up
 wait 300
-knob SELECT +1
 wait 300
 knob KNOB3 -2
 wait 300

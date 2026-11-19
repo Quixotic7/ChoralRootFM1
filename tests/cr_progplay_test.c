@@ -232,6 +232,25 @@ static void t_play(void)
     ok(!strcmp(nm, "Em9") && ci.nnotes == 5 && ci.notes[0] == 55, "play: named from the notes as stored (Em9), shown as voiced");
     cr_prog_key(&C, 5, 1, 0, 0, 0);
     cr_voicing_step(&C, -2);
+    cr_set_prog_transpose(&C, 3);                  /* the progression's own: + the KEY layer's 2 = 5 */
+    from = nev;
+    cr_prog_key(&C, 5, 1, 0, 100, 1);
+    m = ons(from, n, NULL);
+    memcpy(want, (const uint8_t[]){43, 58, 62, 65, 69}, 5);
+    ok(same(n, m, want, 5) && CR_PROG_TR(g_root) == 5, "play: page 3's Transpose +3 adds to page 1's +2 (the reference: +5)");
+    cr_prog_key(&C, 5, 1, 0, 0, 0);
+    cr_set_transpose(&C, 0);
+    cr_set_prog_transpose(&C, 30);
+    ok(C.prog_tr == 24, "play: the progression's Transpose clamped to +24");
+    cr_set_prog_transpose(&C, 0);
+    {                                              /* the reference holds -48 .. +48 */
+        int t, bad = 0;
+        for (t = -48; t <= 48; t++)
+            bad += CR_PROG_TR(CR_PROG_REF(47, t)) != t || CR_PROG_KEY(CR_PROG_REF(47, t)) != 47u || CR_PROG_REF(47, t) < 0;
+        ok(!bad, "reference: a key and a total transpose -48 .. +48 round-trip");
+    }
+    cr_voicing_step(&C, 2);
+    cr_voicing_step(&C, -2);
     cr_set_transpose(&C, 24);                      /* fold into 0..127: 70 + 24 = 94 .. fine; a high one: */
     from = nev;
     cr_prog_key(&C, 6, 2, 6, 100, 1);              /* Neo Soul key 7: 44 60 63 67 70 + 24 */
@@ -350,7 +369,7 @@ static void t_loop(void)
     {
         crl_ev_t e;
         int t, bad = 0;
-        for (t = -24; t <= 24; t++) {
+        for (t = -48; t <= 48; t++) {
             int want = t;
             while (want > 7) want -= 12;
             while (want < -7) want += 12;

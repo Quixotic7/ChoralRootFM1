@@ -102,7 +102,8 @@ A pad of a progression's chord stores its **reference** (below), not its notes.
 
 ### Progressions (GitHub issue 64; docs/PROGRESSIONS.md)
 
-KEY page 2 Keyboard: Prog makes every keybed key a trigger of the chord stored for it (a list of up to 8 absolute
+KEY page 2 Keyboard: Prog lays the progression over the Chords keyboard: a root key pressed with no chord key in use (the
+UI decides, `cr_ui.c cu_ckeys_used`) is a trigger of the chord stored for it (a list of up to 8 absolute
 notes, `cr_prog.h`). The engine plays them as a voice kind of its own:
 
 - **`cr_prog_source(fn)`**: where the chords come from (`fn(p, i, notes)`, the count, 0 = none). One source for
@@ -111,7 +112,8 @@ notes, `cr_prog.h`). The engine plays them as a voice kind of its own:
 - **`cr_prog_key(trig, p, i, vel, down)`**: trigger `trig` (the UI's key number, 0..47; its own press id,
   `CR_PROG_ID`, so a MIDI Roots note of the same number stays apart) plays key `i` of progression `p`. The voice:
   zone `CR_Z_PROG`, quality `CR_Q_PROG` (= `CR_Q_COUNT`, not a table quality), `base[]` = the stored notes +
-  the Transpose of now (each moved by octaves into 0..127, a note twice once), voiced by KNOB 1 (`cr_voice_apply`)
+  the Transpose of now and the progression's own (`cr_set_prog_transpose`, KEY page 3 KNOB 4, -24..24; for these
+  chords only) (each moved by octaves into 0..127, a note twice once), voiced by KNOB 1 (`cr_voice_apply`)
   live as any chord; `sx` = the progression, `pc_pressed` = the key, `root` / `note_pressed` = the lowest stored
   note (the bass part takes its pitch class, Unison and Solo its pitch). Key Mode, the chord keys, LOCK and Single
   Notes' split do nothing to it (`crx_build_base` is never called for it; the chord-key paths skip zoned voices).
@@ -122,7 +124,7 @@ notes, `cr_prog.h`). The engine plays them as a voice kind of its own:
   Velocity % is the UI's (`CR_PROG_VEL`), applied before the press is posted.
 - **The reference** (`CR_PROG_REF(i, t)`, `CR_PROG_KEY`, `CR_PROG_TR`): wherever a chord is passed by value
   (`out.gesture`, a pad's `cr_chord_t`, `last_chord`, `cr_loop_event`) a progression's chord is `q = CR_Q_PROG`,
-  `ext` = the progression, `root` = the key in bits 0..5 and the Transpose + 24 in bits 6..11. It is resolved
+  `ext` = the progression, `root` = the key in bits 0..5 and the total transpose it was played with + 48 in bits 6..12 (-48..48). It is resolved
   (`crx_prog_build`) whenever it sounds: an edited progression changes what an old pad or loop plays, an emptied
   key is silent (`cr_pad_down`, `cr_loop_event_v` return without a voice). A loop's step voicing applies as to any
   chord.

@@ -1,20 +1,25 @@
 # ChoralRoot: the progressions' playing side (GitHub issue 64; docs/PROGRESSIONS.md). Run with EMU_PROG_LONG=1 (a
 # 48-key progression in slot 16, "Long 48": key k a major triad on 48 + k, every fifth key silent) and --midi-log.
-# tools/emu/test_cr.sh reads the dumps by number:
-#   1 KEY page 2, KNOB 2 +2: Keyboard Prog (the block's kbd_full: Full, kept)   2 page 3, KNOB 1 +1: progression 2
-#   3 F3: Jazz key 1 (Dm9 38 53 57 60 64)      4 D4 (key 10): no chord: no voice, no note
-#   5 Transpose +2, voicing +1: F3 = 40 55 59 62 66 voiced 52 55 59 62 66
-#   6 Velocity 50 %: F3 at 50          7 Velocity 150 %: 127          8 Humanize 100: the engine has it
-#   9 progression 16 (Long 48), F3: key 1 (48 52 55)     10 OCT+: window 1 ("keys 13-39")
-#  11 F3 in window 1: key 13 (60 64 67)    12 OCT+ x3: window 3 (stays)    13 E4: key 48 (95 99 102)
-#  14 F4: key 49: none       15 panic: window 0 (then Chords: LOCK on, MIN latched; Prog again)
-#  16 MIDI Keys ch 5 (Options)   17 MIDI 53 / 80 / 100 / 36 / 101: keys 1, 28, 48, nothing, nothing
-#  18 CC 123: every MIDI trigger up
-#  19 a loop: REC, F3 (key 1), REC: the take plays the reference   20 key 1 emptied: the loop's step silent
-#  21 Keyboard back to Full (KNOB 2 -1): F3 a single note again   22 silent
-#  23 Keyboard back to Chords: D4 is D minor (LOCK's MIN, latched before Prog, kept through it)   24 silent
+# Prog is an overlay on the Chords keyboard (the owner, 2026-11-19): the chord block keeps its jobs, the root keys from C4
+# play the progression (C4 = key 1) unless a chord key is in use. tools/emu/test_cr.sh reads the dumps by number:
+#   1 KEY page 2, KNOB 2 +2: Keyboard Prog (the block's kbd_full: Full, kept; the engine: the Chords keyboard)
+#   2 page 3, KNOB 1 +1: progression 2    3 C4: Jazz key 1 (Dm9 38 53 57 60 64)    4 A4 (key 10): no chord
+#   5 MIN (G#3) held + D4: the Chords keyboard's Dm      6 D4 alone: key 3 (CM9 36 52 55 59 62)
+#   7 C4 held, then MIN pressed: the progression's chord stays as stored
+#   8 KEY held: the layer reopens on page 3      9 Transpose +2 (page 1), voicing +1: C4 = 40 .. voiced, Em9
+#  10 page 3 KNOB 4 Transpose +2 with page 1's +2: C4 = 42 57 61 64 68 (F#m9; the engine's +2)
+#  11 Velocity 50 %: C4 at 50     12 Velocity 150 %: 127     13 Humanize 100: the engine has it
+#  14 progression 16 (Long 48), C4: key 1 (48 52 55)     15 OCT+: window 1 ("keys 13-32")
+#  16 C4 in window 1: key 13 (60 64 67)    17 OCT+ x3: window 3 (stays)    18 B4: key 48 (95 99 102)
+#  19 C5: key 49: none       20 panic: window 0
+#  21 MIDI Keys ch 5 (Options)   22 MIDI 60 / 80 / 107 / 108: key 1 (C4), 21, 48, nothing    23 CC 123: all up
+#  24 MIDI 36 (F3's pad note: the 6, a chord key) held + 62 (D4): the Chords keyboard's D, no progression chord
+#  25 a loop: REC, C4 (key 1), REC: the take plays the reference   26 key 1 emptied: the loop's step silent
+#  27 KEY tapped (Prog aside), LOCK on, MIN latched, KEY tapped (Prog): D4 is Dm (a latched chord key: the Chords keyboard)
+#  28 Keyboard back to Full (KNOB 2 -1): F3 a single note again   29 silent
+#  30 Keyboard back to Chords: D4 is D minor (LOCK's MIN)   31 silent
 wait 300
-btn SEL down                  # KEY held: the layer, page 1
+btn SEL down                  # KEY held: the layer, page 1 (a power-on)
 wait 500
 btn SEL up
 wait 300
@@ -37,84 +42,128 @@ shot build/emu/test/cr_prog_page3_2.ppm
 dump                          # 2
 btn OCT-
 wait 300
-btn F3 down                   # trigger 0: key 1
+btn C4 down                   # trigger 0: key 1
 wait 300
 expect sound
-expect led F3 on
-expect led F#3 dim            # key 2: a chord (the glow)
-expect led D4 off             # key 10: none (dark)
+expect led C4 on
+expect led C#4 dim            # key 2: a chord (the glow)
+expect led A4 off             # key 10: none (dark)
 shot build/emu/test/cr_prog_chord.ppm
 dump                          # 3
-btn F3 up
+btn C4 up
 wait 300
-btn D4 down                   # key 10: no chord
+btn A4 down                   # key 10: no chord
 wait 300
-expect led D4 on              # (held: lit)
+expect led A4 on              # (held: lit)
 dump                          # 4
+btn A4 up
+wait 300
+btn G#3 down                  # MIN held: a root plays the Chords keyboard's chord
+wait 100
+btn D4 down
+wait 300
+dump                          # 5
+btn D4 up
+wait 100
+btn G#3 up
+wait 300
+btn D4 down                   # alone: the progression's key 3
+wait 300
+dump                          # 6
 btn D4 up
 wait 300
-btn SEL down                  # Transpose +2 (page 1, KNOB 3)
+btn C4 down                   # the progression's chord held, then a chord key: it stays as stored
+wait 200
+btn G#3 down
+wait 300
+dump                          # 7
+btn G#3 up
+wait 100
+btn C4 up
+wait 300
+btn SEL down                  # the layer again: on page 3, where it was left
 wait 500
 btn SEL up
 wait 300
+dump                          # 8
+knob SELECT -1
+wait 100
+knob SELECT -1                # page 1: Transpose +2
+wait 200
 knob KNOB3 +2
 wait 200
 btn OCT-
 wait 300
 knob KNOB1 +1                 # the voicing +1 (the view's KNOB 1)
 wait 300
-btn F3 down
+btn C4 down
 wait 300
 shot build/emu/test/cr_prog_chord_tr.ppm
-dump                          # 5
-btn F3 up
+dump                          # 9
+btn C4 up
 wait 200
 knob KNOB1 -1
 wait 300
-btn SEL down
+btn SEL down                  # (page 1 still +2) page 3: KNOB 4 Transpose +2: +4 in all
 wait 500
 btn SEL up
 wait 300
-knob KNOB3 -2                 # Transpose 0
-wait 200
 knob SELECT +1
 wait 100
-knob SELECT +1                # page 3
+knob SELECT +1
 wait 200
-knob KNOB2 -60                # Velocity 50 %
+knob KNOB4 +2
+wait 300
+shot build/emu/test/cr_prog_page3_tr.ppm
+btn OCT-
+wait 300
+btn C4 down
+wait 300
+dump                          # 10
+btn C4 up
+wait 300
+btn SEL down                  # (page 3) Transpose 0, page 1's 0; Velocity 50 %
+wait 500
+btn SEL up
+wait 300
+knob KNOB4 -2
+wait 100
+knob SELECT -1
+wait 100
+knob SELECT -1
+wait 100
+knob KNOB3 -2
+wait 100
+knob SELECT +1
+wait 100
+knob SELECT +1
+wait 100
+knob KNOB2 -60
 wait 200
 btn OCT-
 wait 300
-btn F3 down
+btn C4 down
 wait 300
-dump                          # 6
-btn F3 up
+dump                          # 11
+btn C4 up
 wait 300
 btn SEL down
 wait 500
 btn SEL up
 wait 300
-knob SELECT +1
-wait 100
-knob SELECT +1
-wait 200
 knob KNOB2 +120               # Velocity 150 %
 wait 200
 btn OCT-
 wait 300
-btn F3 down
+btn C4 down
 wait 300
-dump                          # 7
-btn F3 up
+dump                          # 12
+btn C4 up
 wait 300
 btn SEL down
 wait 500
 btn SEL up
 wait 300
-knob SELECT +1
-wait 100
-knob SELECT +1
-wait 200
 knob KNOB2 -120               # Velocity 50 % again
 wait 100
 knob KNOB3 +120               # Humanize 100 %
@@ -122,27 +171,23 @@ wait 300
 shot build/emu/test/cr_prog_page3_hum.ppm
 btn OCT-
 wait 300
-btn F3 down                   # (the MIDI log: the note-ons' velocities spread)
+btn C4 down                   # (the MIDI log: the note-ons' velocities spread)
 wait 300
-dump                          # 8
-btn F3 up
+dump                          # 13
+btn C4 up
 wait 300
-btn F#3 down                  # (a trigger, not a chord key: the latch untouched)
+btn C#4 down
 wait 300
-btn F#3 up
+btn C#4 up
 wait 300
-btn G3 down
+btn D4 down
 wait 300
-btn G3 up
+btn D4 up
 wait 300
 btn SEL down
 wait 500
 btn SEL up
 wait 300
-knob SELECT +1
-wait 100
-knob SELECT +1
-wait 200
 knob KNOB3 -120               # Humanize 0
 wait 100
 knob KNOB1 +14                # progression 16: Long 48
@@ -150,20 +195,20 @@ wait 400
 shot build/emu/test/cr_prog_page3_long.ppm
 btn OCT-
 wait 300
-btn F3 down
+btn C4 down
 wait 300
-dump                          # 9
-btn F3 up
+dump                          # 14
+btn C4 up
 wait 300
 btn OCT+                      # window 1
 wait 300
 shot build/emu/test/cr_prog_window1.ppm
-dump                          # 10
-btn F3 down                   # key 13
+dump                          # 15
+btn C4 down                   # key 13
 wait 300
 shot build/emu/test/cr_prog_window1_chord.ppm
-dump                          # 11
-btn F3 up
+dump                          # 16
+btn C4 up
 wait 300
 btn OCT+
 wait 200
@@ -171,53 +216,23 @@ btn OCT+
 wait 200
 btn OCT+                      # (window 3: 36 + 12 = 48 keys: no further)
 wait 300
-expect led F3 dim             # key 37: a chord
-expect led G#3 off            # key 40: silent
-expect led F4 off             # key 49: none
-dump                          # 12
-btn E4 down                   # trigger 11: key 48
+expect led C4 dim             # key 37: a chord
+expect led D#4 off            # key 40: silent
+expect led C5 off             # key 49: none
+dump                          # 17
+btn B4 down                   # trigger 11: key 48
 wait 300
-dump                          # 13
-btn E4 up
+dump                          # 18
+btn B4 up
 wait 300
-btn F4 down                   # trigger 12: key 49, none
+btn C5 down                   # trigger 12: key 49, none
 wait 300
-dump                          # 14
-btn F4 up
+dump                          # 19
+btn C5 up
 wait 300
 key END                       # panic: the window 0 (as the octave)
 wait 1500
-dump                          # 15
-btn SEL down                  # Chords for a moment: LOCK on (the FM-1 layout's LFO), MIN (G#3) latched; Prog again
-wait 500
-btn SEL up
-wait 300
-knob SELECT +1
-wait 200
-knob KNOB2 -1
-wait 100
-knob KNOB2 -1
-wait 200
-btn OCT-
-wait 300
-btn LFO 80
-wait 300
-btn G#3 down
-wait 60
-btn G#3 up
-wait 300
-btn SEL down
-wait 500
-btn SEL up
-wait 300
-knob SELECT +1
-wait 200
-knob KNOB2 +1
-wait 100
-knob KNOB2 +1
-wait 200
-btn OCT-
-wait 300
+dump                          # 20
 btn GLO 80                    # Options > MIDI > MIDI Keys: ch 5
 wait 300
 knob SELECT +3
@@ -229,62 +244,85 @@ knob KNOB1 +5
 wait 300
 btn GLO 80
 wait 500
-dump                          # 16
-midi 94 35 64                 # 53: trigger 0, key 1
-midi 94 50 64                 # 80: trigger 27, key 28
-midi 94 64 64                 # 100: trigger 47, key 48
-midi 94 24 64                 # 36 (a pad's): nothing in Prog
-midi 94 65 64                 # 101: nothing
+dump                          # 21
+midi 94 3C 64                 # 60: C4, key 1
+midi 94 50 64                 # 80: trigger 20, key 21
+midi 94 6B 64                 # 107: trigger 47, key 48
+midi 94 6C 64                 # 108: nothing
 wait 300
-expect led F3 on
-dump                          # 17
-midi B4 7B 00                 # CC 123: every MIDI trigger up
+expect led C4 on
+dump                          # 22
+midi B4 7B 00                 # CC 123: every MIDI key and trigger up
 wait 300
-dump                          # 18
-btn REC                       # a loop: REC arms, F3 starts the take, REC commits it
+dump                          # 23
+midi 94 24 64                 # 36: F3's pad note (the 6, a chord key) held ..
+wait 100
+midi 94 3E 64                 # .. and 62 (D4): the Chords keyboard's root
 wait 300
-btn F3 down
+dump                          # 24
+midi B4 7B 00
 wait 500
-btn F3 up
+btn REC                       # a loop: REC arms, C4 starts the take, REC commits it
+wait 300
+btn C4 down
+wait 500
+btn C4 up
 wait 500
 btn REC
 wait 300
-dump                          # 19
+dump                          # 25
 wait 1500
 progempty 16 1                # key 1 of Long 48 emptied: the loop's step is silent
 wait 2200
-dump                          # 20
+dump                          # 26
 btn PLAY                      # (the loop stopped)
 wait 300
+btn SEL down                  # KEY tapped: Prog aside (the Chords keyboard); LOCK on, MIN latched; KEY: Prog again
+wait 100
+btn SEL up
+wait 300
+btn LFO 80
+wait 300
+btn G#3 down
+wait 60
+btn G#3 up
+wait 300
 btn SEL down
+wait 100
+btn SEL up
+wait 300
+btn D4 down                   # a chord key latched: the Chords keyboard's chord (Dm)
+wait 300
+dump                          # 27
+btn D4 up
+wait 300
+btn SEL down                  # (the layer on page 3) page 2: Keyboard Full
 wait 500
 btn SEL up
 wait 300
-knob SELECT +1
+knob SELECT -1
 wait 200
-knob KNOB2 -1                 # Keyboard: Full
+knob KNOB2 -1
 wait 300
 btn OCT-
 wait 300
 btn F3 down                   # a single note 53
 wait 300
-dump                          # 21
+dump                          # 28
 btn F3 up
 wait 2500
-dump                          # 22
-btn SEL down
+dump                          # 29
+btn SEL down                  # (page 2) Keyboard: Chords
 wait 500
 btn SEL up
 wait 300
-knob SELECT +1
-wait 200
-knob KNOB2 -1                 # Keyboard: Chords
+knob KNOB2 -1
 wait 300
 btn OCT-
 wait 300
 btn D4 down                   # D minor: LOCK's MIN
 wait 300
-dump                          # 23
+dump                          # 30
 btn D4 up
 wait 2500
-dump                          # 24
+dump                          # 31

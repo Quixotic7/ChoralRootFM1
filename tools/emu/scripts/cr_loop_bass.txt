@@ -20,10 +20,12 @@ knob KNOB2 +1
 wait 300
 btn OCT-
 wait 300
-btn SEL down                  # page 1, KNOB 4: Single = Split Bass
+btn SEL down                  # page 1 (the layer reopens on page 2, where it was left), KNOB 4: Single = Split Bass
 wait 500
 btn SEL up
 wait 300
+knob SELECT -1
+wait 200
 knob KNOB4 +2
 wait 300
 btn OCT-

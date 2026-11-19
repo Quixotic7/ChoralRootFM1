@@ -46,7 +46,8 @@ every used slot's off in [272, used) and every record (its count and its notes) 
 strictly ascending and <= 127, no two slots' data overlapping. Anything else makes the whole object invalid and the unit
 plays the factory set instead; there is no partial reading.
 
-**Key to chord**: keybed key k (0 = the lowest: F3 on the FM-1, C3 on the SMK-37) plays progression key
+**Key to chord**: trigger k (0 = the first root key, pressed with no chord key in use: C4 on the FM-1, whose chord keys F3..B3
+keep their jobs; C3 on the SMK-37) plays progression key
 i = k + 12 x window, the window 0..3 (`CRPG_WINDOWS`: OCT- / OCT+ while in Prog). i >= nkeys, or a record of n = 0:
 silent.
 

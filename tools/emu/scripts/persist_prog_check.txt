@@ -1,10 +1,10 @@
 # test_persist.sh, the progressions run 2 (the same flash file, EMU_PROG_LONG=1): the dump's "prog:" line as run 1
-# left it (Prog on, progression 16, window 2, Velocity, Humanize, the engine's Humanize); F#3 plays key 26 (window 2)
+# left it (Prog on, progression 16, window 2, Velocity, Humanize, the engine's Humanize); C#4 plays key 26 (window 2), 5 down
 wait 500
 dump
-btn F#3 down
+btn C#4 down
 wait 300
 dump
-btn F#3 up
+btn C#4 up
 wait 500
 quit

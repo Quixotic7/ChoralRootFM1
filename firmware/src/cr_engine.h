@@ -60,14 +60,14 @@ enum { CR_Q_NONE = 0, CR_Q_DIM, CR_Q_MIN, CR_Q_MAJ, CR_Q_SUS, CR_Q_AUG, CR_Q_POW
 /* A progression's chord (GitHub issue 64, KEY page 2 Keyboard: Prog; cr_prog.h): a list of up to 8 absolute notes,
  * not a table quality. CR_Q_PROG is the quality a voice of one shows (rq, cr_chord_info's quality) and the q of its
  * REFERENCE wherever a chord is passed by value (out.gesture, a pad's cr_chord_t, cr_loop_event): ext = the progression
- * 0..15, root = CR_PROG_REF(key, transpose): the key i 0..47 in bits 0..5, the KEY layer's Transpose + 24 (0..48) in
- * bits 6..11. The notes are looked up (cr_prog_source) whenever the chord is built, so an edited progression changes what
+ * 0..15, root = CR_PROG_REF(key, transpose): the key i 0..47 in bits 0..5, the transpose it was played with + 48
+ * (0..96) in bits 6..12: the KEY layer's Transpose (-24..24) + the progression's own (page 3, -24..24). The notes are looked up (cr_prog_source) whenever the chord is built, so an edited progression changes what
  * an old loop or pad plays, and a key that is empty now is silent. A loop's record packs the reference into its event
  * (cr_loop.h CRL_Q_PROG0) */
 #define CR_Q_PROG CR_Q_COUNT
-#define CR_PROG_REF(i, t) ((int16_t)(((unsigned)(i) & 63u) | ((unsigned)((t) + 24) & 63u) << 6))
+#define CR_PROG_REF(i, t) ((int16_t)(((unsigned)(i) & 63u) | ((unsigned)((t) + 48) & 127u) << 6))
 #define CR_PROG_KEY(r) ((unsigned)(r) & 63u)
-#define CR_PROG_TR(r) ((int)(((unsigned)(r) >> 6) & 63u) - 24)
+#define CR_PROG_TR(r) ((int)(((unsigned)(r) >> 6) & 127u) - 48)
 /* the UI's side of a press (cr_ui.c cu_ptrig): keybed trigger j (0 = the lowest key) in OCT window w (0..3) plays key
  * CR_PROG_I(j, w) of the progression (>= 48: none); the key's velocity v (1..127) x Velocity pct (50..150) */
 #define CR_PROG_I(j, w) ((unsigned)(j) + 12u * (unsigned)(w))
@@ -227,6 +227,7 @@ typedef struct {
     uint8_t lock, mods_touch;                      /* LOCK (cr_mod_lock): the chord keys physically held (cr_mod_touch) */
     uint8_t full_chords;                           /* cr_set_full_chords 0 / 1 / 2 (0.24; in the padding before v[]) */
     uint8_t prog_hum;                              /* cr_set_prog_humanize 0..100 (progressions; the last padding byte) */
+    int8_t prog_tr;                                /* cr_set_prog_transpose -24..24 (the progression's own) */
     cr_voice_t v[CR_NVOICE];         /* [0, CR_MAX_VOICES): keyed voices; then one per pad */
     cr_ev_t ev[CR_MAX_EV];
     uint16_t nev;
@@ -419,7 +420,7 @@ const char *cr_pattern_name(int pattern);          /* 1..12 */
 /* ------------------------------------------------------ progressions --- */
 /* KEY page 2 Keyboard: Prog (GitHub issue 64; docs/PROGRESSIONS.md): a trigger trig (0..127, the UI's key number; its
  * own space of press ids: CR_PROG_ID, apart from the roots' cr_key) plays the chord on key i (0..47) of progression p
- * (0..15) as cr_prog_source's function gives it: its notes + the Transpose of now (cr_set_transpose), voiced by the live voicing, at
+ * (0..15) as cr_prog_source's function gives it: its notes + the Transpose of now (cr_set_transpose + cr_set_prog_transpose), voiced by the live voicing, at
  * vel, through the performance modes, the bass (the lowest note's pitch class) and the streams as any chord. No chord
  * there (or no cr_prog_source): nothing at all (no voice, no note, no gesture, the latch untouched). Down on a trigger held:
  * the chord anew. Up: its voice ends (a latch: it sounds on, CR_G_KEYUP). Key Mode, the chord keys and LOCK do nothing
@@ -435,6 +436,9 @@ void cr_prog_source(cr_prog_fn fn);
 /* Humanize 0..100 %: every note a progression's chord starts (a performance's steps too) gets its velocity + a random
  * offset in +-(pct x 40 / 100), from the engine's RNG (cr_seed), clamped 1..127. 0: as played */
 void cr_set_prog_humanize(cr_t *c, int pct);
+/* the progression's own Transpose (KEY page 3 KNOB 4), -24..24: added to cr_set_transpose's for a progression's chords
+ * only (a press from now on; the reference carries the sum) */
+void cr_set_prog_transpose(cr_t *c, int semis);
 /* the chord name of a list of notes (n 1..8, any order; a progression's): root / qual / sup as cr_chord_name writes
  * them (sup with a slash bass: "7/E"). The bass (the lowest note) as the root first, then each other note with the bass
  * after a slash, then the chord without the bass over it; a chord with its fifth left out names as with it (G13 of G B

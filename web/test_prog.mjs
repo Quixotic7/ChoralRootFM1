@@ -155,7 +155,9 @@ ok(["C", "Am", "G7", "Cmaj7", "Dm7", "F/A", "Bdim", "Csus4", "C9"].join() === [[
    [48, 53, 55], [48, 52, 55, 58, 62]].map(progChordName).join() && progChordName([]) === "—" && progChordName([40, 52, 55, 59, 62, 66]) === "Em9",
    "names: triads, sevenths, a slash chord, Em9 of the example's first chord");
 ok(progNoteName(60) === "C4" && progNoteName(61) === "C#4" && progNoteName(0) === "C-1" && progNoteName(127) === "G9", "names: note names (60 = C4, sharps)");
-ok(PROG_KEYBEDS.fm1.keys === 27 && PROG_KEYBEDS.fm1.low === 53 && PROG_KEYBEDS.smk.keys === 37 && PROG_KEYBEDS.smk.low === 48, "keybeds: FM-1 27 keys F3..G5, SMK-37 37 keys C3..C6");
+ok(PROG_KEYBEDS.fm1.keys === 27 && PROG_KEYBEDS.fm1.low === 53 && PROG_KEYBEDS.fm1.first === 7 && PROG_KEYBEDS.fm1.triggers === 20 &&
+   PROG_KEYBEDS.smk.keys === 37 && PROG_KEYBEDS.smk.low === 48 && PROG_KEYBEDS.smk.first === 0 && PROG_KEYBEDS.smk.triggers === 37,
+   "keybeds: FM-1 27 keys F3..G5, the progression from C4 (20 keys a window); SMK-37 37 keys C3..C6, all of them");
 {
   let p = progEmpty();
   p = progToggleNote(p, 4, 64); p = progToggleNote(p, 4, 60); p = progToggleNote(p, 4, 67);

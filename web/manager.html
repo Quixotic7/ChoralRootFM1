@@ -1097,10 +1097,11 @@ function renderProgEditor() {
   $("pg-paste").disabled = !pg.clip; $("pg-clear").disabled = !chord.length;
   pg.win = Math.min(pg.win, PROG_WINDOWS - 1);     // (the unit's four OCT windows; keys past 48 are silent there)
   $("pg-wins").innerHTML = Array.from({ length: PROG_WINDOWS }, (_, w) =>
-    `<button role="tab" data-w="${w}" aria-selected="${w === pg.win}" style="--tc:var(--yellow)">${w * 12 + 1}–${Math.min(PROG_KEYS, w * 12 + kb.keys)}</button>`).join("");
-  $("pg-bed-info").textContent = `${kb.label}, ${kb.range} · key ${pg.win * 12 + 1} on the lowest key${pg.win ? ` (OCT+ ${pg.win}×)` : ""}; OCT- / OCT+ in Prog slide 12 keys · Ripchord's trigger of key 1: ${progNoteName(progIsEmpty(p) ? PROG_NEW_BASE : p.base)}`;
+    `<button role="tab" data-w="${w}" aria-selected="${w === pg.win}" style="--tc:var(--yellow)">${w * 12 + 1}–${Math.min(PROG_KEYS, w * 12 + kb.triggers)}</button>`).join("");
+  $("pg-bed-info").textContent = `${kb.label}, ${kb.range} · key ${pg.win * 12 + 1} on ${progNoteName(kb.low + kb.first)}${pg.win ? ` (OCT+ ${pg.win}×)` : ""}; OCT- / OCT+ in Prog slide 12 keys · Ripchord's trigger of key 1: ${progNoteName(progIsEmpty(p) ? PROG_NEW_BASE : p.base)}`;
   $("pg-bed").innerHTML = pgKeys(kb.low, kb.keys, (m, k) => {
-    const i = k + 12 * pg.win, c = p.keys[i], has = !!(c && c.length);
+    if (k < kb.first) return { cls: "off", text: "", label: `${progNoteName(m)}: a chord key (it keeps its job in Prog)` };
+    const i = k - kb.first + 12 * pg.win, c = p.keys[i], has = !!(c && c.length);
     return { cls: i >= PROG_KEYS ? "off" : i === pg.key ? "sel" : has ? "has" : "", text: has ? String(i + 1) : "",
       label: i >= PROG_KEYS ? "past key 48: silent" : `Key ${i + 1}: ${has ? progChordName(c) : "no chord"}` };
   });
@@ -1111,7 +1112,7 @@ function renderProgEditor() {
 // a key chosen: shown on the keybed (the OCT window that holds it)
 function pgPickKey(i) {
   pg.key = i;
-  const n = pgBed().keys;
+  const n = pgBed().triggers;
   if (i < 12 * pg.win || i >= 12 * pg.win + n) pg.win = Math.max(0, Math.min(PROG_WINDOWS - 1, Math.ceil((i - n + 1) / 12)));
 }
 // a short chord in the browser (WebAudio): what the key's notes are, not the FM-1's sound

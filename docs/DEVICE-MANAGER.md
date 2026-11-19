@@ -363,7 +363,8 @@ object 24 (`firmware/src/cr_prog.h`, docs/PROGRESSIONS.md). It shows only where 
   its import notes ("88 keys: the first 48 kept", chords cut to 8 notes). Place puts it in a slot; Keep in library and
   Empty slot as for sounds.
 - **The editor:** the name (12 characters), the chord keyboard (click notes to add or remove them, at most 8, the
-  lowest drawn as the bass), the trigger keybed below (FM-1: 27 keys F3..G5; SMK-37: 37 keys C3..C6: only the drawing
+  lowest drawn as the bass), the trigger keybed below (FM-1: 27 keys F3..G5, the progression from C4, F3..B3 drawn as the chord keys they stay;
+  SMK-37: 37 keys C3..C6, all of them: only the drawing
   changes), the chords by name, Listen, Copy / Paste / Clear key, Export .rpc.
 - **Ripchord import** (`web/fm1prog.js`): base = the lowest trigger note, key i = trigger - base, gaps kept as silent
   keys, keys past 48 dropped; a chord over 8 notes loses doubled pitch classes first, then notes from the middle (the

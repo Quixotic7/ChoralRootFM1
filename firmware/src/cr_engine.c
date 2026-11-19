@@ -901,7 +901,7 @@ static int crx_prog_build(const cr_t *c, cr_voice_t *v, unsigned p, unsigned i, 
     n = (int)crx_prog_fn(p, i, s);
     if (n <= 0) return 0;
     if (n > CR_CHORD_MAX) n = CR_CHORD_MAX;
-    t = crx_clamp(t, -24, 24);
+    t = crx_clamp(t, -48, 48);                       /* (the KEY layer's + the progression's own) */
     for (k = 0; k < n; k++) {
         int x = s[k] & 127, j, dup = 0;
         if (x < lo) lo = x;
@@ -1277,7 +1277,7 @@ void cr_prog_key(cr_t *c, uint8_t trig, uint8_t p, uint8_t i, uint8_t vel, int d
     if (down) {
         cr_voice_t nv;
         crx_zero(&nv, sizeof nv);
-        if (!crx_prog_build(c, &nv, p, i, c->transpose)) return;   /* no chord there: nothing at all */
+        if (!crx_prog_build(c, &nv, p, i, c->transpose + c->prog_tr)) return;   /* no chord there: nothing at all */
         if (cr_latching(c) && c->phys_n == 0) crx_clear_manual_voices(c);   /* (a latched gesture: replaced, as a root's) */
         if (!(c->phys[trig] & bit)) { c->phys[trig] |= bit; c->phys_n++; }
         vi = crx_find_prog(c, trig);
@@ -1309,6 +1309,7 @@ void cr_prog_key(cr_t *c, uint8_t trig, uint8_t p, uint8_t i, uint8_t vel, int d
     if (vi >= 0) crx_kill_voice(c, vi);
 }
 void cr_set_prog_humanize(cr_t *c, int pct) { c->prog_hum = (uint8_t)crx_clamp(pct, 0, 100); }
+void cr_set_prog_transpose(cr_t *c, int semis) { c->prog_tr = (int8_t)crx_clamp(semis, -24, 24); }
 
 void cr_mod_ex(cr_t *c, cr_mod_t m, int down, int quiet)
 {

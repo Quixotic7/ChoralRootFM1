@@ -176,7 +176,7 @@ last; saved palette ids unchanged).
   chord has up to 8 notes, GitHub issue 64) 6 px apart, then 11 px type. Every chord that fitted before draws as before.
   A progression's chord (`cr_ui.c cu_notes`, quality `CR_Q_PROG`): every note white, the bass's (the lowest of the
   lowest stored note's pitch class) orange with its block; the top line `mid` is the progression's name and the key of
-  the chord shown ("Neo Soul · 5") in `CR_COL_PURPLE`, the window at the right ("keys 13-39") where the octave
+  the chord shown ("Neo Soul · 5") in `CR_COL_PURPLE`, the window at the right ("keys 13-32": the FM-1's 20 root keys from C4) where the octave
   shows; no numeral. The Keyboard view is unchanged (`cu_lit` folds the notes into the strip as for any chord).
 - **`CR_K_SCOPE`** (device-only, no mock-up yet): `wave[240]` (int8, ±127 = the panel's half height less 6 px), one
   sample a column. Drawn as a 3 px line, a column at a time: the span the polyline covers within a pixel either side
@@ -253,7 +253,8 @@ last; saved palette ids unchanged).
   `cu_loop_cells`, METRO's Click inline, the hot cell `cu_hot_row`; design/choralroot-fm1-layers-mockups.json states
   1, 3, 6, 7 for KEY, LOOP and METRO). `kr_band` 1 (KEY): the band is `cr_keyboard`'s strip (224 px, <= 56 px tall,
   centred under `label`; `lit` / `lit_col` / `key_label` as `CR_K_KEYBOARD`) instead of the picker (KEY page 2 in
-  Prog: the keys that hold a chord in the window, `CR_COL_PURPLE`). `kr_band` 3 (KEY page 3, the progressions, GitHub
+  Prog: the root keys, from C4, that hold a chord in the window, `CR_COL_PURPLE`; page 3's KNOB 4 is the
+  progression's Transpose, a `CR_G_SHIFT` cell as page 1's). `kr_band` 3 (KEY page 3, the progressions, GitHub
   issue 64): a **vertical** picker in the band: the item 27 px bold in `col` centred in the band (squeezed to 200 px),
   the previous and next items 12 px bold dim above and below with their place first ("2  Jazz ii-V-I",
   `cr_kr_numbered`), the slide vertical (`cr_pick_item` with `horiz` 0 inside the item's rows); no marks, no `value`;

@@ -52,6 +52,8 @@ btn SEL down                  # the KEY layer, page 1: Transpose +1. The name sh
 wait 500                      # numeral the degree played: I (it read bII until 3y34)
 btn SEL up
 wait 300
+knob SELECT -1                # (the layer reopens on page 2, where it was left: page 1)
+wait 200
 knob KNOB3 +1
 wait 200
 btn OCT-

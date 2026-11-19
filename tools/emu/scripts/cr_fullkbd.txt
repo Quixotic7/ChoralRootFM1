@@ -190,6 +190,8 @@ btn SEL down                  # Single: Split Bass (page 1, KNOB 4, two detents)
 wait 500
 btn SEL up
 wait 300
+knob SELECT -1                # (the layer reopens on page 2, where it was left: page 1)
+wait 200
 knob KNOB4 +2
 wait 300
 shot build/emu/test/cr_fullkbd_splitbass.ppm

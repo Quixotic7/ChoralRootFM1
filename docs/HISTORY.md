@@ -8732,3 +8732,24 @@ any keyboard change; Key Mode untouched; the KEY LED shows Prog on / aside. KNOB
 (`prog_on` 2). **The tonic**: `cu_layer_key` returned for every key below D4 (the pick maps' start) before the KEY
 layer's tonic: on the FM-1 layout C4 and C#4 are roots, so they now set C and C# like the others; the loop slots and
 naming keep D4..G5. test_cr's `cr_prog_tap`. MANUAL.md "The FM-1 layout", "Keyboard: Prog".
+
+3y312. **Progressions following Key Mode's tonic (a home key per progression), on main as cfc8951d, reverted.** The
+owner, after trying it on 5BD75BE3: "I think we should actually not do that and add a parameter to the progression page
+to just transpose the progression". Reverted by 5c88e8b6 (the header's 8 bytes are a reserve of 0s again; the web
+editor's Key select gone); 3y313 has the Transpose.
+
+3y313. **Progressions from C4 over the Chords keyboard; page 3's Transpose; the KEY layer remembers its page.** The
+owner: "start them on the keys from the first C rather than F since it feels weird jumping between the chord mods and
+the progressions", and for F3..B3: "Chord key jobs. If you use them you play chords like normal, if you don't use them
+it plays the progressions instead of the single notes." **The keyboard** (`cr_ui.c`): Prog is an overlay on the Chords
+keyboard (`cu_full` false in Prog): the chord block keeps its jobs and LOCK; each root press decides (`cu_ckeys_used`):
+a chord key held, latched by LOCK or an FM-1 type-key gesture open: the ordinary chord; none: progression key
+(k - 7) + 12 x window (C4 = key 1, 20 keys a window, "keys 13-32"; Classic: D4 = key 3); each release ends what its
+press began. Key plays, Snap and Numerals are no longer grey (they work on the ordinary chords). SMK-37: every key from
+C3 a trigger, the pads the chord keys. MIDI Keys: notes as the keys they press (60 = key 1), 80..107 keys 21..48
+directly. **Transpose** (page 3 KNOB 4, -24..+24): the progression only, on top of page 1's; the session's `prog_tr`
+(byte 1011); `cr_set_prog_transpose`; a reference carries t + 48 (bits 6..12: -48..48), the loop's -7..+7 folding as
+before. **The page**: the KEY layer reopens on the page last shown (runtime). test_cr's `cr_prog` rewritten (31 dumps:
+MIN + D4 = Dm, D4 alone key 3, LOCK's MIN, page 3 +2 with page 1 +2, the page kept, MIDI 60 / 80 / 107), the scripts
+that assumed page 1 given SELECT; test_persist (Transpose -5); `cr_progplay_test`, `cr_midi_test`, `cr_settings_test`.
+FM-1: XIP 2164 B spare (99.6 %), RAM unchanged. MANUAL.md "Keyboard: Prog".
