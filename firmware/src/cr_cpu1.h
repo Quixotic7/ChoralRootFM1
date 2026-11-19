@@ -279,9 +279,22 @@ static void cr_c1_th_wait(void)
         pthread_cond_wait(&cr_c1_cv, &cr_c1_mx);
     pthread_mutex_unlock(&cr_c1_mx);
 }
+#elif defined(FM1CORE_RFM1_CPU2)
+/* AN .rfm1 BUILT WITH cpu2 (FM1VST's fm1_add_rfm1 WANTS cpu2, core-glue/common/rfm1_cpu2.h): the job on the host's
+ * core-1 thread where the host has one (RemoteFM1 on the Move), from the hand-over to the wait, as on the unit and as
+ * 3y45's thread above; anywhere else the host answers "run it yourself" and the job runs when handed, as before. Core 1
+ * keeps its own scratch (CR_C1_SELF: the job's stack is the host's core-1 stack). Never in the FM-1's build */
+#include "rfm1_cpu2.h"
+#define CR_C1_THREAD 0
+#define CR_C1_RFM1 1
+#define CR_C1_SELF() (rfm1_cpu2_core() != 0)
+static uint8_t cr_c1_rfm1_posted;    /* a job the host's core 1 has (cr_c1_run answered through it) */
 #else
 #define CR_C1_THREAD 0
 #define CR_C1_SELF() 0
+#endif
+#ifndef CR_C1_RFM1
+#define CR_C1_RFM1 0
 #endif
 static inline uint32_t cr_prof_now(void)
 {
@@ -294,6 +307,14 @@ static inline uint32_t cr_prof_now(void)
 }
 static int cr_c1_run(void (*fn)(uint32_t), uint32_t arg)
 {
+#if CR_C1_RFM1
+    if (!cr_c1_test_hang && !cr_c1_test_late && rfm1_cpu2_run(fn, arg)) {
+        cr_c1_fn = fn;
+        cr_c1_arg = arg;
+        cr_c1_rfm1_posted = 1;
+        return 1;
+    }
+#endif
 #if CR_C1_THREAD
     if (cr_c1_test_thread && !cr_c1_test_hang && !cr_c1_test_late)
         return cr_c1_th_run(fn, arg);
@@ -306,6 +327,14 @@ static int cr_c1_run(void (*fn)(uint32_t), uint32_t arg)
 }
 static int cr_c1_wait_core(void)
 {
+#if CR_C1_RFM1
+    if (cr_c1_rfm1_posted) {
+        cr_c1_rfm1_posted = 0;
+        if (rfm1_cpu2_wait() != 0)
+            cr_c1_fn(cr_c1_arg);     /* (the host's core 1 did not run it: core 0 does, in this block) */
+        return 0;
+    }
+#endif
     if (cr_c1_test_faults)
         return -2;
     if (cr_c1_test_hang)
