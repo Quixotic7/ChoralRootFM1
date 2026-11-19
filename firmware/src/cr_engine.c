@@ -892,15 +892,6 @@ static int crx_start_voice(cr_t *c, int key, int id, int vel, int pc_pressed, in
  * (the voice untouched) */
 static cr_prog_fn crx_prog_fn;                      /* cr_prog_source */
 void cr_prog_source(cr_prog_fn fn) { crx_prog_fn = fn; }
-static cr_prog_home_fn crx_prog_home_fn;            /* cr_prog_home_source */
-void cr_prog_home_source(cr_prog_home_fn fn) { crx_prog_home_fn = fn; }
-static int crx_prog_keyshift(const cr_t *c, unsigned p)   /* home key -> tonic, the nearest way: -5 .. +6 */
-{
-    int d;
-    if (!c->key_on || !crx_prog_home_fn) return 0;
-    d = ((int)c->tonic - (int)(crx_prog_home_fn(p) % 12u) + 24) % 12;
-    return d > 6 ? d - 12 : d;
-}
 static int crx_prog_build(const cr_t *c, cr_voice_t *v, unsigned p, unsigned i, int t)
 {
     uint8_t s[CR_CHORD_MAX];
@@ -1286,8 +1277,7 @@ void cr_prog_key(cr_t *c, uint8_t trig, uint8_t p, uint8_t i, uint8_t vel, int d
     if (down) {
         cr_voice_t nv;
         crx_zero(&nv, sizeof nv);
-        if (!crx_prog_build(c, &nv, p, i, c->transpose + crx_prog_keyshift(c, p))) return;   /* no chord there: nothing
-                                                    * at all (the move to the tonic: Key Mode on) */
+        if (!crx_prog_build(c, &nv, p, i, c->transpose)) return;   /* no chord there: nothing at all */
         if (cr_latching(c) && c->phys_n == 0) crx_clear_manual_voices(c);   /* (a latched gesture: replaced, as a root's) */
         if (!(c->phys[trig] & bit)) { c->phys[trig] |= bit; c->phys_n++; }
         vi = crx_find_prog(c, trig);

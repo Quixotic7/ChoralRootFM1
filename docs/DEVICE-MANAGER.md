@@ -365,10 +365,6 @@ object 24 (`firmware/src/cr_prog.h`, docs/PROGRESSIONS.md). It shows only where 
 - **The editor:** the name (12 characters), the chord keyboard (click notes to add or remove them, at most 8, the
   lowest drawn as the bass), the trigger keybed below (FM-1: 27 keys F3..G5; SMK-37: 37 keys C3..C6: only the drawing
   changes), the chords by name, Listen, Copy / Paste / Clear key, Export .rpc.
-- **Key:** each progression's home key (C..B, the select beside the name; the slot list shows it after the chord
-  count). With Key Mode on, the unit moves the progression from its home key to the tonic picked in the KEY layer, the
-  nearest way (-5..+6 semitones). A Ripchord import guesses it from the lowest note of the first chord (`.rpc` has no
-  key, so Export leaves it out); a new progression and an object from before home keys read C.
 - **Ripchord import** (`web/fm1prog.js`): base = the lowest trigger note, key i = trigger - base, gaps kept as silent
   keys, keys past 48 dropped; a chord over 8 notes loses doubled pitch classes first, then notes from the middle (the
   lowest and highest stay). Only the first `<ripchord>` element is read. Export writes triggers base + i and Ripchord's
@@ -376,4 +372,4 @@ object 24 (`firmware/src/cr_prog.h`, docs/PROGRESSIONS.md). It shows only where 
 - The simulator (`?sim=1`) lists the factory set; `?sim=1&prog=0` is a firmware without object 24.
 - Tests: `web/test_prog.mjs` (the object and its validity rules against the firmware's, the .rpc parser on
   `tests/fixtures/rpc/`, trimming, export / import identity; the owner's example packs when present),
-  `web/test_manager.mjs` (read, place, edit, the home key, send, undo, a firmware without 24).
+  `web/test_manager.mjs` (read, place, edit, send, undo, a firmware without 24).

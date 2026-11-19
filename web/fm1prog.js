@@ -7,14 +7,12 @@
 // top-level name is unique across fm1backup.js / fm1dnsnd.js / fm1sounds.js / fm1manager.js (make_site.py inlines them
 // into one script).
 //
-// A progression here: {name (0..12 printable ASCII), base (the Ripchord trigger note of key 0, 0..127), home (its home
-// key, a pitch class 0..11, C..B: with Key Mode on the unit moves it to the KEY layer's tonic, the nearest way, -5..+6),
-// keys: [[notes ascending, distinct, 0..127, at most 8] per key, [] = a silent key]} (at most 48 keys; no key = an
-// empty slot, home 0). The object (cr_prog.h, little-endian): header 16 bytes (magic "CRP1", version 1, n 16, used u16 =
-// the object's length, home[8]: progression p's home key in byte 8 + (p >> 1), the low nibble for an even p, the high
-// one for an odd p; an old object's zeros read C), 16 directory entries of 16 bytes (name[12] 0-padded, base, nkeys,
-// off u16), then per used slot nkeys records [n][n notes]. crp_valid: length == used, 272 <= used <= 3840; every home
-// nibble 0..11 (12..15: the whole object invalid); an empty slot has home 0, off 0 and a name of zeros; a used slot's name bytes are 0x20..0x7E then zeros (an all-zero name is allowed), base <= 127, nkeys <= 48,
+// A progression here: {name (0..12 printable ASCII), base (the Ripchord trigger note of key 0, 0..127), keys: [[notes
+// ascending, distinct, 0..127, at most 8] per key, [] = a silent key]} (at most 48 keys; no key = an empty slot).
+// The object (cr_prog.h, little-endian): header 16 bytes (magic "CRP1", version 1, n 16, used u16 = the object's
+// length, rsv[8] 0), 16 directory entries of 16 bytes (name[12] 0-padded, base, nkeys, off u16), then per used slot
+// nkeys records [n][n notes]. crp_valid: length == used, 272 <= used <= 3840; an empty slot has off 0 and a name of
+// zeros; a used slot's name bytes are 0x20..0x7E then zeros (an all-zero name is allowed), base <= 127, nkeys <= 48,
 // 272 <= off < used, every record inside used, n <= 8, notes strictly ascending and <= 127; the used slots' data do
 // not overlap (gaps are allowed). The encoder writes the used slots' data in slot order, contiguous from 272.
 import { readBackup } from "./fm1backup.js";
@@ -34,13 +32,10 @@ export const PROG_KEYBEDS = {
 };
 
 const PROG_PC = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-export const PROG_KEY_NAMES = PROG_PC;     // the home keys 0..11 by name (the page's Key select)
 // a MIDI note's name as Ripchord writes it (sharps, MIDI 60 = C4)
 export const progNoteName = (m) => PROG_PC[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 export const progIsBlack = (m) => [1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12);
-export const progEmpty = () => ({ name: "", base: 0, home: 0, keys: [] });
-// a progression's home key (one without the field, e.g. a library item kept before home keys: C)
-export const progHome = (p) => (p && p.home !== undefined ? p.home : 0);
+export const progEmpty = () => ({ name: "", base: 0, keys: [] });
 export const progIsEmpty = (p) => !p || !p.keys || !p.keys.length;
 export const progCount = (p) => (progIsEmpty(p) ? 0 : p.keys.filter((c) => c && c.length).length);
 // the bytes a progression takes in the object's data: one per key, one per note
@@ -53,10 +48,10 @@ export function progCleanName(s) {
   const t = String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").replace(/[^\x20-\x7E]/g, "").trim();
   return t.slice(0, PROG_NAME).trimEnd();
 }
-const progCopy = (p) => ({ name: p.name, base: p.base, home: progHome(p), keys: p.keys.map((c) => (c ? c.slice() : [])) });
+const progCopy = (p) => ({ name: p.name, base: p.base, keys: p.keys.map((c) => (c ? c.slice() : [])) });
 export const progCopySet = (set) => Array.from({ length: PROG_N }, (_, i) => (set[i] ? progCopy(set[i]) : progEmpty()));
 export const progSame = (a, b) => (progIsEmpty(a) && progIsEmpty(b)) ||
-  (!progIsEmpty(a) && !progIsEmpty(b) && a.name === b.name && a.base === b.base && progHome(a) === progHome(b) && a.keys.length === b.keys.length &&
+  (!progIsEmpty(a) && !progIsEmpty(b) && a.name === b.name && a.base === b.base && a.keys.length === b.keys.length &&
    a.keys.every((c, i) => c.length === b.keys[i].length && c.every((x, k) => x === b.keys[i][k])));
 
 // one progression's faults (slot k for the message) -> "" or the reason
@@ -66,8 +61,6 @@ function progFault(p, k = 0) {
   if (progIsEmpty(p)) return "";
   if (!progNameOk(p.name)) return `${at}: a name is at most 12 printable ASCII characters`;
   if (!Number.isInteger(p.base) || p.base < 0 || p.base > 127) return `${at}: the trigger note of key 1 is 0..127`;
-  const h = progHome(p);
-  if (!Number.isInteger(h) || h < 0 || h > 11) return `${at}: the home key is 0..11 (C..B)`;
   if (p.keys.length > PROG_KEYS) return `${at}: at most ${PROG_KEYS} keys`;
   for (const [i, c] of p.keys.entries()) {
     if (!Array.isArray(c) || c.length > PROG_NOTES) return `${at}, key ${i + 1}: a chord holds at most ${PROG_NOTES} notes`;
@@ -91,7 +84,6 @@ export function progEncode(set) {
     if (progIsEmpty(p)) return;                       // (an empty slot: 16 zeros)
     const d = PROG_HDR + k * PROG_DIRENT;
     for (let i = 0; i < p.name.length; i++) b[d + i] = p.name.charCodeAt(i);
-    b[8 + (k >> 1)] |= progHome(p) << ((k & 1) * 4);   // (the home key's nibble; an empty slot's stays 0)
     b[d + 12] = p.base; b[d + 13] = p.keys.length; v.setUint16(d + 14, off, true);
     for (const c of p.keys) { b[off++] = c.length; for (const n of c) b[off++] = n; }
   });
@@ -107,8 +99,7 @@ export function progInvalidReason(bytes) {
   if (bytes[4] !== PROG_VERSION) return `version ${bytes[4]}`;
   if (bytes[5] !== PROG_N) return `${bytes[5]} progressions (16)`;
   if (used !== n) return `used ${used}, length ${n}`;
-  const nib = (k) => (bytes[8 + (k >> 1)] >> ((k & 1) * 4)) & 15;   // (progression k's home key)
-  for (let k = 0; k < PROG_N; k++) if (nib(k) > 11) return `progression ${k + 1}: home key ${nib(k)} (0..11)`;
+  for (let i = 8; i < PROG_HDR; i++) if (bytes[i]) return "reserved header bytes not 0";
   const spans = [];
   for (let k = 0; k < PROG_N; k++) {
     const d = PROG_HDR + k * PROG_DIRENT, base = bytes[d + 12], nkeys = bytes[d + 13], off = v.getUint16(d + 14, true);
@@ -117,7 +108,6 @@ export function progInvalidReason(bytes) {
     if (nkeys > PROG_KEYS) return `${at}: ${nkeys} keys`;
     if (!nkeys) {
       if (off || bytes.subarray(d, d + PROG_NAME).some((x) => x)) return `${at}: an empty slot with a name or data`;
-      if (nib(k)) return `${at}: an empty slot with a home key`;
       continue;
     }
     let z = false;
@@ -154,7 +144,7 @@ export function progDecode(bytes) {
     for (let i = 0; i < PROG_NAME && bytes[d + i]; i++) name += String.fromCharCode(bytes[d + i]);
     const keys = [];
     for (let i = 0, p = v.getUint16(d + 14, true); i < nkeys; i++) { const c = bytes[p++]; keys.push(Array.from(bytes.subarray(p, p + c))); p += c; }
-    return { name, base: bytes[d + 12], home: (bytes[8 + (k >> 1)] >> ((k & 1) * 4)) & 15, keys };
+    return { name, base: bytes[d + 12], keys };
   });
 }
 
@@ -195,17 +185,8 @@ export function progToggleNote(p, i, note) {
   else c.push(note);
   return progSetChord(p, i, c);
 }
-export const progNew = (name = "NEW") => ({ name: progCleanName(name), base: PROG_NEW_BASE, home: 0, keys: [] });
+export const progNew = (name = "NEW") => ({ name: progCleanName(name), base: PROG_NEW_BASE, keys: [] });
 export const progRename = (p, name) => ({ ...progCopy(p), name: progCleanName(name) });
-// the home key set (0..11; an empty slot keeps C: it has no chord to move)
-export function progSetHome(p, home) {
-  if (!Number.isInteger(home) || home < 0 || home > 11) throw new Error("A home key is C..B (0..11)");
-  if (progIsEmpty(p)) throw new Error("An empty slot has no key: give it a chord first");
-  return { ...progCopy(p), home };
-}
-// the home key an import guesses: the pitch class of the lowest note of the first chord (most progressions start on
-// their tonic); no chord: C
-export const progGuessHome = (keys) => { const c = (keys || []).find((x) => x && x.length); return c ? Math.min(...c) % 12 : 0; };
 // a progression into slot k of a set -> the new set
 export function progPlace(set, k, p) {
   if (!Number.isInteger(k) || k < 0 || k >= PROG_N) throw new Error("A progression slot is 1..16");
@@ -307,7 +288,7 @@ export function progParseRpc(text, fileName = "") {
     keys[t - base] = c;
   }
   const name = progCleanName(String(fileName).split(/[\\/]/).pop().replace(/\.rpc$/i, "")) || "Ripchord";
-  const prog = { name, base, home: progGuessHome(keys), keys };   // (.rpc has no key: guessed from the first chord)
+  const prog = { name, base, keys };
   return { prog, notes, chords: progCount(prog), span };
 }
 // the import's notes in a few words for the library row: "18 chords · ready", "24 chords · 2 cut to 8 notes"
@@ -320,7 +301,7 @@ export function progNotesSummary(item) {
 }
 const progXml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]);
 // a progression -> a .rpc text as Ripchord writes it: one input per key holding a chord (trigger base + i, the chord's
-// note names in name=, the notes in notes=; the home key is not written: .rpc has none, an import guesses it); a silent first or last key is written with an empty chord, so that an
+// note names in name=, the notes in notes=); a silent first or last key is written with an empty chord, so that an
 // import gives the same keys back (silent keys between chords are left out: they import as gaps)
 export function progToRpc(p) {
   if (progIsEmpty(p)) throw new Error("An empty progression has nothing to export");
@@ -354,15 +335,14 @@ export function progItemsFromFile(name, text) {
 }
 
 // ---- the factory set as the simulator lists it (?sim=1, the tests): a copy of firmware/src/cr_prog.c crp_factory's
-// table (2026-11-18: six progressions in slots 1..6, 8 keys of 5 notes each, base 48, their home keys; slots 7..16
-// empty). The unit
+// table (2026-11-18: six progressions in slots 1..6, 8 keys of 5 notes each, base 48; slots 7..16 empty). The unit
 // lists its own (a PUT of 0 bytes brings it back), so the page never needs this copy
 const PROG_FACTORY = [
-  ["Pop Four", 0, [[36,52,55,60,64],[47,55,59,62,67],[45,52,57,60,64],[41,53,57,60,65],[40,55,60,64,67],[43,55,59,62,67],[41,53,57,60,64],[43,55,60,62,67]]],
-  ["Jazz ii-V-I", 0, [[38,53,57,60,64],[43,53,59,64,69],[36,52,55,59,62],[45,55,58,61,64],[38,53,60,64,69],[43,53,56,59,62],[36,52,55,59,64],[36,52,57,62,67]]],
-  ["Neo Soul", 3, [[39,55,58,62,65],[41,56,60,63,67],[43,53,58,62,67],[44,55,60,63,68],[46,56,60,62,67],[36,55,58,63,65],[44,60,63,67,70],[46,56,58,63,65]]],
-  ["Gospel Walk", 0, [[36,52,55,60,64],[40,55,58,60,64],[41,53,57,60,65],[42,57,60,63,66],[43,55,60,64,67],[45,55,61,64,69],[38,53,57,60,65],[43,53,59,62,67]]],
-  ["Minor Epic", 9, [[45,52,57,60,64],[41,53,57,60,65],[36,52,55,60,64],[43,55,59,62,67],[38,53,57,62,65],[40,56,59,62,64],[40,57,60,64,69],[40,56,59,64,68]]],
-  ["Dorian Days", 2, [[38,53,57,60,65],[40,55,59,62,67],[41,53,57,60,64],[43,53,59,62,67],[45,55,60,64,67],[36,52,55,59,64],[38,53,57,60,64],[43,53,59,64,69]]],
+  ["Pop Four", [[36,52,55,60,64],[47,55,59,62,67],[45,52,57,60,64],[41,53,57,60,65],[40,55,60,64,67],[43,55,59,62,67],[41,53,57,60,64],[43,55,60,62,67]]],
+  ["Jazz ii-V-I", [[38,53,57,60,64],[43,53,59,64,69],[36,52,55,59,62],[45,55,58,61,64],[38,53,60,64,69],[43,53,56,59,62],[36,52,55,59,64],[36,52,57,62,67]]],
+  ["Neo Soul", [[39,55,58,62,65],[41,56,60,63,67],[43,53,58,62,67],[44,55,60,63,68],[46,56,60,62,67],[36,55,58,63,65],[44,60,63,67,70],[46,56,58,63,65]]],
+  ["Gospel Walk", [[36,52,55,60,64],[40,55,58,60,64],[41,53,57,60,65],[42,57,60,63,66],[43,55,60,64,67],[45,55,61,64,69],[38,53,57,60,65],[43,53,59,62,67]]],
+  ["Minor Epic", [[45,52,57,60,64],[41,53,57,60,65],[36,52,55,60,64],[43,55,59,62,67],[38,53,57,62,65],[40,56,59,62,64],[40,57,60,64,69],[40,56,59,64,68]]],
+  ["Dorian Days", [[38,53,57,60,65],[40,55,59,62,67],[41,53,57,60,64],[43,53,59,62,67],[45,55,60,64,67],[36,52,55,59,64],[38,53,57,60,64],[43,53,59,64,69]]],
 ];
-export const progSimFactory = () => progEncode(PROG_FACTORY.map(([name, home, keys]) => ({ name, base: PROG_NEW_BASE, home, keys })));
+export const progSimFactory = () => progEncode(PROG_FACTORY.map(([name, keys]) => ({ name, base: PROG_NEW_BASE, keys })));

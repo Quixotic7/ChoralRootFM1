@@ -10223,7 +10223,6 @@ static void cr_ui_init(void)
     cr_out_init();
     cr_bank_boot();                               /* (the device: persist_boot did it, with the flash) */
     cr_prog_source(crp_chord);                    /* the progressions' chords: their RAM copy (cr_prog.c) */
-    cr_prog_home_source(crp_home);                /* .. their home keys (Key Mode: moved to the tonic) */
     cb_init();
     cu_led_init();
 #if BOARD_SMK37

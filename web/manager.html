@@ -164,8 +164,6 @@
   #pg-name { font: inherit; font-size: 26px; font-weight: 900; letter-spacing: -0.03em; background: var(--deep); color: var(--cream);
              border: 0; border-bottom: 3px solid var(--dark); border-radius: 2px; padding: 6px 10px; }
   #pg-name:focus-visible { outline: 3px solid var(--cream); outline-offset: 2px; }
-  .pg-head label.pg-key { flex: 0 1 auto; }
-  #pg-key { font-size: 26px; font-weight: 900; letter-spacing: -0.03em; padding: 6px 10px; background: var(--deep); border-bottom: 3px solid var(--dark); }
   .pg-seg { display: flex; gap: 4px; }
   .pg-seg button, .pg-head > button { padding: 9px 12px; font-weight: 800; font-size: 14px; }
   .pg-seg button[aria-pressed=true] { background: var(--cream); color: #000; }
@@ -285,7 +283,6 @@
       <div class="pg-main">
         <div class="pg-head">
           <label>Name (12 characters, shown on the unit)<input id="pg-name" maxlength="12" spellcheck="false" autocomplete="off"></label>
-          <label class="pg-key" title="The progression's home key: with Key Mode on, the FM-1 moves it to the tonic picked in the KEY layer (the nearest way)">Key (Key Mode moves it to your tonic)<select id="pg-key" aria-label="Home key: the unit moves it to the tonic you pick when Key Mode is on"></select></label>
           <div class="pg-seg" role="group" aria-label="Keybed">
             <button id="pg-bed-fm1" aria-pressed="true">FM-1 · 27 keys</button>
             <button id="pg-bed-smk" aria-pressed="false">SMK-37 · 37 keys</button>
@@ -1047,7 +1044,7 @@ function renderProg() {
     const empty = progIsEmpty(p), edited = pg.unit && !progSame(p, pg.unit[k]), n = progCount(p);
     return `<li data-k="${k}" class="${empty ? "init" : "user"}${k === pg.slot ? " sel" : ""}"><span class="pos">${String(k + 1).padStart(2, "0")}</span>` +
       `<span class="nm">${empty ? "empty" : esc(p.name || "(no name)")}${edited ? `<span class="over">edited</span>` : ""}</span>` +
-      `<span class="meta">${empty ? "" : `${n} chord${n === 1 ? "" : "s"} · ${PROG_KEY_NAMES[progHome(p)]}`}</span><span class="meta">${empty ? "" : `${progBytes(p)} B`}</span></li>`;
+      `<span class="meta">${empty ? "" : `${n} chord${n === 1 ? "" : "s"}`}</span><span class="meta">${empty ? "" : `${progBytes(p)} B`}</span></li>`;
   }).join("");
   $("pg-read").disabled = busy;
   $("pg-send").disabled = busy || !dirty;
@@ -1085,8 +1082,6 @@ function renderProgEditor() {
   const p = pgCur(), chord = p.keys[pg.key] || [], bass = chord.length ? chord[0] : -1, kb = pgBed();
   if (document.activeElement !== $("pg-name")) $("pg-name").value = p.name;
   $("pg-name").placeholder = progIsEmpty(p) ? "an empty slot" : "";
-  if (!$("pg-key").options.length) $("pg-key").innerHTML = PROG_KEY_NAMES.map((n, h) => `<option value="${h}">${n}</option>`).join("");
-  $("pg-key").value = String(progHome(p)); $("pg-key").disabled = ui.busy || progIsEmpty(p);
   $("pg-bed-fm1").setAttribute("aria-pressed", String(pg.bed !== "smk")); $("pg-bed-smk").setAttribute("aria-pressed", String(pg.bed === "smk"));
   $("pg-chord-h").textContent = `Slot ${pg.slot + 1} · chord on key ${pg.key + 1}`;
   $("pg-chord-name").textContent = progChordName(chord);
@@ -1173,7 +1168,6 @@ $("pg-name").addEventListener("input", () => {
   pg.set[pg.slot] = { ...pgCur(), name: v }; renderProg();
 });
 $("pg-name").addEventListener("change", () => { pgEdit((p) => progRename(p, $("pg-name").value)); $("pg-name").value = pgCur().name; });
-$("pg-key").addEventListener("change", () => pgEdit((p) => progSetHome(p, +$("pg-key").value)));
 $("pg-bed-fm1").addEventListener("click", () => { pg.bed = "fm1"; pgPickKey(pg.key); renderProg(); });
 $("pg-bed-smk").addEventListener("click", () => { pg.bed = "smk"; pgPickKey(pg.key); renderProg(); });
 $("pg-wins").addEventListener("click", (e) => { const b = e.target.closest("button[data-w]"); if (!b) return; pg.win = +b.dataset.w; renderProg(); });

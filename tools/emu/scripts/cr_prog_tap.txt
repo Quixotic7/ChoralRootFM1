@@ -4,7 +4,7 @@
 #   2 page 2, KNOB 2 +2: Keyboard Prog, the layer closed
 #   3 KEY tapped: Prog aside, the Chords keyboard (engine full 0), Key Mode as it was
 #   4 F3 there: a chord key (6), no trigger; D4 a root
-#   5 KEY tapped again: Prog; F3 plays Pop Four's key 1 moved from its home key C to the tonic C# (37 53 56 61 65)
+#   5 KEY tapped again: Prog; F3 plays Pop Four's key 1 (36 52 55 60 64)
 #   6 KNOB 2 -1 in the layer: Full (Prog no longer chosen); KEY tapped: Key Mode toggles again
 wait 300
 btn SEL down                  # KEY held: the layer, page 1, keys on pick

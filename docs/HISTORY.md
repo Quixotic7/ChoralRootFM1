@@ -8732,14 +8732,3 @@ any keyboard change; Key Mode untouched; the KEY LED shows Prog on / aside. KNOB
 (`prog_on` 2). **The tonic**: `cu_layer_key` returned for every key below D4 (the pick maps' start) before the KEY
 layer's tonic: on the FM-1 layout C4 and C#4 are roots, so they now set C and C# like the others; the loop slots and
 naming keep D4..G5. test_cr's `cr_prog_tap`. MANUAL.md "The FM-1 layout", "Keyboard: Prog".
-
-3y312. **Progressions follow Key Mode's tonic.** The owner: "the progression keys are not using the root note I have
-selected for the scale. I would think that any of the progressions would be transposed based on the root key"; their
-choice of three: a home key per progression, moved to the tonic. **The format** (`cr_prog.h`): the header's 8 reserved
-bytes become the home keys, a nibble each (0..11, 0 on an empty slot; an older object reads C), checked by `crp_valid`;
-`crp_home`; the factory six C, C, Eb, C, A, D. **The engine**: `cr_prog_home_source`; `cr_prog_key` adds the move from
-the home key to the tonic, the nearest way (-5..+6), to the Transpose while Key Mode is on; a loop or pad keeps the move
-in its reference's transpose. **The web**: the editor's Key select, the import's guess (the bass of the first chord),
-the object's nibbles (`web/fm1prog.js`). Tests: `cr_prog_test` (the nibbles' rules, `crp_home`), `cr_progplay_test`
-(C to D up 2, C to A down 3, Eb in Eb, Key Mode off), `web/test_prog.mjs`, `test_manager.mjs`. MANUAL.md
-"Keyboard: Prog", docs/PROGRESSIONS.md, docs/DEVICE-MANAGER.md.

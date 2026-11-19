@@ -88,10 +88,7 @@ static void m_magic(uint8_t *o, uint32_t *n) { (void)n; o[3] = '2'; }
 static void m_version(uint8_t *o, uint32_t *n) { (void)n; o[4] = 2; }
 static void m_version0(uint8_t *o, uint32_t *n) { (void)n; o[4] = 0; }
 static void m_count(uint8_t *o, uint32_t *n) { (void)n; o[5] = 15; }
-static void m_rsv(uint8_t *o, uint32_t *n) { (void)n; o[12] = 1; }     /* a home key on slot 9, which is empty */
-static void m_home_ok(uint8_t *o, uint32_t *n) { (void)n; o[8] = 11; o[9] = 0x20; o[15] = 0x50; }   /* slots 1, 4, 16 */
-static void m_home_12(uint8_t *o, uint32_t *n) { (void)n; o[8] = 12; }           /* slot 1's: past B */
-static void m_home_hi(uint8_t *o, uint32_t *n) { (void)n; o[15] = 0xF0; }         /* slot 16's: 15 */
+static void m_rsv(uint8_t *o, uint32_t *n) { (void)n; o[12] = 1; }
 static void m_used_big(uint8_t *o, uint32_t *n) { set_used(o, *n + 1); }          /* used past the object */
 static void m_used_small(uint8_t *o, uint32_t *n) { set_used(o, *n - 1); }        /* used short of it */
 static void m_used_hdr(uint8_t *o, uint32_t *n) { set_used(o, CRPG_DATA - 1); *n = CRPG_DATA - 1; }
@@ -161,8 +158,6 @@ int main(void)
                  "ascending in 52..76; slots 7..16 empty (all zero)");
         n = crp_chord(0, 0, notes);
         ok(n == 5 && notes[0] == 36 && notes[1] == 52 && notes[4] == 64, "factory: Pop Four's first key is C over C2");
-        ok(crp_home(0) == 0 && crp_home(1) == 0 && crp_home(2) == 3 && crp_home(3) == 0 && crp_home(4) == 9 &&
-           crp_home(5) == 2 && crp_home(6) == 0, "factory: home keys C, C, Eb, C, A, D; slot 7 (empty) 0");
         n = crp_chord(1, 3, notes);                  /* A7b9: A, G, Bb, C#, E */
         ok(n == 5 && notes[0] == 45 && notes[1] == 55 && notes[2] == 58 && notes[3] == 61 && notes[4] == 64,
            "factory: Jazz ii-V-I's key 4 is A7b9 (A2 G3 Bb3 C#4 E4)");
@@ -176,9 +171,7 @@ int main(void)
     ok(!mut_valid(m_magic), "another magic: invalid");
     ok(!mut_valid(m_version) && !mut_valid(m_version0), "another version (2, 0): invalid");
     ok(!mut_valid(m_count), "n != 16: invalid");
-    ok(!mut_valid(m_rsv), "a home key on an empty slot: invalid");
-    ok(mut_valid(m_home_ok), "home keys 0..11 on used slots (low nibble even, high odd): valid");
-    ok(!mut_valid(m_home_12) && !mut_valid(m_home_hi), "a home key past 11 (12, 15): invalid");
+    ok(!mut_valid(m_rsv), "a reserved header byte not 0: invalid");
     ok(!mut_valid(m_used_big) && !mut_valid(m_used_small), "used past / short of the object: invalid");
     ok(!mut_valid(m_used_hdr), "used shorter than the header and directory: invalid");
     ok(!mut_valid(m_used_max), "used > CRPG_SIZE: invalid");
@@ -217,16 +210,6 @@ int main(void)
     crp_name(3, name);
     ok(!name[0] && crp_nkeys(3) == 1 && crp_count(3) == 1 && crp_chord(3, 0, notes) == 1 && notes[0] == 127,
        "slot 4: no name, one key of one note (127)");
-    ok(crp_home(0) == 0 && crp_home(3) == 0 && crp_home(15) == 0 && crp_home(16) == 0, "home keys 0 (C) in an old header");
-    {
-        uint32_t m = build(b);
-        m_home_ok(b, &m);
-        load_ram(b, m);
-        ok(crp_home(0) == 11 && crp_home(3) == 2 && crp_home(15) == 5 && crp_home(1) == 0, "crp_home: B, D, F by nibble; an "
-           "empty slot 0");
-        n = build(b);                                /* (back to the plain object) */
-        load_ram(b, n);
-    }
     crp_name(15, name);
     ok(!strcmp(name, "Last Slot 16") && crp_nkeys(15) == 2 && crp_count(15) == 0 && crp_chord(15, 1, notes) == 0,
        "slot 16: a 12-character name without its 0, two silent keys");
