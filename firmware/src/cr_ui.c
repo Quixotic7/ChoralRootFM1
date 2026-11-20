@@ -5295,6 +5295,9 @@ static void cu_activity(void)
  * Free sounds the last root again while a chord key is physically held (cu_mod_touch: CRE_MODTOUCH after a press's
  * events, before a release's). A set replaced in one push goes as one change: the ups quiet, then the down */
 #define CU_MOD_TOP ((1u << CR_MOD_DIM) | (1u << CR_MOD_MIN) | (1u << CR_MOD_MAJ) | (1u << CR_MOD_SUS))
+#ifdef FM1_HOST_TK
+static uint32_t cmv_mods_phys(void);               /* cr_move.c (an .rfm1 with the Move takeover only) */
+#endif
 static uint32_t cu_mods_phys(void)                 /* bit cr_mod_t: the chord keys physically held */
 {
 #if BOARD_SMK37
@@ -5310,6 +5313,9 @@ static uint32_t cu_mods_phys(void)                 /* bit cr_mod_t: the chord ke
             !(cu_fm1() && ((CU_TK_MASK >> k) & 1u)) &&    /* (FM-1's type keys: the types they resolved to, below) */
             (((cu.kheld & ~(uint32_t)cu.kpick) >> k) & 1u))
             m |= 1u << cu_mod_of(k);
+#ifdef FM1_HOST_TK
+    m |= cmv_mods_phys();                          /* (the Move takeover's chord pads: cr_move.c) */
+#endif
     return m | (cu_fm1() ? cu.tposted : 0u);
 #endif
 }

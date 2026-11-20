@@ -22,6 +22,10 @@ const int8_t emu_keymap[6][EMU_NCOL] = {
 };
 
 #include "emu_firmware.h"
+#ifdef FM1_HOST_TK
+static void cmv_init(void);                       /* the Move takeover (cr_move.c, included at the end) */
+static void cmv_frame(void);
+#endif
 
 /* ------------------------------------------------------------- flash --- */
 /* emu_firmware.h builds storage.c (FELUCCA_FLASH 1) and cr_settings.c on emu_hal_fw.h's file-backed NOR; emu.c
@@ -230,6 +234,9 @@ void emu_fw_init(int demo)
     }
     emu_hal.led_play_green = LED_PLAY_GREEN;
     lcd_fill(0, 0, 240, 240, T_BG);
+#ifdef FM1_HOST_TK
+    cmv_init();                                   /* the Move takeover (cr_move.c, an .rfm1 with tk1) */
+#endif
     emu_hal.ready = 1;
 }
 
@@ -406,6 +413,9 @@ void emu_fw_frame(void)                           /* main.c's loop body (choralr
     if (d > emu_hal.ui_lock_max_us)
         emu_hal.ui_lock_max_us = d;
     cr_ui_draw();
+#ifdef FM1_HOST_TK
+    cmv_frame();                                  /* the Move takeover's screen and LEDs (cr_move.c) */
+#endif
     ui_ft_add(ft0);
     if (!usb.sx_on && usb.sx_len >= 6u && usb.sysex[usb.sx_len - 1u] == 0xF7u && usb.sysex[1] == 0x7Du) {
         crb_handle(usb.sysex + 1, usb.sx_len - 2u);   /* our SysEx (7D 46 4C), as main.c's ed_service: the handler
@@ -1040,3 +1050,9 @@ void emu_fw_stages(char *buf, uint32_t n)
                                     (double)cr_dbg.x_tot_max[k] / CR_PROF_PER_US);
     }
 }
+
+#ifdef FM1_HOST_TK
+/* ChoralRoot's own Ableton Move interface (FM1VST docs/RFM1-TAKEOVER.md, tk1): in the .rfm1 built with tk1 only, after
+ * the whole firmware (it reaches the UI's statics as cr_ui.c does) */
+#include "../../firmware/src/cr_move.c"
+#endif
