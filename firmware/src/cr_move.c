@@ -1123,8 +1123,10 @@ static void cmv_knob(uint32_t k, int32_t d)
             cmv.pop_until = cmv_now() + CMV_POP_MS;
             return;
         }
-    }
-    cmv_turn(kind, d);
+        for (; d; d -= d > 0 ? 1 : -1)             /* an entry at a time (Perform's turn takes the sign only) */
+            cmv_turn(kind, d > 0 ? 1 : -1);
+    } else
+        cmv_turn(kind, d);
     cmv.pop_kind = (int8_t)kind;
     cmv.pop_until = cmv_now() + CMV_POP_MS;
     cmv.msg_until = 0;
