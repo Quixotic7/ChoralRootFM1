@@ -129,6 +129,10 @@ static struct {
     /* speech */
     char said_chord[24];
     uint32_t msg_seen;                             /* cu.msg.until last mirrored */
+    /* the empty bar (the owner, 2026-11-21): a switch to an empty slot taken while the loop played keeps time, a bar
+     * of 16 steps running on the loop's tempo clock (crl.rt never stops); what the slot gets then joins in phase */
+    uint8_t ghost, was_play, loads_seen;
+    uint32_t ghost_rt0;
 } cmv = {.step = -1, .pop_kind = -1, .flash_pad = -1, .prog_last = -1, .lc_mem = -1, .prev = CMV_SCALE};
 
 static uint32_t cmv_now(void) { return fm1_ms; }
@@ -746,8 +750,12 @@ static int cmv_step_has(uint32_t i)                /* step i of the page holds a
     cmv_map_sync();
     return (int)((cmv.map.start >> i) & 1u);
 }
+#define CMV_BAR (16u * CRL_STEP)
+static int cmv_playing(void) { return cr_snap.lstate == CRL_PLAYING || cmv.ghost; }
 static int cmv_playhead(void)                      /* the step playing (of the loop), -1 none */
 {
+    if (cmv.ghost)
+        return (int)(((crl.rt - cmv.ghost_rt0) % CMV_BAR) / CRL_STEP);
     if (cr_snap.lstate != CRL_PLAYING || !cr_snap.llen)
         return -1;
     return (int)(cr_snap.lpos / CRL_STEP);
@@ -1448,6 +1456,10 @@ static void cmv_button(uint32_t cc, int on)
         break;
     case RFM1_TK_CC_PLAY:
         if (on) {
+            if (cmv.ghost) {                       /* the empty bar: stopped */
+                cmv.ghost = 0;
+                break;
+            }
             if (cmv.shift && cu_playing()) {       /* Shift + Play: from step 1 */
                 cr_post(CRE_LOOP, LP_PLAY, 0, 0);
                 cmv.shift_used = 1;
@@ -1932,7 +1944,7 @@ static void cmv_leds(void)
     cmv_led_steps();
     for (k = 0; k < 8u; k++)
         led(RFM1_TK_L_KNOB1 + (int)k, RING[pg][k][0], RING[pg][k][1], RING[pg][k][2]);
-    cu_playing() ? led(RFM1_TK_L_PLAY, 0, 200, 0) : led(RFM1_TK_L_PLAY, 0, 40, 0);
+    cmv_playing() ? led(RFM1_TK_L_PLAY, 0, 200, 0) : led(RFM1_TK_L_PLAY, 0, 40, 0);
     if (cr_snap.lcap == CRL_CAP_REC || cr_snap.lcap == CRL_CAP_OD || cr_snap.lcap == CRL_CAP_COUNTIN)
         led(RFM1_TK_L_REC, blink ? 255 : 60, 0, 0);
     else if (cr_snap.lcap != CRL_CAP_NONE)
@@ -1973,6 +1985,41 @@ static void cmv_speak_chord(void)                  /* the player's chord as it c
     cmv_cat(s, w, sizeof s);
     cmv_say(s);
 }
+/* the empty bar: on when a queued switch to an empty slot is taken while the loop plays (crl.loads moves, the loop
+ * EMPTY); off with Play, a take, leaving the takeover. A loop arriving in the slot meanwhile (a step written, another
+ * slot picked) starts at once in phase with the bar, as if it had been playing all along */
+static void cmv_ghost_frame(void)
+{
+    const int play = crl.state == CRL_PLAYING;
+    if (!cmv.ghost && cmv.shown && cmv.was_play && crl.loads != cmv.loads_seen && crl.state == CRL_EMPTY) {
+        cmv.ghost = 1;
+        cmv.ghost_rt0 = crl.rcyc0;                 /* (the cycle's end: the bar's start) */
+        cu_trace("move: empty slot %u, the bar runs on\n", (unsigned)cs.loop_slot + 1u);
+    }
+    cmv.loads_seen = crl.loads;
+    cmv.was_play = (uint8_t)play;
+    if (!cmv.ghost)
+        return;
+    if (!cmv.shown || crl.cap != CRL_CAP_NONE || play) {
+        cmv.ghost = 0;
+        return;
+    }
+    if (crl.state == CRL_STOPPED && crl.d.len && !cu.ledit) {   /* a loop here now: in phase (its keys let go) */
+        uint32_t ph = (crl.rt - cmv.ghost_rt0) % crl.d.len;
+        crl.rate = crl.rate_want;
+        crl.rfrac = 0;
+        crl.cyc0 = crl.t - ph;
+        crl.rcyc0 = crl.rt - ph;
+        crl.scan = ph;
+        crl.pass12 = crl.pass_n = 0;
+        crl.hit_on = 0;
+        crl.state = CRL_PLAYING;
+        cr_snap.lstate = CRL_PLAYING;
+        cmv.ghost = 0;
+        cmv.was_play = 1;
+        cu_trace("move: slot %u joins the bar at tick %u\n", (unsigned)cs.loop_slot + 1u, (unsigned)ph);
+    }
+}
 static void cmv_frame(void)                        /* emu_fw.c emu_fw_frame, after cr_ui_frame (the snapshot is new) */
 {
     if (!cmv.inited)
@@ -1985,6 +2032,7 @@ static void cmv_frame(void)                        /* emu_fw.c emu_fw_frame, aft
         if (!(++chk & 63u))                        /* (the engine's pads as the bank says: a panic, a revert) */
             cmv_pads_sync();
     }
+    cmv_ghost_frame();
     if (cmv.step >= 0 && !cu.ledit)                /* (the editor closed under the hold: the FM-1, a capture) */
         cmv.step = -1, cmv.step_ed = 0;
     if (cmv.step >= 0) {
