@@ -810,17 +810,17 @@ static void cmv_step_press(uint32_t i)
     cu.le_cell = (uint16_t)s;
     cu_le_sync();
     n = cu_le.nstep;
-    if (s >= n && s < CRL_STEPS) {                 /* past the loop's end: the loop to the end of this page */
-        uint32_t to = (s / 16u + 1u) * 16u;
-        int ok;
-        fm1_irq_off();
-        ok = cr_loop_ed_len(&crl, (to > CRL_STEPS ? CRL_STEPS : to) * CRL_STEP);
-        fm1_irq_on();
-        if (ok)
-            cmv.step_ext = (uint8_t)(n + 1u);
-        cu_le.ok = 0;
-        cu.le_cell = (uint16_t)s;
-        cu_le_sync();
+    if (s >= n) {                                  /* past the loop's end: nothing (the owner, 2026-11-20: the Steps
+                                                    * knob makes the loop longer), the editor closed as a release does */
+        cmv.step = -1;
+        if (cmv.step_ed) {
+            cu_ledit_close();
+            if (cu.lock == L_LOOP)
+                cu.lock = cmv.step_lock;
+        }
+        cmv.step_ed = 0;
+        cmv.map_ok = 0;
+        return;
     }
     if (cmv.del) {                                 /* Delete held + a step: cleared */
         cmv.del_used = 1;
@@ -1095,11 +1095,35 @@ static void cmv_pop_say(int kind)
     cmv_cat(s, w, sizeof s);
     cmv_say(s);
 }
+/* a knob that picks from a list (Perform, Key, Scale; a step's Chance, Ratchet, Condition): an entry every
+ * CMV_LIST_TICKS of the Move's encoder (the owner, 2026-11-20: one an encoder tick was too fast); the rest a step a tick */
+#define CMV_LIST_TICKS 4
+static int cmv_listy(int kind)
+{
+    return kind == K_PERF || kind == K_KEY || kind == K_SCALE || kind == K_S_CHANCE || kind == K_S_RAT ||
+           kind == K_S_COND;
+}
 static void cmv_knob(uint32_t k, int32_t d)
 {
+    static int8_t acc[8];
+    static int8_t acc_kind[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
     int kind = cmv_knob_kind(k);
-    if (!d)
+    if (!d || k >= 8)
         return;
+    if (cmv_listy(kind)) {
+        int32_t t;
+        if (acc_kind[k] != kind || (acc[k] > 0 && d < 0) || (acc[k] < 0 && d > 0))
+            acc[k] = 0;                            /* another knob's job, or a turn back: start again */
+        acc_kind[k] = (int8_t)kind;
+        t = acc[k] + d;
+        d = t / CMV_LIST_TICKS;
+        acc[k] = (int8_t)(t - d * CMV_LIST_TICKS);
+        if (!d) {
+            cmv.pop_kind = (int8_t)kind;           /* the popup stays up while it gathers ticks */
+            cmv.pop_until = cmv_now() + CMV_POP_MS;
+            return;
+        }
+    }
     cmv_turn(kind, d);
     cmv.pop_kind = (int8_t)kind;
     cmv.pop_until = cmv_now() + CMV_POP_MS;
