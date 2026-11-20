@@ -5,7 +5,7 @@
  *
  * Only an .rfm1 built with tk1 (FM1_HOST_TK) has it: tools/emu/emu_fw.c includes this file at its end, after the whole
  * firmware, so it reaches the UI's and the engine's statics as cr_ui.c does. The FM-1 build never sees it (its image is
- * the same bytes): the four hooks in the firmware's files are behind #ifdef FM1_HOST_TK (cr_ui.c cu_mods_phys,
+ * the same bytes): the hooks in the firmware's files are behind #ifdef FM1_HOST_TK (cr_ui.c cu_mods_phys,
  * cr_settings.c css_read / css_write, emu_fw.c's init and frame).
  *
  * It drives the SAME engine and state as the FM-1's panel: keys go in as cu_mroot roots (MIDI Roots' path: the chord
@@ -553,16 +553,23 @@ static void cmv_mem_clear(uint32_t j)
     cu_trace("move: memory %u cleared\n", (unsigned)k + 1u);
 }
 
-/* the session's tail (cr_settings.c css_read / css_write, FM1_HOST_TK): the memories, the bank, the layouts. A record
- * the FM-1 reads as a longer session of a newer writer (cr_session_import: the prefix is its own, "migrated") */
-#define CMV_TAIL_MAGIC 0x564D5243u                 /* "CRMV" */
+/* the memories, the bank and the layouts in flash: a record of their own (cr_settings.c css_read / css_write call
+ * cmv_store_load / cmv_store_save, FM1_HOST_TK): read with the session (power-on, a revert), written by the global
+ * save when it changed. Where the FM-1's map has a free sector nothing uses (hal/fm1_flash_map.h: "0xF2000-0xF3FFF free
+ * (unlisted), unused"); the host's flash file holds it, the FM-1's never sees it, and the session record stays the
+ * FM-1's own (a build without the takeover reads it as ever). One copy: magic, length, version, FNV-1a of the
+ * payload, then the payload */
+#define CMV_STORE_OFF 0xF2000u
+#define CMV_STORE_MAGIC 0x564D5243u                /* "CRMV" */
 #define CMV_TAIL_LEN (8u + 7u * CMV_NMEM)
-static uint32_t cmv_tail_put(uint8_t *d)
+#define CMV_STORE_HDR 16u
+static uint32_t cmv_store_flash;                   /* the payload's hash in flash (0: none read or written) */
+static void cmv_tail_put(uint8_t *d)
 {
     uint32_t i;
     uint8_t *p = d + 8;
-    d[0] = (uint8_t)CMV_TAIL_MAGIC, d[1] = (uint8_t)(CMV_TAIL_MAGIC >> 8);
-    d[2] = (uint8_t)(CMV_TAIL_MAGIC >> 16), d[3] = (uint8_t)(CMV_TAIL_MAGIC >> 24);
+    d[0] = (uint8_t)CMV_STORE_MAGIC, d[1] = (uint8_t)(CMV_STORE_MAGIC >> 8);
+    d[2] = (uint8_t)(CMV_STORE_MAGIC >> 16), d[3] = (uint8_t)(CMV_STORE_MAGIC >> 24);
     d[4] = 1;                                      /* version */
     d[5] = cmv.bank, d[6] = cmv.layout, d[7] = cmv.prev;
     for (i = 0; i < CMV_NMEM; i++, p += 7) {
@@ -570,7 +577,6 @@ static uint32_t cmv_tail_put(uint8_t *d)
         p[0] = m->used, p[1] = m->q, p[2] = m->x, p[3] = m->vel;
         p[4] = (uint8_t)m->root, p[5] = (uint8_t)((uint16_t)m->root >> 8), p[6] = (uint8_t)m->voic;
     }
-    return CMV_TAIL_LEN;
 }
 static void cmv_tail_get(const uint8_t *s, uint32_t n)
 {
@@ -580,8 +586,8 @@ static void cmv_tail_get(const uint8_t *s, uint32_t n)
     cmv.bank = 0;
     cmv.layout = CMV_KEYS;
     cmv.prev = CMV_SCALE;
-    if (s && n >= CMV_TAIL_LEN && s[0] == (uint8_t)CMV_TAIL_MAGIC && s[1] == (uint8_t)(CMV_TAIL_MAGIC >> 8) &&
-        s[2] == (uint8_t)(CMV_TAIL_MAGIC >> 16) && s[3] == (uint8_t)(CMV_TAIL_MAGIC >> 24) && s[4] == 1u) {
+    if (s && n >= CMV_TAIL_LEN && s[0] == (uint8_t)CMV_STORE_MAGIC && s[1] == (uint8_t)(CMV_STORE_MAGIC >> 8) &&
+        s[2] == (uint8_t)(CMV_STORE_MAGIC >> 16) && s[3] == (uint8_t)(CMV_STORE_MAGIC >> 24) && s[4] == 1u) {
         const uint8_t *p = s + 8;
         cmv.bank = (uint8_t)(s[5] & 7u);
         cmv.layout = (uint8_t)(s[6] < CMV_NLAYOUT ? s[6] : CMV_KEYS);
@@ -593,7 +599,7 @@ static void cmv_tail_get(const uint8_t *s, uint32_t n)
             m->root = (int16_t)(p[4] | p[5] << 8), m->voic = (int8_t)p[6];
         }
     }
-    if (cmv.layout == CMV_SCALE)                   /* (a session left in SCALE: Key Mode is the session's own) */
+    if (cmv.layout == CMV_SCALE)                   /* (left in SCALE: Key Mode is the session's own) */
         cmv.layout = cmv.prev == CMV_SCALE ? CMV_KEYS : cmv.prev;
     cmv.pads_dirty = 1;
 }
@@ -604,51 +610,48 @@ static uint32_t cmv_fnv(const uint8_t *b, uint32_t a, uint32_t e)
         h ^= b[a];
         h *= 16777619u;
     }
-    return h;
+    return h | 1u;                                 /* (never 0: "none") */
 }
-static uint32_t cmv_tail_hash(void)
+static uint32_t cmv_rd32(const uint8_t *b) { return (uint32_t)b[0] | (uint32_t)b[1] << 8 | (uint32_t)b[2] << 16 | (uint32_t)b[3] << 24; }
+static void cmv_wr32(uint8_t *b, uint32_t v) { b[0] = (uint8_t)v, b[1] = (uint8_t)(v >> 8), b[2] = (uint8_t)(v >> 16), b[3] = (uint8_t)(v >> 24); }
+static uint8_t cmv_sbuf[CMV_STORE_HDR + CMV_TAIL_LEN] __attribute__((aligned(4)));
+static void cmv_store_load(void)
 {
-    uint8_t t[CMV_TAIL_LEN];
-    cmv_tail_put(t);
-    return cmv_fnv(t, 0, CMV_TAIL_LEN);
-}
-static uint8_t cmv_sbuf[CSS_SIZE + CMV_TAIL_LEN] __attribute__((aligned(4)));
-static uint32_t cmv_rd16(const uint8_t *b) { return (uint32_t)b[0] | (uint32_t)b[1] << 8; }
-static uint32_t cmv_rd32(const uint8_t *b) { return cmv_rd16(b) | cmv_rd16(b + 2) << 16; }
-static void cmv_wr16(uint8_t *b, uint32_t v) { b[0] = (uint8_t)v, b[1] = (uint8_t)(v >> 8); }
-static void cmv_wr32(uint8_t *b, uint32_t v) { cmv_wr16(b, v), cmv_wr16(b + 2, v >> 16); }
-/* css_read's load: the session with the tail into cmv_sbuf; the tail taken; css_buf gets the session as a record of
- * its own size (its check over it), so cr_session_import reads it as current. The record's length, as st_load's */
-static int cmv_css_load(void)
-{
-    int n = st_load(OBJ_SESSION, cmv_sbuf, sizeof cmv_sbuf);
-    uint32_t size;
-    if (n <= 0) {
+    uint32_t n;
+    cmv_store_flash = 0;
+    if (!flash_ok || ST_BLOCKED() || st_read(CMV_STORE_OFF, cmv_sbuf, sizeof cmv_sbuf)) {
         cmv_tail_get(0, 0);
-        return n;
+        return;
     }
-    size = cmv_rd16(cmv_sbuf + 6);
-    if (cmv_rd32(cmv_sbuf) == CSS_MAGIC && size > CSS_SIZE && size <= (uint32_t)n &&
-        cmv_fnv(cmv_sbuf, CSS_HDR, size) == cmv_rd32(cmv_sbuf + 8)) {
-        cmv_tail_get(cmv_sbuf + CSS_SIZE, size - CSS_SIZE);
-        cmv_wr16(cmv_sbuf + 6, CSS_SIZE);
-        cmv_wr32(cmv_sbuf + 8, cmv_fnv(cmv_sbuf, CSS_HDR, CSS_SIZE));
-        n = (int)CSS_SIZE;
-    } else
-        cmv_tail_get(0, 0);
-    if ((uint32_t)n > sizeof css_buf)
-        n = (int)sizeof css_buf;
-    memcpy(&css_buf, cmv_sbuf, (size_t)n);
-    return n;
+    n = (uint32_t)cmv_sbuf[4] | (uint32_t)cmv_sbuf[5] << 8;
+    if (cmv_rd32(cmv_sbuf) != CMV_STORE_MAGIC || n != CMV_TAIL_LEN ||
+        cmv_fnv(cmv_sbuf, CMV_STORE_HDR, CMV_STORE_HDR + n) != cmv_rd32(cmv_sbuf + 8)) {
+        cmv_tail_get(0, 0);                        /* (none, or not whole: the defaults) */
+        return;
+    }
+    cmv_tail_get(cmv_sbuf + CMV_STORE_HDR, n);
+    cmv_store_flash = cmv_rd32(cmv_sbuf + 8);
 }
-static int cmv_css_save(void)                      /* css_write's save: css_buf (sealed) + the tail */
+static int cmv_store_save(void)                    /* 0: written, or unchanged */
 {
-    uint32_t size = CSS_SIZE + CMV_TAIL_LEN;
-    memcpy(cmv_sbuf, &css_buf, CSS_SIZE);
-    cmv_tail_put(cmv_sbuf + CSS_SIZE);
-    cmv_wr16(cmv_sbuf + 6, size);
-    cmv_wr32(cmv_sbuf + 8, cmv_fnv(cmv_sbuf, CSS_HDR, size));
-    return st_save(OBJ_SESSION, cmv_sbuf, size);
+    uint32_t h, at;
+    cmv_tail_put(cmv_sbuf + CMV_STORE_HDR);
+    h = cmv_fnv(cmv_sbuf, CMV_STORE_HDR, CMV_STORE_HDR + CMV_TAIL_LEN);
+    if (h == cmv_store_flash)
+        return 0;
+    cmv_wr32(cmv_sbuf, CMV_STORE_MAGIC);
+    cmv_sbuf[4] = (uint8_t)CMV_TAIL_LEN, cmv_sbuf[5] = (uint8_t)(CMV_TAIL_LEN >> 8);
+    cmv_sbuf[6] = 1, cmv_sbuf[7] = 0;
+    cmv_wr32(cmv_sbuf + 8, h);
+    cmv_wr32(cmv_sbuf + 12, 0);
+    if (st_erase(CMV_STORE_OFF))
+        return -1;
+    for (at = 0; at < sizeof cmv_sbuf; at += 256u)  /* (a page at a time: a program never wraps a page) */
+        if (st_prog(CMV_STORE_OFF + at, cmv_sbuf + at, sizeof cmv_sbuf - at < 256u ? sizeof cmv_sbuf - at : 256u))
+            return -1;
+    cmv_store_flash = h;
+    cu_trace("move: memories saved (0x%x)\n", (unsigned)CMV_STORE_OFF);
+    return 0;
 }
 
 /* ------------------------------------------------------------ messages --- */

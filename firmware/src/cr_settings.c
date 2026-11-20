@@ -669,11 +669,10 @@ static void crs_usb_apply(const cr_settings_t *s)
 }
 
 #ifdef FM1_HOST_TK
-/* the Move takeover's memories and layouts after the session (cr_move.c; an .rfm1 with tk1 only): a record the FM-1
- * reads as a newer writer's longer session, its prefix its own */
-static int cmv_css_load(void);
-static int cmv_css_save(void);
-static uint32_t cmv_tail_hash(void);
+/* the Move takeover's memories and layouts (cr_move.c; an .rfm1 with tk1 only): a record of their own, read with the
+ * session and written by the global save with it; the session's record is the FM-1's, unchanged */
+static void cmv_store_load(void);
+static int cmv_store_save(void);
 #endif
 /* the session in flash -> css_buf (css_have: one to apply; css_last_rc, css_flash). Power-on and a revert */
 static void css_read(void)
@@ -683,11 +682,7 @@ static void css_read(void)
     css_flash = 0;
     css_last_rc = 0;
 #if FELUCCA_FLASH
-#ifdef FM1_HOST_TK
-    if (flash_ok && (n = cmv_css_load()) > 0 &&
-#else
     if (flash_ok && (n = st_load(OBJ_SESSION, &css_buf, sizeof css_buf)) > 0 &&
-#endif
         (n = cr_session_import(&css_buf, &css_buf, (uint32_t)n)) != 0) {
         if (crs_last_rc == 1 || crs_saves || css_buf.bind == crs_obj_crc) {   /* it belongs to these settings
                                                     * (cr_settings.h; crs_saves: this firmware has written the block
@@ -695,13 +690,13 @@ static void css_read(void)
             css_have = 1;
             css_last_rc = (int8_t)n;
             css_flash = cr_session_hash(&css_buf);
-#ifdef FM1_HOST_TK
-            css_flash = css_flash * 31u + cmv_tail_hash();
-#endif
         } else {
             css_last_rc = -1;
         }
     }
+#endif
+#ifdef FM1_HOST_TK
+    cmv_store_load();
 #endif
     (void)n;
 }
@@ -1244,17 +1239,14 @@ static int css_write(void)                         /* the state now -> flash; 0:
     css_capture(&css_buf);
     h = cr_session_hash(&css_buf);
 #ifdef FM1_HOST_TK
-    h = h * 31u + cmv_tail_hash();
+    if (cmv_store_save() != 0)                     /* (the Move takeover's: written when it changed) */
+        return -1;
 #endif
     if (h == css_flash)
         return 0;                                  /* unchanged: no erase cycle */
     css_buf.bind = crs_obj_crc;
     cr_session_seal(&css_buf);
-#ifdef FM1_HOST_TK
-    if (cmv_css_save() != 0)
-#else
     if (st_save(OBJ_SESSION, &css_buf, CSS_SIZE) != 0)
-#endif
         return -1;
     css_flash = h;
     css_saves++;
