@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* cr_move.c: ChoralRoot's own Ableton Move interface, "CHORDS" (FM1VST docs/RFM1-TAKEOVER.md, capability tk1; the
+/* cr_move.c: ChoralRoot's own Ableton Move interface, "ChoralRoot" (FM1VST docs/RFM1-TAKEOVER.md, capability tk1; the
  * design: the owner's approved "ChoralRoot takeover, proposal 2" in the Ableton Move Designer, layouts A..F, its
  * controls' notes, 2026-11-20). FM1VST's tools/rfm1/rfm1_cr_tk_test.py drives it through rfm1_run --tk.
  *
@@ -2036,7 +2036,7 @@ static void cmv_init(void)                         /* emu_fw.c emu_fw_init, afte
     cmv.step = -1;
     if (cmv.layout == CMV_SCALE)
         cmv.layout = CMV_KEYS;
-    rfm1_tk_register("CHORDS", RFM1_TK_ALL & ~(RFM1_TK_TRACKS | RFM1_TK_VOLUME), &CMV_OPS);
+    rfm1_tk_register("ChoralRoot", RFM1_TK_ALL & ~(RFM1_TK_TRACKS | RFM1_TK_VOLUME), &CMV_OPS);
     cmv_pads_sync();
     cmv_px = rfm1_tk_screen();
     if (cmv_px) {
