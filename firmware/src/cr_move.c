@@ -102,6 +102,7 @@ static struct {
                                                     * made longer for it: its steps before + 1 (0: not) */
     uint8_t step_lock;                             /* .. the FM-1's layer then (cu.lock): the editor is the PLAY menu's,
                                                     * which cu_loop_frame keeps open only while it shows */
+    uint16_t step_gen;                             /* .. crl.gen when it was last said (a write: said again) */
     uint32_t step_t0;
     uint8_t at_last;                               /* the pressure last sent (CRE_AT) */
     /* the screen's overlays */
@@ -826,6 +827,7 @@ static void cmv_step_press(uint32_t i)
     cu_le.ok = 0;
     cu_le_sync();
     cmv_step_say();
+    cmv.step_gen = crl.gen;
     cu_trace("move: step %u held (%u events)\n", (unsigned)s + 1u, (unsigned)cu_le.cnt);
 }
 static void cmv_step_release(uint32_t s)          /* the step held (of the loop) let go */
@@ -1208,6 +1210,7 @@ static void cmv_pad_down(uint32_t n, uint32_t vel)
             cmv_words(nm, w, sizeof w);
             cmv_cat(s, w, sizeof s);
             cmv_say(s);
+            cmv_cpy(cmv.said_chord, nm, sizeof cmv.said_chord);   /* (the chord it sounds: said with it, not again) */
         }
         return;
     }
@@ -1957,6 +1960,11 @@ static void cmv_frame(void)                        /* emu_fw.c emu_fw_frame, aft
     if (cmv.step >= 0) {
         cu.le_cell = (uint16_t)cmv.step;
         cu_le_sync();
+        if (cmv.step_gen != crl.gen && !cmv.pad_held) {   /* written (its keys up): "Step 9, C major seven" */
+            cmv.step_gen = crl.gen;
+            if (cmv.shown && cmv.pop_kind < 0)
+                cmv_step_say();
+        }
     }
     if (cmv.shown) {
         cmv_speak_chord();
