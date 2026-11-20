@@ -1914,8 +1914,9 @@ static void cmv_led_steps(void)
                 led(L, 24, 24, 30);
         }
     }
-    for (i = 0; i < 16u; i++)                      /* the icons under the steps: the page */
-        rfm1_tk_white(RFM1_TK_L_ICON0 + (int)i, i < 4u ? (i == cmv.page ? 255 : 64) : 0);
+    ns = (cmv_nsteps() + 15u) / 16u;               /* the icons under the steps: the pages, only for a loop of more than one */
+    for (i = 0; i < 16u; i++)
+        rfm1_tk_white(RFM1_TK_L_ICON0 + (int)i, ns > 1u && i < ns ? (i == cmv.page ? 255 : 64) : 0);
 }
 static void cmv_leds(void)
 {
