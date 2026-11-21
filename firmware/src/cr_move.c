@@ -19,17 +19,24 @@
  *   Shift + one: LOCK), their right half the memories of the bank (tap: plays; a key held + tap: saved; Delete + tap:
  *   cleared; a step held + tap: the step gets it); the two bottom rows the layout: KEYS (one octave, C..C), SCALE (the
  *   key's degrees, Key Mode on), CHROMATIC (rows a 4th apart), PROG (the progression's chords 1..16; Shift + Left /
- *   Right: 17..32, 33..48). Menu tapped: the previous layout; held: the picker (layouts, banks, progressions).
+ *   Right: 17..32, 33..48), or ISO: all 32 pads notes a 4th apart (Shift held: the chord keys back, to LOCK one).
+ *   Menu tapped: the previous layout; held: the picker (layouts, banks, progressions).
+ *   The sound editor (Shift + step 9 / 10: the chord / bass sound): the memories' pads are its groups OSC FILT ENV LFO
+ *   / MOD FX MIX and CHORD <-> BASS (a group tapped again: its next screen), the wheel its lanes, knobs 1-4 the lane,
+ *   5-8 the next one (proposal 4, G).
  *   Steps: the loop slot's pattern, 16 a page (Left / Right: the page, up to 64 steps); tap: an empty step gets the
- *   last chord played, a filled one is cleared; held: keys / memories write it, the knobs edit it. Shift + step 1..10:
- *   the loop slot; Shift + 13..16: the page.
- *   Knobs: Voicing Perform Rate Direction Bass reg. Key Scale Transpose; Shift: Sound, Bass sound, Gate, Swing, Bass
- *   level, Velocity, Humanize, Tempo; a step held: Note len, Chance, Velocity, Ratchet, Condition, Voicing,
- *   Transpose, Steps. Touched or turned: a full-screen popup, the name, then the value big.
- *   The wheel: the chord sound (Shift: its engine); its click: the sound's favourite mark. Play: the sequencer play /
- *   stop (Shift: restart); Rec: by the record mode (Shift: the next mode); Undo: the looper's undo; Loop: LATCH;
- *   Copy: LOCK; Mute: the bass on / off; Delete: held, the clear modifier; tapped alone, PANIC; Capture: the global
- *   save; Back: closes a popup. Sample: nothing.
+ *   last chord played, a filled one is cleared; held: keys / memories write it, the knobs edit it.
+ *   Shift + a step (proposal 4, C; the FM-1's menu language): KEY LOCK LATCH PERF B.PERF FX BASS BEAT EDIT B.EDIT ..
+ *   OPTIONS (16). Tap: on / off; held: its settings (the FM-1's layer, open until Back or the same step held again):
+ *   the wheel turns its pages, knobs 1-4 the page's four. Loop held: steps 1..10 the slots, the knobs the looper's.
+ *   Knobs: Voicing, Bass reg., Perf amount, FX send, Key, Scale, Transpose, Tempo (one layer: Shift does not change
+ *   them); a step held: Note len, Chance, Velocity, Ratchet, Condition, Voicing, Transpose, Steps. Touched or turned:
+ *   a full-screen popup, the name, then the value big.
+ *   The wheel: the chord preset; its click: the engine instead (again: the preset); Shift: the bass sound (Shift +
+ *   click: its engine). Play: the sequencer play / stop (Shift: restart); Rec: by the record mode (Shift: the next
+ *   mode); Undo: the looper's undo; Loop: tap LATCH, held the slots; Copy: LOCK; Mute: the bass on / off; Sample: the
+ *   chord sound's favourite mark; Delete: held, the clear modifier; tapped alone, PANIC; Capture: the global save;
+ *   Back: closes a popup, else the Options, a settings layer, the editor.
  * Deterministic but for the time (fm1_ms): holds, popups and flashes are timed. */
 #include "rfm1_move.h"
 #include "cr_move_font.h"
@@ -43,23 +50,32 @@
                                                     * apart from the keybed's 0..47) */
 #define CMV_GID 0xFFFFFF00u                        /* the gesture id of a step written from the last chord */
 
-enum { CMV_KEYS, CMV_SCALE, CMV_CHROM, CMV_PROG, CMV_NLAYOUT };
-static const char *const CMV_LAYOUT[CMV_NLAYOUT] = {"KEYS", "SCALE", "CHROM", "PROG"};
-static const char *const CMV_LAYOUT_SAY[CMV_NLAYOUT] = {"Keys", "Scale", "Chromatic", "Prog"};
+enum { CMV_KEYS, CMV_SCALE, CMV_CHROM, CMV_PROG, CMV_ISO, CMV_NLAYOUT };
+static const char *const CMV_LAYOUT[CMV_NLAYOUT] = {"KEYS", "SCALE", "CHROM", "PROG", "ISO"};
+static const char *const CMV_LAYOUT_SAY[CMV_NLAYOUT] = {"Keys", "Scale", "Chromatic", "Prog", "Isomorphic"};
 
 /* the pad kinds a press started (its release ends what the press started, whatever the layout became) */
 enum { PK_NONE, PK_ROOT, PK_PTRIG, PK_MEM, PK_MOD, PK_PICK };
 
 typedef struct { uint8_t used, q, x, vel; int16_t root; int8_t voic; } cmv_mem_t;   /* a cr_chord_t + the voicing */
 
-/* the knobs' jobs (a page of eight each: main, Shift, a step held) */
+/* the knobs' jobs (a page of eight each: main, a step held, Loop held; a settings layer's, the editor's and the
+ * Options' are K_LAY0 + the knob: the FM-1's own, named by its screen) */
 enum { K_VOIC, K_PERF, K_RATE, K_DIR, K_BREG, K_KEY, K_SCALE, K_TRANS,
        K_SOUND, K_BSOUND, K_GATE, K_SWING, K_BLEVEL, K_VEL, K_HUM, K_TEMPO,
-       K_S_LEN, K_S_CHANCE, K_S_VEL, K_S_RAT, K_S_COND, K_S_VOIC, K_S_TR, K_S_STEPS, K_NKIND };
-static const char *const CMV_KNAME[K_NKIND] = {
-    "Voicing", "Perform", "Rate", "Direction", "Bass reg.", "Key", "Scale", "Transpose",
+       K_S_LEN, K_S_CHANCE, K_S_VEL, K_S_RAT, K_S_COND, K_S_VOIC, K_S_TR, K_S_STEPS,
+       K_FXSEND, K_L_LEN, K_L_RATE, K_L_QUANT, K_L_CIN, K_L_LEVEL, K_L_BEAT, K_L_MODE,
+       K_LAY0, K_NKIND = K_LAY0 + 8 };
+static const char *const CMV_KNAME[K_LAY0] = {
+    "Voicing", "Perform", "Perf amount", "Direction", "Bass reg.", "Key", "Scale", "Transpose",
     "Sound", "Bass sound", "Gate", "Swing", "Bass level", "Velocity", "Humanize", "Tempo",
-    "Note len", "Chance", "Velocity", "Ratchet", "Condition", "Voicing", "Transpose", "Steps"};
+    "Note len", "Chance", "Velocity", "Ratchet", "Condition", "Voicing", "Transpose", "Steps",
+    "FX send", "Length", "Rate", "Quantize", "Count-in", "Level", "Beat", "Rec mode"};
+/* Shift + a step: the FM-1's buttons (proposal 4, C) */
+enum { SC_KEY, SC_LOCK, SC_LATCH, SC_PERF, SC_BPERF, SC_FX, SC_BASS, SC_BEAT, SC_EDIT, SC_BEDIT, SC_N, SC_OPT = 15 };
+static const char *const CMV_SC[SC_N] = {"KEY", "LOCK", "LATCH", "PERF", "B.PRF", "FX", "BASS", "BEAT", "EDIT", "B.EDIT"};
+static const char *const CMV_SC_SAY[SC_N] = {"Key", "Lock", "Latch", "Perform", "Bass perform", "FX", "Bass", "Beat",
+                                             "Editor", "Bass editor"};
 /* the perform modes on the Perform knob: Off, then cr_ui.c CU_PERF's seven */
 static const char *const CMV_PERF[8] = {"Off", "Strum", "Strum 2", "Slop", "Arp", "Arp 2", "Pattern", "Harp"};
 
@@ -76,6 +92,9 @@ static const char *const CMV_PERF[8] = {"Off", "Strum", "Strum 2", "Slop", "Arp"
 #define C_HELD 255, 120, 0
 #define C_PROG 150, 90, 255
 #define C_BASS 255, 90, 30
+#define C_GREEN 40, 220, 90
+#define C_RED 255, 40, 40
+#define C_CYAN 0x13, 0xAB, 0xBF
 
 static struct {
     uint8_t inited, shown, speech;
@@ -133,7 +152,14 @@ static struct {
      * of 16 steps running on the loop's tempo clock (crl.rt never stops); what the slot gets then joins in phase */
     uint8_t ghost, was_play, loads_seen;
     uint32_t ghost_rt0;
-} cmv = {.step = -1, .pop_kind = -1, .flash_pad = -1, .prog_last = -1, .lc_mem = -1, .prev = CMV_SCALE};
+    /* proposal 4 (the owner's notes, 2026-11-21) */
+    uint8_t sc;                                    /* Shift + a step down: the step + 1 (0: none) */
+    uint8_t sc_open;                               /* .. held past CMV_HOLD_MS: its settings opened */
+    uint32_t sc_t0;
+    uint8_t loop, loop_used;                       /* Loop held (the slots, the looper's knobs); something done */
+    uint32_t loop_t0;
+    uint8_t wheel_eng, wheel_beng;                 /* the wheel turns the chord engine / Shift + wheel the bass engine */
+} cmv ={.step = -1, .pop_kind = -1, .flash_pad = -1, .prog_last = -1, .lc_mem = -1, .prev = CMV_SCALE};
 
 static uint32_t cmv_now(void) { return fm1_ms; }
 static void cmv_say(const char *t)                /* (printable ASCII only: the record's rule) */
@@ -364,6 +390,7 @@ static int cmv_pad_note(int r, int c)
         return cmv_base() + cs.tonic + deg[k % n] + 12 * (int)(k / n);
     }
     case CMV_CHROM:
+    case CMV_ISO:                                  /* (all four rows: the Move's own isomorphic layout) */
         return cmv_base() + r * 5 + c;
     default:
         return -1;
@@ -868,19 +895,252 @@ static void cmv_step_release(uint32_t s)          /* the step held (of the loop)
     }
     cmv.step_ed = 0;
     cmv.map_ok = 0;
-    if (cmv.pop_kind >= K_S_LEN)
+    if (cmv.pop_kind >= K_S_LEN && cmv.pop_kind <= K_S_STEPS)
         cmv.pop_kind = -1;
+}
+
+/* ------------------------------------------- the FM-1's layers, its editor --- */
+/* The settings are the FM-1's own (proposal 4: its menu language): a layer open is cu.lock (the FM-1 shows it too),
+ * its knobs and pages are cu_knob's (KNOB 1..4, SELECT), its names and values its screen builder's (cu_layer_screen,
+ * ce_screen, cu_options_screen) into a scratch screen. The FM-1 opening or closing one shows here the same way */
+static cr_screen_t cmv_ls;
+static uint32_t cmv_layer(void)                    /* the settings layer open, 0 none (the step editor's L_LOOP: none) */
+{
+    const uint32_t l = cu.lock;
+    return l == L_KEY || l == L_LOCK || l == L_PERF || l == L_FX || l == L_BASS || l == L_METRO ? l : 0u;
+}
+static int cmv_opts(void) { return cu.opt_open && !cu.lock && !cu.page; }
+static int cmv_editing(void) { return cu.page == PG_EDIT && !cu.lock; }
+static const cr_screen_t *cmv_lscreen(void)
+{
+    memset(&cmv_ls, 0, sizeof cmv_ls);
+    if (cmv_opts())
+        cu_options_screen(&cmv_ls);
+    else if (cmv_layer())
+        cu_layer_screen(&cmv_ls, cmv_layer());
+    else if (cmv_editing())
+        ce_screen(&cmv_ls, cmv_now());
+    return &cmv_ls;
+}
+/* the editor's knob k: 1-4 the lane on the knobs, 5-8 the next lane of the screen (none past its last) */
+static int cmv_ed_lane(uint32_t k, uint8_t **lane, uint8_t *was)
+{
+    track_t *t = ce_trk();
+    uint32_t p = ce.part & 1u, g;
+    ce_scr_t sc;
+    g = ce_fix(t, p, &sc);
+    *lane = &cx.lane[p][g];
+    *was = **lane;
+    if (k < 4u)
+        return 1;
+    if ((uint32_t)*was + 1u >= ce_lanes(t, g, &sc))
+        return 0;
+    **lane = (uint8_t)(*was + 1u);
+    return 1;
+}
+static int cmv_ed_cell(uint32_t k, cr_cell_t *cl)
+{
+    track_t *t = ce_trk();
+    ce_view_t vw;
+    uint8_t *lane, was;
+    memset(cl, 0, sizeof *cl);
+    if (!cmv_ed_lane(k, &lane, &was))
+        return 0;
+    ce_view(t, ce.part & 1u, &vw);
+    ce_cell(t, &vw, vw.ref[vw.active][k & 3u], cl);
+    if (!cl->label[0] && vw.kind == CR_K_STACK)    /* (a stack's cells: its column headings) */
+        cmv_cpy(cl->label, vw.head[k & 3u], sizeof cl->label);
+    *lane = was;
+    return (cl->flags & CR_CF_ON) && cl->label[0];
+}
+/* a settings / editor / Options knob: its name and value (0: no knob there) */
+static int cmv_lay_cell(uint32_t k, char *t, uint32_t tn, char *v, uint32_t vn, int32_t *pct)
+{
+    cr_cell_t cl;
+    *pct = -1;
+    if (cmv_opts()) {                              /* KNOB 1 alone: the entry's value (the group list: the group) */
+        if (k)
+            return 0;
+        if (!cu.opt_in) {
+            cmv_cpy(t, "Group", tn);
+            cmv_cpy(v, CU_G_NAME[cu.opt_g], vn);
+        } else {
+            cmv_cpy(t, O_NAME[cu.opt_sel], tn);
+            opt_text(cu.opt_sel, v, vn);
+        }
+        return 1;
+    }
+    if (cmv_layer()) {
+        if (k >= 4u)
+            return 0;
+        cl = cmv_lscreen()->cell[0][k];
+        if (!(cl.flags & CR_CF_ON) || !cl.label[0])
+            return 0;
+        if (cl.glyph == CR_G_BAR || cl.glyph == CR_G_SHIFT)
+            *pct = (int32_t)cl.pct * 1000 / 255;
+    } else if (cmv_editing()) {
+        if (!cmv_ed_cell(k, &cl))
+            return 0;
+        *pct = (int32_t)cl.pct * 1000 / 255;
+    } else
+        return 0;
+    cmv_cpy(t, cl.label, tn);
+    cmv_cpy(v, cl.value, vn);
+    return 1;
+}
+static void cmv_lay_turn(uint32_t k, int32_t s)
+{
+    if (cmv_opts()) {
+        if (!k)
+            cu_knob(EN_K1, s);
+    } else if (cmv_layer()) {
+        if (k < 4u)
+            cu_knob(EN_K1 + k, s);                 /* (the FM-1's own: cu_layer_knob of the layer open) */
+    } else if (cmv_editing()) {
+        uint8_t *lane, was;
+        if (cmv_ed_lane(k, &lane, &was)) {
+            ce_knob(k & 3u, s, 0);
+            *lane = was;
+        }
+    }
+}
+static const char *cmv_layer_name(uint32_t l)
+{
+    switch (l) {
+    case L_KEY: return "KEY";
+    case L_LOCK: return "LOCK";
+    case L_PERF: return cu.perf_part ? "B.PERF" : "PERF";
+    case L_FX: return "FX";
+    case L_BASS: return "BASS";
+    case L_METRO: return "BEAT";
+    default: return "";
+    }
+}
+static int cmv_layer_on(uint32_t l)
+{
+    switch (l) {
+    case L_KEY: return cs.key_on;
+    case L_LOCK: return cu.clock;
+    case L_PERF: return cu.perf_part ? !cu_pf_off(CU_PF_BASS) : cs.perform_on;
+    case L_FX: return cs.fx_on;
+    case L_BASS: return cs.bass_on;
+    case L_METRO: return cs.metro;
+    default: return 0;
+    }
+}
+/* the layer's page: its name, which of how many */
+static void cmv_layer_page(char *d, uint32_t n, uint32_t *at, uint32_t *of)
+{
+    static const char *const KEYPG[3] = {"Key", "Keyboard", "Progs"};
+    const cr_screen_t *s = cmv_lscreen();
+    *at = 0, *of = 1;
+    if (cmv_layer() == L_KEY) {
+        cmv_cpy(d, KEYPG[cu.kpage % 3u], n);
+        *at = cu.kpage % 3u, *of = 3;
+    } else if (s->n_items) {
+        cmv_cpy(d, s->item[(uint32_t)(s->sel - s->item0) % CR_PICK_MAX], n);
+        *at = s->sel, *of = s->n_items;
+    } else
+        cmv_cpy(d, cmv_layer_name(cmv_layer()), n);
+}
+static void cmv_layer_say(void)
+{
+    char s[48], pg[24];
+    uint32_t at, of;
+    cmv_layer_page(pg, sizeof pg, &at, &of);
+    cmv_cpy(s, cmv_layer_name(cmv_layer()), sizeof s);
+    cmv_cat(s, ", ", sizeof s);
+    cmv_cat(s, pg, sizeof s);
+    cmv_say(s);
+}
+static void cmv_layer_open(uint32_t l, uint32_t part)   /* cr_ui.c cu_opened, for a layer by its number */
+{
+    const uint32_t was = cu.lock;
+    cu.opt_open = 0;
+    if (cu.page != PG_EDIT)                        /* (over the editor: Back returns to it, as on the FM-1) */
+        cu.page = PG_NONE;
+    if (was == L_EDIT)
+        cu_pick_end(1);
+    cu.lock = (uint8_t)l;
+    cu_hot.knob = 0;
+    if (l == L_METRO && was != L_METRO)
+        cu.mpage = 0;
+    if (l == L_PERF) {
+        if (was != L_PERF)
+            cu.perf_t0 = cu_now();
+        cu_perf_layer_part(part);
+    }
+    cmv.pop_kind = -1;
+    cmv.msg_until = cmv.wheel_until = 0;
+    cmv_layer_say();
+    cu_trace("move: settings %s\n", cmv_layer_name(l));
+}
+static void cmv_close_top(void)                    /* Back: the Options, a settings layer, the editor */
+{
+    if (cmv_opts()) {
+        if (cu.opt_in)
+            cu_opt_root(cu.opt_g);
+        else
+            cu_close_all();
+        cmv_say(cmv_opts() ? "Options" : "Options closed");
+    } else if (cmv_layer()) {
+        cu_layer_close();
+        cmv_say("Closed");
+    } else if (cmv_editing()) {
+        ce_close();
+        cmv_say("Editor closed");
+    }
+}
+static void cmv_edit_toggle(uint32_t part)         /* Shift + step 9 / 10: the editor on the chord / bass sound */
+{
+    if (cmv_editing() && ce.part == part) {
+        ce_close();
+        cmv_say("Editor closed");
+        return;
+    }
+    if (cmv_editing()) {
+        ce.part = (uint8_t)part;
+        cx.hot_r = 0;
+    } else
+        cu_edit_open(part);
+    cmv.pop_kind = -1;
+    cmv_say(part ? "Editor, bass" : "Editor, chord");
+}
+static void cmv_ed_group(uint32_t j)               /* a group's pad: as its FM-1 button (tapped again: its next screen) */
+{
+    static const char *const SAY[CE_NSEC] = {"Oscillators", "Filter", "Envelopes", "LFO", "Modulation", "Effects", "Mix"};
+    char s[40], v[8];
+    if (j >= CE_NSEC) {                            /* the eighth: chord <-> bass */
+        ce.part ^= 1u;
+        cx.hot_r = 0;
+        cmv_say(ce.part ? "Editor, bass" : "Editor, chord");
+        return;
+    }
+    ce_group(j);
+    cmv_mirror_msg();
+    cmv_cpy(s, SAY[j], sizeof s);
+    cmv_cat(s, " ", sizeof s);
+    cmv_int(v, cx.scr[ce.part & 1u][j] + 1, 0, sizeof v);
+    cmv_cat(s, v, sizeof s);
+    if (cx.grp[ce.part & 1u] == j && (int32_t)(cmv.msg_until - cmv_now()) <= 0)
+        cmv_say(s);
 }
 
 /* ------------------------------------------------------------- the knobs --- */
 static uint32_t cmv_perf_idx(void) { return cs.perform_on ? cs.perf_sel + 1u : 0u; }
 static int cmv_knob_kind(uint32_t k)
 {
+    static const uint8_t HOME[8] = {K_VOIC, K_BREG, K_RATE, K_FXSEND, K_KEY, K_SCALE, K_TRANS, K_TEMPO};
+    static const uint8_t LOOP[8] = {K_L_LEN, K_L_RATE, K_L_QUANT, K_L_CIN, K_L_LEVEL, K_L_BEAT, K_L_MODE, K_TEMPO};
     if (cmv.step >= 0) {
         static const uint8_t ST[8] = {K_S_LEN, K_S_CHANCE, K_S_VEL, K_S_RAT, K_S_COND, K_S_VOIC, K_S_TR, K_S_STEPS};
         return ST[k];
     }
-    return (int)(cmv.shift ? K_SOUND + k : K_VOIC + k);
+    if (cmv.loop)
+        return LOOP[k];
+    if (cmv_opts() || cmv_layer() || cmv_editing())
+        return (int)(K_LAY0 + k);
+    return HOME[k];                                /* (one layer: Shift does not change them, proposal 4 A) */
 }
 static void cmv_sound_turn(int32_t s)              /* the chord part's sound, as PRESETS (cu_knob EN_PRESET) */
 {
@@ -926,7 +1186,29 @@ static void cmv_turn(int kind, int32_t s)
                 cu_perf_toggle();
         }
         break;
-    case K_RATE: cu_param_turn(CU_PF_CHORD, mode, CU_PERF_MAIN[mode], s, 0); break;
+    case K_RATE: {                                 /* the FM-1's KNOB 3: the shown part's mode's main value */
+        uint32_t pp = cu_perf_view_part(), m = cu_perf_mode(pp);
+        cu_param_turn(pp, m, CU_PERF_MAIN[m], s, 0);
+        break;
+    }
+    case K_FXSEND: {                               /* the FM-1's KNOB 4: the chord part's send to the effect selected */
+        uint32_t sid = CU_FX[cs.fx_sel].send;
+        v = cu_send(0, sid);
+        cu_send_set(0, sid, cu_send_step(v, s, 0));
+        if (cu_send(0, sid) != v)
+            cu_cc_send_trk(0, sid);
+        break;
+    }
+    case K_L_LEN: case K_L_RATE: case K_L_QUANT: case K_L_CIN: case K_L_LEVEL: case K_L_BEAT: {
+        uint8_t was = cu.lpage;                    /* the PLAY menu's knobs, by its page (cu_layer_knob L_LOOP) */
+        if (cu.ledit)
+            break;
+        cu.lpage = (uint8_t)(kind >= K_L_LEVEL);
+        cu_layer_knob(L_LOOP, (uint32_t)(kind >= K_L_LEVEL ? kind - K_L_LEVEL : kind - K_L_LEN), s);
+        cu.lpage = was;
+        break;
+    }
+    case K_L_MODE: cu_loop_mode_turn(s); break;
     case K_DIR: cu_param_turn(CU_PF_CHORD, mode, mode == CR_PM_PATTERN ? CR_P_DIV : CR_P_DIR, s, 0); break;
     case K_BREG: cr_bass_voicing_step(&cr, s); break;   /* (as the voicing) */
     case K_KEY:                                    /* the tonic (the KEY layer's KNOB 1: Key Mode on) */
@@ -976,11 +1258,14 @@ static void cmv_turn(int kind, int32_t s)
             cu_set_tempo((int32_t)cs.bpm + s);
         break;
     default:
-        if (kind >= K_S_LEN && cmv.step >= 0)
+        if (kind >= K_LAY0)
+            cmv_lay_turn((uint32_t)(kind - K_LAY0), s);
+        else if (kind >= K_S_LEN && kind <= K_S_STEPS && cmv.step >= 0)
             cmv_step_knob(kind, s);
         break;
     }
-    cu_trace("move: knob %s %+d\n", CMV_KNAME[kind], (int)s);
+    if (kind < K_LAY0)
+        cu_trace("move: knob %s %+d\n", CMV_KNAME[kind], (int)s);
 }
 /* a knob's value as the popup shows it; *pct: its place 0..1000 for the bar, -1 none */
 static void cmv_value(int kind, char *d, uint32_t n, int32_t *pct)
@@ -1001,10 +1286,13 @@ static void cmv_value(int kind, char *d, uint32_t n, int32_t *pct)
     case K_RATE:
     case K_DIR:
     case K_GATE:
-    case K_SWING:
+    case K_SWING: {
+        uint32_t pp = kind == K_RATE ? cu_perf_view_part() : CU_PF_CHORD;
+        mode = cu_perf_mode(pp);
         p = kind == K_RATE ? CU_PERF_MAIN[mode] : kind == K_DIR ? (mode == CR_PM_PATTERN ? CR_P_DIV : CR_P_DIR) :
             kind == K_GATE ? CR_P_GATE : CR_P_SWING;
-        v = cs.par[mode][p];
+        v = cu_pf_par(pp)[mode][p];
+    }
         if (p == CR_P_DIV)
             cmv_cpy(d, CU_DIV[v % CR_DIV_COUNT], n);
         else if (p == CR_P_DIR)
@@ -1055,6 +1343,27 @@ static void cmv_value(int kind, char *d, uint32_t n, int32_t *pct)
     case K_VEL: v = (int32_t)cu_pvel(), lo = 50, hi = 150; cmv_int(d, v, 0, n); cmv_cat(d, "%", n); break;
     case K_HUM: v = cs.prog_hum, hi = 100; cmv_int(d, v, 0, n); cmv_cat(d, "%", n); break;
     case K_TEMPO: v = cs.bpm, lo = 20, hi = 300; cmv_int(d, v, 0, n); cmv_cat(d, " bpm", n); break;
+    case K_FXSEND:                                 /* "Reverb 40%" */
+        v = cu_send(0, CU_FX[cs.fx_sel].send);
+        cmv_cpy(d, CU_FX[cs.fx_sel].name, n);
+        cmv_cat(d, " ", n);
+        cu_send_text(v, t, sizeof t);
+        cmv_cat(d, t, n);
+        *pct = (int32_t)cu_send_pct(v) * 10;
+        return;
+    case K_L_MODE: cmv_cpy(d, CU_LOOP_MODE[cs.loop_mode % CRL_NMODE], n); return;
+    case K_L_LEN: case K_L_RATE: case K_L_QUANT: case K_L_CIN: case K_L_LEVEL: case K_L_BEAT: {
+        uint8_t was = cu.lpage;                    /* (the PLAY menu's own cells: cu_loop_cells) */
+        const cr_cell_t *c = &cmv_ls.cell[0][kind >= K_L_LEVEL ? kind - K_L_LEVEL : kind - K_L_LEN];
+        memset(&cmv_ls, 0, sizeof cmv_ls);
+        cu.lpage = (uint8_t)(kind >= K_L_LEVEL);
+        cu_loop_cells(&cmv_ls);
+        cu.lpage = was;
+        cmv_cpy(d, c->value, n);
+        if (c->glyph == CR_G_BAR)
+            *pct = (int32_t)c->pct * 1000 / 255;
+        return;
+    }
     default:                                       /* a step's (cu_le, synced by the turn / the press) */
         if (kind == K_S_STEPS) {
             cmv_int(d, (int32_t)cu_le.nstep, 0, n);
@@ -1092,31 +1401,58 @@ static void cmv_value(int kind, char *d, uint32_t n, int32_t *pct)
     if (hi > lo)
         *pct = (v - lo) * 1000 / (hi - lo);
 }
+/* a knob's name and value, as its popup shows them (0: the knob has no job here) */
+static int cmv_kv(int kind, char *t, uint32_t tn, char *v, uint32_t vn, int32_t *pct)
+{
+    if (kind >= K_LAY0)
+        return cmv_lay_cell((uint32_t)(kind - K_LAY0), t, tn, v, vn, pct);
+    cmv_cpy(t, CMV_KNAME[kind], tn);
+    cmv_value(kind, v, vn, pct);
+    return 1;
+}
 static void cmv_pop_say(int kind)
 {
-    char v[24], s[64], w[48];
+    char t[20], v[24], s[64], w[48];
     int32_t pct;
-    cmv_value(kind, v, sizeof v, &pct);
-    cmv_cpy(s, CMV_KNAME[kind], sizeof s);
+    if (!cmv_kv(kind, t, sizeof t, v, sizeof v, &pct))
+        return;
+    cmv_cpy(s, t, sizeof s);
     cmv_cat(s, " ", sizeof s);
     cmv_vwords(v, w, sizeof w);
     cmv_cat(s, w, sizeof s);
     cmv_say(s);
 }
-/* a knob that picks from a list (Perform, Key, Scale; a step's Chance, Ratchet, Condition): an entry every
- * CMV_LIST_TICKS of the Move's encoder (the owner, 2026-11-20: one an encoder tick was too fast); the rest a step a tick */
+/* a knob that picks from a list (Perform, Key, Scale; a step's Chance, Ratchet, Condition; the looper's choices; a
+ * settings knob whose value is a name): an entry every CMV_LIST_TICKS of the Move's encoder (the owner, 2026-11-20:
+ * one an encoder tick was too fast); the rest a step a tick */
 #define CMV_LIST_TICKS 4
 static int cmv_listy(int kind)
 {
+    if (kind >= K_LAY0) {
+        char t[20], v[24];
+        int32_t pct;
+        int c;
+        if (!cmv_kv(kind, t, sizeof t, v, sizeof v, &pct))
+            return 0;
+        c = v[0] == '+' || v[0] == '-' ? v[1] : v[0];
+        return !(c >= '0' && c <= '9');
+    }
     return kind == K_PERF || kind == K_KEY || kind == K_SCALE || kind == K_S_CHANCE || kind == K_S_RAT ||
-           kind == K_S_COND;
+           kind == K_S_COND || kind == K_L_LEN || kind == K_L_RATE || kind == K_L_QUANT || kind == K_L_CIN ||
+           kind == K_L_BEAT || kind == K_L_MODE;
 }
 static void cmv_knob(uint32_t k, int32_t d)
 {
     static int8_t acc[8];
     static int8_t acc_kind[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
     int kind = cmv_knob_kind(k);
+    char t[20], v[24];
+    int32_t pct;
     if (!d || k >= 8)
+        return;
+    if (cmv.loop)
+        cmv.loop_used = 1;
+    if (!cmv_kv(kind, t, sizeof t, v, sizeof v, &pct))   /* (no job here: a dark ring, nothing) */
         return;
     if (cmv_listy(kind)) {
         int32_t t;
@@ -1146,9 +1482,13 @@ static void cmv_knob(uint32_t k, int32_t d)
 static void cmv_knob_touch(uint32_t k, int on)
 {
     int kind = cmv_knob_kind(k);
+    char t[20], v[24];
+    int32_t pct;
+    if (on && !cmv_kv(kind, t, sizeof t, v, sizeof v, &pct))
+        return;
     cmv.pop_touch = (uint8_t)(on ? cmv.pop_touch | (1u << k) : cmv.pop_touch & ~(1u << k));
     if (on) {
-        if (kind >= K_S_LEN) {
+        if (kind >= K_S_LEN && kind <= K_S_STEPS) {
             cu_le.ok = 0;
             cu_le_sync();
         }
@@ -1166,6 +1506,8 @@ static void cmv_picker_pad(int r, int c)           /* Menu held: layouts, banks,
     cmv.menu_used = 1;
     if (r == 3 && c < 4) {
         cmv_set_layout((uint32_t)c);
+    } else if (r == 2 && c == 0) {                 /* (the second row: ISO) */
+        cmv_set_layout(CMV_ISO);
     } else if (r >= 2 && c >= 4) {
         cmv.bank = (uint8_t)((3 - r) * 4 + (c - 4));
         cmv.pads_dirty = 1;
@@ -1206,7 +1548,11 @@ static void cmv_pad_down(uint32_t n, uint32_t vel)
         cmv_picker_pad(r, c);
         return;
     }
-    if (r >= 2 && c < 4) {                         /* a chord key */
+    if (cmv_editing() && r >= 2 && c >= 4) {       /* the editor: the memories' pads are its groups */
+        cmv_ed_group((uint32_t)((3 - r) * 4 + (c - 4)));
+        return;
+    }
+    if (r >= 2 && c < 4 && (cmv.layout != CMV_ISO || cmv.shift)) {   /* a chord key (ISO: Shift held, to LOCK one) */
         uint32_t j = (uint32_t)((3 - r) * 4 + c);
         if (cmv.shift && !cu.clock) {              /* Shift + a chord key: LOCK on, the key latched with it */
             cu_lock_tap();
@@ -1217,7 +1563,7 @@ static void cmv_pad_down(uint32_t n, uint32_t vel)
         cmv_mod(j, 1);
         return;
     }
-    if (r >= 2) {                                  /* a memory */
+    if (r >= 2 && cmv.layout != CMV_ISO) {         /* a memory */
         uint32_t j = (uint32_t)((3 - r) * 4 + (c - 4));
         if (cmv.pads_dirty)
             cmv_pads_sync();
@@ -1342,6 +1688,73 @@ static void cmv_bass_tap(void)                     /* Mute: the bass on / off (c
     }
     cmv_msg("Bass", cs.bass_on ? "on" : "off");
 }
+/* Shift + a step (proposal 4, C): the FM-1's buttons. A tap: the on / off (as the button's tap); held: its settings */
+static int cmv_sc_on(uint32_t i)
+{
+    switch (i) {
+    case SC_KEY: return cs.key_on;
+    case SC_LOCK: return cu.clock;
+    case SC_LATCH: return cs.sticky;
+    case SC_PERF: return cs.perform_on;
+    case SC_BPERF: return !cu_pf_off(CU_PF_BASS);
+    case SC_FX: return cs.fx_on;
+    case SC_BASS: return cs.bass_on;
+    case SC_BEAT: return cs.metro;
+    case SC_EDIT: return cmv_editing() && !ce.part;
+    case SC_BEDIT: return cmv_editing() && ce.part;
+    case SC_OPT: return cmv_opts();
+    default: return 0;
+    }
+}
+static void cmv_sc_tap(uint32_t i)
+{
+    const char *nm = i < SC_N ? CMV_SC_SAY[i] : "Options";
+    switch (i) {
+    case SC_KEY:                                   /* (cu_tap BT_KEY; SCALE no longer restores it on leaving) */
+        cs.key_on ^= 1u;
+        cu_post_key();
+        cmv.scale_keyed = 0;
+        break;
+    case SC_LOCK: cu_lock_tap(); break;
+    case SC_LATCH: cu_latch_toggle(); break;
+    case SC_PERF: cu_perf_toggle(); break;
+    case SC_BPERF: cu_perf_part_set(CU_PF_BASS, !cu_pf_off(CU_PF_BASS)); break;
+    case SC_FX: cu_fx_toggle(); break;
+    case SC_BASS: cmv_bass_tap(); return;
+    case SC_BEAT: cu_metro_set(!cs.metro); break;
+    case SC_EDIT:
+    case SC_BEDIT: cmv_edit_toggle(i == SC_BEDIT); return;
+    case SC_OPT:                                   /* (cu_tap BT_OPT: the Options where they were left) */
+        if (cmv_editing())
+            ce_close();
+        cu.page = PG_NONE;
+        cu.lock = L_NONE;
+        cu.opt_open ^= 1u;
+        if (cu.opt_open && !cu.opt_in)
+            cu_opt_root(cu.opt_g);
+        cmv.pop_kind = -1;
+        cmv_say(cu.opt_open ? "Options" : "Options closed");
+        return;
+    default: return;
+    }
+    cmv_msg(nm, cmv_sc_on(i) ? "on" : "off");
+    cu_trace("move: shortcut %s %s\n", nm, cmv_sc_on(i) ? "on" : "off");
+}
+static void cmv_sc_hold(uint32_t i)
+{
+    static const uint8_t L[SC_N] = {L_KEY, L_LOCK, 0, L_PERF, L_PERF, L_FX, L_BASS, L_METRO, 0, 0};
+    uint32_t l = i < SC_N ? L[i] : 0u, part = i == SC_BPERF;
+    if (!l) {                                      /* LATCH, the editors, the Options: as a tap */
+        cmv_sc_tap(i);
+        return;
+    }
+    if (cmv_layer() == l && (l != L_PERF || cu.perf_part == part)) {   /* held again: closed */
+        cu_layer_close();
+        cmv_say("Closed");
+        return;
+    }
+    cmv_layer_open(l, part);
+}
 static void cmv_wheel_show(const char *t, const char *v)
 {
     char s[48];
@@ -1355,11 +1768,28 @@ static void cmv_wheel_show(const char *t, const char *v)
     cmv_cat(s, v, sizeof s);
     cmv_say(s);
 }
-static void cmv_wheel_sound(void)
+static void cmv_wheel_sound(void)                  /* what the wheel turns: the preset (its engine over it), the engine */
 {
     char nm[13];
+    if (cmv.wheel_eng) {
+        cmv_wheel_show("Engine", ENGINES[trk[CR_PART_CHORD].eng_req % NENGINES]->name);
+        return;
+    }
     pool_name(trk[CR_PART_CHORD].eng_req % NENGINES, cs.sound, nm);
     cmv_wheel_show(ENGINES[trk[CR_PART_CHORD].eng_req % NENGINES]->name, nm);
+}
+static void cmv_wheel_bass(void)                   /* .. Shift: the bass's */
+{
+    char nm[13];
+    if (cmv.wheel_beng) {
+        cmv_wheel_show("Bass engine", ENGINES[trk[CR_PART_BASS].eng_req % NENGINES]->name);
+        return;
+    }
+    if (!cs.bass_sound || !cs.bass_on)
+        cmv_cpy(nm, "Off", sizeof nm);
+    else
+        pool_name(trk[CR_PART_BASS].eng_req % NENGINES, cs.bass_sound - 1u, nm);
+    cmv_wheel_show("Bass", nm);
 }
 static void cmv_button(uint32_t cc, int on)
 {
@@ -1391,6 +1821,7 @@ static void cmv_button(uint32_t cc, int on)
         if (on) {
             cmv.pop_kind = -1;
             cmv.msg_until = cmv.saved_until = cmv.wheel_until = 0;
+            cmv_close_top();                       /* (the Options, a settings layer, the editor) */
         }
         break;
     case RFM1_TK_CC_CAPTURE:
@@ -1415,10 +1846,26 @@ static void cmv_button(uint32_t cc, int on)
             cmv_msg("Undo", "");
         }
         break;
-    case RFM1_TK_CC_LOOP:
+    case RFM1_TK_CC_LOOP:                          /* tapped: LATCH; held: the slots on the steps, the looper's knobs */
         if (on) {
-            cu_latch_toggle();
-            cmv_msg("Latch", cs.sticky ? "on" : "off");
+            cmv.loop = 1;
+            cmv.loop_used = 0;
+            cmv.loop_t0 = cmv_now();
+            cmv.pop_kind = -1;
+        } else if (cmv.loop) {
+            cmv.loop = 0;
+            cmv.pop_kind = -1;
+            if (!cmv.loop_used && cmv_now() - cmv.loop_t0 < CMV_HOLD_MS) {
+                cu_latch_toggle();
+                cmv_msg("Latch", cs.sticky ? "on" : "off");
+            }
+        }
+        break;
+    case RFM1_TK_CC_SAMPLE:                        /* the chord sound's favourite mark (proposal 4: off the wheel) */
+        if (on) {
+            int was = cu_fav_part(0);
+            if (cu_fav_turn(0, was ? -1 : 1))
+                cmv_wheel_show("Favorite", was ? "off" : "on");
         }
         break;
     case RFM1_TK_CC_COPY:
@@ -1479,11 +1926,24 @@ static void cmv_button(uint32_t cc, int on)
             }
         }
         break;
-    case RFM1_TK_CC_JOG_CLICK:                     /* the wheel's click: the chord sound's favourite mark */
-        if (on) {
-            int was = cu_fav_part(0);
-            if (cu_fav_turn(0, was ? -1 : 1))
-                cmv_wheel_show("Favorite", was ? "off" : "on");
+    case RFM1_TK_CC_JOG_CLICK:                     /* the wheel's click: preset <-> engine (Shift: the bass's); the
+                                                    * Options: a group opened */
+        if (!on)
+            break;
+        if (cmv_opts()) {
+            if (!cu.opt_in && cu.opt_g != CU_G_RESET) {
+                cu_opt_enter();
+                cmv_say(CU_G_NAME[cu.opt_g]);
+            }
+        } else if (cmv_layer() || cmv_editing())
+            break;
+        else if (cmv.shift) {
+            cmv.shift_used = 1;
+            cmv.wheel_beng ^= 1u;
+            cmv_wheel_bass();
+        } else {
+            cmv.wheel_eng ^= 1u;
+            cmv_wheel_sound();
         }
         break;
     default:
@@ -1494,14 +1954,38 @@ static void cmv_wheel(int32_t d)
 {
     if (!d)
         return;
-    if (cmv.shift) {                               /* Shift + the wheel: the chord part's engine (OPT + PRESETS) */
-        cmv.shift_used = 1;
-        cu_epk_step(0, d);
-        cu_epk_commit();
-        cmv_wheel_show("Engine", ENGINES[trk[CR_PART_CHORD].eng_req % NENGINES]->name);
+    if (cmv_opts() || cmv_layer()) {               /* a settings layer: its pages (the FM-1's SELECT) */
+        cu_knob(EN_SELECT, d);
+        cmv.wheel_until = 0;
+        if (cmv_layer())
+            cmv_layer_say();
+        else {
+            const cr_screen_t *s = cmv_lscreen();
+            if (s->n_items)
+                cmv_say(s->item[(uint32_t)(s->sel - s->item0) % CR_PICK_MAX]);
+        }
         return;
     }
-    cmv_sound_turn(d);
+    if (cmv_editing()) {                           /* the editor: its lanes, across its screens */
+        ce_select(d);
+        cmv.wheel_until = 0;
+        return;
+    }
+    if (cmv.shift) {                               /* Shift + the wheel: the bass sound (its engine after a click) */
+        cmv.shift_used = 1;
+        if (cmv.wheel_beng) {
+            cu_epk_step(1, d);
+            cu_epk_commit();
+        } else
+            cmv_turn(K_BSOUND, d);
+        cmv_wheel_bass();
+        return;
+    }
+    if (cmv.wheel_eng) {                           /* the chord part's engine (OPT + PRESETS) */
+        cu_epk_step(0, d);
+        cu_epk_commit();
+    } else
+        cmv_sound_turn(d);
     cmv_wheel_sound();
 }
 static void cmv_draw(void);
@@ -1520,8 +2004,8 @@ static void cmv_input(const uint8_t p[4])
         } else if (d >= RFM1_TK_NOTE_STEP0 && d < RFM1_TK_NOTE_STEP0 + 16u) {
             const uint32_t i = d - RFM1_TK_NOTE_STEP0;
             if (on) {
-                if (cmv.shift) {                   /* Shift + a step: a loop slot (1..10), a page (13..16) */
-                    cmv.shift_used = 1;
+                if (cmv.loop) {                    /* Loop held + a step: a loop slot (1..10) */
+                    cmv.loop_used = 1;
                     if (i < CRL_SLOTS) {
                         char t[8];
                         if (i != cs.loop_slot)
@@ -1530,23 +2014,29 @@ static void cmv_input(const uint8_t p[4])
                         cmv_int(t, (int32_t)i + 1, 0, sizeof t);
                         if ((int32_t)(cmv.msg_until - cmv_now()) <= 0)
                             cmv_msg("Slot", t);
-                    } else if (i >= 12u) {
-                        char t[8];
-                        cmv.page = (uint8_t)(i - 12u);
-                        cmv_cpy(t, "Page ", sizeof t);
-                        cmv_int(t + 5, cmv.page + 1, 0, 3);
-                        cmv_say(t);
+                    }
+                } else if (cmv.shift) {            /* Shift + a step: the FM-1's buttons (tap / hold: cmv_frame) */
+                    cmv.shift_used = 1;
+                    if (i < SC_N || i == SC_OPT) {
+                        cmv.sc = (uint8_t)(i + 1u);
+                        cmv.sc_t0 = cmv_now();
+                        cmv.sc_open = 0;
                     }
                 } else
                     cmv_step_press(i);
+            } else if (cmv.sc == i + 1u) {
+                if (!cmv.sc_open)
+                    cmv_sc_tap(i);
+                cmv.sc = 0;
             } else if (cmv.step >= 0 && cmv.step_btn == i)
                 cmv_step_release((uint32_t)cmv.step);
         } else if (d < 8u) {
             cmv_knob_touch(d, on);
         } else if (d == RFM1_TK_NOTE_JOG_TOUCH) {
-            cmv.wheel_touch = (uint8_t)on;
-            if (on)
-                cmv_wheel_sound();
+            const int home = !cmv_opts() && !cmv_layer() && !cmv_editing();
+            cmv.wheel_touch = (uint8_t)(on && home);
+            if (on && home)
+                cmv.shift ? cmv_wheel_bass() : cmv_wheel_sound();
         }
     } else if (st == 0xA0u) {                      /* a pad's pressure: the keys' aftertouch, as the keybed's */
         if (d >= RFM1_TK_NOTE_PAD0 && d < RFM1_TK_NOTE_PAD0 + 32u &&
@@ -1608,7 +2098,7 @@ static void cmv_scr_home(void)
     char key[12], right[8], nm[24];
     const cr_chord_info_t *ci = &cr_snap.ci;
     cmv_key_str(key, sizeof key);
-    cmv_cpy(right, "SEQ ", sizeof right);
+    cmv_cpy(right, cu.clock ? "LK S" : "SEQ ", sizeof right);   /* (LOCK on: "LK S1") */
     cmv_int(right + 4, cs.loop_slot + 1, 0, 4);
     px_header(key, right);
     if (ci->valid)
@@ -1757,6 +2247,58 @@ static void cmv_scr_step(void)                     /* a step held: its chord, it
         px_text(1, 50, "empty", 2, 1);
     }
 }
+static void cmv_scr_shortcuts(void)                /* Shift held: the FM-1's buttons on the steps, inverted = on */
+{
+    uint32_t i;
+    for (i = 0; i < 8u; i++) {
+        int x = (int)(i % 2u) * 66, y = (int)(i / 2u) * 16;
+        if (cmv_sc_on(i)) {
+            px_rect(x, y, 62, 15, 1);
+            px_text(x + 1, y + 1, CMV_SC[i], 2, 0);
+        } else
+            px_text(x + 1, y + 1, CMV_SC[i], 2, 1);
+    }
+}
+static void cmv_scr_dots(uint32_t at, uint32_t of)  /* which page of how many: a dash each, the one shown thick */
+{
+    uint32_t i;
+    int x0;
+    if (of < 2u || of > 16u)
+        return;
+    x0 = 64 - (int)of * 4;
+    for (i = 0; i < of; i++)
+        px_rect(x0 + (int)i * 8, i == at ? 58 : 60, 6, i == at ? 5 : 1, 1);
+}
+static void cmv_scr_layer(void)                    /* a settings layer: its name, on / off, the page big */
+{
+    char pg[24];
+    uint32_t l = cmv_layer(), at, of;
+    cmv_layer_page(pg, sizeof pg, &at, &of);
+    px_header(cmv_layer_name(l), cmv_layer_on(l) ? "on" : "off");
+    cmv_scr_name(pg, 19);
+    cmv_scr_dots(at, of);
+}
+static void cmv_scr_edit(void)                     /* the editor: the engine, the group big, the sound */
+{
+    const cr_screen_t *s = cmv_lscreen();
+    const uint32_t p = ce.part & 1u;
+    char nm[24];
+    cmv_cpy(nm, p ? "B." : "", sizeof nm);
+    cmv_cat(nm, ENGINES[trk[p ? CR_PART_BASS : CR_PART_CHORD].eng_req % NENGINES]->name, sizeof nm);
+    px_header(nm, s->page);
+    cmv_scr_name(CE_SEC_NAME[cx.grp[p] % CE_NSEC], 19);
+    cmv_cpy(nm, psnd[p].name, sizeof nm);
+    px_text(1, 50, nm, 2, 1);
+}
+static void cmv_scr_opts(void)                     /* the Options: the group or entry big, the entry's value */
+{
+    const cr_screen_t *s = cmv_lscreen();
+    char nm[24];
+    px_header("OPTIONS", cu.opt_in ? CU_G_NAME[cu.opt_g] : "");
+    cmv_cpy(nm, s->n_items ? s->item[(uint32_t)(s->sel - s->item0) % CR_PICK_MAX] : "-", sizeof nm);
+    cmv_scr_name(nm, 19);
+    px_ctext(64, 50, s->value, px_fit(s->value, 2), 1);
+}
 static void cmv_scr_popup(const char *title, const char *value, int32_t pct)   /* full screen: the name, the value */
 {
     px_ctext(64, 2, title, px_fit(title, 2), 1);
@@ -1790,18 +2332,26 @@ static void cmv_draw(void)
     else if ((int32_t)(cmv.msg_until - now) > 0)
         cmv_scr_popup(cmv.msg_t, cmv.msg_v, -1);
     else if (cmv.pop_kind >= 0 && (cmv.pop_touch || (int32_t)(cmv.pop_until - now) > 0)) {
-        char v[24];
+        char t[20], v[24];
         int32_t pct;
-        cmv_value(cmv.pop_kind, v, sizeof v, &pct);
-        cmv_scr_popup(CMV_KNAME[cmv.pop_kind], v, pct);
+        if (cmv_kv(cmv.pop_kind, t, sizeof t, v, sizeof v, &pct))
+            cmv_scr_popup(t, v, pct);
     } else if (cmv.wheel_touch || (int32_t)(cmv.wheel_until - now) > 0)
         cmv_scr_popup(cmv.wheel_t, cmv.wheel_v, -1);
     else if (cmv.step >= 0)
         cmv_scr_step();
     else if (cmv.menu && (cmv.menu_used || now - cmv.menu_t0 >= CMV_HOLD_MS))
         cmv_scr_layout();
-    else if (cmv.shift)
+    else if (cmv.loop)
         cmv_scr_slots();
+    else if (cmv.shift)
+        cmv_scr_shortcuts();
+    else if (cmv_opts())
+        cmv_scr_opts();
+    else if (cmv_layer())
+        cmv_scr_layer();
+    else if (cmv_editing())
+        cmv_scr_edit();
     else if (cmv.layout == CMV_PROG)
         cmv_scr_prog();
     else if (cr_snap.perform_on && cr_snap.perform_mode == CR_PM_ARP && cr_snap.perf_step && cr_snap.ci.valid &&
@@ -1835,6 +2385,8 @@ static void cmv_led_pads(void)
             if (picker) {                          /* layout E */
                 if (r == 3 && c < 4)
                     c == cmv.layout ? led(n, C_WHITE) : led_dim(n, C_WHITE, c == cmv.prev ? 45u : 15u);
+                else if (r == 2 && c == 0)         /* ISO */
+                    cmv.layout == CMV_ISO ? led(n, C_WHITE) : led_dim(n, C_WHITE, cmv.prev == CMV_ISO ? 45u : 15u);
                 else if (r == 2 && c < 4)
                     led(n, 0, 0, 0);
                 else if (r >= 2) {
@@ -1849,7 +2401,17 @@ static void cmv_led_pads(void)
                 }
                 continue;
             }
-            if (r >= 2 && c < 4) {                 /* the chord keys */
+            if (cmv_editing() && r >= 2 && c >= 4) {   /* the editor's groups; the eighth: chord / bass */
+                uint32_t j = (uint32_t)((3 - r) * 4 + (c - 4));
+                if (held)
+                    led(n, C_WHITE);
+                else if (j >= CE_NSEC)
+                    ce.part ? led(n, C_BASS) : led_dim(n, C_BASS, 25u);
+                else
+                    j == cx.grp[ce.part & 1u] ? led(n, C_WHITE) : led_dim(n, C_CYAN, ce_has(ce_trk(), j) ? 60u : 10u);
+                continue;
+            }
+            if (r >= 2 && c < 4 && (cmv.layout != CMV_ISO || cmv.shift)) {   /* the chord keys */
                 uint32_t j = (uint32_t)((3 - r) * 4 + c);
                 if (held)
                     led(n, C_WHITE);
@@ -1859,7 +2421,7 @@ static void cmv_led_pads(void)
                     j < 4u ? led(n, C_VIOLET_D) : led(n, C_ORANGE_D);
                 continue;
             }
-            if (r >= 2) {                          /* the memories */
+            if (r >= 2 && cmv.layout != CMV_ISO) { /* the memories */
                 uint32_t j = (uint32_t)((3 - r) * 4 + (c - 4));
                 if ((cmv.flash_pad == n && (int32_t)(cmv.flash_until - now) > 0) || held)
                     led(n, C_WHITE);
@@ -1899,14 +2461,23 @@ static void cmv_led_steps(void)
 {
     uint32_t i, ns;
     int ph = cmv_playhead();
-    if (cmv.shift) {                               /* layout D: the slots, the pages */
+    if (cmv.loop) {                                /* Loop held: the slots */
         for (i = 0; i < 16u; i++) {
             const int L = RFM1_TK_L_STEP0 + (int)i;
             if (i < CRL_SLOTS) {
                 int full = (int)(((cs.loop_used >> i) & 1u) || (i == cs.loop_slot && cr_snap.llen));
                 i == cs.loop_slot ? led(L, C_HELD) : led_dim(L, C_SEQ, full ? 60u : 12u);
-            } else if (i >= 12u)
-                i - 12u == cmv.page ? led(L, C_WHITE) : led_dim(L, C_WHITE, 25u);
+            } else
+                led(L, 0, 0, 0);
+        }
+    } else if (cmv.shift) {                        /* Shift held: the FM-1's buttons, lit = on */
+        static const uint8_t COL[SC_N][3] = {{C_YELLOW}, {C_VIOLET}, {C_WHITE}, {C_VIOLET}, {C_BASS}, {C_GREEN},
+                                             {C_BASS}, {C_RED}, {C_WHITE}, {C_BASS}};
+        for (i = 0; i < 16u; i++) {
+            const int L = RFM1_TK_L_STEP0 + (int)i;
+            const uint8_t *k = i < SC_N ? COL[i] : (const uint8_t *)"\xff\xff\xff";
+            if (i < SC_N || i == SC_OPT)
+                cmv_sc_on(i) ? led(L, k[0], k[1], k[2]) : led_dim(L, k[0], k[1], k[2], 18u);
             else
                 led(L, 0, 0, 0);
         }
@@ -1933,17 +2504,32 @@ static void cmv_led_steps(void)
 static void cmv_leds(void)
 {
     static const uint8_t RING[3][8][3] = {
-        {{C_ORANGE}, {C_VIOLET}, {C_VIOLET}, {C_VIOLET}, {C_BASS}, {C_YELLOW}, {C_YELLOW}, {C_YELLOW}},
-        {{C_WHITE}, {C_BASS}, {C_VIOLET}, {C_VIOLET}, {C_BASS}, {C_PROG}, {C_PROG}, {C_WHITE}},
+        {{C_ORANGE}, {C_BASS}, {C_VIOLET}, {C_GREEN}, {C_YELLOW}, {C_YELLOW}, {C_YELLOW}, {C_WHITE}},
+        {{C_SEQ}, {C_SEQ}, {C_RED}, {C_RED}, {C_SEQ}, {C_RED}, {C_RED}, {C_WHITE}},
         {{C_HELD}, {C_HELD}, {C_HELD}, {C_HELD}, {C_HELD}, {C_HELD}, {C_HELD}, {C_SEQ}}};
     const uint32_t now = cmv_now();
-    const int pg = cmv.step >= 0 ? 2 : cmv.shift ? 1 : 0;
+    const int pg = cmv.step >= 0 ? 2 : cmv.loop ? 1 : 0;
     const int blink = cu_blink(now);
     uint32_t k;
     cmv_led_pads();
     cmv_led_steps();
-    for (k = 0; k < 8u; k++)
-        led(RFM1_TK_L_KNOB1 + (int)k, RING[pg][k][0], RING[pg][k][1], RING[pg][k][2]);
+    if (cmv.step < 0 && !cmv.loop && (cmv_opts() || cmv_layer() || cmv_editing())) {   /* the knobs with a job lit,
+                                                    * in the layer's colour */
+        static const uint8_t LC[L_N][3] = {[L_KEY] = {C_YELLOW}, [L_LOCK] = {C_VIOLET}, [L_PERF] = {C_VIOLET},
+                                           [L_FX] = {C_GREEN}, [L_BASS] = {C_BASS}, [L_METRO] = {C_RED}};
+        const uint32_t l = cmv_layer();
+        const uint8_t *c = cmv_opts() ? (const uint8_t *)"\xff\xff\xff" : l ? LC[l] :
+                           (const uint8_t *)"\x13\xab\xbf";
+        for (k = 0; k < 8u; k++) {
+            char t[20], v[24];
+            int32_t pct;
+            cmv_kv((int)(K_LAY0 + k), t, sizeof t, v, sizeof v, &pct) ?
+                (l == L_PERF && cu.perf_part ? led(RFM1_TK_L_KNOB1 + (int)k, C_BASS) :
+                 led(RFM1_TK_L_KNOB1 + (int)k, c[0], c[1], c[2])) : led(RFM1_TK_L_KNOB1 + (int)k, 0, 0, 0);
+        }
+    } else
+        for (k = 0; k < 8u; k++)
+            led(RFM1_TK_L_KNOB1 + (int)k, RING[pg][k][0], RING[pg][k][1], RING[pg][k][2]);
     cmv_playing() ? led(RFM1_TK_L_PLAY, 0, 200, 0) : led(RFM1_TK_L_PLAY, 0, 40, 0);
     if (cr_snap.lcap == CRL_CAP_REC || cr_snap.lcap == CRL_CAP_OD || cr_snap.lcap == CRL_CAP_COUNTIN)
         led(RFM1_TK_L_REC, blink ? 255 : 60, 0, 0);
@@ -1951,15 +2537,15 @@ static void cmv_leds(void)
         led(RFM1_TK_L_REC, 255, 0, 0);
     else
         led(RFM1_TK_L_REC, 0x44, 0, 0);
-    led(RFM1_TK_L_SAMPLE, 0, 0, 0);
+    cu_fav_part(0) ? led(RFM1_TK_L_SAMPLE, C_WHITE) : led(RFM1_TK_L_SAMPLE, 40, 40, 40);
     rfm1_tk_white(RFM1_TK_L_SHIFT, cmv.shift ? 255 : 60);
     rfm1_tk_white(RFM1_TK_L_MENU, cmv.menu ? 255 : 77);
-    rfm1_tk_white(RFM1_TK_L_BACK, 77);
+    rfm1_tk_white(RFM1_TK_L_BACK, cmv_opts() || cmv_layer() || cmv_editing() ? 255 : 77);
     rfm1_tk_white(RFM1_TK_L_CAPTURE, 77);
     rfm1_tk_white(RFM1_TK_L_DOWN, cu.octave < 0 ? 255 : 77);
     rfm1_tk_white(RFM1_TK_L_UP, cu.octave > 0 ? 255 : 77);
     rfm1_tk_white(RFM1_TK_L_UNDO, 77);
-    rfm1_tk_white(RFM1_TK_L_LOOP, cs.sticky ? 255 : 77);
+    rfm1_tk_white(RFM1_TK_L_LOOP, cs.sticky || cmv.loop ? 255 : 77);
     rfm1_tk_white(RFM1_TK_L_COPY, cu.clock ? 255 : 77);
     rfm1_tk_white(RFM1_TK_L_LEFT, cmv.page ? 77 : 20);
     rfm1_tk_white(RFM1_TK_L_RIGHT, cmv.page < 3u ? 77 : 20);
@@ -2033,6 +2619,10 @@ static void cmv_frame(void)                        /* emu_fw.c emu_fw_frame, aft
             cmv_pads_sync();
     }
     cmv_ghost_frame();
+    if (cmv.sc && !cmv.sc_open && cmv_now() - cmv.sc_t0 >= CMV_HOLD_MS) {   /* Shift + a step held: its settings */
+        cmv.sc_open = 1;
+        cmv_sc_hold(cmv.sc - 1u);
+    }
     if (cmv.step >= 0 && !cu.ledit)                /* (the editor closed under the hold: the FM-1, a capture) */
         cmv.step = -1, cmv.step_ed = 0;
     if (cmv.step >= 0) {
@@ -2066,7 +2656,7 @@ static void cmv_state(int on, unsigned claims, unsigned flags)
             cmv.step_used = 1;
             cmv_step_release((uint32_t)cmv.step);
         }
-        cmv.shift = cmv.menu = cmv.del = 0;
+        cmv.shift = cmv.menu = cmv.del = cmv.loop = cmv.sc = 0;
         cmv.pop_touch = 0;
         cmv.wheel_touch = 0;
     } else {
@@ -2083,7 +2673,7 @@ static void cmv_init(void)                         /* emu_fw.c emu_fw_init, afte
 {
     cmv.inited = 1;
     cmv.step = -1;
-    if (cmv.layout == CMV_SCALE)
+    if (cmv.layout == CMV_SCALE || cmv.layout >= CMV_NLAYOUT)
         cmv.layout = CMV_KEYS;
     rfm1_tk_register("ChoralRoot", RFM1_TK_ALL & ~(RFM1_TK_TRACKS | RFM1_TK_VOLUME), &CMV_OPS);
     cmv_pads_sync();
