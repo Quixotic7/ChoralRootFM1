@@ -3,6 +3,36 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.43-smk37",
+      "base": "0.43",
+      "date": "2026-11-21",
+      "tag": "v0.43-smk37",
+      "title": "0.43-smk37: as 0.42-smk37 on the keyboard",
+      "bullets": [
+        "0.43 plays exactly as 0.42 on the SMK-37's keys and pads.",
+        "What 0.43 adds is ChoralRoot on the Ableton Move, in RemoteFM1: the Move's pads, steps, knobs and screen.",
+        "Progressions, the drums, Calibrate Wheels and everything else stay as in 0.42-smk37.",
+        "Updating keeps your sounds, loops, favourites and settings."
+      ],
+      "notes": [
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "a7268c17303a3aa0293490a7e132b124be6d47d7d9ca4a246d846638919fb124",
+          "sha256_1core": "006d51ab4cc9515456a22b31e6b0004a9bf01d7dd51b177f3cb3ca8a7f3ea427"
+        },
+        "elite": {
+          "sha256": "e2e7fd8a3e6bd1cae458e7f348ca840c8e42b7a6dc069139b96aecf8f45ed722",
+          "sha256_1core": "add197101e08b47622f2723cadafd1470be42214b2a6f23725f4fb97e35c4b69"
+        },
+        "mke": {
+          "sha256": "b851e6d3858da47ba04fe9e18c70f7b9a758791012a1dd123a5a7ffdae82f88a",
+          "sha256_1core": "de32aa8ac6d756ccd32f5ff5fb4a996c281d79a97d3f99a445c77a5f74ccd03b"
+        }
+      }
+    },
+    {
       "version": "0.42-smk37",
       "base": "0.42",
       "date": "2026-11-19",

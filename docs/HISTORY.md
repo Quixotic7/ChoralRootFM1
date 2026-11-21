@@ -8764,3 +8764,23 @@ SHA256SUMS. `tests/releases_test.py` skips an SMK tag with `-beta` that is not l
 build installed by hand from claude/smk-ble: the SMK page has no beta switch, so listing it would offer it to every
 owner; the owner's choice). FM-1: XIP 2164 B spare. `CR_VERSION=0.42 sh tests/run_all.sh`.
 
+
+3y315. **The Ableton Move takeover (RemoteFM1 tk1), proposals 4 .. 7.** The owner's notes from the Move, 2026-11-20,
+built in the .rfm1 only (`firmware/src/cr_move.c`, included by tools/emu/emu_fw.c with FM1_HOST_TK; the FM-1 and
+SMK-37 images are unchanged, XIP 2164 B spare as in 0.42): proposal 3's screens in AF_CRB cut to one bit; the FM-1's
+buttons on Shift + the pads of columns 1-2 (tap on / off, held their settings); Shift + steps by the Move's own icons
+(slots, Settings, count-in, tempo, metronome, groove, EDIT / MEMORY, key and scale, fixed velocity, Perform, the next
+slot, double loop, quantize); a Settings list as RemoteFM1's (the pads' velocity, the loop's rows, the FM-1's Options
+that apply); the clipboard as RemoteFM14Move's sequencer (Copy / Delete held + steps, the copy / cut screen); a held
+step previewed with its root and chord keys lit; Iso and Iso Key; the sound editor on the memory pads; Back home from
+anywhere; knob acceleration. Two shared hooks, off on the units: `cr_out.c cr_tk_clock` (the takeover shown: the clock
+and the loop's start / stop go out, RemoteFM1's sequencer follows) and `cr_loop.c crl_swing` (the loop's swing, set
+from the Move only). The takeover test (FM1VST tools/rfm1/rfm1_cr_tk_test.py) runs 135 checks.
+
+3y316. **0.43 and 0.43-smk37: ChoralRoot on the Ableton Move (3y315).** The owner, through the RemoteFM14Move session:
+"Please release both the latest RemoteFM14Move updates and ChoralRoot with the takeover support." docs/releases/0.43.md;
+web/releases.json's 0.43 first (sha256 200939f2...3ef9, 1-core e88607be...ac8d) and 0.42's going-back note (the FM-1
+plays the same); web/releases-smk37.json's 0.43-smk37 (Pro a7268c17...b124 / 006d51ab...a427, Elite e2e7fd8a...d45ed722 /
+add19710...4b69, MKE-P37 b851e6d3...f88a / de32aa8a...cc03b); MANUAL.md's first line; the dev version 0.43; SMK37.md
+for 0.43-smk37; the owner's backlog (Perform on the bass, altered extensions, Songs) moved into HANDOFF's open items.
+`CR_VERSION=0.43 sh tests/run_all.sh`.
