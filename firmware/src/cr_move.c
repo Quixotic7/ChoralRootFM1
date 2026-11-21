@@ -138,6 +138,7 @@ static struct {
     char wheel_t[16], wheel_v[24];                 /* the wheel's popup (the sound, the engine, the favourite) */
     uint32_t wheel_until;
     uint8_t wheel_touch;
+    int8_t wheel_k;                                /* the wheel's screen: 0 / 1 the chord preset / engine, 2 / 3 the bass's, -1 a message */
     /* the last chord played (the steps' quick entry): the engine's (cr.last_chord) unless a memory was played since */
     cr_chord_t lc_shadow;
     int8_t lc_mem;                                 /* the memory played last (0..63) while lc_shadow is current */
@@ -176,6 +177,12 @@ static void cmv_say(const char *t)                /* (printable ASCII only: the 
 
 /* ---------------------------------------------------------------- text --- */
 static void cmv_cpy(char *d, const char *s, uint32_t n) { cu_cpy(d, s, n); }
+static int cmv_same(const char *a, const char *b)
+{
+    while (*a && *a == *b)
+        a++, b++;
+    return *a == *b;
+}
 static void cmv_cat(char *d, const char *s, uint32_t n) { cu_cat(d, s, n); }
 static void cmv_int(char *d, int32_t v, int plus, uint32_t n) { cu_int(d, v, plus, n); }
 static void cmv_upper(char *s)
@@ -359,6 +366,128 @@ static void px_header(const char *left, const char *right)
     px_text(1, 1, left, 2, 0);
     if (right && *right)
         px_text(127 - px_tw(right, 2), 1, right, 2, 0);
+}
+static void px_lbl(int x, int y, const char *s) { px_text(x, y, s, 2, 1); }
+static void px_rlbl(int y, const char *s) { px_text(127 - px_tw(s, 2), y, s, px_tw(s, 2) <= 127 ? 2 : 1, 1); }
+static void px_clbl(int y, const char *s) { px_ctext(64, y, s, px_fit(s, 2), 1); }
+static void px_tag(int x, int w, const char *s)    /* an inverted tag at the top: LK, on, Bass */
+{
+    px_rect(x, 0, w, 14, 1);
+    px_text(x + (w - px_tw(s, 2)) / 2, 0, s, 2, 0);
+}
+
+/* big text (proposal 3's screens): ChoralRoot's bold, the FM-1's own (AF_CRB: Inter Tight 700, cr_gfx.c), scaled to a
+ * cap height and cut to one bit (a pixel lit when its four samples average half covered) */
+static uint32_t bt_ch(char ch)
+{
+    uint32_t c = (unsigned char)ch;
+    if (glyph_at(&AF_CRB, c) >= 0)
+        return c;
+    return c == 0xB0u ? 'o' : c == 0xB7u ? '-' : c;
+}
+static int32_t bt_cap(const aag_t **gh)            /* the cap height of AF_CRB in px ('H'), its glyph */
+{
+    *gh = cr_glyph_of(&AF_CRB, 'H');
+    return (*gh)->bh ? (*gh)->bh : 28;
+}
+static int bt_w(const char *s, int h)              /* s's advance at cap height h */
+{
+    const aag_t *gh;
+    int32_t cap = bt_cap(&gh), pen = 0;
+    uint32_t prev = 0;
+    for (; *s; s++) {
+        uint32_t c = bt_ch(*s);
+        if (prev)
+            pen += kern(&AF_CRB, prev, c);
+        pen += cr_glyph_of(&AF_CRB, c)->adv;
+        prev = c;
+    }
+    return (int)((pen * h + 8 * cap) / (16 * cap));
+}
+static int bt(int x, int y, const char *s, int h, int v)   /* the caps' top at y; returns the pen at the end */
+{
+    const aafont_t *f = &AF_CRB;
+    const aag_t *gh;
+    int32_t cap = bt_cap(&gh), pen = 0;
+    uint32_t prev = 0;
+    for (; *s; s++) {
+        uint32_t c = bt_ch(*s);
+        const aag_t *g;
+        if (prev)
+            pen += kern(f, prev, c);
+        g = cr_glyph_of(f, c);
+        if (g->bw && cr_decode(f, g)) {
+            int32_t gx = x + (pen + 16 * g->bx) * h / (16 * cap), gy = y + ((int32_t)g->by - gh->by) * h / cap;
+            int32_t dw = (g->bw * h + cap - 1) / cap, dh = (g->bh * h + cap - 1) / cap, i, j, a, b;
+            for (j = 0; j < dh; j++)
+                for (i = 0; i < dw; i++) {
+                    uint32_t sum = 0;
+                    for (b = 1; b < 4; b += 2)
+                        for (a = 1; a < 4; a += 2) {
+                            int32_t su = (4 * i + a) * cap / (4 * h), sv = (4 * j + b) * cap / (4 * h);
+                            if (su < g->bw && sv < g->bh)
+                                sum += cr_gbuf[sv * g->bw + su];
+                        }
+                    if (sum >= 30u)
+                        px_set(gx + i, gy + j, v);
+                }
+        }
+        pen += g->adv;
+        prev = c;
+    }
+    return x + (int)(pen * h / (16 * cap));
+}
+static int bt_fit(const char *s, int h, int w)     /* the largest cap height <= h at which s fits w px */
+{
+    while (h > 8 && bt_w(s, h) > w)
+        h--;
+    return h;
+}
+static void bt_c(int y, const char *s, int h)      /* centred, shrunk to fit (kept on the same middle) */
+{
+    int k = bt_fit(s, h, 126);
+    bt(64 - bt_w(s, k) / 2, y + (h - k) / 2, s, k, 1);
+}
+/* the FM-1's chord: the root big, the small part beside it at the foot, the extension raised (its width: chord_w) */
+static int bt_chord_w(const char *r, const char *q, const char *sup, int h)
+{
+    int w = bt_w(r, h);
+    if (q && *q)
+        w += 1 + bt_w(q, h * 55 / 100);
+    if (sup && *sup)
+        w += 2 + bt_w(sup, h * 42 / 100);
+    return w;
+}
+static void bt_chord(int x, int y, const char *r, const char *q, const char *sup, int h, int maxw)
+{
+    int e, h0 = h;
+    while (h > 10 && bt_chord_w(r, q, sup, h) > maxw)
+        h--;
+    y += h0 - h;                                   /* (shrunk: the foot stays) */
+    e = bt(x, y, r, h, 1);
+    if (q && *q)
+        e = bt(e + 1, y + h - h * 55 / 100, q, h * 55 / 100, 1);
+    if (sup && *sup)
+        bt(e + 2, y, sup, h * 42 / 100, 1);
+}
+static void px_dashes(uint32_t n, uint32_t cur, int y, int w, int gap)   /* which of n: a box each, the one filled */
+{
+    uint32_t i;
+    int x;
+    if (n < 2u || n > 24u)
+        return;
+    while (w > 2 && (int)n * w + ((int)n - 1) * gap > 124) {
+        w--;
+        if (gap > 2 && w < 8)
+            gap--;
+    }
+    x = 64 - ((int)n * w + ((int)n - 1) * gap) / 2;
+    for (i = 0; i < n; i++) {
+        if (i == cur)
+            px_rect(x + (int)i * (w + gap), y, w, 3, 1);
+        else
+            px_box(x + (int)i * (w + gap), y, w, 3, 1, 0);
+    }
 }
 
 /* ---------------------------------------------------------------- pads --- */
@@ -1761,6 +1890,7 @@ static void cmv_wheel_show(const char *t, const char *v)
     cmv_cpy(cmv.wheel_t, t, sizeof cmv.wheel_t);
     cmv_cpy(cmv.wheel_v, v, sizeof cmv.wheel_v);
     cmv.wheel_until = cmv_now() + CMV_POP_MS;
+    cmv.wheel_k = -1;
     cmv.pop_kind = -1;
     cmv.msg_until = 0;
     cmv_cpy(s, t, sizeof s);
@@ -1773,16 +1903,19 @@ static void cmv_wheel_sound(void)                  /* what the wheel turns: the 
     char nm[13];
     if (cmv.wheel_eng) {
         cmv_wheel_show("Engine", ENGINES[trk[CR_PART_CHORD].eng_req % NENGINES]->name);
+        cmv.wheel_k = 1;
         return;
     }
     pool_name(trk[CR_PART_CHORD].eng_req % NENGINES, cs.sound, nm);
     cmv_wheel_show(ENGINES[trk[CR_PART_CHORD].eng_req % NENGINES]->name, nm);
+    cmv.wheel_k = 0;
 }
 static void cmv_wheel_bass(void)                   /* .. Shift: the bass's */
 {
     char nm[13];
     if (cmv.wheel_beng) {
         cmv_wheel_show("Bass engine", ENGINES[trk[CR_PART_BASS].eng_req % NENGINES]->name);
+        cmv.wheel_k = 3;
         return;
     }
     if (!cs.bass_sound || !cs.bass_on)
@@ -1790,6 +1923,7 @@ static void cmv_wheel_bass(void)                   /* .. Shift: the bass's */
     else
         pool_name(trk[CR_PART_BASS].eng_req % NENGINES, cs.bass_sound - 1u, nm);
     cmv_wheel_show("Bass", nm);
+    cmv.wheel_k = 2;
 }
 static void cmv_button(uint32_t cc, int on)
 {
@@ -2061,83 +2195,114 @@ static void cmv_input(const uint8_t p[4])
 }
 
 /* ------------------------------------------------------------- the screen --- */
-static void cmv_key_str(char *d, uint32_t n)       /* the header's key: "C MAJ" (Key Mode off: "FREE") */
-{
-    char sc[12];
-    if (!cs.key_on) {
-        cmv_cpy(d, "FREE", n);
-        return;
-    }
-    cmv_cpy(d, CU_NOTE[cs.tonic % 12u], n);
-    cmv_cpy(sc, cr_scale_name(cs.scale), sizeof sc);
-    sc[3] = 0;
-    cmv_upper(sc);
-    cmv_cat(d, " ", n);
-    cmv_cat(d, sc, n);
-}
-static void cmv_scr_strip(int play)                /* the page's 16 steps: filled = a chord; the playhead under */
+static void cmv_scr_strip(int play)                /* the page's 16 steps at the foot: filled = a chord; the playhead tall */
 {
     uint32_t i, ns = cmv_nsteps();
     for (i = 0; i < 16u; i++) {
-        int x = 1 + (int)i * 8, s = (int)(cmv.page * 16u + i);
-        if (cmv_step_has(i))
-            px_rect(x, 52, 7, 7, 1);
-        else
-            px_box(x, 52, 7, 7, 1, (uint32_t)s >= ns);
+        int x = (int)i * 8, s = (int)(cmv.page * 16u + i);
         if (s == play)
-            px_rect(x, 61, 7, 3, 1);
+            px_rect(x, 50, 7, 14, 1);
+        else if (cmv_step_has(i))
+            px_rect(x, 55, 7, 7, 1);
+        else
+            px_box(x, 55, 7, 7, 1, (uint32_t)s >= ns);
     }
 }
-static void cmv_scr_name(const char *nm, int y)
+static void cmv_note_nm(uint8_t note, char nb[5])  /* a note's name without its octave */
 {
-    int k = px_fit(nm, 4);
-    px_text(1, y + (4 - k) * 3, nm, k, 1);
+    cr_note_name(note, nb);
+    nb[(nb[1] == '#' || nb[1] == 'b') ? 2 : 1] = 0;
 }
-static void cmv_scr_home(void)
+static void cmv_notes_str(char *d, uint32_t n, int maxw)   /* the chord's notes, double spaced when that fits */
 {
-    char key[12], right[8], nm[24];
     const cr_chord_info_t *ci = &cr_snap.ci;
-    cmv_key_str(key, sizeof key);
-    cmv_cpy(right, cu.clock ? "LK S" : "SEQ ", sizeof right);   /* (LOCK on: "LK S1") */
-    cmv_int(right + 4, cs.loop_slot + 1, 0, 4);
-    px_header(key, right);
-    if (ci->valid)
-        cmv_chord_str(nm, sizeof nm, ci->root, ci->qual, ci->sup);
-    else
-        cmv_cpy(nm, "-", sizeof nm);
-    cmv_scr_name(nm, 19);
-    {
-        int ph = cmv_playhead();
-        cmv_scr_strip(ph >= 0 && (uint32_t)ph / 16u == cmv.page ? ph : -1);
+    uint32_t i, k = ci->nnotes > 8u ? 8u : ci->nnotes;
+    int sp;
+    for (sp = 2; sp >= 1; sp--) {
+        d[0] = 0;
+        for (i = 0; i < k; i++) {
+            char nb[5];
+            cmv_note_nm(ci->notes[i], nb);
+            if (i)
+                cmv_cat(d, sp == 2 ? "  " : " ", n);
+            cmv_cat(d, nb, n);
+        }
+        if (px_tw(d, 2) <= maxw)
+            return;
     }
+}
+/* the chord sounding big at (x, y), cap height h, its notes under it at y 50; none: a dash */
+static void cmv_scr_chord(int x, int y, int h, int notes)
+{
+    const cr_chord_info_t *ci = &cr_snap.ci;
+    char nt[40];
+    if (!ci->valid) {
+        px_rect(52, 28, 24, 5, 1);
+        return;
+    }
+    bt_chord(x, y, ci->root, ci->qual, ci->sup, h, 127 - x);
+    if (notes) {
+        cmv_notes_str(nt, sizeof nt, 127 - x);
+        px_text(x, 50, nt, px_tw(nt, 2) <= 127 - x ? 2 : 1, 1);
+    }
+}
+static void cmv_scr_home(void)                     /* proposal 3: the chord and its notes, little else */
+{
+    const int ph = cmv_playhead();
+    if (ph >= 0) {                                 /* the loop playing: slot top left, step top right, the steps */
+        char t[8];
+        cmv_int(t, cs.loop_slot + 1, 0, sizeof t);
+        px_lbl(0, 0, t);
+        cmv_int(t, ph + 1, 0, sizeof t);
+        if (!cu.clock)
+            px_rlbl(0, t);
+        if (cr_snap.ci.valid)
+            bt_chord(30, 4, cr_snap.ci.root, cr_snap.ci.qual, cr_snap.ci.sup, 32, 97);
+        else
+            px_rect(52, 24, 24, 5, 1);
+        cmv_scr_strip((uint32_t)ph / 16u == cmv.page ? ph : -1);
+    } else if (cmv.mem_down && cmv.lc_mem >= 0) { /* a memory played: its number top left */
+        char t[8] = "M";
+        cmv_int(t + 1, cmv.lc_mem + 1, 0, sizeof t - 1u);
+        px_lbl(0, 0, t);
+        cmv_scr_chord(30, 15, 32, 1);
+    } else if (cmv.layout == CMV_ISO) {
+        px_lbl(0, 0, "Iso");
+        cmv_scr_chord(30, 15, 32, 1);
+    } else if (cs.key_on) {                        /* Key Mode: the key top left */
+        char t[12] = "Key ";
+        cmv_cat(t, CU_NOTE[cs.tonic % 12u], sizeof t);
+        px_lbl(0, 0, t);
+        cmv_scr_chord(30, 15, 32, 1);
+    } else
+        cmv_scr_chord(4, 6, 34, 1);
+    if (cu.clock)                                  /* LOCK on: a lit LK tag */
+        px_tag(98, 30, "LK");
 }
 static void cmv_scr_arp(void)                      /* an arpeggio running: the notes, the one sounding on a block */
 {
-    char key[12], nm[24], rt[8];
+    char rt[8];
     const cr_chord_info_t *ci = &cr_snap.ci;
     uint32_t i, n = ci->nnotes > 8u ? 8u : ci->nnotes;
-    cmv_key_str(key, sizeof key);
-    px_header(key, "ARP");
-    cmv_chord_str(nm, sizeof nm, ci->root, ci->qual, ci->sup);
-    px_text(1, 19, nm, px_tw(nm, 3) <= 90 ? 3 : 2, 1);
+    int step = n > 4u ? 128 / (int)n : 32, bw = n > 4u ? step - 2 : 22;
     cmv_cpy(rt, CU_DIV[cs.par[CR_PM_ARP][CR_P_DIV] % CR_DIV_COUNT], sizeof rt);
-    px_text(127 - px_tw(rt, 2), 19, rt, 2, 1);
+    px_rlbl(0, rt);
+    bt_chord(2, 2, ci->root, ci->qual, ci->sup, 20, 124 - px_tw(rt, 2));
     for (i = 0; i < n; i++) {
         char nb[5];
-        int x = 10 + (int)(i * (120u / (n ? n : 1u)));   /* (four notes: 10 40 70 100, as the design) */
-        cr_note_name(ci->notes[i], nb);
-        nb[(nb[1] == '#') ? 2 : 1] = 0;            /* (the name without the octave) */
+        int x = 4 + (int)i * step;                 /* (four notes: 4 36 68 100, as the design) */
+        cmv_note_nm(ci->notes[i], nb);
         if ((int)i == cr_snap.perf_pos) {
-            px_rect(x - 4, 38, 22, 22, 1);
-            px_text(x + 2, 42, nb, 2, 0);
+            px_rect(x - 4, 34, bw, 22, 1);
+            px_text(x + 2, 38, nb, 2, 0);
         } else
-            px_text(x + 2, 50, nb, 2, 1);
+            px_text(x + 2, 44, nb, 2, 1);
     }
     px_rect(0, 61, 128, 1, 1);
 }
 static void cmv_scr_prog(void)                     /* the Prog layout: the progression's 16 chords of the page */
 {
-    char nm[CRPG_NAME + 1], right[8], cn[24];
+    char nm[CRPG_NAME + 1], right[12], nb[8];
     uint32_t i, maxc;
     int last = cmv.prog_last;
     crp_name(cs.prog_sel, nm);
@@ -2145,15 +2310,26 @@ static void cmv_scr_prog(void)                     /* the Prog layout: the progr
         cmv_cpy(nm, "PROG ", sizeof nm);
         cmv_int(nm + 5, cs.prog_sel + 1, 0, 4);
     }
-    cmv_upper(nm);
-    right[0] = 0;
-    if (last >= 0)
-        cmv_int(right, last + 1, 0, sizeof right);
-    maxc = (uint32_t)(127 - px_tw(right, 2) - 4 + 2) / 12u;
+    maxc = 10u;                                    /* (the name top left, 2x: ten characters) */
     if (maxc < sizeof nm && nm[maxc])
         nm[maxc] = 0;
-    px_header(nm, right);
-    cn[0] = 0;
+    px_lbl(0, 0, nm);
+    right[0] = 0;
+    if (last >= 0) {                               /* chord k of n (the progression's chords in order) */
+        uint8_t nt[CRPG_NOTES];
+        uint32_t k = 0, n = 0;
+        for (i = 0; i < 48u; i++)
+            if (crp_chord(cs.prog_sel, i, nt)) {
+                n++;
+                if ((int)i <= last)
+                    k = n;
+            }
+        cmv_int(right, (int32_t)k, 0, sizeof right);
+        cmv_cat(right, "/", sizeof right);
+        cmv_int(nb, (int32_t)n, 0, sizeof nb);
+        cmv_cat(right, nb, sizeof right);
+    }
+    px_rlbl(50, right);
     if (last >= 0) {
         uint8_t nt[CRPG_NOTES];
         uint32_t k = crp_chord(cs.prog_sel, (uint32_t)last, nt), j;
@@ -2169,82 +2345,73 @@ static void cmv_scr_prog(void)                     /* the Prog layout: the progr
         }
         if (k) {
             cr_chord_recognise(nt, (int)k, r, q, sup);
-            cmv_chord_str(cn, sizeof cn, r, q, sup);
+            bt_chord(4, 18, r, q, sup, 30, 122);
+            return;
         }
     }
-    if (!cn[0])
-        cmv_cpy(cn, "-", sizeof cn);
-    cmv_scr_name(cn, 19);
-    for (i = 0; i < 16u; i++) {
-        uint8_t nt[CRPG_NOTES];
-        uint32_t key = cmv.prog_page * 16u + i;
-        int x = 1 + (int)i * 8;
-        if (crp_chord(cs.prog_sel, key, nt))
-            px_rect(x, 52, 7, 7, 1);
-        else
-            px_box(x, 52, 7, 7, 1, 1);
-        if ((int)key == last)
-            px_rect(x, 61, 7, 3, 1);
-    }
+    px_rect(52, 30, 24, 5, 1);
 }
-static void cmv_scr_slots(void)                    /* Shift held: the loop slots, the page */
+static void cmv_scr_slots(void)                    /* Loop held: the ten slots (filled: a loop), the slot big, the tempo */
 {
-    char pg[8];
+    char t[16];
     uint32_t i;
-    cmv_cpy(pg, "PG ", sizeof pg);
-    cmv_int(pg + 3, cmv.page + 1, 0, 4);
-    px_header("SLOTS", pg);
     for (i = 0; i < CRL_SLOTS; i++) {
-        char t[4];
-        int x = 1 + (int)(i % 5u) * 25, y = 20 + (int)(i / 5u) * 22;
+        int x = (int)i * 13;
         int full = (int)(((cs.loop_used >> i) & 1u) || (i == cs.loop_slot && cr_snap.llen));
-        cmv_int(t, (int32_t)i + 1, 0, sizeof t);
-        if (i == cs.loop_slot) {
-            px_rect(x, y, 24, 20, 1);
-            px_ctext(x + 12, y + 3, t, 2, 0);
-        } else {
-            px_box(x, y, 24, 20, 1, !full);
-            px_ctext(x + 12, y + 3, t, 2, 1);
-        }
+        if (i == cs.loop_slot)
+            px_rect(x, 0, 11, 11, 1);
+        else if (full) {
+            px_box(x, 0, 11, 11, 1, 0);
+            px_rect(x + 3, 3, 5, 5, 1);
+        } else
+            px_box(x, 0, 11, 11, 1, 1);
     }
+    cmv_cpy(t, "Loop ", sizeof t);
+    cmv_int(t + 5, cs.loop_slot + 1, 0, sizeof t - 5u);
+    bt_c(18, t, 22);
+    cmv_int(t, (int32_t)cs.bpm, 0, sizeof t);
+    cmv_cat(t, " bpm", sizeof t);
+    px_clbl(50, t);
 }
-static void cmv_scr_layout(void)                   /* Menu held: the picker */
+static void cmv_scr_layout(void)                   /* Menu held: the layout big, a dash each, the bank top right */
 {
-    char bk[8], pv[16];
-    cmv_cpy(bk, "BK ", sizeof bk);
-    cmv_int(bk + 3, cmv.bank + 1, 0, 4);
-    px_header("LAYOUT", bk);
-    px_ctext(64, 19, CMV_LAYOUT[cmv.layout], 4, 1);
-    cmv_cpy(pv, "prev ", sizeof pv);
-    cmv_cat(pv, CMV_LAYOUT[cmv.prev], sizeof pv);
-    px_text(1, 50, pv, 2, 1);
+    static const char *const NM[CMV_NLAYOUT] = {"Keys", "Scale", "Chrom", "Prog", "Iso"};
+    char bk[8] = "B";
+    cmv_int(bk + 1, cmv.bank + 1, 0, sizeof bk - 1u);
+    px_rlbl(0, bk);
+    bt_c(16, NM[cmv.layout % CMV_NLAYOUT], 30);
+    px_dashes(CMV_NLAYOUT, cmv.layout, 58, 18, 6);
 }
-static void cmv_scr_step(void)                     /* a step held: its chord, its length and chance */
+static void cmv_scr_step(void)                     /* a step held: its chord; ratchet, length, chance when not the default */
 {
-    char t[12], rt[8], nm[24], ln[16], ch[8];
-    cmv_cpy(t, "STEP ", sizeof t);
+    char t[12], ln[16];
+    cmv_cpy(t, "Step ", sizeof t);
     cmv_int(t + 5, cmv.step + 1, 0, 6);
-    cmv_cpy(rt, cu_le.cnt ? CU_LE_RAT[cu_le.rat <= 0 ? 0 : cu_le.rat & 3] : "", sizeof rt);
-    if (cu_le.cnt && cu_le.rat <= 0)
-        cmv_cpy(rt, "x1", sizeof rt);
-    px_header(t, rt);
+    px_lbl(0, 0, t);
     if (cu_le.cnt) {
         char r[4], q[5], sup[CR_SUP_MAX];
+        int32_t pct = CRL_CHANCE_PCT(cu_le.chance < 0 ? 0 : cu_le.chance);
         cu_ev_name(cu_le.root, cu_le.qx, r, q, sup);
-        cmv_chord_str(nm, sizeof nm, r, q, sup);
-        cmv_scr_name(nm, 19);
-        cmv_cpy(ln, "len ", sizeof ln);
-        if (cu_le.nf)
-            cmv_cat(ln, CU_LE_FRAC[cu_le.nf & 3u], sizeof ln);
-        else
-            cmv_int(ln + 4, cu_le.n, 0, sizeof ln - 4u);
-        px_text(1, 50, ln, 2, 1);
-        cmv_int(ch, CRL_CHANCE_PCT(cu_le.chance < 0 ? 0 : cu_le.chance), 0, sizeof ch);
-        cmv_cat(ch, "%", sizeof ch);
-        px_text(127 - px_tw(ch, 2), 50, ch, 2, 1);
+        if (cu_le.rat > 0)
+            px_rlbl(0, CU_LE_RAT[cu_le.rat % (int)CRL_NRATCH]);
+        bt_chord(4, 18, r, q, sup, 28, 122);
+        if (cu_le.nf || cu_le.n != 1) {
+            if (cu_le.nf)
+                cmv_cpy(ln, CU_LE_FRAC[cu_le.nf & 3u], sizeof ln);
+            else {
+                cmv_int(ln, cu_le.n, 0, sizeof ln);
+                cmv_cat(ln, " st", sizeof ln);
+            }
+            px_lbl(0, 50, ln);
+        }
+        if (pct != 100) {
+            cmv_int(ln, pct, 0, sizeof ln);
+            cmv_cat(ln, "%", sizeof ln);
+            px_rlbl(50, ln);
+        }
     } else {
-        cmv_scr_name("-", 19);
-        px_text(1, 50, "empty", 2, 1);
+        px_rect(52, 28, 24, 5, 1);
+        px_clbl(50, "play chord");
     }
 }
 static void cmv_scr_shortcuts(void)                /* Shift held: the FM-1's buttons on the steps, inverted = on */
@@ -2259,66 +2426,124 @@ static void cmv_scr_shortcuts(void)                /* Shift held: the FM-1's but
             px_text(x + 1, y + 1, CMV_SC[i], 2, 1);
     }
 }
-static void cmv_scr_dots(uint32_t at, uint32_t of)  /* which page of how many: a dash each, the one shown thick */
-{
-    uint32_t i;
-    int x0;
-    if (of < 2u || of > 16u)
-        return;
-    x0 = 64 - (int)of * 4;
-    for (i = 0; i < of; i++)
-        px_rect(x0 + (int)i * 8, i == at ? 58 : 60, 6, i == at ? 5 : 1, 1);
-}
-static void cmv_scr_layer(void)                    /* a settings layer: its name, on / off, the page big */
+static void cmv_scr_layer(void)                    /* a settings layer: its name, on / off, the page big, a dash each */
 {
     char pg[24];
     uint32_t l = cmv_layer(), at, of;
     cmv_layer_page(pg, sizeof pg, &at, &of);
-    px_header(cmv_layer_name(l), cmv_layer_on(l) ? "on" : "off");
-    cmv_scr_name(pg, 19);
-    cmv_scr_dots(at, of);
+    px_lbl(0, 0, cmv_layer_name(l));
+    if (cmv_layer_on(l))
+        px_tag(98, 30, "on");
+    else
+        px_rlbl(0, "off");
+    bt_c(18, pg, 30);
+    px_dashes(of, at, 58, of <= 4u ? 18 : 10, of <= 4u ? 6 : 4);
 }
-static void cmv_scr_edit(void)                     /* the editor: the engine, the group big, the sound */
+static void cmv_scr_edit(void)                     /* the editor: the engine, the group big, the screen */
 {
     const cr_screen_t *s = cmv_lscreen();
     const uint32_t p = ce.part & 1u;
     char nm[24];
     cmv_cpy(nm, p ? "B." : "", sizeof nm);
     cmv_cat(nm, ENGINES[trk[p ? CR_PART_BASS : CR_PART_CHORD].eng_req % NENGINES]->name, sizeof nm);
-    px_header(nm, s->page);
-    cmv_scr_name(CE_SEC_NAME[cx.grp[p] % CE_NSEC], 19);
-    cmv_cpy(nm, psnd[p].name, sizeof nm);
-    px_text(1, 50, nm, 2, 1);
+    px_lbl(0, 0, nm);
+    bt_c(16, CE_SEC_NAME[cx.grp[p] % CE_NSEC], 30);
+    px_clbl(50, s->page);
 }
 static void cmv_scr_opts(void)                     /* the Options: the group or entry big, the entry's value */
 {
     const cr_screen_t *s = cmv_lscreen();
-    char nm[24];
-    px_header("OPTIONS", cu.opt_in ? CU_G_NAME[cu.opt_g] : "");
-    cmv_cpy(nm, s->n_items ? s->item[(uint32_t)(s->sel - s->item0) % CR_PICK_MAX] : "-", sizeof nm);
-    cmv_scr_name(nm, 19);
-    px_ctext(64, 50, s->value, px_fit(s->value, 2), 1);
+    px_lbl(0, 0, cu.opt_in ? CU_G_NAME[cu.opt_g] : "Options");
+    bt_c(18, s->n_items ? s->item[(uint32_t)(s->sel - s->item0) % CR_PICK_MAX] : "-", 22);
+    px_clbl(50, s->value);
 }
-static void cmv_scr_popup(const char *title, const char *value, int32_t pct)   /* full screen: the name, the value */
+static void cmv_scr_popup(const char *title, const char *value, int32_t pct)   /* full screen: the name, the value big */
 {
-    px_ctext(64, 2, title, px_fit(title, 2), 1);
-    {
-        int k = px_fit(value, 4);
-        px_ctext(64, 24 + (4 - k) * 3, value, k, 1);
-    }
+    px_clbl(0, title);
+    bt_c(18, value, 30);
     if (pct >= 0) {
-        px_box(8, 58, 112, 5, 1, 0);
-        px_rect(9, 59, (int)(110 * (pct > 1000 ? 1000 : pct) / 1000), 3, 1);
+        px_box(10, 58, 108, 5, 1, 0);
+        px_rect(11, 59, (int)(106 * (pct > 1000 ? 1000 : pct) / 1000), 3, 1);
     }
 }
-static void cmv_scr_saved(void)
+static void cmv_scr_voicing(const char *v)         /* Voicing turned: the revoiced chord, its notes, the voicing */
 {
-    char t[16];
-    cmv_cpy(t, "Memory ", sizeof t);
-    cmv_int(t + 7, cmv.saved_n, 0, 4);
-    px_ctext(64, 0, t, 2, 1);
-    px_ctext(64, 17 + (4 - px_fit(cmv.saved_name, 4)) * 3, cmv.saved_name, px_fit(cmv.saved_name, 4), 1);
-    px_ctext(64, 50, "saved", 2, 1);
+    const cr_chord_info_t *ci = &cr_snap.ci;
+    char t[40];
+    bt_chord(4, 2, ci->root, ci->qual, ci->sup, 26, 122);
+    cmv_notes_str(t, sizeof t, 123);
+    px_lbl(4, 36, t);
+    cmv_cpy(t, "voicing ", sizeof t);
+    cmv_cat(t, v, sizeof t);
+    px_lbl(4, 50, t);
+}
+static void cmv_scr_panic(void)                    /* PANIC: inverted */
+{
+    px_rect(0, 0, 128, 64, 1);
+    {
+        int h = bt_fit("PANIC", 22, 126);
+        bt(64 - bt_w("PANIC", h) / 2, 8, "PANIC", h, 0);
+    }
+    px_ctext(64, 48, "all off", 2, 0);
+}
+static void cmv_scr_wheel(void)                    /* the wheel's sound: the preset or the engine, the chord's or the bass's */
+{
+    const uint32_t bass = cmv.wheel_k >= 2, eng = (uint32_t)cmv.wheel_k & 1u;
+    const uint32_t e = trk[bass ? CR_PART_BASS : CR_PART_CHORD].eng_req % NENGINES;
+    char t[24], nm[13];
+    if (bass)
+        px_tag(0, 52, "Bass");
+    if (eng) {
+        uint32_t n = 0;
+        int32_t r = cu_engine_rank(e);
+        cu_engine_at(0, &n);
+        if (!bass)
+            px_lbl(0, 0, "Engine");
+        if (r >= 0 && n) {
+            cmv_int(t, r + 1, 0, sizeof t);
+            cmv_cat(t, "/", sizeof t);
+            cmv_int(nm, (int32_t)n, 0, sizeof nm);
+            cmv_cat(t, nm, sizeof t);
+            px_rlbl(0, t);
+            px_dashes(n, (uint32_t)r, 58, 12, 4);
+        }
+        bt_c(20, ENGINES[e]->name, 20);
+        return;
+    }
+    if (bass) {
+        if (!cs.bass_sound || !cs.bass_on) {
+            bt_c(22, "Off", 20);
+            return;
+        }
+        pool_name(e, cs.bass_sound - 1u, nm);
+        cmv_cpy(t, ENGINES[e]->name, sizeof t);
+        cmv_cat(t, " ", sizeof t);
+        cmv_int(nm, cs.bass_sound, 0, 4);
+        cmv_cat(t, nm, sizeof t);
+        pool_name(e, cs.bass_sound - 1u, nm);
+        if (px_tw(t, 2) > 70)
+            cmv_int(t, cs.bass_sound, 0, 4);
+        px_rlbl(0, t);
+        bt_c(22, nm, 20);
+        return;
+    }
+    pool_name(e, cs.sound, nm);
+    px_lbl(0, 0, ENGINES[e]->name);
+    cmv_int(t, (int32_t)cs.sound + 1, 0, sizeof t);
+    px_rlbl(0, t);
+    bt_c(22, nm, 18);
+    px_clbl(50, cu_fav_part(0) ? "favourite" : "preset");
+}
+static void cmv_scr_saved(void)                    /* a memory saved: the chord, a lit block with its number */
+{
+    char t[8] = "M";
+    int h = bt_fit(cmv.saved_name, 32, 80), hb;
+    cmv_int(t + 1, cmv.saved_n, 0, sizeof t - 1u);
+    bt(2, 12 + (32 - h), cmv.saved_name, h, 1);
+    px_rect(84, 8, 44, 48, 1);
+    hb = bt_fit(t, 18, 40);
+    bt(106 - bt_w(t, hb) / 2, 14, t, hb, 0);
+    px_text(94, 40, "ok", 2, 0);
 }
 static void cmv_draw(void)
 {
@@ -2329,16 +2554,26 @@ static void cmv_draw(void)
     memset(cmv_px, 0, RFM1_TK_SCREEN_BYTES);
     if ((int32_t)(cmv.saved_until - now) > 0)
         cmv_scr_saved();
-    else if ((int32_t)(cmv.msg_until - now) > 0)
-        cmv_scr_popup(cmv.msg_t, cmv.msg_v, -1);
-    else if (cmv.pop_kind >= 0 && (cmv.pop_touch || (int32_t)(cmv.pop_until - now) > 0)) {
+    else if ((int32_t)(cmv.msg_until - now) > 0) {
+        if (cmv_same(cmv.msg_t, "PANIC"))
+            cmv_scr_panic();
+        else
+            cmv_scr_popup(cmv.msg_t, cmv.msg_v, -1);
+    } else if (cmv.pop_kind >= 0 && (cmv.pop_touch || (int32_t)(cmv.pop_until - now) > 0)) {
         char t[20], v[24];
         int32_t pct;
-        if (cmv_kv(cmv.pop_kind, t, sizeof t, v, sizeof v, &pct))
-            cmv_scr_popup(t, v, pct);
-    } else if (cmv.wheel_touch || (int32_t)(cmv.wheel_until - now) > 0)
-        cmv_scr_popup(cmv.wheel_t, cmv.wheel_v, -1);
-    else if (cmv.step >= 0)
+        if (cmv_kv(cmv.pop_kind, t, sizeof t, v, sizeof v, &pct)) {
+            if (cmv.pop_kind == K_VOIC && cr_snap.ci.valid && !cmv_layer() && !cmv_editing() && !cmv_opts())
+                cmv_scr_voicing(v);
+            else
+                cmv_scr_popup(t, v, pct);
+        }
+    } else if (cmv.wheel_touch || (int32_t)(cmv.wheel_until - now) > 0) {
+        if (cmv.wheel_k >= 0)
+            cmv_scr_wheel();
+        else
+            cmv_scr_popup(cmv.wheel_t, cmv.wheel_v, -1);
+    } else if (cmv.step >= 0)
         cmv_scr_step();
     else if (cmv.menu && (cmv.menu_used || now - cmv.menu_t0 >= CMV_HOLD_MS))
         cmv_scr_layout();
