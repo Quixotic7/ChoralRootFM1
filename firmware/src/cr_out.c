@@ -865,6 +865,8 @@ static __attribute__((noinline)) void cr_mlost(void)
     cr_mkq_allup = 1;
 }
 
+static uint8_t cr_tk_clock;                       /* the Move takeover shown (cr_move.c): the clock goes out as
+                                                   * Options > MIDI Clock: OUT, the setting untouched */
 static void cr_midi_in(void)
 {
     uint32_t w = mi_w;
@@ -891,7 +893,7 @@ static void cr_midi_in(void)
         mi_r++;
         if (status >= 0xF8u) {
             if (!cr_cin_mode) {
-                if (cr_route.clock_out && (status == 0xFAu || status == 0xFBu || status == 0xFCu))
+                if ((cr_route.clock_out || cr_tk_clock) && (status == 0xFAu || status == 0xFBu || status == 0xFCu))
                     cr_in_transport(status);     /* (Out: start / stop only; the pulses stay ours) */
             } else if (status == 0xF8u) {
                 int b;
@@ -996,7 +998,7 @@ static void cr_audio_block(uint32_t n)
         crl_stage_busy = 0;
     if ((crl.state == CRL_PLAYING) != cr_rt_was) {
         cr_rt_was = crl.state == CRL_PLAYING;
-        if (cr_route.clock_out && !cr_route.clock_in) {   /* USB MIDI CIN 0x0F: a single-byte system real-time message */
+        if ((cr_route.clock_out || cr_tk_clock) && !cr_route.clock_in) {   /* USB MIDI CIN 0x0F: a single-byte system real-time message */
             if (cr_rt_was)
                 cr_clk_acc = 0;                  /* the pulses start with it */
             uint32_t echo = cr_rt_mute == 1u + cr_rt_was && (int32_t)(cr_now_ms - cr_rt_mute_until) < 0;
@@ -1008,7 +1010,7 @@ static void cr_audio_block(uint32_t n)
             }
         }
     }
-    if (cr_route.clock_out && !cr_route.clock_in) {   /* 24 PPQN: a pulse every FS * 60 / (bpm * 24) samples */
+    if ((cr_route.clock_out || cr_tk_clock) && !cr_route.clock_in) {   /* 24 PPQN: a pulse every FS * 60 / (bpm * 24) samples */
         cr_clk_acc += n * (uint32_t)cr_out_bpm * 24u;
         while (cr_clk_acc >= FS * 60u) {
             cr_clk_acc -= FS * 60u;

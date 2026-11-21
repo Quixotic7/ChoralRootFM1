@@ -171,13 +171,26 @@ static void crl_hide(cr_loop_t *lp, uint32_t i)    /* Replace: event i hidden by
     lp->gen++;
 }
 
+/* the loop's swing (the Move takeover's Loop settings, cr_move.c): 50 straight .. 75 %; an event on an even
+ * sixteenth's second half of the pair (a step's start at an odd step) plays later by 2 x (swing - 50) % of a step.
+ * Played only: the events keep their places */
+static uint8_t crl_swing = 50u;
+static uint32_t crl_swung(const cr_loop_t *lp, uint32_t t)
+{
+    uint32_t u;
+    if (crl_swing <= 50u || t % (2u * CRL_STEP) != CRL_STEP)
+        return t;
+    u = t + 2u * CRL_STEP * (uint32_t)(crl_swing - 50u) / 100u;
+    return u < lp->d.len ? u : t;
+}
 static void crl_fire(cr_loop_t *lp, cr_t *c, uint32_t lo, uint32_t hi)   /* events at positions lo..hi */
 {
     uint32_t i;
     int hiding = lp->cap == CRL_CAP_OD && lp->rep && lp->rep_n;   /* Replace, a gesture held: what starts is erased */
     for (i = 0; i < lp->d.nev; i++) {
         const crl_ev_t *e = &lp->d.ev[i];
-        if ((e->layer & CRL_HID) || e->t < lo || e->t > hi) continue;
+        const uint32_t et = crl_swung(lp, e->t);
+        if ((e->layer & CRL_HID) || et < lo || et > hi) continue;
         if (hiding && i < lp->layer_ev0) crl_hide(lp, i);
         else crl_play_ev(lp, c, e, i, 0);
     }

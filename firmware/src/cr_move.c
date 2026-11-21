@@ -78,10 +78,15 @@ static const char *const CMV_KNAME[K_LAY0] = {
     "FX send", "Length", "Rate", "Quantize", "Count-in", "Level", "Beat", "Rec mode"};
 /* Shift + a step: the FM-1's buttons (proposal 4, C) */
 enum { SC_KEY, SC_LOCK, SC_LATCH, SC_PERF, SC_BPERF, SC_FX, SC_BASS, SC_BEAT, SC_N };   /* Shift + the pads of columns 7-8 */
-#define CMV_S_SET 1u                               /* Shift + S2: the Settings */
-#define CMV_S_EDIT 7u                              /* Shift + S8: the sound editor */
-static const char *const CMV_SC[SC_N] = {"KEY", "LOCK", "LATCH", "PERF", "B.PRF", "FX", "BASS", "BEAT"};
-static const char *const CMV_SC_SAY[SC_N] = {"Key", "Lock", "Latch", "Perform", "Bass perform", "FX", "Bass", "Beat"};
+/* Shift + a step (proposal 6, their icons lit while Shift is held): */
+enum { CMV_S_VEL, CMV_S_SET, CMV_S_SWG, CMV_S_QNT, CMV_S_RATE, CMV_S_STP, CMV_S_LOOP, CMV_S_EDIT, CMV_S_TAP,
+       CMV_S_RECM, CMV_S_CIN, CMV_S_MET, CMV_S_N };
+static const char *const CMV_SSAY[CMV_S_N] = {"Fixed velocity", "Settings", "Swing", "Quantize", "Loop rate", "Steps",
+                                             "Loop settings", "Sound editor", "Tap tempo", "Record mode", "Count-in",
+                                             "Metronome"};
+static const char *const CMV_SC[SC_N] = {"KEY", "LOCK", "LATCH", "PERF", "B.PRF", "FX", "BASS", "METRO"};
+static const char *const CMV_SC_SAY[SC_N] = {"Key", "Lock", "Latch", "Perform", "Bass perform", "FX", "Bass",
+                                             "Metronome"};
 /* the perform modes on the Perform knob: Off, then cr_ui.c CU_PERF's seven */
 static const char *const CMV_PERF[8] = {"Off", "Strum", "Strum 2", "Slop", "Arp", "Arp 2", "Pattern", "Harp"};
 
@@ -174,6 +179,8 @@ static struct {
     uint8_t step_prev;                             /* the step held has been previewed */
     uint64_t marks;                                /* the clipboard's steps (absolute), blinking: white copied, red cut */
     uint8_t mark_cut;
+    cr_chord_t mine;                               /* proposal 6: the last chord the player's own keys played (a key or a
+                                                    * memory held as it sounded): a step tapped gets it, not the loop's */
 } cmv ={.step = -1, .pop_kind = -1, .flash_pad = -1, .prog_last = -1, .lc_mem = -1, .prev = CMV_SCALE, .vfixed = 100};
 
 static uint32_t cmv_now(void) { return fm1_ms; }
@@ -681,7 +688,7 @@ static int cmv_last(cmv_mem_t *m)
 {
     cr_chord_t lc;
     fm1_irq_off();
-    lc = cr.last_chord;
+    lc = cmv.mine.used ? cmv.mine : cr.last_chord;
     fm1_irq_on();
     if (cmv.lc_mem >= 0 && lc.used == cmv.lc_shadow.used && lc.root == cmv.lc_shadow.root && lc.q == cmv.lc_shadow.q &&
         lc.x == cmv.lc_shadow.x && lc.vel == cmv.lc_shadow.vel) {
@@ -752,7 +759,8 @@ static void cmv_mem_clear(uint32_t j)
 #define CMV_STORE_OFF 0xF2000u
 #define CMV_STORE_MAGIC 0x564D5243u                /* "CRMV" */
 #define CMV_TAIL_LEN0 (8u + 7u * CMV_NMEM)            /* version 1 as first written */
-#define CMV_TAIL_LEN (CMV_TAIL_LEN0 + 2u)               /* + the pads' velocity mode, Fixed's level (proposal 5) */
+#define CMV_TAIL_LEN (CMV_TAIL_LEN0 + 3u)               /* + the pads' velocity mode, Fixed's level (proposal 5), the
+                                                         * loop's swing (proposal 6) */
 #define CMV_STORE_HDR 16u
 static uint32_t cmv_store_flash;                   /* the payload's hash in flash (0: none read or written) */
 static void cmv_tail_put(uint8_t *d)
@@ -768,7 +776,7 @@ static void cmv_tail_put(uint8_t *d)
         p[0] = m->used, p[1] = m->q, p[2] = m->x, p[3] = m->vel;
         p[4] = (uint8_t)m->root, p[5] = (uint8_t)((uint16_t)m->root >> 8), p[6] = (uint8_t)m->voic;
     }
-    p[0] = cmv.vmode, p[1] = cmv.vfixed;
+    p[0] = cmv.vmode, p[1] = cmv.vfixed, p[2] = crl_swing;
 }
 static void cmv_tail_get(const uint8_t *s, uint32_t n)
 {
@@ -780,6 +788,7 @@ static void cmv_tail_get(const uint8_t *s, uint32_t n)
     cmv.prev = CMV_SCALE;
     cmv.vmode = 0;
     cmv.vfixed = 100;
+    crl_swing = 50;
     if (s && n >= CMV_TAIL_LEN0 && s[0] == (uint8_t)CMV_STORE_MAGIC && s[1] == (uint8_t)(CMV_STORE_MAGIC >> 8) &&
         s[2] == (uint8_t)(CMV_STORE_MAGIC >> 16) && s[3] == (uint8_t)(CMV_STORE_MAGIC >> 24) && s[4] == 1u) {
         const uint8_t *p = s + 8;
@@ -792,10 +801,12 @@ static void cmv_tail_get(const uint8_t *s, uint32_t n)
             m->q = p[1], m->x = (uint8_t)(p[2] & 15u), m->vel = (uint8_t)(p[3] ? p[3] & 127u : 100u);
             m->root = (int16_t)(p[4] | p[5] << 8), m->voic = (int8_t)p[6];
         }
-        if (n >= CMV_TAIL_LEN) {
+        if (n >= CMV_TAIL_LEN0 + 2u) {
             cmv.vmode = (uint8_t)(p[0] < CMV_V_N ? p[0] : 0u);
             cmv.vfixed = (uint8_t)(p[1] >= 1u && p[1] <= 127u ? p[1] : 100u);
         }
+        if (n >= CMV_TAIL_LEN0 + 3u)
+            crl_swing = (uint8_t)(p[2] >= 50u && p[2] <= 75u ? p[2] : 50u);
     }
     if (cmv.layout == CMV_SCALE)                   /* (left in SCALE: Key Mode is the session's own) */
         cmv.layout = cmv.prev == CMV_SCALE ? CMV_KEYS : cmv.prev;
@@ -822,7 +833,7 @@ static void cmv_store_load(void)
         return;
     }
     n = (uint32_t)cmv_sbuf[4] | (uint32_t)cmv_sbuf[5] << 8;
-    if (cmv_rd32(cmv_sbuf) != CMV_STORE_MAGIC || (n != CMV_TAIL_LEN && n != CMV_TAIL_LEN0) ||
+    if (cmv_rd32(cmv_sbuf) != CMV_STORE_MAGIC || (n != CMV_TAIL_LEN && n != CMV_TAIL_LEN0 && n != CMV_TAIL_LEN0 + 2u) ||
         cmv_fnv(cmv_sbuf, CMV_STORE_HDR, CMV_STORE_HDR + n) != cmv_rd32(cmv_sbuf + 8)) {
         cmv_tail_get(0, 0);                        /* (none, or not whole: the defaults) */
         return;
@@ -1247,6 +1258,13 @@ static void cmv_layer_open(uint32_t l, uint32_t part)   /* cr_ui.c cu_opened, fo
     cmv_layer_say();
     cu_trace("move: settings %s\n", cmv_layer_name(l));
 }
+static void cmv_card(const char *t, const char *v)   /* a card for a moment, not said (the caller says it) */
+{
+    cmv_cpy(cmv.msg_t, t, sizeof cmv.msg_t);
+    cmv_cpy(cmv.msg_v, v, sizeof cmv.msg_v);
+    cmv.msg_until = cmv_now() + CMV_MSG_MS;
+    cmv.pop_kind = -1;
+}
 static void cmv_home(void)                         /* Back (proposal 5): home from anywhere, the knobs the home's again */
 {
     int was = cmv_opts() || cmv_layer() || cmv_editing() || cmv.set_open;
@@ -1260,8 +1278,10 @@ static void cmv_home(void)                         /* Back (proposal 5): home fr
         cu_close_all();
     if (cmv_layer())
         cu_layer_close();
-    if (cmv_editing())
+    if (cmv_editing()) {
         ce_close();
+        cmv_card("", "MEMORY");
+    }
     cu.opt_open = 0;
     cmv.wheel_eng = cmv.wheel_beng = 0;
     if (was)
@@ -1269,12 +1289,14 @@ static void cmv_home(void)                         /* Back (proposal 5): home fr
 }
 static const char *const CMV_GRP_SAY[CE_NSEC] = {"Oscillators", "Filter", "Envelopes", "LFO", "Modulation", "Effects",
                                                   "Mix"};
-static void cmv_edit_toggle(uint32_t part)         /* Shift + S8 (proposal 5): the sound editor; again: home */
+static void cmv_edit_toggle(uint32_t part)         /* Shift + S8: the sound editor (the top right's pads EDIT); again: the
+                                                    * memories (MEMORY, proposal 6) */
 {
     char s[64];
     if (cmv_editing()) {
         ce_close();
-        cmv_say("Home");
+        cmv_card("", "MEMORY");
+        cmv_say("Memories");
         return;
     }
     cmv.set_open = cmv.set_edit = 0;
@@ -1284,9 +1306,7 @@ static void cmv_edit_toggle(uint32_t part)         /* Shift + S8 (proposal 5): t
         cu_layer_close();
     cu_edit_open(part);
     cmv.pop_kind = -1;
-    cmv_cpy(cmv.msg_t, "Sound editor", sizeof cmv.msg_t);   /* a card for a moment: what the pads are now */
-    cmv_cpy(cmv.msg_v, ce.part ? "Bass" : "Chord", sizeof cmv.msg_v);
-    cmv.msg_until = cmv_now() + CMV_MSG_MS;
+    cmv_card(ce.part ? "Bass" : "Chord", "EDIT");   /* a card for a moment: what the pads are now */
     cmv_cpy(s, ce.part ? "Sound editor, bass, " : "Sound editor, chord, ", sizeof s);
     cmv_cat(s, CMV_GRP_SAY[cx.grp[ce.part & 1u] % CE_NSEC], sizeof s);
     cmv_say(s);
@@ -1714,6 +1734,7 @@ static void cmv_picker_pad(int r, int c)           /* Menu held: layouts, banks,
         cmv_cpy(s, "Progression ", sizeof s);
         cmv_int(v, (int32_t)p + 1, 0, sizeof v);
         cmv_cat(s, v, sizeof s);
+        cmv_card(s, nm[0] ? nm : (crp_count(p) ? "-" : "empty"));   /* (proposal 6: its name shown, over the picker) */
         if (nm[0]) {
             cmv_cat(s, ", ", sizeof s);
             cmv_cat(s, nm, sizeof s);
@@ -1733,23 +1754,55 @@ static uint32_t cmv_vel(uint32_t v)                /* a pad's velocity, as the S
     default: return v;
     }
 }
-/* Shift + S2: the Settings, a list as RemoteFM1's own (seq_ui.c's GLOBAL menu): the wheel the row, a click edits, the
- * wheel the value, a click (or Back) done. The pads' velocity (the Move's own), then the FM-1's Options that mean
- * something here, their values and limits the FM-1's (opt_get / opt_set / opt_text) */
+/* the lists (RemoteFM1's own Settings menu, seq_ui.c GLOBAL): the wheel the row, a click edits, the wheel the value,
+ * a click (or Back) done. Shift + S2 the Settings: the pads' velocity (the Move's own), then the FM-1's Options that
+ * mean something here (opt_get / opt_set / opt_text). Shift + S7 the Loop (the owner's "track settings", 2026-11-20):
+ * the loop's swing and steps, then the PLAY menu's own (cmv_kv / cmv_turn); Shift + S3..S6 jump into it, editing */
+enum { CMV_L_NONE, CMV_L_SET, CMV_L_LOOP };
 #define CMV_S_VMODE (-1)
 #define CMV_S_VFIX (-2)
-static const int8_t CMV_SETL[] = {CMV_S_VMODE, CMV_S_VFIX, O_STYLE, O_EXTADD, O_SECRET, O_SUSWIN, O_FULLSHORT, O_SIXTH,
-                                  O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CLOCK, O_MIDI_CC};
-#define CMV_SET_N ((uint32_t)sizeof CMV_SETL)
+#define CMV_S_SWING (-3)
+#define CMV_S_STEPS (-4)
+#define CMV_S_K 100                                /* + a knob kind: its name and value, its turn */
+static const int16_t CMV_SETL[] = {CMV_S_VMODE, CMV_S_VFIX, O_STYLE, O_EXTADD, O_SECRET, O_SUSWIN, O_FULLSHORT, O_SIXTH,
+                                   O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CLOCK, O_MIDI_CC};
+static const int16_t CMV_LOOPL[] = {CMV_S_SWING, CMV_S_K + K_L_QUANT, CMV_S_K + K_L_RATE, CMV_S_STEPS,
+                                    CMV_S_K + K_L_LEN, CMV_S_K + K_L_CIN, CMV_S_K + K_L_BEAT, CMV_S_K + K_L_LEVEL,
+                                    CMV_S_K + K_L_MODE, CMV_S_K + K_TEMPO};
+enum { CMV_LR_SWING, CMV_LR_QUANT, CMV_LR_RATE, CMV_LR_STEPS };   /* (the rows Shift + S3..S6 jump to) */
+static const int16_t *cmv_list(uint32_t *n)
+{
+    if (cmv.set_open == CMV_L_LOOP) {
+        *n = sizeof CMV_LOOPL / sizeof CMV_LOOPL[0];
+        return CMV_LOOPL;
+    }
+    *n = sizeof CMV_SETL / sizeof CMV_SETL[0];
+    return CMV_SETL;
+}
 static void cmv_set_row(uint32_t i, char *t, uint32_t tn, char *v, uint32_t vn)
 {
-    const int o = CMV_SETL[i % CMV_SET_N];
+    uint32_t n;
+    const int16_t *L = cmv_list(&n);
+    const int o = L[i % n];
+    int32_t pct;
     if (o == CMV_S_VMODE) {
         cmv_cpy(t, "Velocity", tn);
         cmv_cpy(v, CMV_VNAME[cmv.vmode % CMV_V_N], vn);
     } else if (o == CMV_S_VFIX) {
         cmv_cpy(t, "Fixed level", tn);
         cmv_int(v, cmv.vfixed, 0, vn);
+    } else if (o == CMV_S_SWING) {
+        cmv_cpy(t, "Swing", tn);
+        cmv_int(v, crl_swing, 0, vn);
+        cmv_cat(v, "%", vn);
+    } else if (o == CMV_S_STEPS) {
+        cmv_cpy(t, "Steps", tn);
+        cmv_int(v, (int32_t)cmv_nsteps(), 0, vn);
+    } else if (o >= CMV_S_K) {
+        if (!cmv_kv(o - CMV_S_K, t, tn, v, vn, &pct))
+            cmv_cpy(v, "-", vn);
+        if ((o - CMV_S_K) == K_L_BEAT)
+            cmv_cpy(t, "Metronome", tn);
     } else {
         cmv_cpy(t, O_NAME[o], tn);
         opt_text((uint32_t)o, v, vn);
@@ -1766,30 +1819,62 @@ static void cmv_set_say(const char *pre)
     cmv_cat(s, w, sizeof s);
     cmv_say(s);
 }
-static void cmv_set_turn(int32_t d)                /* the wheel in the Settings */
+static void cmv_steps_turn(int32_t d)              /* the loop's length in steps (a held step's Steps knob) */
 {
+    int opened = 0;
+    if (!cu.ledit) {
+        cu_ledit_open();
+        if (!cu.ledit) {
+            cmv_mirror_msg();
+            return;
+        }
+        opened = 1;
+    }
+    cu.le_page = 0;
+    cu.le_cell = 0;
+    cu_le.ok = 0;
+    cu_le_sync();
+    cu_ledit_knob(1, d);
+    cu_le.ok = 0;
+    cu_le_sync();
+    if (opened)
+        cu_ledit_close();
+    cmv.map_ok = 0;
+}
+static void cmv_set_turn(int32_t d)                /* the wheel in a list */
+{
+    uint32_t n;
+    const int16_t *L = cmv_list(&n);
     if (!cmv.set_edit) {
         int32_t r = (int32_t)cmv.set_sel + d;
-        cmv.set_sel = (uint8_t)(r < 0 ? 0 : r >= (int32_t)CMV_SET_N ? (int32_t)CMV_SET_N - 1 : r);
+        cmv.set_sel = (uint8_t)(r < 0 ? 0 : r >= (int32_t)n ? (int32_t)n - 1 : r);
         cmv_set_say("");
         return;
     }
     {
-        const int o = CMV_SETL[cmv.set_sel % CMV_SET_N];
+        const int o = L[cmv.set_sel % n];
         if (o == CMV_S_VMODE) {
             int32_t m = (int32_t)cmv.vmode + (d > 0 ? 1 : -1);
             cmv.vmode = (uint8_t)(m < 0 ? 0 : m >= CMV_V_N ? CMV_V_N - 1 : m);
         } else if (o == CMV_S_VFIX) {
             int32_t f = (int32_t)cmv.vfixed + d;
             cmv.vfixed = (uint8_t)(f < 1 ? 1 : f > 127 ? 127 : f);
-        } else
+        } else if (o == CMV_S_SWING) {
+            int32_t w = (int32_t)crl_swing + d;
+            crl_swing = (uint8_t)(w < 50 ? 50 : w > 75 ? 75 : w);
+        } else if (o == CMV_S_STEPS)
+            cmv_steps_turn(d);
+        else if (o >= CMV_S_K)
+            cmv_turn(o - CMV_S_K, d > 0 ? 1 : -1);
+        else
             opt_set((uint32_t)o, opt_get((uint32_t)o) + (d > 0 ? 1 : -1));   /* (applied at once: Back keeps it) */
         cmv_set_say("");
     }
 }
-static void cmv_set_toggle(void)                   /* Shift + S2 */
+static void cmv_list_open(uint32_t list, int row, int edit)   /* a list opened (row: -1 where it was); again: home */
 {
-    if (cmv.set_open) {
+    uint32_t n;
+    if (cmv.set_open == list && (row < 0 || cmv.set_sel == (uint32_t)row)) {
         cmv.set_open = cmv.set_edit = 0;
         cmv_say("Home");
         return;
@@ -1800,11 +1885,94 @@ static void cmv_set_toggle(void)                   /* Shift + S2 */
         cu_layer_close();
     if (cmv_editing())
         ce_close();
-    cmv.set_open = 1;
-    cmv.set_edit = 0;
+    if (cmv.set_open != list)
+        cmv.set_sel = 0;
+    cmv.set_open = (uint8_t)list;
+    cmv_list(&n);
+    if (row >= 0)
+        cmv.set_sel = (uint8_t)row;
+    if (cmv.set_sel >= n)
+        cmv.set_sel = 0;
+    cmv.set_edit = (uint8_t)(edit != 0);
     cmv.pop_kind = -1;
-    cmv.msg_until = 0;
-    cmv_set_say("Settings, ");
+    cmv.msg_until = cmv.wheel_until = 0;
+    cmv.wheel_touch = 0;
+    cmv_set_say(list == CMV_L_LOOP ? (edit ? "Loop, editing " : "Loop, ") : "Settings, ");
+}
+static void cmv_set_toggle(void) { cmv_list_open(CMV_L_SET, -1, 0); }   /* Shift + S2 */
+static void cmv_tap_tempo(void)                    /* Shift + S9: the tempo from the taps (two or more, 0.25 .. 2 s apart) */
+{
+    static uint32_t t[4];
+    static uint8_t n;
+    const uint32_t now = cmv_now();
+    char s[24], v[8];
+    if (n && now - t[(n - 1u) & 3u] > 2000u)
+        n = 0;
+    t[n & 3u] = now;
+    n++;
+    if (n >= 2u) {
+        const uint32_t k = n > 4u ? 4u : n, first = t[(n - k) & 3u], span = now - first;
+        const int32_t bpm = span ? (int32_t)(60000u * (k - 1u) / span) : 0;
+        if (bpm >= 20 && bpm <= 300 && !(cr_route.clock_in && crl.ext_on)) {
+            cu_set_tempo(bpm);
+            cmv_int(v, bpm, 0, sizeof v);
+            cmv_cpy(s, v, sizeof s);
+            cmv_cat(s, " bpm", sizeof s);
+            cmv_msg("Tempo", s);
+            return;
+        }
+    }
+    cmv_say("Tap");
+}
+static int cmv_sstep_on(uint32_t i)                /* a Shift + step's state: its step lit (dim: off) */
+{
+    switch (i) {
+    case CMV_S_VEL: return cmv.vmode == CMV_V_FIXED;
+    case CMV_S_SET: return cmv.set_open == CMV_L_SET;
+    case CMV_S_SWG: return crl_swing > 50u;
+    case CMV_S_QNT: return cs.loop_quant % CRL_NQUANT != 0u;
+    case CMV_S_RATE: return cmv.set_open == CMV_L_LOOP && cmv.set_sel == CMV_LR_RATE;
+    case CMV_S_STP: return cmv.set_open == CMV_L_LOOP && cmv.set_sel == CMV_LR_STEPS;
+    case CMV_S_LOOP: return cmv.set_open == CMV_L_LOOP;
+    case CMV_S_EDIT: return cmv_editing();
+    case CMV_S_RECM: return cs.loop_mode % CRL_NMODE != 0u;
+    case CMV_S_CIN: return cs.loop_count_in;
+    case CMV_S_MET: return cs.metro;
+    default: return 0;
+    }
+}
+static void cmv_shift_step(uint32_t i)             /* Shift + a step (proposal 6) */
+{
+    char s[40];
+    switch (i) {
+    case CMV_S_VEL:                                /* Fixed velocity on / off (its level: the Settings) */
+        cmv.vmode = (uint8_t)(cmv.vmode == CMV_V_FIXED ? CMV_V_DYN : CMV_V_FIXED);
+        cmv_say(cmv.vmode == CMV_V_FIXED ? "Fixed velocity, on" : "Fixed velocity, off");
+        return;
+    case CMV_S_SET: cmv_set_toggle(); return;
+    case CMV_S_SWG: cmv_list_open(CMV_L_LOOP, CMV_LR_SWING, 1); return;
+    case CMV_S_QNT: cmv_list_open(CMV_L_LOOP, CMV_LR_QUANT, 1); return;
+    case CMV_S_RATE: cmv_list_open(CMV_L_LOOP, CMV_LR_RATE, 1); return;
+    case CMV_S_STP: cmv_list_open(CMV_L_LOOP, CMV_LR_STEPS, 1); return;
+    case CMV_S_LOOP: cmv_list_open(CMV_L_LOOP, -1, 0); return;
+    case CMV_S_EDIT: cmv_edit_toggle(0); return;
+    case CMV_S_TAP: cmv_tap_tempo(); return;
+    case CMV_S_RECM:
+        cu_rec_mode_next();
+        cmv_msg("Rec mode", CU_LOOP_MODE[cs.loop_mode % CRL_NMODE]);
+        return;
+    case CMV_S_CIN:
+        cmv_turn(K_L_CIN, cs.loop_count_in ? -1 : 1);
+        cmv_cpy(s, cs.loop_count_in ? "Count-in, on" : "Count-in, off", sizeof s);
+        cmv_say(s);
+        return;
+    case CMV_S_MET:
+        cu_metro_set(!cs.metro);
+        cmv_say(cs.metro ? "Metronome, on" : "Metronome, off");
+        return;
+    default:
+        return;
+    }
 }
 
 /* the clipboard (RemoteFM14Move's seq_ui.c, for chord steps): Copy held + a step with a chord: copied (more in the same
@@ -2008,9 +2176,9 @@ static void cmv_copy_button(int on)
 }
 static void cmv_clip_del_up(void) { cmv.del_last = 0; }
 
-/* Shift held: the eight FM-1 buttons on the pads of columns 7-8 (the screen's 2 x 4 grid, pad for name, proposal 5):
+/* Shift held: the eight FM-1 buttons on the pads of columns 1-2 (the screen's 2 x 4 grid, pad for name, proposal 6):
  * shortcut i at the top row's pair first */
-static int cmv_sc_pad(int r, int c) { return c >= 6 ? (3 - r) * 2 + (c - 6) : -1; }
+static int cmv_sc_pad(int r, int c) { return c < 2 ? (3 - r) * 2 + c : -1; }   /* (proposal 6: the left side) */
 static void cmv_pad_down(uint32_t n, uint32_t vel)
 {
     int r = (int)(n / 8u), c = (int)(n % 8u);
@@ -2035,22 +2203,23 @@ static void cmv_pad_down(uint32_t n, uint32_t vel)
         cmv.sc_open = 0;
         return;
     }
+    if (cmv.shift && !(r >= 2 && c >= 4)) {        /* Shift: only the shortcuts and the top right (memories, or the
+                                                    * editor's groups) answer (proposal 6) */
+        cmv.shift_used = 1;
+        return;
+    }
     if (cmv_editing() && r >= 2 && c >= 4) {       /* the editor: the memories' pads are its groups */
         cmv_ed_group((uint32_t)((3 - r) * 4 + (c - 4)));
         return;
     }
-    if (r >= 2 && c < 4 && (!cmv_iso() || cmv.shift)) {   /* a chord key (ISO: Shift held, to LOCK one) */
+    if (r >= 2 && c < 4 && !cmv_iso()) {         /* a chord key (LOCK: its Shift pad) */
         uint32_t j = (uint32_t)((3 - r) * 4 + c);
-        if (cmv.shift && !cu.clock) {              /* Shift + a chord key: LOCK on, the key latched with it */
-            cu_lock_tap();
-            cmv.shift_used = 1;
-        }
         cmv.pad_kind[n] = PK_MOD;
         cmv.pad_arg[n] = (uint8_t)j;
         cmv_mod(j, 1);
         return;
     }
-    if (r >= 2 && !cmv_iso()) {         /* a memory */
+    if (r >= 2 && (!cmv_iso() || cmv.shift)) {    /* a memory (ISO: with Shift held) */
         uint32_t j = (uint32_t)((3 - r) * 4 + (c - 4));
         if (cmv.pads_dirty)
             cmv_pads_sync();
@@ -2524,10 +2693,7 @@ static void cmv_input(const uint8_t p[4])
                 } else if (cmv.shift) {            /* Shift + a step (proposal 5): S2 the Settings, S8 the sound
                                                     * editor (their icons lit while Shift is held) */
                     cmv.shift_used = 1;
-                    if (i == CMV_S_SET)
-                        cmv_set_toggle();
-                    else if (i == CMV_S_EDIT)
-                        cmv_edit_toggle(0);
+                    cmv_shift_step(i);
                 } else
                     cmv_step_press(i);
             } else if (cmv.step >= 0 && cmv.step_btn == i)
@@ -2535,7 +2701,8 @@ static void cmv_input(const uint8_t p[4])
         } else if (d < 8u) {
             cmv_knob_touch(d, on);
         } else if (d == RFM1_TK_NOTE_JOG_TOUCH) {
-            const int home = !cmv_opts() && !cmv_layer() && !cmv_editing();
+            const int home = !cmv_opts() && !cmv_layer() && !cmv_editing() && !cmv.set_open;   /* (a list: the wheel
+                                                    * its rows, no sound popup) */
             cmv.wheel_touch = (uint8_t)(on && home);
             if (on && home)
                 cmv.shift ? cmv_wheel_bass() : cmv_wheel_sound();
@@ -2821,12 +2988,13 @@ static void cmv_scr_edit(void)                     /* the editor: the engine, th
 static void cmv_scr_settings(void)                /* Shift + S2: RemoteFM1's list (seq_ui.c GLOBAL): four rows, the row
                                                     * inverted, editing: framed, its value inverted between arrows */
 {
-    uint32_t i, top = cmv.set_sel > 1u ? cmv.set_sel - 1u : 0u;
-    if (top + 4u > CMV_SET_N)
-        top = CMV_SET_N > 4u ? CMV_SET_N - 4u : 0u;
-    px_lbl(0, 0, "Settings");
+    uint32_t N, i, top = cmv.set_sel > 1u ? cmv.set_sel - 1u : 0u;
+    cmv_list(&N);
+    if (top + 4u > N)
+        top = N > 4u ? N - 4u : 0u;
+    px_lbl(0, 0, cmv.set_open == CMV_L_LOOP ? "Loop" : "Settings");
     px_rect(0, 16, 128, 1, 1);
-    for (i = 0; i < 4u && top + i < CMV_SET_N; i++) {
+    for (i = 0; i < 4u && top + i < N; i++) {
         char t[24], v[24];
         const uint32_t r = top + i;
         const int y = 20 + (int)i * 11, sel = r == cmv.set_sel;
@@ -2852,7 +3020,7 @@ static void cmv_scr_settings(void)                /* Shift + S2: RemoteFM1's lis
         }
     }
     {                                              /* the scroll bar */
-        const int h = 44 * 4 / (int)CMV_SET_N, y = 19 + (int)(44 - h) * (int)cmv.set_sel / ((int)CMV_SET_N - 1);
+        const int h = 44 * 4 / (int)N, y = 19 + (int)(44 - h) * (int)cmv.set_sel / ((int)N - 1);
         px_rect(126, 19, 1, 44, 1);
         px_rect(125, y, 3, h < 3 ? 3 : h, 1);
     }
@@ -2975,7 +3143,9 @@ static void cmv_draw(void)
             else
                 cmv_scr_popup(t, v, pct);
         }
-    } else if (cmv.wheel_touch || (int32_t)(cmv.wheel_until - now) > 0) {
+    } else if (cmv.set_open)                       /* (a list: straight in, over Shift and the wheel's popups) */
+        cmv_scr_settings();
+    else if (cmv.wheel_touch || (int32_t)(cmv.wheel_until - now) > 0) {
         if (cmv.wheel_k >= 0)
             cmv_scr_wheel();
         else
@@ -2988,8 +3158,6 @@ static void cmv_draw(void)
         cmv_scr_slots();
     else if (cmv.shift)
         cmv_scr_shortcuts();
-    else if (cmv.set_open)
-        cmv_scr_settings();
     else if (cmv_opts())
         cmv_scr_opts();
     else if (cmv_layer())
@@ -3024,8 +3192,8 @@ static void cmv_led_pads(void)
     int r, c;
     uint8_t deg[12];
     uint32_t ndeg = cmv_degrees(deg);
-    uint16_t sc = cs.key_on ? cr_scale_bits(cs.tonic, cs.scale) : cr_scale_bits(0, CR_SCALE_MAJOR);
-    uint32_t ton = cs.key_on ? cs.tonic : 0u;
+    uint16_t sc = cr_scale_bits(cs.tonic, cs.scale);   /* (proposal 6: the KEY settings' key, Key Mode on or off) */
+    uint32_t ton = cs.tonic % 12u;
     const int picker = cmv.menu && (cmv.menu_used || now - cmv.menu_t0 >= CMV_HOLD_MS);
     uint32_t hl_mods = 0;                          /* a step held: its chord's root and keys lit white (proposal 5) */
     int hl_root = -1;
@@ -3066,6 +3234,10 @@ static void cmv_led_pads(void)
                     led_dim(n, k[0], k[1], k[2], 18u);
                 continue;
             }
+            if (cmv.shift && !(r >= 2 && c >= 4)) {    /* Shift: the rest dark (proposal 6) */
+                led(n, 0, 0, 0);
+                continue;
+            }
             if (cmv_editing() && r >= 2 && c >= 4) {   /* the editor's groups, each its colour; the eighth: chord / bass */
                 uint32_t j = (uint32_t)((3 - r) * 4 + (c - 4));
                 if (held)
@@ -3079,7 +3251,7 @@ static void cmv_led_pads(void)
                 }
                 continue;
             }
-            if (r >= 2 && c < 4 && (!cmv_iso() || cmv.shift)) {   /* the chord keys */
+            if (r >= 2 && c < 4 && !cmv_iso()) {   /* the chord keys */
                 uint32_t j = (uint32_t)((3 - r) * 4 + c);
                 if (held || ((hl_mods >> j) & 1u))
                     led(n, C_WHITE);
@@ -3089,7 +3261,7 @@ static void cmv_led_pads(void)
                     j < 4u ? led(n, C_VIOLET_D) : led(n, C_ORANGE_D);
                 continue;
             }
-            if (r >= 2 && !cmv_iso()) { /* the memories */
+            if (r >= 2 && (!cmv_iso() || cmv.shift)) {   /* the memories */
                 uint32_t j = (uint32_t)((3 - r) * 4 + (c - 4));
                 if ((cmv.flash_pad == n && (int32_t)(cmv.flash_until - now) > 0) || held)
                     led(n, C_WHITE);
@@ -3114,8 +3286,9 @@ static void cmv_led_pads(void)
                     led(n, 0, 0, 0);
                 else if (held || (hl_root >= 0 && (note % 12) == hl_root))
                     led(n, C_WHITE);
-                else if (cmv.layout == CMV_KEYS)
-                    note % 12 == 0 ? led(n, C_YELLOW) : led(n, C_KEY_D);
+                else if (cmv.layout == CMV_KEYS)   /* the key's tonic yellow, its notes grey, the rest dim (proposal 6) */
+                    (uint32_t)note % 12u == ton ? led(n, C_YELLOW) :
+                        (sc >> (note % 12) & 1u) ? led(n, C_KEY_D) : led(n, 16, 16, 18);
                 else if (cmv.layout == CMV_SCALE)
                     (c == 0 || (uint32_t)c == ndeg) ? led(n, C_YELLOW) : led(n, C_KEY_D);
                 else if ((uint32_t)note % 12u == ton)
@@ -3140,17 +3313,17 @@ static void cmv_led_steps(void)
         }
     } else if (cmv.shift) {                        /* Shift held (proposal 5): the steps with a job, their icons lit:
                                                     * S2 the Settings (white), S8 the sound editor (cyan) */
+        static const uint8_t SC[CMV_S_N][3] = {{C_WHITE}, {C_WHITE}, {C_SEQ}, {C_SEQ}, {C_SEQ}, {C_SEQ}, {C_SEQ},
+                                               {C_CYAN}, {C_YELLOW}, {C_RED}, {C_RED}, {C_RED}};
         for (i = 0; i < 16u; i++) {
             const int L = RFM1_TK_L_STEP0 + (int)i;
-            if (i == CMV_S_SET)
-                cmv.set_open ? led(L, C_WHITE) : led_dim(L, C_WHITE, 30u);
-            else if (i == CMV_S_EDIT)
-                cmv_editing() ? led(L, C_CYAN) : led_dim(L, C_CYAN, 30u);
+            if (i < CMV_S_N)
+                cmv_sstep_on(i) ? led(L, SC[i][0], SC[i][1], SC[i][2]) : led_dim(L, SC[i][0], SC[i][1], SC[i][2], 22u);
             else
                 led(L, 0, 0, 0);
         }
-        for (i = 0; i < 16u; i++)
-            rfm1_tk_white(RFM1_TK_L_ICON0 + (int)i, i == CMV_S_SET || i == CMV_S_EDIT ? 255 : 0);
+        for (i = 0; i < 16u; i++)                  /* (the icons: the steps with a Shift job) */
+            rfm1_tk_white(RFM1_TK_L_ICON0 + (int)i, i < CMV_S_N ? 255 : 0);
         return;
     } else {
         ns = cmv_nsteps();
@@ -3292,6 +3465,11 @@ static void cmv_frame(void)                        /* emu_fw.c emu_fw_frame, aft
             cmv_pads_sync();
     }
     cmv_ghost_frame();
+    if (cmv.keys_down || cmv.mem_down) {           /* a key or a memory held: what it sounds is the player's chord */
+        const cr_chord_t lc = cr.last_chord;
+        if (lc.used && (lc.root != cmv.mine.root || lc.q != cmv.mine.q || lc.x != cmv.mine.x || !cmv.mine.used))
+            cmv.mine = lc;
+    }
     if (cmv.sc && !cmv.sc_open && cmv_now() - cmv.sc_t0 >= CMV_HOLD_MS) {   /* Shift + a step held: its settings */
         cmv.sc_open = 1;
         cmv_sc_hold(cmv.sc - 1u);
@@ -3328,6 +3506,8 @@ static void cmv_state(int on, unsigned claims, unsigned flags)
     (void)claims;
     fm1_irq_off();
     cmv.shown = (uint8_t)on;
+    cr_tk_clock = (uint8_t)on;                     /* (proposal 6: shown, the clock and the loop's start / stop go out:
+                                                    * RemoteFM1's sequencer follows, so Play is the Move's) */
     cmv.speech = (uint8_t)((flags & RFM1_TK_F_SPEECH) != 0u);
     if (!on) {                                     /* gone: (the host released what it held) nothing left held */
         uint32_t n;
