@@ -472,6 +472,12 @@ static void css_sanitize(cr_session_t *x)
     if (x->bass_on > 1u) x->bass_on = 0;
     if (x->lock > 1u) x->lock = 0;
     if (!x->lock) x->latched = 0;                  /* (the latch belongs to LOCK) */
+    if (x->prog_on > 2u) x->prog_on = 0;          /* (the progressions: out of range, the default) */
+    if (x->prog_sel > 15u) x->prog_sel = 0;
+    if (x->prog_win > 3u) x->prog_win = 0;
+    if (x->prog_vel && (x->prog_vel < 50u || x->prog_vel > 150u)) x->prog_vel = 0;
+    if (x->prog_hum > 100u) x->prog_hum = 0;
+    if (x->prog_tr < -24 || x->prog_tr > 24) x->prog_tr = 0;
     if (x->loop_rate < -7 || x->loop_rate > 3)
         x->loop_rate = 0;                          /* (cr_loop.h CRL_NRATE: x1/16 .. x4 around x1 (css_fit_ok); until
                                                     * 2026-10-11 -3 .. 3: a 0.18 dev build of before reads the four
@@ -662,6 +668,12 @@ static void crs_usb_apply(const cr_settings_t *s)
 #endif
 }
 
+#ifdef FM1_HOST_TK
+/* the Move takeover's memories and layouts (cr_move.c; an .rfm1 with tk1 only): a record of their own, read with the
+ * session and written by the global save with it; the session's record is the FM-1's, unchanged */
+static void cmv_store_load(void);
+static int cmv_store_save(void);
+#endif
 /* the session in flash -> css_buf (css_have: one to apply; css_last_rc, css_flash). Power-on and a revert */
 static void css_read(void)
 {
@@ -682,6 +694,9 @@ static void css_read(void)
             css_last_rc = -1;
         }
     }
+#endif
+#ifdef FM1_HOST_TK
+    cmv_store_load();
 #endif
     (void)n;
 }
@@ -1129,6 +1144,13 @@ static void css_capture(cr_session_t *x)
                           (cu_pf_off(CU_PF_BASS) ? 0u : CSS_PERF_BASS_ON) | (cs.bass_keys ? CSS_BASS_KEYS : 0u) |
                           (cs.bfollow ? CSS_BASS_FOLLOW : 0u));
     x->bperf_sel = cs.bperf_sel;
+    x->prog_on = (uint8_t)(cs.prog_on ? 1u : cs.prog_off ? 2u : 0u);   /* the progressions (2: Prog tapped aside;
+                                                    * Velocity: 0 = 100 %, as cs keeps it) */
+    x->prog_sel = cs.prog_sel;
+    x->prog_win = cs.prog_win;
+    x->prog_vel = cs.prog_vel;
+    x->prog_hum = cs.prog_hum;
+    x->prog_tr = cs.prog_tr;
     css_drum_get(&x->drum);
     for (i = 0; i < (uint32_t)CR_PM_COUNT * 4u; i++)
         x->bpar[i / 4u][i % 4u] = CU_BPAR_SLOT[i / 4u][i % 4u] >= 0 ? cs.bpar[i / 4u][CU_BPAR_SLOT[i / 4u][i % 4u]] : 0;
@@ -1184,6 +1206,7 @@ static void css_apply(const cr_session_t *x)
     css_perf_put(x);                               /* the Bass Perform, the chord's Off */
     css_drum_put(x);                               /* the beat's preset and the drums (cu_loop_conf posts them) */
     cu.octave = x->octave;                         /* (cu_post_kbd follows: the split key's note moves with it) */
+    cu_prog_apply(x->prog_on, x->prog_sel, x->prog_win, x->prog_vel, x->prog_hum, x->prog_tr);   /* the progressions (sanitized) */
     cs.loop_rate = (uint8_t)((int)x->loop_rate + (int)CRL_RATE_1);   /* (cu_loop_conf posts it with the looper's) */
     if (x->bass_on) {                              /* v15: the bass comes back on, on its sound (ALGORITHM's place:
                                                     * cu_pos_sync) */
@@ -1215,6 +1238,10 @@ static int css_write(void)                         /* the state now -> flash; 0:
 #endif
     css_capture(&css_buf);
     h = cr_session_hash(&css_buf);
+#ifdef FM1_HOST_TK
+    if (cmv_store_save() != 0)                     /* (the Move takeover's: written when it changed) */
+        return -1;
+#endif
     if (h == css_flash)
         return 0;                                  /* unchanged: no erase cycle */
     css_buf.bind = crs_obj_crc;
@@ -1683,6 +1710,7 @@ static void crs_reinit(void)
     cs.loop_rate = CRL_RATE_1;                     /* the loop's Rate: x1 */
     css_perf_put(NULL);                            /* the bass's Perform Off, its defaults; the chord's on */
     css_drum_put(NULL);                            /* the beat: Metronome, the drums' defaults */
+    cu_prog_apply(0, 0, 0, 0, 0, 0);                  /* the progressions: Keyboard as the block says, the defaults */
 #if BOARD_SMK37
     cs.smk_pedal = 0;                              /* Options > Pedal: Sustain */
     smk_ut_off = 0;                                /* Options > TRS MIDI Out: On */

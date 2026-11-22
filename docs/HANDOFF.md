@@ -202,6 +202,21 @@ installed on the owner's Mac.
 
 ## Open items
 
+### The owner's backlog (kept for later; no work until the owner says)
+
+- **Perform on the bass (2026-10-13).** Today, with Bass on, Perform (arp etc.) applies only to the chord part. The
+  owner: "it might be cool to reverse that and make perf apply just to the bass, so I could have a bass arp I play
+  over." (Bass Perform since 0.34 covers part of it.)
+- **Altered chord extensions (2026-10-16):** "lets track these chord extensions as a task but backlog it, no work on
+  it for now" (a user: "#11? alt? Major b5? b13? b9, #9, not possible?"). Options discussed: Options > Extension keys
+  Classic / Altered (b9 #9 #11 b13 on the four extension keys); a modifier that flats / sharps what the extension keys
+  add, with DIM + MAJ a secret major b5; diatonic extensions in Key Mode. Open: whether the Orchid's Key Mode
+  extensions follow the scale.
+- **Songs / projects (GitHub issue #12; 2026-10-16: "Hold off on the Song Design").** A song = the global save's
+  settings block + the session record in one of ~16 song slots, plus the loop slot; recall through the revert path;
+  save by hand. Design doc and pixel mock-ups first; name its flash object early (the SMK-37's layout must leave room).
+
+
 - **GRAIN at the unit** (docs/GRAIN.md section 6, step 6; HISTORY 3y137 .. 3y140): the owner plays it on main
   ("This Grain engine is fantastic!"); still to do there: a `grain` scenario for `tools/perf_unit.py` (not written yet: 8 notes +
   bass, CLOUD PAD and GLITCH, `part0` worst and average against GRAIN.md's 600 / 900 us), the render's time from a counter

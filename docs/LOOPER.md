@@ -14,7 +14,7 @@ A **semantic event** per chord gesture, written when the gesture ends (or when t
 | `dur` | u16 | length in ticks (>= 1) |
 | `root` | u8 | absolute resolved root (transpose and Key Mode applied: the recorded harmony) |
 | `vel` | u8 | 1..127 |
-| `qx` | u8 | quality (CR_Q_*) << 4 \| extension mask (CR_EXT_*) — the *final* chord (Advanced / Free). A single note (quality 0) has no extensions: its low nibble is its **part**, `CRL_X_BASS` (1) = a bass-side note (below) |
+| `qx` | u8 | quality (CR_Q_*) << 4 \| extension mask (CR_EXT_*) — the *final* chord (Advanced / Free). A single note (quality 0) has no extensions: its low nibble is its **part**, `CRL_X_BASS` (1) = a bass-side note (below). Quality 13 .. 15: a **progression's chord**, a reference (below) |
 | `layer` | u8 | RAM only (in flash layers are counts): the layer, or `CRL_HID` \| the Replace layer that hid it |
 
 Capture comes from the engine's `cr_out_t.gesture` hook (keyed voices and pads; a same-root retrigger ends one
@@ -23,6 +23,31 @@ of `CR_MAX_LOOPV` (8) loop voices, bypassing the chord-key state machine; voicin
 and so does Options > 6th with 7th (0.20): an event is a root, a type and extension bits, so a recorded `C7 6` has its
 6th in place or an octave up by the setting at the moment the step is struck (docs/CHORD-NAMES.md "The 6th above a
 seventh").
+
+**Progressions' chords (KEY page 2 Keyboard: Prog, GitHub issue 64; docs/PROGRESSIONS.md).** A chord played from a
+progression is recorded as a REFERENCE, not as notes (the owner's choice): the progression p (0..15), its key i
+(0..47) and the transpose t it was played with (the KEY layer's Transpose + the progression's own, KEY page 3's
+KNOB 4). The engine's gesture carries it as `q = CR_Q_PROG` (13),
+`ext = p`, `root = CR_PROG_REF(i, t)` (cr_engine.h); `crl_ev_chord` packs it into the event's three bytes:
+
+| byte | value |
+| --- | --- |
+| `qx` high nibble | `CRL_Q_PROG0` (13) + b, b 0..2 |
+| `qx` low nibble | p |
+| `root` | i + 48 a, a 0..4 (0..239) |
+
+with t = 3a + b - 7: **-7 .. +7**. 16 x 48 x 49 references do not fit the 12 bits and three spare qualities an event
+has (its 8 bytes in RAM, 512 of them twice, have no room to grow), so a Transpose outside -7 .. +7 is stored by its
+pitch classes: moved by octaves into the window (+12 is stored as 0, +8 as -4). The loop plays the reference
+(`crl_hit`: `cr_loop_event` with `CR_Q_PROG`) by looking the chord up then: an edited progression changes the loops
+that use it, a key emptied since is silent there (no voice, the rest of the loop plays on). The loop editor's step
+transpose moves t within -7 .. +7 (beyond: refused, as a root leaving 0..127 is); its name line and "now playing"
+name the chord by the progression's notes now (cr_ui.c `cu_ev_name`; an empty key: "-"); KNOB 4 Transpose shows t.
+
+**A firmware before the progressions** (any up to 0.41) refuses the whole record of a loop holding one: its
+`cr_loop_unpack` checks every event's quality against `CR_Q_COUNT` (13) and the root against 127. The slot then reads
+as **empty** there: silent, no crash, nothing half loaded (`tests/cr_progplay_test.c`). If that firmware records
+into the slot, the loop is gone for good; left alone, the record stays for a firmware that knows it.
 
 **Bass-side notes (Single = Split Bass; since 0.18).** A key played on the bass side is recorded as a bass-side note
 and plays back on the bass part: the BASS stream alone (the bass sound, the bass channel on MIDI out), never the
@@ -661,7 +686,8 @@ then, with CRL_RF_STEP: u8 n (1 .. 64), n x 3 bytes: step (0 .. 63, ascending), 
 ```
 
 Unpack checks everything (magic, version, ppqn, counts, each field's range) and refuses a bad record as empty: a
-newer version or garbage never loads half a loop.
+newer version or garbage never loads half a loop. A progression's reference (quality 13 .. 15, above) may have a root
+up to 239; any other event's root is at most 127.
 
 **Byte 7, the flags (0.18).** 0.14 to 0.17 wrote 0 there and never read it. Bit 0, `CRL_RF_PART`: a single note's
 `qx` low nibble is its part (`CRL_X_BASS`). `cr_loop_pack` sets it only when the loop holds a bass-side note, so a

@@ -90,10 +90,10 @@ if "res2.bin" in files:                             # the second resource region
     r2 = image[o2:o2 + n2]
     h = r2[:0x40]
     magic, fmt, n, dcrc, body_crc, bo, bl = struct.unpack_from("<7I", h)
-    ok(n2 == 0x4000 and M.crc16(r2) == c2 and magic == M.RES2_MAGIC and fmt == M.RES_FORMAT and
+    ok(n2 == 0x3000 and M.crc16(r2) == c2 and magic == M.RES2_MAGIC and fmt == M.RES_FORMAT and
        struct.unpack_from("<I", h, 60)[0] == zlib.crc32(h[:60]) and (bo, bl) == (0, 0),
-       "res2.bin: 16 KB (flash 0xB0000..0xB3FFF), its header: magic, format, own CRC-32")
-    ok(0 < n <= 0x4000 - 0x40 and zlib.crc32(r2[0x40:0x40 + n]) == dcrc and r2[0x40 + n:] == b"\xff" * (0x4000 - 0x40 - n)
+       "res2.bin: 12 KB (flash 0xB0000..0xB2FFF; 3y317), its header: magic, format, own CRC-32")
+    ok(0 < n <= 0x3000 - 0x40 and zlib.crc32(r2[0x40:0x40 + n]) == dcrc and r2[0x40 + n:] == b"\xff" * (0x3000 - 0x40 - n)
        and body_crc == struct.unpack_from("<I", mark, 12)[0], f"its data ({n} B), CRC-32, blank after, this build's body")
 ok(flash[:0x4000] != b"\xff" * 0x4000, "head present (never written by the loader, checked against the device)")
 print("SMK PACKAGE TEST FAILED" if failed else "smk package test passed")

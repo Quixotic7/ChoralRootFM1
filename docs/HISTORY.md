@@ -8716,3 +8716,110 @@ SMK build with both regions (2568 / 2585 cut points, the unprotected windows as 
 downgrade. `sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124
 ok). Docs: SMK37.md (Bluetooth MIDI, Storage, What to test 18), BOOT-SAFETY "The SMK-37's second region and
 Bluetooth", FLASH.md, BLE-LINK.md 3.2, MANUAL.md. **Not tried on an SMK-37 here**; not pushed, tagged or released.
+
+## 2026-11-19
+
+3y310. **Progressions, Ripchord style (GitHub issue 64).** The owner: "Add a new option to the key options for
+'Progression' on second page of the Key settings for the 'Keyboard' layout parameter on Knob 2. With this on each note
+on the keyboard will play a chord stored in the progression. ... We should also be able to import RipChord
+progressions." Designed with the owner first (a Claude Design mock-up; their answers: loops keep a reference, OCT slides
+the keys, chords over 8 notes are trimmed, MIDI In on the MIDI Keys channel only, six factory progressions of our own,
+`Prog` in purple, Velocity and Humanize on page 3, the Keyboard view untouched). **The store** (`cr_prog.h` / `.c`,
+docs/PROGRESSIONS.md): 16 progressions of up to 48 keys, a chord up to 8 absolute notes, packed into one object of at
+most 3840 bytes (`OBJ_PROG` 21: FM-1 0xB2000 / 0xB3000, both free since 3y231; SMK-37 0xB3000 / 0xFE000, the
+first free since 3y231, the second the sector before key_mac, never written, a store window of its own `FL_SPARE`:
+claude/smk-ble's second region keeps 0xB0000..0xB2FFF and must shrink to it; a 0.21 record there names another object
+and is refused); a RAM copy (+3840 B) so the audio side resolves a loop's chord without
+flash; the factory set when nothing valid is stored, never written at power-on; backup object 24 (LIST gives the RAM
+copy, a PUT of 0 bytes returns to the factory set); Options > Flash Data erases it. **The keyboard**
+(`cr_engine.c` `CR_Z_PROG` / `CR_Q_PROG`, `cr_prog_key`; `cr_ui.c`): KEY page 2 Keyboard Chords / Full / Prog, a new
+page 3 (Prog picker, Velocity 50..150 %, Humanize 0..100 %), every keybed key a trigger (key + 12 x the OCT window),
+Transpose and the voicing applied, the bass from the lowest note, `cr_chord_recognise` naming the chord from its notes,
+the notes line fitting 8 notes, the key lights dark / glow / held, MIDI Keys 53..100 reaching keys 1..48; the state in
+the session record's reserve. Loops and pads keep a reference (progression, key, Transpose: a loop only -7..+7, the
+octave folded beyond; docs/LOOPER.md); 0.41 and older read such a loop slot as empty. **The web** (`web/fm1prog.js`,
+the device manager's Progressions view): the object, `.rpc` import (gaps kept, past 48 keys dropped, over 8 notes
+trimmed: doubled pitch classes, then the middle) and export, the editor with two keyboards, Send with undo, the
+capacity check; all 197 of the owner's example presets round-trip. Tests: `tests/cr_prog_test.c`,
+`tests/cr_progplay_test.c`, `cr_backup_test`, `cr_midi_test`, `cr_settings_test`, `smk_flash_test`, test_cr's
+`cr_prog` script, test_persist, `web/test_prog.mjs` (suite `web_prog`), `test_manager.mjs`, `test_backup.mjs`,
+install_test. FM-1: RAM 3072 B left, flash code 99.5 % used. MANUAL.md "Key Mode", SMK37.md, docs/DEVICE-MANAGER.md,
+web/EDITOR_PROTOCOL.md.
+
+3y311. **Progressions: KEY's tap toggles Prog; C4 / C#4 pick the tonic.** The owner, trying 3y310 on 5BD75BE3: "the in
+key SEL quick click to turn the scale mode on/off should turn the progression keyboard on and off, so when progression
+is selected I quick click SEL and it goes back to the base chord mod keys and root notes", and "pressing the first C or
+C# don't work to select the root note when the chord mod keys are in their 3 black key config". **The tap**
+(`cr_ui.c cu_tap`): with Keyboard on Prog it switches Prog and the Chords keyboard (`cs.prog_off`: Prog chosen but put
+aside; `cu_full` reads Chords then whatever `kbd_full` says), a message `Prog` / `Chords`, the keys held let go as at
+any keyboard change; Key Mode untouched; the KEY LED shows Prog on / aside. KNOB 2 clears it. The session keeps it
+(`prog_on` 2). **The tonic**: `cu_layer_key` returned for every key below D4 (the pick maps' start) before the KEY
+layer's tonic: on the FM-1 layout C4 and C#4 are roots, so they now set C and C# like the others; the loop slots and
+naming keep D4..G5. test_cr's `cr_prog_tap`. MANUAL.md "The FM-1 layout", "Keyboard: Prog".
+
+3y312. **Progressions following Key Mode's tonic (a home key per progression), on main as cfc8951d, reverted.** The
+owner, after trying it on 5BD75BE3: "I think we should actually not do that and add a parameter to the progression page
+to just transpose the progression". Reverted by 5c88e8b6 (the header's 8 bytes are a reserve of 0s again; the web
+editor's Key select gone); 3y313 has the Transpose.
+
+3y313. **Progressions from C4 over the Chords keyboard; page 3's Transpose; the KEY layer remembers its page.** The
+owner: "start them on the keys from the first C rather than F since it feels weird jumping between the chord mods and
+the progressions", and for F3..B3: "Chord key jobs. If you use them you play chords like normal, if you don't use them
+it plays the progressions instead of the single notes." **The keyboard** (`cr_ui.c`): Prog is an overlay on the Chords
+keyboard (`cu_full` false in Prog): the chord block keeps its jobs and LOCK; each root press decides (`cu_ckeys_used`):
+a chord key held, latched by LOCK or an FM-1 type-key gesture open: the ordinary chord; none: progression key
+(k - 7) + 12 x window (C4 = key 1, 20 keys a window, "keys 13-32"; Classic: D4 = key 3); each release ends what its
+press began. Key plays, Snap and Numerals are no longer grey (they work on the ordinary chords). SMK-37: every key from
+C3 a trigger, the pads the chord keys. MIDI Keys: notes as the keys they press (60 = key 1), 80..107 keys 21..48
+directly. **Transpose** (page 3 KNOB 4, -24..+24): the progression only, on top of page 1's; the session's `prog_tr`
+(byte 1011); `cr_set_prog_transpose`; a reference carries t + 48 (bits 6..12: -48..48), the loop's -7..+7 folding as
+before. **The page**: the KEY layer reopens on the page last shown (runtime). test_cr's `cr_prog` rewritten (31 dumps:
+MIN + D4 = Dm, D4 alone key 3, LOCK's MIN, page 3 +2 with page 1 +2, the page kept, MIDI 60 / 80 / 107), the scripts
+that assumed page 1 given SELECT; test_persist (Transpose -5); `cr_progplay_test`, `cr_midi_test`, `cr_settings_test`.
+FM-1: XIP 2164 B spare (99.6 %), RAM unchanged. MANUAL.md "Keyboard: Prog".
+
+3y314. **0.42 and 0.42-smk37: progressions (3y310 .. 3y313).** The owner: "Lets get this all merged and tagged. Please
+update the documentation and manual." docs/releases/0.42.md; web/releases.json's 0.42 first (sha256 0391fac9...8a3d,
+1-core 7d925f93...7d88) and 0.41's going-back note (no progressions there; a loop slot holding a progression chord reads
+empty); web/releases-smk37.json's 0.42-smk37 (Pro 2e57092e...c032 / df4dd572...028b, Elite 9ee49523...1949 /
+409f44e0...b2fd, MKE-P37 8890220d...ecbb5 / 24422754...c85b); MANUAL.md's first line; the dev version 0.42;
+SMK37.md for 0.42-smk37. Both boards built twice (`build.sh --release` and `tools/hub_build.sh`) to the same
+SHA256SUMS. `tests/releases_test.py` skips an SMK tag with `-beta` that is not listed (v0.41-beta.ble1-smk37, a test
+build installed by hand from claude/smk-ble: the SMK page has no beta switch, so listing it would offer it to every
+owner; the owner's choice). FM-1: XIP 2164 B spare. `CR_VERSION=0.42 sh tests/run_all.sh`.
+
+
+3y315. **The Ableton Move takeover (RemoteFM1 tk1), proposals 4 .. 7.** The owner's notes from the Move, 2026-11-20,
+built in the .rfm1 only (`firmware/src/cr_move.c`, included by tools/emu/emu_fw.c with FM1_HOST_TK; the FM-1 and
+SMK-37 images are unchanged, XIP 2164 B spare as in 0.42): proposal 3's screens in AF_CRB cut to one bit; the FM-1's
+buttons on Shift + the pads of columns 1-2 (tap on / off, held their settings); Shift + steps by the Move's own icons
+(slots, Settings, count-in, tempo, metronome, groove, EDIT / MEMORY, key and scale, fixed velocity, Perform, the next
+slot, double loop, quantize); a Settings list as RemoteFM1's (the pads' velocity, the loop's rows, the FM-1's Options
+that apply); the clipboard as RemoteFM14Move's sequencer (Copy / Delete held + steps, the copy / cut screen); a held
+step previewed with its root and chord keys lit; Iso and Iso Key; the sound editor on the memory pads; Back home from
+anywhere; knob acceleration. Two shared hooks, off on the units: `cr_out.c cr_tk_clock` (the takeover shown: the clock
+and the loop's start / stop go out, RemoteFM1's sequencer follows) and `cr_loop.c crl_swing` (the loop's swing, set
+from the Move only). The takeover test (FM1VST tools/rfm1/rfm1_cr_tk_test.py) runs 135 checks.
+
+3y316. **0.43 and 0.43-smk37: ChoralRoot on the Ableton Move (3y315).** The owner, through the RemoteFM14Move session:
+"Please release both the latest RemoteFM14Move updates and ChoralRoot with the takeover support." docs/releases/0.43.md;
+web/releases.json's 0.43 first (sha256 200939f2...3ef9, 1-core e88607be...ac8d) and 0.42's going-back note (the FM-1
+plays the same); web/releases-smk37.json's 0.43-smk37 (Pro a7268c17...b124 / 006d51ab...a427, Elite e2e7fd8a...d45ed722 /
+add19710...4b69, MKE-P37 b851e6d3...f88a / de32aa8a...cc03b); MANUAL.md's first line; the dev version 0.43; SMK37.md
+for 0.43-smk37; the owner's backlog (Perform on the bass, altered extensions, Songs) moved into HANDOFF's open items.
+`CR_VERSION=0.43 sh tests/run_all.sh`.
+
+## 2026-11-21 (Bluetooth MIDI on the SMK-37, merged)
+
+3y317. **3y309 merged with 0.42 / 0.43: the SMK's second region shrinks to 12 KB.** The owner: "this PR for BLE SMK-37
+MIDI seems to work fine by those who have tested so lets get that merged" (PR 63; testers on 0.41-beta.ble1-smk37).
+main 80680906 into claude/smk-ble. The progressions' copy A on the SMK is 0xB3000 (3y310), so the second region is
+**0xB0000..0xB2FFF** (`FL_RES2_HI`, `LDR_RES2_HI`, `fm1pkg_make.py RES2_AT` 0xB3000; `build.py` shortens app.ld's RES2
+line in the SMK copy, `res2_len()`), 12,224 data bytes; `ST_SMK_REGIONS` lists 0xB3000 (copy A) beside the favourites,
+Bluetooth's pair and `FL_SPARE`. The merged SMK build was 316 B over in RES2 and 128 B over in XIP: on the SMK the VA's
+preset list (600 B) moves from the second region to the first (`RES_PRESET_VA`) and the QUAD, GRAIN and WHEEL lists
+(696 B) from the app slot to the first (`RES_PRESET_SMK`); `eng_preset` and the engines' own reads of those lists go
+through `CR_REGION_GONE` (either region missing: the stand-in). The FM-1's tables stay where they were. **Sizes (SMK)**:
+XIP 573,104 of 573,440 (336 spare), RES 47,112 of 49,088, RES2 11,940 of 12,224. A unit that ran the test build has
+the region's old fourth sector at 0xB3000: no record header, refused, the factory progressions until the first send.
+SMK37.md: What to test 18 Progressions, 19 Bluetooth. Not tagged or released.

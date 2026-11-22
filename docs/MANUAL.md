@@ -1,6 +1,6 @@
 # ChoralRoot FM-1: the manual
 
-For ChoralRoot 0.41 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.41 brought, each drum's own Chorus, Delay and Reverb sends, Level, Drive and Filter on the Kick, Snare and Hats Mix pages, and the drums on the second core: [releases/0.41.md](releases/0.41.md); what 0.40 brought, drums on the metronome's keys (a Grids beat you morph, six kits, following your loop), the click following MASTER and the beat off at power-on: [releases/0.40.md](releases/0.40.md); what 0.39 brought, MIDI Roots (a whole keyboard plays the chords, shown on the home screen), pads holding the chord keys and the Options in groups that reopen where you left them: [releases/0.39.md](releases/0.39.md); what 0.38 brought, chords that glide into each other in POLY and a Glide of up to 30 s that shows the time it takes: [releases/0.38.md](releases/0.38.md); what 0.37 brought, Bass Solo in the octave you play, loops locked to MIDI Clock In however the pulses arrive and the PERF knobs in the same places across modes: [releases/0.37.md](releases/0.37.md); what 0.36 brought, 21 more Key Mode scales (the modes, pentatonics, blues, bebop, whole tone, diminished, eastern scales and Barry Harris's 6th-diminished): [releases/0.36.md](releases/0.36.md); what 0.35 brought, the bass Following the chords' performance and PERF held switching between the two PERF layers: [releases/0.35.md](releases/0.35.md); what 0.34 brought, Chord and Bass Perform, each part with its own performance mode: [releases/0.34.md](releases/0.34.md); what 0.33 brought, no pop at power-on, MIDI CC on the sounds' parameters and the filter on the chords or the bass alone: [releases/0.33.md](releases/0.33.md); 0.32 is 0.31 with a flash driver that waits out a slow erase or write, for the newer FM-1s' slower flash chip, [releases/0.32.md](releases/0.32.md); what 0.31 brought, USB Host and two FM-1s on one cable: [releases/0.31.md](releases/0.31.md); what 0.30 brought, Bluetooth MIDI and incoming start and stop with MIDI Clock Out: [releases/0.30.md](releases/0.30.md); 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
+For ChoralRoot 0.43 on the M-VAVE FM-1 (what is new since 0.22 is marked so; 0.43 plays as 0.42 on the FM-1 and brings ChoralRoot on the Ableton Move, in RemoteFM1, the Move's pads, steps, knobs and screen its own: [releases/0.43.md](releases/0.43.md); what 0.42 brought, progressions the Ripchord way (a key plays a whole stored chord, sixteen progressions, Ripchord presets imported in the device manager) and KEY's tap switching between your progression and the chord keys: [releases/0.42.md](releases/0.42.md); what 0.41 brought, each drum's own Chorus, Delay and Reverb sends, Level, Drive and Filter on the Kick, Snare and Hats Mix pages, and the drums on the second core: [releases/0.41.md](releases/0.41.md); what 0.40 brought, drums on the metronome's keys (a Grids beat you morph, six kits, following your loop), the click following MASTER and the beat off at power-on: [releases/0.40.md](releases/0.40.md); what 0.39 brought, MIDI Roots (a whole keyboard plays the chords, shown on the home screen), pads holding the chord keys and the Options in groups that reopen where you left them: [releases/0.39.md](releases/0.39.md); what 0.38 brought, chords that glide into each other in POLY and a Glide of up to 30 s that shows the time it takes: [releases/0.38.md](releases/0.38.md); what 0.37 brought, Bass Solo in the octave you play, loops locked to MIDI Clock In however the pulses arrive and the PERF knobs in the same places across modes: [releases/0.37.md](releases/0.37.md); what 0.36 brought, 21 more Key Mode scales (the modes, pentatonics, blues, bebop, whole tone, diminished, eastern scales and Barry Harris's 6th-diminished): [releases/0.36.md](releases/0.36.md); what 0.35 brought, the bass Following the chords' performance and PERF held switching between the two PERF layers: [releases/0.35.md](releases/0.35.md); what 0.34 brought, Chord and Bass Perform, each part with its own performance mode: [releases/0.34.md](releases/0.34.md); what 0.33 brought, no pop at power-on, MIDI CC on the sounds' parameters and the filter on the chords or the bass alone: [releases/0.33.md](releases/0.33.md); 0.32 is 0.31 with a flash driver that waits out a slow erase or write, for the newer FM-1s' slower flash chip, [releases/0.32.md](releases/0.32.md); what 0.31 brought, USB Host and two FM-1s on one cable: [releases/0.31.md](releases/0.31.md); what 0.30 brought, Bluetooth MIDI and incoming start and stop with MIDI Clock Out: [releases/0.30.md](releases/0.30.md); 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
 FM-1, has installed ChoralRoot with
 the web installer and wants to play it. Nothing here needs the design documents; where one goes deeper, the manual
 links to it.
@@ -454,8 +454,9 @@ white    6     m7    M7    9     C4    D4    E4    F4    G4    A4    B4    C5   
   pulses; with LOCK on as well it pulses between lit and the middle level. Holding GLO on its own never opens the
   Options: only a quick click does. The screen's `Latch` and `lock` are as before.
 - **The KEY layer** (keys on pick): G#3 and A#3 are its scale keys and nothing else; a one-finger pair picks once.
-- **Picking keys** are on D4 to G5 in both layouts: the loop slots, the naming letters and the KEY layer's tonic;
-  C4 and C#4 do nothing in those maps.
+- **Picking keys** are on D4 to G5 in both layouts: the loop slots and the naming letters; C4 and C#4 do nothing in
+  those maps. The KEY layer's tonic takes every root, C4 and C#4 too (C and C#; new in 0.42: until then they did
+  nothing there).
 - Changing the layout lets go of every key held (a chord you are holding stops); what LOCK latched stays, and shows
   on the new layout's keys.
 - Loops store chords, not keys, so they play the same in either layout.
@@ -507,11 +508,15 @@ Hold KEY to open the **KEY layer**:
 | KNOB 2 | Scale: all 23, in the order of the table in [Scales](#scales) |
 | KNOB 3 | Transpose, -24 to +24 semitones. It moves everything you play from then on, in or out of Key Mode |
 | KNOB 4 | Single: Full, Split Oct or Split Bass (below) |
-| SELECT | turns the layer's page: page 1 is the four settings above, page 2 has Key plays, Keyboard, Snap and Numerals (below). The top line says `1/2` or `2/2`. SELECT does not change the tempo in this layer |
+| SELECT | turns the layer's page: page 1 is the four settings above, page 2 has Key plays, Keyboard, Snap and Numerals, page 3 the progressions (below). The top line says `1/3`, `2/3` or `3/3`; the layer opens on the page last shown. SELECT does not change the tempo in this layer |
 | KNOB 1, page 2 | **Key plays**: Chords or Notes |
-| KNOB 2, page 2 | **Keyboard**: Chords or Full |
+| KNOB 2, page 2 | **Keyboard**: Chords, Full or Prog (new in 0.42) |
 | KNOB 3, page 2 | **Snap**: Off, Scale or Chord |
 | KNOB 4, page 2 | **Numerals**: Off, On or Solfège |
+| KNOB 1, page 3 | **Prog**: which of the 16 progressions the Prog keyboard plays (new in 0.42) |
+| KNOB 2, page 3 | **Velocity**: 50 to 150 %, how hard the progression's chords play against your touch |
+| KNOB 3, page 3 | **Humanize**: 0 to 100 %, a random spread on each note's velocity |
+| KNOB 4, page 3 | **Transpose**: -24 to +24 semitones, the progression alone |
 | OPT (printed GLO) tap | switches the keys between **pick** and **play** (below). It does not open the Options from here |
 | OCT-, OCT+, HOME, KEY held again | close the layer |
 
@@ -627,6 +632,58 @@ makes those roots play instead.
 - In the KEY layer with its keys on pick, the keys still pick: a root sets the tonic, MAJ and MIN the scale (the
   other low keys do nothing there). With the keys on play they are the Full keyboard.
 
+**Keyboard: Prog, progressions** (page 2, KNOB 2; new in 0.42, GitHub issue 64). Like the Ripchord plug-in, a key
+plays a whole chord stored for it: one of 16 **progressions**, each up to 48 keys of chords of up to 8 notes, written
+exactly as they sound. Turn KNOB 2 past Full to `Prog` (back: Full, then Chords). Prog lies over the Chords keyboard:
+
+- The **root keys** from C4 up (C3 up on the SMK-37) play the progression: C4 its first key, C#4 its second, and so
+  on to G5, the 20th. A root key with no chord is silent: no sound, no MIDI, nothing in a loop.
+- The **chord keys** (F3 to B3, the SMK-37's pads) keep their jobs. A root pressed while a chord key is held, or
+  latched by LOCK, plays the ordinary chord of the Chords keyboard (root, chord type, voicing, Key Mode as ever); a
+  root pressed with none plays its progression chord. So you can play your progression and drop into chords of your
+  own with one hand. A chord key pressed over a sounding progression chord leaves it as it is. (Classic chord keys:
+  C4 and C#4 are chord keys there, so D4 plays the progression's third key.)
+- On the KEY layer's page 2 the strip marks the keys that hold a chord.
+
+**Tap KEY** with Keyboard on `Prog` and the keybed is the plain Chords keyboard (`Chords` shows a moment); tap again
+for the progression (`Prog`). The KEY light is lit while the progression plays. Key Mode stays as it was meanwhile
+(the KEY layer still turns it on with a root); with Keyboard on Chords or Full, the tap is Key Mode's on / off as ever.
+Turning KNOB 2 ends it: Prog, or Chords / Full as you choose.
+
+- **Page 3** picks what plays: KNOB 1 the progression (its name big, the ones before and after above and below; an
+  empty slot reads `empty`), KNOB 2 **Velocity** (50 to 150 %: your touch times this), KNOB 3 **Humanize** (0 to
+  100 %: each note of the chord gets a random velocity up to 40 either side of it at 100 %) and KNOB 4 **Transpose**
+  (-24 to +24 semitones: the progression alone, on top of page 1's Transpose). The top line says `Prog 3 of 16`.
+- The KEY layer opens on the page you last left it on (page 1 after power-on).
+- The key lights: a root key dark without a chord, glowing with one, lit while held; the chord keys as on Chords.
+- **OCT- and OCT+** slide the root keys along a progression longer than them, 12 keys at a time (keys 13 to 32, 25
+  to 44, 37 to 48: four places at most); they do not change the octave here. A pop-up shows the keys you are on, the
+  top right of the Chord view keeps them (`keys 13-32`) and OCT+ is lit while you are past the start. HOME goes back
+  to the start.
+- A progression chord is its stored notes moved by both Transposes and turned by the **voicing** (KNOB 1 on the
+  view), as any chord. Key Mode, Snap, Numerals and Single leave it alone (they still work on the ordinary chords).
+  Changing to or from Prog lets go of the keys held.
+- The Chord view names a progression chord from its notes (`Em9`, `C7/E`, `Gdim7/B`; a set it has no name for shows
+  its bass note) and lists every note, the bass's in orange; the top line says which progression and key in purple
+  (`Neo Soul · 5`). The Keyboard view is as ever.
+- The bass part takes the chord's lowest note; the performance modes, glide, both parts and MIDI out play the
+  chord's notes as for any chord.
+- **Loops** keep which progression, key and Transpose a chord came from, not its notes: edit the progression later
+  and the loop plays the new chord (an emptied key is silent in it). A loop keeps a Transpose of -7 to +7 as it is;
+  beyond, it keeps the notes' names and loses the octave (+12 plays as 0). A firmware older than 0.42 reads a loop
+  holding a progression's chord as an empty slot.
+- **MIDI Keys** (Options): in Prog its notes act as the keys they press, with the same rule (note 60, C4, is the
+  progression's first key; 53 to 59 and the pad notes 36 to 44 are the chord keys), and notes 80 to 107 reach the
+  progression's keys 21 to 48 directly, so a bigger keyboard plays a whole progression without OCT. MIDI Roots and
+  the other channels are as ever.
+- A new FM-1 has six progressions of ChoralRoot's own in slots 1 to 6 (Pop Four, Jazz ii-V-I, Neo Soul, Gospel Walk,
+  Minor Epic, Dorian Days, eight chords each); slots 7 to 16 are empty. The **device manager's Progressions** page
+  (web) reads, edits, makes and sends them, imports Ripchord's `.rpc` presets (a chord of more than 8 notes loses its
+  doubled notes, then middle ones; keys past 48 are left out) and exports them as `.rpc`; Factory set puts the six
+  back. A backup keeps them, and Options > Flash Data erases them (the six come back).
+- Keyboard: Prog, the progression, Velocity, Humanize and the progression's Transpose are kept as the unit is left
+  (no SAVE needed), with the session.
+
 **Snap: Off, Scale or Chord** (page 2, KNOB 3; off unless you turn it on). With Key plays `Notes`, on either
 keyboard, a key outside the scale is a dead key: Snap gives it a right note to play, the way the Scaler app remaps
 its keyboard, so every key under your fingers plays and none leaves the key.
@@ -672,7 +729,7 @@ diminished chord (`ti°`), `+` after an augmented one, a `b` or `#` before a roo
 names used in Italy, France, Spain and elsewhere), is a different thing: this setting does not rename the notes or
 the chord.
 
-Key plays, Keyboard, Numerals and Single are kept by a global save (SAVE held), like the rest of the KEY layer.
+Key plays, Keyboard, Numerals and Single are kept by a global save (SAVE held), like the rest of the KEY layer (Keyboard's `Prog` and page 3 are kept with the session instead: above).
 
 The Geek Out view shows the transposition (`Trans +2`).
 

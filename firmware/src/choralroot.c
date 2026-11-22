@@ -105,7 +105,7 @@
 #endif
 #endif
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "ChoralRoot 0.41"   /* the dev build reads as the next tag; --release X.Y sets it */
+#define FELUCCA_VERSION "ChoralRoot 0.43"   /* the dev build reads as the next tag; --release X.Y sets it */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
 #error "FELUCCA_OTA needs FELUCCA_FLASH"
@@ -165,6 +165,10 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #define AF_RES2 __attribute__((section(".res2.kern")))
 #define RES2_PRESET __attribute__((section(".res2.preset")))
 #define RES2_FM6 __attribute__((section(".res2.fm6")))
+#define RES_PRESET_VA __attribute__((section(".res.preset")))   /* the VA's list in the first region (600 B): the
+                                                                 * second is 12 KB, 0xB3000 the progressions' */
+#define RES_PRESET_SMK __attribute__((section(".res.preset")))  /* QUAD's, GRAIN's, WHEEL's lists (696 B) out of the
+                                                                 * app slot, which Bluetooth fills */
 #endif
 #if !BOARD_SMK37
 #define CR_RES 1
@@ -278,6 +282,7 @@ static int cr_erase_near(void);  /* cr_ui.c: a voice is active or an input came 
 #include "storage_hw.c"
 #include "storage.c"
 #endif
+#include "cr_prog.c"             /* the progressions (KEY page 2 Keyboard: Prog; cr_prog.h): their RAM copy, OBJ_PROG */
 #include "cr_favs.c"             /* the favourites: a mark on a sound (before the sounds: upreset.c tells it of a slot) */
 #include "cr_bank.c"             /* upreset.c's UI names, upreset.c (32 user sounds, fm6_bank.c), the factory bank */
 #include "cr_pages.c"            /* the sound pages (EDIT) */

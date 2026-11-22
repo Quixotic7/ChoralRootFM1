@@ -26,8 +26,8 @@ MEMORY
     RES    (r)   : ORIGIN = 0x0208F040, LENGTH = 0xBFC0
     /* the FM-1's second resource region's data (cr_res.h CR_RES2, HISTORY 3y296): flash 0xDC040..0xDFFFF, XIP
      * through the plain window; not in app.bin: tools/build.py takes .res2 alone, tools/fm1pkg_make.py --res2 packs
-     * it as the package's res2.bin with its header at 0xDC000. The SMK-37's (3y309): flash 0xB0040..0xB3FFF, XIP
-     * 0x020AC040: tools/build.py moves this line too in its copy for BOARD=smk37 */
+     * it as the package's res2.bin with its header at 0xDC000. The SMK-37's (3y309): flash 0xB0040..0xB2FFF, XIP
+     * 0x020AC040, LENGTH 0x2FC0: tools/build.py moves and shortens this line in its copy for BOARD=smk37 */
     RES2   (r)   : ORIGIN = 0x020D8040, LENGTH = 0x3FC0
 }
 SECTIONS

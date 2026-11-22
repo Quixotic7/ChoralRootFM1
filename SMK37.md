@@ -5,10 +5,10 @@ of flash). The FM-1 build is unchanged; everything for the SMK-37 is behind `BOA
 same ChoralRoot: the same sounds and engines (GRAIN among them), screens, boot and [manual](docs/MANUAL.md), with
 velocity-sensitive keys, the chord block and the performance modes on the pads, and the SMK-37's extra controls.
 
-**Status: 0.41-smk37.1: 0.39-smk37 was tested on SMK-37s by their owners; the resource region new in 0.40-smk37 has not yet run on one (below).** The port is genkigenki's (M. Geisler, genkigenki / makkuro:
+**Status: 0.43-smk37: 0.39-smk37 was tested on SMK-37s by their owners; the resource region new in 0.40-smk37 has not yet run on one (below).** The port is genkigenki's (M. Geisler, genkigenki / makkuro:
 [PR #14](https://github.com/Quixotic7/ChoralRootFM1/pull/14) and the porting guide
 [fm1-to-smk37](https://github.com/genkigenki/fm1-to-smk37)), brought onto 0.24-beta2 here and built from the FM-1's
-releases since (0.41 now). Several SMK-37 owners have run these builds and report that they work, so since 0.29.2-smk37
+releases since (0.43 now). Several SMK-37 owners have run these builds and report that they work, so since 0.29.2-smk37
 they are full releases, not pre-releases. The maintainer still has no SMK-37: the project has not tried anything on
 this page on a unit itself, and new features reach it through the testers. What only a unit can answer is listed under
 [What to test](#what-to-test). Report what you find in the project's issues.
@@ -20,14 +20,14 @@ factory package afterwards. The test packages (`build/release-smk37/`, see [Buil
 
 | Model | Package | Identity |
 | --- | --- | --- |
-| SMK-37 Pro (and the Starrykey 37 Play) | `choralroot-0.41-smk37.1.fwsc` | `SMK-37 Pro_920` |
-| SMK-37 Elite | `choralroot-0.41-smk37.1-elite.fwsc` | `SMK-37 Elite_920` |
-| MKE-P37 | `choralroot-0.41-smk37.1-mke.fwsc` | `MKE-P37_920` |
+| SMK-37 Pro (and the Starrykey 37 Play) | `choralroot-0.43-smk37.fwsc` | `SMK-37 Pro_920` |
+| SMK-37 Elite | `choralroot-0.43-smk37-elite.fwsc` | `SMK-37 Elite_920` |
+| MKE-P37 | `choralroot-0.43-smk37-mke.fwsc` | `MKE-P37_920` |
 
-Each has a `-1core` twin (`choralroot-0.41-smk37.1-1core.fwsc`, ...): the same firmware on one processor core, for
+Each has a `-1core` twin (`choralroot-0.43-smk37-1core.fwsc`, ...): the same firmware on one processor core, for
 a unit that crashes or freezes with the standard package (as the FM-1's, [docs/DUALCORE.md](docs/DUALCORE.md)). The
-version a player sees (the splash, Options > Version, `fm1_install.py --info`) is `ChoralRoot 0.41-smk37.1`
-(`... 1-core` for the twin). 0.41-smk37.1 is 0.41-smk37 with Options > System > Calibrate Wheels, which teaches the pitch and mod wheels their rest, their ends and which way is up ([The wheels](#the-wheels)); the FM-1's 0.41 is unchanged. 0.41-smk37 was the FM-1's 0.41: each drum's own Chorus, Delay and Reverb sends, Level, Drive and Filter on the Kick, Snare and Hats Mix pages, and the drums on the second core ([docs/releases/0.41.md](docs/releases/0.41.md)). 0.40-smk37 was the FM-1's 0.40: the drums on the metronome's keys (a Grids beat, six CoralFlower kits, the SEQ menu's pages and FX sends), the click following MASTER and the beat off at power-on ([docs/releases/0.40.md](docs/releases/0.40.md)). **New on the SMK-37 and not yet run on one: its own resource region** (flash 0x9D000..0xA8FFF: the fonts M, CRX and CRB, the drums' kits and Grids' map; 35 KB of app space freed), which the installer now writes with the firmware: a new install path. Please report how the first install, the splash, the fonts and the drums look, and anything odd, in the project's issues. 0.39-smk37 was the FM-1's 0.39 without MIDI Roots and MIDI Keys (the FM-1's only): the Options in groups (Play, Chords, Keys, MIDI, Screen, Audio, System, then Reset Settings; SELECT picks a group, OCT+ opens it, OCT- goes back) that reopen where you left them ([docs/releases/0.39.md](docs/releases/0.39.md)). 0.38-smk37 was the FM-1's 0.38: chords that glide into each other in POLY, a Glide of up to 30 s that shows the time it really takes (issue 46), and two notes that could keep sounding after LATCH off with Snap or under Free fixed ([docs/releases/0.38.md](docs/releases/0.38.md)). 0.37-smk37 was the FM-1's 0.37: MIDI note names explained (the screen's C4 is note 60; a DAW that calls 60 C3 reads every note an octave lower), Bass Solo following the octave you play (issues 40 and 43), loops that stay locked to MIDI Clock In however the pulses arrive (issue 39) and the PERF knobs in the same places across modes (issue 26) ([docs/releases/0.37.md](docs/releases/0.37.md)). 0.36-smk37 was the FM-1's 0.36: Key Mode's 21 more scales (the modes, pentatonics, blues, bebop, whole tone, diminished, eastern scales and Barry Harris's 6th-diminished), KNOB 2 in the KEY layer going through all 23 and the MIN / MAJ pads, tapped again, stepping to the next scale of their kind ([docs/releases/0.36.md](docs/releases/0.36.md)). 0.35-smk37 was the FM-1's 0.35: the Bass PERF layer's Follow (the bass performs the chords' mode and parameters, step for step) and ARP held in either PERF layer switching to the other ([docs/releases/0.35.md](docs/releases/0.35.md)). 0.34-smk37 was the FM-1's 0.34: Chord and Bass Perform, the chords and the bass each with their own performance mode (CHORD held + ARP: the bass's), and the BASS layer's keys play until GLO turns them into its shortcuts ([docs/releases/0.34.md](docs/releases/0.34.md)). 0.33-smk37 was the FM-1's 0.33: Options > MIDI CC (In by default) lets a CC set a parameter of the chord or the bass sound, and with Out a knob or a fader turned on one sends its CC; the master filter can work on the chords or the bass alone; the audio starts right after power-on, as on the FM-1, where that took away a pop ([docs/releases/0.33.md](docs/releases/0.33.md)). 0.32-smk37 was the FM-1's 0.32: the flash driver waits out an erase or a write that takes longer than expected instead of cutting it short ([docs/releases/0.32.md](docs/releases/0.32.md)). 0.31-smk37 was the FM-1's 0.31 without its USB Host (the FM-1's only): when the
+version a player sees (the splash, Options > Version, `fm1_install.py --info`) is `ChoralRoot 0.43-smk37`
+(`... 1-core` for the twin). 0.43-smk37 is the FM-1's 0.43, which plays exactly as 0.42 on the keyboard: what 0.43 adds is ChoralRoot on the Ableton Move in RemoteFM1 ([docs/releases/0.43.md](docs/releases/0.43.md)). 0.42-smk37 was the FM-1's 0.42: progressions the Ripchord way, a key playing a whole stored chord, on the SMK-37's 37 keys from C3 with the pads as the chord keys, KEY's tap switching between the progression and the chord pads, and the device manager importing Ripchord presets ([Progressions](#progressions), [docs/releases/0.42.md](docs/releases/0.42.md)). 0.41-smk37.1 was 0.41-smk37 with Options > System > Calibrate Wheels, which teaches the pitch and mod wheels their rest, their ends and which way is up ([The wheels](#the-wheels)); the FM-1's 0.41 is unchanged. 0.41-smk37 was the FM-1's 0.41: each drum's own Chorus, Delay and Reverb sends, Level, Drive and Filter on the Kick, Snare and Hats Mix pages, and the drums on the second core ([docs/releases/0.41.md](docs/releases/0.41.md)). 0.40-smk37 was the FM-1's 0.40: the drums on the metronome's keys (a Grids beat, six CoralFlower kits, the SEQ menu's pages and FX sends), the click following MASTER and the beat off at power-on ([docs/releases/0.40.md](docs/releases/0.40.md)). **New on the SMK-37 and not yet run on one: its own resource region** (flash 0x9D000..0xA8FFF: the fonts M, CRX and CRB, the drums' kits and Grids' map; 35 KB of app space freed), which the installer now writes with the firmware: a new install path. Please report how the first install, the splash, the fonts and the drums look, and anything odd, in the project's issues. 0.39-smk37 was the FM-1's 0.39 without MIDI Roots and MIDI Keys (the FM-1's only): the Options in groups (Play, Chords, Keys, MIDI, Screen, Audio, System, then Reset Settings; SELECT picks a group, OCT+ opens it, OCT- goes back) that reopen where you left them ([docs/releases/0.39.md](docs/releases/0.39.md)). 0.38-smk37 was the FM-1's 0.38: chords that glide into each other in POLY, a Glide of up to 30 s that shows the time it really takes (issue 46), and two notes that could keep sounding after LATCH off with Snap or under Free fixed ([docs/releases/0.38.md](docs/releases/0.38.md)). 0.37-smk37 was the FM-1's 0.37: MIDI note names explained (the screen's C4 is note 60; a DAW that calls 60 C3 reads every note an octave lower), Bass Solo following the octave you play (issues 40 and 43), loops that stay locked to MIDI Clock In however the pulses arrive (issue 39) and the PERF knobs in the same places across modes (issue 26) ([docs/releases/0.37.md](docs/releases/0.37.md)). 0.36-smk37 was the FM-1's 0.36: Key Mode's 21 more scales (the modes, pentatonics, blues, bebop, whole tone, diminished, eastern scales and Barry Harris's 6th-diminished), KNOB 2 in the KEY layer going through all 23 and the MIN / MAJ pads, tapped again, stepping to the next scale of their kind ([docs/releases/0.36.md](docs/releases/0.36.md)). 0.35-smk37 was the FM-1's 0.35: the Bass PERF layer's Follow (the bass performs the chords' mode and parameters, step for step) and ARP held in either PERF layer switching to the other ([docs/releases/0.35.md](docs/releases/0.35.md)). 0.34-smk37 was the FM-1's 0.34: Chord and Bass Perform, the chords and the bass each with their own performance mode (CHORD held + ARP: the bass's), and the BASS layer's keys play until GLO turns them into its shortcuts ([docs/releases/0.34.md](docs/releases/0.34.md)). 0.33-smk37 was the FM-1's 0.33: Options > MIDI CC (In by default) lets a CC set a parameter of the chord or the bass sound, and with Out a knob or a fader turned on one sends its CC; the master filter can work on the chords or the bass alone; the audio starts right after power-on, as on the FM-1, where that took away a pop ([docs/releases/0.33.md](docs/releases/0.33.md)). 0.32-smk37 was the FM-1's 0.32: the flash driver waits out an erase or a write that takes longer than expected instead of cutting it short ([docs/releases/0.32.md](docs/releases/0.32.md)). 0.31-smk37 was the FM-1's 0.31 without its USB Host (the FM-1's only): when the
 computer goes with notes held (a cable pulled, a computer asleep), the keyboard lets go of the notes MIDI was holding
 ([docs/releases/0.31.md](docs/releases/0.31.md)). 0.30-smk37 was the FM-1's 0.30 on the SMK-37 without its Bluetooth (the FM-1's only):
 incoming MIDI start, continue and stop work as the PLAY button with MIDI Clock Out too, and a start restarts the Arp
@@ -161,6 +161,13 @@ start, so it does not need the stock firmware's trims, which ChoralRoot's store 
 pairing) is at 0xF2000 / 0xF3000 ([Storage](#storage)); Forget Bluetooth clears the pairing, Flash Data the whole record.
 The SMK-37 Pro and Elite have the radio; RemoteFM1's SMK build has run Bluetooth on them.
 
+### Progressions
+
+KEY layer page 2, Keyboard: Prog (new in 0.42, GitHub issue 64; MANUAL.md "Key Mode") works on all 37 keys: C3 plays
+the progression's first key, C6 its 37th, and OCT- / OCT+ slide 12 keys along a longer one (a progression holds 48 keys
+at most). The progressions are kept in their own flash object (Storage, below) and edited in the device manager. MIDI
+Keys is not on the SMK-37, so only the keys play them here.
+
 ### What the FM-1 has and the SMK-37 does not
 
 These came to ChoralRoot after the port was made and have no SMK-37 counterpart; they are left out rather than given
@@ -199,7 +206,7 @@ freezes with the standard package.
 **From the command line**: connect the keyboard by USB and run, with the package for your model:
 
 ```sh
-python3 tools/fm1_install.py choralroot-0.41-smk37.1.fwsc
+python3 tools/fm1_install.py choralroot-0.43-smk37.fwsc
 ```
 
 `fm1_install.py` needs `python-rtmidi` (`pip3 install python-rtmidi`). It checks that the package is for the connected
@@ -272,7 +279,8 @@ the first start.
 | 0xAB000-0xACFFF | the settings | FL_DATA |
 | 0xAD000-0xAEFFF | the session | FL_DATA |
 | 0xAF000 | the store owner tag (`SMK37DATACHORAL`) | FL_DATA |
-| 0xB0000-0xB3FFF | the second resource region (since HISTORY 3y309): the kerning of M and CRB, the factory presets' lists, FM6's factory voices; 0.21's CZ-1 and FM TONE stores' place before (free since 3y231) | the update loader only (FL_RES2) |
+| 0xB0000-0xB2FFF | the second resource region (since HISTORY 3y309): the kerning of M and CRB, the factory presets' lists, FM6's factory voices; 0.21's CZ-1 and FM TONE stores' place before (free since 3y231) | the update loader only (FL_RES2) |
+| 0xB3000-0xB3FFF | the progressions, copy A (`cr_prog.c`, docs/PROGRESSIONS.md; a 0.21 record left there names another object and is refused: the factory progressions until the first one is sent) | FL_DATA |
 | 0xB4000-0xB5FFF | the favourites | FL_DATA |
 | 0xB6000-0xBAFFF | the sound pool, sectors 0..4 | FL_DATA |
 | 0xBB000-0xBFFFF | the update's staging (M-UPGRADE's loader and its record) | FL_OTA |
@@ -284,7 +292,7 @@ the first start.
 | 0xEB000-0xF1FFF | the sound pool, sectors 9..15 | FL_TAIL |
 | 0xF2000-0xF3FFF | Bluetooth: the address, the pairing, the radio's trims (since 3y309) | FL_TAIL |
 | 0xF4000-0xFDFFF | USR (the stock resources) | never |
-| 0xFE000-0xFEFFF | free | not written |
+| 0xFE000-0xFEFFF | the progressions, copy B (free and never written before them) | FL_SPARE |
 | 0xFF000-0xFFFFF | key_mac | never |
 
 Each object has two copies (A / B); the pool's 16 sectors float (each save goes to a free one). Options > Flash Data (in
@@ -301,8 +309,10 @@ power-on (this build's, whole) and otherwise shows **FONTS MISSING / INSTALL CHO
 screens without the big type until the next install. An older package (0.39-smk37 and before) leaves the sectors as they
 are, and so does that firmware.
 
-**The second resource region (HISTORY 3y309).** As the FM-1's (3y296), at 0xB0000..0xB3FFF: the kerning of the fonts M
-and CRB, the factory presets' lists and FM6's factory voices (12 540 B), to make room for Bluetooth. The package
+**The second resource region (HISTORY 3y309, 3y317).** As the FM-1's (3y296), at 0xB0000..0xB2FFF (12 KB; 0xB3000 is
+the progressions'): the kerning of the fonts M and CRB, the FM6, CZ-1 and PROPHET factory presets' lists and FM6's
+factory voices (11 940 B), to make room for Bluetooth; the VA's, QUAD's, GRAIN's and WHEEL's lists are in the first
+region. The package
 carries it as its own entry (`res2.bin`), the loader writes it with the app and the first region, before the commit
 marker. When it is not this build's the splash says **PRESETS MISSING** and the factory presets read as the engines'
 defaults until the next install. 0.41-smk37.1 and before do not write it; their owner change and Flash Data can erase it
@@ -337,9 +347,9 @@ models in `build/release-smk37/`, with the `-1core` twins, `SHA256SUMS`, this fi
 [BUILDING.md](BUILDING.md) "An SMK-37 test release"):
 
 ```sh
-BOARD=smk37 ./build.sh --release 0.41-smk37.1
-BOARD=smk37 MODEL=elite ./build.sh --release 0.41-smk37.1
-BOARD=smk37 MODEL=mke ./build.sh --release 0.41-smk37.1
+BOARD=smk37 ./build.sh --release 0.43-smk37
+BOARD=smk37 MODEL=elite ./build.sh --release 0.43-smk37
+BOARD=smk37 MODEL=mke ./build.sh --release 0.43-smk37
 ```
 
 ## What to test
@@ -347,7 +357,7 @@ BOARD=smk37 MODEL=mke ./build.sh --release 0.41-smk37.1
 What no test here can answer, in the order to try it. Note the model, the package and what you saw.
 
 1. **First boot and the owner change.** From the stock firmware: the first start takes a few seconds longer (the
-   areas cleared, once), then the splash shows `ChoralRoot 0.41-smk37.1`. A second start is quick. `fm1_install.py
+   areas cleared, once), then the splash shows `ChoralRoot 0.43-smk37`. A second start is quick. `fm1_install.py
    --info` names the firmware. From genkigenki's earlier build through 0.29.2-smk37: your sounds are there (moved into the pool).
 2. **The pads.** Pads 1-4, 9-12 hold the chord types and extensions, pad 13 is LOCK (tap and hold), pads 5-8 and 14-16
    pick and stop the performance modes; their colours as in [Controls](#controls).
@@ -411,8 +421,11 @@ What no test here can answer, in the order to try it. Note the model, the packag
     direction, where each tops out). Run Options > System > Calibrate Wheels, then check: no bend and no vibrato with
     both wheels at rest, the pitch wheel up raises the pitch, full bend just before each end, the mod wheel from none
     at the bottom to full at the top. Power-cycle: the same without calibrating again.
+18. **Progressions.** KEY layer page 2, KNOB 2 to `Prog`; page 3 picks Pop Four. C3 to G3 play its eight chords,
+    the keys after them are silent and dark, the eight glow. Send a longer progression from the device manager's
+    Progressions page: all 37 keys play, OCT+ moves on 12 keys. Power-cycle: Prog and the progression are still set.
 
-18. **Bluetooth (3y309, the first build with it).** Options > MIDI > Bluetooth `On`, switch off and on: the splash
+19. **Bluetooth (3y309, the first build with it).** Options > MIDI > Bluetooth `On`, switch off and on: the splash
     is normal and `ChoralRoot XXXX` shows up on a computer or phone (macOS: Audio MIDI Setup > Bluetooth; iOS: an app
     with Bluetooth MIDI). Pair, play: the notes, the knobs' CCs and MIDI Clock Out arrive as over USB; notes and clock
     from the computer play the keyboard. Say how far away it holds and whether notes stutter or drop over a few minutes

@@ -28,15 +28,17 @@
  *
  * The second region (HISTORY 3y296; docs/BOOT-SAFETY.md "The second resource region"): CR_RES2 1 (choralroot.c),
  * flash FL_RES2_LO..FL_RES2_HI (FM-1 0xDC000..0xDFFFF, 16 KB: 0.21's user banks, free since 3y231; SMK-37 since 3y309
- * 0xB0000..0xB3FFF, 0.21's CZ-1 and QUAD stores), XIP 0x020D8040.. / 0x020AC040.. for its data. Read-only tables that only the main loop reads, by section (firmware/app.ld .res2):
+ * 0xB0000..0xB2FFF, 12 KB, 0.21's CZ-1 store 2 and the QUAD store's first sector; 0xB3000 the progressions), XIP 0x020D8040.. / 0x020AC040.. for its data. Read-only tables that only the main loop reads, by section (firmware/app.ld .res2):
  *   .res2.kern    the kerning pairs of M and CRB (AF_M_KB / KD, AF_CRB_KB / KD: tools/gen_aa_font.py RES2, the
  *                 attribute AF_RES2); their row tables stay in the image, and S's kerning, the fallback font's
- *   .res2.preset  the factory presets' lists of FM6, VA, CZ-1 and PROPHET (engine_t.presets: RES2_PRESET)
+ *   .res2.preset  the factory presets' lists of FM6, VA, CZ-1 and PROPHET (engine_t.presets: RES2_PRESET; the SMK-37's
+ *                 VA list in its first region, .res.preset: RES_PRESET_VA, CR_REGION_GONE; QUAD's, GRAIN's and
+ *                 WHEEL's too there, RES_PRESET_SMK, from its app slot)
  *   .res2.fm6     FM6's factory voices F1..F24 (FM6_FACTORY, FM6_ROM)
  *   .res2.drum    reserved for the drum kits that do not fit the first region (RES2_DRUM; 514 B a kit)
- * The package carries it as the entry res2.bin (type CR_RES2_TYPE, tools/fm1pkg_make.py --res2), the whole 16 KB:
+ * The package carries it as the entry res2.bin (type CR_RES2_TYPE, tools/fm1pkg_make.py --res2), the whole region (16 KB; the SMK-37's 12 KB):
  * this header (cr_res_hdr_t with CR_RES2_MAGIC, its ble fields 0), the data from FL_RES2_DATA, erased bytes after.
- * The update loader writes its four sectors with the body, after the first region's and before the commit marker
+ * The update loader writes its sectors (four; the SMK-37's three) with the body, after the first region's and before the commit marker
  * (ldr_core.c), so a cut install is uncommitted and a committed one has it; a package without the entry leaves the
  * sectors as they were. cr_shim.c cr_res2_boot checks it as cr_res_boot the first; when refused, cr_res2_ok is 0 and
  * every reader goes without (CR_RES2_GONE): no kerning on M and CRB (gfx.c kern: 0), each factory preset of a list in
@@ -58,6 +60,14 @@
 #endif
 #ifndef RES2_PRESET
 #define RES2_PRESET
+#endif
+#ifndef RES_PRESET_VA
+#define RES_PRESET_VA RES2_PRESET           /* the VA's list: the second region's, but the SMK-37's first (3y309, its
+                                             * second region 12 KB since the progressions took 0xB3000) */
+#endif
+#ifndef RES_PRESET_SMK
+#define RES_PRESET_SMK                      /* QUAD's, GRAIN's and WHEEL's lists: the app's, the SMK-37's first region
+                                             * (3y309: its app slot full) */
 #endif
 #ifndef RES2_FM6
 #define RES2_FM6
@@ -107,3 +117,5 @@ static uint8_t cr_res2_ok;                  /* 1: the second region is this buil
 #define cr_res2_ok 1
 #define CR_RES2_GONE(p) 0
 #endif
+/* a table in either region that is not there (a list whose region differs by board: RES_PRESET_VA) */
+#define CR_REGION_GONE(p) (CR_RES_GONE(p) || CR_RES2_GONE(p))

@@ -104,6 +104,10 @@ static int crl_chance(const cr_loop_t *lp, uint32_t ch, uint32_t s)
 static void crl_hit(cr_loop_t *lp, cr_t *c, int lv)   /* voice lv sounds its chord (a ratchet: again) */
 {
     uint32_t qx = lp->pv[lv].qx;
+    if (CRL_EV_PROG(qx))                             /* a progression's chord: its reference (cr_loop.h CRL_Q_PROG0) */
+        cr_loop_event_v(c, lv, CRL_PROG_REF(lp->pv[lv].root, qx), CR_Q_PROG, (uint8_t)(qx & 15u), lp->pv[lv].vel, 1,
+                        lp->pv[lv].voic);
+    else
     cr_loop_event_v(c, lv, lp->pv[lv].root, (uint8_t)(qx >> 4),
                     (uint8_t)(!(qx & 0xF0u) && (qx & CRL_X_BASS) ? CR_GX_BASS : qx & 15u),   /* (a bass-side note: the
                                                      * bass part, as it was played) */
@@ -167,13 +171,26 @@ static void crl_hide(cr_loop_t *lp, uint32_t i)    /* Replace: event i hidden by
     lp->gen++;
 }
 
+/* the loop's swing (the Move takeover's Loop settings, cr_move.c): 50 straight .. 75 %; an event on an even
+ * sixteenth's second half of the pair (a step's start at an odd step) plays later by 2 x (swing - 50) % of a step.
+ * Played only: the events keep their places */
+static uint8_t crl_swing = 50u;
+static uint32_t crl_swung(const cr_loop_t *lp, uint32_t t)
+{
+    uint32_t u;
+    if (crl_swing <= 50u || t % (2u * CRL_STEP) != CRL_STEP)
+        return t;
+    u = t + 2u * CRL_STEP * (uint32_t)(crl_swing - 50u) / 100u;
+    return u < lp->d.len ? u : t;
+}
 static void crl_fire(cr_loop_t *lp, cr_t *c, uint32_t lo, uint32_t hi)   /* events at positions lo..hi */
 {
     uint32_t i;
     int hiding = lp->cap == CRL_CAP_OD && lp->rep && lp->rep_n;   /* Replace, a gesture held: what starts is erased */
     for (i = 0; i < lp->d.nev; i++) {
         const crl_ev_t *e = &lp->d.ev[i];
-        if ((e->layer & CRL_HID) || e->t < lo || e->t > hi) continue;
+        const uint32_t et = crl_swung(lp, e->t);
+        if ((e->layer & CRL_HID) || et < lo || et > hi) continue;
         if (hiding && i < lp->layer_ev0) crl_hide(lp, i);
         else crl_play_ev(lp, c, e, i, 0);
     }
@@ -331,6 +348,27 @@ static void crl_st_prune(cr_loop_t *lp)
         if (!((has >> s) & 1u)) lp->d.st[s][0] = lp->d.st[s][1] = 0;
 }
 
+/* an event's root and qx for a chord passed by value (out.gesture's: root, q, ext): a progression's reference packed
+ * (cr_loop.h CRL_Q_PROG0), a single note's nibble its part (CRL_X_BASS) */
+typedef char crl_prog_q[CRL_Q_PROG0 == CR_Q_COUNT && CR_Q_PROG == CR_Q_COUNT ? 1 : -1];   /* (C99: the nibbles above the
+                                                    * qualities are the progressions') */
+static void crl_ev_chord(crl_ev_t *e, int16_t root, uint8_t q, uint8_t ext)
+{
+    if (q == CR_Q_PROG) {
+        int t = CR_PROG_TR(root);
+        uint32_t i = CR_PROG_KEY(root) % 48u, u;
+        while (t > 7) t -= 12;
+        while (t < -7) t += 12;
+        u = (uint32_t)(t + 7);
+        e->root = (uint8_t)(i + 48u * (u / 3u));
+        e->qx = (uint8_t)((CRL_Q_PROG0 + u % 3u) << 4 | (ext & 15u));
+        return;
+    }
+    if (q >= CR_Q_COUNT) q = 0;
+    e->root = (uint8_t)(root < 0 ? 0 : root > 127 ? 127 : root);
+    e->qx = (uint8_t)(q << 4 | (q ? ext & 15u : ext & CR_GX_BASS ? CRL_X_BASS : 0u));
+}
+
 static void crl_write(cr_loop_t *lp, uint32_t t0, int16_t root, uint8_t q, uint8_t ext, uint8_t vel)
 {
     crl_ev_t *e;
@@ -364,11 +402,9 @@ static void crl_write(cr_loop_t *lp, uint32_t t0, int16_t root, uint8_t q, uint8
     e = &lp->d.ev[lp->d.nev++];
     e->t = (uint16_t)rel;
     e->dur = (uint16_t)dur;
-    e->root = (uint8_t)(root < 0 ? 0 : root > 127 ? 127 : root);
     e->vel = (uint8_t)(vel ? vel : 1u);
-    if (q >= CR_Q_COUNT) q = 0;
     /* a single note has no extensions: its nibble is its part (the gesture's CR_GX_BASS: a Split Bass bass-side key) */
-    e->qx = (uint8_t)(q << 4 | (q ? ext & 15u : ext & CR_GX_BASS ? CRL_X_BASS : 0u));
+    crl_ev_chord(e, root, q, ext);
     e->layer = lp->d.nlayers;
     if (lp->d.nev >= CRL_MAX_EV) lp->full = 1;
 }
@@ -1062,7 +1098,7 @@ static void crl_ed_write(cr_loop_t *lp, int16_t root, uint8_t q, uint8_t ext, ui
 {
     crl_ev_t *e;
     uint32_t side, n;
-    if (q >= CR_Q_COUNT) q = 0;
+    if (q > CR_Q_PROG) q = 0;
     side = !q && (ext & CR_GX_BASS) ? 1u : 0u;
     if (lp->ed_t0 >= lp->d.len) return;
     crl_ed_flat(lp);
@@ -1079,9 +1115,8 @@ static void crl_ed_write(cr_loop_t *lp, int16_t root, uint8_t q, uint8_t ext, ui
     e = &lp->d.ev[lp->d.nev++];
     e->t = (uint16_t)lp->ed_t0;
     e->dur = (uint16_t)(lp->ed_nf ? lp->ed_nf * CRL_FRAC : (lp->ed_n ? lp->ed_n : 1u) * CRL_STEP);
-    e->root = (uint8_t)(root < 0 ? 0 : root > 127 ? 127 : root);
     e->vel = (uint8_t)(vel ? vel : 1u);
-    e->qx = (uint8_t)(q << 4 | (q ? ext & 15u : side ? CRL_X_BASS : 0u));
+    crl_ev_chord(e, root, q, side ? (uint8_t)CR_GX_BASS : ext);
     e->layer = 0;
     lp->gen++;
     lp->dirty = 1;
@@ -1354,8 +1389,13 @@ int cr_loop_ed_transpose(cr_loop_t *lp, int semis)
         const crl_ev_t *e = &lp->d.ev[i];
         int r;
         if ((e->layer & CRL_HID) || e->t < lp->ed_t0 || e->t >= B) continue;
-        r = (int)e->root + semis;
-        if (r < CRL_ROOT_MIN || r > CRL_ROOT_MAX) return 0;
+        if (CRL_EV_PROG(e->qx)) {                   /* a progression's chord: its transpose, -7 .. +7 */
+            r = CRL_PROG_T(e->root, e->qx) + semis;
+            if (r < -7 || r > 7) return 0;
+        } else {
+            r = (int)e->root + semis;
+            if (r < CRL_ROOT_MIN || r > CRL_ROOT_MAX) return 0;
+        }
         n++;
     }
     if (!n) return 0;
@@ -1364,7 +1404,11 @@ int cr_loop_ed_transpose(cr_loop_t *lp, int semis)
     for (i = 0; i < lp->d.nev; i++) {
         crl_ev_t *e = &lp->d.ev[i];
         if ((e->layer & CRL_HID) || e->t < lp->ed_t0 || e->t >= B) continue;
-        e->root = (uint8_t)((int)e->root + semis);
+        if (CRL_EV_PROG(e->qx)) {
+            int16_t ref = CRL_PROG_REF(e->root, e->qx);
+            crl_ev_chord(e, CR_PROG_REF(CR_PROG_KEY(ref), CR_PROG_TR(ref) + semis), CR_Q_PROG, (uint8_t)(e->qx & 15u));
+        } else
+            e->root = (uint8_t)((int)e->root + semis);
     }
     lp->gen++;
     lp->dirty = 1;
@@ -1520,7 +1564,9 @@ int cr_loop_unpack(const uint8_t *buf, uint32_t n, crl_data_t *d)
                                                       * record's nibble: the extension keys held, never heard) */
                 e->qx = (uint8_t)(buf[7] & CRL_RF_PART ? e->qx & CRL_X_BASS : 0u);
             e->layer = (uint8_t)l;
-            if (e->t >= len || !e->dur || e->root > 127u || !e->vel || e->vel > 127u || (e->qx >> 4) >= CR_Q_COUNT) {
+            if (e->t >= len || !e->dur || !e->vel || e->vel > 127u ||
+                ((e->qx >> 4) >= CR_Q_COUNT && !CRL_EV_PROG(e->qx)) ||   /* (13 .. 15: a progression's, cr_loop.h) */
+                e->root > (CRL_EV_PROG(e->qx) ? 239u : 127u)) {
                 crl_zero(d, crl_data_size(0));
                 return 0;
             }

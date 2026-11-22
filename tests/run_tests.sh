@@ -210,8 +210,10 @@ par_build $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_trs_test" tests/smk_tr
 run "SMK-37 TRS MIDI out: bytes in order, the clock ahead, bursts never block or cut, releases always in, Off" \
     "$OUT/smk_trs_test"
 PAR_MAKES="$OUT/smk-new.fwsc"
+# (the FM-1 build's files in the SMK's layout: its second region's data cut to the SMK's 12 KB slot, 3y317)
+head -c $((0xB3000 - 0xB0040)) build/res2.bin > "$OUT/res2-smk.bin"
 par_prep quiet python3 tools/fm1pkg_make.py --board smk37 --product "SMK-37 Pro_920" --res build/res.bin \
-    --res2 build/res2.bin build/choralroot.bin build/loader/ota.bin "$OUT/smk-new.fwsc"
+    --res2 "$OUT/res2-smk.bin" build/choralroot.bin build/loader/ota.bin "$OUT/smk-new.fwsc"
 run "SMK-37 package layout (fm1pkg_make --board smk37): PRCT 0x9D000, stock region table, the stub's places, the region" \
     python3 tests/smk_pkg_test.py "$OUT/smk-new.fwsc"
 par_build $CC -DBOARD_SMK37=1 -DOWN_PKG=1 -o "$OUT/ota_test_smk" tests/ota_test.c
@@ -226,10 +228,10 @@ for m in no-stub other-body no-stub-other old-stub; do
     par_prep quiet python3 tools/make_stub_test_pkg.py "$m" --board smk37 -o "$OUT/smk-stub-test-$m.fwsc"
 done
 par_build $CC -O2 -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/ldr_test_smk" tests/ldr_test.c
-run "update loader, SMK-37: app area 0x4000-0x9CFFF, the regions 0x9D000-0xA8FFF and 0xB0000-0xB3FFF, the interruption model, the protected ranges untouched" \
+run "update loader, SMK-37: app area 0x4000-0x9CFFF, the regions 0x9D000-0xA8FFF and 0xB0000-0xB2FFF, the interruption model, the protected ranges untouched" \
     "$OUT/ldr_test_smk" "$OUT/smk-stub-test-no-stub.fwsc" "$OUT/smk-new.fwsc" "$OUT/smk-stub-test-other-body.fwsc" \
     "$OUT/smk-stub-test-no-stub-other.fwsc" "$OUT/smk-stub-test-old-stub.fwsc"
-run "update loader, SMK-37: a package without the regions (a downgrade) leaves 0x9D000-0xA8FFF and 0xB0000-0xB3FFF as they were" \
+run "update loader, SMK-37: a package without the regions (a downgrade) leaves 0x9D000-0xA8FFF and 0xB0000-0xB2FFF as they were" \
     "$OUT/ldr_test_smk" "$OUT/smk-new.fwsc" "$OUT/smk-stub-test-no-stub.fwsc"
 for m in pro elite mke; do                           # the packages BOARD=smk37 MODEL=... ./build.sh made, when present
     f=build/choralroot-smk37.fwsc; id="SMK-37 Pro_920"
@@ -286,6 +288,7 @@ if command -v node >/dev/null 2>&1; then
     run "web SMK-37 test installer: the page against simulated SMK-37s (node, no browser)" node web/test_smk_installer.mjs
     run "web sounds: slots as files, bindings, .syx" node web/test_sounds.mjs
     run "web device manager: pools, place / keep / swap / undo, loops, packs (simulated FM-1)" node web/test_manager.mjs
+    run "web progressions: the id 24 object, Ripchord .rpc import / export (issue 64)" node web/test_prog.mjs
 else
     skip "web tests: editor, backup, installer, SMK-37 installer, sounds, device manager (no node)"
 fi

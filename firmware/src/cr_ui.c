@@ -25,6 +25,7 @@
  * the corner dial (the count-in's and undo's ring) and the transport's top line.
  * Included after cr_out.c, cr_anim.c, gfx.c, cr_gfx.c, cr_draw.c, panel.c, cr_bank.c, cr_pages.c and cr_name.c. */
 #include "cr_ui.h"
+#include "rfm1_ext.h"   /* a host's readouts (FM1VST's rd1: the popups' words; nothing in the FM-1's build) */
 
 /* ---------------------------------------------------------------- roles --- */
 /* the printed buttons in ChoralRoot's roles (PLAN.md section 3) */
@@ -637,6 +638,15 @@ static struct {
                                            * own pitch (cu_mroot); 0 Off */
     uint8_t midi_cc;                      /* Options > MIDI CC (3y269): bit 0 In, bit 1 Out (0 Off .. 3 In+Out; 1 In,
                                            * the default, 3y272) */
+    /* the progressions (GitHub issue 64; cr_prog.h, docs/PROGRESSIONS.md; the session's: cr_settings.h cr_session_t
+     * prog_*): KEY page 2 Keyboard: Prog (kbd_full kept: Prog overrides it while on, Chords / Full as it was when Prog
+     * is left), page 3's progression 0..15, OCT's window 0..3 (in Prog OCT- / OCT+ slide the keys 12 along, the octave
+     * stays), page 3's Velocity (50..150 %; 0 = 100 %, as the session stores it) and Humanize (0..100 %).
+     * prog_off: Keyboard is Prog but KEY's tap has put it aside (the owner, 2026-11-19: the tap toggles Prog and the
+     * chord keys with their roots, the Chords keyboard whatever kbd_full says; prog_on 0 then) */
+    uint8_t prog_on, prog_sel, prog_win, prog_vel, prog_hum, prog_off;
+    int8_t prog_tr;                       /* .. page 3's Transpose -24..24: the progression's own, added to page 1's for
+                                           * its chords only (the owner, 2026-11-19) */
 #if BOARD_SMK37
     uint8_t smk_pedal;                    /* Options > Pedal: the pedal jack 0 Sustain, 1 Expression (the session's:
                                            * cr_settings.h smk_pedal; cr_smk_pedal) */
@@ -1686,7 +1696,8 @@ static struct {
     uint8_t tpend;                        /* bit cr_mod_t: LOCK: the only latched type, pressed again; let go alone
                                            * it goes off (another chord key pressed meanwhile: it stays) */
     uint8_t kpage;                        /* the KEY layer's page (SELECT): 0 Tonic Scale Transpose Single, 1 Key plays
-                                           * Keyboard; the first page whenever the layer opens */
+                                           * Keyboard Snap Numerals, 2 Prog Velocity Humanize (the progressions); the
+                                           * first page whenever the layer opens */
     uint8_t mpage;                        /* the SEQ layer's page (SELECT, Drums only): 0 the preset, 1 Beat, 2 Kick,
                                            * 3 Snare, 4 Hats; the first whenever the layer opens */
     uint8_t lpage;                        /* the PLAY menu's page (SELECT): 0 Length Rate Quantize Count-in, 1 Level;
@@ -1856,8 +1867,9 @@ static __attribute__((noinline)) void cu_opt_enter(void)   /* OCT+ on a group: i
 }
 /* the Full keyboard (KEY layer, Keyboard: Full) with Full K Shorts: F#5 and G5 are its switches, F#5 brings the
  * layout's chord keys back on the low keys (cu.full_chk: the Chords keyboard then, its roots to F5) */
-static int cu_fshort(void) { return CU_FN_KEYS && cs.kbd_full && cs.full_short; }
-static int cu_full(void) { return cs.kbd_full && !(cu_fshort() && cu.full_chk); }
+static int cu_fshort(void) { return CU_FN_KEYS && cs.kbd_full && cs.full_short && !cs.prog_on && !cs.prog_off; }
+static int cu_full(void) { return cs.kbd_full && !cs.prog_off && !cs.prog_on && !(cu_fshort() && cu.full_chk); }   /* (Prog tapped
+                                                    * aside: the Chords keyboard) */
 static uint32_t cu_root0(void) { return cu_full() ? 0u : cu_fm1() ? CU_ROOT0_FM1 : CU_ROOT0; }   /* the first key
                                                     * that plays: a root (the Full keyboard: every key a note) */
 static uint32_t cu_kend(void) { return cu_fshort() ? 25u : CU_NKEY; }   /* .. the key after the last (F#5 G5: the
@@ -1926,6 +1938,121 @@ static void cu_pick_end(int keep);
 static void cu_epk_commit(void);
 static uint32_t cu_layer(void);
 static uint32_t cu_now(void) { return fm1_ms; }
+/* ---- the progressions (GitHub issue 64; cr_prog.h, docs/PROGRESSIONS.md). Keyboard: Prog is an overlay on the Chords
+ * keyboard (the owner, 2026-11-19: "start them on the keys from the first C"): the chord block keeps its jobs (and LOCK
+ * as on Chords); a ROOT key pressed while a chord key is in use (held, or latched by LOCK: cu_ckeys_used) plays the
+ * Chords keyboard's chord, pressed with none it is a TRIGGER j of the progression selected, playing its key
+ * i = j + 12 x window (cr_prog_key: the engine looks the chord up). Decided per press: the release ends what the press
+ * started (cu.key_note CU_KN_PROG). j: the FM-1's root keys from C4 (C4 = 0 .. G5 = 19; Classic's from D4 = 2), the
+ * SMK-37's keybed from C3 (its chord keys are the pads). MIDI Keys' notes past the keybed press the triggers beyond
+ * it (cr_midi.c crm_pkey); the keybed's notes are its keys. A trigger is down while the keybed or MIDI holds it (one
+ * press); its release ends whatever it started, whatever was selected since */
+#if BOARD_SMK37
+#define CU_PROG_LOW 48u                            /* the note of trigger 0: C3, the SMK-37's lowest key */
+#define CU_PEXT 85u                                /* .. the first note past its keybed (C6 + 1) */
+#define CU_PNKB 37u                                /* .. the triggers its keybed has */
+static uint32_t cu_pj(uint32_t k) { return k + 5u; }   /* a middle key's trigger (F3 = key 0 is the keybed's 5th) */
+#else
+#define CU_PROG_LOW 60u                            /* C4 */
+#define CU_PEXT 80u                                /* (G#5) */
+#define CU_PNKB 20u                                /* C4 .. G5 */
+static uint32_t cu_pj(uint32_t k) { return k - CU_ROOT0_FM1; }   /* a root key's trigger (k >= C4) */
+#endif
+#define CU_KN_PROG 0xFEu                           /* cu.key_note: the key pressed as a trigger */
+static int cu_prog(void) { return cs.prog_on; }
+static int cu_prog_kbd(void) { return cs.prog_on || cs.prog_off; }   /* Keyboard is Prog (on, or tapped aside) */
+static uint32_t cu_pvel(void) { return cs.prog_vel ? cs.prog_vel : 100u; }
+static struct { uint64_t pan, mid; } cu_pk;          /* bit j: trigger j held by the keybed / by MIDI Keys */
+static uint32_t cu_ptrig_held(uint32_t j) { return j < CRPG_KEYS && (((cu_pk.pan | cu_pk.mid) >> j) & 1u); }
+/* trigger j down (vel) or up, by the keybed (mid 0) or MIDI (1): the engine hears its first press and its last release.
+ * The velocity x Velocity %, 1..127. A key past the progression's 48 posts nothing (silent) */
+static void cu_ptrig(uint32_t j, uint32_t mid, uint32_t vel, uint32_t down)
+{
+    uint64_t bit = (uint64_t)1 << (j & 63u), was = (cu_pk.pan | cu_pk.mid) & bit, *m = mid ? &cu_pk.mid : &cu_pk.pan;
+    uint32_t i = CR_PROG_I(j, cs.prog_win);
+    if (j >= CRPG_KEYS)
+        return;
+    *m = down ? *m | bit : *m & ~bit;
+    if (!was == !((cu_pk.pan | cu_pk.mid) & bit))
+        return;
+    cu.last_sound = cu_now();
+    if (!down) {
+        cr_post(CRE_PKEY, j, 0, 0);
+        return;
+    }
+    vel = CR_PROG_VEL(vel, cu_pvel());
+    cu.last_vel = (uint8_t)vel;
+    cu_trace("prog: trigger %u key %u of prog %u vel %u%s\n", (unsigned)j, (unsigned)i + 1u, (unsigned)cs.prog_sel + 1u,
+             (unsigned)vel, i < CRPG_KEYS && crp_chord(cs.prog_sel, i, (uint8_t[CRPG_NOTES]){0}) ? "" : " (no chord)");
+    if (i < CRPG_KEYS)
+        cr_post(CRE_PKEY, j, vel, (int32_t)(1u | i << 1 | (uint32_t)cs.prog_sel << 7));
+}
+static void cu_prog_allup(int post)                /* every trigger let go (post 0: a panic took the voices already) */
+{
+    uint32_t j;
+    for (j = 0; post && j < CRPG_KEYS; j++)
+        if (cu_ptrig_held(j))
+            cr_post(CRE_PKEY, j, 0, 0);
+    cu_pk.pan = cu_pk.mid = 0;
+}
+/* the window as far as the progression selected reaches: OCT+ only while a key is left beyond it */
+static void cu_prog_fit(void)
+{
+    uint32_t nk = crp_nkeys(cs.prog_sel);
+    while (cs.prog_win && 12u * cs.prog_win >= nk)
+        cs.prog_win--;
+}
+static void cu_key_release(uint32_t k);
+/* Keyboard into / out of Prog: what the keys hold is let go under the old map (a held chord, a trigger stops) and those
+ * keys do nothing more until let go (cu.kdead, as a layout change); MIDI Keys' too. LOCK's latch stays as it is */
+static void cu_prog_set(uint32_t on)
+{
+    uint32_t k;
+    on = on != 0u;
+    if (cs.prog_on == on)
+        return;
+    cu_prog_allup(1);
+    for (k = 0; k < CU_NKEY; k++)
+        if ((cu.kheld >> k) & 1u)
+            cu_key_release(k);
+    cu.kdead |= cu.kpanel;
+    cu.kmidi = 0;
+    cu.kheld = 0;
+    cu.b3_pend = 0;
+    cs.prog_on = (uint8_t)on;
+    cr_mkeys_pext = CU_PEXT;
+    cr_mkeys_prog = (uint8_t)(on ? CU_PROG_LOW : 0u);
+    cu_trace("key: keyboard %s\n", on ? "prog" : cs.kbd_full ? "full" : "chords");
+}
+/* the session's (cr_settings.c css_apply; crs_reinit: all 0) */
+static void cu_prog_apply(uint32_t on, uint32_t sel, uint32_t win, uint32_t vel, uint32_t hum, int32_t tr)
+{
+    cu_prog_set(on == 1u);                         /* (2: Prog tapped aside, the Chords keyboard) */
+    cs.prog_off = (uint8_t)(on == 2u);
+    cs.prog_sel = (uint8_t)(sel & 15u);
+    cs.prog_win = (uint8_t)(win & 3u);             /* (as saved, even past a shorter progression's end: OCT- brings it
+                                                    * back; a restore may still bring the progression) */
+    cs.prog_vel = (uint8_t)(vel >= 50u && vel <= 150u && vel != 100u ? vel : 0u);
+    cs.prog_hum = (uint8_t)(hum > 100u ? 0u : hum);
+    cr_post(CRE_PROGHUM, 0, 0, cs.prog_hum);
+    cs.prog_tr = (int8_t)(tr < -24 || tr > 24 ? 0 : tr);
+    cr_post(CRE_PROGTR, 0, 0, cs.prog_tr);
+}
+/* "keys 13-39": the progression keys the keybed reaches now (the last: the progression's) */
+static void cu_prog_keys(char *b, uint32_t n)
+{
+    uint32_t nk = crp_nkeys(cs.prog_sel), a = 12u * cs.prog_win + 1u, z = a + CU_PNKB - 1u;
+    char t[8];
+    if (nk >= a && z > nk)
+        z = nk;
+    cu_cpy(b, "keys ", n);
+    cu_int(t, (int32_t)a, 0, sizeof t);
+    cu_cat(b, t, n);
+    cu_cat(b, "-", n);
+    cu_int(t, (int32_t)z, 0, sizeof t);
+    cu_cat(b, t, n);
+}
+static void cu_prog_oct(uint32_t up);
 /* storage_hw.c st_erase (78 PEAK erases_near): an erase the unit starts by itself now would be near playing: a voice
  * of the parts is active, the engine holds a chord or has a note scheduled, or the last input (a key, a button, a
  * knob, a MIDI message: the screensaver's clock) is less than 2 s old */
@@ -1992,6 +2119,7 @@ static void cu_message(const char *t, uint32_t col)
     cu.msg.big = 0;
     cu.msg.col = (uint8_t)col;
     cu_cpy(cu.msg.text, t, sizeof cu.msg.text);
+    RFM1_MESSAGE(t);
 }
 
 /* a knob's meter for CR_POPUP_MS: value huge (the CRX charset: digits, + - . and A-G), sub / label under it */
@@ -2012,6 +2140,7 @@ static void cu_popup(const char *value, const char *sub, const char *label, uint
     cu.pop.col = (uint8_t)col;
     cu.pop.segs = (uint8_t)segs;
     cu.pop.pct = (uint16_t)(hi > lo ? (uint32_t)((v - lo) * 256 / (hi - lo)) : 0u);
+    RFM1_READOUT_SUB(-1, label, value, sub, v, lo, hi);
 }
 /* a send's popup (KNOB 4 of the main view, CC 91 / 93 / 94): the per cent of every send read-out (cu_send_pct), big
  * over "%" (as the click level's), the meter 0 .. 100 */
@@ -2342,6 +2471,7 @@ static void cu_pool_popup(uint32_t part, uint32_t pos)
     cu.pop.mark = en.kind == PK_USER && en.fk != PF_NONE;
     cu.pop.star = (uint8_t)cu_fav_ent(e, en);     /* a favourite: the star before its name */
     cu.pop.pool = (uint8_t)CU_POOL_ID(part, e);
+    RFM1_PRESET(ENGINES[e]->name, nm);
     cu_trace("popup: part %u %s / %s%s%s / ", (unsigned)part, b, nm, cu.pop.mark ? " (mark)" : "",
              cu.pop.star ? " (star)" : "");       /* (the place) */
     cu_trace_txt(lb);
@@ -2811,6 +2941,32 @@ static struct {
     uint8_t ch;                                    /* .. one of its events is a chord (a voicing applies to it) */
     int8_t rat, cond, voic, chance;                /* the step's properties (cr_loop_ed_prop; -1: it has none) */
 } cu_le;
+/* a loop event's chord name (its root and qx bytes): a progression's reference (cr_loop.h CRL_Q_PROG0) by its notes as
+ * the progression has them now (an empty key: "-"), any other by cr_chord_name */
+static void cu_ev_name(uint32_t root, uint32_t qx, char r[4], char q[5], char sup[CR_SUP_MAX])
+{
+    if (CRL_EV_PROG(qx)) {
+        uint8_t n[CRPG_NOTES];
+        uint32_t m = crp_chord(qx & 15u, root % 48u, n), i;
+        int32_t tr = CRL_PROG_T(root, qx);
+        for (i = 0; i < m; i++) {
+            int32_t x = (int32_t)n[i] + tr;
+            while (x < 0)
+                x += 12;
+            while (x > 127)
+                x -= 12;
+            n[i] = (uint8_t)x;
+        }
+        if (m)
+            cr_chord_recognise(n, (int)m, r, q, sup);
+        else {
+            cu_cpy(r, "-", 4);
+            q[0] = sup[0] = 0;
+        }
+        return;
+    }
+    cr_chord_name((uint8_t)(root % 12u), (uint8_t)(qx >> 4), (uint8_t)(qx & 15u), r, q, sup);
+}
 static const char *const CU_LE_COND[CRL_NCOND] = {"Always", "1:2", "2:2", "1:3", "2:3", "3:3", "1:4", "2:4", "3:4", "4:4",
                                                   "1st", "not 1st"};
 static const char *const CU_LE_RAT[CRL_NRATCH] = {"Off", "x2", "x3", "x4"};
@@ -3521,6 +3677,8 @@ static void cu_ledit_cells(cr_screen_t *s)
         if (cu_le.cnt) {                           /* Transpose: the root note of the step's name; hot: this turn's sum */
             if (cu_le_tr_hot() && cu_le_tr.sum)
                 cu_int(s->cell[0][3].value, cu_le_tr.sum, 1, sizeof s->cell[0][3].value);
+            else if (CRL_EV_PROG(cu_le.qx))        /* (a progression's chord: its transpose) */
+                cu_int(s->cell[0][3].value, CRL_PROG_T(cu_le.root, cu_le.qx), 1, sizeof s->cell[0][3].value);
             else {
                 char nn[5];
                 cr_note_name(cu_le.root, nn);
@@ -3718,6 +3876,8 @@ static void cu_quiet(void)                        /* PANIC without its screen: e
     cu_unlatch();                                 /* the LOCK latch cleared (LOCK itself stays on) */
     cr_post(CRE_PANIC, 0, 0, 0);
     cu.octave = 0;
+    cs.prog_win = 0;                              /* (Prog: the window too) */
+    cu_prog_allup(0);                             /* (the triggers held end nothing more) */
     cu_post_kbd();
     for (k = 0; k < CU_NKEY; k++)                 /* the keys still held end nothing more */
         if (cu.key_note[k] && cu.key_note[k] != 0xFFu)
@@ -3823,6 +3983,16 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
 #endif
     switch (b) {                                  /* (a layer's own button: still its on/off action) */
     case BT_KEY:
+        if (cu_prog_kbd()) {                      /* Keyboard: Prog: the tap toggles Prog and the Chords keyboard (the
+                                                   * owner, 2026-11-19); Key Mode stays as it is */
+            uint32_t on = !cs.prog_on;
+            cu_prog_set(on);                      /* (the keys held let go under the old map) */
+            cs.prog_off = (uint8_t)!on;
+            cu_post_kbd();
+            cu_message(on ? "Prog" : "Chords", on ? CR_COL_PURPLE : CR_COL_WHITE);
+            cu_trace("key: tap %s\n", on ? "prog" : "chords (prog aside)");
+            break;
+        }
         cs.key_on ^= 1u;
         cu_post_key();
         break;
@@ -3955,8 +4125,7 @@ static void cu_opened(uint32_t b)                 /* a button held past HOLD (or
         cu_pick_end(1);
     cu.lock = (uint8_t)l;                         /* the layer stays open after release */
     cu_hot.knob = 0;                              /* (a layer opens with no hot cell) */
-    if (l == L_KEY && was != L_KEY)               /* the KEY layer opens on its first page */
-        cu.kpage = 0;
+    /* (the KEY layer opens on the page it last showed: the owner, 2026-11-19; page 1 after a power-on) */
     if (l == L_LOOP && was != L_LOOP)             /* .. the PLAY menu too */
         cu.lpage = 0;
     if (l == L_METRO && was != L_METRO)           /* .. the SEQ layer: its preset page */
@@ -4110,6 +4279,11 @@ static void cu_oct_tap(uint32_t b)
         return;
     }
 #endif
+    if (cu_prog() && ((cu.ledit && cu_layer() == L_LOOP) ||
+                      (!cu_layer() && !(cr_snap.lcap == CRL_CAP_STEP) && !cu.opt_open && !cu_picker_ctx()))) {
+        cu_prog_oct(b == B_OCTUP);                /* Prog: the window, on the view and in the loop editor */
+        return;
+    }
     if (cu.ledit && cu_layer() == L_LOOP) {       /* the loop editor: the octave, as on the view (the owner,
                                                    * 2026-10-13; they closed it until then: HOME and EDIT do): the
                                                    * notes entered next are entered there */
@@ -4147,6 +4321,19 @@ static void cu_oct_tap(uint32_t b)
     cu.octave = (int8_t)(cu.octave < -2 ? -2 : cu.octave > 2 ? 2 : cu.octave);
     cu_post_kbd();                                /* (the split key's note moves with it) */
     cu_popup_num(cu.octave, 1, "", "octave", CR_COL_WHITE, -2, 2, 5);
+}
+
+/* Prog's OCT- / OCT+ (the view, the loop editor): the window 12 keys down / up (0 .. 3; up only while the progression
+ * has a key beyond the window's first; the octave stays); a popup "keys 13-39" */
+static void cu_prog_oct(uint32_t up)
+{
+    char b[16];
+    uint32_t nk = crp_nkeys(cs.prog_sel);
+    if (up ? cs.prog_win < CRPG_WINDOWS - 1u && 12u * (cs.prog_win + 1u) < nk : cs.prog_win > 0u)
+        cs.prog_win = (uint8_t)(cs.prog_win + (up ? 1 : -1));
+    cu_prog_keys(b, sizeof b);
+    cu_popup(b + 5, "", "prog keys", CR_COL_PURPLE, cs.prog_win, 0, CRPG_WINDOWS - 1, CRPG_WINDOWS);   /* ("13-39") */
+    cu_trace("prog: window %u (%s)\n", (unsigned)cs.prog_win, b);
 }
 
 /* ------------------------------------------------------------ the layers --- */
@@ -4760,7 +4947,8 @@ static void cu_layer_key(uint32_t l, uint32_t k)   /* a root key while layer l i
         }
         return;
     }
-    if (k < CU_PICK0)                              /* (FM-1's C4, C#4: no job in the pick maps, the owner 2026-10-16) */
+    if (k < CU_PICK0 && l != L_KEY)                /* (FM-1's C4, C#4: no job in the pick maps, the owner 2026-10-16;
+                                                    * but every root picks the tonic: they are C and C#, 2026-11-19) */
         return;
     if (l == L_KEY) {                              /* the tonic, Key Mode on; MIN / MAJ held with it: that scale too
                                                     * (held from before the layer as well); neither: the scale stays
@@ -4800,16 +4988,50 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
     int32_t v;
     switch (l) {
     case L_KEY:
+        if (cu.kpage == 2u) {                      /* page 3 (the progressions): PROG, VELOCITY, HUMANIZE */
+            if (knob == 0) {                       /* the progression 1..16, no wrap (the window as far as it reaches) */
+                v = (int32_t)cs.prog_sel + s;
+                cs.prog_sel = (uint8_t)(v < 0 ? 0 : v > (int32_t)CRPG_N - 1 ? CRPG_N - 1 : v);
+                cu_prog_fit();
+                cu_trace("key: knob 1 prog %u (%u keys, %u chords)\n", (unsigned)cs.prog_sel + 1u,
+                         (unsigned)crp_nkeys(cs.prog_sel), (unsigned)crp_count(cs.prog_sel));
+            } else if (knob == 1) {                /* VELOCITY 50..150 % (stored 0 = 100) */
+                v = cu_kval((int32_t)cu_pvel(), s, 50, 150, kn.snap);
+                cs.prog_vel = (uint8_t)(v == 100 ? 0 : v);
+                cu_trace("key: knob 2 velocity %u%%\n", (unsigned)cu_pvel());
+            } else if (knob == 2) {                /* HUMANIZE 0..100 % (the engine's) */
+                v = cu_kval((int32_t)cs.prog_hum, s, 0, 100, kn.snap);
+                cs.prog_hum = (uint8_t)v;
+                cr_post(CRE_PROGHUM, 0, 0, cs.prog_hum);
+                cu_trace("key: knob 3 humanize %u%%\n", (unsigned)cs.prog_hum);
+            } else {                               /* TRANSPOSE -24..24 (OPT held: octaves), the progression's own */
+                v = kn.snap ? kn_snap_rng(cs.prog_tr, s, -24, 24, 12, 0) : cs.prog_tr + s;
+                cs.prog_tr = (int8_t)(v < -24 ? -24 : v > 24 ? 24 : v);
+                cr_post(CRE_PROGTR, 0, 0, cs.prog_tr);
+                cu_trace("key: knob 4 prog transpose %d\n", (int)cs.prog_tr);
+            }
+            cu_hot_set(L_KEY, knob);
+            break;
+        }
         if (cu.kpage) {                            /* page 2: KEY PLAYS, KEYBOARD, SNAP, NUMERALS */
             if (knob == 0) {
                 cs.key_notes = (uint8_t)(s > 0);
                 cr_post(CRE_KEYPLAYS, 0, 0, cs.key_notes);
                 cu_trace("key: knob 1 key plays %s\n", cs.key_notes ? "notes" : "chords");
-            } else if (knob == 1) {
-                cs.kbd_full = (uint8_t)(s > 0);
-                cu_fsc_enter();                    /* (Full K Shorts: F#5 / G5 as they start) */
+            } else if (knob == 1) {                /* KEYBOARD: Chords / Full / Prog (Prog leaves kbd_full as it was:
+                                                    * turned back, Full, then Chords) */
+                uint32_t was_full = (uint32_t)cu_full();
+                v = (cu_prog_kbd() ? 2 : (int32_t)cs.kbd_full) + (s > 0 ? 1 : -1);
+                v = v < 0 ? 0 : v > 2 ? 2 : v;
+                cu_prog_set(v == 2);
+                cs.prog_off = 0;                   /* (turned: Prog on, or Chords / Full as chosen) */
+                if (v < 2) {
+                    cs.kbd_full = (uint8_t)v;
+                    if ((uint32_t)cu_full() != was_full)
+                        cu_fsc_enter();            /* (Full K Shorts: F#5 / G5 as they start) */
+                }
                 cu_post_kbd();
-                cu_trace("key: knob 2 keyboard %s\n", cs.kbd_full ? "full" : "chords");
+                cu_trace("key: knob 2 keyboard %s\n", v == 2 ? "prog" : cs.kbd_full ? "full" : "chords");
             } else if (knob == 2) {                /* SNAP: Off / Scale / Chord (a root out of the scale, with Key plays
                                                     * Notes or the Full keyboard: the engine, cr_snap_note) */
                 v = (int32_t)cs.snap + s;
@@ -5073,6 +5295,9 @@ static void cu_activity(void)
  * Free sounds the last root again while a chord key is physically held (cu_mod_touch: CRE_MODTOUCH after a press's
  * events, before a release's). A set replaced in one push goes as one change: the ups quiet, then the down */
 #define CU_MOD_TOP ((1u << CR_MOD_DIM) | (1u << CR_MOD_MIN) | (1u << CR_MOD_MAJ) | (1u << CR_MOD_SUS))
+#ifdef FM1_HOST_TK
+static uint32_t cmv_mods_phys(void);               /* cr_move.c (an .rfm1 with the Move takeover only) */
+#endif
 static uint32_t cu_mods_phys(void)                 /* bit cr_mod_t: the chord keys physically held */
 {
 #if BOARD_SMK37
@@ -5088,9 +5313,16 @@ static uint32_t cu_mods_phys(void)                 /* bit cr_mod_t: the chord ke
             !(cu_fm1() && ((CU_TK_MASK >> k) & 1u)) &&    /* (FM-1's type keys: the types they resolved to, below) */
             (((cu.kheld & ~(uint32_t)cu.kpick) >> k) & 1u))
             m |= 1u << cu_mod_of(k);
+#ifdef FM1_HOST_TK
+    m |= cmv_mods_phys();                          /* (the Move takeover's chord pads: cr_move.c) */
+#endif
     return m | (cu_fm1() ? cu.tposted : 0u);
 #endif
 }
+/* Prog: a chord key is in use (held, latched by LOCK, the FM-1's type-key gesture still open): a root key pressed now
+ * plays the Chords keyboard's chord, not the progression's (the owner, 2026-11-19: "If you use them you play chords like
+ * normal, if you don't use them it plays the progressions") */
+static int cu_ckeys_used(void) { return cu.g_open || cu.tk_held || cu.mlatch || cu_mods_phys() != 0u; }
 static void cu_mods_trace(void)
 {
     static const char *const NM[CR_NMOD] = {"DIM", "MIN", "MAJ", "SUS", "6", "m7", "M7", "9"};
@@ -5679,6 +5911,12 @@ static void cu_key_press(uint32_t k)
     /* (Options: the keys play as on the view it was opened from. Until 2026-10-12 the white roots jumped to the
      * first eleven settings and no key sounded: the owner, "it isn't really helpful, and also makes it difficult to
      * compare clean and classic". The menu is SELECT, KNOB 1 and the buttons only) */
+    if (cu_prog() && !cu_ckeys_used()) {           /* Prog, no chord key in use: the key's trigger (cu_ptrig) */
+        cr_klat_post(CU_KEY_T0(k));
+        cu_ptrig(cu_pj(k), 0, cu_key_vel(k), 1);
+        cu.key_note[k] = CU_KN_PROG;
+        return;
+    }
     {
         int32_t n = 53 + (int32_t)k + 12 * cu.octave;
         n = n < 0 ? 0 : n > 127 ? 127 : n;
@@ -5733,7 +5971,9 @@ static void cu_key_release(uint32_t k)
         cu.kwait_up |= 1u << k;
         return;
     }
-    if (cu.key_note[k] && cu.key_note[k] != 0xFFu)
+    if (cu.key_note[k] == CU_KN_PROG)              /* a trigger (Prog) */
+        cu_ptrig(cu_pj(k), 0, 0, 0);
+    else if (cu.key_note[k] && cu.key_note[k] != 0xFFu)
         cr_post(CRE_KEY, cu.key_note[k] - 1u, 0, 0);
     cu.key_note[k] = 0;
 }
@@ -5821,7 +6061,20 @@ static void cu_mkeys_poll(void)
             cu_mroot(e & 127u, (e >> 7) & 127u, (e >> 14) & 1u);
             continue;
         }
+        if (e & CRM_PKEY) {                        /* MIDI Keys in Prog: a trigger (a down after Prog was left:
+                                                    * nothing; an up: whatever it holds let go) */
+            uint32_t j = (e & 31u) | ((e >> 13) & 1u) << 5, vel = (e >> 5) & 127u;
+            if ((e >> 12) & 1u) {
+                if (cu_prog())
+                    cu_ptrig(j, 1, vel ? vel : 1u, 1);
+            } else
+                cu_ptrig(j, 1, 0, 0);
+            continue;
+        }
         if (k == CR_MKQ_ALLUP || e == CR_MKQ_EVERY) {
+            for (k = 0; k < CRPG_KEYS; k++)        /* (Prog: MIDI's triggers too) */
+                if ((cu_pk.mid >> k) & 1u)
+                    cu_ptrig(k, 1, 0, 0);
             for (k = 0; k < CU_NKEY; k++)
                 if ((cu.kmidi >> k) & 1u) {
                     cu.kmidi &= ~(1u << k);
@@ -6264,8 +6517,8 @@ static void cu_knob(uint32_t role, int32_t s)
         cu_drum_page(s);
         return;
     }
-    if (l == L_KEY && role == EN_SELECT) {         /* the KEY layer: SELECT turns its page (no tempo there) */
-        uint32_t pg = s > 0 ? 1u : 0u;
+    if (l == L_KEY && role == EN_SELECT) {         /* the KEY layer: SELECT turns its page (no tempo there): three, no wrap */
+        uint32_t pg = s > 0 ? (cu.kpage < 2u ? cu.kpage + 1u : 2u) : (cu.kpage ? cu.kpage - 1u : 0u);
         if (pg != cu.kpage) {
             cu.kpage = (uint8_t)pg;
             cu_hot.knob = 0;
@@ -6894,6 +7147,7 @@ static void cu_smk_xkey(uint32_t kb, uint32_t vel)
     }
     if (!vel) {
         cu_xheld &= (uint16_t)~(1u << x);
+        cu_ptrig(kb, 0, 0, 0);                     /* (Prog: its trigger, if it holds one) */
         return;
     }
     cu_xheld |= (uint16_t)(1u << x);
@@ -6905,6 +7159,10 @@ static void cu_smk_xkey(uint32_t kb, uint32_t vel)
     }
     if (cu_layer_keys(cu_layer()) || (cu.page == PG_SAVE && ce.save_step))
         return;
+    if (cu_prog() && !cu_ckeys_used()) {           /* Prog, no pad of the chord keys in use: the key's trigger (C3 = 0) */
+        cu_ptrig(kb, 0, cs.touch ? vel : cs.vel, 1);
+        return;
+    }
     {
         int32_t n = 48 + (int32_t)kb + 12 * cu.octave;
         n = n < 0 ? 0 : n > 127 ? 127 : n;
@@ -7528,7 +7786,7 @@ static void cr_leds(void)
         return;
     }
     /* buttons: on = active */
-    cu_led(nl, panel.btn[BT_KEY], cs.key_on);
+    cu_led(nl, panel.btn[BT_KEY], cu_prog_kbd() ? cs.prog_on : cs.key_on);   /* (Keyboard: Prog: Prog on / aside) */
     cu_led(nl, panel.btn[BT_PERF], cs.perform_on);
     cu_led(nl, panel.btn[BT_FX], cs.fx_on);
     cu_led(nl, panel.btn[BT_BASS], cs.bass_on);
@@ -7579,6 +7837,8 @@ static void cr_leds(void)
     } else if (cu_picker_ctx() || l) {                   /* a picker: OCT- back (lit), OCT+ OK / close (blinking) */
         cu_led(nl, panel.btn[B_OCTDN], 1);
         cu_led(nl, panel.btn[B_OCTUP], (int)blink);
+    } else if (cu_prog()) {                              /* Prog: OCT+ lit while the window is up (OCT moves it) */
+        cu_led(nl, panel.btn[B_OCTUP], cs.prog_win > 0u);
     } else {
         cu_led(nl, panel.btn[B_OCTDN], cu.octave < 0);
         cu_led(nl, panel.btn[B_OCTUP], cu.octave > 0);
@@ -7674,6 +7934,18 @@ static void cr_leds(void)
         for (k = CU_PICK0; k < CU_NKEY; k++)
             if (cu_white_idx(k) >= 0 || k == 10u || k == 13u)
                 cu_led(own, CU_LK(k), 1);
+    } else if (cu_prog()) {                              /* Prog: the keys' own state (the owner's rule): a key with no
+                                                          * chord in the window dark, one with a chord at the glow, a key
+                                                          * held lit (the Full keyboard's and Key Mode's levels); the
+                                                          * root keys only: the chord block's are the Chords keyboard's */
+        for (k = key0; k < CU_NKEY; k++) {
+            uint8_t t[CRPG_NOTES];
+            uint32_t i = cu_pj(k) + 12u * cs.prog_win;
+            if (cu_ptrig_held(cu_pj(k)) || ((cu.kheld >> k) & 1u))
+                cu_led(nl, CU_LK(k), 1);
+            else if (i < CRPG_KEYS && crp_chord(cs.prog_sel, i, t))
+                cu_led(nd, CU_LK(k), 1);
+        }
     } else {                                             /* (Options too: the playing state, the OPT LED says it is open) */
         /* A sounding note lights every key that plays of its note name (the owner, 2026-10-11): a chord voiced,
          * transposed or shifted out of the keys' two octaves still shows, on both of them. Until then a note lit the
@@ -7768,6 +8040,21 @@ static void cu_notes(cr_screen_t *s, const cr_chord_info_t *ci)
 {
     uint32_t i, j;
     s->n_notes = 0;
+    if (ci->quality == CR_Q_PROG) {                /* a progression's chord: every note white, the bass's (the lowest of
+                                                    * the bass's pitch class) orange and marked */
+        int32_t bi = -1;
+        for (i = 0; i < ci->nnotes && i < CR_NOTES_MAX; i++) {
+            char b[5];
+            if (bi < 0 && ci->notes[i] % 12u == ci->root_pc)
+                bi = (int32_t)i;
+            cr_note_name(ci->notes[i], b);
+            cu_cpy(s->note[i].t, b, sizeof s->note[i].t);
+            s->note[i].col = bi == (int32_t)i ? CR_COL_ORANGE : CR_COL_WHITE;
+            s->note[i].mark = (uint8_t)(bi == (int32_t)i);
+            s->n_notes++;
+        }
+        return;
+    }
     for (i = 0; i < ci->nnotes && i < CR_NOTES_MAX; i++) {
         char b[5];
         uint32_t iv = (uint32_t)(ci->notes[i] + 120u - ci->root_pc) % 12u, base = ci->quality == CR_Q_NONE;
@@ -7812,7 +8099,7 @@ static void cu_numeral(char b[CR_NUMERAL_MAX])
 {
     const cr_chord_info_t *ci = &cr_snap.ci;
     b[0] = 0;
-    if (cs.numerals && cs.key_on && ci->valid && ci->sounding)
+    if (cs.numerals && cs.key_on && ci->valid && ci->sounding && ci->quality != CR_Q_PROG)
         (cs.numerals == 2u ? cr_chord_solfege : cr_chord_numeral)((uint8_t)(((int)ci->root_pc - ci->transpose) % 12 + 12),
                                                                  ci->quality, cs.tonic, cs.scale, b);
 }
@@ -7822,7 +8109,7 @@ static void cu_numeral(char b[CR_NUMERAL_MAX])
 _Static_assert(sizeof ((cr_screen_t *)0)->numeral >= CR_NUMERAL_MAX, "the screen's numeral holds the engine's");
 static void cu_numeral_put(cr_screen_t *s)
 {
-    if (!cs.numerals || !cs.key_on) return;
+    if (!cs.numerals || !cs.key_on) return;        /* (a progression's chord: none, cu_numeral) */
     s->numeral_on = 1;
     cu_numeral(s->numeral);
 }
@@ -7854,6 +8141,19 @@ static void cu_header(cr_screen_t *s)
         cu_cpy(s->mid, "Safe mode", sizeof s->mid);
         s->mid_col = CR_COL_RED;
     }
+    if (cu_prog() && cu_layer() != L_KEY) {       /* Prog: the progression's name and the key of its chord shown
+                                                   * ("Neo Soul \267 5"), purple, instead of the key (Key Mode does
+                                                   * nothing to its chords; the KEY layer keeps its own line) */
+        char nm[CRPG_NAME + 1], b[8];
+        crp_name(cs.prog_sel, nm);
+        cu_cpy(s->mid, crp_nkeys(cs.prog_sel) ? nm : "empty", sizeof s->mid);
+        if (sn->ci.valid && sn->ci.quality == CR_Q_PROG && sn->ci.ext == cs.prog_sel) {
+            cu_int(b, (int32_t)sn->ci.prog_key + 1, 0, sizeof b);
+            cu_cat(s->mid, " \267 ", sizeof s->mid);
+            cu_cat(s->mid, b, sizeof s->mid);
+        }
+        s->mid_col = CR_COL_PURPLE;
+    }
     /* the status (top right), one of: "Bass Solo" (Bass Behaviour Solo with the bass on: the chord part is silent),
      * the perform mode ("Arp"), "Bass" (the bass on), "Oct +1", "Latch", "lock" */
     if (cs.single == CR_SINGLE_SPLIT_BASS && !sn->perform_on) {   /* Split Bass: the bass is played by hand (Bass on /
@@ -7874,6 +8174,9 @@ static void cu_header(cr_screen_t *s)
     else if (sn->bass_on) {
         cu_cpy(s->right, "Bass", sizeof s->right);
         s->right_col = CR_COL_ORANGE;
+    } else if (cu_prog() && cs.prog_win) {        /* Prog: the window, where the octave shows (OCT moves it) */
+        cu_prog_keys(s->right, sizeof s->right);
+        s->right_col = CR_COL_PURPLE;
     } else if (cu.octave) {
         cu_cpy(s->right, "Oct ", sizeof s->right);
         cu_int(s->right + 4, cu.octave, 1, sizeof s->right - 4u);
@@ -8037,13 +8340,14 @@ static void cu_safe_screen(cr_screen_t *s)
 /* Options > Flash Data (SAFE MODE, OCT+ twice): erase every data object ChoralRoot keeps (not the firmware, not the
  * update area) and reboot; the boot after it loads nothing (an erased flash: factory sounds, default settings,
  * calibration from RAM or the default). The FM-1's regions (SMK-37: storage.c ST_SMK_REGIONS, the same as a new owner
- * clears, its resource region left out; storage.c's map): FM6 bank copy A 0x9F000, the eight CZ-1 banks
- * 0xA2000..0xB1FFF, the session 0xB4000..0xB5FFF
+ * clears, its resource region left out; storage.c's map): FM6 bank copy A 0x9F000, Bluetooth 0xA0000..0xA1FFF, the eight
+ * CZ-1 banks 0xA2000..0xB1FFF, the progressions 0xB2000..0xB3FFF (OBJ_PROG: the factory set after), the session
+ * 0xB4000..0xB5FFF
  * (0.18) and the favourites 0xB6000..0xB7FFF (0.22: marks on sounds that are gone would name whatever takes their
  * slots), the sound pool 0xB8000..0xC7FFF (storage.c sp_*, the user sounds since 0.22: until 0.24-beta2 it was left out,
  * so the sounds stayed), the loop slots 0xC8000..0xDBFFF (CRL_FL_BASE), the settings A / B and FM6 bank copy B
- * 0xFC000..0xFEFFF: 60 sectors. The sectors of 0.21's sound objects (0x97000..0x9EFFF, 0xA0000, 0xB2000, 0xDC000) are
- * no longer ChoralRoot's (HISTORY 3y231): not erased. The asserts below tie the list to storage.c's map */
+ * 0xFC000..0xFEFFF: 64 sectors. The other sectors of 0.21's sound objects (0x97000..0x9EFFF, 0xDC000: the resource
+ * regions now) are not erased (HISTORY 3y231). The asserts below tie the list to storage.c's map */
 #ifndef CR_REBOOT
 #define CR_REBOOT() do { bootguard_settled(&bootguard); usb_detach(); fm1_delay_ms(30); fm1_reboot(); } while (0)
 #endif
@@ -8056,12 +8360,13 @@ static void cu_flash_erase(void)
     static const uint32_t R[][2] = {{0x9F000u, 1u},      /* (storage.c: OBJ_FM6BANK copy A) */
                                     {0xA0000u, 2u},      /* (OBJ_BLE: Bluetooth's pairing, 3y236) */
                                     {0xA2000u, 16u},     /* (OBJ_CZBANK0..+7) */
+                                    {0xB2000u, 2u},      /* (OBJ_PROG: the progressions) */
                                     {0xB4000u, 4u},      /* (OBJ_SESSION, OBJ_FAVS) */
                                     {SP_BASE, SP_NSEC},  /* (storage.c sp_*: the sound pool's 16 sectors) */
                                     {CRL_FL_BASE, 2u * CRL_SLOTS},
                                     {0xFC000u, 3u}};     /* (OBJ_SETTINGS A / B, OBJ_FM6BANK copy B) */
 #if FELUCCA_FLASH
-    _Static_assert(OBJ_COUNT == 21u && OBJ_BLE + 1u == OBJ_COUNT, "Flash Data: a new storage object needs a place here");
+    _Static_assert(OBJ_COUNT == 22u && OBJ_PROG + 1u == OBJ_COUNT, "Flash Data: a new storage object needs a place here");
     _Static_assert(SP_BASE == 0xB4000u + 4u * ST_SECTOR && SP_BASE + SP_NSEC * ST_SECTOR == CRL_FL_BASE,
                    "Flash Data: the pool lies between the favourites and the loop slots");
 #ifdef FL_RES_HI                                    /* (the device's flash map: hal/fm1_flash_map.h) */
@@ -8271,9 +8576,38 @@ static void cu_key_cells(cr_screen_t *s)
 {
     static const char *const LB[4] = {"Tonic", "Scale", "Transpose", "Single"};
     uint32_t k;
+    if (cu.kpage == 2u) {                          /* page 3 (the progressions): Prog 1..16 (text), Velocity, Humanize
+                                                    * (bars), Transpose (shift: -24..24, centre 0, as page 1's) */
+        char b[8];
+        s->cell[0][0].flags = s->cell[0][1].flags = s->cell[0][2].flags = s->cell[0][3].flags = CR_CF_ON;
+        cu_cpy(s->cell[0][3].label, "Transpose", sizeof s->cell[0][3].label);
+        cu_int(s->cell[0][3].value, cs.prog_tr, 1, sizeof s->cell[0][3].value);
+        s->cell[0][3].glyph = CR_G_SHIFT;
+        s->cell[0][3].pct = (uint8_t)((uint32_t)(cs.prog_tr + 24) * 255u / 48u);
+        cu_cpy(s->cell[0][0].label, "Prog", sizeof s->cell[0][0].label);
+        cu_int(s->cell[0][0].value, (int32_t)cs.prog_sel + 1, 0, sizeof s->cell[0][0].value);
+        cu_cpy(s->cell[0][1].label, "Velocity", sizeof s->cell[0][1].label);
+        cu_int(b, (int32_t)cu_pvel(), 0, sizeof b);
+        cu_cat(b, "%", sizeof b);
+        cu_cpy(s->cell[0][1].value, b, sizeof s->cell[0][1].value);
+        s->cell[0][1].glyph = CR_G_BAR;
+        s->cell[0][1].pct = (uint8_t)((cu_pvel() - 50u) * 255u / 100u);
+        cu_cpy(s->cell[0][2].label, "Humanize", sizeof s->cell[0][2].label);
+        cu_int(b, cs.prog_hum, 0, sizeof b);
+        cu_cat(b, "%", sizeof b);
+        cu_cpy(s->cell[0][2].value, b, sizeof s->cell[0][2].value);
+        s->cell[0][2].glyph = CR_G_BAR;
+        s->cell[0][2].pct = (uint8_t)(cs.prog_hum * 255u / 100u);
+        cu_hot_row(s, L_KEY);
+        if (s->hot_r && s->hot_c == 0u)            /* (the progression's chip: its purple) */
+            s->hot_col = CR_COL_PURPLE;
+        return;
+    }
     if (cu.kpage) {                                /* page 2 (SELECT): Key plays, Keyboard, Snap, Numerals */
-        s->cell[0][0].flags = s->cell[0][1].flags = s->cell[0][3].flags = CR_CF_ON;
-        s->cell[0][2].flags = (uint8_t)(CR_CF_ON | (cs.key_notes ? 0u : CR_CF_DIM));   /* (Snap changes nothing
+        uint32_t pd = 0u;                          /* (Prog: Key plays, Snap and Numerals for the Chords keyboard's chords) */
+        s->cell[0][0].flags = s->cell[0][3].flags = (uint16_t)(CR_CF_ON | pd);
+        s->cell[0][1].flags = CR_CF_ON;
+        s->cell[0][2].flags = (uint16_t)(CR_CF_ON | (cs.key_notes ? pd : CR_CF_DIM));   /* (Snap changes nothing
                                                     * with Key plays Chords, on either keyboard: grey) */
         cu_cpy(s->cell[0][2].label, "Snap", sizeof s->cell[0][2].label);
         cu_cpy(s->cell[0][2].value, CU_SNAP[cs.snap % 3u], sizeof s->cell[0][2].value);
@@ -8282,7 +8616,7 @@ static void cu_key_cells(cr_screen_t *s)
         cu_cpy(s->cell[0][0].label, "Key plays", sizeof s->cell[0][0].label);
         cu_cpy(s->cell[0][0].value, cs.key_notes ? "Notes" : "Chords", sizeof s->cell[0][0].value);
         cu_cpy(s->cell[0][1].label, "Keyboard", sizeof s->cell[0][1].label);
-        cu_cpy(s->cell[0][1].value, cs.kbd_full ? "Full" : "Chords", sizeof s->cell[0][1].value);
+        cu_cpy(s->cell[0][1].value, cu_prog_kbd() ? "Prog" : cs.kbd_full ? "Full" : "Chords", sizeof s->cell[0][1].value);
         cu_hot_row(s, L_KEY);
         return;
     }
@@ -8493,13 +8827,18 @@ static void cu_loopmenu(cr_screen_t *s, uint32_t now)
          * playback, I would like this to always show chord/notes of the selected step"), but while a root key is DOWN:
          * then the chord the player plays into it (his own, never a loop voice's: until then ci, the engine's "most
          * recent voice", which is the loop's whenever the loop strikes and a latched chord's whenever it does not) */
-        if (((cu.kheld >> cu_root0()) || cmr.n) && sn->pl_on) {
-            cr_chord_name(sn->pl_pc, sn->pl_q, sn->pl_x, r, q, sup);
+        if (((cu.kheld >> cu_root0()) || cmr.n || (cu_prog() && (cu_pk.pan | cu_pk.mid))) && sn->pl_on) {
+            if (sn->pl_q == CR_Q_PROG) {            /* (a progression's chord: the name shown, the player's) */
+                cu_cpy(r, sn->ci.root, sizeof r);
+                cu_cpy(q, sn->ci.qual, sizeof q);
+                cu_cpy(sup, sn->ci.sup, sizeof sup);
+            } else
+                cr_chord_name(sn->pl_pc, sn->pl_q, sn->pl_x, r, q, sup);
             cu_cpy(s->sub, r, sizeof s->sub);
             cu_cat(s->sub, q, sizeof s->sub);
             cu_cat(s->sub, sup, sizeof s->sub);
         } else if (cu_le.cnt) {
-            cr_chord_name((uint8_t)(cu_le.root % 12u), (uint8_t)(cu_le.qx >> 4), (uint8_t)(cu_le.qx & 15u), r, q, sup);
+            cu_ev_name(cu_le.root, cu_le.qx, r, q, sup);
             cu_cpy(s->sub, r, sizeof s->sub);
             cu_cat(s->sub, q, sizeof s->sub);
             cu_cat(s->sub, sup, sizeof s->sub);
@@ -8516,7 +8855,7 @@ static void cu_loopmenu(cr_screen_t *s, uint32_t now)
          * sixteenth), nothing before the first one and nothing when stopped */
         s->lm_now[0] = 0;
         if (sn->lstate == CRL_PLAYING && sn->lhit) {
-            cr_chord_name((uint8_t)(sn->lhit_root % 12u), (uint8_t)(sn->lhit_qx >> 4), (uint8_t)(sn->lhit_qx & 15u), r, q, sup);
+            cu_ev_name(sn->lhit_root, sn->lhit_qx, r, q, sup);
             cu_cpy(s->lm_now, r, sizeof s->lm_now);
             cu_cat(s->lm_now, q, sizeof s->lm_now);
             cu_cat(s->lm_now, sup, sizeof s->lm_now);
@@ -8559,8 +8898,7 @@ static void cu_loopmenu(cr_screen_t *s, uint32_t now)
             cu_cat(s->sub, sn->ci.qual, sizeof s->sub);
             cu_cat(s->sub, sn->ci.sup, sizeof s->sub);
         } else if (cu_lmc.cur_ok && !full) {
-            cr_chord_name((uint8_t)(cu_lmc.cur_root % 12u), (uint8_t)(cu_lmc.cur_qx >> 4), (uint8_t)(cu_lmc.cur_qx & 15u),
-                          r, q, sup);
+            cu_ev_name(cu_lmc.cur_root, cu_lmc.cur_qx, r, q, sup);
             cu_cpy(s->sub, r, sizeof s->sub);
             cu_cat(s->sub, q, sizeof s->sub);
             cu_cat(s->sub, sup, sizeof s->sub);
@@ -8653,15 +8991,47 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         s->title_col = CR_COL_WHITE;
         cu_cpy(s->label, cs.key_play ? "key \267 keys play" : "key \267 keys pick", sizeof s->label);   /* (as "perform
                                                                                                     * \267 on") */
-        cu_cat(s->label, cu.kpage ? " \267 2/2" : " \267 1/2", sizeof s->label);   /* (the page: SELECT) */
+        cu_cat(s->label, cu.kpage == 2u ? " \267 3/3" : cu.kpage ? " \267 2/3" : " \267 1/3", sizeof s->label);   /* (the
+                                                    * page: SELECT) */
         cu_cpy(s->footer, cs.key_play ? "SELECT: page \267 GLO: pick \267 OCT-: back"     /* (GLO: to the other) */
                                       : "SELECT: page \267 MAJ MIN: scale \267 GLO: play", sizeof s->footer);
-        for (k = CU_PICK0; cs.key_on && k < CU_NKEY; k++)
-            if ((53u + k) % 12u == cs.tonic) {
-                s->lit |= 1u << k;
-                s->lit_col[k] = CR_COL_YELLOW;
-                cu_cpy(s->key_label[k], CU_NOTE[cs.tonic], sizeof s->key_label[k]);
+        if (cu.kpage == 2u) {                      /* page 3: the progressions as a vertical picker, its title on the
+                                                    * top line in their purple */
+            char nm[CRPG_NAME + 1], b[8];
+            uint32_t i0 = cs.prog_sel < 3u ? 0u : cs.prog_sel - 3u;
+            if (i0 + CR_PICK_MAX > CRPG_N)
+                i0 = CRPG_N - CR_PICK_MAX;
+            s->kr_band = 3;
+            s->n_items = CRPG_N;
+            s->item0 = (uint8_t)i0;
+            s->sel = cs.prog_sel;
+            s->col = CR_COL_WHITE;
+            for (k = 0; k < CR_PICK_MAX; k++) {
+                crp_name(i0 + k, nm);
+                cu_cpy(s->item[k], crp_nkeys(i0 + k) ? nm : "empty", sizeof s->item[k]);
             }
+            cu_cpy(s->mid, "Prog ", sizeof s->mid);
+            cu_int(b, (int32_t)cs.prog_sel + 1, 0, sizeof b);
+            cu_cat(s->mid, b, sizeof s->mid);
+            cu_cat(s->mid, " of 16", sizeof s->mid);
+            s->mid_col = CR_COL_PURPLE;
+        } else if (cu.kpage == 1u && cu_prog()) {  /* page 2 in Prog: the strip's keys that hold a chord now (the
+                                                    * window's), purple */
+            for (k = cu_cb_end(); k < CU_NKEY && k < CR_KEYS; k++) {   /* (the root keys: from C4 on the FM-1) */
+                uint8_t t[CRPG_NOTES];
+                uint32_t i = cu_pj(k) + 12u * cs.prog_win;
+                if (i < CRPG_KEYS && crp_chord(cs.prog_sel, i, t)) {
+                    s->lit |= 1u << k;
+                    s->lit_col[k] = CR_COL_PURPLE;
+                }
+            }
+        } else
+            for (k = CU_PICK0; cs.key_on && k < CU_NKEY; k++)
+                if ((53u + k) % 12u == cs.tonic) {
+                    s->lit |= 1u << k;
+                    s->lit_col[k] = CR_COL_YELLOW;
+                    cu_cpy(s->key_label[k], CU_NOTE[cs.tonic], sizeof s->key_label[k]);
+                }
         cu_key_cells(s);
         cu_row_trace(s, "key", seen, sizeof seen);
         break;
@@ -9880,6 +10250,7 @@ static void cr_ui_init(void)
     song.master_q12 = 2048;
     cr_out_init();
     cr_bank_boot();                               /* (the device: persist_boot did it, with the flash) */
+    cr_prog_source(crp_chord);                    /* the progressions' chords: their RAM copy (cr_prog.c) */
     cb_init();
     cu_led_init();
 #if BOARD_SMK37

@@ -57,6 +57,22 @@ typedef enum { CR_MOD_DIM, CR_MOD_MIN, CR_MOD_MAJ, CR_MOD_SUS, CR_MOD_6, CR_MOD_
  * them as any quality (its 4-bit field) */
 enum { CR_Q_NONE = 0, CR_Q_DIM, CR_Q_MIN, CR_Q_MAJ, CR_Q_SUS, CR_Q_AUG, CR_Q_POW, CR_Q_MIN4,
        CR_Q_6_3, CR_Q_6_5, CR_Q_M6_3, CR_Q_M6_5, CR_Q_7B9, CR_Q_COUNT };
+/* A progression's chord (GitHub issue 64, KEY page 2 Keyboard: Prog; cr_prog.h): a list of up to 8 absolute notes,
+ * not a table quality. CR_Q_PROG is the quality a voice of one shows (rq, cr_chord_info's quality) and the q of its
+ * REFERENCE wherever a chord is passed by value (out.gesture, a pad's cr_chord_t, cr_loop_event): ext = the progression
+ * 0..15, root = CR_PROG_REF(key, transpose): the key i 0..47 in bits 0..5, the transpose it was played with + 48
+ * (0..96) in bits 6..12: the KEY layer's Transpose (-24..24) + the progression's own (page 3, -24..24). The notes are looked up (cr_prog_source) whenever the chord is built, so an edited progression changes what
+ * an old loop or pad plays, and a key that is empty now is silent. A loop's record packs the reference into its event
+ * (cr_loop.h CRL_Q_PROG0) */
+#define CR_Q_PROG CR_Q_COUNT
+#define CR_PROG_REF(i, t) ((int16_t)(((unsigned)(i) & 63u) | ((unsigned)((t) + 48) & 127u) << 6))
+#define CR_PROG_KEY(r) ((unsigned)(r) & 63u)
+#define CR_PROG_TR(r) ((int)(((unsigned)(r) >> 6) & 127u) - 48)
+/* the UI's side of a press (cr_ui.c cu_ptrig): keybed trigger j (0 = the lowest key) in OCT window w (0..3) plays key
+ * CR_PROG_I(j, w) of the progression (>= 48: none); the key's velocity v (1..127) x Velocity pct (50..150) */
+#define CR_PROG_I(j, w) ((unsigned)(j) + 12u * (unsigned)(w))
+#define CR_PROG_VEL(v, pct) ((unsigned)(v) * (unsigned)(pct) / 100u < 1u ? 1u : \
+                             (unsigned)(v) * (unsigned)(pct) / 100u > 127u ? 127u : (unsigned)(v) * (unsigned)(pct) / 100u)
 /* extension mask bits (the Lua ext_mask() packing) */
 enum { CR_EXT_6 = 1, CR_EXT_M7 = 2, CR_EXT_MAJ7 = 4, CR_EXT_9 = 8 };
 
@@ -145,6 +161,13 @@ typedef struct {
 #define CR_Z_FULL 1u             /* played on the Full keyboard: a single note, no voicing rotation */
 #define CR_Z_BASS 2u             /* Split Bass, below the split: the BASS stream alone, at the played pitch */
 #define CR_Z_LOW 4u              /* Split Oct on the Full keyboard, below the split key: an octave lower */
+#define CR_Z_PROG 8u             /* a progression's chord (cr_prog_key, a pad or a loop step of CR_Q_PROG): base[] = its
+                                  * stored notes + the voice's transpose (each moved by octaves into 0..127), voiced
+                                  * by KNOB 1 as any chord; no Key Mode, no chord key, no Single Notes split. Its fields:
+                                  * rq = sq = CR_Q_PROG, sx = the progression, pc_pressed = the key i, root =
+                                  * note_pressed = the lowest stored note (pc: its pitch class: the bass's), key = the
+                                  * trigger (cr_prog_key), id = CR_PROG_ID */
+#define CR_PROG_ID 1u            /* a progression trigger's press id (phys[] bit 1: apart from a root's, id 0) */
 #define CR_GX_BASS 0x80u         /* out.gesture's and cr_loop_event's ext: the note of the bass part (CR_Z_BASS), not a
                                   * chord: what a loop records of a bass-side key and plays back */
 
@@ -203,6 +226,8 @@ typedef struct {
     uint8_t mods_down, qstack[CR_NMOD], qn;
     uint8_t lock, mods_touch;                      /* LOCK (cr_mod_lock): the chord keys physically held (cr_mod_touch) */
     uint8_t full_chords;                           /* cr_set_full_chords 0 / 1 / 2 (0.24; in the padding before v[]) */
+    uint8_t prog_hum;                              /* cr_set_prog_humanize 0..100 (progressions; the last padding byte) */
+    int8_t prog_tr;                                /* cr_set_prog_transpose -24..24 (the progression's own) */
     cr_voice_t v[CR_NVOICE];         /* [0, CR_MAX_VOICES): keyed voices; then one per pad */
     cr_ev_t ev[CR_MAX_EV];
     uint16_t nev;
@@ -214,6 +239,8 @@ typedef struct {
     cr_chord_t last_chord;           /* the last played chord (pad recording) */
     uint8_t disp_vi;                 /* voice shown on screen (0xFF = none) */
     uint8_t disp_valid, disp_q, disp_x, disp_pc, disp_n, disp_notes[CR_CHORD_MAX];
+    uint8_t disp_pi;                 /* disp_q CR_Q_PROG: its key (disp_x the progression) .. */
+    int8_t disp_pt;                  /* .. and its transpose (in the padding at the end) */
 } cr_t;
 
 /* -------------------------------------------------------------- core --- */
@@ -319,12 +346,15 @@ void cr_pad_down(cr_t *c, int slot);               /* play a stored chord (momen
 void cr_pad_up(cr_t *c, int slot);
 void cr_pad_stop_all(cr_t *c);
 int  cr_pad_get(const cr_t *c, int slot, int16_t *root, uint8_t *q, uint8_t *ext, uint8_t *vel);
-void cr_pad_set(cr_t *c, int slot, int used, int16_t root, uint8_t q, uint8_t ext, uint8_t vel);
+void cr_pad_set(cr_t *c, int slot, int used, int16_t root, uint8_t q, uint8_t ext, uint8_t vel);   /* (q CR_Q_PROG: a
+                                                    * progression's reference, as out.gesture's; resolved at the pad's
+                                                    * down, silent when its key is empty then) */
 
 /* -------------------------------------------------------- loop voices --- */
 /* A looper's playback (cr_loop.c): plays a resolved chord as loop voice lv (0..CR_MAX_LOOPV-1), bypassing the
  * chord-key state machine: root is absolute (no transpose, no Key Mode: the recorded harmony), q a CR_Q_* quality
- * (CR_Q_NONE: a single note), ext a CR_EXT_* mask. Voicing, performance and bass apply live, as to a pad. on = 0
+ * (CR_Q_NONE: a single note), ext a CR_EXT_* mask. q = CR_Q_PROG: a progression's reference (root CR_PROG_REF, ext
+ * the progression), looked up now: 0 (no voice) when that key holds no chord now. Voicing, performance and bass apply live, as to a pad. on = 0
  * ends it (an on for a busy lv replaces it). Returns 1 when it sounds. Loop voices never reach out.gesture.
  * ext & CR_GX_BASS: a recorded bass-side note (Split Bass): the BASS stream alone at root + 12 x the bass register
  * in force now, whatever Single, the split point, the layout, Bass on / off or its Behaviour say now (q is ignored:
@@ -350,6 +380,9 @@ typedef struct {
     uint8_t secret;              /* quality is a Secret Chord type */
     uint8_t nnotes, notes[CR_CHORD_MAX];   /* voiced notes, low to high */
     char root[3], qual[5], sup[CR_SUP_MAX]; /* Orchid Standard Chord Naming: "C" "m" "7 9"; "C" "5"; "C" "m" "add4" */
+    uint8_t prog_key;            /* quality CR_Q_PROG (a progression's chord, ext its progression): its key i 0..47;
+                                  * the name is cr_chord_recognise's of its stored notes + transpose, root_pc the
+                                  * lowest of them's (the bass's) */
 } cr_chord_info_t;
 void cr_chord_info(const cr_t *c, cr_chord_info_t *ci);
 void cr_chord_name(uint8_t root_pc, uint8_t quality, uint8_t ext, char root[3], char qual[5], char sup[CR_SUP_MAX]);
@@ -383,6 +416,34 @@ int  cr_sounding(const cr_t *c, cr_stream_t s, uint8_t note);   /* registry refc
 int  cr_voices(const cr_t *c);                     /* live voices (keyed + pads) */
 int  cr_pending(const cr_t *c);                    /* queued events */
 const char *cr_pattern_name(int pattern);          /* 1..12 */
+
+/* ------------------------------------------------------ progressions --- */
+/* KEY page 2 Keyboard: Prog (GitHub issue 64; docs/PROGRESSIONS.md): a trigger trig (0..127, the UI's key number; its
+ * own space of press ids: CR_PROG_ID, apart from the roots' cr_key) plays the chord on key i (0..47) of progression p
+ * (0..15) as cr_prog_source's function gives it: its notes + the Transpose of now (cr_set_transpose + cr_set_prog_transpose), voiced by the live voicing, at
+ * vel, through the performance modes, the bass (the lowest note's pitch class) and the streams as any chord. No chord
+ * there (or no cr_prog_source): nothing at all (no voice, no note, no gesture, the latch untouched). Down on a trigger held:
+ * the chord anew. Up: its voice ends (a latch: it sounds on, CR_G_KEYUP). Key Mode, the chord keys and LOCK do nothing
+ * to it. out.gesture gets its reference (CR_Q_PROG above) */
+void cr_prog_key(cr_t *c, uint8_t trig, uint8_t p, uint8_t i, uint8_t vel, int down);
+/* where the chords come from (one source for every cr_t; 0, the default: every such key silent): fn gives the chord
+ * stored on key i of progression p, its notes ascending into notes[], their count (0: none, the key is silent). Read
+ * whenever a progression's chord is built: a press (cr_prog_key), a pad, a loop's step (cr_loop_event with CR_Q_PROG),
+ * the chord's name (cr_chord_info). It must not block (the audio ISR calls it): the firmware's reads a RAM copy
+ * (cr_prog.h crp_chord) */
+typedef unsigned (*cr_prog_fn)(unsigned p, unsigned i, uint8_t notes[CR_CHORD_MAX]);
+void cr_prog_source(cr_prog_fn fn);
+/* Humanize 0..100 %: every note a progression's chord starts (a performance's steps too) gets its velocity + a random
+ * offset in +-(pct x 40 / 100), from the engine's RNG (cr_seed), clamped 1..127. 0: as played */
+void cr_set_prog_humanize(cr_t *c, int pct);
+/* the progression's own Transpose (KEY page 3 KNOB 4), -24..24: added to cr_set_transpose's for a progression's chords
+ * only (a press from now on; the reference carries the sum) */
+void cr_set_prog_transpose(cr_t *c, int semis);
+/* the chord name of a list of notes (n 1..8, any order; a progression's): root / qual / sup as cr_chord_name writes
+ * them (sup with a slash bass: "7/E"). The bass (the lowest note) as the root first, then each other note with the bass
+ * after a slash, then the chord without the bass over it; a chord with its fifth left out names as with it (G13 of G B
+ * F A E). No match: the bass's note name alone. Pure; display only */
+void cr_chord_recognise(const uint8_t *notes, int n, char root[3], char qual[5], char sup[CR_SUP_MAX]);
 
 /* chord helpers, shared with a looper (pure functions of the tables) */
 int  cr_chord_base(int root_note, uint8_t quality, uint8_t ext, uint8_t out[CR_CHORD_MAX]);   /* (the 6th in place) */

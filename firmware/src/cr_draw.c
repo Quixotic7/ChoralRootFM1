@@ -44,6 +44,7 @@ static uint16_t cr_rgb(uint32_t c, uint16_t def)
     case CR_COL_LINE: return T_LINE;
     case CR_COL_REC: return T_REC;
     case CR_COL_MAGENTA: return CR_RGB(224, 75, 216);
+    case CR_COL_PURPLE: return CR_RGB(180, 140, 255);
     default: return def;
     }
 }
@@ -431,19 +432,25 @@ static void cr_p_chord(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
         cr_text(P8(120), ly, s->line, 14, 0, CR_C, 4096, cr_rgb(s->line_col, T_MID), under, 0);
         ly -= P8(18);
     }
-    if (s->n_notes) {                    /* the notes line: plain bold text, extensions marked by a block */
-        uint32_t i, px = s->n_notes > 5u ? 13u : 16u;
-        int32_t w[CR_NOTES_MAX], total = 0, x, y = ly - P8(12);
-        for (i = 0; i < s->n_notes; i++) {
-            w[i] = cr_tw(s->note[i].t, px, 1);
-            total += w[i] + (i ? P8(14) : 0);
+    if (s->n_notes) {                    /* the notes line: plain bold text, extensions marked by a block. Wider
+                                          * than 228 px (a progression's 8 notes): 6 px apart, then 11 px type */
+        uint32_t i, px = s->n_notes > 5u ? 13u : 16u, pass;
+        int32_t w[CR_NOTES_MAX], total = 0, x, y = ly - P8(12), gap = P8(14);
+        for (pass = 0; pass < 3u; pass++) {
+            if (pass == 1u) gap = P8(6);
+            if (pass == 2u) px = 11u;
+            for (i = 0, total = 0; i < s->n_notes; i++) {
+                w[i] = cr_tw(s->note[i].t, px, 1);
+                total += w[i] + (i ? gap : 0);
+            }
+            if (total <= P8(228)) break;
         }
         x = P8(120) - total / 2;
         for (i = 0; i < s->n_notes; i++) {
             uint16_t c = cr_rgb(s->note[i].col, CR_WHITE);
             cr_text(x, y + P8(5), s->note[i].t, px, 1, CR_L, 4096, c, under, 0);
             if (s->note[i].mark) cr_frect(x >> 4, (y >> 4) + 160, w[i] >> 4, 48, c);
-            x += w[i] + P8(14);
+            x += w[i] + gap;
         }
     }
 }
@@ -2540,6 +2547,18 @@ static void cr_kr_arp(const cr_screen_t *s)
     }
 }
 
+/* kr_band 3's neighbour: its place in the list (1-based), two spaces, the item */
+static void cr_kr_numbered(char *b, uint32_t n, int32_t at, const char *item)
+{
+    uint32_t i = 0, v = (uint32_t)at + 1u;
+    if (v >= 10u && i + 1u < n) b[i++] = (char)('0' + v / 10u);
+    if (i + 1u < n) b[i++] = (char)('0' + v % 10u);
+    if (i + 1u < n) b[i++] = ' ';
+    if (i + 1u < n) b[i++] = ' ';
+    while (*item && i + 1u < n) b[i++] = *item++;
+    b[i] = 0;
+}
+
 static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
 {
     int32_t n = s->n_items, sel = s->sel < n ? s->sel : n - 1, size = s->size ? s->size : 34, ry = cr_kr_rowy(s);
@@ -2554,6 +2573,19 @@ static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
             cr_keyboard(s, CR_PY0 + 18 + (avail - kh) / 2, kh);
         } else if (s->kr_band == 2u) {               /* the arp (PERF, notes stepping) */
             cr_kr_arp(s);
+        } else if (s->kr_band == 3u && n > 0) {      /* a vertical picker (KEY page 3): the neighbours above / below */
+            int32_t y0 = P8(CR_PY0 + 18), y1 = P8(ry - 4), mid = (y0 + y1) / 2, bh = 27 * 282;   /* (Q8) */
+            int32_t vt = mid - bh / 2, vb = mid + bh / 2, vbase = vt + bh * 4 / 5;
+            char b[32];
+            if (sel > 0) {
+                cr_kr_numbered(b, sizeof b, sel - 1, cr_item(s, sel - 1));
+                cr_text_fit(P8(120), vt - P8(5), b, 12, 1, CR_C, T_DIM, T_BG, P8(200));
+            }
+            if (sel < n - 1) {
+                cr_kr_numbered(b, sizeof b, sel + 1, cr_item(s, sel + 1));
+                cr_text_fit(P8(120), vb + P8(15), b, 12, 1, CR_C, T_DIM, T_BG, P8(200));
+            }
+            cr_pick_item(s, fr, sel, 27, 200, 0, vbase, vt, vb, col);
         } else if (n > 0) {
             int32_t bw = cr_tw(cr_item(s, sel), (uint32_t)size, 1);
             if (bw > P8(170)) bw = P8(170);

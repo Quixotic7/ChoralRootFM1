@@ -523,7 +523,11 @@ enum {
     CRE_AT,           /* v: the keys' aftertouch 0..127 (cr_ui.c cu_touch_poll): both parts, channel pressure out */
     CRE_CCOUT,        /* a: channel 0..15, b: CC, v: value (Options > MIDI CC Out: a knob turned on a mapped cell) */
     CRE_PERFORM_PART, /* a: the part (CR_PF_*), v: it performs while Perform is on (the PERF layers' Off entry) */
-    CRE_PERFORM_FOLLOW /* v: the bass Follows the chord's mode and parameters (the Bass PERF layer's Follow entry) */
+    CRE_PERFORM_FOLLOW, /* v: the bass Follows the chord's mode and parameters (the Bass PERF layer's Follow entry) */
+    CRE_PKEY,         /* a progression trigger (cr_prog_key): a: the trigger 0..47, b: vel, v: down | key i << 1 (0..47)
+                       * | the progression << 7 (0..15) */
+    CRE_PROGHUM,      /* v: Humanize 0..100 % (cr_set_prog_humanize) */
+    CRE_PROGTR        /* v: the progression's own Transpose -24..24 (cr_set_prog_transpose) */
 };
 /* CRE_LOOP's operations */
 enum { LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR, LP_SET, LP_QUEUE, LP_CONF, LP_METRO,
@@ -643,6 +647,9 @@ static void cr_apply(const cr_ev_in_t *e)
 {
     switch (e->op) {
     case CRE_KEY: cr_key(&cr, e->a, e->b, e->v); break;
+    case CRE_PKEY: cr_prog_key(&cr, e->a, (uint8_t)((e->v >> 7) & 15), (uint8_t)((e->v >> 1) & 63), e->b, e->v & 1); break;
+    case CRE_PROGHUM: cr_set_prog_humanize(&cr, e->v); break;
+    case CRE_PROGTR: cr_set_prog_transpose(&cr, e->v); break;
     case CRE_MOD: cr_mod_ex(&cr, (cr_mod_t)e->a, e->v, e->b); break;
     case CRE_MODLOCK: cr_mod_lock(&cr, e->v); break;
     case CRE_MODTOUCH: cr_mod_touch(&cr, (uint8_t)e->v); break;
@@ -774,6 +781,10 @@ static int cr_min_take(crm_act_t *a)             /* the UI */
 #define CR_MKQ_EVERY 30u                         /* every MIDI key and root up (not a key: 0 .. 26) */
 static volatile uint8_t cr_mkeys_ch;             /* the keys' channel 1 .. 16, 0 Off (the UI's cu_route) */
 static volatile uint8_t cr_mroots_ch;            /* MIDI Roots' channel 1 .. 16, 0 Off (the same) */
+static volatile uint8_t cr_mkeys_prog;           /* KEY page 2 Keyboard: Prog: the note of trigger 0 (C4 / C3), 0 not
+                                                  * Prog (the UI's) .. */
+static volatile uint8_t cr_mkeys_pext;           /* .. the first note past the keybed's (MIDI Keys' notes from there
+                                                  * press the triggers directly: crm_pkey) */
 static uint16_t cr_mkq[CR_MKQ];
 static volatile uint32_t cr_mkq_w, cr_mkq_r;
 static volatile uint8_t cr_mkq_allup;
@@ -810,7 +821,7 @@ static int cr_mkq_take(uint32_t *ev)             /* the UI */
 static __attribute__((noinline)) int cr_in_keys(uint32_t status, uint32_t d1, uint32_t d2)
 {
     uint32_t ev;
-    int r = crm_key(status, d1, d2, cr_mkeys_ch, &ev);
+    int r = cr_mkeys_prog ? crm_pkey(status, d1, d2, cr_mkeys_ch, cr_mkeys_prog, cr_mkeys_pext, &ev) : crm_key(status, d1, d2, cr_mkeys_ch, &ev);
     if (r < 0)
         r = crm_root(status, d1, d2, cr_mroots_ch, &ev);
     if (r > 0)
@@ -854,6 +865,8 @@ static __attribute__((noinline)) void cr_mlost(void)
     cr_mkq_allup = 1;
 }
 
+static uint8_t cr_tk_clock;                       /* the Move takeover shown (cr_move.c): the clock goes out as
+                                                   * Options > MIDI Clock: OUT, the setting untouched */
 static void cr_midi_in(void)
 {
     uint32_t w = mi_w;
@@ -880,7 +893,7 @@ static void cr_midi_in(void)
         mi_r++;
         if (status >= 0xF8u) {
             if (!cr_cin_mode) {
-                if (cr_route.clock_out && (status == 0xFAu || status == 0xFBu || status == 0xFCu))
+                if ((cr_route.clock_out || cr_tk_clock) && (status == 0xFAu || status == 0xFBu || status == 0xFCu))
                     cr_in_transport(status);     /* (Out: start / stop only; the pulses stay ours) */
             } else if (status == 0xF8u) {
                 int b;
@@ -985,7 +998,7 @@ static void cr_audio_block(uint32_t n)
         crl_stage_busy = 0;
     if ((crl.state == CRL_PLAYING) != cr_rt_was) {
         cr_rt_was = crl.state == CRL_PLAYING;
-        if (cr_route.clock_out && !cr_route.clock_in) {   /* USB MIDI CIN 0x0F: a single-byte system real-time message */
+        if ((cr_route.clock_out || cr_tk_clock) && !cr_route.clock_in) {   /* USB MIDI CIN 0x0F: a single-byte system real-time message */
             if (cr_rt_was)
                 cr_clk_acc = 0;                  /* the pulses start with it */
             uint32_t echo = cr_rt_mute == 1u + cr_rt_was && (int32_t)(cr_now_ms - cr_rt_mute_until) < 0;
@@ -997,7 +1010,7 @@ static void cr_audio_block(uint32_t n)
             }
         }
     }
-    if (cr_route.clock_out && !cr_route.clock_in) {   /* 24 PPQN: a pulse every FS * 60 / (bpm * 24) samples */
+    if ((cr_route.clock_out || cr_tk_clock) && !cr_route.clock_in) {   /* 24 PPQN: a pulse every FS * 60 / (bpm * 24) samples */
         cr_clk_acc += n * (uint32_t)cr_out_bpm * 24u;
         while (cr_clk_acc >= FS * 60u) {
             cr_clk_acc -= FS * 60u;

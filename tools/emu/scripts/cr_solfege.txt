@@ -38,10 +38,12 @@ shot build/emu/test/cr_solfege_dim.ppm
 dump                          # 4: shown "ti\260", chord Bdim
 btn B4 up
 wait 300
-btn SEL down                  # the KEY layer (it opens on page 1): Transpose +1
+btn SEL down                  # the KEY layer (page 1): Transpose +1
 wait 500
 btn SEL up
 wait 300
+knob SELECT -1                # (the layer reopens on page 2, where it was left: page 1)
+wait 200
 knob KNOB3 +1
 wait 200
 btn OCT-

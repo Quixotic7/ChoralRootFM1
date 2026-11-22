@@ -567,7 +567,7 @@ second region is below.
 
 Bluetooth on the SMK-37 needs about 30 KB of app slot and 5.8 KB of region (the radio's program); the SMK was 4.4 KB
 short. As on the FM-1, a second region takes the same tables (kerning, the factory presets' lists, FM6's voices:
-12 540 B; the drum kits stay in the SMK's first region): 16 KB at **0xB0000..0xB3FFF**, the four sectors above the
+12 540 B; the drum kits stay in the SMK's first region): 16 KB at **0xB0000..0xB3FFF** (12 KB since 3y317, below), the four sectors above the
 store's owner tag that held 0.21's CZ-1 and QUAD stores (nothing since 3y231), inside the SMK's plain window (XIP
 0x020AC000, the data from 0x020AC040) and inside the loader's record window (0x9D000..0xBFFFF), so the loader's
 allow-list is unchanged.
@@ -590,7 +590,14 @@ allow-list is unchanged.
   88 136 -> 92 248 of 98 304; the package 701 045 -> 717 588 B.
 - **Downgrade**: 0.41-smk37.1 and before neither read nor write 0xB0000..0xB3FFF or 0xF2000..0xF3FFF, except that
   their owner change and Flash Data erase 0xB0000..0xB3FFF; the next install of this firmware writes it again.
-- **Not tried on an SMK-37** here: SMK37.md "What to test" 18.
+- **Not tried on an SMK-37** here: SMK37.md "What to test" 19.
+- **12 KB since 3y317** (merged with main's progressions, GitHub issue 64, whose copy A is at 0xB3000): the region is
+  **0xB0000..0xB2FFF**, three sectors (`FL_RES2_HI`, `LDR_RES2_HI`, `RES2_AT` 0xB3000; app.ld's RES2 length 0x2FC0 in the
+  SMK copy). The VA's preset list moved to the first region (`RES_PRESET_VA`), and the QUAD, GRAIN and WHEEL lists
+  from the app slot to the first region (`RES_PRESET_SMK`), all read through `CR_REGION_GONE` (either region missing:
+  the stand-in, as for the second's). The test build 0.41-beta.ble1-smk37 wrote 0xB3000 as the region's fourth
+  sector: after this firmware the progressions' copy A there has no record header, is refused, and the factory
+  progressions play until the first one is sent (copy B, 0xFE000, unaffected).
 
 ### Size and time
 

@@ -41,8 +41,8 @@
 #define T_RES_HI 0xA9000u                /* the resource region's end (LDR_RES_HI): 0x9D000 .. (3y295) */
 #define T_REC_HI 0xC0000u                /* .. and of its record window (LDR_REC_HI) */
 #define T_OTA 0xBB000u                   /* the staging area (ota.c OTA_AREA) */
-#define T_RES2_LO 0xB0000u               /* the second region (LDR_RES2_LO .. HI, 3y309) */
-#define T_RES2_HI 0xB4000u
+#define T_RES2_LO 0xB0000u               /* the second region (LDR_RES2_LO .. HI, 3y309; 12 KB since 3y317) */
+#define T_RES2_HI 0xB3000u
 #else
 #define T_APP_HI 0x93000u
 #define T_RES_HI 0x9F000u                /* the resource region's end (ldr_core.c LDR_RES_HI): 0x93000 .. */

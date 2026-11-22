@@ -4,7 +4,8 @@
 /* ChoralRoot on the M-Vave SMK-37, the flash map (build with -DBOARD_SMK37=1): every 4 KiB sector of the 1 MiB part
  * through the app's allow-list (FL_RANGE_OK / FL_GUARD, fm1_flash.h), the update loader's (loader.c) and ldr_core.c's
  * record window: none of them may ever reach the head 0x0-0x3FFF, BTIF / USRTRIM 0xC0000-0xC1FFF, USR 0xF4000-0xFDFFF
- * or key_mac 0xFF000-; every stored object (storage.c: each OBJ_* id's A and B copy, the favourites too), the CZ-1
+ * or key_mac 0xFF000-; every stored object (storage.c: each OBJ_* id's A and B copy, the favourites and the
+ * progressions too), the CZ-1
  * banks, the loop slots, every one of the sound pool's 16 floating sectors (sp_addr), the owner tag and the OTA staging
  * (ota.c, the boot stub's view of it) lie inside the allowed windows (FL_STORE_OK) and outside every protected range
  * (FL_PROTECTED), apart from each other; ranges that wrap or straddle a boundary are refused. */
@@ -34,16 +35,19 @@ static void check(const char *what, int ok) { printf("smk flash: %-80s %s\n", wh
 
 static int protected_sector(uint32_t s)
 {
-    return s < 0x4000u || (s >= 0xC0000u && s < 0xC2000u) || (s >= 0xF4000u && s < 0xFE000u) || s >= 0xFF000u;
+    return s < 0x4000u || (s >= 0xC0000u && s < 0xC2000u) || (s >= 0xF4000u && s < 0xFE000u) || s >= 0xFF000u;   /* (0xFE000:
+                                                                 * FL_SPARE, the progressions' copy B, issue 64) */
 }
 
 static uint8_t owner[0x100];                                /* by sector: who holds it (0 none) */
 
 /* the sectors 0.21's objects held (Felucca's projects and user preset banks from ST_SMK_BASE, the CZ-1 and QUAD stores
- * from ST_SMK_HIGH; storage.c before 3y231): no object's now, cleared with their regions on an owner change */
+ * from ST_SMK_HIGH; storage.c before 3y231): no object's now (0xB3000, the QUAD store's second, is the progressions'
+ * copy A since issue 64), cleared with their regions on an owner change */
 static int smk_freed(uint32_t s)
 {
-    return (s >= ST_SMK_BASE && s < ST_SMK_BASE + 12u * ST_SECTOR) || (s >= ST_SMK_HIGH && s < ST_SMK_HIGH + 4u * ST_SECTOR);
+    return (s >= ST_SMK_BASE && s < ST_SMK_BASE + 12u * ST_SECTOR) ||
+           (s >= ST_SMK_HIGH && s < ST_SMK_HIGH + 3u * ST_SECTOR);
 }
 static int in_regions(uint32_t s)                           /* the sector is one ST_SMK_REGIONS clears */
 {
@@ -75,15 +79,18 @@ int main(void)
           !LDR_RANGE_OK(0x3000u, 0x2000u) && FL_PROTECTED(0xBF000u, 0x2000u) && FL_PROTECTED(0x3F00u, 0x200u));
     check("wrapping ranges refused (off + n past 4 GiB)",
           !FL_GUARD(0xBB000u, 0xFFFFF000u) && !LDR_RANGE_OK(0x9D000u, 0xFFFFFF00u) && FL_PROTECTED(0xBB000u, 0xFFFFF000u));
-    check("app windows: FL_DATA 0xA9000-0xBAFFF but 0xB0000-0xB3FFF, FL_OTA 0xBB000-0xBFFFF, USRFLASH 0xC2000-0xE9FFF, "
-          "the stock marker sector, FL_TAIL 0xEB000-0xF3FFF",
+    check("app windows: FL_DATA 0xA9000-0xBAFFF but 0xB0000-0xB2FFF, FL_OTA 0xBB000-0xBFFFF, USRFLASH 0xC2000-0xE9FFF, "
+          "the stock marker sector, FL_TAIL 0xEB000-0xF3FFF, FL_SPARE 0xFE000 (that sector alone)",
           FL_GUARD(0xA9000u, 0x1000u) && FL_GUARD(0xAF000u, 0x1000u) && !FL_GUARD(0xB0000u, 0x1000u) &&
-          !FL_GUARD(0xB3000u, 0x1000u) && !FL_GUARD(0xB3F00u, 256u) && FL_GUARD(0xB4000u, 0x1000u) &&
+          !FL_GUARD(0xB2000u, 0x1000u) && !FL_GUARD(0xB2F00u, 256u) && FL_GUARD(0xB3000u, 0x1000u) &&
+          !FL_GUARD(0xB2000u, 0x2000u) && FL_GUARD(0xB4000u, 0x1000u) &&
           FL_GUARD(0xBA000u, 0x1000u) && FL_GUARD(0xBF000u, 0x1000u) &&
           FL_GUARD(0xC2000u, 0x1000u) && FL_GUARD(0xE9000u, 0x1000u) && FL_GUARD(0xEA000u, 0x1000u) &&
           FL_GUARD(0xEB000u, 0x1000u) && FL_GUARD(0xF1000u, 0x1000u) && FL_GUARD(0xF2000u, 0x1000u) &&
           FL_GUARD(0xF3000u, 0x1000u) && !FL_GUARD(0xF4000u, 0x1000u) && !FL_GUARD(0x9C000u, 0x1000u) &&
-          allowed == (0xC0000u - 0xA9000u - 0x4000u + 0xEA000u - 0xC2000u + 0xF4000u - 0xEB000u) / 0x1000u + 1u &&
+          FL_GUARD(0xFE000u, 0x1000u) && !FL_GUARD(0xFD000u, 0x1000u) && !FL_GUARD(0xFE000u, 0x2000u) &&
+          !FL_GUARD(0xFD000u, 0x2000u) &&
+          allowed == (0xC0000u - 0xA9000u - 0x3000u + 0xEA000u - 0xC2000u + 0xF4000u - 0xEB000u) / 0x1000u + 2u &&
           FL_TAIL_LO == FL_SMP_HI + 0x1000u && FL_TAIL_HI <= FL_USRRES_LO);
     check("the stock marker sector 0xEA000: the whole sector only (its erase), never a page or a range into it",
           FL_STOCKTAG_OK(0xEA000u, 0x1000u) && !FL_GUARD(0xEA000u, 256u) && !FL_GUARD(0xEAF00u, 256u) &&
@@ -111,11 +118,14 @@ int main(void)
             }
             owner[s >> 12] = (uint8_t)(1u + o);
         }
-    check("storage.c: the 13 objects stored (A/B, OBJ_FAVS and OBJ_BLE too) in FL_STORE_OK, none protected, no two share "
-          "a sector; 0.21's 8 nowhere", ok && OBJ_COUNT == 21u && OBJ_FAVS == 19u && k == 16u);
+    check("storage.c: the 14 objects stored (A/B, OBJ_FAVS, OBJ_BLE and OBJ_PROG too) in FL_STORE_OK, none protected, "
+          "no two share a sector; 0.21's 8 nowhere", ok && OBJ_COUNT == 22u && OBJ_FAVS == 19u && OBJ_BLE == 20u &&
+          OBJ_PROG == 21u && k == 16u);
     check("Bluetooth's record 0xF2000 / 0xF3000 (3y309)",
           st_sector(OBJ_BLE, 0) == 0xF2000u && st_sector(OBJ_BLE, 1) == 0xF3000u);
-    check("the favourites 0xB4000 / 0xB5000, the session 0xAD000 / 0xAE000",
+    check("the progressions 0xB3000 / 0xFE000 (0xB0000..0xB2FFF the second resource region), the favourites "
+          "0xB4000 / 0xB5000, the session 0xAD000 / 0xAE000",
+          st_sector(OBJ_PROG, 0) == 0xB3000u && st_sector(OBJ_PROG, 1) == 0xFE000u &&
           st_sector(OBJ_FAVS, 0) == 0xB4000u && st_sector(OBJ_FAVS, 1) == 0xB5000u &&
           st_sector(OBJ_SESSION, 0) == 0xAD000u && st_sector(OBJ_SESSION, 1) == 0xAE000u);
     for (k = 0, ok = 1; k < SP_NSEC; k++) {
@@ -138,15 +148,16 @@ int main(void)
     check("the ten loop slots (A/B) in USRFLASH, apart from every object and the pool", ok && ST_SMK_LOOPS == 0xD2000u);
     for (s = 0, k = 0; s < 0x100000u; s += 0x1000u)
         k += owner[s >> 12] != 0;
-    check("62 data sectors in all (13 objects x 2, 16 pool, 20 loop)", k == 62u);
+    check("64 data sectors in all (14 objects x 2, 16 pool, 20 loop)", k == 64u);
     check("the owner tag 0xAF000: in FL_DATA, nobody else's, never cleared as data",
           ST_OWNER_OFF == 0xAF000u && FL_STORE_OK(ST_OWNER_OFF, 0x1000u) && !owner[0xAF] && !in_regions(ST_OWNER_OFF));
     for (s = FL_OTA_LO, ok = 1; s < FL_OTA_HI; s += 0x1000u)
         ok &= !owner[s >> 12] && !in_regions(s);
     ok &= !owner[0xEA] && !in_regions(0xEA000u);
     for (s = 0xF4000u; s < 0x100000u; s += 0x1000u)
-        ok &= !owner[s >> 12] && !in_regions(s);
-    check("the OTA staging 0xBB000-0xBFFFF, USRFLASH's last sector 0xEA000 and everything from 0xF4000: no data", ok);
+        ok &= s == FL_SPARE_LO ? owner[s >> 12] == 1u + OBJ_PROG && in_regions(s) : !owner[s >> 12] && !in_regions(s);
+    check("the OTA staging 0xBB000-0xBFFFF, USRFLASH's last sector 0xEA000 and everything from 0xF4000 but FL_SPARE "
+          "0xFE000 (the progressions' copy B): no data", ok);
     for (k = 0, ok = 1; k < sizeof ST_SMK_REGIONS / sizeof ST_SMK_REGIONS[0]; k++)
         for (s = ST_SMK_REGIONS[k][0]; s < ST_SMK_REGIONS[k][0] + ST_SMK_REGIONS[k][1] * ST_SECTOR; s += 0x1000u)
             ok &= FL_STORE_OK(s, 0x1000u) && (owner[s >> 12] != 0) != smk_freed(s);
@@ -166,9 +177,9 @@ int main(void)
     for (s = FL_RES2_LO, ok = 1, k = 0; s < FL_RES2_HI; s += 0x1000u, k++)   /* the second (cr_res.h CR_RES2, 3y309) */
         ok &= !FL_GUARD(s, 0x1000u) && !FL_GUARD(s + 0xF00u, 256u) && !FL_STORE_OK(s, 0x1000u) && LDR_RANGE_OK(s, 0x1000u) &&
               !owner[s >> 12] && !in_regions(s) && s >= FL_PLAIN_LO && smk_freed(s);
-    check("the second resource region 0xB0000-0xB3FFF: in the plain window, the loader's to write, never the app's, no "
-          "object's, never cleared by an owner change or Flash Data", ok && k == 4u && FL_RES2_LO == 0xB0000u &&
-          FL_RES2_HI == 0xB4000u && FL_RES2_LO == ST_SMK_HIGH);
+    check("the second resource region 0xB0000-0xB2FFF: in the plain window, the loader's to write, never the app's, no "
+          "object's, never cleared by an owner change or Flash Data", ok && k == 3u && FL_RES2_LO == 0xB0000u &&
+          FL_RES2_HI == 0xB3000u && FL_RES2_LO == ST_SMK_HIGH);
     check("the boot stub: the staged loader at FL_OTA, the marker in the app area",
           STUB_LDR_OFF == FL_OTA_LO && STUB_LDR_OFF + STUB_LDR_LEN == FL_OTA_HI && FL_IN(STUB_MARK_SEC, 0x1000u, FL_APP_LO, FL_APP_HI));
     {

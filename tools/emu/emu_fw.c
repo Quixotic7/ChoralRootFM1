@@ -22,6 +22,10 @@ const int8_t emu_keymap[6][EMU_NCOL] = {
 };
 
 #include "emu_firmware.h"
+#ifdef FM1_HOST_TK
+static void cmv_init(void);                       /* the Move takeover (cr_move.c, included at the end) */
+static void cmv_frame(void);
+#endif
 
 /* ------------------------------------------------------------- flash --- */
 /* emu_firmware.h builds storage.c (FELUCCA_FLASH 1) and cr_settings.c on emu_hal_fw.h's file-backed NOR; emu.c
@@ -159,6 +163,43 @@ void emu_fw_init(int demo)
     emu_smk_init();                               /* main.c's fm1_input_init (SMK-37: the factory curves' defaults) */
 #endif
     cr_ui_init();                                 /* the engine, the sounds, the record applied (cr_settings_load) */
+    if (getenv("EMU_PROG_LONG")) {   /* a long progression in the RAM copy (cr_prog.c crp_x; test_cr.sh cr_prog): slot 16
+                                      * "Long 48", 48 keys, key k a major triad on 48 + k, every fifth key (5, 10 .. 45)
+                                      * silent; slot 15 "Wide": a 6-note and an 8-note chord; nothing is stored (a
+                                      * backup PUT of id 24 is the way to the flash) */
+        uint8_t *b = crp_x.blk, *d = b + CRPG_HDR + 15u * CRPG_DIRENT;
+        uint32_t at = crp_x.len, k;
+        memcpy(d, "Long 48", 7);
+        d[CRPG_NAME] = 48;
+        d[CRPG_NAME + 1u] = 48;
+        d[CRPG_NAME + 2u] = (uint8_t)at;
+        d[CRPG_NAME + 3u] = (uint8_t)(at >> 8);
+        for (k = 0; k < 48u; k++) {
+            if (k % 5u == 4u) {
+                b[at++] = 0;
+                continue;
+            }
+            b[at++] = 3;
+            b[at++] = (uint8_t)(48u + k);
+            b[at++] = (uint8_t)(52u + k);
+            b[at++] = (uint8_t)(55u + k);
+        }
+        {                                         /* slot 15 "Wide": a chord of 6 notes, one of 8 (the notes row) */
+            static const uint8_t W[] = {6, 40, 52, 55, 59, 62, 66, 8, 36, 48, 52, 55, 59, 62, 66, 69};
+            d = b + CRPG_HDR + 14u * CRPG_DIRENT;
+            memcpy(d, "Wide", 4);
+            d[CRPG_NAME] = 48;
+            d[CRPG_NAME + 1u] = 2;
+            d[CRPG_NAME + 2u] = (uint8_t)at;
+            d[CRPG_NAME + 3u] = (uint8_t)(at >> 8);
+            memcpy(b + at, W, sizeof W);
+            at += sizeof W;
+        }
+        b[6] = (uint8_t)at;
+        b[7] = (uint8_t)(at >> 8);
+        crp_x.len = (uint16_t)at;
+        printf("prog: a long progression in slot 16 (%u bytes, %s)\n", (unsigned)at, crp_valid(b, at) ? "valid" : "INVALID");
+    }
     {   /* the second core (main.c, docs/DUALCORE.md): the stub runs the bass part's job when handed. EMU_C1=nostart: it
          * does not answer at power-on; EMU_C1=hang: it answers, then never finishes a job (8 ms: core 0 does it).
          * EMU_STAGES=1: the ISR's stage profile (cr_dbg; ~6.6 k host instructions a mark, left out of the stages
@@ -193,6 +234,9 @@ void emu_fw_init(int demo)
     }
     emu_hal.led_play_green = LED_PLAY_GREEN;
     lcd_fill(0, 0, 240, 240, T_BG);
+#ifdef FM1_HOST_TK
+    cmv_init();                                   /* the Move takeover (cr_move.c, an .rfm1 with tk1) */
+#endif
     emu_hal.ready = 1;
 }
 
@@ -369,6 +413,9 @@ void emu_fw_frame(void)                           /* main.c's loop body (choralr
     if (d > emu_hal.ui_lock_max_us)
         emu_hal.ui_lock_max_us = d;
     cr_ui_draw();
+#ifdef FM1_HOST_TK
+    cmv_frame();                                  /* the Move takeover's screen and LEDs (cr_move.c) */
+#endif
     ui_ft_add(ft0);
     if (!usb.sx_on && usb.sx_len >= 6u && usb.sysex[usb.sx_len - 1u] == 0xF7u && usb.sysex[1] == 0x7Du) {
         crb_handle(usb.sysex + 1, usb.sx_len - 2u);   /* our SysEx (7D 46 4C), as main.c's ed_service: the handler
@@ -428,6 +475,32 @@ void emu_fw_audio(int16_t *out, uint32_t frames)  /* the ALNK0 ISR, one half buf
     }
 }
 
+void emu_fw_prog_empty(unsigned p, unsigned k)
+{
+    uint32_t at, n, q;
+    fm1_irq_off();
+    at = crp_rec(p, k);                           /* (cr_prog.c: the key's record, 0 none) */
+    if (at && crp_x.blk[at]) {
+        n = crp_x.blk[at];
+        memmove(crp_x.blk + at + 1u, crp_x.blk + at + 1u + n, crp_x.len - at - 1u - n);
+        memset(crp_x.blk + crp_x.len - n, 0, n);
+        crp_x.blk[at] = 0;
+        crp_x.len = (uint16_t)(crp_x.len - n);
+        for (q = 0; q < CRPG_N; q++) {            /* the slots whose data lie after it move down */
+            uint8_t *d = crp_x.blk + CRPG_HDR + q * CRPG_DIRENT;
+            uint32_t off = (uint32_t)d[CRPG_NAME + 2u] | (uint32_t)d[CRPG_NAME + 3u] << 8;
+            if (d[CRPG_NAME + 1u] && off > at) {
+                off -= n;
+                d[CRPG_NAME + 2u] = (uint8_t)off;
+                d[CRPG_NAME + 3u] = (uint8_t)(off >> 8);
+            }
+        }
+        crp_x.blk[6] = (uint8_t)crp_x.len;
+        crp_x.blk[7] = (uint8_t)(crp_x.len >> 8);
+    }
+    fm1_irq_on();
+    printf("prog: key %u of prog %u emptied (%s)\n", k + 1u, p + 1u, crp_valid(crp_x.blk, crp_x.len) ? "valid" : "INVALID");
+}
 void emu_fw_usb_lost(void)
 {
     usb_midi_lost = 1;                            /* (the audio ISR takes it: cr_out.c cr_mlost) */
@@ -529,6 +602,27 @@ void emu_fw_dump(void)
            cs.key_notes ? "notes" : "chords", cs.kbd_full ? "full" : "chords", (unsigned)cs.single,
            (unsigned)cr.split_note, (unsigned)cu.kpage + 1u, (unsigned)cr.key_notes, (unsigned)cr.full,
            (unsigned)cr.single, (unsigned)cr.snap);
+    {                                               /* the progressions (GitHub issue 64): the UI's state, the triggers
+                                                     * held (keybed / MIDI), the engine's Humanize and its progression
+                                                     * voices (trigger, key, velocity, base notes) */
+        unsigned v, i;
+        printf("  prog: on %u sel %u win %u vel %u hum %u tr %d nkeys %u chords %u held %012llX midi %012llX mkeys-low %u "
+               "engine-hum %u engine-tr %d voices",
+               (unsigned)cs.prog_on, (unsigned)cs.prog_sel + 1u, (unsigned)cs.prog_win, (unsigned)cu_pvel(),
+               (unsigned)cs.prog_hum, (int)cs.prog_tr, (unsigned)crp_nkeys(cs.prog_sel), (unsigned)crp_count(cs.prog_sel),
+               (unsigned long long)cu_pk.pan, (unsigned long long)cu_pk.mid, (unsigned)cr_mkeys_prog, (unsigned)cr.prog_hum,
+               (int)cr.prog_tr);
+        for (v = 0; v < CR_NVOICE; v++)
+            if (cr.v[v].used && (cr.v[v].zone & CR_Z_PROG)) {
+                printf(" [%s%u key %u vel %u:", v >= CR_MAX_VOICES + CR_MAX_PADS ? "loop" : v >= CR_MAX_VOICES ? "pad" : "t",
+                       (unsigned)(v >= CR_MAX_VOICES ? v : cr.v[v].key), (unsigned)cr.v[v].pc_pressed + 1u,
+                       (unsigned)cr.v[v].vel);
+                for (i = 0; i < cr.v[v].nbase; i++)
+                    printf(" %u", (unsigned)cr.v[v].base[i]);
+                printf("]");
+            }
+        printf(" shown-key %u\n", (unsigned)cr_snap.ci.prog_key + 1u);
+    }
     {                                               /* the KEY layer's Numerals and what the Chord view shows for it now */
         char rn[CR_NUMERAL_MAX];
         cu_numeral(rn);
@@ -956,3 +1050,9 @@ void emu_fw_stages(char *buf, uint32_t n)
                                     (double)cr_dbg.x_tot_max[k] / CR_PROF_PER_US);
     }
 }
+
+#ifdef FM1_HOST_TK
+/* ChoralRoot's own Ableton Move interface (FM1VST docs/RFM1-TAKEOVER.md, tk1): in the .rfm1 built with tk1 only, after
+ * the whole firmware (it reaches the UI's statics as cr_ui.c does) */
+#include "../../firmware/src/cr_move.c"
+#endif

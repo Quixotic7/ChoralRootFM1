@@ -1,0 +1,8 @@
+<?xml version='1.0'?>
+<ripchord>
+ <preset>
+  <input note='48'><chord notes='36;48;52;55' name=''/></input>
+  <input note = "49" />
+  <input note="50"><chord name="" notes="38;50;53;57"></chord></input>
+ </preset>
+</ripchord>

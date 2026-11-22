@@ -34,7 +34,7 @@
  * long) writes none and leaves whatever is there. The record sweep (4) never looks at the region's sectors.
  * The second resource region (FM-1, HISTORY 3y296; the SMK-37's 3y309; cr_res.h CR_RES2): the package's entry
  * res2.bin (type LDR_RES2_TYPE, exactly LDR_RES2_HI - LDR_RES2_LO bytes) holds flash 0xDC000..0xDFFFF (SMK
- * 0xB0000..0xB3FFF); its sectors are written in the same pass, after the first region's and before the marker, plain
+ * 0xB0000..0xB2FFF: 0xB3000 is the progressions' store); its sectors are written in the same pass, after the first region's and before the marker, plain
  * as they come. A package without the entry (the FM-1's before 3y296, the SMK-37's before 3y309) writes none and
  * leaves them; the record sweep skips them.
  * Power loss during 3 (the SPL does not start the loader from the flash copy
@@ -69,7 +69,7 @@ _Static_assert(LDR_APP_HI <= LDR_REC_LO && LDR_REC_HI <= 0xC0000u && LDR_APP_LO 
 _Static_assert(LDR_RES_HI > LDR_APP_HI && LDR_RES_HI <= LDR_REC_HI, "the resource region follows the app area");
 #if BOARD_SMK37
 #define LDR_RES2_LO 0xB0000u                    /* hal/fm1_flash_map.h FL_RES2_LO .. FL_RES2_HI (3y309) */
-#define LDR_RES2_HI 0xB4000u
+#define LDR_RES2_HI 0xB3000u
 #else
 #define LDR_RES2_LO 0xDC000u                    /* hal/fm1_flash_map.h FL_RES2_LO .. FL_RES2_HI (3y296) */
 #define LDR_RES2_HI 0xE0000u

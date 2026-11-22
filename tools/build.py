@@ -97,8 +97,14 @@ def ram_on(flag):
 XIP_LEN, RAM_LEN, POOL_LEN, NOINIT_LEN = fm1pkg_make.BODY_MAX, 96 * 1024, 0x54000, 0x3D30   # firmware/app.ld
 RES_LEN = fm1pkg_make.RES_HI - fm1pkg_make.RES_DATA   # firmware/app.ld RES (cr_res.h): 48 KB less the header
 RES_LD = "RES    (r)   : ORIGIN = 0x0208F040,"     # app.ld's RES line (the FM-1's place; app_ld() moves it for the SMK)
-RES2_LEN = fm1pkg_make.RES2_HI - fm1pkg_make.RES2_DATA   # firmware/app.ld RES2 (cr_res.h CR_RES2): the second region,
-RES2_LD = "RES2   (r)   : ORIGIN = 0x020D8040,"     # 16 KB less the header (HISTORY 3y296; the SMK-37's 3y309)
+RES2_LD = "RES2   (r)   : ORIGIN = 0x020D8040, LENGTH = 0x3FC0"   # app.ld's RES2 line (cr_res.h CR_RES2): the FM-1's
+                                                # second region, 16 KB less the header (HISTORY 3y296); app_ld() moves
+                                                # and shortens it for the SMK-37 (12 KB, 3y309)
+
+
+def res2_len():
+    """the second region's data bytes: 16 KB less the header on the FM-1, 12 KB less it on the SMK-37 (3y309)"""
+    return fm1pkg_make.RES2_HI - fm1pkg_make.RES2_DATA
 
 
 def res2_xip():
@@ -117,12 +123,11 @@ def app_ld():
     if BOARD == "fm1":
         return FW / "app.ld"
     src = (FW / "app.ld").read_text()
-    if (src.count(RES_LD) != 1 or fm1pkg_make.RES_HI - fm1pkg_make.RES_DATA != RES_LEN or src.count(RES2_LD) != 1 or
-            fm1pkg_make.RES2_HI - fm1pkg_make.RES2_DATA != RES2_LEN):
+    if src.count(RES_LD) != 1 or fm1pkg_make.RES_HI - fm1pkg_make.RES_DATA != RES_LEN or src.count(RES2_LD) != 1:
         raise SystemExit("build: firmware/app.ld's RES / RES2 lines are not the ones app_ld() moves")
     out = OUT / f"app-{BOARD}.ld"
     out.write_text(src.replace(RES_LD, f"RES    (r)   : ORIGIN = {res_xip():#010x},")
-                   .replace(RES2_LD, f"RES2   (r)   : ORIGIN = {res2_xip():#010x},"))
+                   .replace(RES2_LD, f"RES2   (r)   : ORIGIN = {res2_xip():#010x}, LENGTH = {res2_len():#x}"))
     return out
 
 
@@ -456,7 +461,7 @@ def size_line(hdr):
     if sz.get(".res"):              # the resource region's data (firmware/src/cr_res.h): outside the slot
         s += f", RES {sz['.res']} B of {RES_LEN} ({100 * sz['.res'] / RES_LEN:.1f}%)"
     if sz.get(".res2"):             # the second region (cr_res.h CR_RES2, 3y296; the SMK-37's 3y309)
-        s += f", RES2 {sz['.res2']} B of {RES2_LEN} ({100 * sz['.res2'] / RES2_LEN:.1f}%)"
+        s += f", RES2 {sz['.res2']} B of {res2_len()} ({100 * sz['.res2'] / res2_len():.1f}%)"
     return s
 
 
@@ -481,8 +486,8 @@ def res2_data(syms):
     m = re.search(r"^([0-9a-f]+) .*\s_res2_start$", syms, re.M)
     if not m or int(m.group(1), 16) != res2_xip():
         raise SystemExit(f"build: _res2_start is not at {res2_xip():#x} (firmware/app.ld RES2)")
-    if not data or len(data) > RES2_LEN:
-        raise SystemExit(f"build: the second region's data is {len(data)} B (1 .. {RES2_LEN})")
+    if not data or len(data) > res2_len():
+        raise SystemExit(f"build: the second region's data is {len(data)} B (1 .. {res2_len()})")
     return data
 
 

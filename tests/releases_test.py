@@ -119,6 +119,9 @@ def smk_check(fm1_versions, smk_tags):
                     print(f"skipped: {name} not in {d}: its sha256 is not compared")
     ok(len(set(sums)) == len(sums), "SMK: every package's sha256 is its own")
     for t in smk_tags:
+        if "-beta" in t and t[1:] not in vers:      # (a test build installed by hand, never offered by the SMK page,
+            print(f"skipped: the SMK beta tag {t}: not offered by the installer")   # which has no beta switch:
+            continue                                 # v0.41-beta.ble1-smk37, the owner 2026-11-19)
         ok(t[1:] in vers, f"the SMK tag {t} is in web/releases-smk37.json")
 
 

@@ -98,11 +98,11 @@ RES_AT = {"fm1": (0x93000, 0x9F000),          # per board: [RES_LO, RES_HI), rig
 RES_LO, RES_HI = RES_AT["fm1"]
 RES_DATA = RES_LO + 0x40
 RES_MAGIC, RES_FORMAT = 0x53455243, 1   # "CRES"
-# the second resource region (cr_res.h CR_RES2, hal/fm1_flash_map.h FL_RES2_LO; HISTORY 3y296): FM-1 only, the
-# package's entry res2.bin (RES2_TYPE) holds its 16 KB whole; the update loader writes it after the first region's
+# the second resource region (cr_res.h CR_RES2, hal/fm1_flash_map.h FL_RES2_LO; HISTORY 3y296): the package's entry
+# res2.bin (RES2_TYPE) holds it whole (FM-1 16 KB, SMK-37 12 KB); the update loader writes it after the first region's
 # sectors, before the commit marker (firmware/loader/ldr_core.c)
 RES2_AT = {"fm1": (0xDC000, 0xE0000),        # per board (set_board); the SMK-37's since 3y309, inside its VM
-           "smk37": (0xB0000, 0xB4000)}
+           "smk37": (0xB0000, 0xB3000)}   # (0xB3000: the progressions, OBJ_PROG)
 RES2_LO, RES2_HI = RES2_AT["fm1"]
 RES2_DATA = RES2_LO + 0x40
 RES2_MAGIC, RES2_TYPE = 0x32455243, 200     # "CRE2"

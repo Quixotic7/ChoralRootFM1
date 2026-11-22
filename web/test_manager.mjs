@@ -14,6 +14,9 @@
 //   factory against the pool simulator (which takes a bank as cr_backup.c does): each bank written once, the empty ones
 //   not at all, a bank of 0.21's FM TONE slots (16 / 80) kept as read, the favourites without the deleted user slots,
 //   the confirms' words, one Undo step (also after a write stopped part-way)
+// - the progressions (object 24, issue 64): read from a firmware that lists them, a Ripchord preset placed into a slot,
+//   a chord edited, sent (one PUT of 24), read back, Undo; the factory set (a PUT of 0 bytes); an invalid object refused
+//   (rc 2), busy refused; a firmware without 24: not read, never written, the page's view hidden
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -21,12 +24,15 @@ import vm from "node:vm";
 import { captureBackup, loopHeader, deviceInfo, readBackup, restoreBackup, backupFileName } from "./fm1backup.js";
 import { FACTORY_PRESETS, FACTORY_FIRST, FACTORY_IDS, readSoundFile, exportSound, exportSyx, parseSoundObjects, recordValid, withBinding, rawBindings, placeSound, writeSounds, POOL_IDS } from "./fm1sounds.js";
 import { quadToV3 } from "./fm1dnsnd.js";
+import { PROG_ID, progDecode, progEncode, progParseRpc, progPlace, progToggleNote, progSame, progIsEmpty, progSimFactory, progFitText, progCopySet } from "./fm1prog.js";
+import { CR_BACKUP_IDS } from "./fm1backup.js";
 import {
   selectOnUnit, selectRequest, playingText, managerDrop, factorySoundFile, factoryFiles, usedSlots, makePack, packFileName, userSoundsPack, renameSoundFile, MANAGER_ENGINES, managerPools, managerLoops, loopSummary, managerPlace, managerPlaceAll, managerSwap, managerRename, managerDelete, managerReplacePlan, managerReplaceFactory, managerRestoreFactory, replaceFactoryText,
   managerKeep, keepLoop, readLoopFile, placeLoop, deleteLoop, swapLoops, ManagerSession, makeSimFM1, simObjects, makeLoopRecord,
   libraryItemsFromFile, libraryItemsFromDnsnd, SIM_POOL_IDS, LibraryStore, loadPackIndex, loadPack, auditionMessages, noteMessage, midiText, writeErrorText, UNDO_DEPTH, retiredNote,
   managerPorts, MANAGER_PORT_RE, pickUnit, favUserSlots, favsClearSlots, replacedRows, replacedOf, managerRestorePresets, managerDeleteAll, managerDeleteRows,
   restorePresetsText, deleteAllText, managerEngines, favMarks, favOf, favKeyOf, keepable, P5_NO_PACK, simP5Patch, managerNotesSummary,
+  progressionsListed, managerProgWrite,
 } from "./fm1manager.js";
 
 let failed = 0;
@@ -280,7 +286,9 @@ ok(html.includes('"ChoralRoot FM-1"') && html.includes("onstatechange") && html.
 ok(html.includes('id="replace"') && html.includes('id="restore-factory"') && html.includes("replaceFactory(libSel(), devRows()[to].pos)"), "page: Replace factory, Restore factory order, several dropped onto a factory row");
 ok(!/<link\s/i.test(html) && !/src="http/.test(html), "page: no external assets");
 const strip = (src) => src.replace(/^export\s+/gm, "").replace(/^import .*?;\n/gm, "");
-const lib = ["fm1backup.js", "fm1dnsnd.js", "fm1sounds.js", "fm1manager.js"].map((f) => strip(readFileSync(join(HERE, f), "utf8"))).join("\n");
+const libFiles = (/MANAGER_LIB = \(([^)]*)\)/.exec(readFileSync(join(HERE, "make_site.py"), "utf8")) || [, ""])[1].match(/[\w.]+\.js/g) || [];
+ok(libFiles.join() === "fm1backup.js,fm1dnsnd.js,fm1sounds.js,fm1prog.js,fm1manager.js", `make_site.py inlines ${libFiles.join(", ")} into the page (fm1prog.js before fm1manager.js)`);
+const lib = libFiles.map((f) => strip(readFileSync(join(HERE, f), "utf8"))).join("\n");
 const script = html.slice(html.indexOf('<script type="module">') + 22, html.lastIndexOf("</script>")).replace("/*LIB*/", lib);
 let compiled = null; try { new vm.Script(`(async () => {${script}\n})`); compiled = true; } catch (e) { compiled = e; }
 ok(compiled === true, `page: the script as make_site.py inlines it compiles (no duplicate names)${compiled === true ? "" : ": " + compiled.message}`);
@@ -715,6 +723,64 @@ ok(["restore-sel", "restore-engine", "restore-every", "delete-all", "reset-facto
 ok(html.includes("managerEngines(connected() ? session.objs : null)") && html.includes("favMarks(session.objs.get(FAVS_ID))") && html.includes("favOf(favs, r)") &&
    html.includes("keepable(ui.fpacks, r)") && html.includes("P5_NO_PACK") && /16: "#[0-9A-F]{6}"/.test(html) && !html.includes("P5 · retired"),
    "page (3y80): the P5 tab where the FM-1 has P5, the favourites' stars, Keep / Save of a P5 program said why not, P5's colour");
+
+/* ---- the progressions (object 24, issue 64) --- */
+{
+  const sim = makeSimFM1(), s = new ManagerSession(sim.request);
+  await s.read();
+  const unit = progDecode(s.objs.get(PROG_ID));
+  ok(progressionsListed(s) && s.listed.includes(PROG_ID) && unit.filter((p) => !progIsEmpty(p)).length === 6 && progSame(unit[0], progDecode(progSimFactory())[0]),
+     "prog: read: the firmware lists 24 (its factory set): six progressions");
+  // place a Ripchord preset into slot 7, edit a chord of slot 1, send: one PUT of 24, read back
+  const rpc = progParseRpc(readFileSync(join(HERE, "..", "tests", "fixtures", "rpc", "Gaps Test.rpc"), "utf8"), "Gaps Test.rpc").prog;
+  let set = progPlace(unit, 6, rpc);
+  set[0] = progToggleNote(set[0], 0, 79);
+  const before = sim.log.length, puts = sim.puts.length;
+  const ids = await s.apply(managerProgWrite(s.objs, progEncode(set)));
+  const rb = progDecode(s.objs.get(PROG_ID));
+  ok(ids.join() === "24" && sim.log.slice(before).join() === "24" && sim.puts.slice(puts).map((x) => x.id).join() === "24" && progSame(rb[6], rpc) &&
+     rb[0].keys[0].includes(79) && rb.every((p, k) => progSame(p, set[k])) && s.canUndo, "prog: place + edit + send: one PUT of 24, read back as sent, an undo step");
+  await s.undo();
+  ok(progDecode(s.objs.get(PROG_ID)).every((p, k) => progSame(p, unit[k])) && progDecode(sim.objs.get(PROG_ID)).every((p, k) => progSame(p, unit[k])),
+     "prog: Undo: the set before written back (the factory set again)");
+  // sending what the unit holds: nothing to write
+  ok(!managerProgWrite(s.objs, progEncode(unit)).changed.length, "prog: an unchanged set: nothing to write");
+  // the factory set: a PUT of 0 bytes; the unit lists its factory set again
+  await s.apply(managerProgWrite(s.objs, progEncode(set)));
+  const k = sim.puts.length;
+  await s.apply(managerProgWrite(s.objs, new Uint8Array(0)));
+  ok(sim.puts.slice(k).map((x) => `${x.id}:${x.size}`).join() === "24:0" && progDecode(s.objs.get(PROG_ID)).every((p, j) => progSame(p, unit[j])),
+     "prog: Factory set: a PUT of 0 bytes, the unit lists its factory set");
+  // an object the unit does not take: refused (rc 2), nothing changed; a loop playing: busy, refused
+  const junk = progEncode(set); junk[4] = 9;   // (version 9)
+  let e = null; try { await s.apply(managerProgWrite(s.objs, junk)); } catch (x) { e = x; }
+  ok(e && e.rc === 2 && progDecode(sim.objs.get(PROG_ID)).every((p, j) => progSame(p, unit[j])), "prog: an invalid object refused by the unit (rc 2), the unit unchanged");
+  sim.playing = true; e = null;
+  try { await s.apply(managerProgWrite(s.objs, progEncode(set))); } catch (x) { e = x; }
+  sim.playing = false;
+  ok(e && e.rc === 3 && /Stop the loop/.test(writeErrorText(e)), "prog: a loop playing: the write refused with Stop the loop");
+  // too big for the unit: refused before anything is sent, the progression to shorten named
+  const big = progCopySet(Array.from({ length: 16 }, (_, j) => ({ name: `BIG ${j + 1}`, base: 0, keys: Array.from({ length: 48 }, (_, i) => [i, i + 12, i + 19, i + 24, i + 28, i + 31, i + 36, i + 40]) })));
+  let te = null; try { progEncode(big); } catch (x) { te = x; }
+  ok(te && /shorten progression/.test(te.message) && progFitText(big) === te.message, "prog: a set too big: refused before sending, saying which to shorten");
+  // a backup on it holds 24, and a restore puts it back
+  const file = await captureBackup(sim.request, "ChoralRoot 0.42"), fresh = makeSimFM1(new Map(), { ids: [1, PROG_ID] });
+  const r = await restoreBackup(fresh.request, file, () => {}, { busyTries: 0 });
+  ok(file.objects.some((o) => o.id === PROG_ID && o.size === 560) && r.restored.includes(PROG_ID) && fresh.log.includes(PROG_ID), "prog: a full backup holds 24 and restores it");
+  // a firmware without progressions: 24 not listed, not read, never written (a session's write skips it), the view hidden
+  const old = makeSimFM1(simObjects(), { ids: CR_BACKUP_IDS.filter((id) => id !== PROG_ID) }), so = new ManagerSession(old.request);
+  await so.read();
+  const l0 = old.log.length;
+  const w = await so.writeChanged(managerProgWrite(so.objs, progEncode(set)).changed);
+  ok(!progressionsListed(so) && !so.objs.get(PROG_ID).length && !w.length && old.log.length === l0 && !old.puts.some((x) => x.id === PROG_ID),
+     "prog: a firmware without 24: nothing read, nothing written, progressionsListed false");
+}
+ok(["view-tabs", "view-prog", "prog-view", "pg-slots", "pg-meter", "pg-bytes", "pg-read", "pg-send", "pg-factory", "pg-empty", "pg-drop", "pg-file", "pg-lib-rows", "pg-new", "pg-keep",
+    "pg-name", "pg-bed-fm1", "pg-bed-smk", "pg-export", "pg-chord-kb", "pg-listen", "pg-copy", "pg-paste", "pg-clear", "pg-bed", "pg-wins", "pg-chips"].every((id) => html.includes(`id="${id}"`)) &&
+   html.includes('$("view-prog").hidden = !pgAvailable()') && html.includes("progressionsListed(session)") && html.includes("progFitText(pg.set)") &&
+   html.includes("managerProgWrite(session.objs, bytes)") && html.includes("managerProgWrite(session.objs, new Uint8Array(0))") && html.includes("session.apply(res, writeOpts(label))") &&
+   html.includes('new LibraryStore(undefined, "choralroot-progressions")') && html.includes('maxlength="12"'),
+   "page (issue 64): the Progressions view, hidden where the FM-1 does not list 24; Send through the session (undo), refused when too big; the library");
 
 if (failed) { console.log(`${failed} manager test(s) FAILED`); process.exit(1); }
 console.log("manager tests passed");

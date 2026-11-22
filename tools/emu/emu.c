@@ -892,7 +892,7 @@ static int probe_frames;                         /* script `probe N`: the next N
  * for btn; "note:F3" names the note F3. */
 enum { OP_LEAN = 100 };                  /* a held key's lean (aftertouch), n = 0..100 % */
 enum { OP_DOWN, OP_UP, OP_TURN, OP_SHOT, OP_WINDOW, OP_DUMP, OP_USBLOST, OP_REC, OP_QUIT, OP_MASTER, OP_EXPECT_LED, OP_EXPECT_SND, OP_MIDI, OP_PROBE,
-       OP_PA2, OP_STRIKE, OP_KNOBS, OP_LCDFILL };
+       OP_PA2, OP_STRIKE, OP_KNOBS, OP_LCDFILL, OP_PROGEMPTY };
 typedef struct { uint32_t ms, seq; int op, kind, idx, n; const keymap_t *km; char name[96]; } sev_t;
 static sev_t *sev;
 static int sev_n, sev_cap, sev_i, quit_req;
@@ -1098,6 +1098,10 @@ static void load_script(const char *path)
             continue;
         }
         if (!strcmp(cmd, "lcdfill")) { sev_add(cur, OP_LCDFILL, NULL, 0, 0, 0, NULL); continue; }
+        if (!strcmp(cmd, "progempty")) {          /* progempty P K: key K of progression P (1-based) emptied in the RAM copy */
+            sev_add(cur, OP_PROGEMPTY, NULL, 0, 0, (atoi(arg) - 1) * 64 + (atoi(arg2) - 1), NULL);
+            continue;
+        }
         if (!strcmp(cmd, "expect")) {
             if (!strcmp(arg, "sound") || !strcmp(arg, "silence")) {
                 sev_add(cur, OP_EXPECT_SND, NULL, 0, 0, !strcmp(arg, "sound"), NULL);
@@ -1273,6 +1277,7 @@ static void run_script(uint32_t ms)
             break;
         case OP_DUMP: emu_fw_dump(); break;
         case OP_USBLOST: emu_fw_usb_lost(); break;
+        case OP_PROGEMPTY: emu_fw_prog_empty((unsigned)e->n / 64u, (unsigned)e->n % 64u); break;
         case OP_REC: toggle_record(); break;
         case OP_EXPECT_LED: {
             int lv = e->kind < 0 ? 2 * led_green()

@@ -57,6 +57,15 @@ t ./build/host/cr_settings_test
 # write, an unknown version, ids out of range (docs/PRESETS.md "Favourites")
 par_build cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_favs_test tests/cr_favs_test.c
 t ./build/host/cr_favs_test
+# the progressions' store (firmware/src/cr_prog.c, cr_prog.h on storage.c and a simulated NOR; docs/PROGRESSIONS.md): the
+# factory set, every rule of crp_valid, the lookups, the power-on (stored, factory, SAFE MODE, 0.21's records refused)
+par_build cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_prog_test tests/cr_prog_test.c
+t ./build/host/cr_prog_test
+# the progressions' playing side (cr_engine.c cr_prog_key, CR_Q_PROG; cr_loop.c's packed references; the chord
+# recogniser): the factory set's names, the key / velocity maths, Transpose, voicing, a silent key, Humanize's bounds, a
+# loop and a pad by reference (silent once the key is emptied)
+par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_progplay_test tests/cr_progplay_test.c
+t ./build/host/cr_progplay_test
 par_build cc -O1 -Wall -Wno-unused-function -o build/host/cr_sense_test tests/cr_sense_test.c -lm
 t ./build/host/cr_sense_test
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Ibuild/gen -o build/host/cr_va_test tests/cr_va_test.c -lm

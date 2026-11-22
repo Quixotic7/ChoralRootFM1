@@ -64,6 +64,7 @@ static void cr_bank_boot(void)                    /* persist_boot (after flash_o
     cb_booted = 1;
     up_boot();
     crf_boot();                                   /* the favourites (cr_favs.c) */
+    crp_init();                                   /* the progressions' RAM copy (cr_prog.c: stored or factory, no write) */
 }
 
 /* ----------------------------------------------- 3. the trims of the loud presets --- */

@@ -905,5 +905,20 @@ grep -aq '^save: global rc 0' "$SL3" && grep -aq '1900 ms each erase' "$SL3" && 
     ok "a 1900 ms erase (late: done, 3y265): the save goes through, ${late% *} erases counted late (the longest 1.9 s), 137 BPM after a relaunch" \
     || bad "slow 1900: $(grep -a '^save:' "$SL3") / late '$late' / bpm $(bpm "$SL3") -> $(bpm "$SL4") / $(grep -a 'record:' "$SL4" | head -1)"
 
+# ---- the progressions (GitHub issue 64): Keyboard Prog, the progression, the OCT window, Velocity and Humanize are the
+# session's (cr_settings.h cr_session_t prog_*, bytes 1006 .. 1010): set and saved (SAVE held), then a relaunch on the
+# same flash has them, the engine's Humanize too, and C#4 plays key 26 (window 2) with page 3's Transpose -5. EMU_PROG_LONG: slot 16's 48 keys
+PF=$OUT/persist_prog_flash.bin; P1=$OUT/persist_prog_1.log; P2=$OUT/persist_prog_2.log
+rm -f "$PF" "$P1" "$P2"
+EMU_PROG_LONG=1 "$EMU" --headless --flash "$PF" --script "$S/persist_prog_set.txt" >"$P1" 2>&1 || bad "progressions run 1: exit status"
+EMU_PROG_LONG=1 "$EMU" --headless --flash "$PF" --script "$S/persist_prog_check.txt" >"$P2" 2>&1 || bad "progressions run 2: exit status"
+pp() { grep -a '^  prog: on' "$1" | sed -n "$2p" | sed -n 's/.*prog: on \([01]\) sel \([0-9]*\) win \([0-9]\) vel \([0-9]*\) hum \([0-9]*\) tr \(-*[0-9]*\) .* engine-hum \([0-9]*\) engine-tr \(-*[0-9]*\) .*/\1 \2 \3 \4 \5 \7 \6 \8/p'; }
+a=$(pp "$P1" 1); b=$(pp "$P2" 1)
+set -- $a
+grep -aq '^save: global rc 0' "$P1" && [ "$1 $2 $3" = "1 16 2" ] && [ "$4" -lt 100 ] && [ "$4" -ge 50 ] && [ "$5" -gt 0 ] && [ "$5" = "$6" ] &&
+    [ "$7 $8" = "-5 -5" ] && [ "$b" = "$a" ] && grep -a '^  prog: on' "$P2" | sed -n 2p | grep -q '\[t1 key 26 vel [0-9]*: 68 72 75\]' &&
+    ok "the progressions after a relaunch: Prog on, progression 16, window 2, Velocity $4 %, Humanize $5 %, Transpose -5 (the engine's too); C#4 plays key 26, 5 down" \
+    || bad "the progressions saved: run 1 '$a', run 2 '$b' / $(grep -a '^  prog: on' "$P2" | sed -n 2p)"
+
 [ $fail = 0 ] && echo PASS || echo FAIL
 exit $fail

@@ -72,6 +72,18 @@ typedef struct { uint16_t t, dur; uint8_t root, vel, qx, layer; } crl_ev_t;   /*
  * cut, undo, quantize, Step's commit) touches qx. */
 #define CRL_X_BASS 1u
 #define CRL_EV_BASS(e) (((e)->qx & 0xF0u) == 0u && ((e)->qx & CRL_X_BASS))
+/* A progression's chord (cr_engine.h CR_Q_PROG: a REFERENCE, progression p, key i 0..47, transpose t) in an event's
+ * three bytes (RAM and the record alike): the quality nibble CRL_Q_PROG0 + b (13 .. 15), the ext nibble p, root = i +
+ * 48 a (0 .. 239), with a 0..4, b 0..2 and t = 3 a + b - 7: -7 .. +7. A Transpose outside that is kept by its pitch
+ * classes (moved by octaves into -7 .. +7: +12 is stored as 0). The loop plays it by looking the chord up then (an
+ * edited progression changes the loop, a key emptied since is silent); the loop editor's step transpose moves t (within
+ * -7 .. +7). A firmware before the progressions refuses a record holding one (cr_loop_unpack: a quality >= 13): the slot
+ * reads as empty there */
+#define CRL_Q_PROG0 13u
+#define CRL_EV_PROG(qx) (((qx) >> 4) >= CRL_Q_PROG0)
+#define CRL_PROG_T(root, qx) ((int)((root) / 48u) * 3 + (int)((qx) >> 4) - (int)CRL_Q_PROG0 - 7)   /* t of a packed one */
+/* .. the packed bytes back as the engine's reference (cr_engine.h CR_PROG_REF; the q: CR_Q_PROG, the ext: qx & 15) */
+#define CRL_PROG_REF(root, qx) CR_PROG_REF((root) % 48u, CRL_PROG_T(root, qx))
 
 typedef struct {                 /* a loop's content: what a slot stores */
     uint32_t len;                /* ticks, 0 = empty */

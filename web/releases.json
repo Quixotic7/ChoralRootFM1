@@ -8,6 +8,54 @@
   },
   "releases": [
     {
+      "version": "0.43",
+      "date": "2026-11-21",
+      "tag": "v0.43",
+      "sha256": "200939f25a28649b24d7fb8b52e01c6439dab34950b02bc2ac4bc24047e23ef9",
+      "sha256_1core": "e88607be39ad7011df55ccf31611e63208a506cce0f8d5deb5d4ec5fd6a6ac8d",
+      "title": "ChoralRoot on the Ableton Move (RemoteFM1)",
+      "bullets": [
+        "On the FM-1 nothing changes: 0.43 plays exactly as 0.42.",
+        "In RemoteFM1 on the Ableton Move, ChoralRoot takes the whole Move: chord keys, memories and the keyboard on the pads, a step sequencer on the steps.",
+        "Shift on the Move: the FM-1's buttons on the pads, and the steps' icons as the Move's own (tempo, groove, metronome, key and scale, fixed velocity, double loop, quantize).",
+        "Copy and Delete copy, cut and paste steps as the Move's sequencer; Play starts RemoteFM1's sequencer with ChoralRoot's loop.",
+        "A sound editor on the memory pads, a Settings menu, and the loop's swing.",
+        "Your settings, sounds, loops and favorites come through the update."
+      ],
+      "notes": [
+        "The Move takeover comes with RemoteFM1's ChoralRoot 0.43.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
+      "version": "0.42",
+      "date": "2026-11-19",
+      "tag": "v0.42",
+      "sha256": "0391fac999db698a2d9cf8bca301860a19f668e11bffba16731458f63fe58a3d",
+      "sha256_1core": "7d925f935462a6afc2495578ba4e210fc3f77da167bf2216313c1bceccdf7d88",
+      "title": "Progressions: a key plays a whole stored chord",
+      "bullets": [
+        "KEY layer page 2, Keyboard: Prog: the root keys from C4 play a progression, one stored chord a key, up to 8 notes each.",
+        "The chord keys keep their jobs: a root with a chord key held plays your own chord, a root alone the progression's.",
+        "Tap KEY to put the progression aside and bring it back; OCT- / OCT+ slide a longer one 12 chords along.",
+        "Page 3: pick one of 16 progressions, its Velocity, Humanize and Transpose. Six come with it.",
+        "The device manager's Progressions view imports Ripchord presets, edits and makes progressions, and exports them as .rpc.",
+        "Your settings, sounds, loops and favorites come through the update."
+      ],
+      "notes": [
+        "Loops keep which progression and key a chord came from: edit the progression and the loop plays the new chord.",
+        "M-Flasher writes the firmware alone: the unit starts with PRESETS MISSING until ChoralRoot's own installer has run once.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.42 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "The FM-1 plays the same: 0.43 adds ChoralRoot on the Ableton Move (RemoteFM1), not on the FM-1.",
+          "Options > Version reads ChoralRoot 0.42 again."
+        ]
+      }
+    },
+    {
       "version": "0.41",
       "date": "2026-11-12",
       "tag": "v0.41",
@@ -25,7 +73,14 @@
         "A settings backup does not hold the drums: they live in the session.",
         "M-Flasher writes the firmware alone: the unit starts with PRESETS MISSING until ChoralRoot's own installer has run once.",
         "The Single core package is the same firmware on one core; it plays the drums on that core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.41 stores everything else the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "0.41 has no progressions: it leaves them stored for 0.42, and a loop slot holding a progression chord reads as empty there.",
+          "Options > Version reads ChoralRoot 0.41 again; Keyboard has Chords and Full only, and the KEY layer two pages."
+        ]
+      }
     },
     {
       "version": "0.40",

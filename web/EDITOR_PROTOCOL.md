@@ -612,8 +612,8 @@ each commit, no RESTART.
 
 | cmd | request | reply |
 | --- | --- | --- |
-| 1 INFO | — | version string (`ChoralRoot 0.1`), then 0 engines, P_COUNT 0, G_COUNT 0, NSTEP 0, P_E0 0, NTRK 0, CHAIN_ROWS 0, then `42 01 03` (backup read + restore) and `43 01 02` (ChoralRoot backup v2: ids 9 and 40..49, `RESTART`, no sample slots; v1, ChoralRoot 0.1, also listed 32 and 33 and answered SMP_BEGIN .. SMP_ERASE; 0.22: `43 01 03`), then (2026-10-14, 3y66) `49 08` and the unit's ID, 8 hex digits in ASCII (the CRC-32 of the flash's unique ID; no tag when the unit has none, e.g. in SAFE MODE: docs/INSTALL-COMPAT.md "Several FM-1s"). Hosts read the version to its NUL and walk the tags after the 7 bytes |
-| 65 BACKUP_LIST | — | `1, rc, 27` (17 without CZ-1), then per object `id, size u32, crc u32` |
+| 1 INFO | — | version string (`ChoralRoot 0.1`), then 0 engines, P_COUNT 0, G_COUNT 0, NSTEP 0, P_E0 0, NTRK 0, CHAIN_ROWS 0, then `42 01 03` (backup read + restore) and `43 01 02` (ChoralRoot backup v2: ids 9 and 40..49, `RESTART`, no sample slots; v1, ChoralRoot 0.1, also listed 32 and 33 and answered SMP_BEGIN .. SMP_ERASE; 0.22: `43 01 03`, the pool's ids 50..62; with the progressions: `43 01 04`, id 24. No client reads this number: they go by `LIST`), then (2026-10-14, 3y66) `49 08` and the unit's ID, 8 hex digits in ASCII (the CRC-32 of the flash's unique ID; no tag when the unit has none, e.g. in SAFE MODE: docs/INSTALL-COMPAT.md "Several FM-1s"). Hosts read the version to its NUL and walk the tags after the 7 bytes |
+| 65 BACKUP_LIST | — | `1, rc, 35` (34 before the progressions, id 24), then per object `id, size u32, crc u32`: 1, 8, 14..21, 50..62, 23, 24, 40..49 in that order |
 | 66 BACKUP_GET | as above | as above (a loop may play: reads never stop anything) |
 | 67 BACKUP_PUT | as above | as above |
 | 72 RESTART | — | rc (0); then the device restarts: about 150 ms after the request, and (from 0.17) not before the host has taken the reply from the endpoint and 5 ms more; 500 ms after the request at the latest, taken or not (firmware `cr_backup.c crb_leave`; to 0.16 about one restart in four left the bus before the host had read the reply) |
@@ -636,13 +636,14 @@ Objects (Felucca's ids where Felucca has the same object; 9..21 and 40..49 are C
 | 12, 13 | the CZ-1 tone store (`cz_ustore.c`: user slots 1..16, 17..32, docs/CZ1.md) | 2320, or 0 |
 | 14..21 | the CZ-1 banks A..H (`cz_bank.c`, Melodee's layout: name, used mask, 16 native tones) | 2332, or 0 if never saved |
 | 23 | the favourites (`cr_favs.c`, 0.22: the marks on sounds, docs/PRESETS.md "Favourites"): a version byte (1), the number of sections, then per section a tag (the engine's index, 0x80 the user slots), a length and that many bytes of bits (bit i of byte i / 8: preset index i, user slot i, for P5 the Sequential program number i). A firmware before 0.22 does not list 23 and answers its `PUT` begin rc 1; the clients write only what the FM-1 lists | 2 .. 96, or 0 if no mark was ever made |
+| 24 | the progressions (`cr_prog.c`, `cr_prog.h`, docs/PROGRESSIONS.md; GitHub issue 64): the object `CRP1` (a 16-byte header, a directory of 16 entries, the chords). Listed and read from the unit's RAM copy: the stored object, or the factory set when none is stored or the stored one is not valid, so a client always sees what the unit plays. A firmware before it does not list 24 (and answers its `PUT` begin rc 1) | 272 .. 3840 (the factory set: 560); never 0 |
 | 40..49 | loop slots 1..10 (docs/LOOPER.md, the record `CRL1`) | 16 + 2 × layers + 7 × events (at most 3664), or 0 |
 
 Reading: `LIST` first saves a settings change not yet saved (not while a loop plays), then answers every object as it
 is in flash: the current copy of each A/B pair (storage.c's choice: the newest copy whose header and payload CRC hold;
 the CRC listed is the payload's). `GET` reads that copy in 256-byte pieces.
 
-Restoring: `BACKUP_PUT` takes ids 1, 6..23 and 40..49 (others: rc 1; 23 is stored as sent and read again: an object the firmware cannot read counts as no marks; 10..13 the stores' header and every blob / tone checked, 14..21 Melodee's bank check). Sizes at the begin: id 1 any record
+Restoring: `BACKUP_PUT` takes ids 1, 6..24 and 40..49 (others: rc 1; 23 is stored as sent and read again: an object the firmware cannot read counts as no marks; 10..13 the stores' header and every blob / tone checked, 14..21 Melodee's bank check; 24 a begin of 0 or 272..3840 bytes, at the commit `crp_valid` (cr_prog.h: magic, version, 16 entries, used = the size, every record in range, notes ascending, at most 8 notes and 48 keys, the slots' data apart) or rc 2 with nothing written; 0 bytes goes back to the factory set (an empty object is stored, which reads as none); the factory set's exact bytes sent to a unit that stores none write nothing; the RAM copy is reloaded at the commit, no `RESTART`). Sizes at the begin: id 1 any record
 `settings_persist.c` imports (PER1 .. PER5, 40 .. 764 bytes; a PER1..PER4 record from Felucca keeps Felucca's fields
 and gets ChoralRoot's defaults; it is stored as PER5); 6 / 7 the bank or 0; 8 the FM6 bank or 0; 9 a VA store of
 version 3 or 2 (3536) or version 1 (3344; converted at boot), or 0; 40..49 a loop record (16..3664) or 0 (deletes the

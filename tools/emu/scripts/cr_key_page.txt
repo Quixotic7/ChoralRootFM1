@@ -1,5 +1,5 @@
 # ChoralRoot: the KEY layer's second page and Key plays (the owner, 2026-10-11). KEY (SEL) held: the layer on page 1
-# (Tonic Scale Transpose Single, "1/2"); SELECT turns the page (no tempo change there): page 2: Key plays (KNOB 1:
+# (Tonic Scale Transpose Single, "1/3"); SELECT turns the page (no tempo change there): page 2: Key plays (KNOB 1:
 # Chords / Notes) and Keyboard (KNOB 2: Chords / Full). Key plays = Notes: Key Mode on generates no chord: a root in
 # the scale plays as with Key Mode off (a single note; with a chord key, that chord), a root out of the scale does
 # nothing (no voice, no note out, no LED).
@@ -18,7 +18,11 @@ knob KNOB1 +1                 # Key plays: Notes
 wait 300
 shot build/emu/test/cr_key_page2_notes.ppm
 dump                          # 3: plays notes
+knob SELECT +1                # page 3 (the progressions, GitHub issue 64)
+wait 200
 knob SELECT +1                # the last page: stays
+wait 200
+knob SELECT -1                # page 2
 wait 200
 knob SELECT -1                # page 1 again
 wait 300

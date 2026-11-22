@@ -98,6 +98,47 @@ Eight chord pads (design.md §10.7): `cr_pad_arm`, `cr_pad_down` / `cr_pad_up`, 
 `cr_pad_get` / `cr_pad_set` for persistence. A pad stores the resolved chord, untransposed. It replays
 through the current voicing, perform mode, bass and transpose.
 
+A pad of a progression's chord stores its **reference** (below), not its notes.
+
+### Progressions (GitHub issue 64; docs/PROGRESSIONS.md)
+
+KEY page 2 Keyboard: Prog lays the progression over the Chords keyboard: a root key pressed with no chord key in use (the
+UI decides, `cr_ui.c cu_ckeys_used`) is a trigger of the chord stored for it (a list of up to 8 absolute
+notes, `cr_prog.h`). The engine plays them as a voice kind of its own:
+
+- **`cr_prog_source(fn)`**: where the chords come from (`fn(p, i, notes)`, the count, 0 = none). One source for
+  every `cr_t`; the firmware passes `crp_chord` (`cr_prog.c`'s RAM copy: no flash read, so the audio ISR may call
+  it). No source: every such key is silent.
+- **`cr_prog_key(trig, p, i, vel, down)`**: trigger `trig` (the UI's key number, 0..47; its own press id,
+  `CR_PROG_ID`, so a MIDI Roots note of the same number stays apart) plays key `i` of progression `p`. The voice:
+  zone `CR_Z_PROG`, quality `CR_Q_PROG` (= `CR_Q_COUNT`, not a table quality), `base[]` = the stored notes +
+  the Transpose of now and the progression's own (`cr_set_prog_transpose`, KEY page 3 KNOB 4, -24..24; for these
+  chords only) (each moved by octaves into 0..127, a note twice once), voiced by KNOB 1 (`cr_voice_apply`)
+  live as any chord; `sx` = the progression, `pc_pressed` = the key, `root` / `note_pressed` = the lowest stored
+  note (the bass part takes its pitch class, Unison and Solo its pitch). Key Mode, the chord keys, LOCK and Single
+  Notes' split do nothing to it (`crx_build_base` is never called for it; the chord-key paths skip zoned voices).
+  The performance modes, both parts, the streams, glide, the latch (Sticky, Hold) and MIDI out work on its notes.
+  A key with no chord: nothing at all (no voice, no note, no gesture, `phys` untouched, a latch not replaced).
+- **`cr_set_prog_humanize(pct)`**: 0..100. Every note a `CR_Z_PROG` voice starts (sustained, raw, each step of a
+  performance, the bass) gets `vel + rand(-r..r)`, r = pct x 40 / 100, clamped 1..127 (`crx_hv`, the engine's RNG).
+  Velocity % is the UI's (`CR_PROG_VEL`), applied before the press is posted.
+- **The reference** (`CR_PROG_REF(i, t)`, `CR_PROG_KEY`, `CR_PROG_TR`): wherever a chord is passed by value
+  (`out.gesture`, a pad's `cr_chord_t`, `last_chord`, `cr_loop_event`) a progression's chord is `q = CR_Q_PROG`,
+  `ext` = the progression, `root` = the key in bits 0..5 and the total transpose it was played with + 48 in bits 6..12 (-48..48). It is resolved
+  (`crx_prog_build`) whenever it sounds: an edited progression changes what an old pad or loop plays, an emptied
+  key is silent (`cr_pad_down`, `cr_loop_event_v` return without a voice). A loop's step voicing applies as to any
+  chord.
+- **`cr_chord_info`** for such a chord: `quality` `CR_Q_PROG`, `ext` the progression, `prog_key` the key,
+  `root_pc` the lowest stored note's (transposed); the name is `cr_chord_recognise`'s of the stored notes +
+  transpose (not as voiced; after the release the notes are looked up again).
+- **`cr_chord_recognise(notes, n, root, qual, sup)`**: the name of a note list: a table of 38 pitch-class sets
+  above a root (triads, sus, 5, 6, 7, M7, m7, m7b5, dim7, mM7, 7sus4, add9, +7, 7b5, 6/9, 9, M9, m9, 7b9, 7#9,
+  m11, M7#11, 13, 7#5#9, 7b5b9, 9sus4, 11, M13, m13; Standard naming's spelling, "M" alone for the major
+  triad), a set of 4 notes or more also without its fifth. The bass as the root first, then each other note
+  upwards from C with "/bass" after the figure ("C7/E", "C/E": the major triad then without its "M"), whole
+  chords before fifthless ones, then the chord without the bass over it; no match: the bass's note name. Ported
+  from the owner's approved editor mock-up.
+
 ### Queries for the screen and LEDs
 
 - **`cr_chord_info`**: the shown chord. That is the most recently played, transformed or retriggered

@@ -278,7 +278,7 @@ static void wheel_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         out[i] += voice_amp(acc[i] >> 1, m, i) << 1;
 }
 
-static const preset_t WHEEL_PRESETS[] = {
+static const preset_t WHEEL_PRESETS[] RES_PRESET_SMK = {   /* (the SMK-37: its first resource region, cr_res.h) */
     /* name, {REG, SUB, BODY, TOP, PERC, CLICK, DRIVE, ROTR}, {A D S R}, fenv, mono */
     {"FULL ORGAN", {15, 0, 0, 0, 0, 30, 20, 1}, {0, 64, 127, 45}, 0, 0, FX(0, 0, 10, 35), PAT(5)},
     {"JAZZ PERC", {4, 0, 0, 0, 2, 50, 8, 1}, {0, 64, 127, 40}, 0, 0, FX(0, 0, 0, 25), PAT(3)},

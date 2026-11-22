@@ -149,6 +149,29 @@ static void t_keys(void)
     ok(crm_key(0x94, 35, 1, 5, &ev) == 0 && crm_key(0x94, 45, 1, 5, &ev) == 0, "keys: 35 and 45: nothing");
 }
 
+/* GitHub issue 64: MIDI Keys in Keyboard: Prog (crm_pkey): the keybed's notes its keys as ever (a root key decides
+ * Prog or a chord itself), the notes beyond it the triggers from C4 (FM-1: 80 .. 107 = triggers 20 .. 47) */
+static void t_pkeys(void)
+{
+    uint32_t ev = 0, j, bad = 0, e2 = 0;
+#define PJ(e) (((e) & 31u) | (((e) >> 13) & 1u) << 5)
+    for (j = 20; j < 48u; j++)
+        bad += crm_pkey(0x94, 60u + j, 90, 5, 60, 80, &ev) != 1 || !(ev & CRM_PKEY) || PJ(ev) != j || ((ev >> 5) & 127u) != 90u ||
+               !((ev >> 12) & 1u) || (ev & CRM_ROOT);
+    ok(!bad, "pkeys: FM-1, notes 80 .. 107 (past G5) are the triggers 20 .. 47 (C4 = trigger 0), down, the velocity");
+    for (j = 36, bad = 0; j < 80u; j++)
+        if (crm_pkey(0x94, j, 90, 5, 60, 80, &ev) != crm_key(0x94, j, 90, 5, &e2) || ev != e2 || (ev & CRM_PKEY)) bad++;
+    ok(!bad, "pkeys: notes 36 .. 79 as MIDI Keys always (53 .. 79 the keys F3 .. G5: C4 = 60 key 7, its root; 36 .. 44 the pads)");
+    ok(crm_pkey(0x84, 80, 0, 5, 60, 80, &ev) == 1 && PJ(ev) == 20u && !((ev >> 12) & 1u) && crm_pkey(0x94, 107, 0, 5, 60, 80, &ev) == 1 &&
+       PJ(ev) == 47u && !((ev >> 12) & 1u), "pkeys: a note-off, a note-on at 0: up (the down bit where a key's is)");
+    ok(crm_pkey(0x94, 108, 1, 5, 60, 80, &ev) == 0, "pkeys: 108 (past key 48): nothing");
+    ok(crm_pkey(0x94, 85, 1, 5, 48, 85, &ev) == 1 && PJ(ev) == 37u && crm_pkey(0x94, 95, 1, 5, 48, 85, &ev) == 1 && PJ(ev) == 47u &&
+       crm_pkey(0x94, 96, 1, 5, 48, 85, &ev) == 0, "pkeys: SMK-37, from C3 (48), past C6: 85 .. 95");
+    ok(crm_pkey(0xB4, 123, 0, 5, 60, 80, &ev) == 1 && ev == CRM_KEY_ALLUP && crm_pkey(0x90, 60, 1, 5, 60, 80, &ev) == -1 &&
+       crm_pkey(0x94, 60, 1, 0, 60, 80, &ev) == -1, "pkeys: CC 123 every key up; another channel, MIDI Keys Off: not the keys'");
+#undef PJ
+}
+
 /* 3y289: MIDI Roots (crm_root): every note on its channel is a root at its own pitch */
 static void t_roots(void)
 {
@@ -276,6 +299,7 @@ int main(void)
 {
     t_transport();
     t_keys();
+    t_pkeys();
     t_roots();
     t_clock();
     t_map();
