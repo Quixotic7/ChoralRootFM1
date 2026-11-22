@@ -3,6 +3,37 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.44-smk37",
+      "base": "0.44",
+      "date": "2026-11-22",
+      "tag": "v0.44-smk37",
+      "title": "0.44-smk37: Bluetooth MIDI, and chords named as you play them",
+      "bullets": [
+        "Bluetooth MIDI on the SMK-37 Pro and Elite: Options > MIDI > Bluetooth On, then switch the keyboard off and on.",
+        "On the Full keyboard, notes played together are named as the chord they make, not just the last note (GitHub issue 61).",
+        "The Keyboard view lights every note you hold when you play single notes.",
+        "The installer writes a small second resource region with the firmware, to make room for Bluetooth.",
+        "Updating keeps your sounds, loops, progressions, favourites and settings."
+      ],
+      "notes": [
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "eb4fded273529d61c6c8c3b61f3d0614cc94273b5ea67689c609a43aca8401d4",
+          "sha256_1core": "f7cca18f7ff44f0016102d90b22fb0931b7abee26aae0d8b6b689d5712595e87"
+        },
+        "elite": {
+          "sha256": "37b602b9395bdc7600a258fc6db326f670ecf889e796926beccb6528682ff801",
+          "sha256_1core": "53204fb182f81c4650d184482b72a969fdbfea8482222a80e9def4176f8ebf14"
+        },
+        "mke": {
+          "sha256": "706799736170186d5e979c5a2f7e1d73ce7a606aebdf4037a8fbf8718d23c921",
+          "sha256_1core": "4b078b36549b252ba09c9973b2224fa6f75197c59ae07d85c74215e6deb95b83"
+        }
+      }
+    },
+    {
       "version": "0.43-smk37",
       "base": "0.43",
       "date": "2026-11-21",

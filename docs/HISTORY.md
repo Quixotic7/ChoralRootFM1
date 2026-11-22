@@ -8853,3 +8853,15 @@ channel 2, a marker per section) merged onto main after 0.42 / 0.43. Added on me
 qualities 13..15, a reference) is exported from the unit's progressions (object 24) as `crx_prog_build` makes it
 (`loopProgNotes`); without them it is left out and the page says how many. docs/DEVICE-MANAGER.md "Loops as MIDI";
 tests in `web/test_manager.mjs`. Web only: the firmware is unchanged.
+
+## 2026-11-22 (0.44)
+
+3y320. **0.44 and 0.44-smk37: chords named as you play them, loops as MIDI, Bluetooth on the SMK-37.** The owner:
+"All seems good to me, lets get this pushed and tagged, released thanks". 0.44 is main with 3y318 (issue 61: the Full
+keyboard names the chord its notes make; the Keyboard view lights every held single note) and 3y319 (PR #50, the
+device manager's Save loops as MIDI); 0.44-smk37 adds the SMK-37's Bluetooth MIDI and second resource region (3y309,
+merged in 3y317), first released here. docs/releases/0.44.md; web/releases.json's 0.44 first (sha256 d680c0e0...cd5b,
+1-core a3052039...c642) and 0.43's going-back note; web/releases-smk37.json's 0.44-smk37 (Pro eb4fded2...01d4 /
+f7cca18f...5e87, Elite 37b602b9...f801 / 53204fb1...8ebf14, MKE-P37 70679973...c23f / 4b078b36...5b83); MANUAL.md's
+first line; the dev version 0.44; SMK37.md for 0.44-smk37. FM-1 XIP 571,932 of 573,440. Flashed on E81CE2F7 before
+the release (the dev build of the same tree). `CR_VERSION=0.44 sh tests/run_all.sh`.

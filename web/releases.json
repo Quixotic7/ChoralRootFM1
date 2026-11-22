@@ -8,6 +8,24 @@
   },
   "releases": [
     {
+      "version": "0.44",
+      "date": "2026-11-22",
+      "tag": "v0.44",
+      "sha256": "d680c0e0e70098cdff38c7bbed5763630db9c7f3f8d265771901bc80467acd5b",
+      "sha256_1core": "a3052039a6a170477713bda5ae97c970b53d1c41ddd55107d644b8e7efcda642",
+      "title": "The screen names the chords you play by hand; loops as MIDI",
+      "bullets": [
+        "On the Full keyboard, notes played together are named as the chord they make (C, Am7, F/A...), not just the last note (GitHub issue 61).",
+        "The Keyboard view lights every note you hold when you play single notes, not only the last one.",
+        "The device manager saves loops as one MIDI file for your DAW: pick the loops, write the order (1 2x2 3 4) and the tempo; chords on channel 1, bass on channel 2 (contributed by Nikitos-U).",
+        "Your settings, sounds, loops, progressions and favorites come through the update."
+      ],
+      "notes": [
+        "Only the screen changes on the FM-1: nothing that sounds, is recorded or is sent over MIDI is different.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.43",
       "date": "2026-11-21",
       "tag": "v0.43",
@@ -25,7 +43,15 @@
       "notes": [
         "The Move takeover comes with RemoteFM1's ChoralRoot 0.43.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.43 stores everything the same way, so your settings, sounds, loops, progressions and favorites stay.",
+        "points": [
+          "The Full keyboard shows the last note you pressed again, not the chord your notes make.",
+          "Loops as MIDI is in the device manager, not the firmware: it stays.",
+          "Options > Version reads ChoralRoot 0.43 again."
+        ]
+      }
     },
     {
       "version": "0.42",
