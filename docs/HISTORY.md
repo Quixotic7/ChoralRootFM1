@@ -8845,3 +8845,11 @@ cr_chord_info, the new helpers) is built for size (`tools/size_fns.py`), and on 
 from full, QUAD's sixteen preset patches and their table follow the list into its first region (`RES_PRESET_SMK`;
 `eng_quad.c quad_preset_patch` gives the init patch when the region is not there, as the list's readers go without).
 **Sizes**: FM-1 XIP 571,932 of 573,440; SMK-37 XIP 572,592 of 573,440 (848 spare), RES 48,072 of 49,088.
+
+3y319. **The device manager saves loops as MIDI (GitHub PR #50, Nikitos-U).** The owner: "Seems like a reasonable
+add" and "Please get everything merge and build and flash". The PR's Save loops as MIDI… (the Loops tab: the selected
+slots or library loops, an order such as `1 2x2 3 4`, a tempo; one SMF type 1 file, Chords on channel 1, Bass on
+channel 2, a marker per section) merged onto main after 0.42 / 0.43. Added on merge: a loop's progression chord (0.42,
+qualities 13..15, a reference) is exported from the unit's progressions (object 24) as `crx_prog_build` makes it
+(`loopProgNotes`); without them it is left out and the page says how many. docs/DEVICE-MANAGER.md "Loops as MIDI";
+tests in `web/test_manager.mjs`. Web only: the firmware is unchanged.
