@@ -2037,7 +2037,7 @@ settings it holds. (This is remembered until power-off; a fresh start opens the 
 | **MIDI Roots** | Off, ch 1 to ch 16 | Off | the channel whose every note is a root at its own pitch: a whole keyboard plays chords, with the chord keys held on the FM-1 or over MIDI Keys ([MIDI in](#midi-in-usb-bluetooth-and-the-trs-jack)); the MIDI Perform, MIDI Bass and MIDI Keys channels are skipped. Not on the SMK-37. New in 0.39 |
 | **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop; incoming start / stop work as LOOP. In: follows the clock and start / stop |
 | **MIDI CC** | Off, In, Out, In + Out | In | CCs on the sounds' parameters ([MIDI CC](#midi-cc-the-sounds-parameters)). In: a CC sets the parameter; Out: a knob turned on such a parameter sends its CC. Off: only CC 7, 91, 93 and 94 as before. New in 0.33 |
-| **Bluetooth** | Off, On | Off | the FM-1 only: MIDI over Bluetooth, the same MIDI as over USB ([Bluetooth MIDI](#bluetooth-midi)); the first On takes effect at the next power-on. The line under it says what the link is doing. Kept apart from the other settings (Reset Settings leaves it, a backup does not carry it; Flash Data clears it) |
+| **Bluetooth** | Off, On | Off | MIDI over Bluetooth (on the SMK-37 too, in its builds after 0.41-smk37.1), the same MIDI as over USB ([Bluetooth MIDI](#bluetooth-midi)); the first On takes effect at the next power-on. The line under it says what the link is doing. Kept apart from the other settings (Reset Settings leaves it, a backup does not carry it; Flash Data clears it) |
 | **Forget Bluetooth** | | | OCT+ twice: the FM-1 forgets the computer it paired with. Forget the FM-1 on that computer too |
 | **USB Host** | Off, On | Off | the FM-1 only: the USB-C port hosts a USB MIDI keyboard, controller or second FM-1 instead of talking to a computer ([USB Host](#usb-host-a-midi-device-on-the-fm-1s-usb-c)). Never saved: every start-up is a USB device again |
 
@@ -2428,7 +2428,7 @@ Each engine's map (from `tests/cr_cc_test.c --map`, the firmware's own walk of t
 
 ### Bluetooth MIDI
 
-The FM-1 (not the SMK-37) can be a Bluetooth MIDI device for a Mac, an iPad, an iPhone or anything else that speaks
+The FM-1 (and the SMK-37, in its builds after 0.41-smk37.1) can be a Bluetooth MIDI device for a Mac, an iPad, an iPhone or anything else that speaks
 Bluetooth LE MIDI. It is **Off** by default; Options > **Bluetooth** turns it on, and it stays on after a restart.
 
 1. Options > Bluetooth: On, then switch the FM-1 off and on. The radio starts only while the FM-1 starts up (until

@@ -431,7 +431,7 @@ static const uint8_t GRAIN_PX[][16] = {
 /* the macros of a patch list: source A's four, MORPH SIZE DENS POS (GRAIN_MAC's order) */
 #define GM_(t1, n1, m1, s1, t2, n2, m2, s2, sz, dn, ps, sp, mo, ra, pi, sc, cu, re) {t1, n1, m1, s1, mo, sz, dn, ps}
 #define GM(...) GM_(__VA_ARGS__)
-static const preset_t GRAIN_PRESETS[] = {
+static const preset_t GRAIN_PRESETS[] RES_PRESET_SMK = {   /* (the SMK-37: its first resource region, cr_res.h) */
     /* name, the macros, {A D S R}, fenv, mono */
     {"CLOUD PAD", GM(GP_CLOUD_PAD), {70, 90, 120, 90}, 0, 0, FX(0, 40, 25, 85), PAT(5)},
     {"SHIMMER", GM(GP_SHIMMER), {30, 90, 110, 90}, 0, 0, FX(0, 50, 40, 90), PAT(7)},
@@ -495,7 +495,7 @@ static void grain_track_loaded(const track_t *ct)
         grain_macros_out(t);
         return;
     }
-    if (t->preset < GRAIN_NPRESETS) {
+    if (t->preset < GRAIN_NPRESETS && !CR_REGION_GONE(GRAIN_PRESETS)) {
         for (k = 0; k < 8u && t->p[P_E0 + k] == GRAIN_PRESETS[t->preset].e[k]; k++)
             ;
         if (k == 8u) {

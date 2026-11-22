@@ -433,7 +433,7 @@ static preset_t eng_no_preset;
 static inline const preset_t *eng_preset(const engine_t *en, uint32_t k)
 {
 #if CR_RES2
-    if (CR_RES2_GONE(en->presets)) {
+    if (CR_REGION_GONE(en->presets)) {   /* (the SMK-37's VA list is in its first region) */
         uint32_t i;
         eng_no_preset.name = "NO PRESET";
         for (i = 0; i < 8u; i++)

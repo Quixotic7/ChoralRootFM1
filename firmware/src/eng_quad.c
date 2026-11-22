@@ -759,7 +759,7 @@ static const uint8_t QUADP_NOISE[] = {SYN(7, QRC(4), QRA(4), 4, 4, 0, 0, 120, -6
  * (cr_quad_test checks); env: the amp envelope (QUAD's own: the platform ADSR is not used). FX(drive, chorus, delay,
  * reverb): the DRIVE is loaded with the preset (the AMP page's cell; WOBBLE's 10 is the only one above 0); the three
  * sends are not: they are the part's (cr_bank.c param_kept) */
-static const preset_t QUAD_PRESETS[] = {
+static const preset_t QUAD_PRESETS[] RES_PRESET_SMK = {   /* (the SMK-37: its first resource region, cr_res.h) */
     {"EP", {2, QRC(4), QRA(4), QRC(56), 0, 12, 0, -30}, {0, 39, 40, 14}, 0, 0, FX(0, 30, 20, 40), PAT(6)},
     {"BELL", {2, QRC(4), QRA(14), QRC(24), 0, 20, 0, -10}, {0, 52, 0, 43}, 0, 0, FX(0, 20, 35, 60), PAT(7)},
     {"BASS", {1, QRC(4), QRA(4), QRC(4), 0, 0, 24, -64}, {0, 24, 100, 5}, 0, 1, FX(0, 0, 10, 10), PAT(2)},
@@ -944,7 +944,7 @@ static void quad_track_loaded(const track_t *ct)
         quad_macros_out(t);
         return;
     }
-    if (!pend && rb < 0 && t->preset < QUAD_NPRESETS) {
+    if (!pend && rb < 0 && t->preset < QUAD_NPRESETS && !CR_REGION_GONE(QUAD_PRESETS)) {
         for (k = 0; k < 8u && t->p[P_E0 + k] == QUAD_PRESETS[t->preset].e[k]; k++)
             ;
         if (k == 8u) {

@@ -23,7 +23,7 @@
  * it; every base starts with stale bytes there (0.21's objects, another firmware's data), so every cut leaves some of
  * it written, and B (the stub boots) is allowed only with the whole region in place. A NEW without it (an older
  * package: the downgrade) must leave the region as it was, byte for byte.
- * The second region (FM-1, HISTORY 3y296): a NEW with the entry res2.bin writes 0xDC000..0xDFFFF from it, before the
+ * The second region (FM-1, HISTORY 3y296; the SMK-37's at 0xB0000, 3y309): a NEW with the entry res2.bin writes 0xDC000..0xDFFFF from it, before the
  * marker; every base starts with stale bytes there too (0.21's user banks), among them a valid-looking update record
  * at the end of a sector, which the record sweep must leave; B needs it whole as well. A NEW without the entry leaves
  * it as it was. */
@@ -41,6 +41,8 @@
 #define T_RES_HI 0xA9000u                /* the resource region's end (LDR_RES_HI): 0x9D000 .. (3y295) */
 #define T_REC_HI 0xC0000u                /* .. and of its record window (LDR_REC_HI) */
 #define T_OTA 0xBB000u                   /* the staging area (ota.c OTA_AREA) */
+#define T_RES2_LO 0xB0000u               /* the second region (LDR_RES2_LO .. HI, 3y309; 12 KB since 3y317) */
+#define T_RES2_HI 0xB3000u
 #else
 #define T_APP_HI 0x93000u
 #define T_RES_HI 0x9F000u                /* the resource region's end (ldr_core.c LDR_RES_HI): 0x93000 .. */
@@ -416,8 +418,8 @@ int main(int argc, char **argv)
                      !memcmp(nor + T_APP_HI, res_before, T_RES_HI - T_APP_HI));
     }
 #ifdef T_RES2_LO
-    bad += check(new_r2 ? "second region == the package's res2.bin (0xDC000..0xDFFFF)"
-                        : "no res2.bin: 0xDC000..0xDFFFF as before, its record-like bytes kept", res2_done());
+    bad += check(new_r2 ? "second region == the package's res2.bin (T_RES2_LO..T_RES2_HI)"
+                        : "no res2.bin: T_RES2_LO..T_RES2_HI as before, its record-like bytes kept", res2_done());
 #endif
     bad += check("flash head [0, 0x4000) untouched", !memcmp(nor, head, sizeof head));
     bad += check("finish asked (0xF0000000)", f0_asked >= 1);

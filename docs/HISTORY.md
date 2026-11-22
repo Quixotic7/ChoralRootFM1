@@ -8693,6 +8693,30 @@ ef8be9fd...2a4b; Elite 25bde08b...ad96 / 2338d58f...d247; MKE-P37 de6907d1...d96
 web/releases-smk37.json lists them (its first entry, base 0.41). SMK37.md names 0.41-smk37.1 (the status, the packages,
 the version a player sees, the install and release commands).
 
+## 2026-11-16 (Bluetooth MIDI on the SMK-37)
+
+3y309. **Bluetooth MIDI on the SMK-37, with a second resource region of its own to make room.** The owner: "Yes the
+Antenna works. ELITE has BLE. Go ahead" (RemoteFM1's SMK build runs the radio and its calibration on SMK-37 units,
+confirmed by a tester). On claude/smk-ble from main fc6afc42 (0.41-smk37.1). `CR_BLE 1` for `BOARD=smk37`
+(choralroot.c's SMK block; the FM-1's untouched). Bluetooth's code (+31,916 B) did not fit the SMK's app slot (4,380 B
+over), so, as the FM-1's 3y296: **the SMK's second region at 0xB0000..0xB3FFF** (16 KB above the owner tag, 0.21's
+CZ-1 and QUAD stores until 3y231, inside its plain window and the loader's record window) takes the same tables
+(kerning of M and CRB, the factory presets' lists, FM6's voices: 12,540 B; the drum kits stay in the first region).
+`hal/fm1_flash_map.h` `FL_RES2_*` for the SMK, `FL_STORE_OK` leaves it out of `FL_DATA`; `ldr_core.c` `LDR_RES2_*` per
+board; `fm1pkg_make.py` `RES2_AT`, `--res2` for both; `build.py` moves app.ld's RES2 line in the SMK copy too.
+**Bluetooth's record** (`OBJ_BLE`) on the SMK at **0xF2000 / 0xF3000**, the free tail's last two sectors (`FL_TAIL` to
+0xF3FFF); `ST_SMK_REGIONS` lists them and no longer the second region. `cr_ble.c`: no scan for the stock trims on the
+SMK (its stock VM is ChoralRoot's region and store; the FM-1's candidate places are its loop slots): the SDK's constants
+and the self-calibration at every start (3y250). Off by default, Options > MIDI > Bluetooth as on the FM-1.
+**Sizes (SMK)**: XIP 546,728 -> 566,104 of 573,440 B (7,336 spare), RAM 88,136 -> 92,248, RES 40,020 -> 45,816 (the
+radio program), RES2 12,540 of 16,320; the package 701,045 -> 717,588 B. The FM-1 package is byte for byte 0.41's
+(8da57076...). **Tests**: `smk_flash_test` (the second region and the record's places), `smk_owner_test` (an owner
+change leaves both regions, clears the record), `smk_pkg_test.py` (`res2.bin`, the radio program's slot), `ldr_test`
+SMK build with both regions (2568 / 2585 cut points, the unprotected windows as before, 1357 requests) and its
+downgrade. `sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124
+ok). Docs: SMK37.md (Bluetooth MIDI, Storage, What to test 18), BOOT-SAFETY "The SMK-37's second region and
+Bluetooth", FLASH.md, BLE-LINK.md 3.2, MANUAL.md. **Not tried on an SMK-37 here**; not pushed, tagged or released.
+
 ## 2026-11-19
 
 3y310. **Progressions, Ripchord style (GitHub issue 64).** The owner: "Add a new option to the key options for
@@ -8784,3 +8808,18 @@ plays the same); web/releases-smk37.json's 0.43-smk37 (Pro a7268c17...b124 / 006
 add19710...4b69, MKE-P37 b851e6d3...f88a / de32aa8a...cc03b); MANUAL.md's first line; the dev version 0.43; SMK37.md
 for 0.43-smk37; the owner's backlog (Perform on the bass, altered extensions, Songs) moved into HANDOFF's open items.
 `CR_VERSION=0.43 sh tests/run_all.sh`.
+
+## 2026-11-21 (Bluetooth MIDI on the SMK-37, merged)
+
+3y317. **3y309 merged with 0.42 / 0.43: the SMK's second region shrinks to 12 KB.** The owner: "this PR for BLE SMK-37
+MIDI seems to work fine by those who have tested so lets get that merged" (PR 63; testers on 0.41-beta.ble1-smk37).
+main 80680906 into claude/smk-ble. The progressions' copy A on the SMK is 0xB3000 (3y310), so the second region is
+**0xB0000..0xB2FFF** (`FL_RES2_HI`, `LDR_RES2_HI`, `fm1pkg_make.py RES2_AT` 0xB3000; `build.py` shortens app.ld's RES2
+line in the SMK copy, `res2_len()`), 12,224 data bytes; `ST_SMK_REGIONS` lists 0xB3000 (copy A) beside the favourites,
+Bluetooth's pair and `FL_SPARE`. The merged SMK build was 316 B over in RES2 and 128 B over in XIP: on the SMK the VA's
+preset list (600 B) moves from the second region to the first (`RES_PRESET_VA`) and the QUAD, GRAIN and WHEEL lists
+(696 B) from the app slot to the first (`RES_PRESET_SMK`); `eng_preset` and the engines' own reads of those lists go
+through `CR_REGION_GONE` (either region missing: the stand-in). The FM-1's tables stay where they were. **Sizes (SMK)**:
+XIP 573,104 of 573,440 (336 spare), RES 47,112 of 49,088, RES2 11,940 of 12,224. A unit that ran the test build has
+the region's old fourth sector at 0xB3000: no record header, refused, the factory progressions until the first send.
+SMK37.md: What to test 18 Progressions, 19 Bluetooth. Not tagged or released.

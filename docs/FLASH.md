@@ -143,11 +143,13 @@ presets' lists (QUAD 384, GRAIN 192, WHEEL 120: `eng_preset` would cover them, t
 the VA's guard). `CZ_FACTORY_LZ4` 4 660 goes to the first region on claude/drums. Not candidates: everything the
 audio ISR or the second core reads (`QUAD_HARM`, `CZ_RECIP`, `CZ_CARRIER`, `FM6_EXP2`, `FM6_FREQ`, `P5_TANH_Q15`,
 `SINE`, `UAC_FIR`, ...), and S's glyphs (`AF_S_DATA`, the fallback font). On the SMK-37 the same retirement freed 0x9D000..0xA8FFF and
-0xB0000..0xB3FFF (storage.c's SMK map); its stock VM is ChoralRoot's store there. Since 3y295 0x9D000..0xA8FFF is the
+0xB0000..0xB3FFF (storage.c's SMK map; 0xB3000 is the progressions' since issue 64); its stock VM is ChoralRoot's store there. Since 3y295 0x9D000..0xA8FFF is the
 SMK's resource region (docs/BOOT-SAFETY.md "The SMK-37's resource region"): the fonts M, CRX and CRB moved out of its
-app slot, XIP 566 360 -> 531 032 B (35 328 B freed: 42 408 B of margin), RES 36 024 of 49 088 B; 0xB0000..0xB2FFF is
-still free (claude/smk-ble's second resource region, 3y309, is to take it), 0xB3000 is the progressions' copy A and the
-sector 0xFE000 before key_mac their copy B (FL_SPARE, GitHub issue 64).
+app slot, XIP 566 360 -> 531 032 B (35 328 B freed: 42 408 B of margin), RES 36 024 of 49 088 B. Since 3y309
+0xB0000..0xB2FFF is the SMK's second resource region and 0xF2000..0xF3FFF its Bluetooth record (docs/BOOT-SAFETY.md "The
+SMK-37's second region and Bluetooth"); 0xB3000 is the progressions' copy A and the sector 0xFE000 before key_mac their
+copy B (FL_SPARE, GitHub issue 64). With Bluetooth and the progressions in (3y317), the SMK's XIP is 573 104 of 573 440 B
+(336 spare): its VA, QUAD, GRAIN and WHEEL preset lists are in its first region.
 
 **Felucca's code that is still in the tree.** Nothing unused is linked: the image is a unity build, so a static
 function or table nothing calls is dropped by the compiler (Felucca's factory patterns, its sequencer, the retired
