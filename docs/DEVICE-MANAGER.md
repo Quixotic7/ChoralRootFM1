@@ -374,3 +374,31 @@ object 24 (`firmware/src/cr_prog.h`, docs/PROGRESSIONS.md). It shows only where 
 - Tests: `web/test_prog.mjs` (the object and its validity rules against the firmware's, the .rpc parser on
   `tests/fixtures/rpc/`, trimming, export / import identity; the owner's example packs when present),
   `web/test_manager.mjs` (read, place, edit, send, undo, a firmware without 24).
+
+## Loops as MIDI (2026-11-12)
+
+**Save loops as MIDI…** (the bottom bar, on the Loops tab) writes the selected loops as one Standard MIDI File, so a
+loop, or a song made of several, can be taken into a DAW. The FM-1's selected slots (or the library's selected loop
+files) open a dialog (`midi-dlg`, the page's own, not a browser prompt): the **Order**, prefilled with the selection
+(slot numbers separated by spaces, commas or arrows, `3x2` plays loop 3 twice: `1 2x2 3 4`), and the **Tempo** (the record
+has none: its times are beats at 96 PPQN), 120 by default. A live line under them shows the order, the bars and the
+length at that tempo (`loopOrderSummary`), or what is wrong (an unknown loop, a tempo out of 20..300); Save .mid is off
+until both are right. Enter saves, Esc cancels.
+The file is `choralroot-loops-<order>-YYYYMMDD.mid`.
+
+- **The file:** SMF type 1, 96 ticks a quarter note; a tempo track with the tempo, a time signature wherever one starts
+  or changes (4/4, 3/4, 6/8 from the record's `sig`) and a marker per section (`Loop 2`, `Loop 2 (2/2)`); **Chords** on
+  channel 1 and **Bass** on channel 2, as the FM-1's own MIDI out uses them.
+- **What is in it:** the loop's events as `cr_loop_unpack` reads them, every layer. A chord is its root (absolute,
+  transpose and Key Mode applied when recorded) and the notes of its quality and extensions from `cr_engine.c`'s
+  `CR_QUALITY` / `CR_EXT_IV`, in close position, at the recorded velocity; a single note is itself, on the Bass track
+  when the record marks it a bass-side note (`CRL_RF_PART` + `CRL_X_BASS`). A note held past the loop's end stops at the
+  end of its section. A progression's chord (0.42) is a reference in the loop: its notes come from the unit's
+  progressions (object 24, moved by the stored transpose as `crx_prog_build` does), so it needs the FM-1 connected;
+  without them it is left out and the page says how many.
+- **What is not:** what the FM-1 applies live at playback: the voicing, the performance mode (strum, slop, arp, pattern,
+  harp), the bass behaviour, Loop Level, the Rate and the steps' properties (ratchet, condition, chance). For those, record
+  the FM-1's MIDI out (channels 1 and 2) while the loop plays.
+- Code: `fm1manager.js` `loopChordNotes`, `loopEvents`, `parseLoopOrder`, `loopsToMidi`, `loopOrderSummary`, `loopMidiFileName`; the page's
+  `midiLoops` and the `save-midi` handler. Tests: `web/test_manager.mjs` "loops as MIDI" (chord tables, the record, the
+  order, the file read back by a small SMF reader).
