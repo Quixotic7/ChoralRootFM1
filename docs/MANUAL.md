@@ -625,6 +625,14 @@ makes those roots play instead.
   notes and the notes outside the scale do nothing, or play the nearest right note with Snap (below).
 - The bass, the performance modes (an arpeggio of the notes you hold), the looper and MIDI out follow what you play
   as they follow a single note.
+- **The screen names the chord your notes make** (new in 0.44, GitHub issue 61): hold C4, E4 and G4 and it shows
+  `CM` with the three notes under it; G3 under C4 and E4 makes it `C/G`, the bass note orange. The name is the one a
+  progression's chord gets ([Keyboard: Prog](#key-mode)): an inversion as a slash chord, a chord without its fifth
+  by its full name, and notes that make no chord the lowest note's name alone. It changes as you press a key and
+  stays as you let go, as a chord key's name does, until your next press; a lone key is a single note as ever.
+  Only single notes are named together: not the chords Key plays Chords or G5 give, not the Chords keyboard (two
+  roots there are two single notes, the last one named), not a loop playing back. The Keyboard and Geek Out
+  views' keyboard lights every note you hold, on either keyboard ([Views](#13-views)).
 - The split is at the **second F**: F3 to E4 is the left side, F4 to G5 the right. `Split Oct` plays the left side
   an octave lower; `Split Bass` gives the left side to the bass part and the right side to the chord part. This
   split is fixed on the Full keyboard; the split point you set with OPT + KNOB 1 belongs to the Chords keyboard and
@@ -1959,7 +1967,7 @@ The view is what the screen shows when no layer, menu or editor is open. There a
 | View | Shows |
 | --- | --- |
 | **Chord** (default) | the chord name large, the voiced notes under it; while an arpeggio or a pattern plays, the notes on a line with the sounding one hopping along ([Performance modes](#7-performance-modes)) |
-| **Keyboard** | the chord name and a keyboard with the chord's notes lit |
+| **Keyboard** | the chord name and a keyboard with the chord's notes lit; while you play single notes (no chord key, on either keyboard, Key plays Notes too) every note you hold is lit, not only the last one's (new in 0.44, GitHub issue 61) |
 | **Notes** | the chord name small and the notes as a list |
 | **Geek Out** | the chord, its notes and keyboard, and status lines: voicing and play style, bass and tempo, the audio load, the second core (`c1 off`, `c1 ok ...`), the transposition |
 | **Scope** | the waveform of the output, with the chord name small above it |

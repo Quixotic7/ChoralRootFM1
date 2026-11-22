@@ -8040,8 +8040,9 @@ static void cu_notes(cr_screen_t *s, const cr_chord_info_t *ci)
 {
     uint32_t i, j;
     s->n_notes = 0;
-    if (ci->quality == CR_Q_PROG) {                /* a progression's chord: every note white, the bass's (the lowest of
-                                                    * the bass's pitch class) orange and marked */
+    if (ci->quality == CR_Q_PROG || ci->heard) {   /* a progression's chord, notes played together on the Full keyboard
+                                                    * (issue 61): every note white, the bass's (the lowest of the bass's
+                                                    * pitch class) orange and marked */
         int32_t bi = -1;
         for (i = 0; i < ci->nnotes && i < CR_NOTES_MAX; i++) {
             char b[5];
@@ -8067,11 +8068,13 @@ static void cu_notes(cr_screen_t *s, const cr_chord_info_t *ci)
         s->n_notes++;
     }
 }
-static uint32_t cu_lit(const cr_chord_info_t *ci)  /* the keyboard strip: bit k = a voiced note at key k */
+static uint32_t cu_lit(const cr_chord_info_t *ci)  /* the keyboard strip: bit k = a voiced note at key k; single
+                                                   * notes: every key's sounding (issue 61) */
 {
-    uint32_t i, m = 0;
-    for (i = 0; i < ci->nnotes; i++) {
-        int32_t k = (int32_t)ci->notes[i] - 53 - 12 * cu.octave;
+    uint32_t i, m = 0, n = ci->nheld ? ci->nheld : ci->nnotes;
+    const uint8_t *nt = ci->nheld ? ci->held : ci->notes;
+    for (i = 0; i < n; i++) {
+        int32_t k = (int32_t)nt[i] - 53 - 12 * cu.octave;
         while (k >= (int32_t)CU_NKEY)
             k -= 12;
         while (k < 0)
@@ -8099,7 +8102,8 @@ static void cu_numeral(char b[CR_NUMERAL_MAX])
 {
     const cr_chord_info_t *ci = &cr_snap.ci;
     b[0] = 0;
-    if (cs.numerals && cs.key_on && ci->valid && ci->sounding && ci->quality != CR_Q_PROG)
+    if (cs.numerals && cs.key_on && ci->valid && ci->sounding && ci->quality != CR_Q_PROG &&
+        !ci->heard)
         (cs.numerals == 2u ? cr_chord_solfege : cr_chord_numeral)((uint8_t)(((int)ci->root_pc - ci->transpose) % 12 + 12),
                                                                  ci->quality, cs.tonic, cs.scale, b);
 }
