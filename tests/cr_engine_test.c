@@ -1854,6 +1854,59 @@ static void s_fm1(void)
     cr_set_keyboard(&C, 0, 65);
 }
 
+/* GitHub issue 61: single notes played together on the Full keyboard are named as the chord they make; the name stays
+ * as they are let go, until the next press there. Not on the Chords keyboard (its chord keys name chords) */
+static void s_heard(void)
+{
+    cr_chord_info_t ci;
+    fresh("heard");
+    cr_set_keyboard(&C, 1, 65);
+    K(60, 1); step(20);
+    cr_chord_info(&C, &ci);
+    ok(!ci.heard && !strcmp(ci.root, "C") && !ci.qual[0] && ci.nnotes == 1, "heard: one Full key is a single note");
+    K(64, 1); K(67, 1); step(20);
+    cr_chord_info(&C, &ci);
+    ok(ci.heard && ci.sounding && !strcmp(ci.root, "C") && !strcmp(ci.qual, "M") && !ci.sup[0] && ci.nnotes == 3 &&
+       ci.notes[0] == 60 && ci.notes[1] == 64 && ci.notes[2] == 67 && ci.quality == CR_Q_NONE,
+       "heard: C E G held on the Full keyboard is named CM, its three notes shown");
+    R(60, 1); step(20);
+    cr_chord_info(&C, &ci);
+    ok(ci.heard && !strcmp(ci.root, "C") && !strcmp(ci.qual, "M"), "heard: one key let go, the name stays");
+    K(70, 1); step(20);
+    cr_chord_info(&C, &ci);
+    ok(ci.heard && !strcmp(ci.root, "E") && !strcmp(ci.qual, "dim") && ci.nnotes == 3,
+       "heard: a press with C let go names what is held: E G A#, Edim");
+    R(64, 1); R(67, 1); R(70, 1); step(400);
+    cr_chord_info(&C, &ci);
+    ok(ci.heard && !ci.sounding && ci.nnotes == 3, "heard: all let go, the last name stays on the screen");
+    K(62, 1); step(20);
+    cr_chord_info(&C, &ci);
+    ok(!ci.heard && !strcmp(ci.root, "D") && ci.nnotes == 1, "heard: the next lone key is a single note again");
+    K(53, 1); K(65, 1); K(69, 1); step(20);
+    cr_chord_info(&C, &ci);
+    ok(ci.heard && !strcmp(ci.root, "D") && !strcmp(ci.qual, "m") && !strcmp(ci.sup, "/F") && ci.root_pc == 5,
+       "heard: F3 under D F A names Dm/F, the bass F");
+    R(62, 1); R(53, 1); R(65, 1); R(69, 1); step(400);
+    cr_set_keyboard(&C, 0, 65);
+    K(60, 1); K(64, 1); K(67, 1); step(20);
+    cr_chord_info(&C, &ci);
+    ok(!ci.heard && !strcmp(ci.root, "G") && ci.nnotes == 1, "heard: not on the Chords keyboard (the last root alone)");
+    R(60, 1); R(64, 1); R(67, 1); step(400);
+    cr_set_keyboard(&C, 1, 65);
+    cr_set_key(&C, 1, 0, CR_SCALE_MAJOR);           /* Key plays Chords: each key its scale chord, named as ever */
+    K(62, 1); K(67, 1); step(20);
+    cr_chord_info(&C, &ci);
+    ok(!ci.heard && !strcmp(ci.root, "G") && !strcmp(ci.qual, "M"), "heard: not for the Full keyboard's Key chords");
+    R(62, 1); R(67, 1); step(400);
+    cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
+    K(60, 1); K(64, 1); step(20);
+    cr_panic(&C);
+    cr_chord_info(&C, &ci);
+    ok(!ci.valid && !ci.heard, "heard: panic forgets it");
+    cr_set_keyboard(&C, 0, 65);
+    clear();
+}
+
 static void s_names_std(void);
 static void s_tables(void)
 {
@@ -2995,6 +3048,7 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
     s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_snap(); s_orphans(); s_loopvoice(); s_queries(); s_limits(); s_torture();
     s_sixth();
     s_fm1();
+    s_heard();
     fresh("end");
 }
 

@@ -52,7 +52,7 @@ so the whole keybed plays roots. The SMK-37's buttons and knobs map onto the FM-
 
 | SMK-37 | ChoralRoot |
 | --- | --- |
-| Keys C3..C6 (all 37) | roots, with velocity: a chord with a chord pad held (or latched by LOCK), a note on the Full keyboard; with the octave shift. Where the root keys pick (a layer's map, naming), D4..G5 pick as on the FM-1 |
+| Keys C3..C6 (all 37) | roots, with velocity: a chord with a chord pad held (or latched by LOCK), a note on the Full keyboard (notes held together there are named as the chord they make, GitHub issue 61); with the octave shift. Where the root keys pick (a layer's map, naming), D4..G5 pick as on the FM-1 |
 | Pads 1-4 (top row) | DIM, MIN, MAJ, SUS: the chord types (white) |
 | Pads 9-12 (bottom row) | 6, m7, M7, 9: the extensions (orange) |
 | Pad 13 | LOCK (blue; as B3: tap to switch it, hold for the LOCK layer) |

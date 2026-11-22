@@ -769,6 +769,29 @@ static void crx_sync_owner(cr_t *c, int s, uint8_t *live, uint8_t *on, uint8_t *
 }
 
 /* ============================================================ voices === */
+/* a key's single note on the Full keyboard (no chord keys there): what the screen names together (GitHub issue 61). Not
+ * a chord the key plays (Key plays Chords, G5's chords), a loop's, a Free copy */
+static int crx_full_note(const cr_voice_t *v)
+{
+    return v->used && (v->zone & CR_Z_FULL) && !(v->zone & CR_Z_PROG) && !v->rq && !v->loop && !v->is_free;
+}
+/* a press there: every such note sounding now, held or latched (sustained too), into c->heard; it stays as the keys
+ * are let go, so a chord keeps its name as a chord key's does, until the next press there */
+static void crx_heard(cr_t *c, int vi)
+{
+    int i, j, k;
+    if (!crx_full_note(&c->v[vi])) return;
+    c->heard_n = 0;
+    for (i = 0; i < CR_MAX_VOICES; i++) {
+        const cr_voice_t *v = &c->v[i];
+        if (!crx_full_note(v)) continue;
+        for (j = 0; j < v->nnotes; j++) {
+            for (k = 0; k < c->heard_n && c->heard[k] != v->notes[j]; k++) {}
+            if (k == c->heard_n && k < CR_CHORD_MAX) c->heard[c->heard_n++] = v->notes[j];
+        }
+    }
+    crx_sort(c->heard, c->heard_n);
+}
 static void crx_disp_snapshot(cr_t *c, const cr_voice_t *v)
 {
     int i;
@@ -780,6 +803,7 @@ static void crx_disp_snapshot(cr_t *c, const cr_voice_t *v)
     for (i = 0; i < v->nnotes; i++) c->disp_notes[i] = v->notes[i];
     c->disp_pi = v->pc_pressed;      /* (a progression's chord: its key; its transpose below) */
     c->disp_pt = v->transpose;
+    c->disp_full = (uint8_t)crx_full_note(v);
 }
 
 static void crx_lp_detach(cr_t *c, int vi)
@@ -835,6 +859,7 @@ static void crx_note_last_chord(cr_t *c, int vi)
     c->last_chord.vel = v->vel;
     if (c->rec_slot >= 0) c->rec_played = 1;
     c->disp_vi = (uint8_t)vi;
+    crx_heard(c, vi);
 }
 
 /* the voice of a key: a played one before a Free one (Free can sound the last root again while that key's own voice
@@ -1417,7 +1442,7 @@ void cr_panic(cr_t *c)
     for (n = 0; n < CR_NVOICE; n++) c->v[n].used = 0;
     c->rec_slot = -1; c->rec_played = 0;
     c->lp.valid = 0;
-    c->disp_vi = CR_NONE; c->disp_valid = 0;
+    c->disp_vi = CR_NONE; c->disp_valid = 0; c->heard_n = 0;
 }
 
 /* ---------------------------------------------------------- settings --- */
@@ -2099,6 +2124,15 @@ void cr_chord_info(const cr_t *c, cr_chord_info_t *ci)
         }
     } else {
         ci->root[0] = ci->qual[0] = ci->sup[0] = 0;
+        return;
+    }
+    if (c->heard_n >= 2 && (ci->sounding ? crx_full_note(&c->v[c->disp_vi]) : c->disp_full)) {
+        ci->heard = 1;                             /* notes played together on the Full keyboard: all of them, named as
+                                                    * the chord they make (GitHub issue 61); the bass orange */
+        ci->nnotes = c->heard_n;
+        for (i = 0; i < c->heard_n; i++) ci->notes[i] = c->heard[i];
+        ci->root_pc = (uint8_t)(c->heard[0] % 12u);
+        cr_chord_recognise(c->heard, c->heard_n, ci->root, ci->qual, ci->sup);
         return;
     }
     ci->secret = ci->quality >= CR_Q_AUG && ci->quality <= CR_Q_MIN4;
