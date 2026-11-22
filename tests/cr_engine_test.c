@@ -1854,6 +1854,12 @@ static void s_fm1(void)
     cr_set_keyboard(&C, 0, 65);
 }
 
+static int held_has(const cr_chord_info_t *ci, int note)
+{
+    int i;
+    for (i = 0; i < ci->nheld; i++) if (ci->held[i] == note) return 1;
+    return 0;
+}
 /* GitHub issue 61: single notes played together on the Full keyboard are named as the chord they make; the name stays
  * as they are let go, until the next press there. Not on the Chords keyboard (its chord keys name chords) */
 static void s_heard(void)
@@ -1872,6 +1878,7 @@ static void s_heard(void)
     R(60, 1); step(20);
     cr_chord_info(&C, &ci);
     ok(ci.heard && !strcmp(ci.root, "C") && !strcmp(ci.qual, "M"), "heard: one key let go, the name stays");
+    ok(ci.nheld == 2 && !held_has(&ci, 60), "held: the Full keyboard's picture has the keys still pressed");
     K(70, 1); step(20);
     cr_chord_info(&C, &ci);
     ok(ci.heard && !strcmp(ci.root, "E") && !strcmp(ci.qual, "dim") && ci.nnotes == 3,
@@ -1891,7 +1898,18 @@ static void s_heard(void)
     K(60, 1); K(64, 1); K(67, 1); step(20);
     cr_chord_info(&C, &ci);
     ok(!ci.heard && !strcmp(ci.root, "G") && ci.nnotes == 1, "heard: not on the Chords keyboard (the last root alone)");
-    R(60, 1); R(64, 1); R(67, 1); step(400);
+    ok(ci.nheld == 3 && held_has(&ci, 60) && held_has(&ci, 64) && held_has(&ci, 67),
+       "held: the Chords keyboard's keyboard picture has all three roots pressed");
+    R(60, 1); step(20);
+    cr_chord_info(&C, &ci);
+    ok(ci.nheld == 2 && !held_has(&ci, 60), "held: a root let go leaves the picture");
+    R(64, 1); R(67, 1); step(400);
+    cr_chord_info(&C, &ci);
+    ok(ci.nheld == 0, "held: none when nothing sounds");
+    MD(CR_MOD_MAJ); K(60, 1); K(67, 1); step(20);
+    cr_chord_info(&C, &ci);
+    ok(ci.nheld == 0, "held: none for chords (a chord key down)");
+    R(60, 1); R(67, 1); MU(CR_MOD_MAJ); step(400);
     cr_set_keyboard(&C, 1, 65);
     cr_set_key(&C, 1, 0, CR_SCALE_MAJOR);           /* Key plays Chords: each key its scale chord, named as ever */
     K(62, 1); K(67, 1); step(20);

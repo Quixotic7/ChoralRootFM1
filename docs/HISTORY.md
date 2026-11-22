@@ -8829,10 +8829,19 @@ last note played, regardless of if a chord is played or not". The owner: "Curren
 chord modifiers. If you play a chord manually only the last note shows. However I would only recommend doing this when
 in a full keyboard layout that does not have the chord modifiers visible". Cause: every key is its own voice and
 `cr_chord_info` names one voice, the newest. Now `cr_engine.c crx_heard`, on each press of a Full keyboard single note
-(`crx_full_note`: zone `CR_Z_FULL`, no chord, not a loop's or Free's), keeps every such note sounding (held, latched or
+(`crx_single`: zone `CR_Z_FULL`, no chord, not a loop's or Free's), keeps every such note sounding (held, latched or
 sustained) in `cr_t.heard[]`; `cr_chord_info` shows them, named by `cr_chord_recognise` (a progression's naming: slash
-bass, no-fifth chords, else the bass's name alone), while the shown voice or the let-go snapshot (`disp_full`) is such
-a note and two or more were held. The name changes on a press only and stays as the keys are let go; a lone key is a
+bass, no-fifth chords, else the bass's name alone), while the shown voice or the let-go snapshot is such a note (a
+snapshot of any other voice clears `heard`) and two or more were held. The name changes on a press only and stays as the keys are let go; a lone key is a
 single note again; panic forgets it. `cr_chord_info_t.heard`: the screen colours the bass orange as a progression's
 and shows no numeral. The Chords keyboard, Key plays Chords, G5's chords and loops are as before. Display only:
 nothing that sounds, is stored or is sent changes. Test: `cr_engine_test.c s_heard`. MANUAL.md: the Full keyboard.
+The owner, the same day: "If we are on Notes then the keyboard display on Home menus should also show which notes are
+being pressed." So while the shown voice is a key's single note on either keyboard (Key plays Notes, Key Mode off, no
+chord key), `cr_chord_info_t.held` has every key's single note sounding now (`crx_singles`, the one gathering
+`crx_heard` uses), and `cr_ui.c cu_lit` (the Keyboard and Geek Out views' keyboard) lights those; the name and the
+notes under it on the Chords keyboard stay the last note's. The naming code (`cr_engine.c` crx_str .. cr_chord_recognise,
+cr_chord_info, the new helpers) is built for size (`tools/size_fns.py`), and on the SMK-37, whose app slot was 16 B
+from full, QUAD's sixteen preset patches and their table follow the list into its first region (`RES_PRESET_SMK`;
+`eng_quad.c quad_preset_patch` gives the init patch when the region is not there, as the list's readers go without).
+**Sizes**: FM-1 XIP 571,932 of 573,440; SMK-37 XIP 572,592 of 573,440 (848 spare), RES 48,072 of 49,088.

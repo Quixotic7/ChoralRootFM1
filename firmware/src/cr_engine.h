@@ -241,7 +241,6 @@ typedef struct {
     uint8_t disp_valid, disp_q, disp_x, disp_pc, disp_n, disp_notes[CR_CHORD_MAX];
     uint8_t disp_pi;                 /* disp_q CR_Q_PROG: its key (disp_x the progression) .. */
     int8_t disp_pt;                  /* .. and its transpose (in the padding at the end) */
-    uint8_t disp_full;               /* the snapshot is a Full keyboard's single note (crx_disp_snapshot) */
     uint8_t heard_n, heard[CR_CHORD_MAX];   /* the Full keyboard's single notes held together at the last press there,
                                      * low to high (GitHub issue 61: the screen names them as a chord; cr_chord_info) */
 } cr_t;
@@ -389,6 +388,9 @@ typedef struct {
     uint8_t heard;               /* 1: single notes played together on the Full keyboard (no chord keys there; GitHub
                                   * issue 61): quality CR_Q_NONE, notes all of them, the name cr_chord_recognise's of
                                   * them, root_pc the lowest's (the bass's) */
+    uint8_t nheld, held[CR_CHORD_MAX];   /* a key's single note shown (either keyboard): every key's single note
+                                  * sounding now, low to high, for the keyboard picture (the owner on issue 61: the
+                                  * notes being pressed); 0 otherwise */
 } cr_chord_info_t;
 void cr_chord_info(const cr_t *c, cr_chord_info_t *ci);
 void cr_chord_name(uint8_t root_pc, uint8_t quality, uint8_t ext, char root[3], char qual[5], char sup[CR_SUP_MAX]);

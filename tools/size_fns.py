@@ -32,7 +32,11 @@ SIZE_FUNCS = ["fm1_main", "felucca_init",
               "cz_track_loaded", "cz_factory_tone", "cz_factory_bank", "cz_ed_decode", "cz_dset", "cz_dref", "cz_dget",
               "quad_unpack", "quad_blob_ok", "quad_set", "quad_blob_set", "quad_blob_get", "quad_blob_preset",
               "va_unpack", "va_blob_ok", "va_set", "va_get", "va_desc",
-              "p5_patch_valid", "p5_preset_patch"]
+              "p5_patch_valid", "p5_preset_patch",
+              # cr_engine.c's chord naming (display only: the screen's snapshot and the UI, never a voice; HISTORY 3y318)
+              "crx_str", "crx_cat", "crx_app", "crx_figure", "crx_name_std", "cr_chord_name", "crx_degree",
+              "cr_chord_numeral", "cr_chord_solfege", "cr_note_name", "crx_recog_at", "crx_recog", "cr_chord_recognise",
+              "crx_single", "crx_singles", "crx_heard", "cr_chord_info"]
 DEF = re.compile(r"^(?:static|void|int|uint\w*|int\w*|const)\b[^;=(]*?\b([A-Za-z_]\w*)\s*\(", re.M)
 IR_DEF = re.compile(r"^(define [^\n]*?@\"?([\w.]+)\"?\([^\n]*\)(?: unnamed_addr| local_unnamed_addr)?)( #\d+[^\n]*\{)$",
                     re.M)

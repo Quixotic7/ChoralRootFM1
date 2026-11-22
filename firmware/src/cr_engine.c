@@ -769,28 +769,32 @@ static void crx_sync_owner(cr_t *c, int s, uint8_t *live, uint8_t *on, uint8_t *
 }
 
 /* ============================================================ voices === */
-/* a key's single note on the Full keyboard (no chord keys there): what the screen names together (GitHub issue 61). Not
- * a chord the key plays (Key plays Chords, G5's chords), a loop's, a Free copy */
-static int crx_full_note(const cr_voice_t *v)
+/* a key's single note (z 0), on the Full keyboard (z CR_Z_FULL: no chord keys there, the screen names them together;
+ * GitHub issue 61). Not a chord the key plays (Key plays Chords, G5's chords), a progression's, a loop's, a Free copy */
+static int crx_single(const cr_voice_t *v, unsigned z)
 {
-    return v->used && (v->zone & CR_Z_FULL) && !(v->zone & CR_Z_PROG) && !v->rq && !v->loop && !v->is_free;
+    return v->used && !(v->zone & CR_Z_PROG) && (v->zone & z) == z && !v->rq && !v->loop && !v->is_free;
 }
-/* a press there: every such note sounding now, held or latched (sustained too), into c->heard; it stays as the keys
- * are let go, so a chord keeps its name as a chord key's does, until the next press there */
-static void crx_heard(cr_t *c, int vi)
+/* every such note sounding now, held or latched (sustained too), into out[], low to high, each once; their count */
+static uint8_t crx_singles(const cr_t *c, unsigned z, uint8_t out[CR_CHORD_MAX])
 {
-    int i, j, k;
-    if (!crx_full_note(&c->v[vi])) return;
-    c->heard_n = 0;
+    int i, j, k, n = 0;
     for (i = 0; i < CR_MAX_VOICES; i++) {
         const cr_voice_t *v = &c->v[i];
-        if (!crx_full_note(v)) continue;
+        if (!crx_single(v, z)) continue;
         for (j = 0; j < v->nnotes; j++) {
-            for (k = 0; k < c->heard_n && c->heard[k] != v->notes[j]; k++) {}
-            if (k == c->heard_n && k < CR_CHORD_MAX) c->heard[c->heard_n++] = v->notes[j];
+            for (k = 0; k < n && out[k] != v->notes[j]; k++) {}
+            if (k == n && n < CR_CHORD_MAX) out[n++] = v->notes[j];
         }
     }
-    crx_sort(c->heard, c->heard_n);
+    crx_sort(out, n);
+    return (uint8_t)n;
+}
+/* a press on the Full keyboard: its notes sounding into c->heard, which stays as the keys are let go, so a chord keeps
+ * its name as a chord key's does, until the next press there */
+static void crx_heard(cr_t *c, int vi)
+{
+    if (crx_single(&c->v[vi], CR_Z_FULL)) c->heard_n = crx_singles(c, CR_Z_FULL, c->heard);
 }
 static void crx_disp_snapshot(cr_t *c, const cr_voice_t *v)
 {
@@ -803,7 +807,7 @@ static void crx_disp_snapshot(cr_t *c, const cr_voice_t *v)
     for (i = 0; i < v->nnotes; i++) c->disp_notes[i] = v->notes[i];
     c->disp_pi = v->pc_pressed;      /* (a progression's chord: its key; its transpose below) */
     c->disp_pt = v->transpose;
-    c->disp_full = (uint8_t)crx_full_note(v);
+    if (!crx_single(v, CR_Z_FULL)) c->heard_n = 0;   /* (shown let go: the Full keyboard's notes only after one of them) */
 }
 
 static void crx_lp_detach(cr_t *c, int vi)
@@ -2126,7 +2130,10 @@ void cr_chord_info(const cr_t *c, cr_chord_info_t *ci)
         ci->root[0] = ci->qual[0] = ci->sup[0] = 0;
         return;
     }
-    if (c->heard_n >= 2 && (ci->sounding ? crx_full_note(&c->v[c->disp_vi]) : c->disp_full)) {
+    if (ci->sounding && crx_single(&c->v[c->disp_vi], 0))   /* a key's single note: every one sounding, for the
+                                                    * keyboard picture (the owner, issue 61) */
+        ci->nheld = crx_singles(c, 0, ci->held);
+    if (c->heard_n >= 2 && (!ci->sounding || crx_single(&c->v[c->disp_vi], CR_Z_FULL))) {
         ci->heard = 1;                             /* notes played together on the Full keyboard: all of them, named as
                                                     * the chord they make (GitHub issue 61); the bass orange */
         ci->nnotes = c->heard_n;

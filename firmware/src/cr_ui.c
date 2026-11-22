@@ -8068,11 +8068,13 @@ static void cu_notes(cr_screen_t *s, const cr_chord_info_t *ci)
         s->n_notes++;
     }
 }
-static uint32_t cu_lit(const cr_chord_info_t *ci)  /* the keyboard strip: bit k = a voiced note at key k */
+static uint32_t cu_lit(const cr_chord_info_t *ci)  /* the keyboard strip: bit k = a voiced note at key k; single
+                                                   * notes: every key's sounding (issue 61) */
 {
-    uint32_t i, m = 0;
-    for (i = 0; i < ci->nnotes; i++) {
-        int32_t k = (int32_t)ci->notes[i] - 53 - 12 * cu.octave;
+    uint32_t i, m = 0, n = ci->nheld ? ci->nheld : ci->nnotes;
+    const uint8_t *nt = ci->nheld ? ci->held : ci->notes;
+    for (i = 0; i < n; i++) {
+        int32_t k = (int32_t)nt[i] - 53 - 12 * cu.octave;
         while (k >= (int32_t)CU_NKEY)
             k -= 12;
         while (k < 0)
