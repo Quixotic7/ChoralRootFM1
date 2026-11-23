@@ -108,6 +108,14 @@ void fm1_timer5_irq(void)
 #endif
     if (felucca_dbg.in_audio) {
         felucca_dbg.nested++;
+#if FELUCCA_UART
+        if (owed & 2u) {                        /* (Felucca #258) TRS input timestamped at 2 kHz under a render too:
+                                                 * a long render no longer bunches an external clock's pulses. The
+                                                 * timer stays the MIDI ring's only producer, the audio ISR its consumer */
+            uart_midi_poll();
+            owed &= ~2u;
+        }
+#endif
         t5_nested_ticks += fm1_ticks() - t0;
         return;
     }
