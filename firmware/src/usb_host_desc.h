@@ -67,6 +67,11 @@ static void uh_desc_one(uh_desc_t *w)
     } else if (d[1] == 5u && l >= 7u && w->in_midi) {
         uint8_t ea = d[2], type = d[3] & 3u;
         uint16_t mps = (uint16_t)(d[4] | d[5] << 8);
+        /* (felucca-bsp 7cc64ce) a bulk endpoint declaring a high-speed size (128..512) at full speed: 64, the most a
+         * full-speed bulk packet holds. An Elektron Digitone II answers a full-speed host with its high-speed
+         * descriptor (512): "NO MIDI" before */
+        if (type == 2u && (mps == 128u || mps == 256u || mps == 512u))
+            mps = 64u;
         /* Full-speed USB-MIDI 1.0 events are four bytes. The buffers hold at most 64 bytes. */
         if ((ea & 15u) && !(ea & 0x70u) && mps >= 4u && mps <= 64u &&
             ((type == 2u && (mps == 8u || mps == 16u || mps == 32u || mps == 64u)) ||
