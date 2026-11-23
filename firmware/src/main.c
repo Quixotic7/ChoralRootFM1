@@ -438,8 +438,9 @@ static void fm1_main(void)
         }
 #endif
 #if FELUCCA_OTA
-        ed_service();                                   /* web editor SysEx */
-        ota_service();                                  /* M-UPGRADE handshake */
+        if (ed_service())                               /* web editor SysEx; OTA only for a held frame not the
+                                                         * editor's (Felucca #312) */
+            ota_service();                              /* M-UPGRADE handshake */
         if (usb.ota_req) {                              /* M-UPGRADE upgrade command */
             usb.ota_req = 0;
             panic_req = (1u << NTRK) - 1u;               /* every track (bit per track) */
