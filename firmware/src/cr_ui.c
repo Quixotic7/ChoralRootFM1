@@ -2140,6 +2140,11 @@ static void cu_popup(const char *value, const char *sub, const char *label, uint
     cu.pop.col = (uint8_t)col;
     cu.pop.segs = (uint8_t)segs;
     cu.pop.pct = (uint16_t)(hi > lo ? (uint32_t)((v - lo) * 256 / (hi - lo)) : 0u);
+    if (hi > lo && segs == (uint32_t)(hi - lo + 1) && v >= lo && v <= hi)   /* a stripe per value (the octave's
+                                                    * five, the split point's twelve): value k of n lights k + 1, one
+                                                    * more a step. (v - lo) / (hi - lo) rounded unevenly: the octave
+                                                    * went 0 1 3 4 5, a step down from 0 dropped two */
+        cu.pop.pct = (uint16_t)((uint32_t)(v - lo + 1) * 256u / segs);
     RFM1_READOUT_SUB(-1, label, value, sub, v, lo, hi);
 }
 /* a send's popup (KNOB 4 of the main view, CC 91 / 93 / 94): the per cent of every send read-out (cu_send_pct), big
