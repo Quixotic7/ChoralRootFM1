@@ -72,6 +72,11 @@ static int st_erase(uint32_t off)
         st_near++;
     f = irq_save();
     audio_silence();
+#if !BOARD_SMK37
+    fm1__led_lines(0);                          /* (Felucca #236) the erase stops the LED scan for ~17 ms: one column would
+                                                 * stay lit at full duty and the rest dark, a flash of the panel. Dark: the
+                                                 * tick lights the rows again at its next pass */
+#endif
     rc = FL_FAR(fl_erase4k_ram)(off, &took);
     irq_restore(f);
     return rc;
