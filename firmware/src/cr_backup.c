@@ -1325,17 +1325,22 @@ static void crb_leave(void)
         CRB_STUB_GO(crb.stub);                       /* (77 STUB: the request, a core reset; never returns on the unit) */
     CRB_REBOOT();
 }
-/* main.c's main loop: our frames (7D 46 4C), anything else stays for ota_service (M-UPGRADE) */
-static void ed_service(void)
+/* main.c's main loop: our frames (7D 46 4C), anything else stays for ota_service (M-UPGRADE). 1 only for a held frame
+ * that is not ours (Felucca #312, 6b1115b): after an empty check the ISR may publish one of ours, and an ota_service
+ * called then would take it as not its own and drop it */
+static int ed_service(void)
 {
     const uint8_t *p;
     uint32_t n;
     if (crb.reboot)
         crb_leave();
-    if (!ota_frame_get(&p, &n) || n < 4u || p[0] != CRB_HDR0 || p[1] != CRB_HDR1 || p[2] != CRB_HDR2)
-        return;
+    if (!ota_frame_get(&p, &n))
+        return 0;
+    if (n < 4u || p[0] != CRB_HDR0 || p[1] != CRB_HDR1 || p[2] != CRB_HDR2)
+        return 1;                                    /* (held for ota_service) */
     crb_handle(p, n);                                /* (in place: the frame is released after the reply) */
     ota_frame_done();
+    return 0;
 }
 #endif
 #endif /* FELUCCA_FLASH */

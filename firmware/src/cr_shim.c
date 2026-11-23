@@ -129,7 +129,8 @@ static void settings_poll(void) {}
 static void settings_save(void) {}
 #endif
 #ifndef CR_BACKUP_SERVICE
-static void ed_service(void) {}        /* (no SysEx service: cr_backup.c's is the device's, FELUCCA_OTA) */
+static int ed_service(void) { return 1; }   /* (no SysEx service: cr_backup.c's is the device's, FELUCCA_OTA; 1:
+                                                     * every frame is ota_service's) */
 #endif
 
 /* ------------------------------------------------------- the power-on splash --- */
