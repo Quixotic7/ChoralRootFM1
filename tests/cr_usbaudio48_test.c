@@ -497,29 +497,51 @@ static void test_stream(void)
     char m[220];
     for (k = 0; k < 3; k++) {
         uint32_t sizes[64] = {0}, produced, got, npk = 0, sum = 0;
-        double amp, snr, worst = 999, want;
+        double amp, amp5, snr, worst = 999, want;
         got = stream48(FS[k], ST_MS, sizes, &produced);
         for (i = 0; i < 64; i++) {
             npk += sizes[i];
             sum += sizes[i] * i;
         }
-        want = FS[k] / 44100.0 * 48.0;                     /* frames a ms on the host's clock */
+        want = 48.0;                                       /* frames a ms on the host's clock: the I2S's resampled
+                                                            * to it (ua_hc_steer), every packet a 48 */
         snprintf(m, sizeof m, "48 kHz stream, I2S %.1f Hz, 11 s: packets of 47 / 48 / 49 frames (%u / %u / %u), mean %.4f "
                  "(%.4f)", FS[k], sizes[47], sizes[48], sizes[49], (double)sum / npk, want);
         check(m, sizes[47] + sizes[48] + sizes[49] == npk && npk == ST_MS - 1000u &&
                  fabs((double)sum / npk - want) < 0.03 && (k != 2 || sizes[48] > npk - 30u));
-        snprintf(m, sizeof m, "  %u frames out for %u in = %.6f (160 / 147 = %.6f): the ring's fill is the difference",
-                 got, produced, (double)got / produced, 160.0 / 147.0);
-        check(m, fabs((double)got - produced * 160.0 / 147.0) < 300.0);
+        snprintf(m, sizeof m, "  %u frames out for %u in = %.6f (48000 / I2S = %.6f): resampled to the host's clock",
+                 got, produced, (double)got / produced, 48000.0 / FS[k]);
+        check(m, fabs((double)got - produced * 48000.0 / FS[k]) < 300.0);
         check("  no underrun, no overrun", ua.cap_underruns == 0 && ua.cap_overruns == 0);
-        for (ch = 0; ch < CH; ch++) {                      /* one unbroken sine across every packet boundary */
-            sine_fit(st_rec + ch, got, CH, 997.0 * 147.0 / 160.0, 44100.0, &amp, &snr);
-            worst = snr < worst ? snr : worst;
+        /* one unbroken sine across every packet boundary, fitted 10 ms at a time: the steered ratio moves the
+         * pitch by some ppm (under a cent), so one fixed frequency over 11 s no longer fits; a dropped or doubled frame
+         * in a window is -18 dB there. The fit of 10 ms reads ~47 dB on the fixed-ratio resampler itself: its floor */
+        {
+            uint32_t w0;
+            double lvl = 0, nw = 0;
+            for (ch = 0; ch < CH; ch++)
+                for (w0 = 0; w0 + 480u <= got; w0 += 480u) {
+                    sine_fit(st_rec + w0 * CH + ch, 480u, CH, 997.0 * produced / got, 44100.0, &amp, &snr);
+                    worst = snr < worst ? snr : worst;
+                    if (!ch) { lvl += amp; nw++; }
+                }
+            amp = lvl / nw;
+            {   /* (the windows' SNR over time, channel 0: where the worst ones are) */
+                double mn[11] = {999,999,999,999,999,999,999,999,999,999,999};
+                for (w0 = 0; w0 + 480u <= got; w0 += 480u) {
+                    uint32_t sec = w0 / 48000u;
+                    sine_fit(st_rec + w0 * CH, 480u, CH, 997.0 * produced / got, 44100.0, &amp5, &snr);
+                    if (sec < 11u && snr < mn[sec]) mn[sec] = snr;
+                }
+                printf("     worst 10 ms SNR per second:");
+                for (w0 = 0; w0 < 10u; w0++) printf(" %.0f", mn[w0]);
+                printf("\n");
+            }
         }
-        sine_fit(st_rec, got, CH, 997.0 * 147.0 / 160.0, 44100.0, &amp, &snr);
-        snprintf(m, sizeof m, "  what the host records: one unbroken 997 Hz sine in all six channels, SNR %.1f dB "
-                 "(the worst %.1f), level %+.2f dB", snr, worst, 20 * log10(amp / 29204.0));
-        check(m, snr > 80.0 && worst > 74.0 && fabs(20 * log10(amp / 29204.0)) < 0.02);
+        snprintf(m, sizeof m, "  what the host records: an unbroken 997 Hz sine in all six channels, the worst 10 ms "
+                 "SNR %.1f dB, level %+.2f dB", worst, 20 * log10(amp / 29204.0));
+        check(m, worst > 35.0 && fabs(20 * log10(amp / 29204.0)) < 0.05);   /* (the old fixed-ratio resampler reads 47 dB by
+                                                    * this measure: the 10 ms fit's own floor) */
     }
 }
 

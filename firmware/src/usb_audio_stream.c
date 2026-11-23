@@ -84,7 +84,11 @@ static struct {
     uint8_t r48;                                /* the host's rate (SET_CUR, ua_rate_set): 1 = 48 kHz; 0 = 44.1 kHz,
                                                  * also after a bus reset or a new configuration (ua_reset) */
     uint8_t rs_on;                              /* the resampler's history is this stream's (0: it starts from silence) */
-    uint32_t rs_ph;                             /* the next output frame's phase, 0..159 */
+    uint32_t rs_ph;                             /* the next output frame's phase, 0..159, Q16 (a fractional step) */
+    int32_t rs_adj;                             /* the step's trim, Q16 phases (ua_hc_steer): the I2S's frames
+                                                 * resampled to the host's own 48 kHz, so every packet is 48 frames */
+    int32_t rs_int, rs_lp;                      /* the trim's integral (the learned ratio, kept over streams);
+                                                 * the ring's fill low-passed, Q8 */
     uint32_t rate_sets, rate_changes;           /* SET_CUR sampling-frequency requests; those that changed the rate */
     uint32_t rs_blocks, rs_ticks, rs_max_ticks; /* blocks resampled; their time (usb_audio.c ua_block48: halved with
                                                  * rs_blocks at 65536, so rs_ticks / rs_blocks is a recent average)
@@ -98,6 +102,7 @@ static struct {
 static void ua_cap_reset(void)
 {
     ua.cw = ua.cr = ua.cap_frac = 0;
+    ua.rs_lp = (int32_t)(UA_CAP_TARGET << 8);       /* the trim's low-pass starts on target (ua_hc_steer) */
     ua.cap_nudge = 0;
     ua.cap_pend = 0;
     ua.cap_ready = 0;
@@ -106,6 +111,7 @@ static void ua_cap_reset(void)
 
 static void ua_reset(void)
 {
+    ua.rs_int = ua.rs_adj = 0;                   /* a new connection: the clocks' ratio learned again */
     ua.cap_alt = 0;
     ua.r48 = 0;                                 /* (a bus reset, a new configuration, usb_start: 44.1 kHz again) */
     ua.rs_on = 0;
@@ -138,6 +144,29 @@ static void ua_sof(void)
 
 /* the next capture packet into p (PCM16, little-endian): 44 or 45 frames by the pattern and the nudge (at 48 kHz:
  * 48 frames, 49 or 47 on a nudge); silence until the ring is primed. Returns its length in bytes */
+/* 48 kHz ON THE HOST'S CLOCK (felucca-bsp FELUCCA_UAC_HOST_CLOCK's idea, for ChoralRoot's six channels and its
+ * 160 / 147 resampler): the I2S runs ~400 ppm fast (24 MHz / 544), so the ring gained a frame every ~52 ms and a
+ * 49-frame packet took it. macOS follows the packets' lengths; an iPhone recording video does not: it dropped a
+ * chunk every ~6 s (a click in the video's sound; an iPhone filming at 44.1 and 48 kHz). Here the resampler's step is trimmed instead, so the
+ * ring holds its fill and every packet is 48 frames: a PI loop on the fill, once a packet, low-passed (1/64 a packet),
+ * critically damped near wn 0.56 rad/s (the plant: 48000 / (147 << 16) frames a second per unit of trim), the
+ * integral the clocks' learned ratio. The nudge stays as a safety outside the band */
+#define UA_HC_KI_SH 9                            /* the integral's term: rs_int >> 9 */
+#define UA_HC_MAX 19270                          /* +-2000 ppm of the step */
+#define UA_HC_FAR 24                             /* frames off the target: the fast gains (Felucca's HC_E1) */
+static void ua_hc_steer(uint32_t fill)
+{
+    int32_t e, a, far;
+    ua.rs_lp += ((int32_t)(fill << 8) - ua.rs_lp) >> 6;
+    e = (ua.rs_lp >> 8) - (int32_t)UA_CAP_TARGET;
+    far = e > UA_HC_FAR || e < -UA_HC_FAR;
+    ua.rs_int += far ? e << 5 : e;               /* fast: wn ~0.56 rad/s (the ratio learned in seconds); near the
+                                                  * target slow, wn ~0.1 rad/s: the pitch steady (tens of ppm) */
+    if (ua.rs_int > (UA_HC_MAX << UA_HC_KI_SH)) ua.rs_int = UA_HC_MAX << UA_HC_KI_SH;
+    if (ua.rs_int < -(UA_HC_MAX << UA_HC_KI_SH)) ua.rs_int = -(UA_HC_MAX << UA_HC_KI_SH);
+    a = e * (far ? 200 : 40) + (ua.rs_int >> UA_HC_KI_SH);
+    ua.rs_adj = a > UA_HC_MAX ? UA_HC_MAX : a < -UA_HC_MAX ? -UA_HC_MAX : a;
+}
 static uint32_t ua_transmit(uint8_t *p)
 {
     uint32_t i, n, take = 0;
@@ -152,6 +181,8 @@ static uint32_t ua_transmit(uint8_t *p)
     }
     if (!ua.cap_ready && ua.cw - ua.cr >= UA_CAP_TARGET)
         ua.cap_ready = 1;
+    if (ua.cap_ready && ua.r48)
+        ua_hc_steer(ua.cw - ua.cr);
     if (ua.cap_ready) {                         /* the drift: one frame more or fewer, rarely, on a 44 or a 45 */
         uint32_t f = ua.cw - ua.cr;
         if (ua.cap_nudge < UA_NUDGE_EVERY)
@@ -302,7 +333,7 @@ static inline void ua_rs_copy(int16_t *d, const int16_t *s, uint32_t frames)   /
  * a stream, or after a rate change, starts from a silent history */
 static __attribute__((noinline)) uint32_t ua_resample(const int16_t *in, uint32_t n)
 {
-    uint32_t i, k = 0, ph = ua.rs_ph, m;
+    uint32_t i, k = 0, ph = ua.rs_ph, m, step = (UAC_FIR_M << 16) + (uint32_t)ua.rs_adj;   /* (trimmed) */
     int16_t *o = ua.rs_out;
     const int16_t *x;
     if (n > UA_RS_BLOCK)
@@ -320,15 +351,19 @@ static __attribute__((noinline)) uint32_t ua_resample(const int16_t *in, uint32_
         if (i == m)
             x = in;                                     /* (frame UA_RS_HIST's window is the block's first 12) */
         do {
-            if (ph < UAC_FIR_L / 2u)
-                ua_fir6_fwd(x, UAC_FIR[ph], o);
+            uint32_t q = (ph + 0x8000u) >> 16;          /* the nearest of the 160 phases: at trim 0 exactly
+                                                         * the phase it always was (ph a multiple of 1 << 16) */
+            if (q > UAC_FIR_L - 1u)
+                q = UAC_FIR_L - 1u;
+            if (q < UAC_FIR_L / 2u)
+                ua_fir6_fwd(x, UAC_FIR[q], o);
             else
-                ua_fir6_bwd(x, &UAC_FIR[UAC_FIR_L - 1u - ph][UAC_FIR_N - 1u], o);
+                ua_fir6_bwd(x, &UAC_FIR[UAC_FIR_L - 1u - q][UAC_FIR_N - 1u], o);
             o += UA_CAP_CHANNELS;
             k++;
-            ph += UAC_FIR_M;
-        } while (ph < UAC_FIR_L);
-        ph -= UAC_FIR_L;
+            ph += step;
+        } while (ph < (UAC_FIR_L << 16));
+        ph -= UAC_FIR_L << 16;
     }
     if (n >= UA_RS_HIST)                                /* the next block's history: this one's last frames */
         ua_rs_copy(ua.rs_in, in + (n - UA_RS_HIST) * UA_CAP_CHANNELS, UA_RS_HIST);
