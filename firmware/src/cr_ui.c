@@ -684,7 +684,14 @@ static void cr_settings_dc_user(void);    /* .. the player set Dual Core: the re
 #endif
 static uint8_t cr_restore_lock;            /* cr_backup.c: a settings record was restored into flash; the UI's state is
                                             * older, so no settings save until the restart (RESTART, or a power cycle) */
-#define CR_SETTINGS_BUSY() (cr_snap.lstate == CRL_PLAYING || cr_restore_lock)   /* cr_settings.c: no flash erase while a
+#if FELUCCA_UAC
+#define CR_UAC_REC() (ua.cap_alt != 0)    /* a computer or a phone records ChoralRoot In: an erase stops the stream
+                                           * (~18 ms measured on the unit, every IRQ held): a gap in the recording, a
+                                           * click in a phone's video. No automatic write then; SAVE held still writes */
+#else
+#define CR_UAC_REC() 0
+#endif
+#define CR_SETTINGS_BUSY() (cr_snap.lstate == CRL_PLAYING || cr_restore_lock || CR_UAC_REC())   /* cr_settings.c: no flash erase while a
                                                                                  * loop plays (nor over a restore) */
 
 static void cu_pos_sync(void)
