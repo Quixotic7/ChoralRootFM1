@@ -528,7 +528,8 @@ static USB_COLD void ep0_service(void)
 #if FELUCCA_UAC
         ua_rate_pending = 0;
 #endif
-        return;
+        csr = sie_rd(S_CSR0);                           /* (felucca-bsp 3c80360, #28) a SETUP may be here already: its
+                                                         * interrupt was this one; returning left it to the host's timeout */
     }
     if (csr & 0x10u) {                                  /* SetupEnd: the host abandoned the transfer */
         sie_wr(S_CSR0, 0x80);
