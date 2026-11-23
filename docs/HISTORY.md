@@ -8865,3 +8865,22 @@ merged in 3y317), first released here. docs/releases/0.44.md; web/releases.json'
 f7cca18f...5e87, Elite 37b602b9...f801 / 53204fb1...8ebf14, MKE-P37 70679973...c23f / 4b078b36...5b83); MANUAL.md's
 first line; the dev version 0.44; SMK37.md for 0.44-smk37. FM-1 XIP 571,932 of 573,440. Flashed on E81CE2F7 before
 the release (the dev build of the same tree). `CR_VERSION=0.44 sh tests/run_all.sh`.
+
+## 2026-11-23
+
+3y321. **Ten fixes from flariut (GitHub PRs #67..#76), most of them ports of Felucca / felucca-bsp fixes.** The owner:
+"all of these seem good to merge". #67 the encoders: no 2-sample filter, and a 2-state jump on the detent goes the way
+of a click of the last ~22 ms (FM1_ENC_GO; Felucca #126). #68 TRS MIDI in: the UART's DMA count is taken only on a
+receive / timeout event, a receive event every 32 bytes, the control registers 16-bit (Felucca #264). #69 TRS MIDI
+clock: TIMER5 nested in the audio ISR polls the UART too, so incoming bytes keep their 2 kHz stamps (Felucca #258;
+every producer of midi_in_q is still TIMER5, events_block's overflow recovery refuses new events while it resets).
+#70 SysEx: ota_service runs only for a held frame that is not the editor's (Felucca #312). #71 the LED lines off
+before a 4 KB erase (Felucca #236; FM-1 only). #72 USB: after SentStall CSR0 is read again and a SETUP already there
+is answered (felucca-bsp #28). #73 USB Host: a bulk MIDI endpoint declaring 128 / 256 / 512 is used as 64 (an
+Elektron Digitone II at full speed). #74 USB audio at 48 kHz: the 160 / 147 resampler takes a Q16 step trimmed by a
+PI loop on the capture ring's fill, so every packet is 48 frames on the host's clock (an iPhone filming video
+clicked every few seconds); 44.1 kHz unchanged. #75 no automatic flash write while the capture interface is open
+(CR_SETTINGS_BUSY: ua.cap_alt), as while a loop plays; SAVE held still writes; MANUAL.md "Saving" and the
+troubleshooting row say so. #76 popups with a stripe per value (octave, split point, prog keys) light value k of n as
+k + 1 stripes. All ten together: `sh tests/run_all.sh` 25 suites passed; FM-1 XIP 572,364 of 573,440; SMK-37 XIP
+572,880 of 573,440 (560 spare).

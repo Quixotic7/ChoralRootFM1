@@ -2147,8 +2147,10 @@ with Standard chosen, the default) puts Dual Core back as your settings say.
 - **A SAVE tap** is still the save-preset dialog ([Saving](#saving)). Saving a sound as a preset is stored at
   once, as before, and so is a loop when you move to another slot.
 - **The Options are the exception: they are stored by themselves**, as every setting was until 0.17: a moment after
-  the instrument falls quiet (about two seconds without a change and without a sound), never while a loop plays. So
-  is the panel calibration. A revert does not touch the Options.
+  the instrument falls quiet (about two seconds without a change and without a sound), never while a loop plays and
+  never while a computer or phone records the FM-1's audio over USB (a save would leave a click in the recording; it
+  is stored when the recording app lets go of the FM-1, or hold SAVE). So is the panel calibration. A revert does
+  not touch the Options.
 
 | A global save keeps (SAVE held) | Stored by itself | Never kept, on purpose |
 | --- | --- | --- |
@@ -2728,7 +2730,7 @@ More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), 
 | After updating to 0.18 the reverb and the delay sound different | they are new, and start at their defaults | [FX](#8-fx) |
 | My edit is gone | unsaved changes are lost with the next sound, and at power-off unless you held SAVE | SAVE tap to make it a preset; SAVE held to keep the part as it is |
 | `no free slot` | all 128 saved sounds are used | delete one (SAVE held in the save dialog), or use the device manager |
-| A setting did not survive switching off | it was not saved: only the Options are stored by themselves (a moment after the instrument falls quiet, never while a loop plays) | hold SAVE before switching off |
+| A setting did not survive switching off | it was not saved: only the Options are stored by themselves (a moment after the instrument falls quiet, never while a loop plays or a computer records the FM-1's audio) | hold SAVE before switching off |
 | My loop is gone after switching off | loops are no longer saved when they stop | hold SAVE; moving to another slot also saves the loop you leave |
 | I recorded over a loop I liked | | GLO + SAVE held for a second: the loop as last saved is back (with everything else as last saved) |
 | SAVE held no longer shows the loop slots | it is the global save now | PLAY menu: PRESETS picks the slot; clear + save empties one |
