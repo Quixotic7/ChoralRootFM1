@@ -8,6 +8,27 @@
   },
   "releases": [
     {
+      "version": "0.45",
+      "date": "2026-11-23",
+      "tag": "v0.45",
+      "sha256": "63e5e501d2ae1e0cdedd89d3f4e2d458beb3a2953c52ef79455fab9d605ea89e",
+      "sha256_1core": "b9cd3d6cd671274ba421ec3b24a3109da9f33154262f209bdadcf5bf86353f5b",
+      "title": "Fixes: fast knob turns, TRS MIDI, 48 kHz USB audio",
+      "bullets": [
+        "A fast turn of a knob no longer loses clicks.",
+        "TRS MIDI in and an external MIDI clock on it arrive steadily, without stray bytes or bunched clock pulses.",
+        "USB Host works with devices such as the Elektron Digitone II (it showed NO MIDI).",
+        "USB audio at 48 kHz follows the host's clock: no more clicks when an iPhone films with the FM-1 as its microphone.",
+        "No automatic save while a computer or phone records the FM-1's audio over USB; it is stored when the recording stops.",
+        "The web editor and the device manager no longer miss a request now and then; the panel no longer blinks at a save.",
+        "Your settings, sounds, loops, progressions and favorites come through the update."
+      ],
+      "notes": [
+        "Ten fixes from flariut (GitHub pull requests 67 to 76), most of them ported from Felucca.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.44",
       "date": "2026-11-22",
       "tag": "v0.44",
@@ -23,7 +44,14 @@
       "notes": [
         "Only the screen changes on the FM-1: nothing that sounds, is recorded or is sent over MIDI is different.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.44 stores everything the same way, so your settings, sounds, loops, progressions and favorites stay.",
+        "points": [
+          "The fixes of 0.45 go: a fast knob turn can skip a click again, and 48 kHz USB audio can click on an iPhone.",
+          "Options > Version reads ChoralRoot 0.44 again."
+        ]
+      }
     },
     {
       "version": "0.43",

@@ -8884,3 +8884,14 @@ clicked every few seconds); 44.1 kHz unchanged. #75 no automatic flash write whi
 troubleshooting row say so. #76 popups with a stripe per value (octave, split point, prog keys) light value k of n as
 k + 1 stripes. All ten together: `sh tests/run_all.sh` 25 suites passed; FM-1 XIP 572,364 of 573,440; SMK-37 XIP
 572,880 of 573,440 (560 spare).
+
+3y322. **0.45 and 0.45-smk37: flariut's ten fixes (3y321) released.** The owner: "Yes, prepare 0.45" after the checks
+on E81CE2F7 (main's build): #70 99 of 100 info reads and 5 of 5 backups with the editor's traffic; #74 at 48 kHz every
+packet 48 frames, no nudges or underruns, the resampler's cost as 0.44's; #75 an Option changed during a 120 s capture
+stored once 2 to 5 s after the capture closed (saves_auto 0 -> 1, none while ua_cap_alt was 1); #76 in the emulator's
+UI trace. #67, #68, #69, #71, #72, #73 not tried on a unit (a fast knob, a TRS source, a Digitone). docs/releases/0.45.md;
+web/releases.json's 0.45 first (sha256 63e5e501...a89e, 1-core b9cd3d6c...3f5b) and 0.44's going-back note;
+web/releases-smk37.json's 0.45-smk37 (Pro 8178114c...070d / cf1a1848...90fb, Elite b83592e1...f10d / a6f17035...8ce4,
+MKE-P37 4bb36639...4568 / 2fb60e2a...c505); MANUAL.md's first line; the dev version 0.45; SMK37.md for 0.45-smk37.
+FM-1 XIP 572,364 of 573,440; SMK-37 XIP 572,880 (Elite 572,896) of 573,440. Both boards built twice (build.sh
+--release and hub_build.sh) to the same SHA256SUMS. `CR_VERSION=0.45 sh tests/run_all.sh`.

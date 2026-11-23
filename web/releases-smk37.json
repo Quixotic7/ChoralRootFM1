@@ -3,6 +3,38 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.45-smk37",
+      "base": "0.45",
+      "date": "2026-11-23",
+      "tag": "v0.45-smk37",
+      "title": "0.45-smk37: MIDI and USB fixes",
+      "bullets": [
+        "TRS MIDI in and an external MIDI clock on it arrive steadily.",
+        "USB Host works with devices such as the Elektron Digitone II.",
+        "USB audio at 48 kHz follows the host's clock: no clicks on an iPhone.",
+        "No automatic save while a computer or phone records the keyboard's audio over USB.",
+        "The web editor and the device manager no longer miss a request now and then.",
+        "Updating keeps your sounds, loops, progressions, favourites and settings."
+      ],
+      "notes": [
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "8178114cd4a0b4dc481d1f6e4f21e2749e13731749c78fcbda6707f05aa4c70d",
+          "sha256_1core": "cf1a184857855379a9c32235c2842c913218d21b3b2bf87ba4a354f36f2b90fb"
+        },
+        "elite": {
+          "sha256": "b83592e158fe3f4544c9d16e20107ee3df0b3652606c7155e31a56349f17f10d",
+          "sha256_1core": "a6f17035c73bb92010d907446b3b52d568eef8e17302555c6dd53f2e82098ce4"
+        },
+        "mke": {
+          "sha256": "4bb36639fad07586a336cfbe9479a3292a5016f6514ad3af228e5e5617bf4568",
+          "sha256_1core": "2fb60e2ae9083fd08b1bc8d595f8f92b57e14fbf42e00bce8c3c9d8f194cc505"
+        }
+      }
+    },
+    {
       "version": "0.44-smk37",
       "base": "0.44",
       "date": "2026-11-22",
