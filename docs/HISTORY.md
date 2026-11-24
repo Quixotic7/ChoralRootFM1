@@ -8895,3 +8895,25 @@ web/releases-smk37.json's 0.45-smk37 (Pro 8178114c...070d / cf1a1848...90fb, Eli
 MKE-P37 4bb36639...4568 / 2fb60e2a...c505); MANUAL.md's first line; the dev version 0.45; SMK37.md for 0.45-smk37.
 FM-1 XIP 572,364 of 573,440; SMK-37 XIP 572,880 (Elite 572,896) of 573,440. Both boards built twice (build.sh
 --release and hub_build.sh) to the same SHA256SUMS. `CR_VERSION=0.45 sh tests/run_all.sh`.
+
+3y323. **On the Move: the engine's name while picking, and takeover knobs under control** (f72ffdf2, fa9ab7a9). The
+owner on the Move: "Need the engine name to show up while turning" (OPT + PRESETS / ALGORITHM showed only "Shift"
+until OPT's release): `cu_epk_step` pushes `RFM1_READOUT_BAR(-1, "Engine" / "Bass engine", the engine, its place)` at
+each detent; `tests/cr_readout_test.c` (run_cr_tests.sh, 5 checks). Then: "All the sound engine and FX parameters
+inside the ChoralRoot takeover layout are way too twitchy and impossible to control. For example room size almost
+jumps from 0 to 127 while barely turning the knob. The frequency though is floating point and takes a long time to
+sweep, it should use some kind of knob acceleration": `cmv_knob` no longer multiplies a quick Move tick by up to ten
+(which `kn_turn` then read as a spin), a value in a layer, the sound editor or the Options turns one FM-1 detent per 2
+Move ticks (a turn's first tick at once) through `kn_turn`, and the editor's knobs call `kn_turn` (they never did, so
+a hi-res cutoff kept the finest step). FM1VST's `rfm1_cr_tk_test.py` checks Reverb Size (a 3-tick nudge 86, not 0)
+and FM TONE's Freq (a fast spin to 0.00). Both are the .rfm1's only: built as 0.45, the FM-1's image is byte-identical
+to v0.45's.
+
+3y324. **0.46 and 0.46-smk37: 3y323 released.** The owner (2026-11-24, relayed from the RemoteFM14Move session):
+"all of RemoteFM14Moves work that was done today is good to push and release along with choralroot updates".
+docs/releases/0.46.md; web/releases.json's 0.46 first (sha256 8f1501b6...f288, 1-core 7404e0fc...ee61) and 0.45's
+going-back note; web/releases-smk37.json's 0.46-smk37 (Pro e3ef7a34...f387 / df30dcb3...7a24, Elite 78ebe3c5...da68 /
+dcbb9ea1...da97, MKE-P37 4a583f33...0ed0 / b7164d88...c529); MANUAL.md's first line; the dev version 0.46; SMK37.md for
+0.46-smk37. The FM-1 and the SMK-37 play as 0.45 (sizes as 0.45's: FM-1 XIP 572,364, SMK-37 572,880, Elite 572,896 of
+573,440). Both boards built twice (build.sh --release and hub_build.sh) to the same SHA256SUMS.
+`CR_VERSION=0.46 sh tests/run_all.sh`.

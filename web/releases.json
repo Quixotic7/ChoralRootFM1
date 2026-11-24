@@ -8,6 +8,24 @@
   },
   "releases": [
     {
+      "version": "0.46",
+      "date": "2026-11-23",
+      "tag": "v0.46",
+      "sha256": "8f1501b681a26c3985bf9188239023065c80807b731a22c27c22f9549c51f288",
+      "sha256_1core": "7404e0fcfb0b4f278ec1c7a7b73213ca66f0491b1fd7303a30eb717237aaee61",
+      "title": "On the Ableton Move: knobs under control, the engine named",
+      "bullets": [
+        "On the Ableton Move (RemoteFM1), the takeover's sound editor, FX and settings knobs no longer jump: a slow turn makes the smallest change, a fast spin sweeps the whole range.",
+        "On the Move, holding OPT and turning PRESETS or ALGORITHM names each engine on the screen as you turn past it.",
+        "On the FM-1 nothing changes: 0.46 plays exactly as 0.45.",
+        "Your settings, sounds, loops, progressions and favorites come through the update."
+      ],
+      "notes": [
+        "The changes are ChoralRoot's in RemoteFM1 on the Ableton Move; the FM-1 firmware is 0.45's with a new version.",
+        "The Single core package is the same firmware on one core."
+      ]
+    },
+    {
       "version": "0.45",
       "date": "2026-11-23",
       "tag": "v0.45",
@@ -26,7 +44,14 @@
       "notes": [
         "Ten fixes from flariut (GitHub pull requests 67 to 76), most of them ported from Felucca.",
         "The Single core package is the same firmware on one core."
-      ]
+      ],
+      "going_back": {
+        "short": "0.45 stores everything the same way, so your settings, sounds, loops, progressions and favorites stay, and the FM-1 plays the same.",
+        "points": [
+          "On the Ableton Move, the takeover's knobs are quick again and the engine is named only when you let go of OPT.",
+          "Options > Version reads ChoralRoot 0.45 again."
+        ]
+      }
     },
     {
       "version": "0.44",

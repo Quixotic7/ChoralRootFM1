@@ -3,6 +3,34 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.46-smk37",
+      "base": "0.46",
+      "date": "2026-11-23",
+      "tag": "v0.46-smk37",
+      "title": "0.46-smk37: as 0.45-smk37",
+      "bullets": [
+        "Plays exactly as 0.45-smk37: 0.46's changes are ChoralRoot's on the Ableton Move.",
+        "Updating keeps your sounds, loops, progressions, favourites and settings."
+      ],
+      "notes": [
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "e3ef7a3416ad8290814470efa124a7d857a8c22811dd01f62434366e4bd0f387",
+          "sha256_1core": "df30dcb39e77b7e38f1c28dcd049b8ac5cda8ccb419ede02b486c31a1d907a24"
+        },
+        "elite": {
+          "sha256": "78ebe3c50efd49239bedfb13072e9e045d75cf981abff3b1d387b4ed5a76da68",
+          "sha256_1core": "dcbb9ea190b076c2c8c4f40b6de21b716f68cf23e144777275256ebb44e5da97"
+        },
+        "mke": {
+          "sha256": "4a583f33ed91026b59349810716e8573787d15b0a76cc30b8555986a2ebed0dc",
+          "sha256_1core": "b7164d8815df76ad21d156300de03d66bb2598933c37d4af5a4559e57ef0c529"
+        }
+      }
+    },
+    {
       "version": "0.45-smk37",
       "base": "0.45",
       "date": "2026-11-23",
