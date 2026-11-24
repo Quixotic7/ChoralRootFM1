@@ -6276,6 +6276,11 @@ static void cu_epk_step(uint32_t part, int32_t s)
         cu.pop.until = 0;
     }
     cu.epk_rank = (uint8_t)(((int32_t)cu.epk_rank + s % (int32_t)n + (int32_t)n) % (int32_t)n);
+    /* a host's readout at every detent (rd1; the owner, 2026-11-23, on the Move: "Need the engine name to show up while
+     * turning"): the engine under the cursor, the bar its place among the engines. The FM-1's screen is the picker's
+     * (cu_epk_screen), unchanged; OPT's release pushes the sound picked (cu_epk_commit: cu_pool_popup's RFM1_PRESET) */
+    RFM1_READOUT_BAR(-1, part ? "Bass engine" : "Engine", ENGINES[cu_engine_at(cu.epk_rank, 0)]->name,
+                     (int32_t)cu.epk_rank, 0, (int32_t)n - 1);
     cu_trace("engine pick: %s%s (%u presets)\n", part ? "bass " : "", ENGINES[cu_engine_at(cu.epk_rank, 0)]->name,
              (unsigned)pool_count(cu_engine_at(cu.epk_rank, 0)) - 1u);
 }

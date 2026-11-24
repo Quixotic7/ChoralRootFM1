@@ -137,6 +137,10 @@ t logged_last cr_p5rows_test
 # Options > MIDI CC. ./build/host/cr_cc_test --map prints the manual's tables
 par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_cc_test tests/cr_cc_test.c -lm
 t logged_last cr_cc_test
+# a host's readouts (rd1, firmware/src/rfm1_ext.h) with FM1_HOST_EXT as an .rfm1 defines it: OPT + PRESETS / ALGORITHM
+# pushes the engine under the cursor at every detent, OPT's release the sound picked
+par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -DFM1_HOST_EXT -o build/host/cr_readout_test tests/cr_readout_test.c -lm
+t logged_last cr_readout_test
 # a full pool's browsing: no flash read on a frame, a detent reads only the sound it loads (3y60)
 par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_poolperf_test tests/cr_poolperf_test.c -lm
 t ./build/host/cr_poolperf_test
