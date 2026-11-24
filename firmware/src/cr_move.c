@@ -1188,6 +1188,9 @@ static void cmv_lay_turn(uint32_t k, int32_t s)
     } else if (cmv_editing()) {
         uint8_t *lane, was;
         if (cmv_ed_lane(k, &lane, &was)) {
+            kn_turn(EN_K1 + (k & 3u), s, cu_now(), 0);   /* the knob's speed, as cu_knob gives the FM-1's editor
+                                                    * (cr_pages.c kn_turn): without it ce_knob stepped at whatever
+                                                    * speed another knob had left, a cutoff 0.01 a tick */
             ce_knob(k & 3u, s, 0);
             *lane = was;
         }
@@ -1641,6 +1644,7 @@ static void cmv_pop_say(int kind)
  * settings knob whose value is a name): an entry every CMV_LIST_TICKS of the Move's encoder (the owner, 2026-11-20:
  * one an encoder tick was too fast); the rest a step a tick */
 #define CMV_LIST_TICKS 4
+#define CMV_VAL_TICKS 2                            /* a value in a layer, the editor, the Options: ticks a detent */
 static int cmv_listy(int kind)
 {
     if (kind >= K_LAY0) {
@@ -1669,12 +1673,29 @@ static void cmv_knob(uint32_t k, int32_t d)
         cmv.loop_used = 1;
     if (!cmv_kv(kind, t, sizeof t, v, sizeof v, &pct))   /* (no job here: a dark ring, nothing) */
         return;
-    if (cmv_listy(kind) || kind == K_RATE) {      /* a list: 4 ticks an entry; Perf amount: 3 a step (proposal 5:
-                                                    * a tick a step was too twitchy) */
-        const int32_t per = kind == K_RATE ? CMV_RATE_TICKS : CMV_LIST_TICKS;
+    if (cmv_listy(kind) || kind == K_RATE || (kind >= K_LAY0 && kind < K_LAY0 + 8)) {
+        /* a list: 4 ticks an entry; Perf amount: 3 a step (proposal 5: a tick a step was too twitchy); a value in a
+         * layer, the editor or the Options: an FM-1 detent every CMV_VAL_TICKS, as rfm1cs's plain mode turns the
+         * FM-1's knobs (RFM_MOVE_KNOB_TICKS), and the detents through the FM-1's own acceleration (cr_pages.c
+         * kn_turn: a turn's first two detents and a slow turn the finest step, a quick one up to the range / 20 a
+         * detent). The owner, 2026-11-24: "way too twitchy .. room size almost jumps from 0 to 127 while barely
+         * turning the knob": until then a quick tick was ten detents (proposal 7's acceleration) and kn_turn read
+         * those ten as a spin, half the range a tick */
+        const int32_t per = kind == K_RATE ? CMV_RATE_TICKS : cmv_listy(kind) ? CMV_LIST_TICKS : CMV_VAL_TICKS;
+        const int list = kind != K_RATE && cmv_listy(kind);
+        static uint32_t at[8];
+        static int8_t dir[8];
+        const uint32_t now = cmv_now();
+        const int8_t sg = (int8_t)(d > 0 ? 1 : -1);
         int32_t t;
         if (acc_kind[k] != kind || (acc[k] > 0 && d < 0) || (acc[k] < 0 && d > 0))
             acc[k] = 0;                            /* another knob's job, or a turn back: start again */
+        if (!list && kind != K_RATE && (acc_kind[k] != kind || sg != dir[k] || now - at[k] > CMV_POP_MS))
+            acc[k] = (int8_t)(sg * (per - 1));     /* a value's turn begins (another job, a turn back, a rest): its
+                                                    * first tick a step at once (the owner's UX rule 1: feedback at
+                                                    * once), then a step every CMV_VAL_TICKS */
+        at[k] = now;
+        dir[k] = sg;
         acc_kind[k] = (int8_t)kind;
         t = acc[k] + d;
         d = t / per;
@@ -1684,17 +1705,13 @@ static void cmv_knob(uint32_t k, int32_t d)
             cmv.pop_until = cmv_now() + CMV_POP_MS;
             return;
         }
-        for (; d; d -= d > 0 ? 1 : -1)             /* an entry at a time (Perform's turn takes the sign only) */
-            cmv_turn(kind, d > 0 ? 1 : -1);
-    } else {
-        static uint32_t last[8];                   /* acceleration (proposal 7: a cutoff took forever): a value in a
-                                                    * layer or the editor moves further the faster the knob turns */
-        const uint32_t now = cmv_now(), dt = now - last[k];
-        last[k] = now;
-        if (kind >= K_LAY0 && kind < K_LAY0 + 8)
-            d *= dt < 25u ? 10 : dt < 50u ? 5 : dt < 90u ? 2 : 1;
+        if (list || kind == K_RATE)
+            for (; d; d -= d > 0 ? 1 : -1)         /* an entry at a time (Perform's turn takes the sign only) */
+                cmv_turn(kind, d > 0 ? 1 : -1);
+        else
+            cmv_turn(kind, d);                     /* (the detents together: kn_turn spaces them over the gap) */
+    } else
         cmv_turn(kind, d);
-    }
     cmv.pop_kind = (int8_t)kind;
     cmv.pop_until = cmv_now() + CMV_POP_MS;
     cmv.msg_until = 0;
