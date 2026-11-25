@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Melodee integration changes Copyright (C) 2026 Kerem Kilic (Ellic Studio).
  * Retains Optimist code from w0ts/optimist at 498a3ae47c4f01a6c0cc891c794f8cd2ed78cd66.
+ * The widening's floor and the peripheral's receive window (hw_widening, drv.widening): from charlesvestal/fm1-base
+ * bt/ble/ble_hw_wl82.c at 0eec34780873d0cb4c2cf1bfde56bd9251b09f63 (w0ts/optimist#17).
  * Provenance and local changes: docs/BLE_MIDI.md. */
 /* The baseband driver (ble_hw.h) on the AC791N / WL82 BLE engine, route C (docs/BLE-STACK.md §7, the interface §3; FELUCCA_BLE).
  *
@@ -138,6 +140,7 @@ static struct {
     uint32_t rx_us;                     /* ChoralRoot 3y245: ble_hw_time_us of the last RX interrupt in this link */
     uint8_t win_wide, upd, sca;
     uint16_t interval, last_evt, wide_from, upd_instant, chm_instant;
+    uint16_t widening;                 /* the link's widening, us: the steady window follows it */
     struct ble_hw_conn_upd u;
     uint8_t chm[5];
     struct ble_hw_adv adv;             /* the advertising set (the link layer's PDUs stay where they are) */
@@ -328,11 +331,17 @@ static void cb_channels(const uint8_t chm[5])
     CB->chmap[2] = (uint16_t)((chm[4] & 0x1Fu) | used << 5);
 }
 
-/* window widening, us (HW §7): 2 + 2 x floor(interval_us x (SCA ppm + 200) x (latency + 1) / 10^6), latency 0 */
+/* window widening, us (HW §7): 2 + 2 x ceil(interval_us x (SCA ppm + 200) x (latency + 1) / 10^6), latency 0,
+ * at least 16 us. Rounded down and without the floor, a central that claims an accurate clock got almost nothing: a CME
+ * WIDI Master (SCA 50 ppm, 7.5 ms) got 4 us, half its packets failed CRC and it dropped the link within seconds; at
+ * 16 us, under 1 % CRC failures and a stable link. The vendor's 200 ppm is kept: 500 widened the long intervals too
+ * (45 ms: 70 us), and a link updated from 30 to 45 ms then received nothing (w0ts/optimist#17;
+ * charlesvestal/fm1-base 0eec347808) */
 static uint32_t hw_widening(uint16_t interval, uint8_t sca)
 {
     static const uint16_t PPM[8] = {500, 250, 150, 100, 75, 50, 30, 20};   /* Core Vol 6 Part B 2.3.3.1 */
-    return 2u + 2u * ((uint32_t)interval * 1250u * (PPM[sca & 7u] + 200u) / 1000000u);
+    uint32_t w = 2u + 2u * (((uint32_t)interval * 1250u * (PPM[sca & 7u] + 200u) + 999999u) / 1000000u);
+    return w < 16u ? 16u : w;
 }
 
 static void cb_widen(uint32_t us)       /* HW §7 step 10 */
@@ -522,7 +531,8 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     fm1_ble_col_wr(HW_LINK, 5, 0);                         /* 7: no instant */
     fm1_ble_col_wr(HW_LINK, 4, c->win_offset ? 0x8000u | (2u * c->win_offset - 1u) : 0u);   /* 8 */
     fm1_ble_col_wr(HW_LINK, 2, 7u << 12);                  /* 9: state 7, latency 0 (we listen every event) */
-    cb_widen(hw_widening(c->interval, c->sca));            /* 10 */
+    drv.widening = (uint16_t)hw_widening(c->interval, c->sca);
+    cb_widen(drv.widening);                                /* 10 */
     fm1_ble_col_wr(HW_LINK, 8, 0);                         /* 11: advDelay off */
     fm1_ble_col_wr(HW_LINK, 3, 0);                         /* 12 */
     CB->evtcount = 0;
@@ -1029,10 +1039,15 @@ static void hw_instants(uint16_t counter)
             return;
         }
 #endif
-        cb_window((uint32_t)u->win_size * 1250u + 625u);
+        drv.widening = (uint16_t)hw_widening(u->interval, drv.sca);
+        cb_window((uint32_t)u->win_size * 1250u + 625u + drv.widening);   /* + the widening, as the vendor's (HW §9):
+                                                                 * the window opens a slot early (column 4) and the
+                                                                 * widening earlier still; without it the window ended
+                                                                 * that long before the transmit window, and a central
+                                                                 * sending late in it went unheard */
         CB->wincntl2 = HW_WIN_NORMAL;
         fm1_ble_col_wr(HW_LINK, 2, 7u << 12);              /* latency 0 */
-        cb_widen(hw_widening(u->interval, drv.sca));
+        cb_widen(drv.widening);
         fm1_ble_col_wr(HW_LINK, 4, u->win_offset ? 0x8000u | (2u * u->win_offset - 1u) : 0u);
         fm1_ble_col_wr(HW_LINK, 1, 2u * u->interval);
         fm1_ble_col_wr(HW_LINK, 15, 0x8000u | (2u * u->interval) >> 16);
@@ -1098,7 +1113,9 @@ static void hw_event_service(void)
     }
 #endif
     if (drv.win_wide && rx_ok && (int16_t)(counter - drv.wide_from) >= 0 && !drv.upd) {
-        cb_window(HW_WIN_NORMAL);       /* in step: the normal window (WINCNTL2), the offset spent */
+        cb_window(2u * drv.widening + HW_WIN_NORMAL);   /* in step, the offset spent: 2 x widening + 50 (HW §21's table).
+                                                         * The window opens w early, so a flat 50 closed it 50 - w after
+                                                         * the anchor (w0ts/optimist#17) */
         fm1_ble_col_wr(HW_LINK, 4, 0);
         cb_rfprio(28u);
         drv.win_wide = 0;
