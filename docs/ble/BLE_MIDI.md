@@ -154,6 +154,13 @@ the optional initial read, bounded security settling, exact CCC acknowledgement,
 and SRAM placement. Saadet was consulted at local branch `test/native48-saadet`;
 its SDK-specific helper was not copied into this stack.
 
+`firmware/src/ble/ble_hw_wl82.c` also carries one later upstream change: the
+widening's floor and the peripheral's receive window, from
+[charlesvestal/fm1-base](https://github.com/charlesvestal/fm1-base/commit/0eec34780873d0cb4c2cf1bfde56bd9251b09f63)
+`bt/ble/ble_hw_wl82.c`, commit `0eec34780873d0cb4c2cf1bfde56bd9251b09f63`
+([w0ts/optimist#17](https://github.com/w0ts/optimist/issues/17)). That commit's
+third change, only a CRC-good packet counting as the peer heard, is not taken.
+
 ## Validation
 
 `python3 tests/ble_tests.py` runs protocol/crypto, encrypted peripheral pairing,
